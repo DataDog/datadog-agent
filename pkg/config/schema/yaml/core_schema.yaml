@@ -5254,7 +5254,7 @@ properties:
             - template_section:CoreAgent
           entry_ttl:
             node_type: setting
-            type: number
+            type: string
             default: 24h0m0s
             format: duration
             visibility: public
@@ -5266,7 +5266,7 @@ properties:
             - template_section:CoreAgent
           clean_interval:
             node_type: setting
-            type: number
+            type: string
             default: 2h0m0s
             format: duration
             visibility: public
@@ -5278,7 +5278,7 @@ properties:
             - template_section:CoreAgent
           persist_interval:
             node_type: setting
-            type: number
+            type: string
             default: 2h0m0s
             format: duration
             visibility: public
@@ -5363,7 +5363,7 @@ properties:
             - template_section:CoreAgent
           recovery_interval:
             node_type: setting
-            type: number
+            type: string
             default: 5s
             format: duration
             visibility: public
@@ -6475,7 +6475,7 @@ properties:
     - full-agent-only:true
   auth_init_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 30s
     format: duration
     tags:
@@ -6633,14 +6633,14 @@ properties:
     default: false
   check_cancel_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 500ms
     format: duration
     tags:
     - golang_type:duration
   check_runner_utilization_monitor_interval:
     node_type: setting
-    type: number
+    type: string
     default: 1m0s
     format: duration
     tags:
@@ -6653,7 +6653,7 @@ properties:
     - golang_type:float64
   check_runner_utilization_warning_cooldown:
     node_type: setting
-    type: number
+    type: string
     default: 10m0s
     format: duration
     tags:
@@ -6687,7 +6687,7 @@ properties:
     - full-agent-only:true
   check_sampler_stateful_metric_expiration_time:
     node_type: setting
-    type: number
+    type: string
     default: 25h0m0s
     format: duration
     tags:
@@ -6699,21 +6699,21 @@ properties:
       only occasionally.
   check_system_probe_startup_time:
     node_type: setting
-    type: number
+    type: string
     default: 5m0s
     format: duration
     tags:
     - golang_type:duration
   check_system_probe_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 1m0s
     format: duration
     tags:
     - golang_type:duration
   check_watchdog_warning_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 0s
     format: duration
     tags:
@@ -7870,7 +7870,7 @@ properties:
     default: true
   dogstatsd_packet_buffer_flush_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 100ms
     format: duration
     tags:
@@ -7963,7 +7963,7 @@ properties:
     comment: EC2
   ecs_metadata_retry_initial_interval:
     node_type: setting
-    type: number
+    type: string
     default: 100ms
     format: duration
     tags:
@@ -7971,7 +7971,7 @@ properties:
     - full-agent-only:true
   ecs_metadata_retry_max_elapsed_time:
     node_type: setting
-    type: number
+    type: string
     default: 3s
     format: duration
     tags:
@@ -7985,7 +7985,7 @@ properties:
     - full-agent-only:true
   ecs_task_cache_ttl:
     node_type: setting
-    type: number
+    type: string
     default: 3m0s
     format: duration
     tags:
@@ -8232,7 +8232,7 @@ properties:
         default: 0
   expected_tags_duration:
     node_type: setting
-    type: number
+    type: string
     default: 0s
     format: duration
     tags:
@@ -8257,7 +8257,7 @@ properties:
     properties:
       profile_overhead_runtime:
         node_type: setting
-        type: number
+        type: string
         default: 10s
         format: duration
         tags:
@@ -8276,7 +8276,7 @@ properties:
             default: 0
           profile_duration:
             node_type: setting
-            type: number
+            type: string
             default: 30s
             format: duration
             tags:
@@ -8287,7 +8287,7 @@ properties:
         properties:
           duration:
             node_type: setting
-            type: number
+            type: string
             default: 1m0s
             format: duration
             tags:
@@ -8296,7 +8296,7 @@ properties:
     - full-agent-only:true
   flare_provider_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 10s
     format: duration
     tags:
@@ -8485,8 +8485,8 @@ properties:
         properties:
           interval:
             node_type: setting
-            type: number
-            default: 0s
+            type: string
+            default: 15m0s
             format: duration
             tags:
             - golang_type:duration
@@ -8517,7 +8517,7 @@ properties:
     comment: overridden in Heroku buildpack
   hostname_drift_initial_delay:
     node_type: setting
-    type: number
+    type: string
     default: 20m0s
     format: duration
     tags:
@@ -8528,7 +8528,7 @@ properties:
       These options are not exposed to customers and are used for testing purposes
   hostname_drift_recurring_interval:
     node_type: setting
-    type: number
+    type: string
     default: 6h0m0s
     format: duration
     tags:
@@ -8617,7 +8617,7 @@ properties:
     - full-agent-only:true
   http_dial_fallback_delay:
     node_type: setting
-    type: number
+    type: string
     default: -1ns
     format: duration
     tags:
@@ -8652,7 +8652,7 @@ properties:
     properties:
       gc_interval:
         node_type: setting
-        type: number
+        type: string
         default: 1h0m0s
         format: duration
         tags:
@@ -8663,7 +8663,7 @@ properties:
         default: ''
       refresh_interval:
         node_type: setting
-        type: number
+        type: string
         default: 30s
         format: duration
         tags:
@@ -9113,7 +9113,7 @@ properties:
     default: false
   kubernetes_kubelet_deviceplugins_cache_duration:
     node_type: setting
-    type: number
+    type: string
     default: 5s
     format: duration
     tags:
@@ -9280,7 +9280,7 @@ properties:
       Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
   metadata_provider_stop_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 30s
     format: duration
     tags:
@@ -9501,7 +9501,7 @@ properties:
                 default: false
           sleep_interval:
             node_type: setting
-            type: number
+            type: string
             default: 10s
             format: duration
             tags:
@@ -9517,21 +9517,21 @@ properties:
             comment: Remote agents
           idle_timeout:
             node_type: setting
-            type: number
+            type: string
             default: 30s
             format: duration
             tags:
             - golang_type:duration
           query_timeout:
             node_type: setting
-            type: number
+            type: string
             default: 3s
             format: duration
             tags:
             - golang_type:duration
           recommended_refresh_interval:
             node_type: setting
-            type: number
+            type: string
             default: 10s
             format: duration
             tags:
@@ -9616,7 +9616,7 @@ properties:
             default: 0
           cpu_duration:
             node_type: setting
-            type: number
+            type: string
             default: 1m0s
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_CPU_DURATION
@@ -9666,7 +9666,7 @@ properties:
             default: 0
           period:
             node_type: setting
-            type: number
+            type: string
             default: 5m0s
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_PERIOD
@@ -10171,7 +10171,7 @@ properties:
         default: true
   tls_handshake_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 10s
     format: duration
     tags:
@@ -10341,7 +10341,7 @@ properties:
         properties:
           collection_interval:
             node_type: setting
-            type: number
+            type: string
             default: 1m0s
             format: duration
             tags:

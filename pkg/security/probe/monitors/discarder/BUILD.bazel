@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "discarder",
+    srcs = ["discarder_monitor.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/ebpf",
+            "//pkg/security/metrics",
+            "//pkg/security/probe/managerhelper",
+            "//pkg/security/secl/model",
+            "//pkg/security/utils",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/ebpf",
+            "//pkg/security/metrics",
+            "//pkg/security/probe/managerhelper",
+            "//pkg/security/secl/model",
+            "//pkg/security/utils",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "//conditions:default": [],
+    }),
+)
