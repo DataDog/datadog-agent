@@ -78,7 +78,6 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 |--------|------------|
 | `dogstatsd` | `pkg/aggregator/demultiplexer_agent.go` (DogStatsD workers) |
 | `check` | `pkg/aggregator/demultiplexer_agent.go` (core check aggregator) |
-| `agent` | internal agent telemetry namespace for `datadog.*` metrics |
 | `logs` | `logssource/impl/logssource.go` |
 | `agent_logs` | `observer/impl/observer.go` (pkg/util/log tap) |
 
@@ -87,6 +86,9 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 - **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
 Both paths share filtering primitives from `internal/logsfilter/`.
+
+Metrics with the `datadog.*` prefix are normalized as internal agent telemetry
+and dropped before they reach observer storage.
 
 ## Reporter Model
 

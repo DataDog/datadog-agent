@@ -61,10 +61,9 @@ type Provides struct {
 
 // observation is a message sent from handles to the observer.
 type observation struct {
-	source    string
-	namespace string
-	metric    *metricObs
-	log       *logObs
+	source string
+	metric *metricObs
+	log    *logObs
 	// flush, when non-nil, is closed by the dispatch loop once this observation
 	// is reached, signalling that all prior observations have been processed.
 	flush chan struct{}
@@ -428,11 +427,7 @@ func (o *observerImpl) run() {
 		o.replayMu.Lock()
 		var requests []advanceRequest
 		if obs.metric != nil {
-			namespace := obs.namespace
-			if namespace == "" {
-				namespace = obs.source
-			}
-			requests = o.engine.IngestMetric(namespace, obs.metric)
+			requests = o.engine.IngestMetric(obs.source, obs.metric)
 		}
 		if obs.log != nil {
 			logRequests := o.engine.IngestLog(obs.source, obs.log)
@@ -829,13 +824,15 @@ func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView
 // the non-blocking channel send. Implements DebugView.
 func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
 	name := sample.GetName()
+	if strings.HasPrefix(name, "datadog.") {
+		source = observerdef.AgentNamespace
+	}
+	if source == observerdef.AgentNamespace {
+		return
+	}
 	timestamp := sample.GetTimestampUnix()
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
-	}
-	namespace := source
-	if strings.HasPrefix(name, "datadog.") {
-		namespace = observerdef.AgentNamespace
 	}
 	mo := &metricObs{
 		name:      name,
@@ -844,7 +841,7 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 		timestamp: timestamp,
 	}
 	o.replayMu.Lock()
-	requests := o.engine.IngestMetric(namespace, mo)
+	requests := o.engine.IngestMetric(source, mo)
 	for _, req := range requests {
 		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 	}
@@ -877,14 +874,16 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 	}
 
 	name := sample.GetName()
-	namespace := ""
+	source := h.source
 	if strings.HasPrefix(name, "datadog.") {
-		namespace = observerdef.AgentNamespace
+		source = observerdef.AgentNamespace
+	}
+	if source == observerdef.AgentNamespace {
+		return false
 	}
 
 	obs := observation{
-		source:    h.source,
-		namespace: namespace,
+		source: source,
 		metric: &metricObs{
 			name:      name,
 			value:     sample.GetValue(),

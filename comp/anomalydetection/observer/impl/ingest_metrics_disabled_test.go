@@ -88,7 +88,7 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 		"log-extractor virtual metrics must keep flowing into storage even when observer.ingest_metrics.enabled=false")
 }
 
-func TestAgentMetricsUseDedicatedNamespace(t *testing.T) {
+func TestAgentMetricsAreDropped(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	eng := newEngine(engineConfig{storage: storage})
 
@@ -133,8 +133,7 @@ func TestAgentMetricsUseDedicatedNamespace(t *testing.T) {
 	assert.Equal(t, "system.cpu.user", dogstatsdSeries[0].Name)
 
 	agentSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.AgentNamespace})
-	require.Len(t, agentSeries, 1)
-	assert.Equal(t, "datadog.agent.running", agentSeries[0].Name)
+	assert.Empty(t, agentSeries)
 
 	workloadSeries := storage.ListSeries(observerdef.WorkloadSeriesFilter())
 	require.Len(t, workloadSeries, 1)

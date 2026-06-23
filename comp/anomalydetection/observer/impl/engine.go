@@ -256,7 +256,6 @@ func (e *engine) registerHandle(h *handle) {
 // set is:
 //   - "dogstatsd"                  (pkg/aggregator/demultiplexer_agent.go, DogStatsD workers)
 //   - "check"                      (pkg/aggregator/demultiplexer_agent.go, core check aggregator)
-//   - "agent"                      (internal agent telemetry, datadog.* prefix)
 //   - "log_metrics_extractor"      (virtual metrics from logs)
 //   - "connection_error_extractor" (connection error extractor)
 //   - "log_pattern_extractor"      (log pattern extractor)
