@@ -87,7 +87,7 @@ func TestGetViperCombineWithoutSection(t *testing.T) {
 	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
-	cfg.BindEnv("network_path.collector.workers") //nolint:forbidigo // used to test behavior
+	cfg.BindEnvAndSetDefault("network_path.collector.workers", "0")
 
 	cfg.BuildSchema()
 	err := cfg.ReadConfig(strings.NewReader(configData))
@@ -119,8 +119,8 @@ func TestGetViperCombineWithoutDefaults(t *testing.T) {
 	// Create the config's defaults
 	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
-	cfg.BindEnv("network_path.collector.input_chan_size") //nolint:forbidigo // used to test behavior
-	cfg.BindEnv("network_path.collector.workers")         //nolint:forbidigo // used to test behavior
+	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", "0")
+	cfg.BindEnvAndSetDefault("network_path.collector.workers", "0")
 
 	cfg.BuildSchema()
 	err := cfg.ReadConfig(strings.NewReader(configData))

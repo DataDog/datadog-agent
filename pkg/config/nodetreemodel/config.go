@@ -735,30 +735,6 @@ func (c *ntmConfig) ParseEnvJSON(key string, varType any) {
 	}
 }
 
-// IsSet checks if a key is set in the config
-func (c *ntmConfig) IsSet(key string) bool {
-	c.maybeRebuild()
-
-	c.RLock()
-	defer c.RUnlock()
-
-	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
-		return false
-	}
-
-	pathParts := splitKey(key)
-	curr := c.root
-	for _, part := range pathParts {
-		next, err := curr.GetChild(part)
-		if err != nil {
-			return false
-		}
-		curr = next
-	}
-	return true
-}
-
 func hasNonDefaultLeaf(node *nodeImpl) bool {
 	// We're on an InnerNode, we need to check if any child leaf are not defaults
 	for _, name := range node.ChildrenKeys() {
@@ -920,20 +896,6 @@ func (c *ntmConfig) SetEnvPrefix(in string) {
 // mergeWithEnvPrefix derives the environment variable to use for a given key.
 func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
 	return strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
-}
-
-// BindEnv binds one or more environment variables to the given key
-func (c *ntmConfig) BindEnv(key string, envvars ...string) {
-	c.Lock()
-	defer c.Unlock()
-
-	if c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("cannot BindEnv() once the config has been marked as ready for use")
-	}
-
-	key = strings.ToLower(key)
-	c.bindEnv(key, envvars)
-	c.addToKnownKeys(key)
 }
 
 func (c *ntmConfig) bindEnv(key string, envvars []string) {

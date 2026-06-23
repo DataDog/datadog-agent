@@ -73,6 +73,7 @@ go_deps.gazelle_default_attributes(
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib @@//pkg/util/compression/impl-zlib:impl-zlib",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/option @@//pkg/util/option:option",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state:state",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/network/driver @@//pkg/network/driver:driver",
     ],
 )
 go_deps.gazelle_override(
@@ -196,7 +197,6 @@ use_repo(
     "com_github_glaslos_ssdeep",
     "com_github_go_delve_delve",
     "com_github_go_enry_go_license_detector_v4",
-    "com_github_go_ini_ini",
     "com_github_go_jose_go_jose_v4",
     "com_github_go_json_experiment_json",
     "com_github_go_ole_go_ole",
