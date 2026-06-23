@@ -2021,8 +2021,8 @@ func TestClearEnvVars(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", "default-a")
 	cfg.SetDefault("b", "default-b")
-	cfg.BindEnv("a", "TEST_A") //nolint:forbidigo // testing behavior
-	cfg.BindEnv("b", "TEST_B") //nolint:forbidigo // testing behavior
+	cfg.(*ntmConfig).bindEnv("a", []string{"TEST_A"}) //nolint:forbidigo // testing behavior
+	cfg.(*ntmConfig).bindEnv("b", []string{"TEST_B"}) //nolint:forbidigo // testing behavior
 	cfg.BuildSchema()
 
 	assert.Equal(t, "from-env", cfg.GetString("a"))
