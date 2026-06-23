@@ -553,7 +553,11 @@ fn stdio_from_str(s: &str) -> Stdio {
     match s {
         "null" => Stdio::null(),
         "inherit" | "" => Stdio::inherit(),
-        path => match std::fs::File::create(path) {
+        path => match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
             Ok(f) => f.into(),
             Err(e) => {
                 warn!("failed to open stdio file {path}: {e}, falling back to inherit");
@@ -1229,6 +1233,26 @@ runtime_success_sec: 5
             contents.contains("fileline"),
             "expected fileline in log, got {contents:?}"
         );
+    }
+
+    #[test]
+    fn test_stdio_from_str_path_appends_on_respawn() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pmgr_stdio_append.log");
+        let path_str = path.to_str().unwrap();
+        let (sh, flag) = test_helpers::shell_cmd();
+        for msg in ["first", "second"] {
+            let status = std::process::Command::new(&sh)
+                .arg(flag)
+                .arg(format!("echo {msg}"))
+                .stdout(super::stdio_from_str(path_str))
+                .status()
+                .unwrap();
+            assert!(status.success());
+        }
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(contents.contains("first"), "got {contents:?}");
+        assert!(contents.contains("second"), "got {contents:?}");
     }
 
     #[test]
