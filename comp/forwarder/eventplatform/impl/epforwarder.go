@@ -655,6 +655,9 @@ func newHTTPPassthroughPipeline(
 		endpoints.BatchMaxConcurrentSend,
 		endpoints.BatchMaxConcurrentSend,
 		secretsComp,
+		// Noop: passthrough pipelines don't surface on the logs status page, so they skip
+		// utilization sampling and own no snapshot registry.
+		pipelineMonitor,
 	)
 
 	var encoder compressioncommon.Compressor

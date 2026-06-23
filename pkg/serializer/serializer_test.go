@@ -414,6 +414,7 @@ func TestSendSeries(t *testing.T) {
 			f := setupMockForwarder(t)
 			mockConfig := configmock.New(t)
 			mockConfig.SetInTest("use_v2_api.series", true) // default value, but just to be sure
+			mockConfig.SetInTest("use_v3_api.series.enabled", "false")
 			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp

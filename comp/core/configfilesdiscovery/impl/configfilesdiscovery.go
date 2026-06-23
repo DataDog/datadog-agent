@@ -41,9 +41,15 @@ func newComponent(
 	ad autodiscovery.Component,
 	resolver targetResolver,
 ) *component {
+	readers := map[RuntimeType]configReaderFactory{
+		RuntimeDocker: newDockerConfigReader,
+	}
+	collectors := map[string]configCollector{
+		redisIntegrationName: newRedisConfigCollector(),
+	}
 	return &component{
 		ad:        ad,
-		scheduler: newADScheduler(resolver),
+		scheduler: newADScheduler(resolver, readers, collectors, noopConfigFileReporter{}),
 	}
 }
 

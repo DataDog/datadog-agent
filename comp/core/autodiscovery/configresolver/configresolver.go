@@ -48,6 +48,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		MetricsExcluded: svc.HasFilter(filter.MetricsFilter),
 		LogsExcluded:    svc.HasFilter(filter.LogsFilter),
 		ImageName:       svc.GetImageName(),
+		Discovery:       tpl.Discovery,
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)

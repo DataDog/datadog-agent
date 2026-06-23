@@ -178,13 +178,17 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
 	}
 
-	// Return event to update the ContainerImageMetadata entity
+	// Emit the enriched SBOM under the resolved image's own EntityID, so it lands
+	// on the same ContainerImageMetadata the runtime collector populates and
+	// workloadmeta merges the two sources. existingImage is looked up by
+	// container.Image.ID, or by matching RepoDigest when the kubelet reports that
+	// ID as a manifest/repo digest, so its ID can differ from imageID.
 	return workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.ContainerImageMetadata{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainerImageMetadata,
-				ID:   imageID,
+				ID:   existingImage.EntityID.ID,
 			},
 			SBOM: finalCompressedSBOM,
 		},

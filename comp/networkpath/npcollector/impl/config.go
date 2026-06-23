@@ -18,6 +18,7 @@ import (
 
 type collectorConfigs struct {
 	connectionsMonitoringEnabled bool
+	netflowMonitoringEnabled     bool
 	workers                      int
 	timeout                      time.Duration
 	maxTTL                       int
@@ -52,6 +53,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 	}
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
+		netflowMonitoringEnabled:     agentConfig.GetBool("network_path.netflow_monitoring.enabled"),
 		workers:                      agentConfig.GetInt("network_path.collector.workers"),
 		timeout:                      agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
 		maxTTL:                       agentConfig.GetInt("network_path.collector.max_ttl"),
@@ -87,5 +89,5 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 // networkPathCollectorEnabled checks if Network Path Collector should be enabled
 // Network Path Collector is expected to be enabled if a feature depend on it.
 func (c *collectorConfigs) networkPathCollectorEnabled() bool {
-	return c.connectionsMonitoringEnabled
+	return c.connectionsMonitoringEnabled || c.netflowMonitoringEnabled
 }

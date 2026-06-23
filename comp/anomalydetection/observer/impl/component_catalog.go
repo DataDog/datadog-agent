@@ -12,13 +12,14 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-// componentKind distinguishes detectors from correlators in the catalog.
+// componentKind distinguishes detectors from correlators and scorers in the catalog.
 type componentKind int
 
 const (
 	componentDetector componentKind = iota
 	componentCorrelator
 	componentExtractor
+	componentScorer
 )
 
 // componentEntry describes a registered pipeline component.
@@ -93,7 +94,7 @@ type ComponentSettings struct {
 //
 //	catalog := defaultCatalog()
 //	settings := ComponentSettings{ ... } // from agent config, testbench UI, etc.
-//	detectors, correlators, extractors, components := catalog.Instantiate(settings)
+//	detectors, correlators, scorers, extractors, components := catalog.Instantiate(settings)
 type componentCatalog struct {
 	entries []componentEntry
 }
@@ -273,6 +274,23 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
 				defaultEnabled: false,
 			},
+			// ---- Scorers ----
+			{
+				name:           "anomaly_scorer",
+				displayName:    "AnomalyScorer",
+				kind:           componentScorer,
+				defaultConfig:  DefaultScorerConfig(),
+				factory:        func(cfg any) any { return NewScorer(cfg.(observerdef.ScorerConfig)) },
+				defaultEnabled: false,
+				readConfig:     readScorerConfig,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(observerdef.ScorerConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("anomaly_scorer: failed to parse JSON config: %w", err)
+					}
+					return cfg, nil
+				},
+			},
 		},
 	}
 }
@@ -283,6 +301,7 @@ func defaultCatalog() *componentCatalog {
 func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	detectors []observerdef.Detector,
 	correlators []observerdef.Correlator,
+	scorers []observerdef.AnomalyScorer,
 	extractors []observerdef.LogMetricsExtractor,
 	components map[string]*componentInstance,
 ) {
@@ -327,9 +346,13 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 			if ext, ok := instance.(observerdef.LogMetricsExtractor); ok {
 				extractors = append(extractors, ext)
 			}
+		case componentScorer:
+			if sc, ok := instance.(observerdef.AnomalyScorer); ok {
+				scorers = append(scorers, sc)
+			}
 		}
 	}
-	return detectors, correlators, extractors, components
+	return detectors, correlators, scorers, extractors, components
 }
 
 // CatalogEntry is a public view of a catalog component.
@@ -412,6 +435,8 @@ func kindString(k componentKind) string {
 		return "correlator"
 	case componentExtractor:
 		return "extractor"
+	case componentScorer:
+		return "scorer"
 	default:
 		return "unknown"
 	}

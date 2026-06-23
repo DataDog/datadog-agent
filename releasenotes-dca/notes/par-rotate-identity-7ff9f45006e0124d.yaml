@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Add ``datadog-cluster-agent rotate-par-identity`` to rotate the Private
+    Action Runner credentials. The new identity is written to the shared
+    Kubernetes secret. Run a Kubernetes rollout restart of the Cluster Agent
+    deployment to apply the new identity.

@@ -15,6 +15,8 @@
 --   - Message framing, parsing, and raw content handling
 --   - Telemetry counter emissions (dropped, kept, new_patterns, evictions)
 --   - NoopSampler (trivial pass-through when sampling is disabled)
+--   - Include/exclude filter resolution and important-log bypass policy
+--     wiring (modelled as preconditions around ProcessLog entry)
 
 ------------------------------------------------------------
 -- Value Types
@@ -39,12 +41,16 @@
 --   Character runs: consecutive letters [a-zA-Z] and any byte not
 --     classified above produce a single token encoding the run length:
 --     C1 (1 char) through C10 (10+ chars). Capped at C10.
---     Before emitting, short runs (1-4 chars) are checked for special
+--     Before emitting, short runs (1-9 chars) are checked for special
 --     token promotion (see Tokenization contract).
 --
---   Special: character runs of 1-4 chars that match known patterns
---     are promoted to one of: Month, Day, Zone, Apm, T.
---     The regular C1-C4 token is replaced by the special token.
+--   Special: character runs of 1-9 chars that match known patterns
+--     are promoted to one of:
+--       Month, Day, Zone, Apm, T
+--       Warn, Fatal, Error, Panic, Alert, Severe, Critical,
+--       Emergency, Exception, Crash, Failure, Deadlock, Timeout
+--     The corresponding regular Cn token is replaced by the special
+--     token.
 
 value TokenSequence {
     -- Ordered sequence of tokens produced by the tokenizer from
@@ -112,9 +118,9 @@ contract Tokenization {
         -- 15 consecutive digits produce D10, identical to 10 digits.
 
     @invariant SpecialTokenPromotion
-        -- Before emitting a character run of length 1-4, the run's
+        -- Before emitting a character run of length 1-9, the run's
         -- bytes are uppercased and checked against a fixed table.
-        -- If matched, the special token replaces the regular C1-C4:
+        -- If matched, the special token replaces the regular Cn:
         --   Length 1: T → time_separator, Z → zone
         --   Length 2: AM, PM → apm
         --   Length 3:
@@ -123,10 +129,33 @@ contract Tokenization {
         --     UTC GMT EST EDT CST CDT MST MDT PST PDT JST KST
         --       IST MSK CET BST HST HDT NST NDT → zone
         --   Length 4:
+        --     WARN → warn
+        --     CRIT → critical
         --     CEST NZST NZDT ACST ACDT AEST AEDT AWST AWDT
         --       AKST AKDT CHST CHDT → zone
-        -- Character runs of length 5+ are never promoted. Runs of
-        -- length 1-4 that match no pattern emit the regular token.
+        --   Length 5:
+        --     FATAL → fatal
+        --     ERROR → error
+        --     PANIC → panic
+        --     ALERT → alert
+        --     EMERG → emergency
+        --     CRASH → crash
+        --   Length 6:
+        --     SEVERE → severe
+        --     FAILED → failure
+        --   Length 7:
+        --     WARNING → warn
+        --     CRASHED → crash
+        --     FAILURE → failure
+        --     TIMEOUT → timeout
+        --   Length 8:
+        --     CRITICAL → critical
+        --     DEADLOCK → deadlock
+        --   Length 9:
+        --     EMERGENCY → emergency
+        --     EXCEPTION → exception
+        -- Character runs of length 10+ are never promoted. Runs of
+        -- length 1-9 that match no pattern emit the regular token.
         -- Matching is case-insensitive: "jan", "JAN", "Jan" all
         -- match month.
 

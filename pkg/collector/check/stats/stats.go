@@ -323,7 +323,8 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
-			IssueName: "check-execution-failure",
+			IssueName: checkfailure.IssueName,
+			Title:     "Check Execution Failure",
 			Source:    cs.CheckName,
 		}
 	} else {

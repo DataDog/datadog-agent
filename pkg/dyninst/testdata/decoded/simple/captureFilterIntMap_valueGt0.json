@@ -1,0 +1,1330 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntMap",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntMap",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1304
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 394
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntMap_valueGt0",
+          "location": {
+            "method": "main.anyAllIntMap"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "matches": {
+                "type": "map[string]int",
+                "size": "3",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "a"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "b"
+                    },
+                    {
+                      "type": "int",
+                      "value": "42"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "c"
+                    },
+                    {
+                      "type": "int",
+                      "value": "3"
+                    }
+                  ]
+                ]
+              },
+              "tag": {
+                "type": "string",
+                "value": "match"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntMap",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntMap",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1304
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 395
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntMap_valueGt0",
+          "location": {
+            "method": "main.anyAllIntMap"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "matches": {
+                "type": "map[string]int",
+                "size": "3",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "a"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "b"
+                    },
+                    {
+                      "type": "int",
+                      "value": "2"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "c"
+                    },
+                    {
+                      "type": "int",
+                      "value": "3"
+                    }
+                  ]
+                ]
+              },
+              "tag": {
+                "type": "string",
+                "value": "miss"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntMap",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntMap",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1304
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 396
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntMap_valueGt0",
+          "location": {
+            "method": "main.anyAllIntMap"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "matches": {
+                "type": "map[string]int",
+                "isNull": true
+              },
+              "tag": {
+                "type": "string",
+                "value": "empty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.anyAllIntMap",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.anyAllIntMap",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1304
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 409
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "captureFilterIntMap_valueGt0",
+          "location": {
+            "method": "main.anyAllIntMap"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "matches": {
+                "type": "map[string]int",
+                "size": "101",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0000"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0001"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0002"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0003"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0004"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0005"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0006"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0007"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0008"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0009"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0010"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0011"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0012"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0013"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0014"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0015"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0016"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0017"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0018"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0019"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0020"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0021"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0022"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0023"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0024"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0025"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0026"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0027"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0028"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0029"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0030"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0031"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0032"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0033"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0034"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0035"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0036"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0037"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0038"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0039"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0040"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0041"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0042"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0043"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0044"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0045"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0046"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0047"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0048"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0049"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0050"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0051"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0052"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0053"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0054"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0055"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0056"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0057"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0058"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0059"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0060"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0061"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0062"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0063"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0064"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0065"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0066"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0067"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0068"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0069"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0070"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0071"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0072"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0073"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0074"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0075"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0076"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0077"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0078"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0079"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0080"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0081"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0082"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0083"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0084"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0085"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0086"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0087"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0088"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0089"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0090"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0091"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0092"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0093"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0094"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0095"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0096"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0097"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0098"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "k_0099"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "match"
+                    },
+                    {
+                      "type": "int",
+                      "value": "42"
+                    }
+                  ]
+                ]
+              },
+              "tag": {
+                "type": "string",
+                "value": "sc100"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

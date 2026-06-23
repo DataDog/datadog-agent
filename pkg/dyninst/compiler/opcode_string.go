@@ -68,11 +68,19 @@ func _() {
 	_ = x[OpcodeExprAdvanceOffset-57]
 	_ = x[OpcodePanicUnwindPrepare-58]
 	_ = x[OpcodePanicUnwindEvictSlots-59]
+	_ = x[OpcodeEmitFilterSliceMarker-60]
+	_ = x[OpcodeEmitFilterMapMarker-61]
+	_ = x[OpcodeInitFilterSliceLoop-62]
+	_ = x[OpcodeEmitFilterSliceElement-63]
+	_ = x[OpcodeFilterSliceAdvance-64]
+	_ = x[OpcodeInitFilterMapLoop-65]
+	_ = x[OpcodeEmitFilterMapElement-66]
+	_ = x[OpcodeFilterMapAdvance-67]
 }
 
-const _Opcode_name = "InvalidCallReturnIllegalIncrementOutputOffsetExprPrepareExprSaveExprDereferenceCfaExprReadRegisterExprDereferencePtrProcessPointerProcessSliceProcessArrayDataPrepProcessSliceDataPrepProcessSliceDataRepeatProcessStringProcessGoEmptyInterfaceProcessGoInterfaceProcessGoDictTypeProcessGoHmapProcessGoSwissMapProcessGoSwissMapGroupsChasePointersPrepareEventRootExprPushOffsetExprLoadLiteralExprReadStringExprCmpBaseExprCmpStringConditionCheckConditionBeginCallDictResolvedExprSliceBoundsCheckSwissMapSetupSwissMapAesencSwissMapHashFinishSwissMapProbeSwissMapCheckSlotCondNotCondJumpIfFalseCondJumpIfTrueExprLoadDurationConditionStateInitConditionLeafRecordConditionLeafLoadConditionCheckPreserveErrorConditionLeafCompleteGoContextChainInitGoContextChainHopProcessGoTimeExprLoadAddressArrayLoopBeginArrayLoopEndSliceLoopBeginSliceLoopEndSwissMapLoopBeginSwissMapLoopEndExprAdvanceOffsetPanicUnwindPreparePanicUnwindEvictSlots"
+const _Opcode_name = "InvalidCallReturnIllegalIncrementOutputOffsetExprPrepareExprSaveExprDereferenceCfaExprReadRegisterExprDereferencePtrProcessPointerProcessSliceProcessArrayDataPrepProcessSliceDataPrepProcessSliceDataRepeatProcessStringProcessGoEmptyInterfaceProcessGoInterfaceProcessGoDictTypeProcessGoHmapProcessGoSwissMapProcessGoSwissMapGroupsChasePointersPrepareEventRootExprPushOffsetExprLoadLiteralExprReadStringExprCmpBaseExprCmpStringConditionCheckConditionBeginCallDictResolvedExprSliceBoundsCheckSwissMapSetupSwissMapAesencSwissMapHashFinishSwissMapProbeSwissMapCheckSlotCondNotCondJumpIfFalseCondJumpIfTrueExprLoadDurationConditionStateInitConditionLeafRecordConditionLeafLoadConditionCheckPreserveErrorConditionLeafCompleteGoContextChainInitGoContextChainHopProcessGoTimeExprLoadAddressArrayLoopBeginArrayLoopEndSliceLoopBeginSliceLoopEndSwissMapLoopBeginSwissMapLoopEndExprAdvanceOffsetPanicUnwindPreparePanicUnwindEvictSlotsEmitFilterSliceMarkerEmitFilterMapMarkerInitFilterSliceLoopEmitFilterSliceElementFilterSliceAdvanceInitFilterMapLoopEmitFilterMapElementFilterMapAdvance"
 
-var _Opcode_index = [...]uint16{0, 7, 11, 17, 24, 45, 56, 64, 82, 98, 116, 130, 142, 162, 182, 204, 217, 240, 258, 275, 288, 305, 328, 341, 357, 371, 386, 400, 411, 424, 438, 452, 468, 488, 501, 515, 533, 546, 563, 570, 585, 599, 615, 633, 652, 669, 696, 717, 735, 752, 765, 780, 794, 806, 820, 832, 849, 864, 881, 899, 920}
+var _Opcode_index = [...]uint16{0, 7, 11, 17, 24, 45, 56, 64, 82, 98, 116, 130, 142, 162, 182, 204, 217, 240, 258, 275, 288, 305, 328, 341, 357, 371, 386, 400, 411, 424, 438, 452, 468, 488, 501, 515, 533, 546, 563, 570, 585, 599, 615, 633, 652, 669, 696, 717, 735, 752, 765, 780, 794, 806, 820, 832, 849, 864, 881, 899, 920, 941, 960, 979, 1001, 1019, 1036, 1056, 1072}
 
 func (i Opcode) String() string {
 	idx := int(i) - 0

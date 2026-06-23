@@ -59,7 +59,6 @@ go_library(
         "@io_opentelemetry_go_collector_consumer//:consumer",
         "@io_opentelemetry_go_collector_exporter//:exporter",
         "@io_opentelemetry_go_collector_exporter_exporterhelper//:exporterhelper",
-        "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//pmetric",
         "@org_golang_x_net//http/httpproxy",
         "@org_uber_go_fx//:fx",
@@ -74,6 +73,7 @@ go_test(
     srcs = [
         "apm_stats_test.go",
         "config_test.go",
+        "consumer_collector_test.go",
         "consumer_test.go",
         "exporter_test.go",
         "factory_test.go",

@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.80.1:
+
+7.80.1
+======
+
+.. _Release Notes_7.80.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-12
+
+- Please refer to the `7.80.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7801>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.80.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Agent's embedded Python has been upgraded from 3.13.13 to 3.13.14
+
+
 .. _Release Notes_7.80.0:
 
 7.80.0

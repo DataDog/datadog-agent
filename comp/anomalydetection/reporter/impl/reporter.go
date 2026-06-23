@@ -66,9 +66,11 @@ func NewComponent(req Requires) (Provides, error) {
 		emittedCounter:  emittedCounter,
 		seenCorrelation: make(map[string]bool),
 		activeBefore:    make(map[string]bool),
+		stdoutEnabled:   req.Config.GetBool("anomaly_detection.reporting.stdout.enabled"),
+		stdoutVerbose:   req.Config.GetBool("anomaly_detection.reporting.stdout.verbose"),
 	}}
 
-	if req.Config.GetBool("anomaly_detection.reporting.enabled") {
+	if req.Config.GetBool("anomaly_detection.reporting.events.enabled") {
 		forwarder, ok := req.EventPlatform.Get()
 		if !ok {
 			req.Log.Warnf("[reporter] event_reporter disabled: event-platform forwarder is not running")
@@ -96,6 +98,12 @@ type stdoutReporter struct {
 	// activeBefore holds patterns that were in ActiveCorrelations last advance,
 	// used to detect when a pattern goes inactive for recurrence cleanup.
 	activeBefore map[string]bool
+	// stdoutEnabled gates all [observer] stdout log lines.
+	// Controlled by anomaly_detection.reporting.stdout.enabled (default: true).
+	stdoutEnabled bool
+	// stdoutVerbose prints individual anomaly series lines after the title.
+	// Controlled by anomaly_detection.reporting.stdout.verbose (default: false).
+	stdoutVerbose bool
 }
 
 func (r *stdoutReporter) Name() string { return "stdout_reporter" }
@@ -110,8 +118,17 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 	newlyEmitted := make(map[string]bool)
 	for _, ac := range output.CorrelationHistory {
 		if !r.seenCorrelation[ac.Pattern] {
-			r.logger.Infof("[observer] anomaly detection report: pattern=%s title=%q members=%d",
-				ac.Pattern, ac.Title, len(ac.Members))
+			if r.stdoutEnabled {
+				r.logger.Infof("[observer] anomaly detection report: pattern=%s title=%q members=%d",
+					ac.Pattern, ac.Title, len(ac.Members))
+				if r.stdoutVerbose {
+					for _, a := range ac.Anomalies {
+						ts := time.Unix(a.Timestamp, 0).UTC().Format(time.RFC3339)
+						r.logger.Infof("[observer]   - %s [%s] at %s",
+							a.Source.DisplayName(), a.DetectorName, ts)
+					}
+				}
+			}
 			r.emittedCounter.Add(1)
 			r.seenCorrelation[ac.Pattern] = true
 			newlyEmitted[ac.Pattern] = true
@@ -122,8 +139,10 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 	hasOngoing := false
 	for _, ac := range output.ActiveCorrelations {
 		if !newlyEmitted[ac.Pattern] {
-			r.logger.Debugf("[observer] ongoing anomaly correlation: pattern=%s members=%d",
-				ac.Pattern, len(ac.Members))
+			if r.stdoutEnabled {
+				r.logger.Debugf("[observer] ongoing anomaly correlation: pattern=%s members=%d",
+					ac.Pattern, len(ac.Members))
+			}
 			hasOngoing = true
 		}
 	}
@@ -132,10 +151,12 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 	}
 
 	// Debug log for raw new anomalies detected this cycle.
-	for _, a := range output.NewAnomalies {
-		ts := time.Unix(a.Timestamp, 0).UTC().Format(time.RFC3339)
-		r.logger.Debugf("[observer] anomaly detected: source=%s detector=%s at=%s",
-			a.Source.DisplayName(), a.DetectorName, ts)
+	if r.stdoutEnabled {
+		for _, a := range output.NewAnomalies {
+			ts := time.Unix(a.Timestamp, 0).UTC().Format(time.RFC3339)
+			r.logger.Debugf("[observer] anomaly detected: source=%s detector=%s at=%s",
+				a.Source.DisplayName(), a.DetectorName, ts)
+		}
 	}
 
 	// Recurrence cleanup: a pattern that was active before and is no longer active

@@ -330,6 +330,45 @@ func pcieLinkBytesPerSecond(gen int, width int) (float64, error) {
 	return bps, nil
 }
 
+func pcieLinkMetrics(device ddnvml.Device) ([]Metric, uint64, error) {
+	var metricsOut []Metric
+
+	currentWidth, err := device.GetCurrPcieLinkWidth()
+	if err != nil {
+		return metricsOut, 0, fmt.Errorf("get current PCIe link width: %w", err)
+	}
+	metricsOut = append(metricsOut, Metric{Name: "pci.link.width.current", Value: float64(currentWidth), Type: metrics.GaugeType})
+
+	maxWidth, err := device.GetMaxPcieLinkWidth()
+	if err != nil {
+		return metricsOut, 0, fmt.Errorf("get max PCIe link width: %w", err)
+	}
+	metricsOut = append(metricsOut, Metric{Name: "pci.link.width.max", Value: float64(maxWidth), Type: metrics.GaugeType})
+	metricsOut = append(metricsOut, Metric{Name: "pci.link.width.degraded", Value: boolToFloat(currentWidth < maxWidth), Type: metrics.GaugeType})
+
+	currentGeneration, err := device.GetCurrPcieLinkGeneration()
+	if err != nil {
+		return metricsOut, 0, fmt.Errorf("get current PCIe link generation: %w", err)
+	}
+	currentSpeed, err := pcieLinkBytesPerSecond(currentGeneration, currentWidth)
+	if err != nil {
+		return metricsOut, 0, fmt.Errorf("compute current PCIe link speed: %w", err)
+	}
+	metricsOut = append(metricsOut, Metric{Name: "pci.link.speed.current", Value: currentSpeed, Type: metrics.GaugeType})
+
+	maxGeneration, err := device.GetMaxPcieLinkGeneration()
+	if err != nil {
+		return metricsOut, 0, fmt.Errorf("get max PCIe link generation: %w", err)
+	}
+	maxSpeed, err := pcieLinkBytesPerSecond(maxGeneration, maxWidth)
+	if err != nil {
+		return metricsOut, 0, fmt.Errorf("compute max PCIe link speed: %w", err)
+	}
+	metricsOut = append(metricsOut, Metric{Name: "pci.link.speed.max", Value: maxSpeed, Type: metrics.GaugeType})
+	metricsOut = append(metricsOut, Metric{Name: "pci.link.speed.degraded", Value: boolToFloat(currentSpeed < maxSpeed), Type: metrics.GaugeType})
+	return metricsOut, 0, nil
+}
+
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
 func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis := []apiCallInfo{
@@ -401,39 +440,9 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			},
 		},
 		{
-			Name: "pci_link_speed_current",
+			Name: "pci_link",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				gen, err := device.GetCurrPcieLinkGeneration()
-				if err != nil {
-					return nil, 0, err
-				}
-				width, err := device.GetCurrPcieLinkWidth()
-				if err != nil {
-					return nil, 0, err
-				}
-				speed, err := pcieLinkBytesPerSecond(gen, width)
-				if err != nil {
-					return nil, 0, err
-				}
-				return []Metric{{Name: "pci.link.speed.current", Value: speed, Type: metrics.GaugeType}}, 0, nil
-			},
-		},
-		{
-			Name: "pci_link_speed_max",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				gen, err := device.GetMaxPcieLinkGeneration()
-				if err != nil {
-					return nil, 0, err
-				}
-				width, err := device.GetMaxPcieLinkWidth()
-				if err != nil {
-					return nil, 0, err
-				}
-				speed, err := pcieLinkBytesPerSecond(gen, width)
-				if err != nil {
-					return nil, 0, err
-				}
-				return []Metric{{Name: "pci.link.speed.max", Value: speed, Type: metrics.GaugeType}}, 0, nil
+				return pcieLinkMetrics(device)
 			},
 		},
 		{

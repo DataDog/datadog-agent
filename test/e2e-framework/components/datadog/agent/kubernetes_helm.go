@@ -828,6 +828,12 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 			"apiKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
 			"appKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
 			"checksCardinality":    pulumi.String("high"),
+			// The operator subchart is not needed for Windows node agents
+			// and would otherwise try to create CRDs already owned by the
+			// Linux release (datadogAgents, datadogAgentInternals, etc.).
+			"operator": pulumi.Map{
+				"enabled": pulumi.Bool(false),
+			},
 			"logs": pulumi.Map{
 				"enabled":             pulumi.Bool(true),
 				"containerCollectAll": pulumi.Bool(true),

@@ -19,7 +19,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -891,7 +891,7 @@ func (s *dsdServer) parseServiceCheckMessage(parser *parser, message []byte, ori
 }
 
 func getBuckets(cfg model.Reader, logger log.Component, option string) []float64 {
-	if !cfg.IsSet(option) {
+	if !cfg.IsConfigured(option) {
 		return nil
 	}
 
