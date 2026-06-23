@@ -56,7 +56,7 @@ func newTestRunner(t *testing.T) (*runner, *mockStore) {
 	store := &mockStore{}
 	r := &runner{
 		log:      logmock.New(t),
-		registry: registrymock.New(),
+		registry: registrymock.New(t),
 		store:    store,
 	}
 	return r, store

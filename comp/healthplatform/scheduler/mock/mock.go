@@ -5,13 +5,14 @@
 
 //go:build test
 
-// Package mock provides a no-op mock for the health platform scheduler.
+// Package mock provides a mock for the health platform scheduler component.
 package mock
 
 import (
 	"errors"
 	"fmt"
 	"sync"
+	"testing"
 	"time"
 
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
@@ -24,20 +25,22 @@ type ScheduleCall struct {
 	Interval time.Duration
 }
 
-// Mock is a test implementation of scheduler.Component.
+// mockScheduler is a test implementation of scheduler.Component.
 // It validates inputs the same way the real scheduler does and records calls
 // for test inspection via ScheduledChecks().
 type mockScheduler struct {
+	t         testing.TB
 	mu        sync.Mutex
 	scheduled []ScheduleCall
 }
 
 // New returns a mock scheduler for testing.
-func New() *mockScheduler { return &mockScheduler{} }
+func New(t testing.TB) *mockScheduler { return &mockScheduler{t: t} }
 
 // Schedule validates inputs and records the call. It mirrors the real
 // scheduler's error conditions (empty source, nil fn, duplicate source).
 func (m *mockScheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration, _ []string) error {
+	m.t.Helper()
 	if source == "" {
 		return errors.New("source cannot be empty")
 	}

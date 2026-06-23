@@ -9,12 +9,16 @@
 package mock
 
 import (
+	"testing"
+
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
 )
 
-type mockEgress struct{}
+type mockEgress struct {
+	t testing.TB
+}
 
 // New returns a no-op mock egress for testing.
-func New() egressdef.Component {
-	return &mockEgress{}
+func New(t testing.TB) egressdef.Component {
+	return &mockEgress{t: t}
 }

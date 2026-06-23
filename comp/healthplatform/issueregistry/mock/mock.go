@@ -9,12 +9,15 @@
 package mock
 
 import (
+	"testing"
+
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 type mockRegistry struct {
+	t         testing.TB
 	templates map[string]issuesmod.Template
 	periodic  []*runnerdef.BuiltInPeriodicHealthCheck
 	startup   []*runnerdef.BuiltInHealthCheck
@@ -39,8 +42,8 @@ func WithStartupCheck(check *runnerdef.BuiltInHealthCheck) Option {
 }
 
 // New returns a mock registry pre-populated with the given options.
-func New(opts ...Option) registrydef.Component {
-	m := &mockRegistry{templates: make(map[string]issuesmod.Template)}
+func New(t testing.TB, opts ...Option) registrydef.Component {
+	m := &mockRegistry{t: t, templates: make(map[string]issuesmod.Template)}
 	for _, o := range opts {
 		o(m)
 	}

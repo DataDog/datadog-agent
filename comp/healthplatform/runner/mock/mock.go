@@ -9,20 +9,25 @@
 package mock
 
 import (
+	"testing"
+
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
-// Mock is a test implementation of runner.Component.
+// mockRunner is a test implementation of runner.Component.
 // Run calls fn and returns the IssueID of each emitted report, mirroring the
 // real runner without the registry lookup or store interaction.
-type mockRunner struct{}
+type mockRunner struct {
+	t testing.TB
+}
 
 // New returns a mock runner for testing.
-func New() *mockRunner { return &mockRunner{} }
+func New(t testing.TB) *mockRunner { return &mockRunner{t: t} }
 
 // Run calls fn and collects the IssueID from each emitted IssueReport.
 // Returns nil ids on error, matching the real runner's partial-result contract.
 func (m *mockRunner) Run(_ string, fn runnerdef.HealthCheckFunc) ([]string, error) {
+	m.t.Helper()
 	if fn == nil {
 		return nil, nil
 	}

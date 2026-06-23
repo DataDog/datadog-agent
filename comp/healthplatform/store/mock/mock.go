@@ -16,24 +16,18 @@ import (
 )
 
 type mockHealthPlatform struct {
+	t      testing.TB
 	issues map[string]*healthplatformpayload.Issue
 }
 
 // New returns a mock health platform store for testing.
-func New() healthplatform.Component {
-	return &mockHealthPlatform{
-		issues: make(map[string]*healthplatformpayload.Issue),
-	}
-}
-
-// Mock returns a mock health platform store for testing.
-// Deprecated: use New() instead.
-func Mock(_ *testing.T) healthplatform.Component {
-	return New()
+func New(t testing.TB) healthplatform.Component {
+	return &mockHealthPlatform{t: t, issues: make(map[string]*healthplatformpayload.Issue)}
 }
 
 // ReportIssue stores the proto Issue keyed by issue.Id for testing.
 func (m *mockHealthPlatform) ReportIssue(issue *healthplatformpayload.Issue) error {
+	m.t.Helper()
 	if issue == nil || issue.Id == "" {
 		return nil
 	}
