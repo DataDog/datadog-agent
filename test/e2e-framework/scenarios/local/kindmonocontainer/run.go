@@ -9,6 +9,7 @@
 package kindmonocontainer
 
 import (
+	_ "embed"
 	"fmt"
 	"strings"
 
@@ -16,7 +17,7 @@ import (
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
-	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
+	k8syaml "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -31,7 +32,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 )
 
-const clusterAgentLeaderElectionName = "datadog-leader-election"
+const (
+	clusterAgentLeaderElectionName = "datadog-leader-election"
+	localNginxWorkerProcesses      = "1"
+)
+
+//go:embed rbac.yaml
+var rbacYAML string
+
+//go:embed cluster_agent_service.yaml
+var clusterAgentServiceYAML string
 
 func Run(ctx *pulumi.Context) error {
 	localEnv, err := local.NewEnvironment(ctx)
@@ -44,7 +54,7 @@ func Run(ctx *pulumi.Context) error {
 	}
 
 	cluster, err := kubeComp.NewLocalKindClusterWithConfig(&localEnv, "kind", localEnv.KubernetesVersion(), kubeComp.KindConfigFlags{
-		WorkerNodes: []kubeComp.KindWorkerNode{{}, {}, {}},
+		WorkerNodes: []kubeComp.KindWorkerNode{{}, {}, {}, {}},
 	})
 	if err != nil {
 		return err
@@ -117,26 +127,33 @@ func Run(ctx *pulumi.Context) error {
 			return err
 		}
 
-		if err := deployNodeAgentRBAC(ctx, &localEnv, providerOpt); err != nil {
-			return err
-		}
-
-		if err := deployClusterAgentRBAC(ctx, &localEnv, providerOpt); err != nil {
-			return err
-		}
-
-		clusterAgentSvc, err := deployClusterAgent(ctx, clusterName, clusterAgentImage, clusterAgentToken.Result, fakeIntake, imgPullSecret, providerOpt)
+		rbacResources, err := deployRBAC(ctx, providerOpt)
 		if err != nil {
 			return err
 		}
 
-		if err := deployNodeAgentDaemonSet(ctx, clusterName, agentImage, clusterAgentToken.Result, fakeIntake, imgPullSecret, pulumi.DependsOn([]pulumi.Resource{clusterAgentSvc}), providerOpt); err != nil {
+		clusterAgentSvc, err := deployClusterAgentService(ctx, providerOpt)
+		if err != nil {
+			return err
+		}
+
+		clusterAgentDeploy, err := deployClusterAgent(ctx, clusterName, clusterAgentImage, clusterAgentToken.Result, fakeIntake, imgPullSecret, providerOpt, pulumi.DependsOn([]pulumi.Resource{rbacResources, clusterAgentSvc}))
+		if err != nil {
+			return err
+		}
+
+		if err := deployNodeAgentDaemonSet(ctx, clusterName, agentImage, clusterAgentToken.Result, fakeIntake, imgPullSecret, providerOpt, pulumi.DependsOn([]pulumi.Resource{rbacResources, clusterAgentSvc, clusterAgentDeploy})); err != nil {
 			return err
 		}
 	}
 
 	if localEnv.TestingWorkloadDeploy() {
-		if _, err := nginx.K8sAppDefinition(&localEnv, kubeProvider, "workload-nginx", 80, "", false, providerOpt); err != nil {
+		if _, err := nginx.K8sAppDefinitionWithOptions(&localEnv, kubeProvider, "workload-nginx", 80, "", false, []nginx.K8sAppOption{
+			// Local clusters can expose the host CPU count inside pods. The nginx
+			// workload uses worker_processes auto by default, which can start one
+			// worker per local CPU and exceed the 32Mi limit before becoming ready.
+			nginx.WithWorkerProcesses(localNginxWorkerProcesses),
+		}, providerOpt); err != nil {
 			return err
 		}
 		if _, err := redis.K8sAppDefinition(&localEnv, kubeProvider, "workload-redis", false, providerOpt); err != nil {
@@ -173,262 +190,19 @@ func validateLocalAgentImageConfig(e config.Env) error {
 	)
 }
 
-func deployNodeAgentRBAC(ctx *pulumi.Context, _ config.Env, providerOpt pulumi.ResourceOption) error {
-	sa, err := corev1.NewServiceAccount(ctx, "datadog-sa", &corev1.ServiceAccountArgs{
-		Metadata: &metav1.ObjectMetaArgs{
-			Name:      pulumi.String("datadog"),
-			Namespace: pulumi.String("default"),
-		},
-	}, providerOpt)
-	if err != nil {
-		return err
-	}
-
-	cr, err := rbacv1.NewClusterRole(ctx, "datadog-cr", &rbacv1.ClusterRoleArgs{
-		Metadata: &metav1.ObjectMetaArgs{Name: pulumi.String("datadog")},
-		Rules: rbacv1.PolicyRuleArray{
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("")},
-				Resources: pulumi.StringArray{
-					pulumi.String("services"), pulumi.String("events"), pulumi.String("endpoints"),
-					pulumi.String("pods"), pulumi.String("nodes"), pulumi.String("componentstatuses"),
-				},
-				Verbs: pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups:     pulumi.StringArray{pulumi.String("")},
-				Resources:     pulumi.StringArray{pulumi.String("configmaps")},
-				ResourceNames: pulumi.StringArray{pulumi.String("datadogtoken"), pulumi.String("datadog-leader-election")},
-				Verbs:         pulumi.StringArray{pulumi.String("get"), pulumi.String("update")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("")},
-				Resources: pulumi.StringArray{pulumi.String("configmaps")},
-				Verbs:     pulumi.StringArray{pulumi.String("create")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				NonResourceURLs: pulumi.StringArray{pulumi.String("/version"), pulumi.String("/healthz"), pulumi.String("/metrics")},
-				Verbs:           pulumi.StringArray{pulumi.String("get")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("")},
-				Resources: pulumi.StringArray{
-					pulumi.String("nodes/metrics"), pulumi.String("nodes/spec"),
-					pulumi.String("nodes/proxy"), pulumi.String("nodes/stats"),
-				},
-				Verbs: pulumi.StringArray{pulumi.String("get")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("")},
-				Resources: pulumi.StringArray{pulumi.String("endpoints")},
-				Verbs:     pulumi.StringArray{pulumi.String("get")},
-			},
-		},
-	}, providerOpt)
-	if err != nil {
-		return err
-	}
-
-	_, err = rbacv1.NewClusterRoleBinding(ctx, "datadog-crb", &rbacv1.ClusterRoleBindingArgs{
-		Metadata: &metav1.ObjectMetaArgs{Name: pulumi.String("datadog")},
-		RoleRef: &rbacv1.RoleRefArgs{
-			ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
-			Kind:     pulumi.String("ClusterRole"),
-			Name:     pulumi.String("datadog"),
-		},
-		Subjects: rbacv1.SubjectArray{
-			&rbacv1.SubjectArgs{
-				Kind:      pulumi.String("ServiceAccount"),
-				Name:      pulumi.String("datadog"),
-				Namespace: pulumi.String("default"),
-			},
-		},
-	}, providerOpt, pulumi.DependsOn([]pulumi.Resource{sa, cr}))
-	return err
+func deployRBAC(ctx *pulumi.Context, opts ...pulumi.ResourceOption) (*k8syaml.ConfigGroup, error) {
+	return k8syaml.NewConfigGroup(ctx, "datadog-rbac", &k8syaml.ConfigGroupArgs{
+		YAML: []string{rbacYAML},
+	}, opts...)
 }
 
-func deployClusterAgentRBAC(ctx *pulumi.Context, _ config.Env, providerOpt pulumi.ResourceOption) error {
-	sa, err := corev1.NewServiceAccount(ctx, "datadog-ca-sa", &corev1.ServiceAccountArgs{
-		Metadata: &metav1.ObjectMetaArgs{
-			Name:      pulumi.String("datadog-cluster-agent"),
-			Namespace: pulumi.String("default"),
-		},
-	}, providerOpt)
-	if err != nil {
-		return err
-	}
-
-	cr, err := rbacv1.NewClusterRole(ctx, "datadog-ca-cr", &rbacv1.ClusterRoleArgs{
-		Metadata: &metav1.ObjectMetaArgs{Name: pulumi.String("datadog-cluster-agent")},
-		Rules: rbacv1.PolicyRuleArray{
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("")},
-				Resources: pulumi.StringArray{
-					pulumi.String("services"), pulumi.String("endpoints"), pulumi.String("pods"),
-					pulumi.String("nodes"), pulumi.String("namespaces"), pulumi.String("componentstatuses"),
-					pulumi.String("limitranges"),
-				},
-				Verbs: pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("discovery.k8s.io")},
-				Resources: pulumi.StringArray{pulumi.String("endpointslices")},
-				Verbs:     pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("")},
-				Resources: pulumi.StringArray{pulumi.String("events")},
-				Verbs:     pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch"), pulumi.String("create")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("autoscaling")},
-				Resources: pulumi.StringArray{pulumi.String("horizontalpodautoscalers")},
-				Verbs:     pulumi.StringArray{pulumi.String("list"), pulumi.String("watch")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups:     pulumi.StringArray{pulumi.String("")},
-				Resources:     pulumi.StringArray{pulumi.String("configmaps")},
-				ResourceNames: pulumi.StringArray{pulumi.String("datadogtoken"), pulumi.String(clusterAgentLeaderElectionName), pulumi.String("datadog-custom-metrics")},
-				Verbs:         pulumi.StringArray{pulumi.String("get"), pulumi.String("update")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups:     pulumi.StringArray{pulumi.String("")},
-				Resources:     pulumi.StringArray{pulumi.String("configmaps")},
-				ResourceNames: pulumi.StringArray{pulumi.String("extension-apiserver-authentication")},
-				Verbs:         pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("")},
-				Resources: pulumi.StringArray{pulumi.String("configmaps"), pulumi.String("events")},
-				Verbs:     pulumi.StringArray{pulumi.String("create")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				NonResourceURLs: pulumi.StringArray{pulumi.String("/version"), pulumi.String("/healthz")},
-				Verbs:           pulumi.StringArray{pulumi.String("get")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups:     pulumi.StringArray{pulumi.String("")},
-				Resources:     pulumi.StringArray{pulumi.String("namespaces")},
-				ResourceNames: pulumi.StringArray{pulumi.String("kube-system")},
-				Verbs:         pulumi.StringArray{pulumi.String("get")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups:     pulumi.StringArray{pulumi.String("")},
-				Resources:     pulumi.StringArray{pulumi.String("configmaps")},
-				ResourceNames: pulumi.StringArray{pulumi.String("datadog-cluster-id")},
-				Verbs:         pulumi.StringArray{pulumi.String("create"), pulumi.String("get"), pulumi.String("update")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("apps")},
-				Resources: pulumi.StringArray{pulumi.String("deployments"), pulumi.String("replicasets"), pulumi.String("daemonsets")},
-				Verbs:     pulumi.StringArray{pulumi.String("list"), pulumi.String("get"), pulumi.String("watch")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("batch")},
-				Resources: pulumi.StringArray{pulumi.String("cronjobs"), pulumi.String("jobs")},
-				Verbs:     pulumi.StringArray{pulumi.String("list"), pulumi.String("get"), pulumi.String("watch")},
-			},
-			// Keep Lease RBAC in sync with DD_LEADER_LEASE_NAME in case this
-			// scenario opts into Lease-based leader election.
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups:     pulumi.StringArray{pulumi.String("coordination.k8s.io")},
-				Resources:     pulumi.StringArray{pulumi.String("leases")},
-				ResourceNames: pulumi.StringArray{pulumi.String(clusterAgentLeaderElectionName)},
-				Verbs:         pulumi.StringArray{pulumi.String("get"), pulumi.String("update")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("coordination.k8s.io")},
-				Resources: pulumi.StringArray{pulumi.String("leases")},
-				Verbs:     pulumi.StringArray{pulumi.String("create")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("")},
-				Resources: pulumi.StringArray{
-					pulumi.String("persistentvolumes"),
-					pulumi.String("persistentvolumeclaims"),
-					pulumi.String("serviceaccounts"),
-				},
-				Verbs: pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("apps")},
-				Resources: pulumi.StringArray{
-					pulumi.String("statefulsets"),
-				},
-				Verbs: pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("networking.k8s.io")},
-				Resources: pulumi.StringArray{
-					pulumi.String("ingresses"),
-					pulumi.String("networkpolicies"),
-				},
-				Verbs: pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("rbac.authorization.k8s.io")},
-				Resources: pulumi.StringArray{
-					pulumi.String("roles"),
-					pulumi.String("rolebindings"),
-					pulumi.String("clusterroles"),
-					pulumi.String("clusterrolebindings"),
-				},
-				Verbs: pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("storage.k8s.io")},
-				Resources: pulumi.StringArray{pulumi.String("storageclasses")},
-				Verbs:     pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
-			},
-			&rbacv1.PolicyRuleArgs{
-				ApiGroups: pulumi.StringArray{pulumi.String("apiextensions.k8s.io")},
-				Resources: pulumi.StringArray{pulumi.String("customresourcedefinitions")},
-				Verbs:     pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
-			},
-		},
-	}, providerOpt)
-	if err != nil {
-		return err
-	}
-
-	crb, err := rbacv1.NewClusterRoleBinding(ctx, "datadog-ca-crb", &rbacv1.ClusterRoleBindingArgs{
-		Metadata: &metav1.ObjectMetaArgs{Name: pulumi.String("datadog-cluster-agent")},
-		RoleRef: &rbacv1.RoleRefArgs{
-			ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
-			Kind:     pulumi.String("ClusterRole"),
-			Name:     pulumi.String("datadog-cluster-agent"),
-		},
-		Subjects: rbacv1.SubjectArray{
-			&rbacv1.SubjectArgs{
-				Kind:      pulumi.String("ServiceAccount"),
-				Name:      pulumi.String("datadog-cluster-agent"),
-				Namespace: pulumi.String("default"),
-			},
-		},
-	}, providerOpt, pulumi.DependsOn([]pulumi.Resource{sa, cr}))
-	if err != nil {
-		return err
-	}
-
-	_, err = rbacv1.NewClusterRoleBinding(ctx, "datadog-ca-auth-delegator", &rbacv1.ClusterRoleBindingArgs{
-		Metadata: &metav1.ObjectMetaArgs{Name: pulumi.String("datadog-cluster-agent-system-auth-delegator")},
-		RoleRef: &rbacv1.RoleRefArgs{
-			ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
-			Kind:     pulumi.String("ClusterRole"),
-			Name:     pulumi.String("system:auth-delegator"),
-		},
-		Subjects: rbacv1.SubjectArray{
-			&rbacv1.SubjectArgs{
-				Kind:      pulumi.String("ServiceAccount"),
-				Name:      pulumi.String("datadog-cluster-agent"),
-				Namespace: pulumi.String("default"),
-			},
-		},
-	}, providerOpt, pulumi.DependsOn([]pulumi.Resource{crb}))
-	return err
+func deployClusterAgentService(ctx *pulumi.Context, opts ...pulumi.ResourceOption) (*k8syaml.ConfigGroup, error) {
+	return k8syaml.NewConfigGroup(ctx, "datadog-ca-svc", &k8syaml.ConfigGroupArgs{
+		YAML: []string{clusterAgentServiceYAML},
+	}, opts...)
 }
 
-func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, imgPullSecret *corev1.Secret, providerOpt pulumi.ResourceOption) (*corev1.Service, error) {
+func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, imgPullSecret *corev1.Secret, opts ...pulumi.ResourceOption) (*appsv1.Deployment, error) {
 	caEnv := corev1.EnvVarArray{
 		&corev1.EnvVarArgs{Name: pulumi.String("DD_HEALTH_PORT"), Value: pulumi.String("5556")},
 		&corev1.EnvVarArgs{
@@ -462,28 +236,7 @@ func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToke
 		caEnv = append(caEnv, fiVars...)
 	}
 
-	svc, err := corev1.NewService(ctx, "datadog-ca-svc", &corev1.ServiceArgs{
-		Metadata: &metav1.ObjectMetaArgs{
-			Name:      pulumi.String("datadog-cluster-agent"),
-			Namespace: pulumi.String("default"),
-		},
-		Spec: &corev1.ServiceSpecArgs{
-			Type:     pulumi.String("ClusterIP"),
-			Selector: pulumi.StringMap{"app": pulumi.String("datadog-cluster-agent")},
-			Ports: corev1.ServicePortArray{
-				&corev1.ServicePortArgs{
-					Name:     pulumi.String("agentport"),
-					Port:     pulumi.Int(5005),
-					Protocol: pulumi.String("TCP"),
-				},
-			},
-		},
-	}, providerOpt)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = appsv1.NewDeployment(ctx, "datadog-ca-deploy", &appsv1.DeploymentArgs{
+	return appsv1.NewDeployment(ctx, "datadog-ca-deploy", &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("datadog-cluster-agent"),
 			Namespace: pulumi.String("default"),
@@ -533,8 +286,7 @@ func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToke
 				},
 			},
 		},
-	}, providerOpt, pulumi.DependsOn([]pulumi.Resource{svc}))
-	return svc, err
+	}, opts...)
 }
 
 func deployNodeAgentDaemonSet(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, imgPullSecret *corev1.Secret, opts ...pulumi.ResourceOption) error {
