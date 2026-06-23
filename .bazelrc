@@ -115,5 +115,7 @@ common:release --config=rust-release
 common:release --//:release
 common --config=release
 
+test --@rules_go//go/config:race
+
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
