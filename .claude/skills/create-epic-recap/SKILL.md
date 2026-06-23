@@ -56,7 +56,13 @@ For each key, call `jira_get_issue_development_info` on the `user-atlassian` ser
 
 Do **not** use the batch tool `jira_get_issues_development_info` — it returns HTTP 500 when `application_type` is passed.
 
-From each response, collect `pullRequests` entries where `status == "MERGED"`. Record each as a **Tier 0** PR with fields: `id` (e.g. `#52248`), `name` (title), `url`, `status`, `source.branch`, `destination.branch`, `author`, `reviewers`, `lastUpdate`, `repositoryUrl`.
+**Throttling — Jira dev-status API does not tolerate parallel calls.** Parallel requests to `/rest/dev-status/1.0/issue/detail` trigger server-side rate limiting (HTTP 500). Apply all of the following:
+- **Sequential calls only** — issue one `jira_get_issue_development_info` at a time, never in parallel.
+- **~1 s pause** between calls (`sleep 1` or equivalent).
+- **Retry once on 500** — wait 5 s, then retry the failing key. If the retry also fails, record the key as "Phase A miss" and move on.
+- **Fail-fast after 3 consecutive 500s** — the API is likely overloaded or down. Stop Phase A entirely, log `Phase A aborted after 3 consecutive 500s, falling back to Phase B for all keys`, and proceed to Phase B with the full key list.
+
+From each successful response, collect `pullRequests` entries where `status == "MERGED"`. Record each as a **Tier 0** PR with fields: `id` (e.g. `#52248`), `name` (title), `url`, `status`, `source.branch`, `destination.branch`, `author`, `reviewers`, `lastUpdate`, `repositoryUrl`.
 
 **Tier 0 PRs are auto-included with the highest confidence** — they are explicitly linked to the Jira issue by the GitHub↔Jira integration. No heuristic filtering is needed.
 
