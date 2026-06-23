@@ -800,7 +800,7 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\tSignature\x12N\n" +
 	"\bkey_type\x18\x01 \x01(\x0e23.datadog.privateactionrunner.privateactions.KeyTypeR\akeyType\x12\x15\n" +
 	"\x06key_id\x18\x02 \x01(\tR\x05keyId\x12\x1c\n" +
-	"\tsignature\x18\x03 \x01(\fR\tsignature\"\xe3\x04\n" +
+	"\tsignature\x18\x03 \x01(\fR\tsignature\"\xd1\x04\n" +
 	"\x11PrivateActionTask\x12\x1f\n" +
 	"\vaction_name\x18\x01 \x01(\tR\n" +
 	"actionName\x12\x1b\n" +
@@ -814,7 +814,7 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\x0fexpiration_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\x0eexpirationTime\x12I\n" +
 	"\x06client\x18\f \x01(\x0e21.datadog.privateactionrunner.actionsclient.ClientR\x06client\x12]\n" +
 	"\rremote_action\x18\x10 \x01(\v28.datadog.privateactionrunner.privateactions.RemoteActionR\fremoteActionJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
-	"J\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0fJ\x04\b\x0f\x10\x10\"Z\n" +
+	"\"Z\n" +
 	"\fRemoteAction\x12'\n" +
 	"\x0ftarget_commands\x18\x01 \x03(\tR\x0etargetCommands\x12!\n" +
 	"\ftarget_paths\x18\x02 \x03(\tR\vtargetPaths\"\x8f\x02\n" +
