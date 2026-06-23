@@ -25,6 +25,7 @@ go_library(
         "//pkg/logs/types",
         "//pkg/util/log",
         "//pkg/util/scrubber",
+        "@com_github_datadog_fastjq//:fastjq",
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_atomic//:atomic",
     ],

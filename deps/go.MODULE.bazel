@@ -165,6 +165,7 @@ use_repo(
     "com_github_datadog_dd_trace_go_v2",
     "com_github_datadog_ddtrivy",
     "com_github_datadog_ebpf_manager",
+    "com_github_datadog_fastjq",
     "com_github_datadog_go_acl",
     "com_github_datadog_go_sqllexer",
     "com_github_datadog_go_tuf",
