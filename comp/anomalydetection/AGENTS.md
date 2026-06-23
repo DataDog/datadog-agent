@@ -76,13 +76,15 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 
 | Source | Wired from |
 |--------|------------|
-| `all-metrics` | `pkg/aggregator/demultiplexer_agent.go` |
+| `dogstatsd` | `pkg/aggregator/demultiplexer_agent.go` (DogStatsD workers) |
+| `check` | `pkg/aggregator/demultiplexer_agent.go` (core check aggregator) |
+| `agent` | internal agent telemetry namespace for `datadog.*` metrics |
 | `logs` | `logssource/impl/logssource.go` |
-| `agent-internal-logs` | `observer/impl/observer.go` (pkg/util/log tap) |
+| `agent_logs` | `observer/impl/observer.go` (pkg/util/log tap) |
 
 **Log ingestion split:**
 - **Container + kubelet logs** → `logssource` component
-- **Agent-internal logs** → `observer` taps `pkg/util/log` directly
+- **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
 Both paths share filtering primitives from `internal/logsfilter/`.
 
