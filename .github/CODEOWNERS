@@ -19,7 +19,7 @@
 /.claude/agents/weed.md               @DataDog/single-machine-performance
 /.claude/rules/allium.md              @DataDog/single-machine-performance
 /.claude/rules/bazel.md               @DataDog/agent-build
-/.claude/skills/codereview_guidelines @DataDog/agent-devx
+/.claude/skills/codereview_guidelines.md @DataDog/agent-devx
 /.claude/skills/allium/               @DataDog/single-machine-performance
 /.claude/skills/agent-supply-chain-newsletter/ @DataDog/agent-devx
 /.claude/skills/auto-jira/            @DataDog/agent-devx
