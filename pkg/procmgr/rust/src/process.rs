@@ -506,11 +506,7 @@ impl ManagedProcess {
     }
 }
 
-fn apply_child_environment(
-    cmd: &mut Command,
-    name: &str,
-    config: &ProcessConfig,
-) -> Result<()> {
+fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig) -> Result<()> {
     cmd.env_clear();
     #[cfg(windows)]
     platform::apply_child_baseline_env(cmd);
@@ -522,13 +518,10 @@ fn apply_child_environment(
             (false, raw_path.as_str())
         };
         if optional && !std::path::Path::new(path).exists() {
-            info!(
-                "[{name}] optional environment file not found, skipping: {path}"
-            );
+            info!("[{name}] optional environment file not found, skipping: {path}");
         } else {
-            let vars = parse_environment_file(path).with_context(|| {
-                format!("[{name}] failed to read environment file: {path}")
-            })?;
+            let vars = parse_environment_file(path)
+                .with_context(|| format!("[{name}] failed to read environment file: {path}"))?;
             for (k, v) in &vars {
                 cmd.env(k, v);
             }
