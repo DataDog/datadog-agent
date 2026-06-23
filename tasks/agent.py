@@ -83,33 +83,30 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
-    no_bazel=False,
-    enable_bazel=False,
+    enable_bazel=True,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
 
     Bazel-backed build steps are enabled by default.
-    Use `--no-bazel` to keep the legacy build paths.
+    Use `--no-enable-bazel` to keep the legacy build paths.
 
     Example invokation:
         dda inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
-    if enable_bazel:
-        print("`--enable-bazel` is now the default and will be ignored.")
 
     if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":
         # On AIX, rtloader is built natively in advance as a prerequisite.
         with gitlab_section("Install embedded rtloader", collapsed=True):
-            if no_bazel:
-                rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
-                rtloader_install(ctx)
-            else:
+            if enable_bazel:
                 bazel_embedded = rtloader_install_with_bazel(ctx)
                 embedded_path = bazel_embedded
                 python_home_3 = bazel_embedded
+            else:
+                rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
+                rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -301,7 +298,7 @@ def run(
     flavor=AgentFlavor.base.name,
     skip_build=False,
     config_path=None,
-    no_bazel=False,
+    enable_bazel=True,
 ):
     """
     Execute the agent binary.
@@ -310,7 +307,7 @@ def run(
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, flavor, no_bazel=no_bazel)
+        build(ctx, rebuild, race, build_include, build_exclude, flavor, enable_bazel=enable_bazel)
 
     agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
     config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
@@ -456,7 +453,7 @@ def hacky_dev_image_build(
             development=development,
             build_exclude=build_exclude,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
-            no_bazel=True,
+            enable_bazel=False,
         )
         ctx.run(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
