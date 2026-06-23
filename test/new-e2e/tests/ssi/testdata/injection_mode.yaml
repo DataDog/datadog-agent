@@ -2,6 +2,12 @@
 clusterAgent:
   admissionController:
     configMode: "hostip"
+  # Enable CSI auto-detection so the library injection AutoProvider switches
+  # to the CSI provider when the Datadog CSI driver is registered in the
+  # cluster (see TestInjectionMode/injection-mode-app-auto).
+  env:
+    - name: DD_APM_INSTRUMENTATION_CSI_DRIVER_DETECTION_ENABLED
+      value: "true"
 
 datadog:
   csi:

@@ -117,6 +117,24 @@ func (v *ssiSuite) TestInjectionMode() {
 								"admission.datadoghq.com/apm-inject.injection-mode": "image_volume",
 							},
 						},
+						{
+							// The cluster-agent is started with
+							// DD_APM_INSTRUMENTATION_CSI_DRIVER_DETECTION_ENABLED=true
+							// (see injection_mode.yaml) and the Datadog CSI driver is
+							// installed in this suite. The AutoProvider must therefore
+							// pick the CSI provider for this "auto" pod. The pod
+							// security context mirrors the csi pod since the resulting
+							// volume is a CSI volume.
+							Name:                     "injection-mode-app-auto",
+							Image:                    "registry.datadoghq.com/injector-dev/python",
+							Version:                  "16ad9d4b",
+							Port:                     8080,
+							PodSecurityContext:       csiPodSecurityContext,
+							ContainerSecurityContext: csiContainerSecurityContext,
+							PodAnnotations: map[string]string{
+								"admission.datadoghq.com/apm-inject.injection-mode": "auto",
+							},
+						},
 					},
 				},
 			}, dependsOnAgent)
@@ -133,10 +151,18 @@ func (v *ssiSuite) TestInjectionMode() {
 	testCases := []struct {
 		name string
 		mode testutils.InjectionMode
+		// effectiveMode is the value the webhook records in the
+		// internal.apm.datadoghq.com/effective-injection-mode annotation. For
+		// explicit modes it is the bare mode; for "auto" it is the resolved
+		// mode suffixed with " (auto)".
+		effectiveMode string
 	}{
-		{"injection-mode-app-csi", testutils.InjectionModeCSI},
-		{"injection-mode-app-init-container", testutils.InjectionModeInitContainer},
-		{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume},
+		{"injection-mode-app-csi", testutils.InjectionModeCSI, string(testutils.InjectionModeCSI)},
+		{"injection-mode-app-init-container", testutils.InjectionModeInitContainer, string(testutils.InjectionModeInitContainer)},
+		{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume, string(testutils.InjectionModeImageVolume)},
+		// "auto" mode with CSI auto-detection enabled and the Datadog CSI
+		// driver installed must resolve to the CSI provider.
+		{"injection-mode-app-auto", testutils.InjectionModeCSI, testutils.EffectiveAutoMode(testutils.InjectionModeCSI)},
 	}
 
 	k8s := v.Env().KubernetesCluster.Client()
@@ -149,6 +175,15 @@ func (v *ssiSuite) TestInjectionMode() {
 			podValidator.RequireInjection(v.T(), []string{tc.name})
 			podValidator.RequireInjectorVersion(v.T(), "0.54.0")
 			podValidator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
+
+			// Validate the webhook outcome annotations. CSI driver detection is
+			// enabled for this suite (see injection_mode.yaml) and the driver is
+			// installed with APM support, so every injected pod records the
+			// driver status regardless of its configured injection mode.
+			podValidator.RequireEffectiveInjectionMode(v.T(), tc.effectiveMode)
+			podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
+			podValidator.RequireCSIDriverStatus(v.T(), testutils.CSIDriverStatusAPMEnabled)
+			podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
 
 			require.Eventually(v.T(), func() bool {
 				traces := FindTracesForService(v.T(), intake, tc.name)
@@ -210,6 +245,14 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 			"python": "v3.18.1",
 		})
 		podValidator.RequireInjectorVersion(v.T(), "0.52.0")
+
+		// CSI driver detection is not enabled in this suite, so "auto" mode
+		// resolves to init containers and the webhook reports a successful injection.
+		// The csi-driver-status annotation must be absent since detection is off.
+		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
+		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
 
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
@@ -275,6 +318,14 @@ func (v *ssiSuite) TestNamespaceSelection() {
 			"python": "v3.18.1",
 		})
 		podValidator.RequireInjectorVersion(v.T(), "0.52.0")
+
+		// CSI driver detection is not enabled in this suite, so "auto" mode
+		// resolves to init containers and the webhook reports a successful injection.
+		// The csi-driver-status annotation must be absent since detection is off.
+		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
+		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
 
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
@@ -342,6 +393,14 @@ func (v *ssiSuite) TestWorkloadSelection() {
 			"python": "v3.18.1",
 		})
 		podValidator.RequireInjectorVersion(v.T(), "0.52.0")
+
+		// CSI driver detection is not enabled in this suite, so "auto" mode
+		// resolves to init containers and the webhook reports a successful injection.
+		// The csi-driver-status annotation must be absent since detection is off.
+		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
+		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
 
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
@@ -420,6 +479,10 @@ func (v *ssiSuite) TestRegistryAllowList() {
 		podValidator.RequireInjection(v.T(), []string{"registry-allow-list-allowed"})
 		podValidator.RequireInjectorVersion(v.T(), "0.54.0")
 		podValidator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
+		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
+		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
 
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "registry-allow-list-allowed")
@@ -436,6 +499,9 @@ func (v *ssiSuite) TestRegistryAllowList() {
 		// env vars such as DD_INSTRUMENTATION_INSTALL_TYPE are still present.
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireNoInjectionArtifacts(v.T())
+		// The allow-list rejection happens before injection starts, so the webhook
+		// records a "skipped" status alongside the injection-error annotation.
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusSkipped)
 
 		errAnnotation := pod.Annotations["internal.apm.datadoghq.com/injection-error"]
 		require.NotEmpty(v.T(), errAnnotation, "expected injection-error annotation to be set")
@@ -451,6 +517,9 @@ func (v *ssiSuite) TestRegistryAllowList() {
 		// if KPI env vars such as DD_INSTRUMENTATION_INSTALL_TYPE are still present.
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireNoInjectionArtifacts(v.T())
+		// The allow-list rejection happens before injection starts, so the webhook
+		// records a "skipped" status alongside the injection-error annotation.
+		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusSkipped)
 
 		errAnnotation := pod.Annotations["internal.apm.datadoghq.com/injection-error"]
 		require.NotEmpty(v.T(), errAnnotation, "expected injection-error annotation to be set")
