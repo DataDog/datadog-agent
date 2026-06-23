@@ -26,7 +26,7 @@ _IMPORT_PREFIX = AGENT_MODULE_PATH_PREFIX.rstrip("/")
 _DD_AGENT_GO_TEST_TAG = "dd_agent_go_test"
 
 
-def _go_test_packages(ctx, tags: list[str], import_paths: dict[str, set[str]]) -> dict[str, set[str]]:
+def _go_test_packages(ctx, tags: list[str], import_paths: set[str]) -> dict[str, set[str]]:
     """Return {import_path: {Test* func names}} for the given import paths
     compiled under the given build tags."""
     if not import_paths:
@@ -180,8 +180,7 @@ def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
             continue
         uri, cfg_id = action
         funcs = _test_xml_funcs(_test_xml_candidates(label, uri, cfg_id, local_exec_root, config_testlogs))
-        if funcs:
-            covered[_label_to_import_path(label)] = funcs
+        covered[_label_to_import_path(label)] = funcs
 
     return covered
 
@@ -242,10 +241,10 @@ def ensure_test_parity(ctx, bep, flavor_name, verbose=False, emit_metrics=False)
 
     tags = compute_build_tags_for_flavor("unit-tests", None, None, flavor)
     coverage = _bazel_test_funcs_from_bep(bep_path)
-    test_pkgs = _go_test_packages(ctx, tags, coverage)
+    test_pkgs = _go_test_packages(ctx, tags, set(coverage))
 
     go_pkgs = set(test_pkgs)
-    extra_in_bazel = coverage.keys() - go_pkgs
+    extra_in_bazel = {p for p, funcs in coverage.items() if funcs} - go_pkgs
 
     failed = False
     test_count = 0
