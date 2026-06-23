@@ -33,7 +33,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorimpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorfx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
@@ -111,7 +111,7 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
 				snmpscanfx.Module(),
-				orchestratorimpl.Module(orchestrator.NewDisabledParams()),
+				orchestratorfx.Module(orchestrator.NewDisabledParams()),
 				eventplatformfx.Module(eventplatform.NewDefaultParams()),
 				nooptagger.Module(),
 				eventplatformreceiverimpl.Module(),
@@ -175,7 +175,7 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 					LogParams:    log.ForOneShot(command.LoggerName, logLevelDefaultOff.Value(), true)}),
 				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
-				orchestratorimpl.Module(orchestrator.NewDisabledParams()),
+				orchestratorfx.Module(orchestrator.NewDisabledParams()),
 				eventplatformfx.Module(eventplatform.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				nooptagger.Module(),
