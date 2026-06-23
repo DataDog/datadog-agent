@@ -24,6 +24,7 @@ func TestFromEnv(t *testing.T) {
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
+				ProcessManagerEnabled:          true,
 				Mirror:                         "",
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
@@ -84,14 +85,15 @@ func TestFromEnv(t *testing.T) {
 				envPARActionsAllowlist:                        "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
 			},
 			expected: &Env{
-				APIKey:               "123456",
-				Site:                 "datadoghq.eu",
-				Mirror:               "https://mirror.example.com",
-				RemoteUpdates:        true,
-				RegistryOverride:     "registry.example.com",
-				RegistryAuthOverride: "auth",
-				RegistryUsername:     "username",
-				RegistryPassword:     "password",
+				APIKey:                "123456",
+				Site:                  "datadoghq.eu",
+				Mirror:                "https://mirror.example.com",
+				RemoteUpdates:         true,
+				ProcessManagerEnabled: true,
+				RegistryOverride:      "registry.example.com",
+				RegistryAuthOverride:  "auth",
+				RegistryUsername:      "username",
+				RegistryPassword:      "password",
 				RegistryOverrideByImage: map[string]string{
 					"image":         "another.registry.example.com",
 					"another-image": "yet.another.registry.example.com",
@@ -146,6 +148,7 @@ func TestFromEnv(t *testing.T) {
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
+				ProcessManagerEnabled:          true,
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
 				RegistryOverrideByImage:        map[string]string{},
@@ -175,8 +178,9 @@ func TestFromEnv(t *testing.T) {
 				envApmInstrumentationEnabled: "all",
 			},
 			expected: &Env{
-				APIKey: "123456",
-				Site:   "datadoghq.com",
+				APIKey:                "123456",
+				Site:                  "datadoghq.com",
+				ProcessManagerEnabled: true,
 				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
 					"java":   "",
 					"dotnet": "",

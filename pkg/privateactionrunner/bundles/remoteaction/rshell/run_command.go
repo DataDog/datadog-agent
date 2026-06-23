@@ -38,7 +38,12 @@ const (
 // and can be overridden in tests.
 var statFn = os.Stat
 
-// RunCommandHandler implements the runCommand action.
+// RunCommandHandler implements the runCommand and runRemediationCommand actions.
+//
+// The two actions share all sandboxing logic and differ only in mode:
+// - runCommand runs rshell in read-only mode (interp.ModeReadOnly) ;
+// - runRemediationCommand runs it in remediation mode (interp.ModeRemediation)
+// both still confined to the effective AllowedPaths sandbox.
 //
 // Both allow-lists are intersected unconditionally with the per-task backend
 // list before being passed to rshell. They use different equivalence
@@ -56,14 +61,28 @@ var statFn = os.Stat
 type RunCommandHandler struct {
 	operatorAllowedPaths    []string
 	operatorAllowedCommands []string
+	mode                    interp.Mode
 }
 
+// NewRunCommandHandler builds the read-only runCommand handler.
 func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
+	return newRunCommandHandler(operatorAllowedPaths, operatorAllowedCommands, interp.ModeReadOnly)
+}
+
+// NewRunRemediationCommandHandler builds the write-capable runRemediationCommand
+// handler. It shares all sandboxing with runCommand and only switches rshell into
+// remediation mode.
+func NewRunRemediationCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
+	return newRunCommandHandler(operatorAllowedPaths, operatorAllowedCommands, interp.ModeRemediation)
+}
+
+func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode) *RunCommandHandler {
 	operatorAllowedCommandsClone := slices.Clone(operatorAllowedCommands)
 	slices.Sort(operatorAllowedCommandsClone)
 	return &RunCommandHandler{
 		operatorAllowedPaths:    reducePathListToBroadest(cleanPathList(operatorAllowedPaths)),
 		operatorAllowedCommands: slices.Compact(operatorAllowedCommandsClone),
+		mode:                    mode,
 	}
 }
 
@@ -155,8 +174,8 @@ func (h *RunCommandHandler) Run(
 	backendPaths := selectBackendPathsFromEnv(inputs.AllowedPaths)
 	effectiveAllowedCommands := h.filterAllowedCommands(inputs.AllowedCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
-	log.Debugf("rshell runCommand: command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
-		inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
+	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
+		h.mode, inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {
@@ -178,6 +197,7 @@ func (h *RunCommandHandler) Run(
 		interp.AllowedPaths(effectiveAllowedPaths),
 		interp.ProcPath(resolveProcPath()),
 		interp.AllowedCommands(effectiveAllowedCommands),
+		interp.WithMode(h.mode),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
