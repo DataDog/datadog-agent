@@ -57,6 +57,7 @@ func TestConfigMgr_DiscoveryTemplate_NoPythonNeverSchedules(t *testing.T) {
 		cmServiceLookup{cm},
 		cm.onDiscoveryResult,
 		discoverer.Config{MaxAttempts: fastWorkerMaxAttempts, RetryDelay: 10 * time.Millisecond},
+		nil,
 	)
 	cm.discoveryWorker.Start()
 
@@ -93,7 +94,7 @@ func TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer(t *testing.T) {
 	disco := newStubDiscoverer(func(_, _ string) (string, error) {
 		return `[{"instances":[{"openmetrics_endpoint":"http://%%host%%:8080/metrics"}]}]`, nil
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
 	cm.start()
 	defer cm.stop()
 
@@ -142,7 +143,7 @@ func TestConfigMgr_DiscoveryTemplate_ServiceDeletionCancels(t *testing.T) {
 		// forgotten.
 		return "", assert.AnError
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
 	cm.start()
 	defer cm.stop()
 
@@ -181,7 +182,7 @@ func makeDiscoveryCM(t *testing.T, payload string) (*reconcilingConfigManager, *
 	t.Helper()
 	mockResolver := MockSecretResolver{}
 	disco := newStubDiscoverer(func(_, _ string) (string, error) { return payload, nil })
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
 	return cm, disco
@@ -332,6 +333,7 @@ func TestConfigMgr_Lifecycle_EmptyDiscoveryResult(t *testing.T) {
 		cmServiceLookup{cm},
 		cm.onDiscoveryResult,
 		discoverer.Config{MaxAttempts: fastWorkerMaxAttempts, RetryDelay: 5 * time.Millisecond},
+		nil,
 	)
 	cm.discoveryWorker.Start()
 
@@ -396,7 +398,7 @@ func TestConfigMgr_Lifecycle_HostPortsPassedToDiscoverer(t *testing.T) {
 		capturedJSON.Store(serviceJSON)
 		return `[{"instances":[{"port":8080}]}]`, nil
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
 
@@ -449,7 +451,7 @@ func TestConfigMgr_Lifecycle_HostMultiNetworkBridge(t *testing.T) {
 		capturedJSON.Store(serviceJSON)
 		return `[{"instances":[{"port":8080}]}]`, nil
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
 
