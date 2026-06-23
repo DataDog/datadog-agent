@@ -82,6 +82,12 @@ def _recover_orphaned_stacks(app: Application, pulumi_dir: str) -> None:
                 env_name = env_name or "custom"
 
         host_ip = outputs.get("hostIP")
+        if not host_ip:
+            for key, val in outputs.items():
+                if key.startswith("dd-Host-") and isinstance(val, dict):
+                    host_ip = val.get("address")
+                    if host_ip:
+                        break
         metadata: dict[str, Any] = {
             "ssh_user": "ubuntu",
             "stack": name,
@@ -131,6 +137,12 @@ def _refresh_env(app: Application, env: Any) -> bool:
         return True
 
     host_ip = outputs.get("hostIP")
+    if not host_ip:
+        for key, val in outputs.items():
+            if key.startswith("dd-Host-") and isinstance(val, dict):
+                host_ip = val.get("address")
+                if host_ip:
+                    break
     if host_ip and host_ip != env.metadata.get("host_ip"):
         env.metadata["host_ip"] = host_ip
         env.save()
