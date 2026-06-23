@@ -74,12 +74,14 @@ type RunCommandHandler struct {
 }
 
 func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode, pathsConfigured, commandsConfigured bool) *RunCommandHandler {
-	orderedCommands := slices.Clone(operatorAllowedCommands)
-	slices.Sort(orderedCommands)
+	// remove duplicates
+	commands := slices.Clone(operatorAllowedCommands)
+	slices.Sort(commands)
+	commands = slices.Compact(commands)
 	return &RunCommandHandler{
-		operatorAllowedPaths:              slices.Clone(operatorAllowedPaths),
+		operatorAllowedPaths:              reducePathListToBroadest(cleanPathList(operatorAllowedPaths)),
 		operatorAllowedPathsConfigured:    pathsConfigured,
-		operatorAllowedCommands:           orderedCommands,
+		operatorAllowedCommands:           commands,
 		operatorAllowedCommandsConfigured: commandsConfigured,
 		mode:                              mode,
 	}
