@@ -26,7 +26,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-func FromDDConfig(config config.Component, statsdComp statsdcomp.Component) (*Config, error) {
+// FromDDConfig builds the runner Config from the Agent config. The metrics client
+// is supplied by the caller (the standalone runner builds one with NewMetricsClient;
+// the Cluster Agent passes an in-process adapter; callers that emit no metrics, such
+// as the identity-rotation commands, may pass nil). A nil client defaults to no-op.
+func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface) (*Config, error) {
+	if metricsClient == nil {
+		metricsClient = &statsd.NoOpClient{}
+	}
 	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
 	ddHost := getDatadogHost(mainEndpoint)
 	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
@@ -84,7 +91,7 @@ func FromDDConfig(config config.Component, statsdComp statsdcomp.Component) (*Co
 		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
 		HeartbeatInterval:         heartbeatInterval,
 		Version:                   version.AgentVersion,
-		MetricsClient:             newMetricsClient(config, statsdComp),
+		MetricsClient:             metricsClient,
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
@@ -233,7 +240,10 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 	return result
 }
 
-func newMetricsClient(config config.Component, statsdComp statsdcomp.Component) statsd.ClientInterface {
+// NewMetricsClient builds a DogStatsD client from the Agent's configured endpoint
+// (bind_host / dogstatsd_port). Used by deployments that send metrics over a socket/UDP
+// (the standalone runner); the Cluster Agent submits in-process instead.
+func NewMetricsClient(config config.Component, statsdComp statsdcomp.Component) statsd.ClientInterface {
 	// Build the client from the Agent's configured DogStatsD host/port (bind_host / dogstatsd_port)
 	// rather than the shared Get() default, which only honors STATSD_URL and otherwise falls back to
 	// the hard-coded 127.0.0.1:8125. CreateForHostPort still lets STATSD_URL win when it is set.

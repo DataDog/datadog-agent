@@ -77,8 +77,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 
 	adproviders "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
-	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
-	statsdfx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
@@ -266,7 +264,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				clusterchecksmetadatafx.Module(),
 				ipcfx.ModuleReadWrite(),
 				remotetraceroutefx.Module(),
-				statsdfx.Module(),
 			)
 		},
 	}
@@ -305,7 +302,6 @@ func start(log log.Component,
 	healthPlatform option.Option[healthplatformdef.Component],
 	autoscalingGate *autoscalinggate.Gate,
 	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
-	statsdComp statsd.Component,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -640,7 +636,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, statsdComp, demultiplexer)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -808,7 +804,6 @@ func startPrivateActionRunner(
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
 	ipc ipc.Component,
-	statsdComp statsd.Component,
 	demux demultiplexer.Component,
 ) (func(), error) {
 	if rcClient == nil {
@@ -830,7 +825,7 @@ func startPrivateActionRunner(
 		metricsClient = parobservability.NewSenderStatsdAdapter(s)
 	}
 
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, statsdComp, metricsClient)
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient)
 	if err != nil {
 		return nil, err
 	}

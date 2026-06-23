@@ -17,7 +17,6 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	statsdmock "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -35,7 +34,7 @@ func TestRun_DisabledPAR(t *testing.T) {
 	})
 	hostnameComp, _ := hostnamemock.NewMock("test-host")
 
-	err := run(logmock.New(t), cfg, hostnameComp, statsdmock.Mock(t))
+	err := run(logmock.New(t), cfg, hostnameComp)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "private_action_runner.enabled is false")
@@ -48,7 +47,7 @@ func TestRun_K8sSecretIdentityStorageDisabled(t *testing.T) {
 	})
 	hostnameComp, _ := hostnamemock.NewMock("test-host")
 
-	err := run(logmock.New(t), cfg, hostnameComp, statsdmock.Mock(t))
+	err := run(logmock.New(t), cfg, hostnameComp)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "private_action_runner.identity_use_k8s_secret is false")

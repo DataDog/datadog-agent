@@ -33,7 +33,6 @@ go_test(
     embed = [":config"],
     gotags = ["test"],
     deps = [
-        "//comp/dogstatsd/statsd/impl",
         "//pkg/config/mock",
         "//pkg/config/setup",
         "//pkg/util/flavor",

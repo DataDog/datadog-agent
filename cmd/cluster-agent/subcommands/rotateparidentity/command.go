@@ -22,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
-	statsdfx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
@@ -51,14 +49,13 @@ apply the new identity.`,
 				}),
 				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
-				statsdfx.Module(),
 			)
 		},
 	}
 	return []*cobra.Command{cmd}
 }
 
-func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component, statsdComp statsd.Component) error {
+func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
 	ctx := context.Background()
 
 	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
@@ -95,7 +92,8 @@ func run(logger log.Component, cfg config.Component, hostnameComp hostname.Compo
 		return fmt.Errorf("failed to persist new identity: %w", err)
 	}
 
-	parCfg, err := parconfig.FromDDConfig(cfg, statsdComp)
+	// nil metrics client: identity rotation emits no metrics.
+	parCfg, err := parconfig.FromDDConfig(cfg, nil)
 	if err != nil {
 		logger.Warnf("Identity rotated, but failed to load runner config for auto-connection: %v", err)
 	} else if urnParts, err := parutil.ParseRunnerURN(result.URN); err != nil {
