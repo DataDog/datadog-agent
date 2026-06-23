@@ -2,7 +2,6 @@
 Agent namespaced tasks
 """
 
-import ast
 import glob
 import os
 import platform
@@ -604,57 +603,6 @@ def integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
         )
 
 
-def check_supports_python_version(check_dir, python):
-    """
-    Check if a Python project states support for a given major Python version.
-    """
-    import toml
-    from packaging.specifiers import SpecifierSet
-
-    if python not in ['2', '3']:
-        raise Exit("invalid Python version", code=2)
-
-    project_file = os.path.join(check_dir, 'pyproject.toml')
-    setup_file = os.path.join(check_dir, 'setup.py')
-    if os.path.isfile(project_file):
-        with open(project_file) as f:
-            data = toml.loads(f.read())
-
-        project_metadata = data['project']
-        if 'requires-python' not in project_metadata:
-            return True
-
-        requires_python = project_metadata['requires-python']
-        # Handle malformed requires-python values (e.g., just ">=" without version)
-        if not requires_python or requires_python.strip() in ['>=', '>', '<=', '<', '==', '!=', '~=', '===']:
-            return True
-
-        try:
-            specifier = SpecifierSet(requires_python)
-        except Exception:
-            # If the specifier is malformed, assume it supports the Python version
-            return True
-        # It might be e.g. `>=3.8` which would not immediatelly contain `3`
-        for minor_version in range(100):
-            if specifier.contains(f'{python}.{minor_version}'):
-                return True
-        else:
-            return False
-    elif os.path.isfile(setup_file):
-        with open(setup_file) as f:
-            tree = ast.parse(f.read(), filename=setup_file)
-
-        prefix = f'Programming Language :: Python :: {python}'
-        for node in ast.walk(tree):
-            if isinstance(node, ast.keyword) and node.arg == 'classifiers':
-                classifiers = ast.literal_eval(node.value)
-                return any(cls.startswith(prefix) for cls in classifiers)
-        else:
-            return False
-    else:
-        return False
-
-
 def _load_manifest_platform_overrides(integrations_dir):
     """
     Read [overrides.manifest.platforms] from <integrations_dir>/.ddev/config.toml.
@@ -674,7 +622,7 @@ def _load_manifest_platform_overrides(integrations_dir):
 
 
 @task
-def collect_integrations(_, integrations_dir, python_version, target_os, excluded):
+def collect_integrations(_, integrations_dir, target_os, excluded):
     """
     Collect and print the list of integrations to install.
 
@@ -712,7 +660,8 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
             # No manifest file and no override -> assume the folder is not a working check
             continue
 
-        if not check_supports_python_version(int_path, python_version):
+        # Skip folders that are not Python packages
+        if not os.path.isfile(os.path.join(int_path, 'pyproject.toml')):
             continue
 
         integrations.append(entry)

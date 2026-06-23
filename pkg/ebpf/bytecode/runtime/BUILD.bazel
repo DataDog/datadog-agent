@@ -27,6 +27,8 @@ exports_files(
     visibility = ["//pkg/ebpf/bytecode:__pkg__"],
 )
 
+# gazelle:exclude integrity_gen.go
+
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
 genrule(
     name = "integrity_src",

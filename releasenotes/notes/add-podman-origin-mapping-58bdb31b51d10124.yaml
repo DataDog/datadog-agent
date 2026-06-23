@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Podman receiver metrics collected via the Datadog Distribution of OpenTelemetry (DDOT) Collector
+    are now correctly classified with origin ``opentelemetry_collector_podmanreceiver`` instead of
+    falling back to ``opentelemetry_collector_unknown``.
