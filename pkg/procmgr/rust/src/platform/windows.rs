@@ -4,21 +4,29 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::Result;
+use std::ffi::c_void;
+use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use tokio::sync::Notify;
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
+use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, TRUE};
+use windows_sys::Win32::System::Console::{
+    AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, SetConsoleCtrlHandler,
+};
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
     SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_PROCESS_GROUP, OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE, TerminateProcess,
+    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, OpenProcess, PROCESS_SET_QUOTA,
+    PROCESS_TERMINATE, TerminateProcess,
 };
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
+
+/// Serialize console attach / ctrl-event / detach: these APIs are process-global.
+static GRACEFUL_CONSOLE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Returns the global shutdown notifier. The SCM control handler calls
 /// `notify_one()` on this from its OS thread to trigger graceful shutdown
@@ -131,23 +139,60 @@ impl Drop for JobObject {
 // Platform functions
 // ---------------------------------------------------------------------------
 
-/// Place the child in its own process group so `GenerateConsoleCtrlEvent`
-/// can target it without affecting the daemon.
+/// Give the child its own hidden console plus a new process group so
+/// `GenerateConsoleCtrlEvent` / `AttachConsole` graceful shutdown can work (null stdio alone
+/// often leaves no attachable console).
 pub fn setup_process_group(cmd: &mut tokio::process::Command) {
-    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NEW_CONSOLE | CREATE_NO_WINDOW);
 }
 
-/// Send CTRL_BREAK to the child's process group (graceful stop).
-///
-/// `GenerateConsoleCtrlEvent` targets the process group whose ID equals the
-/// child's PID (because we created it with `CREATE_NEW_PROCESS_GROUP`).
+/// While injecting CTRL_BREAK for a child, treat any console control delivered to this process as
+/// handled so we do not run default service shutdown logic for the same event.
+unsafe extern "system" fn ignore_console_ctrl_events(_: u32) -> i32 {
+    TRUE
+}
+
+/// Send CTRL_BREAK to the child's process group (`pid` is the group root from `CREATE_NEW_PROCESS_GROUP`).
+/// Services have no console, so we `AttachConsole(pid)` before `GenerateConsoleCtrlEvent`; then detach.
 pub fn send_graceful_stop(pid: u32) -> Result<()> {
-    let ok = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid) };
-    if ok == 0 {
-        anyhow::bail!(
-            "GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {}",
-            std::io::Error::last_os_error()
-        );
+    let _guard = GRACEFUL_CONSOLE_LOCK
+        .lock()
+        .expect("graceful console lock poisoned");
+
+    unsafe {
+        let _ = FreeConsole();
+        if AttachConsole(pid) == 0 {
+            anyhow::bail!(
+                "AttachConsole({pid}) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        struct DetachOnDrop;
+        impl Drop for DetachOnDrop {
+            fn drop(&mut self) {
+                unsafe {
+                    let _ = FreeConsole();
+                }
+            }
+        }
+        let _detach = DetachOnDrop;
+
+        if SetConsoleCtrlHandler(Some(ignore_console_ctrl_events), 1) == 0 {
+            anyhow::bail!("SetConsoleCtrlHandler: {}", std::io::Error::last_os_error());
+        }
+        let ok = GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid);
+        if SetConsoleCtrlHandler(Some(ignore_console_ctrl_events), 0) == 0 {
+            log::warn!(
+                "SetConsoleCtrlHandler(remove console ctrl ignore handler) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        if ok == 0 {
+            anyhow::bail!(
+                "GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
     }
     Ok(())
 }
@@ -252,6 +297,134 @@ pub async fn shutdown_signal() {
         }
         _ = shutdown_notify().notified() => {
             log::info!("received service stop request");
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Child process baseline environment (after `env_clear`)
+// ---------------------------------------------------------------------------
+
+/// Keys copied from the **current** process when `CreateEnvironmentBlock` is unavailable.
+/// Matches the former installer-side snapshot list (minus disk); values come from
+/// dd-procmgrd at spawn time so PATH / profile vars reflect the service account.
+const FALLBACK_ENV_KEYS: &[&str] = &[
+    "SystemRoot",
+    "WINDIR",
+    "SystemDrive",
+    "ProgramData",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "ProgramW6432",
+    "CommonProgramFiles",
+    "CommonProgramFiles(x86)",
+    "CommonProgramW6432",
+    "PUBLIC",
+    "TEMP",
+    "TMP",
+    "Path",
+    "PATHEXT",
+    "LOCALAPPDATA",
+    "APPDATA",
+    "USERPROFILE",
+    "ComSpec",
+];
+
+/// After [`tokio::process::Command::env_clear`], merge a Windows-appropriate baseline so
+/// managed children (e.g. otel-agent) see PATH, profile directories, and system roots for
+/// the **dd-procmgr** process token — not the fleet installer's environment.
+pub fn apply_child_baseline_env(cmd: &mut tokio::process::Command) {
+    if let Err(e) = try_apply_create_environment_block(cmd) {
+        log::warn!("CreateEnvironmentBlock baseline failed ({e:#}); using process-env fallback");
+        apply_fallback_process_env(cmd);
+    }
+}
+
+fn try_apply_create_environment_block(cmd: &mut tokio::process::Command) -> Result<()> {
+    use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
+    use windows_sys::Win32::System::Environment::{
+        CreateEnvironmentBlock, DestroyEnvironmentBlock,
+    };
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    let mut token: HANDLE = std::ptr::null_mut();
+    let ok = unsafe {
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY | TOKEN_DUPLICATE,
+            &mut token,
+        )
+    };
+    if ok == 0 {
+        anyhow::bail!("OpenProcessToken: {}", std::io::Error::last_os_error());
+    }
+
+    let mut env_block: *mut c_void = std::ptr::null_mut();
+    let ok = unsafe { CreateEnvironmentBlock(&mut env_block, token, 0) };
+    if ok == 0 {
+        unsafe {
+            CloseHandle(token);
+        }
+        anyhow::bail!(
+            "CreateEnvironmentBlock: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
+    merge_wide_env_block_into_cmd(cmd, env_block as *const u16);
+
+    unsafe {
+        let _ = DestroyEnvironmentBlock(env_block as *const c_void);
+        CloseHandle(token);
+    }
+    Ok(())
+}
+
+fn merge_wide_env_block_into_cmd(cmd: &mut tokio::process::Command, block: *const u16) {
+    if block.is_null() {
+        return;
+    }
+    let mut p = block;
+    loop {
+        // SAFETY: `block` must point at a valid NUL-terminated Windows environment block from
+        // `CreateEnvironmentBlock` until `DestroyEnvironmentBlock` is called (caller guarantees).
+        unsafe {
+            if *p == 0 {
+                break;
+            }
+            let entry_start = p;
+            while *p != 0 {
+                p = p.add(1);
+            }
+            let len = (p as usize - entry_start as usize) / std::mem::size_of::<u16>();
+            let slice = std::slice::from_raw_parts(entry_start, len);
+            p = p.add(1);
+            if let Some((k, v)) = split_env_entry_wide(slice) {
+                cmd.env(k, v);
+            }
+        }
+    }
+}
+
+fn split_env_entry_wide(wide: &[u16]) -> Option<(std::ffi::OsString, std::ffi::OsString)> {
+    let eq = wide.iter().position(|&c| c == u16::from(b'='))?;
+    let (k, v) = wide.split_at(eq);
+    let v = &v[1..];
+    if k.is_empty() {
+        return None;
+    }
+    Some((
+        std::ffi::OsString::from_wide(k),
+        std::ffi::OsString::from_wide(v),
+    ))
+}
+
+fn apply_fallback_process_env(cmd: &mut tokio::process::Command) {
+    for &key in FALLBACK_ENV_KEYS {
+        if let Ok(val) = std::env::var(key)
+            && !val.is_empty()
+        {
+            cmd.env(key, val);
         }
     }
 }

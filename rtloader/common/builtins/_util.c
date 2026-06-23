@@ -39,6 +39,9 @@ static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, _UTIL_MODULE_NAM
 PyMODINIT_FUNC PyInit__util(void)
 {
     PyObject *m = PyModule_Create(&module_def);
+    if (m == NULL) {
+        return NULL;
+    }
     addSubprocessException(m);
     return m;
 }

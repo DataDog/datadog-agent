@@ -29,7 +29,7 @@ require (
 	github.com/moby/moby/client v0.4.1
 	github.com/pkg/sftp v1.13.10
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.32.0
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.3.1
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.6.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3
@@ -37,12 +37,12 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3
 	github.com/pulumi/pulumi-command/sdk v1.2.1
-	github.com/pulumi/pulumi-docker/sdk/v4 v4.9.0
+	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.23.0
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
-	github.com/pulumi/pulumi-random/sdk/v4 v4.18.4
+	github.com/pulumi/pulumi-random/sdk/v4 v4.21.0
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4
 	github.com/pulumi/pulumi/sdk/v3 v3.244.0
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
