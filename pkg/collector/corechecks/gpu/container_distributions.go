@@ -23,7 +23,8 @@ const (
 	processCoreUsageMetric   = "process.core.usage"
 	processMemoryUsageMetric = "process.memory.usage"
 
-	// Container-level distribution metric names not in the gpu. namespace
+	// Container-level distribution metric names not in the gpu. namespace, and so
+	// are not documented in spec/gpu_metrics.yaml.
 	containerGPUCoreUsageDist   = "container.gpu.core.usage.dist"
 	containerGPUMemoryUsageDist = "container.gpu.memory.usage.dist"
 )
@@ -163,7 +164,7 @@ func (c *Check) emitContainerDistributions(acc *containerDistAccumulator, snd se
 	for _, key := range acc.order {
 		distTags, terr := c.workloadTagCache.GetOrchestratorCardContainerTags(key.containerID)
 		if terr != nil && !agenterrors.IsNotFound(terr) {
-			errs = append(errs, fmt.Errorf("error collecting low-card container tags for distribution %s container %s: %w", key.distName, key.containerID, terr))
+			errs = append(errs, fmt.Errorf("error collecting orchestrator card container tags for distribution %s container %s: %w", key.distName, key.containerID, terr))
 			continue
 		}
 
