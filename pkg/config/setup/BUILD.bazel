@@ -54,7 +54,6 @@ go_library(
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
-            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),

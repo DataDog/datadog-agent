@@ -26,6 +26,11 @@ embedded_dir = select({
     "//conditions:default": "embedded",
 })
 
+entrypoints_dirname = select({
+    "@platforms//os:windows": "Scripts",
+    "//conditions:default": "bin",
+})
+
 install_wheels(
     name = "integrations",
     srcs = ["@integration_source_packages//:base_wheels"] + select(
@@ -38,6 +43,7 @@ install_wheels(
         },
         no_match_error = "No integration dependency lockfile repo is configured for this target platform.",
     ),
+    entrypoints_dirname = entrypoints_dirname,
     script_interpreter_relative_path = embedded_dir + select({
         "@platforms//os:windows": "/python.exe",
         "//conditions:default": "/bin/python3",
@@ -74,10 +80,7 @@ pkg_files(
     name = "integrations_bin_files",
     srcs = [":integrations_bin"],
     attributes = pkg_attributes(mode = "0755"),
-    prefix = embedded_dir + select({
-        "@platforms//os:windows": "/Scripts",
-        "//conditions:default": "/bin",
-    }),
+    prefix = embedded_dir + "/" + entrypoints_dirname,
     renames = {
         ":integrations_bin": REMOVE_BASE_DIRECTORY,
     },

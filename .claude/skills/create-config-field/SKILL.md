@@ -86,7 +86,6 @@ Commit the resulting changes under `pkg/config/schema/yaml/` alongside your Go c
 
 - **`BindEnvAndSetDefault(key, default, envVars...)`** — Preferred. Registers key, sets default, binds `DD_*` env var.
 - **`SetDefault(key, value)`** — Default without env binding.
-- **`BindEnv(key, envVars...)`** — Env binding without default.
 
 `BindEnvAndSetDefault("my_feature.timeout", 30)` auto-creates `DD_MY_FEATURE_TIMEOUT`. Custom alias: `BindEnvAndSetDefault("my_feature.timeout", 30, "DD_MY_TIMEOUT")`.
 

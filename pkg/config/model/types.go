@@ -182,12 +182,6 @@ type Reader interface {
 	// can modify env vars and the config will rebuild itself, etc)
 	SetTestOnlyDynamicSchema(allow bool)
 
-	// IsSet return true if a non nil values is found in the configuration, including defaults. This is legacy
-	// behavior from viper and don't answer the need to know if something was set by the user (see IsConfigured for
-	// this).
-	//
-	// Deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead.
-	IsSet(key string) bool
 	// IsConfigured returns true if a setting is configured by the user. This means that either:
 	//  1. The key is for a leaf, and the setting has a non-nil value on a non-default source OR
 	//  2. The key is for an inner node, and one of its children IsConfigured
@@ -249,7 +243,6 @@ type Setup interface {
 	SetDefault(key string, value interface{})
 
 	SetEnvPrefix(in string)
-	BindEnv(key string, envvars ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 
 	// ParseEnvSplitComma registers a transformer to parse the env var for key as a comma-separated list.

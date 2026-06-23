@@ -1,0 +1,18 @@
+generator: []
+
+blackhole:
+  # The datadog blackhole impersonates Datadog's V2 metrics intake. The agent's
+  # datadog.yaml sets `dd_url` to this address, so every statsd-emitted agent
+  # metric -- including `datadog.runtime_security.*` from security-agent and
+  # system-probe -- flows through the agent's normal forwarder and is recorded
+  # into SMP at its original payload timestamp.
+  # This is the same code path the agent uses in production.
+  - datadog:
+      v2:
+        binding_addr: "127.0.0.1:9091"
+
+# target_metrics scrapes Prometheus/expvar endpoints on the target. CWS
+# runtime_security metrics are statsd-only and are not exposed on those
+# surfaces, so this is intentionally empty -- the datadog blackhole above
+# captures them.
+target_metrics: []

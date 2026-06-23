@@ -314,9 +314,8 @@ properties:
       could happen while serializing large objects on log lines.
   api_key:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
     comment: specific logs-agent api-key
   atomic_registry_write:
     node_type: setting

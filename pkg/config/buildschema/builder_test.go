@@ -39,9 +39,6 @@ func TestLeafNodeHasNodeTypeSettings(t *testing.T) {
 		{"float64 default", func(b *builder) { b.BindEnvAndSetDefault("leaf_float", 3.14) }},
 		{"[]string default", func(b *builder) { b.BindEnvAndSetDefault("leaf_strslice", []string{"a"}) }},
 		{"nested setting", func(b *builder) { b.BindEnvAndSetDefault("section.leaf", "val") }},
-		{"no-default (BindEnv only)", func(b *builder) { b.BindEnv("leaf_env", "DD_LEAF_ENV") }},
-		{"SetKnown", func(b *builder) { b.SetKnown("leaf_known") }},
-		{"SetDefault nil", func(b *builder) { b.SetDefault("leaf_nil_default", nil) }},
 	}
 
 	for _, tc := range cases {
@@ -76,28 +73,6 @@ func TestLeafNodeHasNodeTypeSettings(t *testing.T) {
 				t.Errorf("leaf node has node_type=%q, want %q", nodeType, "setting")
 			}
 		})
-	}
-}
-
-// TestNoDefaultNodeHasBothTodoTags verifies that a setting registered without
-// a default carries both TODO:fix-no-default and TODO:fix-missing-type tags,
-// so the schema linter can identify it as a known issue for both checks.
-func TestNoDefaultNodeHasBothTodoTags(t *testing.T) {
-	b := NewSchemaBuilder("", "", nil).(*builder)
-	b.BindEnv("no_default_setting", "DD_NO_DEFAULT")
-
-	leaf := b.Schema["properties"].(map[string]interface{})["no_default_setting"].(map[string]interface{})
-	tags, _ := leaf["tags"].([]string)
-
-	wantTags := []string{"TODO:fix-no-default", "TODO:fix-missing-type"}
-	tagSet := make(map[string]bool, len(tags))
-	for _, t := range tags {
-		tagSet[t] = true
-	}
-	for _, want := range wantTags {
-		if !tagSet[want] {
-			t.Errorf("noDefault node is missing tag %q; got tags: %v", want, tags)
-		}
 	}
 }
 

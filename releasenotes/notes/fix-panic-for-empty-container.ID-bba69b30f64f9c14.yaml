@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Fixed a rare process-agent panic when collecting metrics for a container with an empty or short (<12 character) ID.
+    

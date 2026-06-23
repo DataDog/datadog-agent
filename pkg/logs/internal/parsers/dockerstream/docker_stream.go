@@ -12,6 +12,7 @@ package dockerstream
 import (
 	"bytes"
 	"fmt"
+	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
@@ -66,19 +67,32 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 		return msg, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", containerID)
 	}
 
-	// Read the first byte to get the status
+	// Read the first byte to get the status. Non-TTY containers prefix every
+	// chunk with an 8-byte header where byte 0 is 1 (stdout) or 2 (stderr);
+	// TTY containers omit this header entirely (the daemon emits raw
+	// "RFC3339Nano SPACE content" instead). getDockerSeverity returns "" for
+	// the TTY case, which is the gate for everything below.
 	status := getDockerSeverity(content)
 	if status == "" {
-
-		// When tailing logs coming from a container running with a tty, docker
-		// does not add the header. In that case, the message only contains
-		// the timestamp followed by whatever comes from what is running in the
-		// container (and maybe stdin). As a fallback, set the status to info.
+		// TTY path — no 8-byte header. The body looks like:
+		//   RFC3339Nano SPACE content...
+		// and for log lines spanning more than one 16KB Docker buffer:
+		//   TS1 SPACE content1(16KB) TS2 SPACE content2(16KB) ... TSn SPACE contentn
+		// (see https://github.com/moby/moby/issues/19696). When this happens
+		// we need to strip the intermediate TSi SPACE markers so the caller
+		// only sees the concatenated raw content. Spaces inside the user's
+		// log content are preserved — the stripping operates on fixed 16KB
+		// chunk boundaries, not on space lookups inside content.
 		status = message.StatusInfo
+		if len(content) > dockerBufferSize {
+			content = removeTTYPartialTimestamps(content)
+		}
 
 	} else {
-
-		// remove partial headers that are added by docker when the message gets too long
+		// Non-TTY path — 8-byte stream header present. Each 16KB partial chunk
+		// includes its own header + RFC3339Nano timestamp + space, handled by
+		// removePartialDockerMetadata. The new TTY helper above is never
+		// reached on this branch.
 		if len(content) > dockerBufferSize {
 			content = removePartialDockerMetadata(content)
 		}
@@ -174,6 +188,76 @@ func getDockerMetadataLength(msg []byte) int {
 		return 0
 	}
 	return dockerHeaderLength + idx + 1
+}
+
+// removeTTYPartialTimestamps removes the timestamp and space that Docker injects
+// before each 16KB chunk of content when a container runs in TTY mode.
+//
+// In TTY mode the 8-byte stream header is absent, so the wire format for a
+// message that spans multiple 16KB buffers is:
+//
+//	TS1 SPACE CONTENT1(16KB) TS2 SPACE CONTENT2(16KB) ... TSn SPACE CONTENTn
+//
+// This function keeps the very first "TS1 SPACE" and concatenates each
+// subsequent content chunk without its leading timestamp prefix:
+//
+//	Input:  TS1 SPACE CONTENT1 TS2 SPACE CONTENT2 TS3 SPACE CONTENT3
+//	Output: TS1 SPACE CONTENT1 CONTENT2 CONTENT3
+//
+// If the tail after a chunk does not begin with a valid RFC3339Nano timestamp
+// followed by a space (for example a single non-Docker frame longer than 16KB,
+// or a truncated frame), the remainder is appended verbatim instead of being
+// reinterpreted as another chunk boundary.
+func removeTTYPartialTimestamps(msgToClean []byte) []byte {
+	metadataLen, ok := getTTYMetadataLength(msgToClean)
+	if !ok {
+		return msgToClean
+	}
+
+	msg := []byte{}
+	start := 0
+	end := min(len(msgToClean), dockerBufferSize+metadataLen)
+
+	for end > 0 {
+		msg = append(msg, msgToClean[start:end]...)
+		msgToClean = msgToClean[end:]
+		if len(msgToClean) == 0 {
+			break
+		}
+		metadataLen, ok = getTTYMetadataLength(msgToClean)
+		if !ok {
+			// Remainder doesn't look like another Docker chunk boundary.
+			// Append the unmatched tail unchanged rather than stripping
+			// bytes that might be part of the user's log content.
+			msg = append(msg, msgToClean...)
+			break
+		}
+		start = metadataLen
+		end = min(len(msgToClean), dockerBufferSize+metadataLen)
+	}
+
+	return msg
+}
+
+// getTTYMetadataLength returns the length of the timestamp and trailing space
+// that Docker prepends to each TTY-mode buffer chunk. In TTY mode there is no
+// 8-byte stream header, so the metadata is just the RFC3339Nano timestamp
+// followed by a single space character.
+//
+// Returns (metadataLen, true) when the message begins with a valid
+// RFC3339Nano timestamp + space, and (0, false) otherwise. The second
+// return guards against treating ordinary user content (which may contain
+// spaces but does not start with a parseable timestamp) as a chunk
+// boundary.
+func getTTYMetadataLength(msg []byte) (int, bool) {
+	idx := bytes.Index(msg, []byte{' '})
+	if idx == -1 {
+		return 0, false
+	}
+	if _, err := time.Parse(time.RFC3339Nano, string(msg[:idx])); err != nil {
+		return 0, false
+	}
+	return idx + 1, true
 }
 
 // isEmptyMessage tests if the entire message is in the form of escaped new line

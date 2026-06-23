@@ -52,7 +52,7 @@ agents:
   containers:
     privateActionRunner:
       envDict:
-        DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand"
+        DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand,com.datadoghq.remoteaction.rshell.runRemediationCommand"
 `
 
 // parK8sProvisioner provisions a Kind-on-EC2 cluster with:

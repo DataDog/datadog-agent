@@ -292,15 +292,8 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 		traceCfgReceiverHost = "0.0.0.0"
 	}
 
-	traceCfgReceiverPort := 8126
-	if cfg.IsSet("apm_config.receiver_port") {
-		traceCfgReceiverPort = cfg.GetInt("apm_config.receiver_port")
-	}
-
-	traceCfgReceiverSocket := defaultpaths.GetDefaultReceiverSocket()
-	if cfg.IsSet("apm_config.receiver_socket") {
-		traceCfgReceiverSocket = cfg.GetString("apm_config.receiver_socket")
-	}
+	traceCfgReceiverPort := cfg.GetInt("apm_config.receiver_port")
+	traceCfgReceiverSocket := cfg.GetString("apm_config.receiver_socket")
 
 	// end of config initialization
 

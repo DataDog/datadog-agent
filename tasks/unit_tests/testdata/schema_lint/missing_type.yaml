@@ -6,8 +6,3 @@ properties:
   no_type:
     node_type: setting
     default: 42
-  excepted_no_type:
-    node_type: setting
-    default: something
-    tags:
-      - TODO:fix-missing-type

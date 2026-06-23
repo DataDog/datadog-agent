@@ -22,7 +22,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -219,7 +219,7 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 
 func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	cfgSlice := func(name string) []string {
-		if ia.conf.IsSet(name) {
+		if ia.conf.IsConfigured(name) {
 			ss := ia.conf.GetStringSlice(name)
 			rv := make([]string, len(ss))
 			for i, s := range ss {

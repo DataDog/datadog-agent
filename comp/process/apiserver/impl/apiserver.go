@@ -114,7 +114,7 @@ const defaultProcessCmdPort = 6162
 // getProcessAPIAddressPort returns the API address:port for the process agent.
 func getProcessAPIAddressPort(cfg config.Component, log logComp.Component) (string, error) {
 	var key string
-	if cfg.IsSet("ipc_address") {
+	if cfg.IsConfigured("ipc_address") {
 		log.Warn("ipc_address is deprecated, use cmd_host instead")
 		key = "ipc_address"
 	} else {
