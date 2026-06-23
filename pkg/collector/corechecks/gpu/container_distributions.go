@@ -168,6 +168,10 @@ func (c *Check) emitContainerDistributions(acc *containerDistAccumulator, snd se
 			continue
 		}
 
+		if len(distTags) == 0 {
+			continue
+		}
+
 		snd.Distribution(key.distName, acc.totals[key], "", distTags)
 	}
 	return errs
