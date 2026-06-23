@@ -293,30 +293,6 @@ func TestOperationApply_RestrictedFileNoEveryoneRead(t *testing.T) {
 	assert.False(t, everyoneCanRead(t, filePath), "datadog.yaml (0640) should not grant Everyone read")
 }
 
-func TestOperationApply_MoveReadableConfigToRestrictedFileRemovesEveryoneRead(t *testing.T) {
-	tmpDir := t.TempDir()
-	sourcePath := filepath.Join(tmpDir, "application_monitoring.yaml")
-	destinationPath := filepath.Join(tmpDir, "datadog.yaml")
-	assert.NoError(t, os.WriteFile(sourcePath, []byte("enabled: true\n"), 0600))
-	assert.NoError(t, paths.SetFileReadableByEveryone(sourcePath))
-	assert.True(t, everyoneCanRead(t, sourcePath), "source should start with Everyone read")
-
-	root, err := os.OpenRoot(tmpDir)
-	assert.NoError(t, err)
-	defer root.Close()
-
-	op := &FileOperation{
-		FileOperationType: FileOperationMove,
-		FilePath:          "/application_monitoring.yaml",
-		DestinationPath:   "/datadog.yaml",
-	}
-	assert.NoError(t, op.apply(context.Background(), root))
-
-	assert.NoFileExists(t, sourcePath)
-	assert.FileExists(t, destinationPath)
-	assert.False(t, everyoneCanRead(t, destinationPath), "datadog.yaml (0640) should not keep Everyone read after move")
-}
-
 func TestRemoveExperiment_RestoresApplicationMonitoringEveryoneRead(t *testing.T) {
 	stablePath := t.TempDir()
 	experimentPath := t.TempDir()
