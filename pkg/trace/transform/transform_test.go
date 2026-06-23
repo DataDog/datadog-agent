@@ -1208,3 +1208,64 @@ func TestFallbackInconsistency_Status2ErrorHTTPCodePrecedence(t *testing.T) {
 		})
 	}
 }
+
+// TestScopeConvention verifies that OtelSpanToDDSpan uses otel.scope.* keys by default
+// and falls back to the deprecated otel.library.* keys when disable_otel_scope_convention is set.
+func TestScopeConvention(t *testing.T) {
+	tests := []struct {
+		name             string
+		disableScopeConv bool
+		expectedNameKey  string
+		expectedVerKey   string
+	}{
+		{
+			name:             "default: uses otel.scope convention",
+			disableScopeConv: false,
+			expectedNameKey:  string(semconv117.OtelScopeNameKey),
+			expectedVerKey:   string(semconv117.OtelScopeVersionKey),
+		},
+		{
+			name:             "disable_otel_scope_convention: falls back to otel.library convention",
+			disableScopeConv: true,
+			expectedNameKey:  string(semconv117.OtelLibraryNameKey),
+			expectedVerKey:   string(semconv117.OtelLibraryVersionKey),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetTraceID([16]byte{1})
+			span.SetSpanID([8]byte{1})
+
+			res := pcommon.NewResource()
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("my-lib")
+			lib.SetVersion("1.2.3")
+
+			cfg := &config.AgentConfig{}
+			cfg.OTLPReceiver = &config.OTLP{}
+			cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+			cfg.Features = make(map[string]struct{})
+			if tt.disableScopeConv {
+				cfg.Features["disable_otel_scope_convention"] = struct{}{}
+			}
+
+			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+			assert.Equal(t, "my-lib", ddspan.Meta[tt.expectedNameKey])
+			assert.Equal(t, "1.2.3", ddspan.Meta[tt.expectedVerKey])
+
+			// Ensure the opposite key is NOT set
+			if tt.disableScopeConv {
+				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelScopeNameKey))
+				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelScopeVersionKey))
+			} else {
+				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelLibraryNameKey))
+				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelLibraryVersionKey))
+			}
+		})
+	}
+}

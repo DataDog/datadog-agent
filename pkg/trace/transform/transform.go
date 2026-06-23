@@ -308,7 +308,7 @@ func OtelSpanToDDSpan(
 	if otelspan.TraceState().AsRaw() != "" {
 		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
 	}
-	scopeConventionGateEnabled := !conf.HasFeature("disable_scope_convention")
+	scopeConventionGateEnabled := !conf.HasFeature("disable_otel_scope_convention")
 	if lib.Name() != "" {
 		if scopeConventionGateEnabled {
 			ddspan.Meta[string(semconv.OtelScopeNameKey)] = lib.Name()
