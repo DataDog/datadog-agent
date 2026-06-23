@@ -8,7 +8,6 @@
 package config
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 	"unsafe"
@@ -72,19 +71,4 @@ func TestWriteConfigsGrantsEveryoneRead(t *testing.T) {
 	assert.FileExists(t, datadogYAML)
 	assert.False(t, everyoneCanRead(t, datadogYAML),
 		"datadog.yaml (0640) should not grant Everyone read")
-}
-
-// TestBackfillFromTemplateGrantsEveryoneRead verifies the template-backfill write path also
-// grants Everyone read for a world-readable file.
-func TestBackfillFromTemplateGrantsEveryoneRead(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "application_monitoring.yaml")
-	templatePath := filepath.Join(tempDir, "application_monitoring.yaml.template")
-	assert.NoError(t, os.WriteFile(configPath, []byte("apm_configuration_default:\n  DD_TRACE_DEBUG: \"true\"\n"), 0644))
-	assert.NoError(t, os.WriteFile(templatePath, []byte("# managed config\napm_configuration_default:\n"), 0644))
-
-	assert.NoError(t, BackfillFromTemplate(configPath, templatePath, 0644))
-
-	assert.True(t, everyoneCanRead(t, configPath),
-		"backfilled application_monitoring.yaml (0644) should grant Everyone read")
 }

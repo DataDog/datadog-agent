@@ -243,10 +243,7 @@ func BackfillFromTemplate(configPath, templatePath string, perms os.FileMode) er
 	if err := enc.Encode(&templateRoot); err != nil {
 		return fmt.Errorf("could not encode merged config: %w", err)
 	}
-	if err := os.WriteFile(configPath, buf.Bytes(), perms); err != nil {
-		return err
-	}
-	return ensureReadablePermissions(configPath, perms)
+	return os.WriteFile(configPath, buf.Bytes(), perms)
 }
 
 // readConfig returns the Agent config bytes from path and performs the following normalizations:
