@@ -3,6 +3,7 @@ name: create-config-field
 description: Add a new configuration field to the Datadog Agent (datadog.yaml)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[config.key.name]"
+model: sonnet
 ---
 
 Add a new configuration field to a Datadog Agent. This involves registering the key with defaults/env bindings in Go, and optionally documenting it in the config template.
@@ -85,7 +86,6 @@ Commit the resulting changes under `pkg/config/schema/yaml/` alongside your Go c
 
 - **`BindEnvAndSetDefault(key, default, envVars...)`** — Preferred. Registers key, sets default, binds `DD_*` env var.
 - **`SetDefault(key, value)`** — Default without env binding.
-- **`BindEnv(key, envVars...)`** — Env binding without default.
 
 `BindEnvAndSetDefault("my_feature.timeout", 30)` auto-creates `DD_MY_FEATURE_TIMEOUT`. Custom alias: `BindEnvAndSetDefault("my_feature.timeout", 30, "DD_MY_TIMEOUT")`.
 

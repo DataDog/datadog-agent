@@ -678,6 +678,14 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, false, config.GetBool("network_path.netflow_monitoring.enabled"))
 }
 
+func TestHealthPlatformDefaults(t *testing.T) {
+	config := confFromYAML(t, "")
+
+	assert.Equal(t, true, config.GetBool("health_platform.enabled"))
+	assert.Equal(t, 15*time.Minute, config.GetDuration("health_platform.forwarder.interval"))
+	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
+}
+
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
 	datadogYaml := `
 infrastructure_mode: none
@@ -853,6 +861,40 @@ data_plane:
 			"data_plane.dogstatsd.enabled must be suppressed when fleet policy sets use_dogstatsd=false")
 		assert.True(t, cfg.GetBool("data_plane.enabled"),
 			"data_plane.enabled must not be touched by the suppression override")
+	})
+}
+
+func TestComputeDataPlaneStopTimeout(t *testing.T) {
+	t.Run("unset stop timeout derives from component timeouts", func(t *testing.T) {
+		cfg := confFromYAML(t, "")
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 4, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceDefault, cfg.GetSource("data_plane.stop_timeout"))
+	})
+
+	t.Run("explicit stop timeout is preserved", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+data_plane:
+  stop_timeout: 11
+`)
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 11, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceFile, cfg.GetSource("data_plane.stop_timeout"))
+	})
+
+	t.Run("recomputes default after component timeout changes", func(t *testing.T) {
+		cfg := confFromYAML(t, "")
+		cfg.Set("aggregator_stop_timeout", 3, pkgconfigmodel.SourceFleetPolicies)
+		cfg.Set("forwarder_stop_timeout", 7, pkgconfigmodel.SourceFleetPolicies)
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 10, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceDefault, cfg.GetSource("data_plane.stop_timeout"))
 	})
 }
 
@@ -1650,11 +1692,11 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
 		{
-			name:         "darwin resets true to false",
+			name:         "darwin preserves true",
 			goos:         "darwin",
 			initialValue: true,
-			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			// Even when already false, non-Linux writes SourceAgentRuntime so that
@@ -1666,11 +1708,11 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
 		{
-			name:         "darwin locks false via SourceAgentRuntime",
+			name:         "darwin preserves false",
 			goos:         "darwin",
 			initialValue: false,
 			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			name:         "darwin bypass: force-enable=true preserves true",
@@ -1689,13 +1731,13 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
-			// Garbage value in the env var does NOT bypass the gate.
-			name:         "darwin bypass: force-enable=yes is ignored (gate applies)",
+			// Garbage value in the env var has no effect on Darwin because Darwin is supported.
+			name:         "darwin force-enable=yes has no effect",
 			goos:         "darwin",
 			forceEnable:  "yes",
 			initialValue: true,
-			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			// When bypass is active and value is already false, gate is still skipped —

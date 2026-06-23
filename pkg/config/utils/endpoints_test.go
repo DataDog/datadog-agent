@@ -16,10 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
-// key includes the key delimiter. Affects the config package when both secrets and multiple
+// TestSecretBackendWithMultipleEndpoints tests an edge case of the config's AllSettings() when a
+// config key includes the key delimiter. Affects the config package when both secrets and multiple
 // endpoints are configured.
-// Refer to https://github.com/DataDog/viper/pull/2 for more details.
 func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := mock.NewFromFile(t, "./tests/datadog_secrets.yaml")
 
@@ -323,7 +322,7 @@ func TestDDURLEnvVar(t *testing.T) {
 	t.Setenv("DD_URL", "https://app.datadoghq.eu")
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -343,7 +342,7 @@ func TestDDDDURLEnvVar(t *testing.T) {
 	t.Setenv("DD_DD_URL", "https://app.datadoghq.eu")
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -367,7 +366,7 @@ func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
 
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)

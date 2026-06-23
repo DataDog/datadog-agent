@@ -7,6 +7,9 @@
 package run
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -18,6 +21,7 @@ type serviceInitFunc func() (err error)
 type Servicedef struct {
 	name           string
 	configKeys     map[string]model.Reader
+	suppressIf     func() bool
 	shouldShutdown bool
 
 	serviceName string
@@ -95,6 +99,9 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			configKeys: map[string]model.Reader{
 				"otelcollector.enabled": coreConf,
 			},
+			suppressIf: func() bool {
+				return ddotProcmgrProcessDefinitionExists() && coreConf.GetBool("process_manager.enabled")
+			},
 			serviceName:    "datadog-otel-agent",
 			serviceInit:    otelInit,
 			shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
@@ -171,6 +178,10 @@ func (s *Servicedef) Stop() error {
 
 // IsEnabled checks to see if a given service should be started
 func (s *Servicedef) IsEnabled() bool {
+	if s.suppressIf != nil && s.suppressIf() {
+		log.Infof("Service %s suppressed (install policy)", s.name)
+		return false
+	}
 	for configKey, cfg := range s.configKeys {
 		if cfg.GetBool(configKey) {
 			return true
@@ -220,4 +231,18 @@ func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 			log.Infof("Service %s is not configured to stop, not stopping", svc.name)
 		}
 	}
+}
+
+const ddotProcmgrProcessDefinitionFile = "datadog-agent-ddot.yaml"
+
+// True if the fleet DDOT processes.d definition exists (dd-procmgr supervises DDOT). With
+// process_manager.enabled, the Agent skips starting the datadog-otel-agent Windows service.
+func ddotProcmgrProcessDefinitionExists() bool {
+	installPath, err := winutil.GetProgramFilesDirForProduct("Datadog Agent")
+	if err != nil || installPath == "" {
+		return false
+	}
+	p := filepath.Join(installPath, "processes.d", ddotProcmgrProcessDefinitionFile)
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
 }

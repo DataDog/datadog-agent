@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -340,6 +341,7 @@ func getMIGDeviceMockWithOptions(deviceIdx int, migDeviceIdx int, opts deviceOpt
 
 func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Device {
 	fieldValuesCounter := uint64(0)
+	fieldValuesCounterMu := sync.Mutex{}
 	arch, major, minor := opts.effectiveArchitecture()
 	isMIGUnsupported := opts.shouldMarkMIGUnsupported()
 	isMIGOrVGPUUnsupported := opts.shouldMarkMIGOrVGPUUnsupported()
@@ -645,6 +647,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return nvml.VALUE_TYPE_UNSIGNED_INT, samples, nvml.SUCCESS
 		},
 		GetFieldValuesFunc: func(values []nvml.FieldValue) nvml.Return {
+			fieldValuesCounterMu.Lock()
+			defer fieldValuesCounterMu.Unlock()
+
 			if opts.fieldValuesReturn != nil {
 				return *opts.fieldValuesReturn
 			}
