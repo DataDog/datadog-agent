@@ -22,7 +22,7 @@
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 # Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
-.windows_path: &windows_path 
+.windows_path: &windows_path
   # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
 
@@ -285,9 +285,9 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v116983866-e2293bec
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v116983866-e2293bec
+  CI_IMAGE_WIN_LTSC2022_X64: v120485007-5f646742
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v116983866-e2293bec
+  CI_IMAGE_WIN_LTSC2025_X64: v120485007-5f646742
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
