@@ -10,6 +10,7 @@
     "stopUpdatingLabel": "stop-updating",
     "gitIgnoredAuthors": ["200755185+dd-octo-sts[bot]@users.noreply.github.com"],
     "platformCommit": "enabled",
+    "postUpdateOptions": ["gomodUpdateImportPaths"],
     "packageRules": [
       {
         "matchDepNames": ["*"],
