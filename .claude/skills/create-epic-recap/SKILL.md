@@ -3,12 +3,53 @@ name: create-epic-recap
 description: Generate a resolution recap for a Jira Epic from merged PRs and release notes, then post it as a comment after user approval
 argument-hint: "<EPIC-KEY e.g. OTAGENT-820> [--dry-run]"
 model: sonnet
-allowed-tools: Bash, Read, Write, Glob, Grep, AskUserQuestion
+allowed-tools: Bash, Read, Write, Glob, Grep, AskUserQuestion, mcp__atlassian__getJiraIssue, mcp__atlassian__searchJiraIssuesUsingJql, mcp__atlassian__getJiraIssueRemoteIssueLinks, mcp__atlassian__addCommentToJiraIssue, mcp__atlassian__getAccessibleAtlassianResources
 ---
 
 Generate a resolution recap for the Jira Epic **$ARGUMENTS**, aggregating information from merged GitHub PRs and release notes. Show a preview and post the recap as a comment on the Epic only after explicit user approval.
 
 This skill is intended for an engineer who has finished work on an Epic and wants to communicate the resolution to PMs and stakeholders without losing flow. See [OTAGENT-1038](https://datadoghq.atlassian.net/browse/OTAGENT-1038) for motivation.
+
+## Runtime & MCP tooling — read before Step 2
+
+This skill runs in **two environments with different Atlassian MCP servers**. Detect which one you have, then use the matching column in every Jira step below. Everything in Steps 2–12 that mentions a `jira_*` tool has a Rovo equivalent in the mapping table — never assume one runtime's tool names exist in the other.
+
+- **Cursor** — community `mcp-atlassian` server. Tools: `jira_get_issue`, `jira_search`, `jira_get_issue_development_info`, `jira_add_comment`. No `cloudId`. `fields` is a comma-separated string. Comment body param is `body`.
+- **Claude Code** — official Atlassian (Rovo) server. Tools: `mcp__atlassian__getJiraIssue`, `mcp__atlassian__searchJiraIssuesUsingJql`, `mcp__atlassian__getJiraIssueRemoteIssueLinks`, `mcp__atlassian__addCommentToJiraIssue`, `mcp__atlassian__getAccessibleAtlassianResources`. **`cloudId` is required on every call.** `fields` is a JSON array. Comment body param is `commentBody`.
+
+**Detection:** if `jira_get_issue_development_info` / `jira_get_issue` is callable → Cursor path. If `mcp__atlassian__getJiraIssue` is callable → Claude path. If neither, stop and ask the user to connect/authenticate an Atlassian MCP server.
+
+**cloudId (Claude/Rovo only):** pass `cloudId: "datadoghq.atlassian.net"` directly — the site hostname works. If a call rejects it, call `mcp__atlassian__getAccessibleAtlassianResources` once and use the returned `id` (UUID) for the `datadoghq` site.
+
+### Tool mapping
+
+| Logical operation | Cursor (`mcp-atlassian`) | Claude Code (Atlassian Rovo) |
+|---|---|---|
+| Fetch issue (Steps 2 & 4-A2) | `jira_get_issue` — `issue_key`, `fields` (CSV), `comment_limit` | `mcp__atlassian__getJiraIssue` — `cloudId`, `issueIdOrKey`, `fields` (array), `responseContentFormat:"markdown"` |
+| Search children (Step 3) | `jira_search` — `jql`, `fields` (CSV), `limit` | `mcp__atlassian__searchJiraIssuesUsingJql` — `cloudId`, `jql`, `fields` (array), `maxResults` |
+| **PR detail / Tier 0 (Step 4-A1)** | `jira_get_issue_development_info` — `issue_key`, `application_type:"GitHub"`, `data_type:"pullrequest"` | **NOT AVAILABLE** — no dev-status endpoint; skip A1 entirely (see capability gap below) |
+| Post comment (Step 11) | `jira_add_comment` — `issue_key`, `body` | `mcp__atlassian__addCommentToJiraIssue` — `cloudId`, `issueIdOrKey`, `commentBody`, `contentFormat:"markdown"` |
+
+### Capability gap on Claude Code (Rovo) — affects PR-URL discovery
+
+The Rovo server exposes **no Development/dev-status endpoint**, so on Claude Code:
+
+- **Phase A1 / Tier 0 is unavailable** — you cannot read linked-PR **URLs** from Jira. Do **not** use remote links as a substitute: `getJiraIssueRemoteIssueLinks` does **not** return GitHub PRs (the GitHub↔Jira integration stores them in dev-status, not remote links — verified empty on OTAGENT-304).
+- The only Jira-side PR signal is **Phase A2** (`customfield_10000`), which gives **counts + state, never URLs**.
+- Therefore **all PR URLs come from Phase B (`gh search prs`)**; the A2 counts are only a weak cross-check. `gh search prs <KEY>` over-matches body/cross-reference mentions, so a count can coincide while the actual PRs differ — e.g. OTAGENT-307: Jira count 4, `gh` also returns 4, but two carry a *different* key in their title. Lean on the Tier 1/2/4 classification and surface Tier 3 in preview rather than trusting a count match.
+- **Surface this limitation in the recap itself**, not just in the preview. Step 9 renders a `{{pr_discovery_note}}` into the posted report: a quiet footnote that PR discovery was GitHub-only, escalating to a loud warning + MCP-install recommendation when an A2 shortfall proves Jira-attached PRs were missed. This is the graceful-degradation path — the recap never silently implies its PR list is authoritative when the MCP server cannot read Jira's Development panel. The fix for the user is to connect a community Atlassian MCP server with a dev-status tool (e.g. `mcp-atlassian`, the `user-atlassian` server, which exposes `jira_get_issue_development_info`); the recap tells them so rather than failing silently.
+
+### `customfield_10000` shape (A2)
+
+On Rovo, `customfield_10000` comes back as a **single string**, e.g. `{pullrequest={dataType=pullrequest, state=MERGED, stateCount=4}, json={"cachedValue":{…}}}`. Extract the embedded `json={…}` object and read `cachedValue.summary.pullrequest.overall.count` and `…overall.state`. Keys whose dev field has no `pullrequest` block (or is null) have count 0.
+
+### JQL for Epic children (Step 3)
+
+Use **`parent = <EPIC-KEY>`** — it works on both runtimes and modern Jira hierarchies (verified: `parent = OTAGENT-304` returns its 17 children). The legacy **`"Epic Link" = <EPIC-KEY>`** form only works on classic/company-managed projects; keep it as a fallback if `parent =` is rejected.
+
+### Large search responses (Claude/Rovo)
+
+`searchJiraIssuesUsingJql` can exceed the MCP response token cap and be spilled to a file. To avoid/handle this, request **only the fields you need** (e.g. `["summary","status","issuetype","customfield_10000"]`); if the result is saved to a file, parse it with `jq` instead of re-reading the whole blob.
 
 ## Step 1: Parse arguments
 
@@ -20,10 +61,9 @@ If `EPIC-KEY` is missing or does not match the pattern, stop and ask the user to
 
 ## Step 2: Fetch the Epic
 
-Call the Atlassian MCP tool `mcp__atlassian__jira_get_issue` (or, depending on the runtime, `jira_get_issue` on the `user-atlassian` server) with:
-- `issue_key`: `EPIC-KEY`
-- `fields`: `"summary,description,status,issuetype,labels,assignee,reporter"`
-- `comment_limit`: `10`
+Call the **Fetch issue** tool for your runtime (see *Runtime & MCP tooling → Tool mapping*) requesting fields `summary, description, status, issuetype, labels, assignee, reporter`:
+- **Cursor:** `jira_get_issue` — `issue_key: EPIC-KEY`, `fields` as the CSV above, `comment_limit: 10`.
+- **Claude Code:** `mcp__atlassian__getJiraIssue` — `cloudId`, `issueIdOrKey: EPIC-KEY`, `fields` as an array, `responseContentFormat: "markdown"`.
 
 Validate:
 - If the issue cannot be found, stop and inform the user.
@@ -33,10 +73,12 @@ Keep the response in memory — `summary`, `description`, `status`, `labels` wil
 
 ## Step 3: Fetch child issues
 
-Call `mcp__atlassian__jira_search` with:
-- `jql`: `"Epic Link" = <EPIC-KEY>` (use double quotes around `Epic Link` exactly as shown).
-- `fields`: `"summary,status,issuetype,assignee,labels"`
-- `limit`: `50`
+Call the **Search children** tool for your runtime (see *Tool mapping*) with:
+- `jql`: `parent = <EPIC-KEY>` — works on both runtimes and modern Jira hierarchies. Fall back to `"Epic Link" = <EPIC-KEY>` (double quotes exactly as shown) only if `parent =` is rejected on a classic project.
+- `fields`: `summary, status, issuetype, assignee, labels` (CSV on Cursor; array on Claude Code).
+- limit: `50` — param is `limit` on Cursor, `maxResults` on Claude Code.
+
+On Claude Code, also request `customfield_10000` in this same call so Step 4-A2 PR counts come back for free. If the response is large and gets spilled to a file, parse it with `jq` rather than re-reading the whole blob.
 
 Collect each child issue's `key`, `summary`, `status.name`, and `status.category` (or `status.statusCategory.key` depending on the API shape — accept both).
 
@@ -53,6 +95,8 @@ Build the list of Jira keys to search for: `[EPIC-KEY, <completed child keys fro
 Phase A has two sub-steps: A1 tries to get full PR details, A2 falls back to a cached summary for validation.
 
 #### A1 — Detail endpoint (full PR info)
+
+> **Claude Code (Atlassian Rovo): SKIP A1 entirely.** This server has no dev-status / Development-panel tool, so Tier 0 PR URLs cannot be read from Jira. Go straight to A2 (counts) and rely on Phase B for the actual URLs. The rest of A1 is **Cursor (`mcp-atlassian`) only.**
 
 For each key, call `jira_get_issue_development_info` on the `user-atlassian` server with:
 - `issue_key`: `<KEY>`
@@ -77,16 +121,15 @@ Deduplicate Tier 0 results by `(repository, PR number)` across all keys.
 
 If A1 failed (fail-fast triggered) or returned zero Tier 0 PRs for any key, fetch the cached development summary. This does **not** use the flaky `dev-status` endpoint — it reads a standard Jira custom field via the stable `/rest/api/2/issue/` API.
 
-Call `jira_get_issue` on the `user-atlassian` server with:
-- `issue_key`: `<KEY>`
-- `fields`: `"customfield_10000"` (the "Development" field, type `com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf`)
-- `comment_limit`: `0`
+Call the **Fetch issue** tool for your runtime (see *Tool mapping*) requesting only `customfield_10000` (the "Development" field, type `com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf`):
+- **Cursor:** `jira_get_issue` — `issue_key: <KEY>`, `fields: "customfield_10000"`, `comment_limit: 0`. The field comes back under `customfield_10000.value`.
+- **Claude Code:** `mcp__atlassian__getJiraIssue` — `cloudId`, `issueIdOrKey: <KEY>`, `fields: ["customfield_10000"]`. The value is a **string** (see *`customfield_10000` shape* above), not an object — extract the embedded `json={…}` first.
 
-Parse the response's `customfield_10000.value` — it contains a nested JSON with `cachedValue.summary.pullrequest.overall.count` (number of linked PRs) and `state` (`MERGED`, `OPEN`, etc.).
+In both cases the embedded JSON holds `cachedValue.summary.pullrequest.overall.count` (number of linked PRs) and `…overall.state` (`MERGED`, `OPEN`, etc.).
 
 Record the expected PR count per key in a `jira_pr_counts` map: `{ "OTAGENT-307": 4, "OTAGENT-510": 3, … }`. Keys with no `pullrequest` in the summary (or where `customfield_10000` is null) have count 0.
 
-This map is used in Phase B for **cross-validation**: after tier classification, compare the number of included PRs (Tier 0 + Tier 1 + Tier 2) per key against `jira_pr_counts`. If Phase B found fewer, show a warning in the preview:
+This map is used in Phase B for **cross-validation**: after tier classification, compare the number of included PRs (Tier 0 + Tier 1 + Tier 2) per key against `jira_pr_counts`. Record every key where Phase B found fewer in a `pr_shortfall` list (`{key, jira_count, found_count}`) — it drives **both** the preview warning below **and** the report's `{{pr_discovery_note}}` (Step 9), so the limitation reaches stakeholders, not just the engineer. If Phase B found fewer, show a warning in the preview:
 
 ```
 ⚠️ Jira says OTAGENT-307 has 4 linked PRs, but only 2 were found via GitHub search.
@@ -263,7 +306,34 @@ Read [recap-template.md](recap-template.md) and substitute each `{{placeholder}}
 | `{{agent_footprint}}` | Step 8 answer, or omit the section if `No change` AND no footprint-relevant release notes exist |
 | `{{repositories_touched}}` | Step 7 list, bullet form |
 | `{{customer_tracking}}` | Step 8 answer, or omit the section if `Not tracked yet` |
-| `{{linked_prs}}` | Bullet list. Format per PR: `- [<repo>#<number>](<url>) — <title>` followed by indented bullets listing release notes (`  - <section>: <one-line excerpt>`). Group Tier 0 PRs (from Jira Development panel) first with a `_(linked via Jira)_` annotation, then Tier 1/2 PRs from GitHub search. |
+| `{{linked_prs}}` | Bullet list. Format per PR: `- [<repo>#<number>](<url>) — <title>` followed by indented bullets listing release notes (`  - <section>: <one-line excerpt>`). Group Tier 0 PRs (from Jira Development panel) first with a `_(linked via Jira)_` annotation, then Tier 1/2 PRs from GitHub search. On Claude Code there are no Tier 0 PRs, so start directly with Tier 1/2. |
+| `{{pr_discovery_note}}` | PR-discovery caveat for the report (hybrid). Render one of the two blocks defined in **"PR discovery note"** below: the quiet footnote whenever Tier 0 (Phase A1) was unavailable this run (always on Claude Code/Rovo) and there is no shortfall; the loud warning whenever `pr_shortfall` (Step 4 Phase A2) is non-empty. Render empty (collapse, no blank line) only when Tier 0 was available (Cursor) **and** `pr_shortfall` is empty. |
+
+### PR discovery note (`{{pr_discovery_note}}`)
+
+Render this inside the *Linked PRs & release notes* section, right after `{{linked_prs}}`. It degrades gracefully when the MCP server cannot read Jira's Development panel — pick exactly one variant:
+
+- **Quiet footnote** — when Tier 0 (Phase A1) was unavailable this run (always the case on Claude Code/Rovo) **and** `pr_shortfall` is empty. The PR list came only from GitHub search, so the report must not imply it is authoritative:
+
+  ```
+  > ℹ️ _PR discovery was GitHub-search-only: this MCP server has no dev-status endpoint, so PRs attached only in Jira's Development panel can't be read. The list above may be incomplete._
+  ```
+
+- **Loud warning** — whenever `pr_shortfall` is non-empty (Jira's A2 count exceeds the PRs found for one or more keys — proof that attached PRs were missed). List each affected key, then the MCP-install recommendation:
+
+  ```
+  > ⚠️ **Some Jira-attached PRs could not be retrieved due to MCP server limitations.**
+  > Jira's Development panel reports more linked PRs than GitHub search found:
+  > - OTAGENT-307: Jira 4, found 2
+  > These PRs are attached in Jira, but their URLs live in the dev-status endpoint, which this MCP server (official Atlassian Rovo) does not expose.
+  > **To recover them:** connect a community Atlassian MCP server that wraps dev-status — e.g. [`mcp-atlassian`](https://github.com/sooperset/mcp-atlassian) (the `user-atlassian` server in the Cursor setup), which provides `jira_get_issue_development_info`. Then re-run the recap.
+  ```
+
+  Render one `- <KEY>: Jira <n>, found <m>` line per entry in `pr_shortfall`.
+
+- **Empty** — when Tier 0 was available (Cursor) **and** `pr_shortfall` is empty. Collapse the placeholder, leaving no blank line.
+
+Keep the footnote tone neutral — it is PM-facing. The MCP-install recommendation appears only in the loud variant, so stakeholders never see developer-setup noise unless PRs were actually missed.
 
 Drop the HTML rendering-rules comment from the template before producing the final markdown.
 
@@ -273,13 +343,13 @@ When omitting an optional section, remove its `##` heading too — do not leave 
 
 Print the rendered markdown to the chat under a heading like `### Preview — <EPIC-KEY> recap`.
 
-**Before the recap, print a one-line PR discovery summary** so the user can see what was found where:
+**Before the recap, print a one-line PR discovery summary** so the user can see what was found where (on Claude Code the Tier 0 count is always 0 — Tier 0 is unavailable, so make clear PR discovery was GitHub-only):
 
 ```
 > Found N PRs: X via Jira Development panel (Tier 0), Y via GitHub search (Tier 1/2). Z Tier 3 candidates skipped (see below).
 ```
 
-If `jira_pr_counts` from Phase A2 is available and any key has more Jira-linked PRs than Phase B found, print a warning block after the summary line:
+If `jira_pr_counts` from Phase A2 is available and any key has more Jira-linked PRs than Phase B found (i.e. `pr_shortfall` is non-empty), print a warning block after the summary line. The same shortfall is **also** rendered into the posted report via `{{pr_discovery_note}}` (Step 9) — the preview shows it to the engineer, the report carries it to stakeholders:
 
 ```
 > ⚠️ OTAGENT-307: Jira says 4 linked PRs, found 2. Check Tier 3 candidates or the Jira Development panel.
@@ -314,13 +384,13 @@ If `--dry-run` was set in Step 1, skip the question entirely and jump straight t
 
 ## Step 11: Post the comment
 
-Call `mcp__atlassian__jira_add_comment` (or `jira_add_comment` on the `user-atlassian` server) with:
-- `issue_key`: `EPIC-KEY`
-- `body`: the rendered markdown from Step 9 (including the attribution footer)
+Call the **Post comment** tool for your runtime (see *Tool mapping*) with the rendered markdown from Step 9 (including the attribution footer):
+- **Cursor:** `jira_add_comment` — `issue_key: EPIC-KEY`, `body: <markdown>`.
+- **Claude Code:** `mcp__atlassian__addCommentToJiraIssue` — `cloudId`, `issueIdOrKey: EPIC-KEY`, `commentBody: <markdown>`, `contentFormat: "markdown"`.
 
-Do not set `visibility` or `public` — this is a regular comment.
+Do not set `visibility` / `commentVisibility` — this is a regular comment.
 
-**POST-action verification**: call `mcp__atlassian__jira_get_issue` again with `comment_limit=5` and confirm the new comment is present (match by the attribution footer string `Generated by create-epic-recap`). If verification fails, surface the error to the user and do not retry automatically.
+**POST-action verification**: re-fetch the Epic with the **Fetch issue** tool (Cursor: `comment_limit=5`; Claude Code: `fields: ["comment"]`) and confirm the new comment is present (match by the attribution footer string `Generated by create-epic-recap`). If verification fails, surface the error to the user and do not retry automatically.
 
 On success, print:
 
@@ -338,7 +408,8 @@ When the user picks `Cancel` or `--dry-run` was specified:
 ## Errors and edge cases
 
 - **Authentication failure on Atlassian MCP** — stop, do not try a different transport, ask the user to authenticate.
-- **`jira_get_issue_development_info` returns 500 or empty** — the `/rest/dev-status/1.0/issue/detail` endpoint is fragile: it does not tolerate parallel calls, occasionally goes down entirely, and requires exact CamelCase `"GitHub"` for `application_type`. When A1 fails, A2 (`customfield_10000`) provides PR counts for cross-validation. Phase B (GitHub search) always provides actual PR details regardless of A1 status.
+- **Claude Code (Rovo) `cloudId` errors** — if a Jira call fails citing an invalid/unknown `cloudId`, call `mcp__atlassian__getAccessibleAtlassianResources` and use the `datadoghq` site's `id` (UUID) instead of the hostname.
+- **`jira_get_issue_development_info` returns 500 or empty** — the `/rest/dev-status/1.0/issue/detail` endpoint is fragile: it does not tolerate parallel calls, occasionally goes down entirely, and requires exact CamelCase `"GitHub"` for `application_type`. When A1 fails, A2 (`customfield_10000`) provides PR counts for cross-validation. Phase B (GitHub search) always provides actual PR details regardless of A1 status. **On Claude Code (Rovo) this tool does not exist at all** — A1 is always skipped there, and A2 + Phase B are the entire pipeline.
 - **`gh` not authenticated** — run `gh auth status`; if it fails, ask the user to run `gh auth login`.
 - **`gh search prs` rate-limited** — back off once for 60 seconds, then retry once; if still failing, ask the user to provide PR URLs manually (Step 4 fallback).
 - **Very large PR set (> 25 PRs)** — present a numbered list and ask the user via `AskUserQuestion` whether to include all of them or to narrow down by date / label / repo.
@@ -350,4 +421,4 @@ When the user picks `Cancel` or `--dry-run` was specified:
 - **Never modify the Epic description or other fields** — comments only.
 - **Always include the attribution footer** so future readers know the recap was AI-generated.
 - **Never include secrets, internal-only URLs, or sensitive customer data** in the recap. If a release note contains a customer name, mask it as `<customer>` and flag it during preview.
-- **Comment body uses markdown** — `jira_add_comment` accepts Markdown in `body`; do not pre-render to ADF or Wiki markup.
+- **Comment body uses markdown** — pass Markdown directly; do not pre-render to ADF or Wiki markup. On Cursor `jira_add_comment` accepts Markdown in `body`; on Claude Code pass `commentBody` with `contentFormat: "markdown"`.
