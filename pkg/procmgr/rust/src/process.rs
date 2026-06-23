@@ -273,15 +273,6 @@ impl ManagedProcess {
             platform::apply_child_baseline_env(&mut cmd);
             // Don't inherit stdin: invalid after AttachConsole/FreeConsole on stop.
             cmd.stdin(Stdio::null());
-            // Fall back to null stdout/stderr when that parent handle is unusable.
-            cmd.stdout(stdio_for_windows(
-                &self.config.stdout,
-                !platform::stdout_inheritable(),
-            ));
-            cmd.stderr(stdio_for_windows(
-                &self.config.stderr,
-                !platform::stderr_inheritable(),
-            ));
         }
         if let Some(ref raw_path) = self.config.environment_file {
             let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
@@ -311,6 +302,18 @@ impl ManagedProcess {
             cmd.current_dir(dir);
         }
 
+        #[cfg(windows)]
+        {
+            // After env validation: path-valued stdout/stderr use File::create.
+            cmd.stdout(stdio_for_windows(
+                &self.config.stdout,
+                !platform::stdout_inheritable(),
+            ));
+            cmd.stderr(stdio_for_windows(
+                &self.config.stderr,
+                !platform::stderr_inheritable(),
+            ));
+        }
         #[cfg(not(windows))]
         {
             cmd.stdout(stdio_from_str(&self.config.stdout));
