@@ -37,7 +37,8 @@ func Module(params Params) fxutil.Module {
 		fx.Supply(params))
 }
 
-type dependencies struct {
+// Dependencies defines the dependencies required by the demultiplexer component.
+type Dependencies struct {
 	compdef.In
 	Lc                     compdef.Lifecycle
 	Config                 config.Component
@@ -59,7 +60,8 @@ type demultiplexer struct {
 	*aggregator.AgentDemultiplexer
 }
 
-type provides struct {
+// Provides defines the values provided by the demultiplexer component.
+type Provides struct {
 	compdef.Out
 	Comp demultiplexerComp.Component
 
@@ -69,14 +71,14 @@ type provides struct {
 }
 
 // NewComponent creates a new demultiplexer component.
-func NewComponent(deps dependencies) (provides, error) {
+func NewComponent(deps Dependencies) (Provides, error) {
 	hostnameDetected, err := deps.Hostname.Get(context.TODO())
 	if err != nil {
 		if deps.Params.continueOnMissingHostname {
 			deps.Log.Warnf("Error getting hostname: %s", err)
 			hostnameDetected = ""
 		} else {
-			return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
+			return Provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
 	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
@@ -101,7 +103,7 @@ func NewComponent(deps dependencies) (provides, error) {
 		return nil
 	}})
 
-	return provides{
+	return Provides{
 		Comp:          demultiplexer,
 		SenderManager: demultiplexer,
 		StatusProvider: status.NewInformationProvider(demultiplexerStatus{

@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// testDependencies mirrors dependencies but uses fx.In for use with fxutil.Test.
+// testDependencies mirrors Dependencies but uses fx.In for use with fxutil.Test.
 type testDependencies struct {
 	fx.In
 	Lc                     compdef.Lifecycle
@@ -113,7 +113,7 @@ func TestStatusOutPut(t *testing.T) {
 			},
 		),
 	))
-	deps := dependencies{
+	deps := Dependencies{
 		Lc:                     testDeps.Lc,
 		Config:                 testDeps.Config,
 		Log:                    testDeps.Log,
