@@ -120,11 +120,18 @@ func pathSpecPath(pathSpec string) string {
 }
 
 func narrowerPathWithSameAccess(a, b string) (string, bool) {
+	aPath := pathSpecPath(a)
+	bPath := pathSpecPath(b)
+	if isUnsuffixedRootPath(a) {
+		if aPath == bPath || strings.HasPrefix(bPath, aPath) {
+			return b, true
+		}
+		return "", false
+	}
+
 	if pathAccessGroup(a) != pathAccessGroup(b) {
 		return "", false
 	}
-	aPath := pathSpecPath(a)
-	bPath := pathSpecPath(b)
 	switch {
 	case aPath == bPath || strings.HasPrefix(aPath, bPath):
 		return a, true
@@ -133,6 +140,11 @@ func narrowerPathWithSameAccess(a, b string) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+func isUnsuffixedRootPath(pathSpec string) bool {
+	pathPart, accessSuffix := splitPathAccessSuffix(pathSpec)
+	return pathPart == setup.RShellPathAllowAll && accessSuffix == ""
 }
 
 // reducePathListToBroadest reduces the list of paths by removing duplicates and
