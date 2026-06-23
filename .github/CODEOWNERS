@@ -19,7 +19,7 @@
 /.claude/agents/weed.md                          @DataDog/single-machine-performance
 /.claude/rules/allium.md                         @DataDog/single-machine-performance
 /.claude/rules/bazel.md                          @DataDog/agent-build
-/.claude/skills/codereview_guidelines.md         @DataDog/agent-devx
+/.claude/skills/codereview_guideline.md          @DataDog/agent-devx
 /.claude/skills/allium/                          @DataDog/single-machine-performance
 /.claude/skills/agent-supply-chain-newsletter/   @DataDog/agent-devx
 /.claude/skills/auto-jira/                       @DataDog/agent-devx
@@ -39,6 +39,7 @@
 /.claude/skills/run-e2e/                         @DataDog/agent-devx
 /.claude/skills/run-jira/                        @DataDog/agent-devx
 /.claude/skills/update-3rd-party-libs            @DataDog/agent-build
+/.claude/skills/update-otel-deps/                @DataDog/opentelemetry-agent
 /.claude/skills/write-e2e/                       @DataDog/agent-devx
 # changing the config of mockery will regenerate the mocks, so owners will have to review anyway
 /.mockery.yaml                          # do not notify anyone
