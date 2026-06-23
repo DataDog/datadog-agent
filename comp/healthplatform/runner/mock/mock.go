@@ -41,7 +41,7 @@ func WithRunFunc(fn func(source string, fn runnerdef.HealthCheckFunc) ([]string,
 
 // New returns a mock runner for testing.
 // store is used to forward issues when no WithRunFunc is set.
-func New(t testing.TB, store storedef.Component, opts ...Option) *mockRunner {
+func New(t testing.TB, store storedef.Component, opts ...Option) *mockRunner { //nolint:revive // intentionally unexported; callers use := and access methods without naming the type
 	m := &mockRunner{t: t, store: store}
 	for _, o := range opts {
 		o(m)

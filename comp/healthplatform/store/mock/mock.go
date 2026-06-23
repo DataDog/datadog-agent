@@ -48,7 +48,7 @@ func WithReportIssueError(issueID string, err error) Option {
 }
 
 // New returns a mock health platform store for testing.
-func New(t testing.TB, opts ...Option) *mockHealthPlatform {
+func New(t testing.TB, opts ...Option) *mockHealthPlatform { //nolint:revive // intentionally unexported; callers use := and access methods without naming the type
 	m := &mockHealthPlatform{t: t, issues: make(map[string]*healthplatformpayload.Issue)}
 	for _, o := range opts {
 		o(m)

@@ -32,7 +32,7 @@ type mockScheduler struct {
 
 // New returns a mock scheduler for testing.
 // runner is used to execute each registered check once synchronously.
-func New(t testing.TB, runner runnerdef.Component) *mockScheduler {
+func New(t testing.TB, runner runnerdef.Component) *mockScheduler { //nolint:revive // intentionally unexported; callers use := and access methods without naming the type
 	return &mockScheduler{t: t, runner: runner, registered: make(map[string]struct{})}
 }
 

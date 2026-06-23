@@ -40,7 +40,7 @@ func WithSendFunc(fn func(context.Context, *healthplatformpayload.HealthReport) 
 }
 
 // New returns a mock forwarder for testing. Without options Send is a no-op.
-func New(t testing.TB, opts ...Option) *mockForwarder {
+func New(t testing.TB, opts ...Option) *mockForwarder { //nolint:revive // intentionally unexported; callers use := and access methods without naming the type
 	m := &mockForwarder{t: t}
 	for _, o := range opts {
 		o(m)
