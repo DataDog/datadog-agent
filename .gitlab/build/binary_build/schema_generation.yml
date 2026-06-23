@@ -81,6 +81,7 @@ generate_config_schema-windows:
     ARCH: "x64"
   script:
     - $ErrorActionPreference = "Stop"
+    - !reference [.sanitize_goproxy_windows]
     - >
       .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 24576M

@@ -533,7 +533,7 @@ properties:
       to preserve current behavior.
   expected_tags_duration:
     node_type: setting
-    type: number
+    type: string
     default: 0s
     format: duration
     tags:
