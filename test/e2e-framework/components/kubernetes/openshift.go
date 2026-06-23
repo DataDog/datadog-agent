@@ -32,6 +32,7 @@ func NewLocalOpenShiftCluster(env config.Env, name string, pullSecretPath, cpus,
 
 		crcSetup, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-setup"), &command.Args{
 			Create: pulumi.Sprintf("crc config set cpus %s && crc config set memory %s && crc config set disk-size %s && crc setup", cpus, memory, disk),
+			Delete: pulumi.String("crc cleanup"),
 		}, opts...)
 		if err != nil {
 			return err
@@ -42,14 +43,14 @@ func NewLocalOpenShiftCluster(env config.Env, name string, pullSecretPath, cpus,
 		// cleanup; without setsid, vfkit gets SIGTERM'd when pulumi exits.
 		startCluster, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-start"), &command.Args{
 			Create: pulumi.Sprintf(`python3 -c "import os,subprocess,sys; os.setsid(); sys.exit(subprocess.call(sys.argv[1:]))" crc start -p %s`, pullSecretPath),
-			Delete: pulumi.String("(crc stop || true) && crc delete -f && crc cleanup"),
+			Delete: pulumi.String("(crc stop || true) && crc delete -f"),
 			Triggers: pulumi.Array{
 				pulumi.String(pullSecretPath),
 				pulumi.String(cpus),
 				pulumi.String(memory),
 				pulumi.String(disk),
 			},
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(crcSetup))...)
+		}, utils.MergeOptions(opts, utils.PulumiDependsOn(crcSetup), pulumi.DeleteBeforeReplace(true))...)
 		if err != nil {
 			return err
 		}
@@ -108,6 +109,7 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 
 		setupCRC, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-setup"), &command.Args{
 			Create: pulumi.Sprintf("crc config set cpus %s && crc config set memory %s && crc config set disk-size %s && crc setup", cpus, memory, disk),
+			Delete: pulumi.String("crc cleanup"),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(pullSecretFile, enableLinger))...)
 		if err != nil {
 			return err
@@ -115,11 +117,14 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 
 		startCRC, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-start"), &command.Args{
 			Create: pulumi.String(`crc start -p /tmp/pull-secret.txt`),
-			Delete: pulumi.String("(crc stop || true) && crc delete -f && crc cleanup"),
+			Delete: pulumi.String("(crc stop || true) && crc delete -f"),
 			Triggers: pulumi.Array{
 				pulumi.String(pullSecretPath),
+				pulumi.String(cpus),
+				pulumi.String(memory),
+				pulumi.String(disk),
 			},
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(setupCRC))...)
+		}, utils.MergeOptions(opts, utils.PulumiDependsOn(setupCRC), pulumi.DeleteBeforeReplace(true))...)
 		if err != nil {
 			return err
 		}
