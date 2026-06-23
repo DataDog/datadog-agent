@@ -76,6 +76,8 @@ type HelmInstallationArgs struct {
 	// HelmChartVersion overrides the default HelmVersion for this installation.
 	// When empty, HelmVersion is used.
 	HelmChartVersion string
+	// OpenShiftControlPlaneMonitoring enables OpenShift control plane monitoring setup.
+	OpenShiftControlPlaneMonitoring bool
 }
 
 type HelmComponent struct {
@@ -126,6 +128,32 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		return nil, err
 	}
 	opts = append(opts, utils.PulumiDependsOn(ns))
+
+	if args.OpenShiftControlPlaneMonitoring {
+		etcdMetricClientSecret, err := corev1.GetSecret(
+			e.Ctx(),
+			"openshift-etcd-metric-client-source",
+			pulumi.ID("openshift-etcd-operator/etcd-metric-client"),
+			nil,
+			opts...,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		copiedSecret, err := corev1.NewSecret(e.Ctx(), "openshift-etcd-metric-client", &corev1.SecretArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Namespace: ns.Metadata.Name(),
+				Name:      pulumi.String("etcd-metric-client"),
+			},
+			Data: etcdMetricClientSecret.Data,
+			Type: etcdMetricClientSecret.Type,
+		}, opts...)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, utils.PulumiDependsOn(copiedSecret))
+	}
 
 	// Create secret if necessary
 	secret, err := corev1.NewSecret(e.Ctx(), "datadog-credentials", &corev1.SecretArgs{

@@ -7,6 +7,9 @@ package openshiftvm
 
 import (
 	kubernetesProvider "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apiextensions"
+	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
+	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
@@ -15,6 +18,63 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/openshift"
 )
+
+const localOpenShiftAgentHelmValues = `
+datadog:
+  criSocketPath: /var/run/crio/crio.sock
+  confd:
+    crio.yaml: |-
+      init_config:
+      instances:
+      - prometheus_url: http://localhost:9537/metrics
+`
+
+func deployClusterResourceQuota(ctx *pulumi.Context, kubeProvider *kubernetesProvider.Provider) error {
+	namespace, err := corev1.NewNamespace(ctx, "workload-clusterresourcequota", &corev1.NamespaceArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name: pulumi.String("workload-clusterresourcequota"),
+			Labels: pulumi.StringMap{
+				"clusterresourcequota-enabled": pulumi.String("true"),
+			},
+		},
+	}, pulumi.Provider(kubeProvider))
+	if err != nil {
+		return err
+	}
+
+	_, err = apiextensions.NewCustomResource(ctx, "pod-cpu-quota", &apiextensions.CustomResourceArgs{
+		ApiVersion: pulumi.String("quota.openshift.io/v1"),
+		Kind:       pulumi.String("ClusterResourceQuota"),
+		Metadata: &metav1.ObjectMetaArgs{
+			Name: pulumi.String("pod-cpu-quota"),
+		},
+		OtherFields: kubernetesProvider.UntypedArgs{
+			"spec": map[string]interface{}{
+				"quota": map[string]interface{}{
+					"hard": map[string]interface{}{
+						"cpu": "2",
+					},
+				},
+				"selector": map[string]interface{}{
+					"annotations": nil,
+					"labels": map[string]interface{}{
+						"matchExpressions": []interface{}{
+							map[string]interface{}{
+								"key":      "clusterresourcequota-enabled",
+								"operator": "In",
+								"values":   []interface{}{"true"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, pulumi.Provider(kubeProvider), pulumi.DependsOn([]pulumi.Resource{namespace}))
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func Run(ctx *pulumi.Context) error {
 	localEnv, err := local.NewEnvironment(ctx)
@@ -42,6 +102,9 @@ func Run(ctx *pulumi.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := deployClusterResourceQuota(ctx, kubeProvider); err != nil {
+		return err
+	}
 
 	var fakeIntake *fakeintakeComp.Fakeintake
 	if localEnv.AgentUseFakeintake() {
@@ -55,6 +118,11 @@ func Run(ctx *pulumi.Context) error {
 	}
 
 	var extraAgentOptions []kubernetesagentparams.Option
+	extraAgentOptions = append(
+		extraAgentOptions,
+		kubernetesagentparams.WithHelmValues(localOpenShiftAgentHelmValues),
+		kubernetesagentparams.WithOpenShiftControlPlaneMonitoring(),
+	)
 	if localEnv.AgentUseDualShipping() {
 		extraAgentOptions = append(extraAgentOptions, kubernetesagentparams.WithDualShipping())
 	}
