@@ -422,6 +422,16 @@ func (tc *TaggedPatternClusterer) NumSubClusterers() int {
 	return len(tc.subClusterers)
 }
 
+// TotalClusterCount returns the total number of active clusters across all
+// sub-clusterers without materializing the full cluster list.
+func (tc *TaggedPatternClusterer) TotalClusterCount() int {
+	total := 0
+	for _, sub := range tc.subClusterers {
+		total += sub.NumClusters()
+	}
+	return total
+}
+
 // EvictedCluster identifies a cluster that was removed during garbage collection,
 // pairing its tag-group hash with its intra-clusterer ID.
 type EvictedCluster struct {

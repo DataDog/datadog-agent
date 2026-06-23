@@ -239,6 +239,29 @@ func NewComponent(deps Requires) Provides {
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	eng.onProcessingTime = obsTelemetry.recordProcessingTime
+	eng.onAdvanceCompleted = func(correlators []observerdef.Correlator) {
+		obsTelemetry.recordAdvance()
+
+		storage := eng.Storage()
+		for ns, count := range storage.SampleCountByNamespace() {
+			obsTelemetry.recordStorageTotalPoints(ns, count)
+		}
+		obsTelemetry.recordStorageIDStatsSlots(storage.IDStatsSlotCount())
+		obsTelemetry.recordStorageObservationTimestamps(storage.ObservationTimestampCount())
+
+		for _, c := range correlators {
+			if tc, ok := c.(*TimeClusterCorrelator); ok {
+				obsTelemetry.recordCorrelatorClusterCount(c.Name(), tc.ClusterCount())
+			}
+		}
+		for _, ext := range extractors {
+			if lpe, ok := ext.(*LogPatternExtractor); ok {
+				obsTelemetry.recordLogPatternCountGauge(ext.Name(), lpe.PatternCount())
+			}
+		}
+
+		obsTelemetry.updateGoMemStats()
+	}
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
