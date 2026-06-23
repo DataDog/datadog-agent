@@ -6,6 +6,7 @@ import platform
 import re
 import shlex
 import sys
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
@@ -18,9 +19,6 @@ from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX
 REPO_ROOT = Path(__file__).parent.parent
 # Top-level Test* declarations in Go source files — Go side of the parity comparison.
 _TEST_FUNC_RE = re.compile(r'^func (Test\w+)\(', re.MULTILINE)
-# Top-level Test* functions dispatched in Bazel's verbose test.log (requires --test_arg=-test.v).
-# Subtests are ignored by the pattern.
-_BAZEL_RUN_RE = re.compile(r'^=== RUN\s+(Test\w+)\s*$', re.MULTILINE)
 _IMPORT_PREFIX = AGENT_MODULE_PATH_PREFIX.rstrip("/")
 # Tag the dd_agent_go_test macro stamps on every variant it emits
 # (bazel/rules/go/dd_agent_go_test.bzl). Used to distinguish its generated
@@ -75,59 +73,54 @@ def _label_to_import_path(label: str) -> str:
     return _IMPORT_PREFIX if not pkg_part else f"{_IMPORT_PREFIX}/{pkg_part}"
 
 
-# Emitted by the stdlib testing package when a *_test.go file compiled but
-# defined no TestX functions, or when all TestX functions were filtered out by
-# -test.run. Identifies a no-op test binary run.
-_NO_TESTS_MARKER = "testing: warning: no tests to run"
-
-
-def _test_log_candidates(
+def _test_xml_candidates(
     label: str,
     uri: str,
     cfg_id: str,
     local_exec_root: str | None,
     config_testlogs: dict[str, Path],
 ) -> list[Path]:
-    """Candidate absolute paths where Bazel may have materialized test.log,
-    in priority order.
+    """Candidate paths for test.xml, in priority order.
 
-    BEP's `testActionOutput.uri` is file:// for locally-executed actions but
-    bytestream:// for remote-cache hits (BuildBarn on Datadog CI). For
-    bytestream://, Bazel still materializes test.log on disk
-    (`--remote_download_outputs=toplevel` is the Bazel 7+ default), just not
-    at the URI we get from BEP. The convenience symlink `bazel-testlogs`
-    isn't an option on CI either (it disables `--noexperimental_convenience_symlinks`).
-    The reliable fallback is `<localExecRoot>/<testlogs-dir>/<label>/test.log`,
-    where `testlogs-dir` comes from the testResult's configuration BINDIR
-    (BINDIR's `bin` sibling).
+    BEP URIs are file:// for local actions and bytestream:// for remote-cache
+    hits; for the latter Bazel still materializes test.xml on disk at
+    <localExecRoot>/<testlogs-dir>/<label>/test.xml.
     """
     paths: list[Path] = []
     if uri.startswith("file://"):
         paths.append(Path(uri.removeprefix("file://")))
     testlogs_dir = config_testlogs.get(cfg_id)
     if local_exec_root and testlogs_dir:
-        # Label "//pkg/foo:bar_test" -> "pkg/foo/bar_test/test.log".
+        # Label "//pkg/foo:bar_test" -> "pkg/foo/bar_test/test.xml".
         label_rel = label.lstrip("/").replace(":", "/")
-        paths.append(Path(local_exec_root) / testlogs_dir / label_rel / "test.log")
+        paths.append(Path(local_exec_root) / testlogs_dir / label_rel / "test.xml")
     return paths
 
 
-def _test_log_funcs(paths: list[Path]) -> set[str]:
-    """Return the top-level Test* functions dispatched in the first readable test.log.
+def _test_xml_funcs(paths: list[Path]) -> set[str]:
+    """Return top-level Test* functions from the first readable test.xml.
 
-    Returns an empty set if no path is readable or the binary ran no tests.
-    Requires --test_arg=-test.v so the log contains per-function === RUN lines.
-    Bazel also produces a test.xml, but rules_go's default go_test action
-    writes only an empty placeholder unless gotestsum is wired in.
+    Subtests appear as name="TestFoo/Sub"; filtering to names without '/'
+    gives top-level functions. Requires --test_arg=-test.v (or
+    --test_env=GO_TEST_WRAP_TESTV=1) for a complete XML.
     """
     for path in paths:
         try:
-            content = path.read_text()
+            content = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        if _NO_TESTS_MARKER in content:
-            return set()
-        return set(_BAZEL_RUN_RE.findall(content))
+        if not content.strip():
+            continue
+        try:
+            root = ET.fromstring(content)
+        except ET.ParseError:
+            continue
+        funcs = {
+            tc.get("name", "")
+            for tc in root.iter("testcase")
+            if tc.get("name", "").startswith("Test") and "/" not in tc.get("name", "")
+        }
+        return funcs
     return set()
 
 
@@ -135,12 +128,11 @@ def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
     """Parse a Build Event Protocol JSON stream into {import_path: {Test* funcs}}.
 
     Selects dd_agent_go_test targets that had a testResult event and whose
-    test.log shows at least one Test* function was dispatched. Plain go_test
-    rules (no `dd_agent_go_test` tag) are ignored — they run flavor-agnostically
-    in the monolithic CI job, not in the per-flavor run this BEP comes from.
+    test.xml records at least one Test* function. Plain go_test rules (no
+    `dd_agent_go_test` tag) are ignored.
     """
     dd_agent_labels: set[str] = set()
-    # (uri, config_id) per label so we can recover test.log even when Bazel
+    # (uri, config_id) per label so we can recover test.xml even when Bazel
     # writes only a bytestream:// URI to the BEP. The convenience symlink
     # `bazel-testlogs` doesn't exist on CI (--noexperimental_convenience_symlinks),
     # so we reconstruct the absolute path from `localExecRoot` and the
@@ -177,7 +169,7 @@ def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
                 label = eid["testResult"].get("label", "")
                 cfg_id = eid["testResult"].get("configuration", {}).get("id", "")
                 for out in event["testResult"].get("testActionOutput") or []:
-                    if out.get("name") == "test.log":
+                    if out.get("name") == "test.xml":
                         test_action[label] = (out.get("uri", ""), cfg_id)
                         break
 
@@ -187,7 +179,7 @@ def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
         if action is None:
             continue
         uri, cfg_id = action
-        funcs = _test_log_funcs(_test_log_candidates(label, uri, cfg_id, local_exec_root, config_testlogs))
+        funcs = _test_xml_funcs(_test_xml_candidates(label, uri, cfg_id, local_exec_root, config_testlogs))
         if funcs:
             covered[_label_to_import_path(label)] = funcs
 
