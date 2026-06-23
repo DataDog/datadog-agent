@@ -238,10 +238,10 @@ func TestFilterAllowedPathsIntersectsConfiguredAgentAllowlistByAccess(t *testing
 			expected: []string{"/var/log/:ro", "/etc/"},
 		},
 		{
-			name:     "explicit agent root without suffix does not match backend read-write paths",
+			name:     "explicit agent root without suffix preserves backend read-write paths",
 			agent:    []string{"/"},
 			backend:  []string{"/var/log:rw"},
-			expected: []string{},
+			expected: []string{"/var/log/:rw"},
 		},
 		{
 			name:     "agent read-write root keeps narrower backend read-write paths",
@@ -254,6 +254,12 @@ func TestFilterAllowedPathsIntersectsConfiguredAgentAllowlistByAccess(t *testing
 			agent:    []string{"/var/log/datadog:rw"},
 			backend:  []string{"/var/log:rw"},
 			expected: []string{"/var/log/datadog/:rw"},
+		},
+		{
+			name:     "ordinary unsuffixed agent path does not match backend read-write path",
+			agent:    []string{"/var/log"},
+			backend:  []string{"/var/log/datadog:rw"},
+			expected: []string{},
 		},
 		{
 			name:     "unrelated paths are not kept",
