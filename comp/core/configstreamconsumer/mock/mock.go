@@ -16,6 +16,7 @@ import (
 
 // Mock is a mock implementation of configstreamconsumer.Component.
 type Mock struct {
+	T      *testing.T
 	Active bool
 }
 
@@ -25,5 +26,5 @@ func (m *Mock) IsActive() bool { return m.Active }
 // New creates a new mock configstreamconsumer component.
 func New(t *testing.T) configstreamconsumer.Component {
 	t.Helper()
-	return &Mock{}
+	return &Mock{T: t}
 }
