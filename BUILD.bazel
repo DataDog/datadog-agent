@@ -441,6 +441,7 @@ exports_files(["go.mod"])
 # trim kubelet's dependency on the parent kubernetes library) then drop this exclude.
 # gazelle:exclude pkg/util/kubernetes/hostname.go
 # gazelle:exclude tasks/unit_tests
+# gazelle:exclude test/benchmarks/kubernetes_state
 # gazelle:exclude test/e2e-framework/components/datadog/agent/helm
 # gazelle:exclude test/e2e-framework/components/datadog/apps
 # gazelle:exclude test/e2e-framework/components/datadog/csi-driver
