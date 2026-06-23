@@ -5,23 +5,29 @@
 
 //go:build test
 
-// Package mock provides a no-op mock for the health platform egress component.
+// Package mock provides a mock for the health platform egress component.
 package mock
 
 import (
 	"testing"
 
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
+	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
-// mockEgress satisfies egressdef.Component, which has no public methods.
+// Mock satisfies egressdef.Component, which has no public methods.
 // The real egress drives periodic store→intake flushes through its fx lifecycle
 // hooks; in unit tests those hooks are not invoked, so no behaviour is needed.
-type mockEgress struct {
-	t testing.TB
+// store and forwarder are accepted to mirror the real egress dependency graph
+// and make the composition explicit at the call site.
+type Mock struct {
+	t         testing.TB
+	store     storedef.Component
+	forwarder forwarderdef.Component
 }
 
 // New returns a mock egress for testing.
-func New(t testing.TB) egressdef.Component {
-	return &mockEgress{t: t}
+func New(t testing.TB, store storedef.Component, forwarder forwarderdef.Component) *Mock {
+	return &Mock{t: t, store: store, forwarder: forwarder}
 }

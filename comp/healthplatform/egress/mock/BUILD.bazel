@@ -7,5 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/healthplatform/egress/def",
+        "//comp/healthplatform/forwarder/def",
+        "//comp/healthplatform/store/def",
     ],
 )
