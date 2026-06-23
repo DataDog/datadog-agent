@@ -256,7 +256,7 @@ func (o *OrchestratorCheck) collectAndLogHelmReleases() {
 		return
 	}
 
-	log.Infoc(fmt.Sprintf("helm: collected %d release(s)", len(releases)), orchestrator.ExtraLogContext...)
+	log.Debugc(fmt.Sprintf("helm: collected %d release(s)", len(releases)), orchestrator.ExtraLogContext...)
 	for _, r := range releases {
 		var chart string
 		var templates int
@@ -266,7 +266,7 @@ func (o *OrchestratorCheck) collectAndLogHelmReleases() {
 				chart = fmt.Sprintf("%s-%s", r.Chart.Metadata.Name, r.Chart.Metadata.Version)
 			}
 		}
-		log.Infoc(fmt.Sprintf("helm: release=%s/%s revision=%d chart=%s templates=%d manifestBytes=%d",
+		log.Debugc(fmt.Sprintf("helm: release=%s/%s revision=%d chart=%s templates=%d manifestBytes=%d",
 			r.Namespace, r.Name, r.Version, chart, templates, len(r.Manifest)), orchestrator.ExtraLogContext...)
 	}
 }
