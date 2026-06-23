@@ -295,12 +295,12 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.69.0
 	github.com/prometheus/procfs v0.20.1
-	github.com/redis/go-redis/v9 v9.17.3
+	github.com/redis/go-redis/v9 v9.20.1
 	github.com/rickar/props v1.0.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/safchain/baloum v0.0.0-20260120132056-b70fa9c29846
 	github.com/safchain/ethtool v0.7.0
-	github.com/samber/lo v1.52.0
+	github.com/samber/lo v1.53.0
 	github.com/shirou/gopsutil/v4 v4.26.5
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sijms/go-ora/v2 v2.8.24
@@ -333,7 +333,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/yusufpapurcu/wmi v1.2.4
-	go.etcd.io/bbolt v1.4.3
+	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v3 v3.6.11 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0
 	go.opentelemetry.io/collector/component v1.60.0
@@ -961,7 +961,7 @@ require (
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/qri-io/jsonpointer v0.1.1
-	github.com/rabbitmq/amqp091-go v1.9.0
+	github.com/rabbitmq/amqp091-go v1.11.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.etcd.io/etcd/client/v2 v2.305.31

@@ -1219,7 +1219,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("health_platform.enabled", true)
 	config.BindEnvAndSetDefault("health_platform.persist_on_kubernetes", false)
-	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 0*time.Second)
+	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 15*time.Minute)
 	// health_platform.invalidconfig_check.enabled is off by default because the check calls
 	// schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
 	// (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
