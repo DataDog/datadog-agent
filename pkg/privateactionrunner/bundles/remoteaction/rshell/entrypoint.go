@@ -18,10 +18,10 @@ type RshellBundle struct {
 // NewRshellBundle creates the rshell bundle with its registered actions.
 func NewRshellBundle(cfg *config.Config) types.Bundle {
 	commandHandlerConfig := RunCommandHandlerConfig{
-		AgentAllowedPaths:              cfg.RShellAllowedPaths,
-		AgentAllowedPathsConfigured:    cfg.RShellAllowedPathsConfigured,
-		AgentAllowedCommands:           cfg.RShellAllowedCommands,
-		AgentAllowedCommandsConfigured: cfg.RShellAllowedCommandsConfigured,
+		OperatorAllowedPaths:              cfg.RShellAllowedPaths,
+		OperatorAllowedPathsConfigured:    cfg.RShellAllowedPathsConfigured,
+		OperatorAllowedCommands:           cfg.RShellAllowedCommands,
+		OperatorAllowedCommandsConfigured: cfg.RShellAllowedCommandsConfigured,
 	}
 	return &RshellBundle{
 		actions: map[string]types.Action{
