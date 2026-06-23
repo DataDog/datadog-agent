@@ -112,7 +112,7 @@ func (e *subprocessExecutor) Start(ctx context.Context, _ TaskHandler) error {
 func (e *subprocessExecutor) Stop(_ context.Context) error {
 	// The child process is bound to the context passed to SubmitTask and is torn
 	// down when that context is cancelled.
-	return nil
+	return e.Supervisor.Close()
 }
 
 // remoteExecutor submits to an executor whose lifecycle is managed outside this
@@ -127,7 +127,7 @@ func newRemoteExecutor(sup *Supervisor) Executor {
 }
 
 func (e *remoteExecutor) Start(_ context.Context, _ TaskHandler) error { return nil }
-func (e *remoteExecutor) Stop(_ context.Context) error                 { return nil }
+func (e *remoteExecutor) Stop(_ context.Context) error                 { return e.Supervisor.Close() }
 
 // inProcessExecutor serves submitted tasks from a goroutine in the orchestrator
 // process. Tasks still travel over the local IPC socket, so the submit path is
@@ -177,7 +177,9 @@ func (e *inProcessExecutor) Start(ctx context.Context, handler TaskHandler) erro
 
 func (e *inProcessExecutor) Stop(ctx context.Context) error {
 	if e.server != nil {
-		return e.server.Stop(ctx)
+		if err := e.server.Stop(ctx); err != nil {
+			return err
+		}
 	}
-	return nil
+	return e.Supervisor.Close()
 }

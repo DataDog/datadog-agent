@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
-	"net/http"
 	"sync"
 	"time"
 
@@ -18,6 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	executorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // Handler owns an accepted task through final result publication.
@@ -27,6 +30,8 @@ type Handler interface {
 
 // Server exposes the local executor IPC API.
 type Server struct {
+	executorpb.UnimplementedExecutorServer
+
 	handler     Handler
 	version     string
 	idleTimeout time.Duration
@@ -40,7 +45,7 @@ type Server struct {
 
 	mu        sync.Mutex
 	idleTimer *time.Timer
-	httpSrv   *http.Server
+	grpcSrv   *grpc.Server
 	runCtx    context.Context
 	wg        sync.WaitGroup
 }
@@ -56,25 +61,19 @@ func NewServer(handler Handler, version string, idleTimeout time.Duration, authT
 	}
 }
 
-// Serve runs the executor HTTP API on a local listener.
+// Serve runs the executor gRPC API on a local listener.
 func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	s.runCtx = ctx
-	mux := http.NewServeMux()
-	mux.HandleFunc(statusPath, s.handleStatus)
-	mux.HandleFunc(submitPath, s.handleSubmit)
-	mux.HandleFunc(shutdownPath, s.handleShutdown)
-
-	s.httpSrv = &http.Server{
-		Handler: mux,
-	}
+	s.grpcSrv = grpc.NewServer()
+	executorpb.RegisterExecutorServer(s.grpcSrv, s)
 	s.resetIdleTimer()
 	go func() {
 		<-ctx.Done()
 		_ = s.Stop(context.Background())
 	}()
 
-	err := s.httpSrv.Serve(listener)
-	if errors.Is(err, http.ErrServerClosed) {
+	err := s.grpcSrv.Serve(listener)
+	if errors.Is(err, grpc.ErrServerStopped) {
 		return nil
 	}
 	return err
@@ -83,10 +82,21 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 // Stop shuts down the executor IPC server.
 func (s *Server) Stop(ctx context.Context) error {
 	s.stopIdleTimer()
-	if s.httpSrv == nil {
+	if s.grpcSrv == nil {
 		return nil
 	}
-	err := s.httpSrv.Shutdown(ctx)
+	stopped := make(chan struct{})
+	go func() {
+		s.grpcSrv.GracefulStop()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-ctx.Done():
+		s.grpcSrv.Stop()
+		return ctx.Err()
+	}
+
 	done := make(chan struct{})
 	go func() {
 		s.wg.Wait()
@@ -94,47 +104,33 @@ func (s *Server) Stop(ctx context.Context) error {
 	}()
 	select {
 	case <-done:
+		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	return err
 }
 
-func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
+func (s *Server) Status(ctx context.Context, _ *executorpb.StatusRequest) (*executorpb.StatusResponse, error) {
+	if err := s.authorize(ctx); err != nil {
+		return nil, err
 	}
-	if !s.authorize(w, r) {
-		return
-	}
-	writeProto(w, statusResponse(s.active.Load(), s.version))
+	return statusResponse(s.active.Load(), s.version), nil
 }
 
-func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
+func (s *Server) SubmitTask(ctx context.Context, req *executorpb.SubmitTaskRequest) (*executorpb.SubmitTaskResponse, error) {
+	if err := s.authorize(ctx); err != nil {
+		return nil, err
 	}
-	if !s.authorize(w, r) {
-		return
-	}
-	var req executorpb.SubmitTaskRequest
-	if err := readProto(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	task := &types.Task{Raw: req.TaskJson}
-	if err := json.Unmarshal(req.TaskJson, task); err != nil {
-		writeProto(w, &executorpb.SubmitTaskResponse{Accepted: false, Reason: "invalid task payload"})
-		return
+	taskJSON := req.GetTaskJson()
+	task := &types.Task{Raw: taskJSON}
+	if err := json.Unmarshal(taskJSON, task); err != nil {
+		return &executorpb.SubmitTaskResponse{Accepted: false, Reason: "invalid task payload"}, nil
 	}
 
 	s.stateMu.Lock()
 	if s.shuttingDown {
 		s.stateMu.Unlock()
-		writeProto(w, &executorpb.SubmitTaskResponse{Accepted: false, Reason: "executor is shutting down"})
-		return
+		return &executorpb.SubmitTaskResponse{Accepted: false, Reason: "executor is shutting down"}, nil
 	}
 	s.active.Add(1)
 	s.wg.Add(1)
@@ -151,23 +147,19 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		s.handler.HandleTask(context.WithoutCancel(s.runCtx), task)
 	}()
 
-	writeProto(w, &executorpb.SubmitTaskResponse{Accepted: true})
+	return &executorpb.SubmitTaskResponse{Accepted: true}, nil
 }
 
-func (s *Server) handleShutdown(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.authorize(w, r) {
-		return
+func (s *Server) Shutdown(ctx context.Context, _ *executorpb.StatusRequest) (*executorpb.StatusResponse, error) {
+	if err := s.authorize(ctx); err != nil {
+		return nil, err
 	}
 	s.stateMu.Lock()
 	s.shuttingDown = true
 	s.stateMu.Unlock()
 	s.stopIdleTimer()
 	s.wg.Wait()
-	writeProto(w, statusResponse(s.active.Load(), s.version))
+	resp := statusResponse(s.active.Load(), s.version)
 	go func() {
 		if s.onShutdown != nil {
 			s.onShutdown("executor shutdown requested, shutting down")
@@ -175,14 +167,22 @@ func (s *Server) handleShutdown(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = s.Stop(context.Background())
 	}()
+	return resp, nil
 }
 
-func (s *Server) authorize(w http.ResponseWriter, r *http.Request) bool {
-	if s.authToken == "" || r.Header.Get("Authorization") == "Bearer "+s.authToken {
-		return true
+func (s *Server) authorize(ctx context.Context) error {
+	if s.authToken == "" {
+		return nil
 	}
-	http.Error(w, "unauthorized", http.StatusUnauthorized)
-	return false
+	md, ok := metadata.FromIncomingContext(ctx)
+	if ok {
+		for _, value := range md.Get("authorization") {
+			if value == "Bearer "+s.authToken {
+				return nil
+			}
+		}
+	}
+	return status.Error(codes.Unauthenticated, "unauthorized")
 }
 
 func (s *Server) resetIdleTimer() {

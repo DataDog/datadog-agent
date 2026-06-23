@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	executorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -37,7 +37,8 @@ type Supervisor struct {
 	capacity       int32
 	authToken      string
 	command        command
-	client         *http.Client
+	conn           *grpc.ClientConn
+	client         executorpb.ExecutorClient
 
 	mu          sync.Mutex
 	cmd         *exec.Cmd
@@ -56,6 +57,7 @@ func NewSupervisor(socketPath, confPath string, extraConfFiles []string, capacit
 	if capacity <= 0 {
 		capacity = 1
 	}
+	conn, client, _ := newGRPCClient(socketPath, 5*time.Second)
 	return &Supervisor{
 		socketPath:     socketPath,
 		confPath:       confPath,
@@ -63,7 +65,8 @@ func NewSupervisor(socketPath, confPath string, extraConfFiles []string, capacit
 		capacity:       capacity,
 		authToken:      authToken,
 		command:        defaultExecutorCommand(),
-		client:         newHTTPClient(socketPath, 5*time.Second),
+		conn:           conn,
+		client:         client,
 	}
 }
 
@@ -117,13 +120,12 @@ func (s *Supervisor) SubmitTask(ctx context.Context, task *types.Task) error {
 		return err
 	}
 	for {
-		var resp executorpb.SubmitTaskResponse
-		err := postProto(ctx, s.client, s.authToken, submitPath, &executorpb.SubmitTaskRequest{TaskJson: taskJSON}, &resp)
-		if err == nil && resp.Accepted {
+		resp, err := s.client.SubmitTask(withAuth(ctx, s.authToken), &executorpb.SubmitTaskRequest{TaskJson: taskJSON})
+		if err == nil && resp.GetAccepted() {
 			return nil
 		}
 		if err == nil {
-			return fmt.Errorf("executor rejected task: %s", resp.Reason)
+			return fmt.Errorf("executor rejected task: %s", resp.GetReason())
 		}
 		if err != nil && !s.isRunning() {
 			if startErr := s.ensureRunning(ctx); startErr != nil {
@@ -143,18 +145,27 @@ func (s *Supervisor) SubmitTask(ctx context.Context, task *types.Task) error {
 
 // Status returns the executor's current status.
 func (s *Supervisor) Status(ctx context.Context) (*executorpb.StatusResponse, error) {
-	var resp executorpb.StatusResponse
-	err := postProto(ctx, s.client, s.authToken, statusPath, &executorpb.StatusRequest{}, &resp)
-	return &resp, err
+	return s.client.Status(withAuth(ctx, s.authToken), &executorpb.StatusRequest{})
+}
+
+// Close releases the supervisor's client-side IPC connection.
+func (s *Supervisor) Close() error {
+	if s.conn == nil {
+		return nil
+	}
+	return s.conn.Close()
 }
 
 // ShutdownExisting asks any executor already listening on this supervisor's
 // socket to stop. It is best-effort so orchestrator startup can continue when no
 // previous executor exists.
 func (s *Supervisor) ShutdownExisting(ctx context.Context) {
-	var resp executorpb.StatusResponse
-	shutdownClient := newHTTPClient(s.socketPath, 0)
-	if err := postProto(ctx, shutdownClient, s.authToken, shutdownPath, &executorpb.StatusRequest{}, &resp); err != nil {
+	shutdownConn, shutdownClient, err := newGRPCClient(s.socketPath, 0)
+	if err != nil {
+		return
+	}
+	defer shutdownConn.Close()
+	if _, err := shutdownClient.Shutdown(withAuth(ctx, s.authToken), &executorpb.StatusRequest{}); err != nil {
 		return
 	}
 

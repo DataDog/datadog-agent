@@ -12,10 +12,17 @@ write_pb_go(
 
 go_library(
     name = "executor",
-    srcs = ["executor.pb.go"],
+    srcs = [
+        "executor.pb.go",
+        "executor_grpc.pb.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_gogo_protobuf//proto",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
     ],
 )

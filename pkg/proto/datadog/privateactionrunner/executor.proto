@@ -21,3 +21,9 @@ message SubmitTaskResponse {
   bool accepted = 1;
   string reason = 2;
 }
+
+service Executor {
+  rpc Status(StatusRequest) returns (StatusResponse);
+  rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);
+  rpc Shutdown(StatusRequest) returns (StatusResponse);
+}

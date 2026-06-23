@@ -6,17 +6,15 @@
 package executor
 
 import (
-	"bytes"
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	executorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type blockingHandler struct {
@@ -41,7 +39,7 @@ func TestServerSubmitAcceptsTaskOwnership(t *testing.T) {
 	server := NewServer(handler, "test-version", time.Minute, "", nil)
 	server.runCtx = context.Background()
 
-	resp := submitTask(t, server, sampleTaskJSON())
+	resp := submitTask(t, server, context.Background(), sampleTaskJSON())
 	require.True(t, resp.Accepted)
 
 	select {
@@ -57,7 +55,7 @@ func TestServerDoesNotEnforceCapacity(t *testing.T) {
 	server := NewServer(handler, "test-version", time.Minute, "", nil)
 	server.runCtx = context.Background()
 
-	first := submitTask(t, server, sampleTaskJSON())
+	first := submitTask(t, server, context.Background(), sampleTaskJSON())
 	require.True(t, first.Accepted)
 	select {
 	case <-handler.started:
@@ -65,7 +63,7 @@ func TestServerDoesNotEnforceCapacity(t *testing.T) {
 		t.Fatal("first task handler was not called")
 	}
 
-	second := submitTask(t, server, sampleTaskJSON())
+	second := submitTask(t, server, context.Background(), sampleTaskJSON())
 	require.True(t, second.Accepted)
 	close(handler.release)
 }
@@ -89,13 +87,9 @@ func TestServerShutdownCallsOnIdle(t *testing.T) {
 	server := NewServer(newBlockingHandler(), "test-version", time.Minute, "", func(_ string) {
 		close(shutdown)
 	})
-	body, err := proto.Marshal(&executorpb.StatusRequest{})
-	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, shutdownPath, bytes.NewReader(body))
-	rec := httptest.NewRecorder()
 
-	server.handleShutdown(rec, req)
-	require.Equal(t, http.StatusOK, rec.Code)
+	_, err := server.Shutdown(context.Background(), &executorpb.StatusRequest{})
+	require.NoError(t, err)
 
 	select {
 	case <-shutdown:
@@ -112,7 +106,7 @@ func TestServerShutdownWaitsForActiveTasks(t *testing.T) {
 	})
 	server.runCtx = context.Background()
 
-	resp := submitTask(t, server, sampleTaskJSON())
+	resp := submitTask(t, server, context.Background(), sampleTaskJSON())
 	require.True(t, resp.Accepted)
 	select {
 	case <-handler.started:
@@ -122,12 +116,8 @@ func TestServerShutdownWaitsForActiveTasks(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		body, err := proto.Marshal(&executorpb.StatusRequest{})
+		_, err := server.Shutdown(context.Background(), &executorpb.StatusRequest{})
 		require.NoError(t, err)
-		req := httptest.NewRequest(http.MethodPost, shutdownPath, bytes.NewReader(body))
-		rec := httptest.NewRecorder()
-		server.handleShutdown(rec, req)
-		require.Equal(t, http.StatusOK, rec.Code)
 		close(done)
 	}()
 
@@ -153,28 +143,17 @@ func TestServerShutdownWaitsForActiveTasks(t *testing.T) {
 
 func TestServerRejectsInvalidAuthToken(t *testing.T) {
 	server := NewServer(newBlockingHandler(), "test-version", time.Minute, "expected-token", nil)
-	body, err := proto.Marshal(&executorpb.StatusRequest{})
-	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, statusPath, bytes.NewReader(body))
-	rec := httptest.NewRecorder()
 
-	server.handleStatus(rec, req)
+	_, err := server.Status(context.Background(), &executorpb.StatusRequest{})
 
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	require.Equal(t, codes.Unauthenticated, status.Code(err))
 }
 
-func submitTask(t *testing.T, server *Server, taskJSON []byte) *executorpb.SubmitTaskResponse {
+func submitTask(t *testing.T, server *Server, ctx context.Context, taskJSON []byte) *executorpb.SubmitTaskResponse {
 	t.Helper()
-	body, err := proto.Marshal(&executorpb.SubmitTaskRequest{TaskJson: taskJSON})
+	resp, err := server.SubmitTask(ctx, &executorpb.SubmitTaskRequest{TaskJson: taskJSON})
 	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, submitPath, bytes.NewReader(body))
-	rec := httptest.NewRecorder()
-	server.handleSubmit(rec, req)
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	var resp executorpb.SubmitTaskResponse
-	require.NoError(t, proto.Unmarshal(rec.Body.Bytes(), &resp))
-	return &resp
+	return resp
 }
 
 func sampleTaskJSON() []byte {
