@@ -9,6 +9,8 @@ package egressimpl
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -41,42 +43,50 @@ func newTestEgress(t *testing.T, interval time.Duration, store storedef.Componen
 
 func TestTickSendsActiveIssues(t *testing.T) {
 	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1", Title: "Test"}))
-	fwd := forwardermock.New(t)
+	var reports []*healthplatformpayload.HealthReport
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, r *healthplatformpayload.HealthReport) error {
+		reports = append(reports, r)
+		return nil
+	}))
 	e := newTestEgress(t, time.Minute, store, fwd)
 
 	e.tick()
 
-	assert.Equal(t, int32(1), fwd.SendCallCount())
-	calls := fwd.SendCalls()
-	require.Len(t, calls, 1)
-	assert.Contains(t, calls[0].Issues, "issue-1")
-	assert.Equal(t, "test-host", calls[0].Host.Hostname)
-	assert.Equal(t, eventType, calls[0].EventType)
+	require.Len(t, reports, 1)
+	assert.Contains(t, reports[0].Issues, "issue-1")
+	assert.Equal(t, "test-host", reports[0].Host.Hostname)
+	assert.Equal(t, eventType, reports[0].EventType)
 }
 
 func TestTickSkipsWhenEmpty(t *testing.T) {
-	fwd := forwardermock.New(t)
+	var called bool
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, _ *healthplatformpayload.HealthReport) error {
+		called = true
+		return nil
+	}))
 	e := newTestEgress(t, time.Minute, storemock.New(t), fwd)
 
 	e.tick()
 
-	assert.Equal(t, int32(0), fwd.SendCallCount())
+	assert.False(t, called)
 }
 
 func TestTickLogsOnForwarderError(t *testing.T) {
+	var callCount int32
 	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
-	fwd := forwardermock.New(t)
-	fwd.SetSendError(assert.AnError)
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, _ *healthplatformpayload.HealthReport) error {
+		atomic.AddInt32(&callCount, 1)
+		return assert.AnError
+	}))
 	e := newTestEgress(t, time.Minute, store, fwd)
 
 	e.tick()
 
-	assert.Equal(t, int32(1), fwd.SendCallCount())
+	assert.Equal(t, int32(1), atomic.LoadInt32(&callCount))
 }
 
 func TestLifecycleStartStop(t *testing.T) {
-	fwd := forwardermock.New(t)
-	e := newTestEgress(t, 50*time.Millisecond, storemock.New(t), fwd)
+	e := newTestEgress(t, 50*time.Millisecond, storemock.New(t), forwardermock.New(t))
 
 	require.NoError(t, e.start(context.Background()))
 	time.Sleep(30 * time.Millisecond)
@@ -85,37 +95,58 @@ func TestLifecycleStartStop(t *testing.T) {
 
 func TestTickFiresOnInterval(t *testing.T) {
 	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
-	fwd := forwardermock.New(t)
+	var callCount int32
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, _ *healthplatformpayload.HealthReport) error {
+		atomic.AddInt32(&callCount, 1)
+		return nil
+	}))
 	e := newTestEgress(t, 30*time.Millisecond, store, fwd)
 
 	require.NoError(t, e.start(context.Background()))
 	require.Eventually(t, func() bool {
-		return fwd.SendCallCount() >= 2
+		return atomic.LoadInt32(&callCount) >= 2
 	}, 2*time.Second, 10*time.Millisecond, "expected at least 2 ticks")
 	require.NoError(t, e.stop(context.Background()))
 }
 
 func TestErrorThenRecovery(t *testing.T) {
 	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
-	fwd := forwardermock.New(t)
-	fwd.SetSendError(assert.AnError)
+	var (
+		mu          sync.Mutex
+		sendErr     error = assert.AnError
+		callCount   int32
+		successSent []*healthplatformpayload.HealthReport
+	)
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, r *healthplatformpayload.HealthReport) error {
+		atomic.AddInt32(&callCount, 1)
+		mu.Lock()
+		defer mu.Unlock()
+		if sendErr != nil {
+			return sendErr
+		}
+		successSent = append(successSent, r)
+		return nil
+	}))
 	e := newTestEgress(t, 20*time.Millisecond, store, fwd)
 
 	require.NoError(t, e.start(context.Background()))
-	require.Eventually(t, func() bool { return fwd.SendCallCount() >= 1 }, 2*time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return atomic.LoadInt32(&callCount) >= 1 }, 2*time.Second, 5*time.Millisecond)
 
-	fwd.SetSendError(nil)
+	mu.Lock()
+	sendErr = nil
+	mu.Unlock()
 
 	require.Eventually(t, func() bool {
-		return len(fwd.SendCalls()) >= 1
+		mu.Lock()
+		defer mu.Unlock()
+		return len(successSent) >= 1
 	}, 2*time.Second, 5*time.Millisecond, "expected successful send after error recovery")
 
 	require.NoError(t, e.stop(context.Background()))
 }
 
 func TestBuildReport(t *testing.T) {
-	fwd := forwardermock.New(t)
-	e := newTestEgress(t, time.Minute, storemock.New(t), fwd)
+	e := newTestEgress(t, time.Minute, storemock.New(t), forwardermock.New(t))
 
 	report := e.buildReport(map[string]*healthplatformpayload.Issue{"a": {Id: "a"}, "b": {Id: "b"}})
 
@@ -128,7 +159,11 @@ func TestBuildReport(t *testing.T) {
 }
 
 func TestResolvedIssueSentOnce(t *testing.T) {
-	fwd := forwardermock.New(t)
+	var reports []*healthplatformpayload.HealthReport
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, r *healthplatformpayload.HealthReport) error {
+		reports = append(reports, r)
+		return nil
+	}))
 	e := newTestEgress(t, time.Minute, storemock.New(t), fwd)
 	e.resolved["r-issue"] = &healthplatformpayload.Issue{
 		Id: "r-issue",
@@ -139,18 +174,18 @@ func TestResolvedIssueSentOnce(t *testing.T) {
 
 	e.tick()
 
-	assert.Equal(t, int32(1), fwd.SendCallCount())
-	calls := fwd.SendCalls()
-	assert.Contains(t, calls[0].Issues, "r-issue")
+	require.Len(t, reports, 1)
+	assert.Contains(t, reports[0].Issues, "r-issue")
 	assert.Empty(t, e.resolved, "resolved map must be cleared after successful send")
 
 	e.tick()
-	assert.Equal(t, int32(1), fwd.SendCallCount(), "second tick must skip: no active or resolved issues")
+	assert.Len(t, reports, 1, "second tick must skip: no active or resolved issues")
 }
 
 func TestResolvedStaysOnSendFailure(t *testing.T) {
-	fwd := forwardermock.New(t)
-	fwd.SetSendError(assert.AnError)
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, _ *healthplatformpayload.HealthReport) error {
+		return assert.AnError
+	}))
 	e := newTestEgress(t, time.Minute, storemock.New(t), fwd)
 	e.resolved["fail-issue"] = &healthplatformpayload.Issue{Id: "fail-issue"}
 
@@ -166,7 +201,11 @@ func TestActiveWinsOverResolvedOnRecurrence(t *testing.T) {
 			State: healthplatformpayload.IssueState_ISSUE_STATE_NEW,
 		},
 	}))
-	fwd := forwardermock.New(t)
+	var reports []*healthplatformpayload.HealthReport
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, r *healthplatformpayload.HealthReport) error {
+		reports = append(reports, r)
+		return nil
+	}))
 	e := newTestEgress(t, time.Minute, store, fwd)
 	e.resolved["i:1"] = &healthplatformpayload.Issue{
 		Id: "i:1",
@@ -177,9 +216,8 @@ func TestActiveWinsOverResolvedOnRecurrence(t *testing.T) {
 
 	e.tick()
 
-	calls := fwd.SendCalls()
-	require.Len(t, calls, 1)
-	sent := calls[0].Issues["i:1"]
+	require.Len(t, reports, 1)
+	sent := reports[0].Issues["i:1"]
 	require.NotNil(t, sent)
 	assert.Equal(t, healthplatformpayload.IssueState_ISSUE_STATE_NEW, sent.PersistedIssue.GetState(),
 		"active NEW entry must win over stale resolved tombstone on recurrence")
@@ -187,8 +225,7 @@ func TestActiveWinsOverResolvedOnRecurrence(t *testing.T) {
 
 func TestObserverWiresResolvedCh(t *testing.T) {
 	store := storemock.New(t)
-	fwd := forwardermock.New(t)
-	e := newTestEgress(t, time.Minute, store, fwd)
+	e := newTestEgress(t, time.Minute, store, forwardermock.New(t))
 
 	store.RegisterIssuesObserver(storedef.IssuesObserver{
 		ResolvedCh: e.resolvedCh,
