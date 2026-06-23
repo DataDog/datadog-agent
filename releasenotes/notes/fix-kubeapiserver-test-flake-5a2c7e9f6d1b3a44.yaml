@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Improved reliability of Kubernetes workload metadata test coverage for deployment language annotations in the Agent codebase.
