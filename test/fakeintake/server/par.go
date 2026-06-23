@@ -72,7 +72,7 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 		remoteAction["target_commands"] = v
 	}
 	if v, ok := task.Inputs["allowedPaths"]; ok {
-		remoteAction["target_paths"] = v
+		remoteAction["target_paths"] = parTargetPathsFromAllowedPathsInput(v)
 	}
 	if len(remoteAction) > 0 {
 		attributes["remote_action"] = remoteAction
@@ -86,6 +86,26 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func parTargetPathsFromAllowedPathsInput(allowedPaths interface{}) interface{} {
+	switch paths := allowedPaths.(type) {
+	case map[string][]string:
+		if containerized, ok := paths["containerized"]; ok {
+			return containerized
+		}
+		if defaults, ok := paths["default"]; ok {
+			return defaults
+		}
+	case map[string]interface{}:
+		if containerized, ok := paths["containerized"]; ok {
+			return containerized
+		}
+		if defaults, ok := paths["default"]; ok {
+			return defaults
+		}
+	}
+	return allowedPaths
 }
 
 func (fi *Server) handlePARPublish(w http.ResponseWriter, r *http.Request) {
