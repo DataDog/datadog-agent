@@ -374,10 +374,12 @@ func getOwnersLanguages(requestData *pbgo.ParentLanguageAnnotationRequest, expir
 			continue
 		}
 
-		containersLanguages := *getContainersLanguagesFromPodDetail(podDetail, expirationTime)
-		langsWithDirtyFlag := ownersContainersLanguages.getOrInitialize(namespacedOwnerRef)
-		if modified := langsWithDirtyFlag.languages.Merge(containersLanguages); modified {
-			langsWithDirtyFlag.dirty = true
+		if _, found := langUtil.SupportedBaseOwners[namespacedOwnerRef.Kind]; found {
+			containersLanguages := *getContainersLanguagesFromPodDetail(podDetail, expirationTime)
+			langsWithDirtyFlag := ownersContainersLanguages.getOrInitialize(namespacedOwnerRef)
+			if modified := langsWithDirtyFlag.languages.Merge(containersLanguages); modified {
+				langsWithDirtyFlag.dirty = true
+			}
 		}
 	}
 

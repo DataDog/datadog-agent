@@ -14,16 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// deploymentOwnerForPod resolves the Deployment that a pod's detected languages should be
-// attributed to, from the reported owner reference.
-//
-// A pod created by a Deployment is owned by a ReplicaSet and named
-// "<deployment>-<replicaset-hash>-<pod-hash>". We therefore require:
-//   - the owner to be a ReplicaSet (pods that reference a Deployment directly are rejected),
-//   - the ReplicaSet parsed from the pod name to match the owner ReplicaSet name exactly (so a
-//     pod cannot be attributed to a ReplicaSet it does not belong to, even if both names share
-//     the same Deployment prefix), and
-//   - the owner ReplicaSet name to parse to a Deployment.
+// deploymentOwnerForPod resolves the namespaced base owner that a pod's detected languages
+// should be attributed to, reusing GetNamespacedBaseOwnerReference, but only after two
+// consistency checks on the reported owner reference:
+//   - the owner must be a ReplicaSet (pods that reference a Deployment, or any other resource,
+//     directly are rejected), and
+//   - the ReplicaSet parsed from the pod name must match the owner ReplicaSet name exactly, so a
+//     pod cannot be attributed to a ReplicaSet it does not belong to even if both names share the
+//     same Deployment prefix.
 func deploymentOwnerForPod(podDetail *pbgo.PodLanguageDetails) (langUtil.NamespacedOwnerReference, bool) {
 	owner := podDetail.Ownerref
 	if owner == nil || owner.Kind != langUtil.KindReplicaset {
@@ -36,11 +34,5 @@ func deploymentOwnerForPod(podDetail *pbgo.PodLanguageDetails) (langUtil.Namespa
 		return langUtil.NamespacedOwnerReference{}, false
 	}
 
-	deploymentName := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
-	if deploymentName == "" {
-		log.Debugf("language detection: skipping pod %s/%s: could not parse deployment from ReplicaSet %q", podDetail.Namespace, podDetail.Name, owner.Name)
-		return langUtil.NamespacedOwnerReference{}, false
-	}
-
-	return langUtil.NewNamespacedOwnerReference("apps/v1", langUtil.KindDeployment, deploymentName, podDetail.Namespace), true
+	return langUtil.GetNamespacedBaseOwnerReference(podDetail), true
 }
