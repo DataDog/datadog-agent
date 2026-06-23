@@ -10,6 +10,9 @@ use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use tokio::sync::Notify;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, TRUE};
+use windows_sys::Win32::Storage::FileSystem::{
+    FILE_TYPE_CHAR, FILE_TYPE_DISK, FILE_TYPE_PIPE, GetFileType,
+};
 use windows_sys::Win32::System::Console::{
     AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, GetStdHandle,
     STD_ERROR_HANDLE, STD_OUTPUT_HANDLE, SetConsoleCtrlHandler,
@@ -22,9 +25,6 @@ use windows_sys::Win32::System::JobObjects::{
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, OpenProcess, PROCESS_SET_QUOTA,
     PROCESS_TERMINATE, TerminateProcess,
-};
-use windows_sys::Win32::Storage::FileSystem::{
-    GetFileType, FILE_TYPE_CHAR, FILE_TYPE_DISK, FILE_TYPE_PIPE,
 };
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
