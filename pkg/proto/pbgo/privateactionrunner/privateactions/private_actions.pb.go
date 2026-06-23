@@ -311,7 +311,7 @@ type PrivateActionTask struct {
 	ConnectionInfo        *ConnectionInfo        `protobuf:"bytes,10,opt,name=connection_info,json=connectionInfo,proto3" json:"connection_info,omitempty"`
 	ExpirationTime        *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=expiration_time,json=expirationTime,proto3" json:"expiration_time,omitempty"`
 	Client                actionsclient.Client   `protobuf:"varint,12,opt,name=client,proto3,enum=datadog.privateactionrunner.actionsclient.Client" json:"client,omitempty"`
-	RemoteAction          *RemoteAction          `protobuf:"bytes,16,opt,name=remote_action,json=remoteAction,proto3" json:"remote_action,omitempty"`
+	RemoteAction          *RemoteAction          `protobuf:"bytes,13,opt,name=remote_action,json=remoteAction,proto3" json:"remote_action,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -813,7 +813,7 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	" \x01(\v2:.datadog.privateactionrunner.privateactions.ConnectionInfoR\x0econnectionInfo\x12C\n" +
 	"\x0fexpiration_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\x0eexpirationTime\x12I\n" +
 	"\x06client\x18\f \x01(\x0e21.datadog.privateactionrunner.actionsclient.ClientR\x06client\x12]\n" +
-	"\rremote_action\x18\x10 \x01(\v28.datadog.privateactionrunner.privateactions.RemoteActionR\fremoteActionJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\rremote_action\x18\r \x01(\v28.datadog.privateactionrunner.privateactions.RemoteActionR\fremoteActionJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"\"Z\n" +
 	"\fRemoteAction\x12'\n" +
 	"\x0ftarget_commands\x18\x01 \x03(\tR\x0etargetCommands\x12!\n" +
