@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 )
 
-
 func Run(ctx *pulumi.Context) error {
 	localEnv, err := local.NewEnvironment(ctx)
 	if err != nil {
@@ -75,6 +74,10 @@ func Run(ctx *pulumi.Context) error {
 		return err
 	}
 
+	if !localEnv.AgentDeploy() {
+		return nil
+	}
+
 	var fakeIntake *fakeintakeComp.Fakeintake
 	if localEnv.AgentUseFakeintake() {
 		fakeIntake, err = fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
@@ -84,10 +87,6 @@ func Run(ctx *pulumi.Context) error {
 		if err := fakeIntake.Export(ctx, nil); err != nil {
 			return err
 		}
-	}
-
-	if !localEnv.AgentDeploy() {
-		return nil
 	}
 
 	clusterName := ctx.Stack()
