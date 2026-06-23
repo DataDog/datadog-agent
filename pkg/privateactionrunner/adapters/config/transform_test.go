@@ -472,8 +472,8 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsWarnsForBackslash(t *testing.
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsWarnsForNonDirectory(t *testing.T) {
-	tmpDir := t.TempDir()
-	fp := filepath.Join(tmpDir, "file.txt")
+	tmpDir := filepath.ToSlash(t.TempDir())
+	fp := filepath.ToSlash(filepath.Join(tmpDir, "file.txt"))
 	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
 
 	mockConfig := configmock.New(t)
