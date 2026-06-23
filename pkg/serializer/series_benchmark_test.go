@@ -76,7 +76,7 @@ func BenchmarkSeries(b *testing.B) {
 		}
 	}
 	mockConfig := mock.New(b)
-	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+	compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
 	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
 		pipelineConfig := metricsserializer.PipelineConfig{

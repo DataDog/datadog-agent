@@ -57,7 +57,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 			sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
 
 			pipelines := testPipelines()
-			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+			compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
 			err := sl.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logger)
 			assert.Nil(t, err)
 			payloads := pipelines.GetPayloads()
@@ -101,7 +101,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 
 			pipelines := testPipelines()
 			serializer := SketchSeriesList{SketchesSource: sl}
-			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+			compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
 			err := serializer.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logger)
 			payloads := pipelines.GetPayloads()
 
@@ -145,7 +145,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 
 			pipelines := testPipelines()
 			serializer2 := SketchSeriesList{SketchesSource: sl}
-			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+			compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
 			err := serializer2.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logger)
 			require.NoError(t, err)
 			payloads := pipelines.GetPayloads()
@@ -207,7 +207,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 
 			pipelines := testPipelines()
 			serializer := SketchSeriesList{SketchesSource: sl}
-			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+			compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
 			err := serializer.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logger)
 			assert.Nil(t, err)
 			payloads := pipelines.GetPayloads()
@@ -272,7 +272,7 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 
 			sl.Reset()
 			serializer2 := SketchSeriesList{SketchesSource: sl}
-			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+			compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
 
 			primaryConf := PipelineConfig{
 				Filter: AllowAllFilter{},
