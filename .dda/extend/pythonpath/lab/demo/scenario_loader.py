@@ -514,17 +514,24 @@ def _make_run_command(demo_env: Any, team_dir: str, env_name: str) -> click.Comm
             actions_help = ", ".join(sc.actions.keys())
             app.abort(f"Unknown action '{action}' for scenario '{scenario}'. Available: {actions_help}")
 
-        _run_action(app, id, sc, team_dir, env_name, action)
+        _run_action(app, id, sc, scenario, team_dir, env_name, action)
 
     cmd.name = "run"
     return cmd
 
 
-def _run_action(app: Any, env_id: str | None, scenario: Any, team_dir: str, env_name: str, action: str) -> None:
+def _run_action(
+    app: Any, env_id: str | None, scenario: Any, scenario_name: str | None, team_dir: str, env_name: str, action: str
+) -> None:
     from lab import LabEnvironment
 
     if env_id is None:
-        envs = [e for e in LabEnvironment.load_all(app, env_type=team_dir) if e.metadata.get("demo_env") == env_name]
+        envs = [
+            e
+            for e in LabEnvironment.load_all(app, env_type=team_dir)
+            if e.metadata.get("demo_env") == env_name
+            and (scenario_name is None or e.metadata.get("scenario") in (None, scenario_name))
+        ]
         if not envs:
             app.abort(
                 f"No {team_dir}/{env_name} demo environments found. "
