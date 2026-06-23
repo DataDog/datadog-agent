@@ -23,15 +23,15 @@ const (
 type Repositories struct {
 	rootPath       string
 	preRemoveHooks map[string]PreRemoveHook
-	beforePublish  map[string]BeforePublishHook
+	activate       map[string]ActivationHook
 }
 
 // NewRepositories returns a new Repositories.
-func NewRepositories(rootPath string, preRemoveHooks map[string]PreRemoveHook, beforePublish map[string]BeforePublishHook) *Repositories {
+func NewRepositories(rootPath string, preRemoveHooks map[string]PreRemoveHook, activate map[string]ActivationHook) *Repositories {
 	return &Repositories{
 		rootPath:       rootPath,
 		preRemoveHooks: preRemoveHooks,
-		beforePublish:  beforePublish,
+		activate:       activate,
 	}
 }
 
@@ -39,7 +39,7 @@ func (r *Repositories) newRepository(pkg string) *Repository {
 	return &Repository{
 		rootPath:       filepath.Join(r.rootPath, pkg),
 		preRemoveHooks: r.preRemoveHooks,
-		beforePublish:  r.beforePublish,
+		activate:       r.activate,
 	}
 }
 

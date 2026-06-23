@@ -20,7 +20,7 @@ import (
 )
 
 var apmLibraryDotnetPackage = hooks{
-	beforePublish:       beforePublishAPMLibraryDotnet,
+	activate:            activateAPMLibraryDotnet,
 	postInstall:         postInstallAPMLibraryDotnet,
 	preRemove:           preRemoveAPMLibraryDotnet,
 	postStartExperiment: postStartExperimentAPMLibraryDotnet,
@@ -47,11 +47,11 @@ func getLibraryPath(installDir string) string {
 	return filepath.Join(installDir, "library")
 }
 
-// beforePublishAPMLibraryDotnet runs after the .NET APM library files are laid out
+// activateAPMLibraryDotnet runs after the .NET APM library files are laid out
 // in their immutable repository path, but before the package symlink is updated
 // to point to them.
-func beforePublishAPMLibraryDotnet(ctx context.Context, packagePath string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "before_publish_apm_library_dotnet")
+func activateAPMLibraryDotnet(ctx context.Context, packagePath string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "activate_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
 	return installDotnetLibraryVersion(ctx, packagePath)
 }

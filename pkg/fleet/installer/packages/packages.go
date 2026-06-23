@@ -27,10 +27,10 @@ type packagePathHook func(context.Context, string) error
 
 // hooks represents the hooks for a package.
 type hooks struct {
-	preInstall    packageHook
-	preRemove     packageHook
-	postInstall   packageHook
-	beforePublish packagePathHook
+	preInstall  packageHook
+	preRemove   packageHook
+	postInstall packageHook
+	activate    packagePathHook
 
 	preStartExperiment    packageHook
 	postStartExperiment   packageHook
@@ -78,17 +78,17 @@ func NewHooks(env *env.Env, packages *repository.Repositories) Hooks {
 	}
 }
 
-// BeforePublishHooks returns package-specific functions that must run after
-// files are placed in their immutable repository path and before that path is
-// published through stable or experiment.
-func BeforePublishHooks() map[string]repository.BeforePublishHook {
-	beforePublish := make(map[string]repository.BeforePublishHook)
+// ActivationHooks returns package-specific activation functions that must run
+// after files are placed in their immutable repository path and before that path
+// is published through stable or experiment.
+func ActivationHooks() map[string]repository.ActivationHook {
+	activate := make(map[string]repository.ActivationHook)
 	for pkg, h := range packagesHooks {
-		if h.beforePublish != nil {
-			beforePublish[pkg] = repository.BeforePublishHook(h.beforePublish)
+		if h.activate != nil {
+			activate[pkg] = repository.ActivationHook(h.activate)
 		}
 	}
-	return beforePublish
+	return activate
 }
 
 type hooksCLI struct {
