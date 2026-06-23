@@ -4,7 +4,7 @@ import json
 import os
 import platform
 import re
-import shlex
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -26,17 +26,19 @@ _IMPORT_PREFIX = AGENT_MODULE_PATH_PREFIX.rstrip("/")
 _DD_AGENT_GO_TEST_TAG = "dd_agent_go_test"
 
 
-def _go_test_packages(ctx, tags: list[str], import_paths: set[str]) -> dict[str, set[str]]:
+def _go_test_packages(tags: list[str], import_paths: set[str]) -> dict[str, set[str]]:
     """Return {import_path: {Test* func names}} for the given import paths
     compiled under the given build tags."""
     if not import_paths:
         return {}
-    with ctx.cd(REPO_ROOT):
-        result = ctx.run(
-            shlex.join(["go", "list", "-json", "-e", f"-tags={','.join(sorted(tags))}", *sorted(import_paths)]),
-            hide=True,
-            warn=True,
-        )
+    # shell=False is required: cmd.exe on Windows has an 8191-char command-line limit.
+    result = subprocess.run(
+        ["go", "list", "-json", "-e", f"-tags={','.join(sorted(tags))}", *sorted(import_paths)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
     pkgs: dict[str, set[str]] = {}
     decoder = json.JSONDecoder()
     text, pos = result.stdout, 0
@@ -241,7 +243,7 @@ def ensure_test_parity(ctx, bep, flavor_name, verbose=False, emit_metrics=False)
 
     tags = compute_build_tags_for_flavor("unit-tests", None, None, flavor)
     coverage = _bazel_test_funcs_from_bep(bep_path)
-    test_pkgs = _go_test_packages(ctx, tags, set(coverage))
+    test_pkgs = _go_test_packages(tags, set(coverage))
 
     go_pkgs = set(test_pkgs)
     extra_in_bazel = {p for p, funcs in coverage.items() if funcs} - go_pkgs
