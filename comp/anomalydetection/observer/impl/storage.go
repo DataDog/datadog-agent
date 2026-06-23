@@ -1060,6 +1060,10 @@ func (s *timeSeriesStorage) RemoveSeriesByMetricName(namespace, name string) []o
 	return removed
 }
 
+func isCapacityExemptNamespace(namespace string) bool {
+	return namespace == observer.TelemetryNamespace || namespace == observer.AgentNamespace
+}
+
 // EvictToCapacity evicts the oldest series (by last written timestamp) when
 // the live series count exceeds seriesLimit, draining down to target. The band
 // between the two thresholds prevents a fan-out on every Advance when the
@@ -1074,7 +1078,7 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	// Count first — common case is under the limit, skip allocation entirely.
 	count := 0
 	for _, st := range s.seriesIDStats {
-		if st != nil {
+		if st != nil && !isCapacityExemptNamespace(st.Namespace) {
 			count++
 		}
 	}
@@ -1088,7 +1092,7 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	}
 	candidates := make([]entry, 0, count)
 	for _, st := range s.seriesIDStats {
-		if st == nil {
+		if st == nil || isCapacityExemptNamespace(st.Namespace) {
 			continue
 		}
 		lastTs := int64(0)
