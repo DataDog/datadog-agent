@@ -96,9 +96,10 @@ bazel:test:linux-arm64:iot:
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
-  before_script:
+  script:
     - !reference [.install_python_dependencies]
     - !reference [.macos_setup_go]
+    - !reference [.bazel:test:flavor, .script]
 
 bazel:test:macos-amd64:base:
   extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-amd64 ]
