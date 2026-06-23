@@ -18,6 +18,18 @@ type Component interface {
 	// The source name is used to identify where observations originate.
 	GetHandle(name string) Handle
 
+	// RecordSamplerDropped increments the rate-limiter dropped counter for the
+	// given source ("internal", "kubelet", "containers") and priority ("high",
+	// "medium", "low"). Only rate-limit drops are counted; min_severity drops
+	// are intentional and not tracked here.
+	RecordSamplerDropped(source, priority string)
+
 	// DumpMetrics writes all stored metrics to the specified file (for debugging).
 	DumpMetrics(path string) error
+
+	// SubscribeScorer registers a scorer event listener described by cfg.
+	// cfg.Listener is called synchronously on the data clock for every severity
+	// transition that matches cfg.Filter. The zero-value filter delivers all
+	// transitions. Returns an unsubscribe function; call it to stop delivery.
+	SubscribeScorer(cfg AnomalyScorerConfiguration) func()
 }

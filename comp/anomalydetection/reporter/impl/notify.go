@@ -17,7 +17,7 @@ import (
 	"unicode/utf8"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -40,8 +40,8 @@ const (
 	logPatternExtractorNamespace = "log_pattern_extractor"
 	logMetricsExtractorNamespace = "log_metrics_extractor"
 
-	// changeEventMessageMaxLen caps the rendered change-event message. The v2
-	// Events API rejects messages larger than 4 KiB.
+	// changeEventMessageMaxLen caps the rendered change-event message below the
+	// v2 Events API 4 KiB limit (4096 bytes).
 	changeEventMessageMaxLen = 4000
 	// impactedResourcesMaxItems caps the number of service entries we attach
 	// to a change event. Matches the v2 API server-side limit.

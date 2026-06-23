@@ -1,0 +1,41 @@
+integration_dependency_wheels = use_repo_rule(
+    "//deps/agent_integrations:dependency_wheels.bzl",
+    "integration_dependency_wheels",
+)
+
+integration_source_packages = use_repo_rule(
+    "//deps/agent_integrations:source_packages.bzl",
+    "integration_source_packages",
+)
+
+integration_source_packages(name = "integration_source_packages")
+
+integration_dependency_wheels(
+    name = "integration_dependency_wheels_linux_x86_64",
+    arch = "x86_64",
+    os = "linux",
+)
+
+integration_dependency_wheels(
+    name = "integration_dependency_wheels_linux_aarch64",
+    arch = "aarch64",
+    os = "linux",
+)
+
+integration_dependency_wheels(
+    name = "integration_dependency_wheels_macos_x86_64",
+    arch = "x86_64",
+    os = "macos",
+)
+
+integration_dependency_wheels(
+    name = "integration_dependency_wheels_macos_aarch64",
+    arch = "aarch64",
+    os = "macos",
+)
+
+integration_dependency_wheels(
+    name = "integration_dependency_wheels_windows_x86_64",
+    arch = "x86_64",
+    os = "windows",
+)

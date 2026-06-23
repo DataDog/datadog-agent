@@ -1,0 +1,12 @@
+# Flavor configs — run only the test variants for a specific agent flavor.
+# Usage: bazel test --config=iot //...
+test:base         --test_tag_filters=flavor_base
+test:dogstatsd    --test_tag_filters=flavor_dogstatsd
+test:fips         --test_tag_filters=flavor_fips
+test:heroku       --test_tag_filters=flavor_heroku
+test:iot          --test_tag_filters=flavor_iot
+
+# Exclude the per-flavor dd_agent_go_test variants. Used by the monolithic CI
+# jobs so they do not re-run tests already covered by the per-flavor jobs.
+# Usage: bazel test --config=no-dd-agent-go-tests //...
+test:no-dd-agent-go-tests  --test_tag_filters=-dd_agent_go_test

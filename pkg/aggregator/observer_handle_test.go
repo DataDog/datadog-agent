@@ -55,8 +55,14 @@ func (c *recordingComponent) GetHandle(_ string) observer.Handle {
 	return c.handle
 }
 
+func (c *recordingComponent) RecordSamplerDropped(_, _ string) {}
+
 func (c *recordingComponent) DumpMetrics(_ string) error {
 	return nil
+}
+
+func (c *recordingComponent) SubscribeScorer(_ observer.AnomalyScorerConfiguration) func() {
+	return func() {}
 }
 
 // TestTimeSamplerObserverHandle verifies that ObserveMetric is called for each

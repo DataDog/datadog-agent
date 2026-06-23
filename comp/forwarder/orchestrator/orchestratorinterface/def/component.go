@@ -6,7 +6,7 @@
 // Package orchestratorinterface defines the interface for the orchestrator forwarder component.
 package orchestratorinterface
 
-import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+import defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 
 // team: agent-metric-pipelines
 

@@ -53,7 +53,7 @@ type SSHConnection struct {
 var _ Connection = (*SSHConnection)(nil)
 
 // NewSSHConnector creates a new SSH connector for the given device configuration
-func NewSSHConnector(device *ncmconfig.DeviceInstance) (*SSHConnector, error) {
+func NewSSHConnector(device *ncmconfig.DeviceInstance) (Connector, error) {
 	if device.Auth.SSH != nil {
 		if err := ValidateSSHConfig(device.Auth.SSH); err != nil {
 			return nil, fmt.Errorf("error validating ssh client config: %w", err)
@@ -64,6 +64,14 @@ func NewSSHConnector(device *ncmconfig.DeviceInstance) (*SSHConnector, error) {
 	return &SSHConnector{
 		device: device,
 	}, nil
+}
+
+func ConnectOverSSH(device *ncmconfig.DeviceInstance) (Connection, error) {
+	c, err := NewSSHConnector(device)
+	if err != nil {
+		return nil, err
+	}
+	return c.Connect()
 }
 
 func buildHostKeyCallback(config *ncmconfig.SSHConfig) (ssh.HostKeyCallback, error) {
@@ -164,8 +172,26 @@ func (c *SSHConnector) Connect() (Connection, error) {
 	}, nil
 }
 
-func (c *SSHConnection) PushConfig(_ context.Context, _ string) error {
-	return errors.New("not implemented")
+func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) error {
+	if c.prof == nil {
+		return fmt.Errorf("no device type provided for %q", c.device.IPAddress)
+	}
+	if len(c.prof.Commands.PushConfig) == 0 {
+		return fmt.Errorf("no push commands for profile %q", c.prof.Name)
+	}
+	for _, untypedCmd := range c.prof.Commands.PushConfig {
+		switch cmd := untypedCmd.(type) {
+		case *profile.SCPCommand:
+			if _, err := ExecuteSCP(ctx, c.client, cmd, rawConfig); err != nil {
+				return fmt.Errorf("unable to copy config to device %q: %w", c.device.IPAddress, err)
+			}
+		case *profile.PlainCommand:
+			if _, err := ExecuteCommand(ctx, c.client, cmd); err != nil {
+				return fmt.Errorf("error while pushing config to device %q: %w", c.device.IPAddress, err)
+			}
+		}
+	}
+	return nil
 }
 
 // RetrieveRunningConfig retrieves the running configuration for the device connected via SSH
@@ -192,7 +218,7 @@ func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) ([]byte, erro
 	return c.execute(ctx, cmd)
 }
 
-func (c *SSHConnection) execute(ctx context.Context, cmd *profile.Command) ([]byte, error) {
+func (c *SSHConnection) execute(ctx context.Context, cmd *profile.PlainCommand) ([]byte, error) {
 	result, err := ExecuteCommand(ctx, c.client, cmd)
 	if err != nil {
 		return nil, err

@@ -171,6 +171,7 @@ func (s *Sender) PipelineMonitor() metrics.PipelineMonitor {
 
 // Start starts all sender workers.
 func (s *Sender) Start() {
+	s.pipelineMonitor.Start()
 	for _, worker := range s.workers {
 		worker.start()
 	}
@@ -179,6 +180,7 @@ func (s *Sender) Start() {
 // Stop stops all sender workers
 func (s *Sender) Stop() {
 	log.Debug("sender mux stopping")
+	s.pipelineMonitor.Stop()
 	for _, s := range s.workers {
 		s.stop()
 	}

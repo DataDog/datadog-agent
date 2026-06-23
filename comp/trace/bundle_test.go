@@ -64,8 +64,12 @@ func TestMockBundleDependencies(t *testing.T) {
 	os.Setenv("DD_DD_URL", "https://example.com")
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
+	// Set a fixed hostname so trace config init skips hostname resolution in
+	// containerized CI environments where os.Hostname() is not trustworthy.
+	t.Setenv("DD_HOSTNAME", "trace-bundle-test")
+
 	// Only for test purposes to avoid setting a different default value.
-	os.Setenv("DDTEST_DEFAULT_LOG_FILE_PATH", traceconfigimpl.DefaultLogFilePath)
+	os.Setenv("DDTEST_DEFAULT_LOG_FILE_PATH", traceconfigimpl.DefaultLogFilePath())
 	defer func() { os.Unsetenv("DDTEST_DEFAULT_LOG_FILE_PATH") }()
 
 	cfg := fxutil.Test[traceconfigdef.Component](t, fx.Options(

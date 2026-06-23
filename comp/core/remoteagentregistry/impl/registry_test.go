@@ -55,7 +55,7 @@ func TestRegistration(t *testing.T) {
 	expectedRefreshIntervalSecs := uint32(27)
 
 	provides, _, config, _, ipcComp := buildComponent(t)
-	config.SetWithoutSource("remote_agent.registry.recommended_refresh_interval", fmt.Sprintf("%ds", expectedRefreshIntervalSecs))
+	config.SetInTest("remote_agent.registry.recommended_refresh_interval", fmt.Sprintf("%ds", expectedRefreshIntervalSecs))
 
 	component := provides.Comp.(*remoteAgentRegistry)
 
@@ -71,13 +71,30 @@ func TestRegistration(t *testing.T) {
 	require.Equal(t, "test-agent", agents[0].SanitizedDisplayName)
 }
 
+func TestReportRemoteAgentEvent(t *testing.T) {
+	provides, _, _, _, ipcComp := buildComponent(t)
+	component := provides.Comp.(*remoteAgentRegistry)
+
+	remoteAgent := buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "1234")
+
+	events := []remoteagent.RemoteAgentEvent{
+		{Message: "invalid API key detected", Details: &remoteagent.InvalidAPIKey{}},
+	}
+
+	// A known session accepts the reported events.
+	require.NoError(t, component.ReportRemoteAgentEvent(remoteAgent.registeredSessionID, events))
+
+	// An unknown session returns an error.
+	require.Error(t, component.ReportRemoteAgentEvent("does-not-exist", events))
+}
+
 func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {
 	provides, lc, config, _, ipcComp := buildComponent(t)
 	component := provides.Comp.(*remoteAgentRegistry)
 
 	// Overriding default config values to have a faster test
-	config.SetWithoutSource("remote_agent.registry.idle_timeout", time.Duration(time.Second*5))
-	config.SetWithoutSource("remote_agent.registry.recommended_refresh_interval", time.Duration(time.Second*5))
+	config.SetInTest("remote_agent.registry.idle_timeout", time.Duration(time.Second*5))
+	config.SetInTest("remote_agent.registry.recommended_refresh_interval", time.Duration(time.Second*5))
 
 	lc.Start(context.Background())
 	defer lc.Stop(context.Background())
@@ -110,7 +127,7 @@ func TestRegistryDialsUDSRemoteAgent(t *testing.T) {
 	}
 
 	provides, lc, cfg, _, ipcComp := buildComponent(t)
-	cfg.SetWithoutSource("remote_agent.registry.query_timeout", 2*time.Second)
+	cfg.SetInTest("remote_agent.registry.query_timeout", 2*time.Second)
 
 	component := provides.Comp.(*remoteAgentRegistry)
 	require.NoError(t, lc.Start(context.Background()))
@@ -160,7 +177,7 @@ func TestRegistryDialsUDSRemoteAgent(t *testing.T) {
 
 func TestDisabled(t *testing.T) {
 	config := configmock.New(t)
-	config.SetWithoutSource("remote_agent.registry.enabled", false)
+	config.SetInTest("remote_agent.registry.enabled", false)
 
 	provides, _, _, _ := buildComponentWithConfig(t, config)
 
@@ -173,7 +190,7 @@ func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Comp
 	config := configmock.New(t)
 
 	// enable the remote agent registry
-	config.SetWithoutSource("remote_agent.registry.enabled", true)
+	config.SetInTest("remote_agent.registry.enabled", true)
 
 	provides, lc, telemetry, ipc := buildComponentWithConfig(t, config)
 	return provides, lc, config, telemetry, ipc

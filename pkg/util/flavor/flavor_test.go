@@ -27,7 +27,7 @@ func TestIotAgentNameFromFlavor(t *testing.T) {
 	SetFlavor(IotAgent)
 
 	// Simulate what happens when InitConfigObjects resets the config: iot_host becomes false.
-	mockConfig.SetWithoutSource("iot_host", false)
+	mockConfig.SetInTest("iot_host", false)
 
 	assert.Equal(t, IotAgent, GetFlavor(), "IoT agent must report as iot_agent even when iot_host is false after config re-init")
 }
@@ -42,7 +42,7 @@ func TestIotHostOverridePromotesDefaultAgent(t *testing.T) {
 	t.Cleanup(func() { agentFlavor = originalFlavor })
 
 	agentFlavor = DefaultAgent
-	mockConfig.SetWithoutSource("iot_host", true)
+	mockConfig.SetInTest("iot_host", true)
 
 	assert.Equal(t, IotAgent, GetFlavor(), "iot_host=true must promote a default agent to report as iot_agent")
 }

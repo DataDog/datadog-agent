@@ -27,7 +27,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
@@ -129,7 +129,7 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := fxutil.Test[TestDeps](t,
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		defaultforwarder.MockModule(),
+		defaultforwardermock.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		haagentmock.Module(),
@@ -234,7 +234,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	require := require.New(t)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	mockConfig.SetInTest("metric_tag_filterlist_adp_only", false)
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
@@ -344,7 +344,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 	require := require.New(t)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	mockConfig.SetInTest("metric_tag_filterlist_adp_only", false)
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
@@ -549,7 +549,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 	return fxutil.Test[DemultiplexerAgentTestDeps](
 		t,
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		defaultforwarder.MockModule(),
+		defaultforwardermock.MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		orchestratormock.MockModule(),

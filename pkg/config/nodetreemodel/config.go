@@ -125,7 +125,7 @@ type ntmConfig struct {
 	// the map value represents `isLeaf` for each key
 	knownKeys map[string]bool
 
-	// keys that are unknown, but are used by either the file or SetWithoutSource
+	// keys that are unknown, but are used by either the file or SetInTest
 	// used to warn (a single time) on use.
 	// sync.Map is used because checkKnownKey writes to this map while callers
 	// only hold an RLock, so a plain map would cause concurrent map writes.
@@ -290,11 +290,11 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	return tree, err
 }
 
-// SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
-func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
-	c.assertIsTest("SetWithoutSource")
+// SetInTest assigns the value to the given key using source Unknown, may only be called from tests
+func (c *ntmConfig) SetInTest(key string, value interface{}) {
+	c.assertIsTest("SetInTest")
 	if !basic.ValidateBasicTypes(value) {
-		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
+		panic(fmt.Errorf("SetInTest can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
 	c.Lock()
@@ -713,30 +713,6 @@ func (c *ntmConfig) ParseEnvJSON(key string, varType any) {
 	}
 }
 
-// IsSet checks if a key is set in the config
-func (c *ntmConfig) IsSet(key string) bool {
-	c.maybeRebuild()
-
-	c.RLock()
-	defer c.RUnlock()
-
-	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
-		return false
-	}
-
-	pathParts := splitKey(key)
-	curr := c.root
-	for _, part := range pathParts {
-		next, err := curr.GetChild(part)
-		if err != nil {
-			return false
-		}
-		curr = next
-	}
-	return true
-}
-
 func hasNonDefaultLeaf(node *nodeImpl) bool {
 	// We're on an InnerNode, we need to check if any child leaf are not defaults
 	for _, name := range node.ChildrenKeys() {
@@ -898,20 +874,6 @@ func (c *ntmConfig) SetEnvPrefix(in string) {
 // mergeWithEnvPrefix derives the environment variable to use for a given key.
 func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
 	return strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
-}
-
-// BindEnv binds one or more environment variables to the given key
-func (c *ntmConfig) BindEnv(key string, envvars ...string) {
-	c.Lock()
-	defer c.Unlock()
-
-	if c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("cannot BindEnv() once the config has been marked as ready for use")
-	}
-
-	key = strings.ToLower(key)
-	c.bindEnv(key, envvars)
-	c.addToKnownKeys(key)
 }
 
 func (c *ntmConfig) bindEnv(key string, envvars []string) {
@@ -1256,9 +1218,6 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 
 	return &config
 }
-
-// GetLibType return "nodetreemodel"
-func (c *ntmConfig) GetLibType() string { return "nodetreemodel" }
 
 // ExtraConfigFilesUsed returns the additional config files used
 func (c *ntmConfig) ExtraConfigFilesUsed() []string {

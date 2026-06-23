@@ -18,6 +18,7 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/twmb/murmur3"
@@ -51,11 +52,14 @@ var resyncLabelKeysFromPodAutoscaler = []string{
 	ProfileLabelKey,
 }
 
-// resyncAnnotationKeysFromPodAutoscaler lists the annotation keys read by UpdateFromPodAutoscaler.
+// resyncAnnotationKeysFromPodAutoscaler lists annotation keys whose value must trigger a re-sync
+// when changed. Edits to these don't bump .metadata.generation, so they're part of the metadata
+// fingerprint. Includes annotations consumed downstream, e.g. ad.datadoghq.com/tags (metric tags).
 var resyncAnnotationKeysFromPodAutoscaler = []string{
 	PreviewAnnotationKey,
 	ProfileTemplateHashAnnotation,
 	CustomRecommenderAnnotationKey,
+	kubernetes.ADTagsAnnotation,
 }
 
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
@@ -161,6 +165,9 @@ type PodAutoscalerInternal struct {
 
 	// inPlacePDBBlockedCount is the number of times eviction was blocked by a PodDisruptionBudget
 	inPlacePDBBlockedCount uint
+
+	// inPlaceDisruptionThrottledCount is the number of disruptive in-place resizes deferred to stay within the disruption budget
+	inPlaceDisruptionThrottledCount uint
 
 	// inPlaceResizeCompletedCount is the number of times all pods in a resize cycle completed successfully
 	inPlaceResizeCompletedCount uint
@@ -388,7 +395,17 @@ func (p *PodAutoscalerInternal) SetActiveScalingValues(currentTime time.Time, ho
 
 	// Update scaling values
 	p.scalingValues.Horizontal = selectScalingValues(horizontalActiveSource).Horizontal
-	p.scalingValues.Vertical = selectScalingValues(verticalActiveSource).Vertical
+
+	// selectScalingValues(nil) returns p.scalingValues — a self-assignment that would
+	// keep any previously-constrained vertical value (including a burstable sentinel)
+	// alive across cycles. When the backend stops emitting a vertical recommendation,
+	// reset Vertical to nil so the next sync sees "no recommendation" and clears live
+	// state instead of re-applying the stale sentinel.
+	if verticalActiveSource == nil {
+		p.scalingValues.Vertical = nil
+	} else {
+		p.scalingValues.Vertical = selectScalingValues(verticalActiveSource).Vertical
+	}
 
 	// Update error states based on main product recommendations
 	p.scalingValues.HorizontalError = p.mainScalingValues.HorizontalError
@@ -709,11 +726,14 @@ func (p *PodAutoscalerInternal) IsHorizontalScalingEnabled() bool {
 	return !(scaleUpDisabled && scaleDownDisabled)
 }
 
-// IsBurstable returns true if the burstable preview option is enabled for this autoscaler.
-// The value is read directly from the cached previewOptions struct — no JSON decode per call.
-// For profile-managed DPAs previewOptions is populated by UpdateFromProfile; for standalone
-// DPAs it is populated by UpdateFromPodAutoscaler.
+// IsBurstable returns true if burstable mode is enabled for this autoscaler.
+// Burstable mode requires an explicit opt-in via spec.options.burstable or the
+// preview annotation; there is no cluster-level default.
 func (p *PodAutoscalerInternal) IsBurstable() bool {
+	spec := p.Spec()
+	if spec != nil && spec.Options != nil && spec.Options.Burstable != nil {
+		return *spec.Options.Burstable
+	}
 	return p.previewOptions.Burstable
 }
 
@@ -895,6 +915,17 @@ func (p *PodAutoscalerInternal) InPlacePDBBlockedInc() {
 	p.inPlacePDBBlockedCount++
 }
 
+// InPlaceDisruptionThrottledCount returns the number of disruptive in-place resizes deferred
+// because the disruption budget was already consumed.
+func (p *PodAutoscalerInternal) InPlaceDisruptionThrottledCount() uint {
+	return p.inPlaceDisruptionThrottledCount
+}
+
+// InPlaceDisruptionThrottledAdd adds count deferred disruptive resizes to the throttle counter.
+func (p *PodAutoscalerInternal) InPlaceDisruptionThrottledAdd(count uint) {
+	p.inPlaceDisruptionThrottledCount += count
+}
+
 // InPlaceResizeCompletedCount returns the number of times all pods completed an in-place resize cycle
 func (p *PodAutoscalerInternal) InPlaceResizeCompletedCount() uint {
 	return p.inPlaceResizeCompletedCount
@@ -1062,7 +1093,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 				Source:           p.scalingValues.Vertical.Source,
 				GeneratedAt:      metav1.NewTime(p.scalingValues.Vertical.Timestamp),
 				Version:          p.scalingValues.Vertical.ResourcesHash,
-				DesiredResources: containerResourcesForStatus(p.scalingValues.Vertical.ContainerResources),
+				DesiredResources: p.scalingValues.Vertical.ContainerResourcesForStatus(),
 				Scaled:           p.scaledReplicas,
 				Evicted:          p.evictedReplicas,
 				PodCPURequest:    cpuReqSum,
@@ -1159,44 +1190,50 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	}
 	status.Conditions = append(status.Conditions, newCondition(rolloutStatus, verticalReason, verticalMessage, currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, existingConditions))
 
+	// spec.options.burstable is reported when explicitly set; the annotation fallback is
+	// reported only when true (it has no explicit false — absence means default).
+	spec := p.Spec()
+	if spec != nil && spec.Options != nil && spec.Options.Burstable != nil {
+		status.Options = &datadoghqcommon.DatadogPodAutoscalerOptionsStatus{
+			Burstable: pointer.Ptr(*spec.Options.Burstable),
+		}
+	} else if p.previewOptions.Burstable {
+		status.Options = &datadoghqcommon.DatadogPodAutoscalerOptionsStatus{
+			Burstable: pointer.Ptr(true),
+		}
+	}
+
 	return status
 }
 
-// containerResourcesForStatus returns a copy of the container resources with internal sentinel
-// values removed from Limits and Requests so they are not surfaced in the DPA status.
-//
-// For Limits: applyVerticalConstraints (burstable mode) stores removeLimitSentinel (-1) in
-// Limits[cpu] to signal "delete this CPU limit from the pod". A negative quantity is never a
-// valid Kubernetes resource value, so only strictly positive quantities are kept in Limits.
-func containerResourcesForStatus(in []datadoghqcommon.DatadogPodAutoscalerContainerResources) []datadoghqcommon.DatadogPodAutoscalerContainerResources {
-	if len(in) == 0 {
-		return in
+// ContainerResourcesForStatus returns a copy of ContainerResources safe to write to the DPA status.
+// Any limit entry carrying a negative quantity is removed: negative quantities are never valid
+// Kubernetes resource values and are used internally as sentinels (e.g. to signal that a limit
+// must be actively deleted from a live pod). Exposing them in the status would be confusing.
+func (v *VerticalScalingValues) ContainerResourcesForStatus() []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	if v.ContainerResources == nil {
+		return nil
 	}
-	out := make([]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(in))
-	for i, cr := range in {
-		out[i].Name = cr.Name
-		if len(cr.Limits) > 0 {
-			for k, v := range cr.Limits {
-				if v.Sign() > 0 {
-					if out[i].Limits == nil {
-						out[i].Limits = make(corev1.ResourceList, len(cr.Limits))
-					}
-					out[i].Limits[k] = v
-				}
+	result := make([]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(v.ContainerResources))
+	for i, cr := range v.ContainerResources {
+		cp := datadoghqcommon.DatadogPodAutoscalerContainerResources{Name: cr.Name}
+		if cr.Requests != nil {
+			cp.Requests = make(corev1.ResourceList, len(cr.Requests))
+			for k, q := range cr.Requests {
+				cp.Requests[k] = q.DeepCopy()
 			}
 		}
-		if len(cr.Requests) > 0 {
-			for k, v := range cr.Requests {
-				if v.Sign() >= 0 {
-					if out[i].Requests == nil {
-						out[i].Requests = make(corev1.ResourceList, len(cr.Requests))
-					}
-					out[i].Requests[k] = v
+		for res, qty := range cr.Limits {
+			if qty.Sign() >= 0 {
+				if cp.Limits == nil {
+					cp.Limits = make(corev1.ResourceList)
 				}
+				cp.Limits[res] = qty.DeepCopy()
 			}
 		}
+		result[i] = cp
 	}
-	return out
+	return result
 }
 
 // Private helpers
