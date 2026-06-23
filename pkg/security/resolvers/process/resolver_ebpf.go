@@ -85,8 +85,8 @@ type EBPFResolver struct {
 	pidCacheMap         ebpf.Map
 	pathIDMap           ebpf.Map
 	kernelThreadPidsMap ebpf.Map
-	otelTLSMap   ebpf.Map
-	goLabelsMap  ebpf.Map
+	otelTLSMap          ebpf.Map
+	goLabelsMap         ebpf.Map
 	opts                ResolverOpts
 
 	// stats
@@ -468,7 +468,10 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	// fetch login_uid
 	entry.Credentials.AUID, err = utils.GetLoginUID(uint32(proc.Pid))
 	if err != nil {
-		return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
+		}
+		entry.Credentials.AUID = sharedconsts.AuditUIDUnset
 	}
 
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(uint32(proc.Pid))
@@ -1266,15 +1269,15 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 	}
 }
 
-// resolveAndUpdateOTelTLS resolves the OTel TLS symbol from the process's ELF
-// binary and writes the offset + runtime to the otel_tls BPF map.
+// resolveAndUpdateOTelTLS prepares the OTel TLS lookup metadata and writes it
+// to the otel_tls BPF map.
 func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, tracerLanguage string) error {
-	offset, runtimeLang, err := resolveOTelTLS(pid, tracerLanguage)
+	res, err := resolveOTelTLS(pid, tracerLanguage)
 	if err != nil {
 		return err
 	}
 
-	value := serializeOTelTLSValue(offset, runtimeLang)
+	value := serializeOTelTLSValue(res)
 	return p.otelTLSMap.Put(pid, value)
 }
 

@@ -334,8 +334,8 @@ func TestSpan(t *testing.T) {
 }
 
 // TestOTelSpan tests OTel Thread Local Context Record based span context collection.
-// This tests the native application TLSDESC path (per OTel spec PR #4947).
-// Only supported on x86_64 (reads fsbase from task_struct->thread.fsbase).
+// It covers TLS records exported from .dynsym by a dynamic main executable, a
+// dlopen'd shared object, and a static PIE executable.
 func TestOTelSpan(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -377,6 +377,36 @@ func TestOTelSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	dynamicTester, err := loadSyscallTester(t, test, "otel_tls_dynamic_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type otelTesterVariant struct {
+		name   string
+		binary string
+	}
+
+	otelTesterVariants := []otelTesterVariant{
+		{name: "dynamic-main", binary: dynamicTester},
+	}
+
+	staticPIETester, err := loadSyscallTester(t, test, "otel_tls_static_pie_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otelTesterVariants = append(otelTesterVariants, otelTesterVariant{name: "static-pie", binary: staticPIETester})
+
+	_, err = loadSyscallTesterArtifact(test, "libotel_tls_fixture.so", 0o700)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dlopenTester, err := loadSyscallTester(t, test, "otel_tls_dlopen_loader")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otelTesterVariants = append(otelTesterVariants, otelTesterVariant{name: "dlopen-dso", binary: dlopenTester})
+
 	fakeTraceID128b := "136272290892501783905308705057321818530"
 
 	// otelExecArgs returns the touch invocation that the exec rule matches.
@@ -391,43 +421,48 @@ func TestOTelSpan(t *testing.T) {
 	}
 
 	t.Run("valid_record", func(t *testing.T) {
-		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			testFile, _, err := test.Path("test-otel-span")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.Remove(testFile)
+		for _, variant := range otelTesterVariants {
+			variant := variant
+			t.Run(variant.name, func(t *testing.T) {
+				test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+					testFile, _, err := test.Path("test-otel-span")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer os.Remove(testFile)
 
-			args := []string{"otel-span-open", fakeTraceID128b, "204", testFile}
-			envs := []string{}
+					args := []string{"otel-span-open", fakeTraceID128b, "204", testFile}
+					envs := []string{}
 
-			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(syscallTester, args, envs)
-				out, err := cmd.CombinedOutput()
+					test.WaitSignalFromRule(t, func() error {
+						cmd := cmdFunc(variant.binary, args, envs)
+						out, err := cmd.CombinedOutput()
 
-				if err != nil {
-					return fmt.Errorf("%s: %w", out, err)
-				}
+						if err != nil {
+							return fmt.Errorf("%s: %w", out, err)
+						}
 
-				return nil
-			}, func(event *model.Event, rule *rules.Rule) {
-				assertTriggeredRule(t, rule, "test_otel_span_rule_open")
+						return nil
+					}, func(event *model.Event, rule *rules.Rule) {
+						assertTriggeredRule(t, rule, "test_otel_span_rule_open")
 
-				test.validateSpanSchema(t, event)
+						test.validateSpanSchema(t, event)
 
-				assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
-				assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+						assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
+						assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
 
-				// Verify custom OTel attributes were parsed from attrs_data.
-				assert.NotNil(t, event.SpanContext.Attributes, "attributes should be non-nil")
-				assert.Equal(t, "GET", event.SpanContext.Attributes["http.method"],
-					"http.method attribute should be GET")
-				assert.Equal(t, "/test", event.SpanContext.Attributes["http.target"],
-					"http.target attribute should be /test")
-				assert.Equal(t, "will@datadoghq.com", event.SpanContext.Attributes["http.user"],
-					"http.user attribute should be will@datadoghq.com")
-			}, "test_otel_span_rule_open")
-		})
+						// Verify custom OTel attributes were parsed from attrs_data.
+						assert.NotNil(t, event.SpanContext.Attributes, "attributes should be non-nil")
+						assert.Equal(t, "GET", event.SpanContext.Attributes["http.method"],
+							"http.method attribute should be GET")
+						assert.Equal(t, "/test", event.SpanContext.Attributes["http.target"],
+							"http.target attribute should be /test")
+						assert.Equal(t, "will@datadoghq.com", event.SpanContext.Attributes["http.user"],
+							"http.user attribute should be will@datadoghq.com")
+					}, "test_otel_span_rule_open")
+				})
+			})
+		}
 	})
 
 	t.Run("invalid_record", func(t *testing.T) {
@@ -496,52 +531,57 @@ func TestOTelSpan(t *testing.T) {
 		// Exec path: the TLS record is set before execv. fill_exec_context →
 		// fill_span_context runs at prepare_binprm, before the new image
 		// takes over, so the TLS read still succeeds.
-		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			testFile, _, err := test.Path("test-otel-span-exec")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.Remove(testFile)
+		for _, variant := range otelTesterVariants {
+			variant := variant
+			t.Run(variant.name, func(t *testing.T) {
+				test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+					testFile, _, err := test.Path("test-otel-span-exec")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer os.Remove(testFile)
 
-			args := append([]string{"otel-span-exec", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)
+					args := append([]string{"otel-span-exec", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)
 
-			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(syscallTester, args, []string{})
-				if out, err := cmd.CombinedOutput(); err != nil {
-					return fmt.Errorf("%s: %w", out, err)
-				}
-				return nil
-			}, func(event *model.Event, rule *rules.Rule) {
-				assertTriggeredRule(t, rule, "test_otel_span_rule_exec")
+					test.WaitSignalFromRule(t, func() error {
+						cmd := cmdFunc(variant.binary, args, []string{})
+						if out, err := cmd.CombinedOutput(); err != nil {
+							return fmt.Errorf("%s: %w", out, err)
+						}
+						return nil
+					}, func(event *model.Event, rule *rules.Rule) {
+						assertTriggeredRule(t, rule, "test_otel_span_rule_exec")
 
-				test.validateSpanSchema(t, event)
+						test.validateSpanSchema(t, event)
 
-				assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
-				assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+						assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
+						assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
 
-				// In-process exec (pthread + execv preserves the tgid): the
-				// OTel record is published before execv, fill_span_context_otel
-				// reads it at prepare_binprm, AddExecEntry persists
-				// event.SpanContext onto the new touch PCE. Top-level
-				// process.span_context is populated, including the OTel
-				// custom attributes resolved via resolveOTelSpanAttrs.
-				expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
-				if !assert.True(t, ok, "splitTraceID") {
-					return
-				}
-				jsonStr, err := test.marshalEvent(event)
-				if assert.NoError(t, err, "marshalEvent") {
-					assertSerializedSpanContext(t, jsonStr, "204",
-						utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(),
-						map[string]string{
-							"http.method": "GET",
-							"http.target": "/test",
-							"http.user":   "will@datadoghq.com",
-						},
-						spanLocations{onTopLevelProcess: true})
-				}
-			}, "test_otel_span_rule_exec")
-		})
+						// In-process exec (pthread + execv preserves the tgid): the
+						// OTel record is published before execv, fill_span_context_otel
+						// reads it at prepare_binprm, AddExecEntry persists
+						// event.SpanContext onto the new touch PCE. Top-level
+						// process.span_context is populated, including the OTel
+						// custom attributes resolved via resolveOTelSpanAttrs.
+						expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
+						if !assert.True(t, ok, "splitTraceID") {
+							return
+						}
+						jsonStr, err := test.marshalEvent(event)
+						if assert.NoError(t, err, "marshalEvent") {
+							assertSerializedSpanContext(t, jsonStr, "204",
+								utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(),
+								map[string]string{
+									"http.method": "GET",
+									"http.target": "/test",
+									"http.user":   "will@datadoghq.com",
+								},
+								spanLocations{onTopLevelProcess: true})
+						}
+					}, "test_otel_span_rule_exec")
+				})
+			})
+		}
 	})
 
 	t.Run("invalid_record_exec", func(t *testing.T) {
@@ -609,63 +649,68 @@ func TestOTelSpan(t *testing.T) {
 		// SpanContext (new tgid has no otel_tls entry), but
 		// newDDContextSerializer surfaces the parent's span by walking the
 		// ancestor chain. This sub-test pins all three points.
-		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			testFile, _, err := test.Path("test-otel-span-fork-exec")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.Remove(testFile)
-
-			args := append([]string{"otel-span-fork-exec", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)
-
-			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(syscallTester, args, []string{})
-				if out, err := cmd.CombinedOutput(); err != nil {
-					return fmt.Errorf("%s: %w", out, err)
-				}
-				return nil
-			}, func(event *model.Event, rule *rules.Rule) {
-				assertTriggeredRule(t, rule, "test_otel_span_rule_exec")
-
-				// (1) The exec'd program (touch) has no tracer, so the raw
-				// exec event SpanContext is empty by design.
-				assert.Equal(t, uint64(0), event.SpanContext.SpanID,
-					"exec event should not carry a span context: touch has no tracer")
-				assert.Equal(t, "0", event.SpanContext.TraceID.String(),
-					"exec event should not carry a trace id: touch has no tracer")
-
-				// (2) The fork-parent ancestor should carry the OTel TLS
-				// span captured by fill_span_context_otel at fork time.
-				var foundAncestor *model.ProcessCacheEntry
-				for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
-					if pce.Tracer.Trace.SpanID != 0 {
-						foundAncestor = pce
-						break
+		for _, variant := range otelTesterVariants {
+			variant := variant
+			t.Run(variant.name, func(t *testing.T) {
+				test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+					testFile, _, err := test.Path("test-otel-span-fork-exec")
+					if err != nil {
+						t.Fatal(err)
 					}
-				}
-				if assert.NotNil(t, foundAncestor,
-					"an ancestor should carry the parent's OTel TLS span captured at fork time") {
-					assert.Equal(t, uint64(204), foundAncestor.Tracer.Trace.SpanID,
-						"fork-parent ancestor SpanID should equal the OTel record span_id")
-					assert.Equal(t, fakeTraceID128b, foundAncestor.Tracer.Trace.TraceID.String(),
-						"fork-parent ancestor TraceID should equal the OTel record trace_id")
-				}
+					defer os.Remove(testFile)
 
-				// (3) Serialized dd field (top-level) and per-process
-				// span_context on the ancestor should both carry the
-				// propagated OTel-record values.
-				expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
-				if !assert.True(t, ok, "splitTraceID") {
-					return
-				}
-				jsonStr, err := test.marshalEvent(event)
-				if assert.NoError(t, err, "marshalEvent") {
-					assertSerializedSpanContext(t, jsonStr, "204",
-						utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(), nil,
-						spanLocations{onAncestor: true})
-				}
-			}, "test_otel_span_rule_exec")
-		})
+					args := append([]string{"otel-span-fork-exec", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)
+
+					test.WaitSignalFromRule(t, func() error {
+						cmd := cmdFunc(variant.binary, args, []string{})
+						if out, err := cmd.CombinedOutput(); err != nil {
+							return fmt.Errorf("%s: %w", out, err)
+						}
+						return nil
+					}, func(event *model.Event, rule *rules.Rule) {
+						assertTriggeredRule(t, rule, "test_otel_span_rule_exec")
+
+						// (1) The exec'd program (touch) has no tracer, so the raw
+						// exec event SpanContext is empty by design.
+						assert.Equal(t, uint64(0), event.SpanContext.SpanID,
+							"exec event should not carry a span context: touch has no tracer")
+						assert.Equal(t, "0", event.SpanContext.TraceID.String(),
+							"exec event should not carry a trace id: touch has no tracer")
+
+						// (2) The fork-parent ancestor should carry the OTel TLS
+						// span captured by fill_span_context_otel at fork time.
+						var foundAncestor *model.ProcessCacheEntry
+						for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
+							if pce.Tracer.Trace.SpanID != 0 {
+								foundAncestor = pce
+								break
+							}
+						}
+						if assert.NotNil(t, foundAncestor,
+							"an ancestor should carry the parent's OTel TLS span captured at fork time") {
+							assert.Equal(t, uint64(204), foundAncestor.Tracer.Trace.SpanID,
+								"fork-parent ancestor SpanID should equal the OTel record span_id")
+							assert.Equal(t, fakeTraceID128b, foundAncestor.Tracer.Trace.TraceID.String(),
+								"fork-parent ancestor TraceID should equal the OTel record trace_id")
+						}
+
+						// (3) Serialized dd field (top-level) and per-process
+						// span_context on the ancestor should both carry the
+						// propagated OTel-record values.
+						expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
+						if !assert.True(t, ok, "splitTraceID") {
+							return
+						}
+						jsonStr, err := test.marshalEvent(event)
+						if assert.NoError(t, err, "marshalEvent") {
+							assertSerializedSpanContext(t, jsonStr, "204",
+								utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(), nil,
+								spanLocations{onAncestor: true})
+						}
+					}, "test_otel_span_rule_exec")
+				})
+			})
+		}
 	})
 }
 

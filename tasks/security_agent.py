@@ -221,7 +221,9 @@ def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     return syscall_tester_exe_file
 
 
-def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang'):
+def ninja_c_syscall_tester_common(
+    nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang', output_name=None
+):
     if flags is None:
         flags = []
     if libs is None:
@@ -229,7 +231,7 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
 
     syscall_tester_c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
     syscall_tester_c_file = os.path.join(syscall_tester_c_dir, f"{file_name}.c")
-    syscall_tester_exe_file = os.path.join(build_dir, file_name)
+    syscall_tester_exe_file = os.path.join(build_dir, output_name or file_name)
     uname_m = os.uname().machine
 
     if static:
@@ -260,6 +262,55 @@ def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
     )
 
 
+def ninja_otel_tls_dynamic_tester(ctx, build_dir, compiler='clang'):
+    return ninja_c_syscall_tester_common(
+        ctx,
+        "syscall_tester",
+        build_dir,
+        flags=["-Wl,--export-dynamic"],
+        libs=["-lpthread"],
+        static=False,
+        compiler=compiler,
+        output_name="otel_tls_dynamic_tester",
+    )
+
+
+def ninja_otel_tls_static_pie_tester(ctx, build_dir, compiler='clang'):
+    return ninja_c_syscall_tester_common(
+        ctx,
+        "otel_tls_static_pie_tester",
+        build_dir,
+        flags=["-static-pie", "-Wl,--export-dynamic-symbol=otel_thread_ctx_v1"],
+        libs=["-lpthread"],
+        static=False,
+        compiler=compiler,
+    )
+
+
+def ninja_otel_tls_dlopen_loader(ctx, build_dir, compiler='clang'):
+    return ninja_c_syscall_tester_common(
+        ctx,
+        "otel_tls_dlopen_loader",
+        build_dir,
+        libs=["-ldl"],
+        static=False,
+        compiler=compiler,
+    )
+
+
+def ninja_otel_tls_fixture_so(ctx, build_dir, compiler='clang'):
+    return ninja_c_syscall_tester_common(
+        ctx,
+        "syscall_tester",
+        build_dir,
+        flags=["-shared", "-fPIC"],
+        libs=["-lpthread"],
+        static=False,
+        compiler=compiler,
+        output_name="libotel_tls_fixture.so",
+    )
+
+
 def create_dir_if_needed(dir):
     try:
         os.makedirs(dir)
@@ -283,6 +334,10 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_define_exe_compiler(nw, compiler=compiler)
 
         ninja_syscall_tester(nw, build_dir, static=static, compiler=compiler)
+        ninja_otel_tls_dynamic_tester(nw, build_dir, compiler=compiler)
+        ninja_otel_tls_static_pie_tester(nw, build_dir, compiler=compiler)
+        ninja_otel_tls_dlopen_loader(nw, build_dir, compiler=compiler)
+        ninja_otel_tls_fixture_so(nw, build_dir, compiler=compiler)
         if arch == ARCH_AMD64:
             ninja_syscall_x86_tester(nw, build_dir, static=static, compiler=compiler)
         ninja_ebpf_probe_syscall_tester(nw, go_dir)

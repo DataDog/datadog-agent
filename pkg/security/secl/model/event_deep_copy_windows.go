@@ -11,6 +11,7 @@ package model
 import (
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 // DeepCopy creates a deep copy of the Event where the copy shares nothing with the original

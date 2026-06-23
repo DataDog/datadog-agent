@@ -3,3 +3,11 @@ bin/syscall_go_tester
 bin/syscall_tester
 bin/syscall_x86_tester
 bin/syscall_tester.d
+bin/otel_tls_dynamic_tester
+bin/otel_tls_dynamic_tester.d
+bin/otel_tls_static_pie_tester
+bin/otel_tls_static_pie_tester.d
+bin/otel_tls_dlopen_loader
+bin/otel_tls_dlopen_loader.d
+bin/libotel_tls_fixture.so
+bin/libotel_tls_fixture.so.d

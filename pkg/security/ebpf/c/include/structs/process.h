@@ -113,14 +113,67 @@ struct otel_span_attrs_t {
     u8  data[OTEL_ATTRS_MAX_SIZE];   // raw attribute bytes
 };
 
-// OTel TLSDESC-based TLS registration for a process.
-// The tls_offset is discovered by user-space by parsing the ELF dynsym table for
-// the `otel_thread_ctx_v1` TLS symbol, then pushed to the otel_tls BPF map.
-// x86_64: reads fsbase from task_struct->thread.fsbase
-// ARM64:  reads tp_value from task_struct->thread.uw.tp_value
+// Offset of otel_thread_ctx_record_t.valid from the record base.
+#define OTEL_THREAD_CTX_VALID_OFFSET 24
+
+// OTel TLS lookup modes for otel_tls_t.mode.
+// User-space identifies the mapped ELF object exporting the STT_TLS
+// `otel_thread_ctx_v1` symbol and stores file-derived metadata here. eBPF then
+// resolves the current process's runtime TLS module ID by walking the dynamic
+// loader's live module list, matching the glibc tls-modid-bpf sample. Fully
+// static no-loader executables use the main-module DTV convention.
+#define OTEL_TLS_MODE_STATIC_MAIN 1
+#define OTEL_TLS_MODE_LINK_MAP    2
+
+// OTel TLS lookup status values used internally by the eBPF resolver.
+#define OTEL_TLS_LOOKUP_OK 0
+#define OTEL_TLS_LOOKUP_NO_PT_TLS 2
+#define OTEL_TLS_LOOKUP_OFFSET_OUT_OF_RANGE 3
+#define OTEL_TLS_LOOKUP_NO_R_DEBUG 5
+#define OTEL_TLS_LOOKUP_R_DEBUG_READ_ERROR 6
+#define OTEL_TLS_LOOKUP_LINK_MAP_READ_ERROR 7
+#define OTEL_TLS_LOOKUP_LINK_MAP_NOT_FOUND 8
+#define OTEL_TLS_LOOKUP_BAD_MODE 9
+#define OTEL_TLS_LOOKUP_NO_THREAD_POINTER 10
+#define OTEL_TLS_LOOKUP_DTV_READ_ERROR 11
+#define OTEL_TLS_LOOKUP_TLS_BLOCK_UNAVAILABLE 12
+
+#define OTEL_TLS_MAX_LINK_MAPS 256
+#define OTEL_TLS_MAX_MODULE_ID 4096
+#define OTEL_TLS_HASH_SLOTS 65536
+#define OTEL_TLS_HASH_WORDS (OTEL_TLS_HASH_SLOTS / 64)
+
+// OTel TLS registration for a process. The first block is written by
+// user-space after reading only ELF files and procfs metadata. The final
+// resolver fields are cached by eBPF after reading the target process's live
+// loader state.
 struct otel_tls_t {
-    s64 tls_offset; // signed offset from thread pointer to the TLS variable
-    u32 runtime;    // enum otel_runtime_language
+    u64 dt_debug_value_addr;          // live address of main executable DT_DEBUG.d_un
+    u64 target_load_bias;             // loader link_map l_addr to match
+    u64 target_symbol_offset;         // STT_TLS st_value, offset in module TLS block
+    u64 target_symbol_size;           // STT_TLS st_size
+    u64 target_tls_memsz;             // defining module PT_TLS p_memsz
+    u64 r_debug_r_map_offset;         // offset from struct r_debug to r_map
+    u64 link_map_l_addr_offset;       // offset to loader module load bias/base
+    u64 link_map_l_next_offset;       // offset to next loader module
+    u64 link_map_l_real_offset;       // offset to canonical module node, or 0
+    u64 link_map_l_tls_modid_offset;  // glibc _thread_db_link_map_l_tls_modid
+    u64 link_map_l_tls_offset_offset; // glibc _thread_db_link_map_l_tls_offset
+    s64 tcb_dtv_offset;               // signed offset from thread pointer to DTV pointer
+    u64 dtv_entry_size;               // size of one DTV entry
+    u64 dtv_entry_pointer_offset;     // offset within one DTV entry to TLS block pointer
+    u64 tls_module_hash_seed;         // seed for tls_module_hash_bits
+    u64 tls_module_hash_bits[OTEL_TLS_HASH_WORDS]; // file-derived PT_TLS module set
+
+    u64 resolved_mod_id;              // runtime TLS module ID found by eBPF
+    s64 resolved_static_tls_offset;   // glibc static TLS offset, when available
+    s32 resolved_read_error;          // bpf_probe_read_user error for status
+    u32 mode;                         // OTEL_TLS_MODE_* constant
+    u32 reconstruct_module_ids;       // fallback: count known PT_TLS modules in loader order
+    u32 tls_module_count;             // number of PT_TLS modules encoded in hash bits
+    u32 runtime;                      // enum otel_runtime_language
+    u32 resolved;                     // non-zero once eBPF wrote resolver fields
+    u32 status;                       // OTEL_TLS_LOOKUP_* value
     u32 _pad;
 };
 
