@@ -106,6 +106,8 @@ type spLiteExecCmd struct {
 // configPrefix is the system-probe config namespace (avoids importing pkg/system-probe/config and its setup dependency cycle).
 const configPrefix = "system_probe_config."
 
+const socketPathNotWritableMessage = "cannot create system-probe socket at %s: path is not writable; set DD_SYSPROBE_SOCKET or system_probe_config.sysprobe_socket to a writable directory"
+
 // configstreamConsumerEnabledEnvVar is the environment variable that controls whether the configstream consumer is enabled.
 const configstreamConsumerEnabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
 
@@ -358,6 +360,13 @@ func run(
 			time.Sleep(5 * time.Second)
 			return nil
 		}
+		if isSocketPathNotWritable(err) {
+			socketPath := deps.SysprobeConfig.GetString("system_probe_config.sysprobe_socket")
+			_ = deps.Log.Criticalf(socketPathNotWritableMessage+": %v", socketPath, err)
+			deps.Log.Flush()
+			// Exit 0 so supervisors that restart only on failure do not loop on this configuration error.
+			return nil
+		}
 		return err
 	}
 	return <-stopCh
@@ -421,9 +430,17 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 	}
 
 	if err = api.StartServer(cfg, settings, rcclient, deps); err != nil {
-		return deps.Log.Criticalf("error while starting api server, exiting: %v", err)
+		if isSocketPathNotWritable(err) {
+			return err
+		}
+		_ = deps.Log.Criticalf("error while starting api server, exiting: %v", err)
+		return fmt.Errorf("error while starting api server, exiting: %w", err)
 	}
 	return nil
+}
+
+func isSocketPathNotWritable(err error) bool {
+	return errors.Is(err, syscall.EROFS) || errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM)
 }
 
 // stopSystemProbe Tears down the system-probe process

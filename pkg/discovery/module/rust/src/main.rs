@@ -22,10 +22,11 @@
 use std::env;
 use std::fs::Permissions;
 use std::io::ErrorKind;
+use std::os::unix::fs::FileTypeExt;
 use std::os::unix::fs::{PermissionsExt, chown};
 use std::path::Path;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use dd_discovery::{Params, get_services};
 
 use http_body_util::combinators::BoxBody;
@@ -62,15 +63,20 @@ fn remove_pid_file(path: &Path) {
 }
 
 fn setup_socket(socket_path: &str) -> Result<UnixListener> {
-    std::fs::remove_file(socket_path)
-        .or_else(|error| {
-            if error.kind() == ErrorKind::NotFound {
-                Ok(())
-            } else {
-                Err(error)
+    match std::fs::symlink_metadata(socket_path) {
+        Ok(metadata) => {
+            if !metadata.file_type().is_socket() {
+                bail!("path already exists and it is not a UNIX socket");
             }
-        })
-        .context("failed to remove existing socket")?;
+
+            std::fs::remove_file(socket_path).context("failed to remove existing socket")?;
+        }
+        Err(error) => {
+            if error.kind() != ErrorKind::NotFound {
+                return Err(error).context("failed to stat existing socket");
+            }
+        }
+    }
 
     let sock = UnixListener::bind(socket_path).context("could not create socket")?;
     std::fs::set_permissions(socket_path, Permissions::from_mode(0o720))
@@ -90,6 +96,23 @@ fn setup_socket(socket_path: &str) -> Result<UnixListener> {
     }
 
     Ok(sock)
+}
+
+fn is_socket_setup_path_not_writable(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(is_not_writable_io_error)
+    })
+}
+
+fn is_not_writable_io_error(err: &std::io::Error) -> bool {
+    const EPERM: i32 = 1;
+    const EACCES: i32 = 13;
+    const EROFS: i32 = 30;
+
+    matches!(err.raw_os_error(), Some(EPERM | EACCES | EROFS))
+        || err.kind() == ErrorKind::PermissionDenied
 }
 
 /// Drops all Linux capabilities except CAP_SYS_PTRACE and CAP_DAC_READ_SEARCH
@@ -355,7 +378,17 @@ where
 
 async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
     info!("Using sysprobe socket path: {}", socket_path);
-    let sock = setup_socket(socket_path).context("Failed to setup Unix socket")?;
+    let sock = match setup_socket(socket_path) {
+        Ok(sock) => sock,
+        Err(err) if is_socket_setup_path_not_writable(&err) => {
+            error!(
+                "cannot create system-probe socket at {socket_path}: path is not writable; \
+                 set DD_SYSPROBE_SOCKET or system_probe_config.sysprobe_socket to a writable directory: {err:#}",
+            );
+            return Ok(());
+        }
+        Err(err) => return Err(err.context("Failed to setup Unix socket")),
+    };
 
     drop_capabilities();
 
@@ -548,5 +581,52 @@ mod tests {
             !nonexistent_path.exists(),
             "Nonexistent file should remain nonexistent"
         );
+    }
+
+    #[test]
+    fn test_socket_setup_not_writable_classification() {
+        for errno in [1, 13, 30] {
+            let err = anyhow::Error::new(std::io::Error::from_raw_os_error(errno))
+                .context("could not create socket");
+
+            assert!(
+                is_socket_setup_path_not_writable(&err),
+                "errno {errno} should be classified as not writable"
+            );
+        }
+    }
+
+    #[test]
+    fn test_socket_setup_not_writable_excludes_other_errors() {
+        for errno in [22, 98] {
+            let err = anyhow::Error::new(std::io::Error::from_raw_os_error(errno))
+                .context("could not create socket");
+
+            assert!(
+                !is_socket_setup_path_not_writable(&err),
+                "errno {errno} should not be classified as not writable"
+            );
+        }
+    }
+
+    #[test]
+    fn test_setup_socket_rejects_regular_file_without_not_writable_classification() {
+        let temp_dir =
+            TempDir::new().unwrap_or_else(|e| panic!("Failed to create temp dir: {}", e));
+        let socket_path = temp_dir.path().join("sysprobe.sock");
+        fs::write(&socket_path, "not a socket")
+            .unwrap_or_else(|e| panic!("Failed to create regular file: {}", e));
+
+        let socket_path = socket_path.to_string_lossy().into_owned();
+        let result = setup_socket(&socket_path);
+
+        assert!(result.is_err(), "regular file should not be reused");
+        if let Err(err) = result {
+            let err: anyhow::Error = err.into();
+            assert!(
+                !is_socket_setup_path_not_writable(&err),
+                "regular file at socket path should not be classified as not writable"
+            );
+        }
     }
 }
