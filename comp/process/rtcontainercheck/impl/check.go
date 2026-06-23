@@ -38,8 +38,8 @@ type Provides struct {
 	Component rtcontainercheck.Component
 }
 
-// NewCheck creates a new rtcontainercheck component.
-func NewCheck(deps dependencies) Provides {
+// NewComponent creates a new rtcontainercheck component.
+func NewComponent(deps dependencies) Provides {
 	c := &check{
 		rtContainerCheck: checks.NewRTContainerCheck(deps.Config, deps.Sysconfig, deps.WMmeta),
 	}
