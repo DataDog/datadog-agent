@@ -18,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -32,13 +33,13 @@ import (
 // Module defines the fx options for this component.
 func Module(params Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newDemultiplexer),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Supply(params))
 }
 
 type dependencies struct {
-	fx.In
-	Lc                     fx.Lifecycle
+	compdef.In
+	Lc                     compdef.Lifecycle
 	Config                 config.Component
 	Log                    log.Component
 	SharedForwarder        defaultforwarder.Component
@@ -59,7 +60,7 @@ type demultiplexer struct {
 }
 
 type provides struct {
-	fx.Out
+	compdef.Out
 	Comp demultiplexerComp.Component
 
 	SenderManager           sender.SenderManager
@@ -67,7 +68,8 @@ type provides struct {
 	AggregatorDemultiplexer aggregator.Demultiplexer
 }
 
-func newDemultiplexer(deps dependencies) (provides, error) {
+// NewComponent creates a new demultiplexer component.
+func NewComponent(deps dependencies) (provides, error) {
 	hostnameDetected, err := deps.Hostname.Get(context.TODO())
 	if err != nil {
 		if deps.Params.continueOnMissingHostname {
@@ -94,7 +96,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
 	}
-	deps.Lc.Append(fx.Hook{OnStop: func(_ context.Context) error {
+	deps.Lc.Append(compdef.Hook{OnStop: func(_ context.Context) error {
 		agentDemultiplexer.Stop()
 		return nil
 	}})
