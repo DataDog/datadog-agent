@@ -144,6 +144,9 @@ build do
             # removing the local folder to reduce package size by ~0.5MB
             delete "#{install_dir}/embedded/share/locale"
 
+            # removing ensurepip from the embedded Python to reduce package size by ~1.8MB
+            delete "#{install_dir}/embedded/lib/python*/ensurepip"
+
             # Drop bundled unit-test directories from embedded Python wheels/deps (not used at agent runtime).
             # Deepest paths first so nested tests/ trees are removed safely.
             command "find #{install_dir}/embedded/lib -path '*/site-packages/*' -depth -type d -name tests -exec rm -rf {} +"

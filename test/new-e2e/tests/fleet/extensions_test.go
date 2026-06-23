@@ -214,12 +214,14 @@ func (s *extensionsSuite) TestExtensionSurvivesExperimentManagedByProcmgr() {
 	err := s.Backend.StartExperiment("datadog-agent", targetVersion)
 	s.Require().NoError(err)
 	// Pipeline OCI experiment includes dd-procmgr and processes.d DDOT config.
+	ddot.AssertDDOTSystemdUnitsNotActive(s.T(), s.Env().RemoteHost)
 	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
 	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
 	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be running on experiment version after start experiment")
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
+	ddot.AssertDDOTSystemdUnitsNotActive(s.T(), s.Env().RemoteHost)
 	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
 	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
 	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should remain on promoted version after promote experiment")
@@ -267,6 +269,8 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 func (s *extensionsSuite) TestDDOTAutoInstalledWithEnvVar() {
 	s.Agent.MustInstall(agent.WithOTelCollectorEnabled())
 	defer s.Agent.MustUninstall()
+
+	ddot.AssertDDOTAutoInstallUnderProcmgr(s.T(), s.Env().RemoteHost)
 
 	s.verifyDDOTRunning()
 }
@@ -405,7 +409,7 @@ func (s *extensionsSuite) verifyDDOTRunning() {
 func (s *extensionsSuite) verifyDDOTServiceRemoved() {
 	// Wait for service to be removed
 	isDDOTRemoved := assert.Eventually(s.T(), func() bool {
-		output, err := s.Env().RemoteHost.Execute(`$svc = Get-Service -Name "datadog-otel-agent" -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output "NotFound" } else { Write-Output $svc.Status }`)
+		output, err := s.Env().RemoteHost.Execute(`$svc = Get-Service -Name "` + ddot.WindowsLegacyDDOTSCMServiceName + `" -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output "NotFound" } else { Write-Output $svc.Status }`)
 		return err == nil && strings.Contains(output, "NotFound")
 	}, 30*time.Second, 1*time.Second, "DDOT service should be removed")
 	if !isDDOTRemoved {

@@ -93,9 +93,11 @@ properties:
         - golang_type:duration
       refresh_interval:
         node_type: setting
+        type: number
+        default: 0s
+        format: duration
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        - golang_type:duration
   site:
     node_type: setting
     type: string

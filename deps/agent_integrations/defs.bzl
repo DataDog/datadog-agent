@@ -38,6 +38,7 @@ def _install_wheels_impl(ctx):
 
     args.add("--runtime-output", runtime_dir.path)
     args.add("--bin-output", bin_dir.path)
+    args.add("--entrypoints-dirname", ctx.attr.entrypoints_dirname)
     args.add("--python-version", ctx.attr.python_version)
     args.add("--interpreter", script_interpreter)
     args.add("--platform", platform)
@@ -93,6 +94,12 @@ install_wheels = rule(
         "srcs": attr.label_list(allow_files = [".whl"]),
         "output": attr.string(
             doc = "Name of the output directory. Defaults to the rule name.",
+        ),
+        "entrypoints_dirname": attr.string(
+            mandatory = True,
+            doc = """Folder name where entry points are to be installed.
+            This is used so that relative paths to them on RECORD entries are accurate.
+            """,
         ),
         "python_version": attr.string(
             default = PYTHON_MAJOR_MINOR,
