@@ -11,7 +11,6 @@ package mock
 import (
 	"testing"
 
-	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )

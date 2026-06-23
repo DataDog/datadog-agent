@@ -6,7 +6,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/egress/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/healthplatform/egress/def",
         "//comp/healthplatform/forwarder/def",
         "//comp/healthplatform/store/def",
     ],
