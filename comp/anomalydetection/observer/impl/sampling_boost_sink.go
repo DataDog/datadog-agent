@@ -77,11 +77,6 @@ func MaybeEmitSamplingBoostForAnomaly(anomaly observerdef.Anomaly, store *adapti
 	return true
 }
 
-func isBoostableLogPatternAnomaly(anomaly observerdef.Anomaly) bool {
-	boostable, _ := boostableLogPatternAnomaly(anomaly)
-	return boostable
-}
-
 func boostableLogPatternAnomaly(anomaly observerdef.Anomaly) (bool, string) {
 	if anomaly.Source.Namespace != LogMetricsExtractorName {
 		return false, "namespace is not log_metrics_extractor"
