@@ -334,7 +334,7 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/logs/launchers/journald
 # gazelle:exclude pkg/logs/pipeline
 # gazelle:exclude pkg/logs/processor
-# gazelle:exclude pkg/logs/schedulers
+# gazelle:exclude pkg/logs/schedulers/ad
 # gazelle:exclude pkg/logs/tailers/container
 # gazelle:exclude pkg/logs/tailers/journald
 # gazelle:exclude pkg/network/containers
@@ -376,7 +376,8 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/privileged-logs/module
 # gazelle:exclude pkg/privileged-logs/test
 # gazelle:exclude pkg/process/checks
-# gazelle:exclude pkg/process/metadata
+# gazelle:exclude pkg/process/metadata/parser/*.go
+# gazelle:exclude pkg/process/metadata/workloadmeta
 # gazelle:exclude pkg/process/monitor
 # gazelle:exclude pkg/process/net
 # gazelle:exclude pkg/process/runner/mocks
@@ -430,7 +431,6 @@ exports_files(["go.mod"])
 # trim kubelet's dependency on the parent kubernetes library) then drop this exclude.
 # gazelle:exclude pkg/util/kubernetes/hostname.go
 # gazelle:exclude tasks/unit_tests
-# gazelle:exclude test/benchmarks
 # gazelle:exclude test/e2e-framework/components/datadog/agent/helm
 # gazelle:exclude test/e2e-framework/components/datadog/apps
 # gazelle:exclude test/e2e-framework/components/datadog/csi-driver
@@ -442,6 +442,7 @@ exports_files(["go.mod"])
 # gazelle:exclude test/e2e-framework/components/windows/fipsmode
 # gazelle:exclude test/e2e-framework/components/windows/testsigning
 # gazelle:exclude test/e2e-framework/dist
+# gazelle:exclude test/benchmarks/kubernetes_state
 # gazelle:exclude test/e2e-framework/registry
 # gazelle:exclude test/e2e-framework/resources
 # gazelle:exclude test/e2e-framework/run

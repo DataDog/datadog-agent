@@ -25,12 +25,12 @@ func TestFindNameFromNearestPackageJSON(t *testing.T) {
 		},
 		{
 			name:     "should return false when name is empty",
-			path:     "./testData/inner/index.js",
+			path:     "./testdata/inner/index.js",
 			expected: "",
 		},
 		{
 			name:     "should return true when name is found",
-			path:     "./testData/index.js",
+			path:     "./testdata/index.js",
 			expected: "my-awesome-package",
 		},
 	}
