@@ -18,24 +18,45 @@ import (
 )
 
 // mockRunner is a test implementation of runner.Component.
-// It calls fn, forwards each emitted report to store.ReportIssue (using a
-// minimal proto — no registry template lookup), and returns the reported IDs,
-// mirroring the real runner's contract.
 type mockRunner struct {
 	t     testing.TB
 	store storedef.Component
+	runFn func(source string, fn runnerdef.HealthCheckFunc) ([]string, error)
+}
+
+// Option configures the mock runner returned by New.
+type Option func(*mockRunner)
+
+// WithRunFunc overrides Run entirely. Use it when you need to control the
+// returned IDs without executing a real health check function:
+//
+//	runnermock.New(t, store, runnermock.WithRunFunc(
+//	    func(source string, _ runnerdef.HealthCheckFunc) ([]string, error) {
+//	        return []string{"issue-1"}, nil
+//	    },
+//	))
+func WithRunFunc(fn func(source string, fn runnerdef.HealthCheckFunc) ([]string, error)) Option {
+	return func(m *mockRunner) { m.runFn = fn }
 }
 
 // New returns a mock runner for testing.
-// store is used to forward issues, matching the real runner's behaviour.
-func New(t testing.TB, store storedef.Component) *mockRunner {
-	return &mockRunner{t: t, store: store}
+// store is used to forward issues when no WithRunFunc is set.
+func New(t testing.TB, store storedef.Component, opts ...Option) *mockRunner {
+	m := &mockRunner{t: t, store: store}
+	for _, o := range opts {
+		o(m)
+	}
+	return m
 }
 
-// Run calls fn, reports each IssueReport to the store, and returns the IDs
-// that were successfully reported. Returns nil ids on error.
+// Run delegates to the configured runFn if set, otherwise calls fn and
+// reports each IssueReport to the store (mirroring the real runner without
+// the registry template lookup).
 func (m *mockRunner) Run(source string, fn runnerdef.HealthCheckFunc) ([]string, error) {
 	m.t.Helper()
+	if m.runFn != nil {
+		return m.runFn(source, fn)
+	}
 	if fn == nil {
 		return nil, nil
 	}

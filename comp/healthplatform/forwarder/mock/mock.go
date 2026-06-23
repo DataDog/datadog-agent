@@ -10,36 +10,35 @@ package mock
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// mockForwarder delegates Send to a user-supplied function so tests can
-// inline capture and error-injection logic without extra mock methods.
+// mockForwarder records Send calls and supports configurable error injection.
+// When a WithSendFunc option is provided it takes full control; otherwise the
+// default behaviour captures reports and respects SetSendError.
 type mockForwarder struct {
-	t      testing.TB
-	sendFn func(context.Context, *healthplatformpayload.HealthReport) error
+	t         testing.TB
+	mu        sync.Mutex
+	reports   []*healthplatformpayload.HealthReport
+	sendErr   error
+	sendCount atomic.Int32
+	sendFn    func(context.Context, *healthplatformpayload.HealthReport) error
 }
 
 // Option configures the mock forwarder returned by New.
 type Option func(*mockForwarder)
 
-// WithSendFunc sets the function called by Send. Use it to capture payloads
-// or inject errors inline in the test:
-//
-//	var reports []*healthplatformpayload.HealthReport
-//	fwd := forwardermock.New(t, forwardermock.WithSendFunc(
-//	    func(_ context.Context, r *healthplatformpayload.HealthReport) error {
-//	        reports = append(reports, r)
-//	        return nil
-//	    },
-//	))
+// WithSendFunc sets a custom function called by Send, overriding the default
+// capture behaviour. Use it to inline complex send logic in the test.
 func WithSendFunc(fn func(context.Context, *healthplatformpayload.HealthReport) error) Option {
 	return func(m *mockForwarder) { m.sendFn = fn }
 }
 
-// New returns a mock forwarder for testing. Without options Send is a no-op.
+// New returns a mock forwarder for testing.
 func New(t testing.TB, opts ...Option) *mockForwarder {
 	m := &mockForwarder{t: t}
 	for _, o := range opts {
@@ -48,11 +47,41 @@ func New(t testing.TB, opts ...Option) *mockForwarder {
 	return m
 }
 
-// Send calls the configured sendFn, or returns nil if none was set.
+// SetSendError configures the error returned by Send (when no WithSendFunc is set).
+func (m *mockForwarder) SetSendError(err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sendErr = err
+}
+
+// SendCallCount returns the total number of Send calls (including failed ones).
+func (m *mockForwarder) SendCallCount() int32 {
+	return m.sendCount.Load()
+}
+
+// SendCalls returns the reports captured by successful Send calls.
+func (m *mockForwarder) SendCalls() []*healthplatformpayload.HealthReport {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]*healthplatformpayload.HealthReport, len(m.reports))
+	copy(out, m.reports)
+	return out
+}
+
+// Send records the call. If a sendFn was configured it delegates there;
+// otherwise it increments the counter, returns any configured error, and on
+// success appends the report.
 func (m *mockForwarder) Send(ctx context.Context, report *healthplatformpayload.HealthReport) error {
 	m.t.Helper()
-	if m.sendFn == nil {
-		return nil
+	m.sendCount.Add(1)
+	if m.sendFn != nil {
+		return m.sendFn(ctx, report)
 	}
-	return m.sendFn(ctx, report)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.sendErr != nil {
+		return m.sendErr
+	}
+	m.reports = append(m.reports, report)
+	return nil
 }

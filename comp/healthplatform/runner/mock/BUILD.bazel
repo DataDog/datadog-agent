@@ -10,4 +10,5 @@ go_library(
         "//comp/healthplatform/store/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
+    testonly = True,
 )

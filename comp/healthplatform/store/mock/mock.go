@@ -3,10 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build test
+
 // Package mock provides a mock implementation of the health-platform component
 package mock
 
 import (
+	"sync"
 	"testing"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -16,64 +19,124 @@ import (
 )
 
 type mockHealthPlatform struct {
-	t      testing.TB
-	issues map[string]*healthplatformpayload.Issue
+	t             testing.TB
+	mu            sync.Mutex
+	issues        map[string]*healthplatformpayload.Issue
+	observer      healthplatform.IssuesObserver
+	resolvedIDs   []string
+	reportErrOnID string
+	reportErr     error
+}
+
+// Option configures the mock store returned by New.
+type Option func(*mockHealthPlatform)
+
+// WithIssue pre-populates the store with an issue.
+func WithIssue(issue *healthplatformpayload.Issue) Option {
+	return func(m *mockHealthPlatform) {
+		m.issues[issue.Id] = proto.Clone(issue).(*healthplatformpayload.Issue)
+	}
+}
+
+// WithReportIssueError makes ReportIssue return err for issueID; other issues
+// are stored normally.
+func WithReportIssueError(issueID string, err error) Option {
+	return func(m *mockHealthPlatform) {
+		m.reportErrOnID = issueID
+		m.reportErr = err
+	}
 }
 
 // New returns a mock health platform store for testing.
-func New(t testing.TB) healthplatform.Component {
-	return &mockHealthPlatform{t: t, issues: make(map[string]*healthplatformpayload.Issue)}
+func New(t testing.TB, opts ...Option) *mockHealthPlatform {
+	m := &mockHealthPlatform{t: t, issues: make(map[string]*healthplatformpayload.Issue)}
+	for _, o := range opts {
+		o(m)
+	}
+	return m
 }
 
-// ReportIssue stores the proto Issue keyed by issue.Id for testing.
+// Observer returns the observer registered via RegisterIssuesObserver.
+func (m *mockHealthPlatform) Observer() healthplatform.IssuesObserver {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.observer
+}
+
+// ResolvedIDs returns the IDs passed to ResolveIssue, in call order.
+func (m *mockHealthPlatform) ResolvedIDs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]string, len(m.resolvedIDs))
+	copy(out, m.resolvedIDs)
+	return out
+}
+
+func (m *mockHealthPlatform) RegisterIssuesObserver(obs healthplatform.IssuesObserver) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.observer = obs
+}
+
 func (m *mockHealthPlatform) ReportIssue(issue *healthplatformpayload.Issue) error {
 	m.t.Helper()
 	if issue == nil || issue.Id == "" {
 		return nil
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.reportErr != nil && issue.Id == m.reportErrOnID {
+		return m.reportErr
+	}
 	m.issues[issue.Id] = proto.Clone(issue).(*healthplatformpayload.Issue)
 	return nil
 }
 
-// GetAllIssues returns the count and all issues from all checks
 func (m *mockHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	count := 0
 	result := make(map[string]*healthplatformpayload.Issue)
-	for checkID, issue := range m.issues {
+	for id, issue := range m.issues {
 		if issue != nil {
-			result[checkID] = proto.Clone(issue).(*healthplatformpayload.Issue)
+			result[id] = proto.Clone(issue).(*healthplatformpayload.Issue)
 			count++
-		} else {
-			result[checkID] = nil
 		}
 	}
 	return count, result
 }
 
-// GetIssue returns the issue for a specific check
-func (m *mockHealthPlatform) GetIssue(checkID string) *healthplatformpayload.Issue {
-	issue := m.issues[checkID]
+func (m *mockHealthPlatform) GetIssue(issueID string) *healthplatformpayload.Issue {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	issue := m.issues[issueID]
 	if issue == nil {
 		return nil
 	}
 	return proto.Clone(issue).(*healthplatformpayload.Issue)
 }
 
-// RegisterIssuesObserver is a no-op in the mock.
-func (m *mockHealthPlatform) RegisterIssuesObserver(_ healthplatform.IssuesObserver) {}
-
-// ResolveIssue clears issues for a specific check
-func (m *mockHealthPlatform) ResolveIssue(checkID string) {
-	delete(m.issues, checkID)
+func (m *mockHealthPlatform) ResolveIssue(issueID string) {
+	m.mu.Lock()
+	issue := m.issues[issueID]
+	delete(m.issues, issueID)
+	m.resolvedIDs = append(m.resolvedIDs, issueID)
+	obs := m.observer
+	m.mu.Unlock()
+	if issue != nil && obs.ResolvedCh != nil {
+		obs.ResolvedCh <- proto.Clone(issue).(*healthplatformpayload.Issue)
+	}
 }
 
-// ResolveAllIssues clears all issues
 func (m *mockHealthPlatform) ResolveAllIssues() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.issues = make(map[string]*healthplatformpayload.Issue)
 }
 
-// GetActiveIssueIDsByIssueName returns the IDs of all active issues with the given IssueName.
 func (m *mockHealthPlatform) GetActiveIssueIDsByIssueName(issueName string) []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var ids []string
 	for id, issue := range m.issues {
 		if issue != nil && issue.IssueName == issueName {
