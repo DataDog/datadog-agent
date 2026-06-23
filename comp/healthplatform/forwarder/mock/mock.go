@@ -10,55 +10,49 @@ package mock
 
 import (
 	"context"
-	"sync"
-	"sync/atomic"
 	"testing"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// mockForwarder records Send calls and supports configurable error injection.
+// mockForwarder delegates Send to a user-supplied function so tests can
+// inline capture and error-injection logic without extra mock methods.
 type mockForwarder struct {
-	t         testing.TB
-	mu        sync.Mutex
-	reports   []*healthplatformpayload.HealthReport
-	sendErr   error
-	sendCount atomic.Int32
+	t      testing.TB
+	sendFn func(context.Context, *healthplatformpayload.HealthReport) error
 }
 
-// New returns a mock forwarder for testing.
-func New(t testing.TB) *mockForwarder { return &mockForwarder{t: t} }
+// Option configures the mock forwarder returned by New.
+type Option func(*mockForwarder)
 
-// SetSendError configures the error returned by Send.
-func (m *mockForwarder) SetSendError(err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.sendErr = err
+// WithSendFunc sets the function called by Send. Use it to capture payloads
+// or inject errors inline in the test:
+//
+//	var reports []*healthplatformpayload.HealthReport
+//	fwd := forwardermock.New(t, forwardermock.WithSendFunc(
+//	    func(_ context.Context, r *healthplatformpayload.HealthReport) error {
+//	        reports = append(reports, r)
+//	        return nil
+//	    },
+//	))
+func WithSendFunc(fn func(context.Context, *healthplatformpayload.HealthReport) error) Option {
+	return func(m *mockForwarder) { m.sendFn = fn }
 }
 
-// Send records the report and returns any configured error.
-func (m *mockForwarder) Send(_ context.Context, report *healthplatformpayload.HealthReport) error {
-	m.t.Helper()
-	m.sendCount.Add(1)
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.sendErr != nil {
-		return m.sendErr
+// New returns a mock forwarder for testing. Without options Send is a no-op.
+func New(t testing.TB, opts ...Option) *mockForwarder {
+	m := &mockForwarder{t: t}
+	for _, o := range opts {
+		o(m)
 	}
-	m.reports = append(m.reports, report)
-	return nil
+	return m
 }
 
-// SendCallCount returns the total number of Send calls (including failed ones).
-func (m *mockForwarder) SendCallCount() int32 {
-	return m.sendCount.Load()
-}
-
-// SendCalls returns the reports captured by successful Send calls.
-func (m *mockForwarder) SendCalls() []*healthplatformpayload.HealthReport {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]*healthplatformpayload.HealthReport, len(m.reports))
-	copy(out, m.reports)
-	return out
+// Send calls the configured sendFn, or returns nil if none was set.
+func (m *mockForwarder) Send(ctx context.Context, report *healthplatformpayload.HealthReport) error {
+	m.t.Helper()
+	if m.sendFn == nil {
+		return nil
+	}
+	return m.sendFn(ctx, report)
 }
