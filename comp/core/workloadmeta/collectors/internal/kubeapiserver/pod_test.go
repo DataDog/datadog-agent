@@ -89,7 +89,7 @@ func Test_CollectEventsWithMinimalPod(t *testing.T) {
 
 	store := newPodReflectorStoreWithMinimalPodParser(wmeta, wmeta.GetConfig())
 
-	ch := wmeta.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
+	ch := wmeta.Subscribe(t.Name(), workloadmeta.NormalPriority, nil)
 	defer wmeta.Unsubscribe(ch)
 
 	bundleCh := make(chan workloadmeta.EventBundle, 1)
