@@ -10,6 +10,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/openshift"
@@ -53,5 +54,10 @@ func Run(ctx *pulumi.Context) error {
 		}
 	}
 
-	return openshift.DeployComponents(ctx, &localEnv, kubeProvider, cluster, fakeIntake)
+	var extraAgentOptions []kubernetesagentparams.Option
+	if localEnv.AgentUseDualShipping() {
+		extraAgentOptions = append(extraAgentOptions, kubernetesagentparams.WithDualShipping())
+	}
+
+	return openshift.DeployComponents(ctx, &localEnv, kubeProvider, cluster, fakeIntake, extraAgentOptions...)
 }
