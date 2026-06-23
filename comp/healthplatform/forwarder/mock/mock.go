@@ -10,39 +10,21 @@ package mock
 
 import (
 	"context"
-	"sync"
 	"testing"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-	"google.golang.org/protobuf/proto"
 )
 
-// mockForwarder is a test implementation of forwarder.Component that records
-// every report passed to Send() so tests can assert on what would be forwarded.
+// mockForwarder is a no-op implementation of forwarder.Component.
 type mockForwarder struct {
-	t       testing.TB
-	mu      sync.Mutex
-	reports []*healthplatformpayload.HealthReport
+	t testing.TB
 }
 
 // New returns a mock forwarder for testing.
 func New(t testing.TB) *mockForwarder { return &mockForwarder{t: t} }
 
-// Send records a deep clone of the report. It never returns an error.
-func (m *mockForwarder) Send(_ context.Context, report *healthplatformpayload.HealthReport) error {
+// Send is a no-op that satisfies forwarder.Component.
+func (m *mockForwarder) Send(_ context.Context, _ *healthplatformpayload.HealthReport) error {
 	m.t.Helper()
-	clone := proto.Clone(report).(*healthplatformpayload.HealthReport)
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.reports = append(m.reports, clone)
 	return nil
-}
-
-// SentReports returns a snapshot of all reports passed to Send().
-func (m *mockForwarder) SentReports() []*healthplatformpayload.HealthReport {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]*healthplatformpayload.HealthReport, len(m.reports))
-	copy(out, m.reports)
-	return out
 }

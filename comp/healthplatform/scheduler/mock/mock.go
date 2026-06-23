@@ -18,28 +18,23 @@ import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
-// ScheduleCall records the arguments of a single Schedule() call.
-type ScheduleCall struct {
-	Source   string
-	Fn       runnerdef.HealthCheckFunc
-	Interval time.Duration
-}
-
 // mockScheduler is a test implementation of scheduler.Component.
-// It validates inputs the same way the real scheduler does and records calls
-// for test inspection via ScheduledChecks().
+// Schedule validates inputs the same way the real scheduler does
+// (empty source, nil fn, duplicate source) but does not run any goroutines.
 type mockScheduler struct {
-	t         testing.TB
-	mu        sync.Mutex
-	scheduled []ScheduleCall
+	t          testing.TB
+	mu         sync.Mutex
+	registered map[string]struct{}
 }
 
 // New returns a mock scheduler for testing.
-func New(t testing.TB) *mockScheduler { return &mockScheduler{t: t} }
+func New(t testing.TB) *mockScheduler {
+	return &mockScheduler{t: t, registered: make(map[string]struct{})}
+}
 
-// Schedule validates inputs and records the call. It mirrors the real
+// Schedule validates inputs and records the source. It mirrors the real
 // scheduler's error conditions (empty source, nil fn, duplicate source).
-func (m *mockScheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration, _ []string) error {
+func (m *mockScheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, _ time.Duration, _ []string) error {
 	m.t.Helper()
 	if source == "" {
 		return errors.New("source cannot be empty")
@@ -49,20 +44,9 @@ func (m *mockScheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, in
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for _, s := range m.scheduled {
-		if s.Source == source {
-			return fmt.Errorf("health check for source %q is already registered", source)
-		}
+	if _, exists := m.registered[source]; exists {
+		return fmt.Errorf("health check for source %q is already registered", source)
 	}
-	m.scheduled = append(m.scheduled, ScheduleCall{Source: source, Fn: fn, Interval: interval})
+	m.registered[source] = struct{}{}
 	return nil
-}
-
-// ScheduledChecks returns a snapshot of all registered Schedule() calls.
-func (m *mockScheduler) ScheduledChecks() []ScheduleCall {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]ScheduleCall, len(m.scheduled))
-	copy(out, m.scheduled)
-	return out
 }
