@@ -8,6 +8,7 @@ from unittest import mock
 from tasks.libs.common.utils import (
     RTLOADER_HEADER_NAME,
     RTLOADER_LIB_NAME,
+    get_build_flags,
     get_rtloader_paths,
     link_or_copy,
     running_in_ci,
@@ -108,3 +109,29 @@ class TestGetRtloaderPaths(unittest.TestCase):
         self.assertEqual(rtloader_lib, [str(lib_dir)])
         self.assertEqual(rtloader_headers, str(include_dir))
         self.assertEqual(rtloader_common_headers, "")
+
+    def test_prefers_legacy_install_over_embedded_dir(self):
+        legacy_lib_dir = self._tmpdir / "dev" / "lib"
+        embedded_lib_dir = self._tmpdir / "dev" / "embedded" / "lib"
+        legacy_lib_dir.mkdir(parents=True)
+        embedded_lib_dir.mkdir(parents=True)
+        (legacy_lib_dir / RTLOADER_LIB_NAME).touch()
+        (embedded_lib_dir / RTLOADER_LIB_NAME).touch()
+
+        rtloader_lib, _, _ = get_rtloader_paths(embedded_path=self._tmpdir / "dev")
+
+        self.assertEqual(rtloader_lib, [str(legacy_lib_dir)])
+
+
+class TestGetBuildFlags(unittest.TestCase):
+    @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
+    @mock.patch("tasks.libs.common.utils.get_rtloader_paths", return_value=(["/dev/lib", "/dev/embedded/lib"], "", ""))
+    @mock.patch("tasks.libs.common.utils.sys.platform", "darwin")
+    @mock.patch("tasks.libs.common.utils.get_xcode_version", return_value="15.0")
+    def test_uses_external_linker_for_multiple_rtloader_rpaths_on_macos(
+        self, _get_xcode_version, _get_rtloader_paths, _get_version_ldflags
+    ):
+        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev")
+
+        self.assertIn("-Wl,-rpath,/dev/lib", ldflags)
+        self.assertIn("-Wl,-rpath,/dev/embedded/lib", ldflags)

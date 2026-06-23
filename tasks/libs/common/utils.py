@@ -164,10 +164,13 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
         if not base_path:
             continue
 
+        rtloader_lib_found = False
         for candidate_path in [base_path, os.path.join(base_path, "embedded")]:
             for libdir in ["lib", "lib64", "build/rtloader"]:
                 if os.path.exists(os.path.join(candidate_path, libdir, RTLOADER_LIB_NAME)):
                     rtloader_lib.append(os.path.join(candidate_path, libdir))
+                    rtloader_lib_found = True
+                    break
 
             header_path = os.path.join(candidate_path, "include")
             if not rtloader_headers and os.path.exists(os.path.join(header_path, RTLOADER_HEADER_NAME)):
@@ -176,6 +179,9 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
             common_path = os.path.join(candidate_path, "common")
             if not rtloader_common_headers and os.path.exists(common_path):
                 rtloader_common_headers = common_path
+
+            if rtloader_lib_found:
+                break
 
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
@@ -322,7 +328,9 @@ def get_build_flags(
         ldflags += "-s -w -linkmode=external "
         extldflags += "-static "
     elif rtloader_lib:
-        if sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
+        if sys.platform == "darwin":
+            extldflags += " ".join(f"-Wl,-rpath,{lib_path}" for lib_path in rtloader_lib) + " "
+        elif sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
             ldflags += f"-r {':'.join(rtloader_lib)} "
 
     if os.environ.get("DELVE"):
