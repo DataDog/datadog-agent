@@ -11,4 +11,4 @@ enhancements:
   - |
     OTLP trace ingestion now uses ``otel.scope.name`` and ``otel.scope.version``
     instead of the deprecated ``otel.library.name`` and ``otel.library.version``.
-    Use the ``disable_scope_convention`` feature gate to revert to the previous behavior.
+    Use the ``disable_otel_scope_convention`` feature gate to revert to the previous behavior.
