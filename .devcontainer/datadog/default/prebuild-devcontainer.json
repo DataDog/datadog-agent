@@ -6,7 +6,7 @@
         "registry.ddbuild.io/workspaces/features/base:0.4.100410934": {},
         "./features/datadog-agent": {}
     },
-    "forwardPorts": [22],
+    "forwardPorts": [22, 8000],
     "containerUser": "root",
     "remoteUser": "bits",
     "waitFor": "postStartCommand"
