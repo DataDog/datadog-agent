@@ -149,7 +149,7 @@ gh search prs \
   --owner DataDog \
   --merged \
   --limit 20 \
-  --json repository,title,url,number,labels,author \
+  --json repository,title,url,number,labels,author,body \
   -- "<KEY>"
 ```
 
