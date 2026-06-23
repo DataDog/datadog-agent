@@ -9,6 +9,7 @@ import "fmt"
 
 var dscpMap = map[uint32]string{
 	0:  "CS0",
+	1:  "LE",
 	8:  "CS1",
 	10: "AF11",
 	12: "AF12",
@@ -26,6 +27,8 @@ var dscpMap = map[uint32]string{
 	36: "AF42",
 	38: "AF43",
 	40: "CS5",
+	44: "VOICE-ADMIT",
+	45: "NQB",
 	46: "EF",
 	48: "CS6",
 	56: "CS7",

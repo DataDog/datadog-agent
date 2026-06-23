@@ -18,6 +18,7 @@ func TestDSCP(t *testing.T) {
 		expectedName string
 	}{
 		{name: "CS0", dscp: 0, expectedName: "CS0"},
+		{name: "LE", dscp: 1, expectedName: "LE"},
 		{name: "CS1", dscp: 8, expectedName: "CS1"},
 		{name: "AF11", dscp: 10, expectedName: "AF11"},
 		{name: "AF12", dscp: 12, expectedName: "AF12"},
@@ -35,6 +36,8 @@ func TestDSCP(t *testing.T) {
 		{name: "AF42", dscp: 36, expectedName: "AF42"},
 		{name: "AF43", dscp: 38, expectedName: "AF43"},
 		{name: "CS5", dscp: 40, expectedName: "CS5"},
+		{name: "VOICE-ADMIT", dscp: 44, expectedName: "VOICE-ADMIT"},
+		{name: "NQB", dscp: 45, expectedName: "NQB"},
 		{name: "EF", dscp: 46, expectedName: "EF"},
 		{name: "CS6", dscp: 48, expectedName: "CS6"},
 		{name: "CS7", dscp: 56, expectedName: "CS7"},
