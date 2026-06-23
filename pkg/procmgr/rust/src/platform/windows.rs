@@ -12,7 +12,7 @@ use tokio::sync::Notify;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE, TRUE};
 use windows_sys::Win32::System::Console::{
     AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, GetStdHandle,
-    SetConsoleCtrlHandler, SetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, SetConsoleCtrlHandler, SetStdHandle,
 };
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -31,9 +31,7 @@ static CONSOLE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Hold while touching std handles or the attached console (graceful stop, inherit checks, spawn).
 pub(crate) fn console_lock() -> std::sync::MutexGuard<'static, ()> {
-    CONSOLE_LOCK
-        .lock()
-        .expect("console lock poisoned")
+    CONSOLE_LOCK.lock().expect("console lock poisoned")
 }
 
 /// Returns the global shutdown notifier. The SCM control handler calls
