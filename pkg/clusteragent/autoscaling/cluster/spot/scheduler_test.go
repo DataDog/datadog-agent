@@ -21,6 +21,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	spot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -36,8 +37,12 @@ var defaultTestConfig = spot.Config{
 }
 
 // runTestScheduler creates and starts a Scheduler for testing.
-func runTestScheduler(ctx context.Context, cluster *fakeCluster) (*spot.TestScheduler, *fakeSender) {
-	m := newFakeSender()
+func runTestScheduler(ctx context.Context, cluster *fakeCluster) (*spot.TestScheduler, *mocksender.MockSender) {
+	// Use a bare MockSender without a demultiplexer: the demultiplexer starts
+	// background goroutines that get trapped in the synctest bubble and cause
+	// a deadlock when the test exits. All assertion methods only use mock.Mock.
+	m := new(mocksender.MockSender)
+	m.SetupAcceptAll()
 
 	scheduler := spot.NewTestScheduler(defaultTestConfig, m, cluster.WLM(), cluster.EvictPodByName, cluster.DynamicClient())
 	scheduler.Start(ctx)
@@ -832,24 +837,43 @@ type workloadKindMetricsValues struct {
 }
 
 // expectWorkloadMetrics verifies per-workload metrics for the given kind/namespace/name.
-func expectWorkloadMetrics(t *testing.T, m *fakeSender, kind, namespace, name string, expected workloadMetricValues) {
+func expectWorkloadMetrics(t *testing.T, m *mocksender.MockSender, kind, namespace, name string, expected workloadMetricValues) {
 	t.Helper()
 
 	namespaceTag := "kube_namespace:" + namespace
 	workloadTag := "kube_" + strings.ToLower(kind) + ":" + name
 
-	assert.Equal(t, expected.spot, m.getGauge(spot.MetricNamePods, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:spot")...))
-	assert.Equal(t, expected.onDemand, m.getGauge(spot.MetricNamePods, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:on_demand")...))
-	assert.Equal(t, expected.fallbacks, m.getCounter(spot.MetricNameFallbacks, append(spot.TestGlobalTags, namespaceTag, workloadTag)...))
-	assert.Equal(t, expected.excessSpot, m.getGauge(spot.MetricNameExcessPods, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:spot")...))
-	assert.Equal(t, expected.excessOnDemand, m.getGauge(spot.MetricNameExcessPods, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:on_demand")...))
-	assert.Equal(t, expected.evictedOnDemand, m.getCounter(spot.MetricNameRebalanceEvictions, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:on_demand")...))
-	assert.Equal(t, expected.evictedSpot, m.getCounter(spot.MetricNameRebalanceEvictions, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:spot")...))
+	assertGaugeMetric(t, m, spot.MetricNamePods, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:spot"), expected.spot)
+	assertGaugeMetric(t, m, spot.MetricNamePods, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:on_demand"), expected.onDemand)
+	assertCountMetric(t, m, spot.MetricNameFallbacks, append(spot.TestGlobalTags, namespaceTag, workloadTag), expected.fallbacks)
+	assertGaugeMetric(t, m, spot.MetricNameExcessPods, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:spot"), expected.excessSpot)
+	assertGaugeMetric(t, m, spot.MetricNameExcessPods, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:on_demand"), expected.excessOnDemand)
+	assertCountMetric(t, m, spot.MetricNameRebalanceEvictions, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:on_demand"), expected.evictedOnDemand)
+	assertCountMetric(t, m, spot.MetricNameRebalanceEvictions, append(spot.TestGlobalTags, namespaceTag, workloadTag, "capacity_type:spot"), expected.evictedSpot)
 }
 
-func expectWorkloadKindMetrics(t *testing.T, m *fakeSender, expected workloadKindMetricsValues) {
+func expectWorkloadKindMetrics(t *testing.T, m *mocksender.MockSender, expected workloadKindMetricsValues) {
 	t.Helper()
 
-	assert.Equal(t, expected.deployments, m.getGauge(spot.MetricNameWorkloads, append(spot.TestGlobalTags, "workload_kind:deployment")...))
-	assert.Equal(t, expected.activeDeploymentFallbacks, m.getGauge(spot.MetricNameActiveFallbacks, append(spot.TestGlobalTags, "workload_kind:deployment")...))
+	assertGaugeMetric(t, m, spot.MetricNameWorkloads, append(spot.TestGlobalTags, "workload_kind:deployment"), expected.deployments)
+	assertGaugeMetric(t, m, spot.MetricNameActiveFallbacks, append(spot.TestGlobalTags, "workload_kind:deployment"), expected.activeDeploymentFallbacks)
+}
+
+// assertGaugeMetric asserts that Gauge was emitted with the given value and tags.
+func assertGaugeMetric(t *testing.T, m *mocksender.MockSender, metric string, tags []string, value int) {
+	t.Helper()
+	m.AssertMetric(t, "Gauge", metric, float64(value), "", tags)
+}
+
+// assertCountMetric asserts that Count was emitted n times with value=1 and the given tags,
+// or that it was never emitted with those tags when n==0.
+func assertCountMetric(t *testing.T, m *mocksender.MockSender, metric string, tags []string, n int) {
+	t.Helper()
+	if n == 0 {
+		m.AssertMetricNotTaggedWith(t, "Count", metric, tags)
+		return
+	}
+	for range n {
+		m.AssertMetric(t, "Count", metric, 1, "", tags)
+	}
 }
