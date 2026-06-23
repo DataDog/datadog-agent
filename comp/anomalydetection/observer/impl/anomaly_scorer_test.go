@@ -392,6 +392,345 @@ func TestLateAnomalyBeforeFirstAdvance(t *testing.T) {
 	}
 }
 
+// ---- Severity state machine helpers ----
+
+// TestRawSeverityLevel verifies the initial seeding function.
+func TestRawSeverityLevel(t *testing.T) {
+	cases := []struct {
+		ewma float64
+		want observer.SeverityLevel
+	}{
+		{0.000, observer.SeverityLow},
+		{0.039, observer.SeverityLow},
+		{0.040, observer.SeverityMedium},
+		{0.059, observer.SeverityMedium},
+		{0.060, observer.SeverityHigh},
+		{1.000, observer.SeverityHigh},
+	}
+	for _, tc := range cases {
+		got := rawSeverityLevel(tc.ewma, 0.040, 0.060)
+		if got != tc.want {
+			t.Errorf("rawSeverityLevel(%.3f): got %d, want %d", tc.ewma, got, tc.want)
+		}
+	}
+}
+
+// TestNextSeverityLevelEscalation verifies upward transitions (no hysteresis).
+func TestNextSeverityLevelEscalation(t *testing.T) {
+	// margin = 0.060 * 0.20 = 0.012
+	cases := []struct {
+		ewma    float64
+		current observer.SeverityLevel
+		want    observer.SeverityLevel
+	}{
+		{0.060, observer.SeverityLow, observer.SeverityHigh},    // skip straight to High
+		{0.045, observer.SeverityLow, observer.SeverityMedium},  // crosses low threshold
+		{0.030, observer.SeverityLow, observer.SeverityLow},     // stays Low
+		{0.065, observer.SeverityMedium, observer.SeverityHigh}, // escalate Medium→High
+	}
+	for _, tc := range cases {
+		got := nextSeverityLevel(tc.ewma, tc.current, 0.040, 0.060, 0.060*0.20)
+		if got != tc.want {
+			t.Errorf("nextSeverityLevel(ewma=%.3f, current=%d): got %d, want %d",
+				tc.ewma, tc.current, got, tc.want)
+		}
+	}
+}
+
+// TestNextSeverityLevelHysteresis verifies that downward transitions are suppressed
+// until the EWMA drops below threshold − margin.
+func TestNextSeverityLevelHysteresis(t *testing.T) {
+	// low=0.040, high=0.060, margin=0.060*0.20=0.012
+	// From High: drop only when ewma < 0.060-0.012 = 0.048.
+	// From Medium: drop only when ewma < 0.040-0.012 = 0.028.
+	cases := []struct {
+		ewma    float64
+		current observer.SeverityLevel
+		want    observer.SeverityLevel
+		desc    string
+	}{
+		{0.049, observer.SeverityHigh, observer.SeverityHigh, "High: within hysteresis band"},
+		{0.047, observer.SeverityHigh, observer.SeverityMedium, "High: below hysteresis → Medium"},
+		{0.005, observer.SeverityHigh, observer.SeverityLow, "High: far below → Low"},
+		{0.029, observer.SeverityMedium, observer.SeverityMedium, "Medium: within hysteresis band"},
+		{0.027, observer.SeverityMedium, observer.SeverityLow, "Medium: below hysteresis → Low"},
+	}
+	for _, tc := range cases {
+		got := nextSeverityLevel(tc.ewma, tc.current, 0.040, 0.060, 0.060*0.20)
+		if got != tc.want {
+			t.Errorf("%s: nextSeverityLevel(ewma=%.3f, current=%d): got %d, want %d",
+				tc.desc, tc.ewma, tc.current, got, tc.want)
+		}
+	}
+}
+
+// ---- scorerEventFilterMatches ----
+
+func TestScorerEventFilterMatches(t *testing.T) {
+	mkEvt := func(from, to observer.SeverityLevel) observer.SeverityEvent {
+		return observer.SeverityEvent{
+			FromLevel: from, ToLevel: to,
+			Direction: severityDirection(from, to),
+		}
+	}
+	cases := []struct {
+		filter observer.ScorerEventFilter
+		evt    observer.SeverityEvent
+		want   bool
+		desc   string
+	}{
+		{
+			observer.ScorerEventFilter{},
+			mkEvt(observer.SeverityLow, observer.SeverityMedium),
+			true, "zero filter matches everything",
+		},
+		{
+			observer.ScorerEventFilter{Direction: observer.ScorerEventEscalation},
+			mkEvt(observer.SeverityLow, observer.SeverityMedium),
+			true, "escalation filter matches escalation",
+		},
+		{
+			observer.ScorerEventFilter{Direction: observer.ScorerEventEscalation},
+			mkEvt(observer.SeverityHigh, observer.SeverityLow),
+			false, "escalation filter rejects de-escalation",
+		},
+		{
+			observer.ScorerEventFilter{Direction: observer.ScorerEventDeescalation},
+			mkEvt(observer.SeverityHigh, observer.SeverityLow),
+			true, "de-escalation filter matches de-escalation",
+		},
+		{
+			observer.ScorerEventFilter{ToLevels: []observer.SeverityLevel{observer.SeverityHigh}},
+			mkEvt(observer.SeverityLow, observer.SeverityHigh),
+			true, "ToLevels match",
+		},
+		{
+			observer.ScorerEventFilter{ToLevels: []observer.SeverityLevel{observer.SeverityHigh}},
+			mkEvt(observer.SeverityLow, observer.SeverityMedium),
+			false, "ToLevels mismatch",
+		},
+		{
+			observer.ScorerEventFilter{FromLevels: []observer.SeverityLevel{observer.SeverityMedium}},
+			mkEvt(observer.SeverityMedium, observer.SeverityLow),
+			true, "FromLevels match",
+		},
+		{
+			observer.ScorerEventFilter{FromLevels: []observer.SeverityLevel{observer.SeverityMedium}},
+			mkEvt(observer.SeverityLow, observer.SeverityMedium),
+			false, "FromLevels mismatch",
+		},
+	}
+	for _, tc := range cases {
+		got := scorerEventFilterMatches(tc.filter, tc.evt)
+		if got != tc.want {
+			t.Errorf("%s: got %v, want %v", tc.desc, got, tc.want)
+		}
+	}
+}
+
+// ---- Subscribe / subscription state machine ----
+
+// collectingListener records every SeverityEvent it receives.
+type collectingListener struct{ events []observer.SeverityEvent }
+
+func (l *collectingListener) OnSeverityTransition(e observer.SeverityEvent) {
+	l.events = append(l.events, e)
+}
+
+// TestSubscribeBasic verifies that a listener receives an escalation event when
+// the EWMA crosses the Low threshold.
+func TestSubscribeBasic(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.Alpha = 0.99 // near-instant EWMA (1.0 is rejected as invalid by NewScorer)
+	cfg.SaturationK = 1.0
+	cfg.WindowSecs = 5
+	s := NewScorer(cfg)
+
+	l := &collectingListener{}
+	s.Subscribe(observer.AnomalyScorerConfiguration{Listener: l})
+
+	// Advance with no anomalies: EWMA=0, stays Low — no event.
+	s.Advance(1000)
+	if len(l.events) != 0 {
+		t.Fatalf("expected no events after empty advance, got %v", l.events)
+	}
+
+	// Push one bocpd anomaly: medium level, saturation(1,k=1) ≈ 0.632, weight=1.0 → EWMA ≈ 0.632.
+	// That's above high_threshold=0.060 → escalation Low→High.
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
+	s.Advance(1001)
+
+	if len(l.events) != 1 {
+		t.Fatalf("expected 1 escalation event, got %d: %v", len(l.events), l.events)
+	}
+	evt := l.events[0]
+	if evt.FromLevel != observer.SeverityLow || evt.ToLevel != observer.SeverityHigh {
+		t.Errorf("escalation event wrong levels: from=%d to=%d", evt.FromLevel, evt.ToLevel)
+	}
+	if evt.Direction != observer.ScorerEventEscalation {
+		t.Errorf("expected escalation direction, got %d", evt.Direction)
+	}
+}
+
+// TestSubscribeCooldown verifies that de-escalation is blocked during cooldown.
+func TestSubscribeCooldown(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.Alpha = 0.99
+	cfg.SaturationK = 1.0
+	cfg.WindowSecs = 1 // short window so anomaly expires quickly
+	s := NewScorer(cfg)
+
+	l := &collectingListener{}
+	s.Subscribe(observer.AnomalyScorerConfiguration{
+		Listener:     l,
+		CooldownSecs: 60, // 60s cooldown on de-escalations
+	})
+
+	// Warm-up: seed state at Low (EWMA=0, first advance never fires an event).
+	s.Advance(1000)
+
+	// Drive EWMA above high_threshold → escalation Low→High fires.
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
+	s.Advance(1001) // EWMA≈0.632 → High
+
+	// Advance with no anomalies: EWMA decays near 0 quickly (alpha=0.99).
+	// Cooldown=60 should block de-escalation for 60 seconds after the escalation.
+	s.Advance(1002) // EWMA=0 → raw Low, but cooldown blocks it
+
+	escalations, deescalations := 0, 0
+	for _, e := range l.events {
+		if e.Direction == observer.ScorerEventEscalation {
+			escalations++
+		} else {
+			deescalations++
+		}
+	}
+	if escalations != 1 {
+		t.Errorf("expected 1 escalation, got %d", escalations)
+	}
+	if deescalations != 0 {
+		t.Errorf("expected 0 de-escalations within cooldown, got %d", deescalations)
+	}
+
+	// After cooldown expires (60 seconds), de-escalation should fire.
+	s.Advance(1062)
+	deescalations = 0
+	for _, e := range l.events {
+		if e.Direction == observer.ScorerEventDeescalation {
+			deescalations++
+		}
+	}
+	if deescalations != 1 {
+		t.Errorf("expected 1 de-escalation after cooldown expired, got %d", deescalations)
+	}
+}
+
+// TestSubscribeFilter verifies that events not matching the filter are not delivered.
+func TestSubscribeFilter(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.Alpha = 0.99
+	cfg.SaturationK = 1.0
+	cfg.WindowSecs = 1
+	s := NewScorer(cfg)
+
+	// Only receive escalations.
+	l := &collectingListener{}
+	s.Subscribe(observer.AnomalyScorerConfiguration{
+		Listener: l,
+		Filter:   observer.ScorerEventFilter{Direction: observer.ScorerEventEscalation},
+	})
+
+	// Warm-up: seed state at Low.
+	s.Advance(1000)
+
+	// Trigger escalation then de-escalation.
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
+	s.Advance(1001) // → High (escalation delivered)
+	s.Advance(1002) // → Low (de-escalation filtered out)
+
+	if len(l.events) != 1 {
+		t.Fatalf("expected 1 event (only escalation), got %d: %v", len(l.events), l.events)
+	}
+	if l.events[0].Direction != observer.ScorerEventEscalation {
+		t.Errorf("delivered event should be escalation, got direction=%d", l.events[0].Direction)
+	}
+}
+
+// TestSubscribeNilPanics verifies that Subscribe panics on a nil Listener.
+func TestSubscribeNilPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic for nil Listener, got none")
+		}
+	}()
+	NewScorer(DefaultScorerConfig()).Subscribe(observer.AnomalyScorerConfiguration{})
+}
+
+// TestUnsubscribe verifies that the returned unsubscribe function stops delivery.
+func TestUnsubscribe(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.Alpha = 0.99
+	cfg.SaturationK = 1.0
+	cfg.WindowSecs = 1
+	s := NewScorer(cfg)
+
+	l := &collectingListener{}
+	unsub := s.Subscribe(observer.AnomalyScorerConfiguration{Listener: l})
+
+	// Warm-up: seed at Low.
+	s.Advance(1000)
+
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
+	s.Advance(1001) // escalation fires
+	unsub()
+
+	s.Advance(1002) // de-escalation would fire, but subscription already removed
+	if len(l.events) != 1 {
+		t.Errorf("expected exactly 1 event before unsub; got %d: %v", len(l.events), l.events)
+	}
+}
+
+// TestResetClearsSubscriptionState verifies that Reset() re-initializes each
+// subscription's state machine so no stale state carries over into a replay run.
+func TestResetClearsSubscriptionState(t *testing.T) {
+	cfg := DefaultScorerConfig()
+	cfg.Alpha = 0.99
+	cfg.SaturationK = 1.0
+	cfg.WindowSecs = 1
+	s := NewScorer(cfg)
+
+	l := &collectingListener{}
+	s.Subscribe(observer.AnomalyScorerConfiguration{
+		Listener:     l,
+		CooldownSecs: 3600, // long cooldown — would suppress de-escalation if stale
+	})
+
+	// Drive to High.
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1000)
+
+	// Reset clears EWMA and must also clear subscription state (stateInitialized=false).
+	s.Reset()
+
+	// After reset, replaying the same sequence must fire escalation again,
+	// proving the subscription re-seeded rather than carrying over the High state.
+	// Warm-up first so the state seeds at Low before the anomaly.
+	before := len(l.events)
+	s.Advance(2000) // seeds at Low (EWMA=0)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 2001, nil))
+	s.Advance(2001) // EWMA→High → escalation
+	after := len(l.events)
+
+	if after-before != 1 {
+		t.Errorf("expected 1 new escalation event after Reset+replay, got %d new events", after-before)
+	}
+	if l.events[after-1].Direction != observer.ScorerEventEscalation {
+		t.Errorf("post-reset event should be escalation, got direction=%d", l.events[after-1].Direction)
+	}
+}
+
+// ---- Original tests ----
+
 // TestEmptySeconds verifies that Advance over a gap generates empty buckets.
 // WindowSecs=1 so the anomaly at t=1000 expires before t=1001, giving zero
 // window count for the gap seconds and allowing pure EWMA decay to be tested.
