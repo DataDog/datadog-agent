@@ -672,8 +672,9 @@ func TestEmitSingleMetricDoesNotAliasDeviceTags(t *testing.T) {
 	}
 
 	now := time.Now()
-	require.NoError(t, check.emitSingleMetric(firstMetric, mockSender, now, nil, deviceTags))
-	require.NoError(t, check.emitSingleMetric(secondMetric, mockSender, now, nil, deviceTags))
+	distAcc := newContainerDistAccumulator()
+	require.NoError(t, check.emitSingleMetric(firstMetric, mockSender, now, nil, deviceTags, distAcc))
+	require.NoError(t, check.emitSingleMetric(secondMetric, mockSender, now, nil, deviceTags, distAcc))
 
 	require.Len(t, mockSender.Mock.Calls, 2)
 
@@ -711,7 +712,7 @@ func TestEmitSingleMetricHistogramBucket(t *testing.T) {
 	}
 	mockSender.On("HistogramBucket", "gpu."+metricName, int64(value), lowerBound, upperBound, true, "", []string{gpuTag, portTag}, false).Return()
 
-	err := check.emitSingleMetric(metric, mockSender, time.Now(), nil, []string{gpuTag})
+	err := check.emitSingleMetric(metric, mockSender, time.Now(), nil, []string{gpuTag}, newContainerDistAccumulator())
 	require.NoError(t, err)
 
 	mockSender.AssertExpectations(t)

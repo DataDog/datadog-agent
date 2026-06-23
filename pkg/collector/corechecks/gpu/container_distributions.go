@@ -114,17 +114,31 @@ func (c *WorkloadTagCache) resolveContainerID(workloadID workloadmeta.EntityID) 
 	return "", fmt.Errorf("unsupported workload kind: %s", workloadID.Kind)
 }
 
-// emitContainerDistributions emits per-container distribution metrics for the
-// given source metric, deduplicating by container ID. It returns any accumulated
-// errors that are not "not found".
-func (c *Check) emitContainerDistributions(metric *nvidia.Metric, metricWorkloads []workloadmeta.EntityID, snd sender.Sender) []error {
+// containerDistKey identifies a single per-container distribution sample for a
+// given distribution metric.
+type containerDistKey struct {
+	distName    string
+	containerID string
+}
+
+// containerDistAccumulator sums per-process source metric values into a single total per container
+type containerDistAccumulator struct {
+	totals map[containerDistKey]float64
+	order  []containerDistKey
+}
+
+func newContainerDistAccumulator() *containerDistAccumulator {
+	return &containerDistAccumulator{totals: make(map[containerDistKey]float64)}
+}
+
+// accumulateContainerDistributions accumulates a source metric's value into the per-container total for its corresponding distribution metric.
+func (c *Check) accumulateContainerDistributions(acc *containerDistAccumulator, metric *nvidia.Metric, metricWorkloads []workloadmeta.EntityID) {
 	distName, ok := containerGPUDistributionName(metric.Name)
 	if !ok {
-		return nil
+		return
 	}
 
-	var errs []error
-	seenContainers := make(map[string]struct{})
+	seenContainers := make(map[string]struct{}, len(metricWorkloads))
 	for _, workloadID := range metricWorkloads {
 		containerID, _ := c.workloadTagCache.resolveContainerID(workloadID)
 		if containerID == "" {
@@ -135,12 +149,24 @@ func (c *Check) emitContainerDistributions(metric *nvidia.Metric, metricWorkload
 		}
 		seenContainers[containerID] = struct{}{}
 
-		distTags, terr := c.workloadTagCache.GetLowCardContainerTags(containerID)
+		key := containerDistKey{distName: distName, containerID: containerID}
+		if _, exists := acc.totals[key]; !exists {
+			acc.order = append(acc.order, key)
+		}
+		acc.totals[key] += metric.Value
+	}
+}
+
+// emitContainerDistributions submits one aggregated distribution sample per container for each accumulated distribution metric.
+func (c *Check) emitContainerDistributions(acc *containerDistAccumulator, snd sender.Sender) []error {
+	var errs []error
+	for _, key := range acc.order {
+		distTags, terr := c.workloadTagCache.GetLowCardContainerTags(key.containerID)
 		if terr != nil && !agenterrors.IsNotFound(terr) {
-			errs = append(errs, fmt.Errorf("error collecting low-card container tags for distribution %s workload %s: %w", distName, workloadID.ID, terr))
+			errs = append(errs, fmt.Errorf("error collecting low-card container tags for distribution %s container %s: %w", key.distName, key.containerID, terr))
 		}
 
-		snd.Distribution(distName, metric.Value, "", distTags)
+		snd.Distribution(key.distName, acc.totals[key], "", distTags)
 	}
 	return errs
 }

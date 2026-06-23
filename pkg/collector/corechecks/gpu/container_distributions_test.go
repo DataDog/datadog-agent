@@ -16,6 +16,8 @@ import (
 
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 )
 
 // TestFilterAutoscalingDistTags verifies that only keys in autoscalingDistTagKeys survive.
@@ -154,4 +156,51 @@ func TestGetLowCardContainerTagsForProcessWorkload(t *testing.T) {
 	got, err := cache.GetLowCardContainerTags(containerID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"kube_namespace:gpu-ns", "env:staging"}, got)
+}
+
+// TestContainerDistributionsAggregateAcrossProcesses verifies that per-process
+// source metrics belonging to the same container are summed into a single
+// distribution sample rather than emitted once per process.
+func TestContainerDistributionsAggregateAcrossProcesses(t *testing.T) {
+	cache, mocks := setupWorkloadTagCache(t)
+	containerID := "multi-process-container"
+
+	// Two processes that both resolve to the same container.
+	pids := []int32{1001, 1002}
+	for _, pid := range pids {
+		mocks.workloadMeta.Set(&workloadmeta.Process{
+			EntityID: newProcessWorkloadID(pid),
+			NsPid:    pid,
+			Owner:    &workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+		})
+	}
+
+	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+	mocks.tagger.SetTags(containerEntityID, fakeTaggerSource,
+		[]string{"kube_namespace:gpu-ns"}, nil, nil, nil,
+	)
+
+	check := &Check{workloadTagCache: cache}
+
+	acc := newContainerDistAccumulator()
+	check.accumulateContainerDistributions(acc, &nvidia.Metric{
+		Name:                processCoreUsageMetric,
+		Value:               3,
+		AssociatedWorkloads: []workloadmeta.EntityID{newProcessWorkloadID(pids[0])},
+	}, []workloadmeta.EntityID{newProcessWorkloadID(pids[0])})
+	check.accumulateContainerDistributions(acc, &nvidia.Metric{
+		Name:                processCoreUsageMetric,
+		Value:               5,
+		AssociatedWorkloads: []workloadmeta.EntityID{newProcessWorkloadID(pids[1])},
+	}, []workloadmeta.EntityID{newProcessWorkloadID(pids[1])})
+
+	mockSender := mocksender.NewMockSender("gpu")
+	mockSender.On("Distribution", containerGPUCoreUsageDist, 8.0, "", []string{"kube_namespace:gpu-ns"}).Return()
+
+	errs := check.emitContainerDistributions(acc, mockSender)
+	require.Empty(t, errs)
+
+	// Exactly one aggregated sample (3 + 5 = 8), not one per process.
+	mockSender.AssertNumberOfCalls(t, "Distribution", 1)
+	mockSender.AssertExpectations(t)
 }

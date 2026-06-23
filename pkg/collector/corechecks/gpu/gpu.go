@@ -401,6 +401,8 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		c.telemetry.metrics.metricsSent.Add(float64(len(collectorResult.metrics)), string(collectorResult.name))
 	}
 
+	distAcc := newContainerDistAccumulator()
+
 	//iterate through devices to emit its metrics
 	for deviceUUID, deviceData := range perDeviceMetrics {
 		//filter out same metric with lower priority
@@ -413,11 +415,13 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 
 		// iterate through filtered metrics and emit them with the tags
 		for _, metric := range deduplicatedMetrics {
-			if err := c.emitSingleMetric(metric, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
+			if err := c.emitSingleMetric(metric, snd, currentExecutionTime, deviceContainers, deviceTags, distAcc); err != nil {
 				multiErr = append(multiErr, fmt.Errorf("error emitting metric %s: %w", metric.Name, err))
 			}
 		}
 	}
+
+	multiErr = append(multiErr, c.emitContainerDistributions(distAcc, snd)...)
 
 	return errors.Join(multiErr...)
 }
@@ -464,7 +468,7 @@ func collectMetric(collector nvidia.Collector) (result collectorMetricsCollectio
 	return
 }
 
-func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {
+func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string, distAcc *containerDistAccumulator) error {
 	var multiErr []error
 
 	metricWorkloads := metric.AssociatedWorkloads
@@ -521,7 +525,7 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 		multiErr = append(multiErr, fmt.Errorf("error sending metric: %w", err))
 	}
 
-	multiErr = append(multiErr, c.emitContainerDistributions(metric, metricWorkloads, snd)...)
+	c.accumulateContainerDistributions(distAcc, metric, metricWorkloads)
 
 	return errors.Join(multiErr...)
 }
