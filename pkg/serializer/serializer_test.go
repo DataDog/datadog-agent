@@ -127,10 +127,8 @@ type testPayload struct {
 	compressor metricscompression.Component
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) Marshal() ([]byte, error) { return protobufString, nil }
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -144,13 +142,11 @@ func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContex
 	return payloads, nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
 	return err
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) WriteFooter(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonFooter)
 	return err
@@ -162,7 +158,6 @@ func (p *testPayload) WriteItem(stream *jsoniter.Stream, i int) error {
 	return err
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) Len() int { return 1 }
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -170,10 +165,8 @@ func (p *testPayload) DescribeItem(i int) string { return "description" }
 
 type testErrorPayload struct{}
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, errors.New("some error") }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) Marshal() ([]byte, error) { return nil, errors.New("some error") }
 
 func (p *testErrorPayload) WriteHeader(stream *jsoniter.Stream) error {
