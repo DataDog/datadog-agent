@@ -42,6 +42,8 @@
   - pkg/logs/util/windowsevent/**/*
   - pkg/network/driver/**/*
   - pkg/procmgr/**/*
+  - pkg/proto/datadog/procmgr/**/*
+  - pkg/proto/pbgo/procmgr/**/*
 
   # Global packages likely to impact windows
   - pkg/config/**/*
