@@ -40,6 +40,7 @@ import (
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	statsdclient "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -80,6 +81,9 @@ type PrivateActionRunner struct {
 	eventPlatform  eventplatform.Component
 	ipc            ipc.Component
 	statsd         statsdcomp.Component
+	// metricsClient, when non-nil, overrides the DogStatsD client built from
+	// config — used by the Cluster Agent to submit PAR metrics in-process.
+	metricsClient statsdclient.ClientInterface
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
@@ -101,7 +105,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, reqs.Statsd)
+	// nil metricsClient: the standalone runner uses the DogStatsD client built
+	// from config (it runs alongside a node Agent with a DogStatsD listener).
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, reqs.Statsd, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -123,6 +129,7 @@ func NewPrivateActionRunner(
 	eventPlatform eventplatform.Component,
 	ipcComp ipc.Component,
 	statsdComp statsdcomp.Component,
+	metricsClient statsdclient.ClientInterface,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,
@@ -134,6 +141,7 @@ func NewPrivateActionRunner(
 		eventPlatform:  eventPlatform,
 		ipc:            ipcComp,
 		statsd:         statsdComp,
+		metricsClient:  metricsClient,
 		startChan:      make(chan struct{}),
 	}, nil
 }
@@ -159,6 +167,11 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	cfg, err := parconfig.FromDDConfig(p.coreConfig, p.statsd)
 	if err != nil {
 		return nil, err
+	}
+	// When an in-process metrics client is supplied (Cluster Agent), use it
+	// instead of the socket/UDP DogStatsD client FromDDConfig built from config.
+	if p.metricsClient != nil {
+		cfg.MetricsClient = p.metricsClient
 	}
 
 	canSelfEnroll := p.coreConfig.GetBool(privateactionrunner.PARSelfEnroll)

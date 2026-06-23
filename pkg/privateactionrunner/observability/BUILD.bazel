@@ -4,12 +4,14 @@ go_library(
     name = "observability",
     srcs = [
         "metrics.go",
+        "sender_statsd_adapter.go",
         "tags.go",
         "traces.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/aggregator/sender",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient",
