@@ -23,6 +23,9 @@ use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, OpenProcess, PROCESS_SET_QUOTA,
     PROCESS_TERMINATE, TerminateProcess,
 };
+use windows_sys::Win32::Storage::FileSystem::{
+    GetFileType, FILE_TYPE_CHAR, FILE_TYPE_DISK, FILE_TYPE_PIPE,
+};
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
 
@@ -140,12 +143,18 @@ impl Drop for JobObject {
 // Platform functions
 // ---------------------------------------------------------------------------
 
-/// True when the parent's standard handle is valid for child inheritance.
+/// True when the parent's standard handle is a usable console, pipe, or file.
 fn std_handle_inheritable(handle: u32) -> bool {
     use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
     unsafe {
         let h = GetStdHandle(handle);
-        !h.is_null() && h != INVALID_HANDLE_VALUE
+        if h.is_null() || h == INVALID_HANDLE_VALUE {
+            return false;
+        }
+        matches!(
+            GetFileType(h),
+            FILE_TYPE_CHAR | FILE_TYPE_PIPE | FILE_TYPE_DISK
+        )
     }
 }
 
