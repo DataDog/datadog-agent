@@ -683,7 +683,7 @@ func TestHealthPlatformDefaults(t *testing.T) {
 
 	assert.Equal(t, true, config.GetBool("health_platform.enabled"))
 	assert.Equal(t, 15*time.Minute, config.GetDuration("health_platform.forwarder.interval"))
-	assert.Equal(t, false, config.GetBool("health_platform.invalidconfig_check.enabled"))
+	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
 }
 
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
