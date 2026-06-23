@@ -477,6 +477,10 @@ type RawAnomalyState interface {
 // metrics (e.g. testbench UI charts). Detectors must not treat it as workload data.
 const TelemetryNamespace = "telemetry"
 
+// AgentNamespace is the storage namespace used for internal agent telemetry
+// with the datadog.* metric prefix.
+const AgentNamespace = "agent"
+
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {
 	Namespace   string            // exact match (empty = any)
@@ -489,9 +493,9 @@ type SeriesFilter struct {
 }
 
 // WorkloadSeriesFilter returns a filter for anomaly detectors: all namespaces
-// except TelemetryNamespace.
+// except TelemetryNamespace and AgentNamespace.
 func WorkloadSeriesFilter() SeriesFilter {
-	return SeriesFilter{ExcludeNamespaces: []string{TelemetryNamespace}}
+	return SeriesFilter{ExcludeNamespaces: []string{TelemetryNamespace, AgentNamespace}}
 }
 
 // SeriesMeta describes a series discovered via ListSeries.

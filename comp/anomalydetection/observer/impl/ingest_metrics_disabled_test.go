@@ -51,10 +51,10 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	// Guarantee cleanup even if an assertion calls t.Fatal before stopFn().
 	t.Cleanup(stopFn)
 
-	h := obs.GetHandle("all-metrics")
+	h := obs.GetHandle("dogstatsd")
 
 	drop, ok := h.(*metricDropHandle)
-	require.Truef(t, ok, `GetHandle("all-metrics") returned %T, want *metricDropHandle`, h)
+	require.Truef(t, ok, `GetHandle("dogstatsd") returned %T, want *metricDropHandle`, h)
 
 	assert.True(t, drop.ObserveMetricAndReportDrop(&metricObs{
 		name:      "system.cpu.user",
@@ -79,13 +79,66 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	// so the ObserveLog above is guaranteed to be processed before we assert storage.
 	stopFn()
 
-	allMetricsSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: "all-metrics"})
-	assert.Empty(t, allMetricsSeries,
+	dogstatsdSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: "dogstatsd"})
+	assert.Empty(t, dogstatsdSeries,
 		"external metrics must not be stored when observer.ingest_metrics.enabled=false")
 
 	extractorSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()})
 	require.NotEmpty(t, extractorSeries,
 		"log-extractor virtual metrics must keep flowing into storage even when observer.ingest_metrics.enabled=false")
+}
+
+func TestAgentMetricsUseDedicatedNamespace(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	eng := newEngine(engineConfig{storage: storage})
+
+	obs := &observerImpl{
+		engine:               eng,
+		obsCh:                make(chan observation, 16),
+		ingestMetricsEnabled: true,
+	}
+	obs.handleFunc = obs.innerHandle
+
+	var (
+		wg        sync.WaitGroup
+		closeOnce sync.Once
+	)
+	stopFn := func() {
+		closeOnce.Do(func() { close(obs.obsCh) })
+		wg.Wait()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		obs.run()
+	}()
+	t.Cleanup(stopFn)
+
+	h := obs.GetHandle("dogstatsd")
+	h.ObserveMetric(&metricObs{
+		name:      "system.cpu.user",
+		value:     50,
+		timestamp: 1000,
+	})
+	h.ObserveMetric(&metricObs{
+		name:      "datadog.agent.running",
+		value:     1,
+		timestamp: 1000,
+	})
+
+	stopFn()
+
+	dogstatsdSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: "dogstatsd"})
+	require.Len(t, dogstatsdSeries, 1)
+	assert.Equal(t, "system.cpu.user", dogstatsdSeries[0].Name)
+
+	agentSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.AgentNamespace})
+	require.Len(t, agentSeries, 1)
+	assert.Equal(t, "datadog.agent.running", agentSeries[0].Name)
+
+	workloadSeries := storage.ListSeries(observerdef.WorkloadSeriesFilter())
+	require.Len(t, workloadSeries, 1)
+	assert.Equal(t, "dogstatsd", workloadSeries[0].Namespace)
 }
 
 // TestMetricDropHandle covers the metricDropHandle wrapper in isolation.

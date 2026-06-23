@@ -61,9 +61,10 @@ type Provides struct {
 
 // observation is a message sent from handles to the observer.
 type observation struct {
-	source string
-	metric *metricObs
-	log    *logObs
+	source    string
+	namespace string
+	metric    *metricObs
+	log       *logObs
 	// flush, when non-nil, is closed by the dispatch loop once this observation
 	// is reached, signalling that all prior observations have been processed.
 	flush chan struct{}
@@ -339,7 +340,7 @@ func NewComponent(deps Requires) Provides {
 
 	go obs.run()
 
-	// Wire agent-internal logs into the observer via the pkg/util/log tap.
+	// Wire agent_logs into the observer via the pkg/util/log tap.
 	// anomaly_detection.logs.enabled is the parent gate; without it,
 	// internal logs are also disabled. anomaly_detection.logs.internal.enabled
 	// defaults to true when unset (explicit false disables it).
@@ -350,7 +351,7 @@ func NewComponent(deps Requires) Provides {
 		maxRateHigh := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_high_priority")
 		maxRateMedium := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_medium_priority")
 		maxRateLow := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_low_priority")
-		agentLogsHandle := obs.GetHandle("agent-internal-logs")
+		agentLogsHandle := obs.GetHandle("agent_logs")
 		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
 			obsTelemetry.recordSamplerDropped("internal", priority)
 		})
@@ -427,7 +428,11 @@ func (o *observerImpl) run() {
 		o.replayMu.Lock()
 		var requests []advanceRequest
 		if obs.metric != nil {
-			requests = o.engine.IngestMetric(obs.source, obs.metric)
+			namespace := obs.namespace
+			if namespace == "" {
+				namespace = obs.source
+			}
+			requests = o.engine.IngestMetric(namespace, obs.metric)
 		}
 		if obs.log != nil {
 			logRequests := o.engine.IngestLog(obs.source, obs.log)
@@ -824,12 +829,13 @@ func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView
 // the non-blocking channel send. Implements DebugView.
 func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
 	name := sample.GetName()
-	if strings.HasPrefix(name, "datadog.") {
-		return
-	}
 	timestamp := sample.GetTimestampUnix()
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
+	}
+	namespace := source
+	if strings.HasPrefix(name, "datadog.") {
+		namespace = observerdef.AgentNamespace
 	}
 	mo := &metricObs{
 		name:      name,
@@ -838,7 +844,7 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 		timestamp: timestamp,
 	}
 	o.replayMu.Lock()
-	requests := o.engine.IngestMetric(source, mo)
+	requests := o.engine.IngestMetric(namespace, mo)
 	for _, req := range requests {
 		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 	}
@@ -871,14 +877,14 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 	}
 
 	name := sample.GetName()
-
-	// filter internal Datadog Agent telemetry
+	namespace := ""
 	if strings.HasPrefix(name, "datadog.") {
-		return false
+		namespace = observerdef.AgentNamespace
 	}
 
 	obs := observation{
-		source: h.source,
+		source:    h.source,
+		namespace: namespace,
 		metric: &metricObs{
 			name:      name,
 			value:     sample.GetValue(),

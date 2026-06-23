@@ -254,9 +254,15 @@ func (e *engine) registerHandle(h *handle) {
 // The bounded-source assumption: every production caller of obs.GetHandle()
 // passes a statically-defined string constant. As of this writing the full
 // set is:
-//   - "all-metrics"          (pkg/aggregator/demultiplexer_agent.go)
-//   - "logs"                 (comp/anomalydetection/logssource/impl/logssource.go)
-//   - "agent-internal-logs"  (comp/anomalydetection/observer/impl/observer.go)
+//   - "dogstatsd"                  (pkg/aggregator/demultiplexer_agent.go, DogStatsD workers)
+//   - "check"                      (pkg/aggregator/demultiplexer_agent.go, core check aggregator)
+//   - "agent"                      (internal agent telemetry, datadog.* prefix)
+//   - "log_metrics_extractor"      (virtual metrics from logs)
+//   - "connection_error_extractor" (connection error extractor)
+//   - "log_pattern_extractor"      (log pattern extractor)
+//   - "logs"                       (comp/anomalydetection/logssource/impl/logssource.go)
+//   - "agent_logs"                 (comp/anomalydetection/observer/impl/observer.go)
+//   - "telemetry"                  (observer-internal debug metrics)
 //
 // If a future caller ever passes a user-controlled or per-container source
 // string, the COW map becomes unbounded and this memoisation strategy is
