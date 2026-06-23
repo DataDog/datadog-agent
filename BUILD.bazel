@@ -246,14 +246,7 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/orchestrator/kubeletconfig
 # gazelle:exclude pkg/collector/corechecks/orchestrator/pod
 # gazelle:exclude pkg/collector/corechecks/sbom
-# gazelle:exclude pkg/collector/corechecks/snmp/internal/checkconfig
-# gazelle:exclude pkg/collector/corechecks/snmp/internal/devicecheck
-# gazelle:exclude pkg/collector/corechecks/snmp/internal/discovery
-# gazelle:exclude pkg/collector/corechecks/snmp/internal/fetch
-# gazelle:exclude pkg/collector/corechecks/snmp/internal/report
-# gazelle:exclude pkg/collector/corechecks/snmp/internal/session
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/test
-# gazelle:exclude pkg/collector/corechecks/snmp/status
 # gazelle:exclude pkg/collector/corechecks/system/cpu
 # gazelle:exclude pkg/collector/corechecks/system/disk
 # gazelle:exclude pkg/collector/corechecks/system/filehandles
