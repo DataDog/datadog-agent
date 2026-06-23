@@ -199,7 +199,11 @@ go_test(
     name = "coverage_test",
     srcs = ["command_test.go"],
     embed = [":coverage"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "kubeapiserver",
+        "e2ecoverage",
+    ],  # keep
     deps = select({
         "@rules_go//go/platform:aix": [
             "//cmd/cluster-agent/command",
