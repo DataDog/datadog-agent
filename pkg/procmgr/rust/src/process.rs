@@ -273,15 +273,14 @@ impl ManagedProcess {
             platform::apply_child_baseline_env(&mut cmd);
             // Don't inherit stdin: invalid after AttachConsole/FreeConsole on stop.
             cmd.stdin(Stdio::null());
-            // Fall back to null stdout/stderr when parent handles are unusable.
-            let null_instead_of_inherit = platform::lacks_inheritable_stdio();
+            // Fall back to null stdout/stderr when that parent handle is unusable.
             cmd.stdout(stdio_for_windows(
                 &self.config.stdout,
-                null_instead_of_inherit,
+                !platform::stdout_inheritable(),
             ));
             cmd.stderr(stdio_for_windows(
                 &self.config.stderr,
-                null_instead_of_inherit,
+                !platform::stderr_inheritable(),
             ));
         }
         if let Some(ref raw_path) = self.config.environment_file {

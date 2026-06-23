@@ -140,14 +140,21 @@ impl Drop for JobObject {
 // Platform functions
 // ---------------------------------------------------------------------------
 
-/// True when stdout and stderr are both null or `INVALID_HANDLE_VALUE`.
-/// Used to avoid inheriting unusable handles on spawn (services, post-`FreeConsole`).
-pub fn lacks_inheritable_stdio() -> bool {
+/// True when the parent's standard handle is valid for child inheritance.
+fn std_handle_inheritable(handle: u32) -> bool {
     use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
     unsafe {
-        let is_bad = |h: HANDLE| h.is_null() || h == INVALID_HANDLE_VALUE;
-        is_bad(GetStdHandle(STD_OUTPUT_HANDLE)) && is_bad(GetStdHandle(STD_ERROR_HANDLE))
+        let h = GetStdHandle(handle);
+        !h.is_null() && h != INVALID_HANDLE_VALUE
     }
+}
+
+pub fn stdout_inheritable() -> bool {
+    std_handle_inheritable(STD_OUTPUT_HANDLE)
+}
+
+pub fn stderr_inheritable() -> bool {
+    std_handle_inheritable(STD_ERROR_HANDLE)
 }
 
 /// Give the child its own hidden console plus a new process group so
