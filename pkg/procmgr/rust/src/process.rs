@@ -218,6 +218,11 @@ impl ManagedProcess {
     }
 
     fn try_spawn(&mut self) -> Result<()> {
+        // Through CreateProcess: std-handle reads for inherit and handle inheritance
+        // must not race with AttachConsole/FreeConsole on another thread.
+        #[cfg(windows)]
+        let _console_guard = platform::console_lock();
+
         let mut cmd = self.build_command()?;
 
         let child = cmd
@@ -549,21 +554,25 @@ fn apply_child_stdio(cmd: &mut Command, config: &ProcessConfig) {
     ));
 }
 
+fn stdio_from_path(path: &str) -> Stdio {
+    match std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        Ok(f) => f.into(),
+        Err(e) => {
+            warn!("failed to open stdio file {path}: {e}, falling back to inherit");
+            Stdio::inherit()
+        }
+    }
+}
+
 fn stdio_from_str(s: &str) -> Stdio {
     match s {
         "null" => Stdio::null(),
         "inherit" | "" => Stdio::inherit(),
-        path => match std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-        {
-            Ok(f) => f.into(),
-            Err(e) => {
-                warn!("failed to open stdio file {path}: {e}, falling back to inherit");
-                Stdio::inherit()
-            }
-        },
+        path => stdio_from_path(path),
     }
 }
 
