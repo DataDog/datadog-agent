@@ -39,13 +39,13 @@ var statFn = os.Stat
 
 // RunCommandHandlerConfig carries agent-side rshell policy settings.
 type RunCommandHandlerConfig struct {
-	AgentAllowedPaths              []string
-	AgentAllowedPathsConfigured    bool
-	AgentAllowedCommands           []string
-	AgentAllowedCommandsConfigured bool
+	OperatorAllowedPaths              []string
+	OperatorAllowedPathsConfigured    bool
+	OperatorAllowedCommands           []string
+	OperatorAllowedCommandsConfigured bool
 }
 
-// RunCommandHandler implements the runCommand action.
+// RunCommandHandler implements the runCommand and runRemediationCommand actions.
 //
 // The two actions share all sandboxing logic and differ only in mode:
 // - runCommand runs rshell in read-only mode (interp.ModeReadOnly) ;
@@ -66,34 +66,34 @@ type RunCommandHandlerConfig struct {
 //
 // On either axis, an explicit empty operator list is the kill-switch.
 type RunCommandHandler struct {
-	agentAllowedPaths              []string
-	agentAllowedPathsConfigured    bool
-	agentAllowedCommands           []string
-	agentAllowedCommandsConfigured bool
-	mode                           interp.Mode
+	operatorAllowedPaths              []string
+	operatorAllowedPathsConfigured    bool
+	operatorAllowedCommands           []string
+	operatorAllowedCommandsConfigured bool
+	mode                              interp.Mode
 }
 
 func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode, pathsConfigured, commandsConfigured bool) *RunCommandHandler {
 	orderedCommands := slices.Clone(operatorAllowedCommands)
 	slices.Sort(orderedCommands)
 	return &RunCommandHandler{
-		agentAllowedPaths:              slices.Clone(operatorAllowedPaths),
-		agentAllowedPathsConfigured:    pathsConfigured,
-		agentAllowedCommands:           orderedCommands,
-		agentAllowedCommandsConfigured: commandsConfigured,
-		mode:                           mode,
+		operatorAllowedPaths:              slices.Clone(operatorAllowedPaths),
+		operatorAllowedPathsConfigured:    pathsConfigured,
+		operatorAllowedCommands:           orderedCommands,
+		operatorAllowedCommandsConfigured: commandsConfigured,
+		mode:                              mode,
 	}
 }
 
 func NewRunCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg.AgentAllowedPaths, cfg.AgentAllowedCommands, interp.ModeReadOnly, cfg.AgentAllowedPathsConfigured, cfg.AgentAllowedCommandsConfigured)
+	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeReadOnly, cfg.OperatorAllowedPathsConfigured, cfg.OperatorAllowedCommandsConfigured)
 }
 
 // NewRunRemediationCommandHandler builds the write-capable runRemediationCommand
 // handler. It shares all sandboxing with runCommand and only switches rshell into
 // remediation mode.
 func NewRunRemediationCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg.AgentAllowedPaths, cfg.AgentAllowedCommands, interp.ModeRemediation, cfg.AgentAllowedPathsConfigured, cfg.AgentAllowedCommandsConfigured)
+	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeRemediation, cfg.OperatorAllowedPathsConfigured, cfg.OperatorAllowedCommandsConfigured)
 }
 
 // filterAllowedCommands returns the effective command allowlist, passed to rshell:
@@ -101,10 +101,10 @@ func NewRunRemediationCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHan
 // narrowed by explicitly configured agent-side commands.
 func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []string {
 	backendAllowed = onlyRshellPrefixedCommands(backendAllowed)
-	if !h.agentAllowedCommandsConfigured {
+	if !h.operatorAllowedCommandsConfigured {
 		return backendAllowed
 	}
-	return intersectAllowedCommands(backendAllowed, h.agentAllowedCommands)
+	return intersectAllowedCommands(backendAllowed, h.operatorAllowedCommands)
 }
 
 // filterAllowedPaths returns the effective path allowlist passed to rshell:
@@ -112,10 +112,10 @@ func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []str
 // explicitly configured agent-side paths.
 func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 	backendPaths := cleanPathList(backend)
-	if !h.agentAllowedPathsConfigured {
+	if !h.operatorAllowedPathsConfigured {
 		return backendPaths
 	}
-	return intersectAllowedPathsByAccess(cleanPathList(h.agentAllowedPaths), backendPaths)
+	return intersectAllowedPathsByAccess(cleanPathList(h.operatorAllowedPaths), backendPaths)
 }
 
 // RunCommandInputs defines the user-supplied inputs for the runCommand action.

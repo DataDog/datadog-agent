@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/rshell/interp"
 )
@@ -135,8 +136,8 @@ func TestFilterAllowedCommandsIntersectsConfiguredAgentAllowlist(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := NewRunCommandHandler(RunCommandHandlerConfig{
-				AgentAllowedCommands:           tc.agent,
-				AgentAllowedCommandsConfigured: true,
+				OperatorAllowedCommands:           tc.agent,
+				OperatorAllowedCommandsConfigured: true,
 			})
 
 			got := handler.filterAllowedCommands(tc.backend)
@@ -185,7 +186,7 @@ func TestFilterAllowedPathsUsesBackendPayload(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := NewRunCommandHandler(RunCommandHandlerConfig{
-				AgentAllowedPaths: []string{"/agent/path/that/should/be/ignored"},
+				OperatorAllowedPaths: []string{"/agent/path/that/should/be/ignored"},
 			})
 
 			got := handler.filterAllowedPaths(tc.backend)
@@ -282,8 +283,8 @@ func TestFilterAllowedPathsIntersectsConfiguredAgentAllowlistByAccess(t *testing
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := NewRunCommandHandler(RunCommandHandlerConfig{
-				AgentAllowedPaths:           tc.agent,
-				AgentAllowedPathsConfigured: true,
+				OperatorAllowedPaths:           tc.agent,
+				OperatorAllowedPathsConfigured: true,
 			})
 
 			got := handler.filterAllowedPaths(tc.backend)
@@ -308,8 +309,8 @@ func TestNewRunCommandHandlerDoesNotMutateInputs(t *testing.T) {
 	commandsCopy := slices.Clone(commands)
 
 	NewRunCommandHandler(RunCommandHandlerConfig{
-		AgentAllowedPaths:    paths,
-		AgentAllowedCommands: commands,
+		OperatorAllowedPaths:    paths,
+		OperatorAllowedCommands: commands,
 	})
 
 	assert.Equal(t, pathsCopy, paths, "AgentAllowedPaths input must not be mutated")
@@ -379,8 +380,8 @@ func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
 
 func TestRunCommandConfiguredAgentCommandAllowlistNarrowsBackendPayload(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		AgentAllowedCommands:           []string{"rshell:cat"},
-		AgentAllowedCommandsConfigured: true,
+		OperatorAllowedCommands:           []string{"rshell:cat"},
+		OperatorAllowedCommandsConfigured: true,
 	})
 
 	out, err := handler.Run(context.Background(),
@@ -394,8 +395,8 @@ func TestRunCommandConfiguredAgentCommandAllowlistNarrowsBackendPayload(t *testi
 
 func TestRunCommandExplicitEmptyAgentCommandAllowlistBlocksExecution(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		AgentAllowedCommands:           []string{},
-		AgentAllowedCommandsConfigured: true,
+		OperatorAllowedCommands:           []string{},
+		OperatorAllowedCommandsConfigured: true,
 	})
 
 	out, err := handler.Run(context.Background(),
@@ -498,7 +499,7 @@ func TestRunCommandOutputLimitsReturnActionErrors(t *testing.T) {
 	require.NoError(t, os.WriteFile(
 		filepath.Join(dir, "payload.txt"),
 		bytes.Repeat([]byte("x"), 10*1024*1024+1),
-		0600,
+		0o600,
 	))
 
 	cases := []struct {
