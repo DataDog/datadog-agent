@@ -38,8 +38,8 @@ type Provides struct {
 	Comp npcollector.Component
 }
 
-// NewNpCollector creates a new npcollector component.
-func NewNpCollector(deps dependencies) Provides {
+// NewComponent creates a new npcollector component.
+func NewComponent(deps dependencies) Provides {
 	var collector *npCollectorImpl
 
 	configs := newConfig(deps.AgentConfig, deps.Logger)
