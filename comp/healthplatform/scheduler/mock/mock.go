@@ -18,12 +18,12 @@ import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
-// mockScheduler is a test implementation of scheduler.Component.
+// Mock is a test implementation of scheduler.Component.
 // It validates inputs the same way the real scheduler does (empty source,
 // nil fn, duplicate source) and runs each check once synchronously via the
 // injected runner when Schedule is called, mirroring the real scheduler's
 // first-tick behaviour without background goroutines.
-type mockScheduler struct {
+type Mock struct {
 	t          testing.TB
 	runner     runnerdef.Component
 	mu         sync.Mutex
@@ -32,14 +32,16 @@ type mockScheduler struct {
 
 // New returns a mock scheduler for testing.
 // runner is used to execute each registered check once synchronously.
-func New(t testing.TB, runner runnerdef.Component) *mockScheduler { //nolint:revive // intentionally unexported; callers use := and access methods without naming the type
-	return &mockScheduler{t: t, runner: runner, registered: make(map[string]struct{})}
+// New returns a mock scheduler for testing.
+// runner is used to execute each registered check once synchronously.
+func New(t testing.TB, runner runnerdef.Component) *Mock {
+	return &Mock{t: t, runner: runner, registered: make(map[string]struct{})}
 }
 
 // Schedule validates inputs, records the source, and runs fn once
 // synchronously via the injected runner, mirroring the real scheduler's
 // immediate first-tick on registration.
-func (m *mockScheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, _ time.Duration, _ []string) error {
+func (m *Mock) Schedule(source string, fn runnerdef.HealthCheckFunc, _ time.Duration, _ []string) error {
 	m.t.Helper()
 	if source == "" {
 		return errors.New("source cannot be empty")

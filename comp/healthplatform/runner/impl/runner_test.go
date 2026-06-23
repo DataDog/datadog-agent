@@ -20,11 +20,10 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	registrymock "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/mock"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	storemock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 )
 
-func newTestRunner(t *testing.T) (*runner, storedef.Component) {
+func newTestRunner(t *testing.T) (*runner, *storemock.Mock) {
 	t.Helper()
 	store := storemock.New(t)
 	r := &runner{

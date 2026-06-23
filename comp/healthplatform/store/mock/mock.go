@@ -18,7 +18,7 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
-type mockHealthPlatform struct {
+type Mock struct {
 	t             testing.TB
 	mu            sync.Mutex
 	issues        map[string]*healthplatformpayload.Issue
@@ -29,11 +29,11 @@ type mockHealthPlatform struct {
 }
 
 // Option configures the mock store returned by New.
-type Option func(*mockHealthPlatform)
+type Option func(*Mock)
 
 // WithIssue pre-populates the store with an issue.
 func WithIssue(issue *healthplatformpayload.Issue) Option {
-	return func(m *mockHealthPlatform) {
+	return func(m *Mock) {
 		m.issues[issue.Id] = proto.Clone(issue).(*healthplatformpayload.Issue)
 	}
 }
@@ -41,15 +41,16 @@ func WithIssue(issue *healthplatformpayload.Issue) Option {
 // WithReportIssueError makes ReportIssue return err for issueID; other issues
 // are stored normally.
 func WithReportIssueError(issueID string, err error) Option {
-	return func(m *mockHealthPlatform) {
+	return func(m *Mock) {
 		m.reportErrOnID = issueID
 		m.reportErr = err
 	}
 }
 
 // New returns a mock health platform store for testing.
-func New(t testing.TB, opts ...Option) *mockHealthPlatform { //nolint:revive // intentionally unexported; callers use := and access methods without naming the type
-	m := &mockHealthPlatform{t: t, issues: make(map[string]*healthplatformpayload.Issue)}
+// New returns a mock health platform store for testing.
+func New(t testing.TB, opts ...Option) *Mock {
+	m := &Mock{t: t, issues: make(map[string]*healthplatformpayload.Issue)}
 	for _, o := range opts {
 		o(m)
 	}
@@ -57,14 +58,14 @@ func New(t testing.TB, opts ...Option) *mockHealthPlatform { //nolint:revive // 
 }
 
 // Observer returns the observer registered via RegisterIssuesObserver.
-func (m *mockHealthPlatform) Observer() healthplatform.IssuesObserver {
+func (m *Mock) Observer() healthplatform.IssuesObserver {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.observer
 }
 
 // ResolvedIDs returns the IDs passed to ResolveIssue, in call order.
-func (m *mockHealthPlatform) ResolvedIDs() []string {
+func (m *Mock) ResolvedIDs() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	out := make([]string, len(m.resolvedIDs))
@@ -72,13 +73,13 @@ func (m *mockHealthPlatform) ResolvedIDs() []string {
 	return out
 }
 
-func (m *mockHealthPlatform) RegisterIssuesObserver(obs healthplatform.IssuesObserver) {
+func (m *Mock) RegisterIssuesObserver(obs healthplatform.IssuesObserver) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.observer = obs
 }
 
-func (m *mockHealthPlatform) ReportIssue(issue *healthplatformpayload.Issue) error {
+func (m *Mock) ReportIssue(issue *healthplatformpayload.Issue) error {
 	m.t.Helper()
 	if issue == nil || issue.Id == "" {
 		return nil
@@ -92,7 +93,7 @@ func (m *mockHealthPlatform) ReportIssue(issue *healthplatformpayload.Issue) err
 	return nil
 }
 
-func (m *mockHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) {
+func (m *Mock) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	count := 0
@@ -106,7 +107,7 @@ func (m *mockHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayl
 	return count, result
 }
 
-func (m *mockHealthPlatform) GetIssue(issueID string) *healthplatformpayload.Issue {
+func (m *Mock) GetIssue(issueID string) *healthplatformpayload.Issue {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	issue := m.issues[issueID]
@@ -116,7 +117,7 @@ func (m *mockHealthPlatform) GetIssue(issueID string) *healthplatformpayload.Iss
 	return proto.Clone(issue).(*healthplatformpayload.Issue)
 }
 
-func (m *mockHealthPlatform) ResolveIssue(issueID string) {
+func (m *Mock) ResolveIssue(issueID string) {
 	m.mu.Lock()
 	issue := m.issues[issueID]
 	delete(m.issues, issueID)
@@ -128,13 +129,13 @@ func (m *mockHealthPlatform) ResolveIssue(issueID string) {
 	}
 }
 
-func (m *mockHealthPlatform) ResolveAllIssues() {
+func (m *Mock) ResolveAllIssues() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.issues = make(map[string]*healthplatformpayload.Issue)
 }
 
-func (m *mockHealthPlatform) GetActiveIssueIDsByIssueName(issueName string) []string {
+func (m *Mock) GetActiveIssueIDsByIssueName(issueName string) []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var ids []string

@@ -17,15 +17,15 @@ import (
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
-// mockRunner is a test implementation of runner.Component.
-type mockRunner struct {
+// Mock is a test implementation of runner.Component.
+type Mock struct {
 	t     testing.TB
 	store storedef.Component
 	runFn func(source string, fn runnerdef.HealthCheckFunc) ([]string, error)
 }
 
 // Option configures the mock runner returned by New.
-type Option func(*mockRunner)
+type Option func(*Mock)
 
 // WithRunFunc overrides Run entirely. Use it when you need to control the
 // returned IDs without executing a real health check function:
@@ -36,13 +36,15 @@ type Option func(*mockRunner)
 //	    },
 //	))
 func WithRunFunc(fn func(source string, fn runnerdef.HealthCheckFunc) ([]string, error)) Option {
-	return func(m *mockRunner) { m.runFn = fn }
+	return func(m *Mock) { m.runFn = fn }
 }
 
 // New returns a mock runner for testing.
 // store is used to forward issues when no WithRunFunc is set.
-func New(t testing.TB, store storedef.Component, opts ...Option) *mockRunner { //nolint:revive // intentionally unexported; callers use := and access methods without naming the type
-	m := &mockRunner{t: t, store: store}
+// New returns a mock runner for testing.
+// store is used to forward issues when no WithRunFunc is set.
+func New(t testing.TB, store storedef.Component, opts ...Option) *Mock {
+	m := &Mock{t: t, store: store}
 	for _, o := range opts {
 		o(m)
 	}
@@ -52,7 +54,7 @@ func New(t testing.TB, store storedef.Component, opts ...Option) *mockRunner { /
 // Run delegates to the configured runFn if set, otherwise calls fn and
 // reports each IssueReport to the store (mirroring the real runner without
 // the registry template lookup).
-func (m *mockRunner) Run(source string, fn runnerdef.HealthCheckFunc) ([]string, error) {
+func (m *Mock) Run(source string, fn runnerdef.HealthCheckFunc) ([]string, error) {
 	m.t.Helper()
 	if m.runFn != nil {
 		return m.runFn(source, fn)

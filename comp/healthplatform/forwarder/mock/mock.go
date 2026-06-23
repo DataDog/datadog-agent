@@ -15,15 +15,15 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// mockForwarder delegates Send to a user-supplied function so tests can
+// Mock delegates Send to a user-supplied function so tests can
 // inline capture and error-injection logic without extra mock methods.
-type mockForwarder struct {
+type Mock struct {
 	t      testing.TB
 	sendFn func(context.Context, *healthplatformpayload.HealthReport) error
 }
 
 // Option configures the mock forwarder returned by New.
-type Option func(*mockForwarder)
+type Option func(*Mock)
 
 // WithSendFunc sets the function called by Send. Use it to capture payloads
 // or inject errors inline in the test:
@@ -36,12 +36,13 @@ type Option func(*mockForwarder)
 //	    },
 //	))
 func WithSendFunc(fn func(context.Context, *healthplatformpayload.HealthReport) error) Option {
-	return func(m *mockForwarder) { m.sendFn = fn }
+	return func(m *Mock) { m.sendFn = fn }
 }
 
 // New returns a mock forwarder for testing. Without options Send is a no-op.
-func New(t testing.TB, opts ...Option) *mockForwarder { //nolint:revive // intentionally unexported; callers use := and access methods without naming the type
-	m := &mockForwarder{t: t}
+// New returns a mock forwarder for testing. Without options Send is a no-op.
+func New(t testing.TB, opts ...Option) *Mock {
+	m := &Mock{t: t}
 	for _, o := range opts {
 		o(m)
 	}
@@ -49,7 +50,7 @@ func New(t testing.TB, opts ...Option) *mockForwarder { //nolint:revive // inten
 }
 
 // Send calls the configured sendFn, or returns nil if none was set.
-func (m *mockForwarder) Send(ctx context.Context, report *healthplatformpayload.HealthReport) error {
+func (m *Mock) Send(ctx context.Context, report *healthplatformpayload.HealthReport) error {
 	m.t.Helper()
 	if m.sendFn == nil {
 		return nil
