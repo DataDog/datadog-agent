@@ -359,14 +359,14 @@ func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*types
 	return configsPerDevice, remaining
 }
 
-// UpdateStoreConfig sets the eviction policy parameters that EvictConfigs will use.
-// It is called once at agent start-up, so eviction always reflects the current datadog.yaml values.
 func (cs *configStore) UpdateStoreConfig(minConfigsPerDevice int, maxConfigsPerDevice int, maxRawConfigStoreBytes int64) {
+	// pkglog.Debugf("ncm: store config read from datadog.yaml — min_configs_per_device=%d max_configs_per_device=%d max_raw_config_store_bytes=%d", minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes)
 	cs.configMu.Lock()
 	defer cs.configMu.Unlock()
 	cs.minConfigsPerDevice = minConfigsPerDevice
 	cs.maxConfigsPerDevice = maxConfigsPerDevice
 	cs.maxRawConfigStoreBytes = maxRawConfigStoreBytes
+	// pkglog.Debugf("ncm: store eviction config applied")
 }
 
 // EvictConfigs runs the eviction policy using parameters stored by UpdateStoreConfig.
