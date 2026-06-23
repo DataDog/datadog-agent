@@ -78,7 +78,7 @@ func NewComponent(req Requires) (Provides, error) {
 			if err != nil {
 				req.Log.Warnf("[reporter] event_reporter disabled: %v", err)
 			} else {
-				reporters = append(reporters, &EventReporter{sender: sender, logger: req.Log})
+				reporters = append(reporters, &EventReporter{sender: sender, logger: req.Log, maxRetries: defaultMaxRetryAttempts})
 			}
 		}
 	}
