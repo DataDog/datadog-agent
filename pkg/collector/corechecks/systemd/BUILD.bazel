@@ -10,7 +10,6 @@ go_library(
         "systemd.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd",
-    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
