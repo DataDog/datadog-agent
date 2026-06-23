@@ -200,7 +200,7 @@ The name of the secret to fetch
 The field of the secret to fetch. Only used with vault secrets.
 
 .EXAMPLE
-$Env:CODECOV_TOKEN=$(Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN" -parameterField token)
+$Env:CODECOV_TOKEN=$(Get-VaultSecret -parameterName "$Env:CODECOV" -parameterField token)
 
 Fetch a secret and store it in an environment variable
 
