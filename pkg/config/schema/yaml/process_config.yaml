@@ -174,7 +174,7 @@ properties:
         - template_section:CoreAgent
       interval:
         node_type: setting
-        type: number
+        type: string
         default: 4h0m0s
         env_vars:
         - DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL

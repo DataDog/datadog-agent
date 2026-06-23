@@ -35,6 +35,7 @@ excluded_folders = [
   'datadog_checks_dev',            # Development package, (NOT AN INTEGRATION)
   'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
   'docker_daemon',                 # Agent v5 only
+  'tokumx',                        # py2-only, unsupported by current Agent
 ]
 
 if osx_target?
@@ -115,7 +116,7 @@ build do
     tasks_dir_in = windows_safe_path(Dir.pwd)
     # Collect integrations to install
     checks_to_install = (
-      shellout! "dda inv -- agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
+      shellout! "dda inv -- agent.collect-integrations #{project_dir} #{os} #{excluded_folders.join(',')}",
                 :cwd => tasks_dir_in
     ).stdout.split()
     # Retrieving integrations from cache
