@@ -655,6 +655,28 @@ func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {
 	require.Equal(t, genBefore, s.SeriesGeneration(), "no removal → no gen bump")
 }
 
+func TestTimeSeriesStorage_EvictToCapacity_SkipsInternalNamespaces(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{
+		MaxSeries:          1,
+		EvictionFloorRatio: 0,
+		PointRetentionSecs: storagePointRetentionSecs,
+	})
+
+	workA := s.Add("dogstatsd", "system.cpu.user", 1.0, 1000, []string{"host:a"})
+	s.Add(observer.AgentNamespace, "datadog.agent.running", 1.0, 1000, []string{"host:a"})
+	workB := s.Add("check", "system.mem.used", 2.0, 2000, []string{"host:a"})
+
+	freed := s.EvictDefault()
+	require.Len(t, freed, 1)
+	require.Equal(t, workA.Ref, freed[0], "oldest workload series should be evicted first")
+
+	require.Nil(t, s.GetSeriesMeta(workA.Ref))
+	require.NotNil(t, s.GetSeriesMeta(workB.Ref))
+
+	agentSeries := s.ListSeries(observer.SeriesFilter{Namespace: observer.AgentNamespace})
+	require.Len(t, agentSeries, 1, "agent namespace should not be counted toward storage eviction capacity")
+	require.Equal(t, "datadog.agent.running", agentSeries[0].Name)
+}
 func TestTimeSeriesStorage_AddReturnsRef(t *testing.T) {
 	// Add returns a valid Ref (>= 0) for accepted points, and the same Ref
 	// on subsequent writes. Each distinct series gets a unique Ref.
