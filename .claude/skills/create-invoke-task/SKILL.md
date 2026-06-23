@@ -3,6 +3,7 @@ name: create-invoke-task
 description: Create a new Python invoke task for the dda CLI
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[namespace] [task-name]"
+model: sonnet
 ---
 
 Create a new invoke task accessible via `dda inv <namespace>.<task-name>`.

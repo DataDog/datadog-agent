@@ -14,12 +14,12 @@ import (
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -112,7 +112,12 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 func createAgentDemultiplexerOptions(config config.Component, params Params) aggregator.AgentDemultiplexerOptions {
 	options := aggregator.DefaultAgentDemultiplexerOptions()
 	if params.useDogstatsdNoAggregationPipelineConfig {
-		options.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+		if config.GetBool("dogstatsd_no_aggregation_pipeline") {
+			options.NoAggregationPipelineWorkersCount = config.GetInt("dogstatsd_no_aggregation_pipeline_workers_count")
+			if options.NoAggregationPipelineWorkersCount <= 0 {
+				options.NoAggregationPipelineWorkersCount = 1
+			}
+		}
 	}
 
 	// Override FlushInterval only if flushInterval is set by the user

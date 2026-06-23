@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "analyzer",
+    srcs = ["analyzer.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/snmp/analyzer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/snmp",
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/snmp/gosnmplib",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)
+
+go_test(
+    name = "analyzer_test",
+    srcs = ["analyzer_test.go"],
+    embed = [":analyzer"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/collector/corechecks/snmp",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)

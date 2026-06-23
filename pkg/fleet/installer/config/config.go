@@ -17,10 +17,13 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 
+	patch "github.com/evanphx/json-patch/v5"
+	"github.com/itchyny/gojq"
 	"go.yaml.in/yaml/v2"
-	patch "gopkg.in/evanphx/json-patch.v4"
 )
 
 // FileOperationType is the type of operation to perform on the config.
@@ -31,6 +34,8 @@ const (
 	FileOperationPatch FileOperationType = "patch"
 	// FileOperationMergePatch merges the config at the given path with the given JSON merge patch (RFC 7396).
 	FileOperationMergePatch FileOperationType = "merge-patch"
+	// FileOperationJQ transforms the config at the given path by running an arbitrary jq transform over it.
+	FileOperationJQ FileOperationType = "jq"
 	// FileOperationDelete deletes the config at the given path.
 	FileOperationDelete FileOperationType = "delete"
 	// FileOperationDeleteAll deletes the config at the given path and all its subdirectories.
@@ -70,7 +75,11 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 		// Build the full key: SEC[key]
 		fullKey := fmt.Sprintf("SEC[%s]", key)
 
-		// Replace in all file operations
+		// Replace in all file operations. Patch and jq Arguments are both raw JSON blobs,
+		// so secrets are substituted with a flat textual replacement that is agnostic to
+		// nesting depth. For jq, secrets live in the arguments rather than the transform
+		// text, so the transform stays a static program and secret values are never spliced
+		// into the jq source.
 		for i := range operations.FileOperations {
 			if bytes.Contains(operations.FileOperations[i].Patch, []byte(fullKey)) {
 				operations.FileOperations[i].Patch = bytes.ReplaceAll(
@@ -79,12 +88,21 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 					[]byte(decryptedValue),
 				)
 			}
+			if bytes.Contains(operations.FileOperations[i].Arguments, []byte(fullKey)) {
+				operations.FileOperations[i].Arguments = bytes.ReplaceAll(
+					operations.FileOperations[i].Arguments,
+					[]byte(fullKey),
+					[]byte(decryptedValue),
+				)
+			}
 		}
 	}
 
-	// Verify all secrets have been replaced
+	// Verify all secrets have been replaced. The transform text is also checked so that a
+	// stray SEC[...] embedded directly in a transform (which is unsupported) fails loudly
+	// rather than reaching gojq unsubstituted.
 	for _, operation := range operations.FileOperations {
-		if secRegex.Match(operation.Patch) {
+		if secRegex.Match(operation.Patch) || secRegex.MatchString(operation.Transform) || secRegex.Match(operation.Arguments) {
 			return errors.New("secrets are not fully replaced, SEC[...] found in the config")
 		}
 	}
@@ -114,6 +132,8 @@ type FileOperation struct {
 	FilePath          string            `json:"file_path"`
 	DestinationPath   string            `json:"destination_path,omitempty"`
 	Patch             json.RawMessage   `json:"patch,omitempty"`
+	Transform         string            `json:"transform,omitempty"`
+	Arguments         json.RawMessage   `json:"arguments,omitempty"`
 }
 
 func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
@@ -183,6 +203,96 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 			return err
 		}
 		_, err = file.Write(currentYAMLBytes)
+		if err != nil {
+			return err
+		}
+		// Set proper ownership and permissions for the file
+		if err := setFileOwnershipAndPermissions(ctx, root, path, spec); err != nil {
+			return err
+		}
+		return nil
+	case FileOperationJQ:
+		err := ensureDir(root, path)
+		if err != nil {
+			return err
+		}
+		file, err := root.OpenFile(path, os.O_RDWR|os.O_CREATE, 0640)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		previousYAMLBytes, err := io.ReadAll(file)
+		if err != nil {
+			return err
+		}
+		previous := make(map[string]any)
+		err = yaml.Unmarshal(previousYAMLBytes, &previous)
+		if err != nil {
+			return err
+		}
+		parsed, err := gojq.Parse(a.Transform)
+		if err != nil {
+			return fmt.Errorf("failed to parse jq transform: %w", err)
+		}
+		// Arguments are exposed to the transform as named jq variables ($name), keeping
+		// the transform a static program with its values supplied separately. gojq matches
+		// variable names to values by position, so iterate the sorted keys for both.
+		arguments := make(map[string]any)
+		if len(a.Arguments) > 0 {
+			if err := json.Unmarshal(a.Arguments, &arguments); err != nil {
+				return fmt.Errorf("failed to parse jq arguments: %w", err)
+			}
+		}
+		argNames := make([]string, 0, len(arguments))
+		for name := range arguments {
+			argNames = append(argNames, name)
+		}
+		sort.Strings(argNames)
+		variables := make([]string, len(argNames))
+		argValues := make([]any, len(argNames))
+		for i, name := range argNames {
+			variables[i] = "$" + name
+			argValues[i] = arguments[name]
+		}
+		code, err := gojq.Compile(parsed, gojq.WithVariables(variables))
+		if err != nil {
+			return fmt.Errorf("failed to compile jq transform: %w", err)
+		}
+		// Run the transform over the normalized config. It may yield any number of
+		// outputs; each one is written as its own YAML document so arbitrary
+		// transformations (including those producing multiple documents) are supported.
+		var buf bytes.Buffer
+		encoder := yaml.NewEncoder(&buf)
+		iter := code.RunWithContext(ctx, convertYAML2UnmarshalToJSONMarshallable(previous), argValues...)
+		outputs := 0
+		for {
+			v, ok := iter.Next()
+			if !ok {
+				break
+			}
+			if err, ok := v.(error); ok {
+				return fmt.Errorf("failed to run jq transform: %w", err)
+			}
+			if err := encoder.Encode(v); err != nil {
+				return err
+			}
+			outputs++
+		}
+		if err := encoder.Close(); err != nil {
+			return err
+		}
+		if outputs == 0 {
+			return fmt.Errorf("jq transform %q produced no output", a.Transform)
+		}
+		err = file.Truncate(0)
+		if err != nil {
+			return err
+		}
+		_, err = file.Seek(0, io.SeekStart)
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(buf.Bytes())
 		if err != nil {
 			return err
 		}
@@ -478,6 +588,10 @@ func convertYAML2UnmarshalToJSONMarshallable(i any) any {
 			m[i] = convertYAML2UnmarshalToJSONMarshallable(v)
 		}
 		return m
+	case time.Time:
+		// yaml.v2 unmarshals timestamps to time.Time, which gojq cannot handle.
+		// Use RFC3339Nano to preserve sub-second precision, matching json.Marshal.
+		return x.Format(time.RFC3339Nano)
 	}
 	return i
 }

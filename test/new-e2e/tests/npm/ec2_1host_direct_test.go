@@ -12,11 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 )
 
 type ec2VMDirectSuite struct {
@@ -45,7 +44,6 @@ func (v *ec2VMDirectSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer v.CleanupOnSetupFailure()
 
-	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils docker.io")
 	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker ubuntu")
 	v.Env().RemoteHost.Reconnect()
 
@@ -59,7 +57,7 @@ func (v *ec2VMDirectSuite) BeforeTest(suiteName, testName string) {
 
 	// Verify that the process agent is not running
 	assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		status := v.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent status")
+		status := v.Env().RemoteHost.MustExecuteOn(c, "sudo /opt/datadog-agent/embedded/bin/process-agent status")
 		assert.Contains(c, status, "The Process Agent is not running")
 	}, 1*time.Minute, 5*time.Second)
 

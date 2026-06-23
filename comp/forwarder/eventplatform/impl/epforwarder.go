@@ -16,7 +16,7 @@ import (
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -655,6 +655,9 @@ func newHTTPPassthroughPipeline(
 		endpoints.BatchMaxConcurrentSend,
 		endpoints.BatchMaxConcurrentSend,
 		secretsComp,
+		// Noop: passthrough pipelines don't surface on the logs status page, so they skip
+		// utilization sampling and own no snapshot registry.
+		pipelineMonitor,
 	)
 
 	var encoder compressioncommon.Compressor

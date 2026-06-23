@@ -114,6 +114,28 @@ properties:
     default: []
     items:
       type: string
+  experimental_stickiness_enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Experimental. Subject to change. Biases check placement toward the runner
+      where a check previously ran.
+  experimental_stickiness_factor:
+    node_type: setting
+    type: number
+    default: 4
+    tags:
+    - golang_type:float64
+    comment: Experimental. Subject to change. Multiplier applied to workersNeeded
+      when computing the stickiness bias.
+  experimental_stickiness_limit:
+    node_type: setting
+    type: number
+    default: 1
+    tags:
+    - golang_type:float64
+    comment: Experimental. Subject to change. Maximum stickiness bias applied regardless
+      of workersNeeded.
   ksm_sharding_enabled:
     node_type: setting
     type: boolean
@@ -128,7 +150,7 @@ properties:
       improves the current one by this.
   rebalance_period:
     node_type: setting
-    type: number
+    type: string
     default: 10m0s
     format: duration
     tags:

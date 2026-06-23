@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "client",
@@ -18,7 +19,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "client_test",
     srcs = [
         "auth_test.go",
@@ -26,7 +27,6 @@ go_test(
         "request_test.go",
     ],
     embed = [":client"],
-    gotags = ["test"],
     deps = [
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures",
         "@com_github_stretchr_testify//require",

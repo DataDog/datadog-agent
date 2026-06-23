@@ -8,5 +8,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def",
     visibility = ["//visibility:public"],
-    deps = ["//comp/forwarder/orchestrator/orchestratorinterface/def"],
+    deps = ["//comp/forwarder/orchestrator/orchestratorinterface"],
 )

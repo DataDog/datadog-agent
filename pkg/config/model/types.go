@@ -31,7 +31,7 @@ const (
 	// SourceDefault are the values from defaults.
 	SourceDefault Source = "default"
 	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
-	// SetWithoutSource.
+	// SetInTest.
 	SourceUnknown Source = "unknown"
 	// SourceInfraMode are the values set by infrastructure mode configurations. These values have higher
 	// priority than defaults but lower priority than user configuration (file, env vars, etc.).
@@ -137,9 +137,6 @@ type NotificationReceiver func(setting string, source Source, oldValue, newValue
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
-	// GetLibType returns the lib used to power the configuration (viper / tee / nodetreemodel)
-	GetLibType() string
-
 	Get(key string) interface{}
 	GetString(key string) string
 	GetBool(key string) bool
@@ -185,12 +182,6 @@ type Reader interface {
 	// can modify env vars and the config will rebuild itself, etc)
 	SetTestOnlyDynamicSchema(allow bool)
 
-	// IsSet return true if a non nil values is found in the configuration, including defaults. This is legacy
-	// behavior from viper and don't answer the need to know if something was set by the user (see IsConfigured for
-	// this).
-	//
-	// Deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead.
-	IsSet(key string) bool
 	// IsConfigured returns true if a setting is configured by the user. This means that either:
 	//  1. The key is for a leaf, and the setting has a non-nil value on a non-default source OR
 	//  2. The key is for an inner node, and one of its children IsConfigured
@@ -232,7 +223,7 @@ type Reader interface {
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
 	Set(key string, value interface{}, source Source)
-	SetWithoutSource(key string, value interface{})
+	SetInTest(key string, value interface{})
 	UnsetForSource(key string, source Source)
 }
 
@@ -252,7 +243,6 @@ type Setup interface {
 	SetDefault(key string, value interface{})
 
 	SetEnvPrefix(in string)
-	BindEnv(key string, envvars ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 
 	// ParseEnvSplitComma registers a transformer to parse the env var for key as a comma-separated list.

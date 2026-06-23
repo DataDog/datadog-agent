@@ -24,7 +24,7 @@ go_test(
     embed = [":impl-remote"],
     gotags = ["test"],
     deps = [
-        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",

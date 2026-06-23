@@ -76,6 +76,24 @@ func TestTagsPayloadWithConfigTagsAndExtraTags(t *testing.T) {
 	assert.Equal(t, "[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"c:d,e,foo:bar,baz,processing:tag,second:tag\"]", string(origin.TagsPayload([]string{"processing:tag", "second:tag"})))
 }
 
+func TestTagMetadataBytes(t *testing.T) {
+	tagGroups := [][]string{
+		{"c:d", "e"},
+		{"foo:bar", "baz"},
+		{"processing:tag", "second:tag"},
+	}
+
+	assert.Equal(t, len("c:d,e,foo:bar,baz,processing:tag,second:tag"), TagMetadataBytes(tagGroups...))
+	assert.Equal(t, 0, TagMetadataBytes())
+}
+
+func TestAppendTagMetadataBytes(t *testing.T) {
+	base := TagMetadataBytes([]string{"c:d", "e"})
+
+	assert.Equal(t, len("c:d,e,foo:bar,baz"), AppendTagMetadataBytes(base, []string{"foo:bar", "baz"}))
+	assert.Equal(t, len("foo:bar,baz"), AppendTagMetadataBytes(0, []string{"foo:bar", "baz"}))
+}
+
 func TestDefaultSourceValueIsSourceFromConfig(t *testing.T) {
 	var cfg *config.LogsConfig
 	var source *sources.LogSource

@@ -9,7 +9,7 @@ import (
 	"context"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -26,6 +26,7 @@ type observerPipeline struct {
 	outputChan     chan *message.Message
 	drainDone      chan struct{}
 	observerHandle observer.Handle
+	sampler        *logSampler
 }
 
 func newObserverPipeline(
@@ -33,6 +34,7 @@ func newObserverPipeline(
 	processingRules []*logsconfig.ProcessingRule,
 	hostname hostnameinterface.Component,
 	observerHandle observer.Handle,
+	sampler *logSampler,
 ) *observerPipeline {
 	chanSize := cfg.GetInt("logs_config.message_channel_size")
 	inputChan := make(chan *message.Message, chanSize)
@@ -56,6 +58,7 @@ func newObserverPipeline(
 		outputChan:     outputChan,
 		drainDone:      make(chan struct{}),
 		observerHandle: observerHandle,
+		sampler:        sampler,
 	}
 }
 
@@ -66,7 +69,9 @@ func (p *observerPipeline) start() {
 	go func() {
 		defer close(p.drainDone)
 		for msg := range p.outputChan {
-			p.observerHandle.ObserveLog(&messageLogView{msg: msg})
+			if p.sampler == nil || p.sampler.ShouldForward(msg) {
+				p.observerHandle.ObserveLog(&messageLogView{msg: msg})
+			}
 		}
 	}()
 	p.proc.Start()
@@ -80,6 +85,11 @@ func (p *observerPipeline) NextPipelineChan() chan *message.Message {
 // NextPipelineChanWithMonitor implements pipeline.Provider.
 func (p *observerPipeline) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return p.inputChan, nil //nolint:nilnil
+}
+
+// GetPipelineMonitor implements pipeline.Provider; the observer pipeline does not surface on the status page.
+func (p *observerPipeline) GetPipelineMonitor() metrics.PipelineMonitor {
+	return metrics.NewNoopPipelineMonitor("observer-logs-0")
 }
 
 // GetOutputChan implements pipeline.Provider.
