@@ -424,6 +424,7 @@ func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermet
 func deepCopySpanContext(fieldToCopy SpanContext) SpanContext {
 	copied := SpanContext{}
 	copied.Attributes = deepCopystringMap(fieldToCopy.Attributes)
+	copied.ExtraAttrsID = fieldToCopy.ExtraAttrsID
 	copied.HasExtraAttrs = fieldToCopy.HasExtraAttrs
 	copied.SpanID = fieldToCopy.SpanID
 	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID)

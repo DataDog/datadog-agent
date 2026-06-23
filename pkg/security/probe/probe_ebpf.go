@@ -164,7 +164,7 @@ type EBPFProbe struct {
 	otelSpanAttrsMap *lib.Map
 
 	// kill action
-	killListMap *lib.Map
+	killListMap           *lib.Map
 	supportsBPFSendSignal bool
 	processKiller         *ProcessKiller
 
@@ -1125,18 +1125,15 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupCon
 // PCE is the existing cached entry shared with future events and must not be
 // mutated with the transient event's attributes.
 func (p *EBPFProbe) resolveOTelSpanAttrs(event *model.Event, eventType model.EventType) {
-	// Build the map key: span_id + trace_id[2]
-	key := make([]byte, 24)
-	binary.NativeEndian.PutUint64(key[0:8], event.SpanContext.SpanID)
-	binary.NativeEndian.PutUint64(key[8:16], event.SpanContext.TraceID.Lo)
-	binary.NativeEndian.PutUint64(key[16:24], event.SpanContext.TraceID.Hi)
+	key := make([]byte, 8)
+	binary.NativeEndian.PutUint64(key, event.SpanContext.ExtraAttrsID)
 
 	data, err := p.otelSpanAttrsMap.LookupBytes(key)
 	if err != nil || len(data) < 2 {
 		return
 	}
 
-	// Delete the entry after reading (one-shot consumption).
+	// Delete the per-event attributes snapshot after reading.
 	_ = p.otelSpanAttrsMap.Delete(key)
 
 	// Parse the value: u16 size + data[OTEL_ATTRS_MAX_SIZE]

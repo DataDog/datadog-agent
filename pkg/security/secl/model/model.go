@@ -198,6 +198,7 @@ type SpanContext struct {
 	SpanID        uint64            `field:"-"`
 	TraceID       utils.TraceID     `field:"-"`
 	HasExtraAttrs bool              `field:"-"`
+	ExtraAttrsID  uint64            `field:"-"`
 	Attributes    map[string]string `field:"-"`
 }
 

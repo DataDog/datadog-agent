@@ -100,10 +100,11 @@ struct otel_thread_ctx_record_t {
 // 256 bytes is generous while keeping BPF map value size reasonable.
 #define OTEL_ATTRS_MAX_SIZE 256
 
-// Key for the otel_span_attrs map: uniquely identifies a span.
+// Key for the otel_span_attrs map: uniquely identifies one event-side
+// attributes snapshot. Multiple events can observe the same active span with
+// different attributes before userspace drains them.
 struct otel_span_attrs_key_t {
-    u64 span_id;
-    u64 trace_id[2];
+    u64 id;
 };
 
 // Value for the otel_span_attrs map: raw attrs_data bytes from the OTel record.
@@ -140,7 +141,11 @@ struct otel_span_attrs_t {
 
 #define OTEL_TLS_MAX_LINK_MAPS 256
 #define OTEL_TLS_MAX_MODULE_ID 4096
-#define OTEL_TLS_HASH_SLOTS 65536
+// 8192 hash slots make struct otel_tls_t 1192 bytes: 120-byte metadata header,
+// 128*8-byte module bitmap, and 48-byte eBPF result tail. In 1000 empirical
+// 256 TLS / 256 non-TLS trials, every case found a collision-free seed within
+// the 1<<20 cap: mean 2954.5 tries, median 2081, min 1, max 18683.
+#define OTEL_TLS_HASH_SLOTS 8192
 #define OTEL_TLS_HASH_WORDS (OTEL_TLS_HASH_SLOTS / 64)
 
 // OTel TLS registration for a process. The first block is written by

@@ -150,7 +150,7 @@ func (c *Credentials) Equals(o *Credentials) bool {
 
 // SetSpanContext attaches the captured APM correlation span context to the
 // process. Used by AddForkEntry to persist the parent's span across fork.
-// Carries SpanID, TraceID, HasExtraAttrs and any OTel extra Attributes.
+// Carries SpanID, TraceID, ExtraAttrsID and any OTel extra Attributes.
 func (p *Process) SetSpanContext(sc SpanContext) {
 	p.Tracer.Trace = sc
 }

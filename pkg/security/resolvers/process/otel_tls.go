@@ -43,7 +43,7 @@ const (
 
 const (
 	otelTLSMaxModules    = 256
-	otelTLSHashSlots     = 65536
+	otelTLSHashSlots     = 8192
 	otelTLSHashWords     = otelTLSHashSlots / 64
 	otelTLSMaxSeedSearch = 1 << 20
 
