@@ -122,8 +122,55 @@ class TestGetRtloaderPaths(unittest.TestCase):
 
         self.assertEqual(rtloader_lib, [str(legacy_lib_dir)])
 
+    def test_finds_headers_under_embedded_dir_when_lib_is_in_legacy_dir(self):
+        lib_dir = self._tmpdir / "dev" / "lib"
+        include_dir = self._tmpdir / "dev" / "embedded" / "include"
+        lib_dir.mkdir(parents=True)
+        include_dir.mkdir(parents=True)
+        (lib_dir / RTLOADER_LIB_NAME).touch()
+        (include_dir / RTLOADER_HEADER_NAME).touch()
+
+        rtloader_lib, rtloader_headers, _ = get_rtloader_paths(embedded_path=self._tmpdir / "dev")
+
+        self.assertEqual(rtloader_lib, [str(lib_dir)])
+        self.assertEqual(rtloader_headers, str(include_dir))
+
 
 class TestGetBuildFlags(unittest.TestCase):
+    @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
+    @mock.patch("tasks.libs.common.utils.get_rtloader_paths", return_value=(["/dev/embedded/lib"], "", ""))
+    def test_infers_python_home_from_bazel_rtloader_path(self, _get_rtloader_paths, _get_version_ldflags):
+        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev")
+
+        self.assertIn("python.pythonHome3=/dev/embedded", ldflags.replace("\\", "/"))
+
+    @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
+    @mock.patch("tasks.libs.common.utils.get_rtloader_paths", return_value=(["/external/embedded/lib"], "", ""))
+    def test_infers_python_home_from_selected_rtloader_root_path(self, _get_rtloader_paths, _get_version_ldflags):
+        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev", rtloader_root="/external")
+
+        self.assertIn("python.pythonHome3=/external/embedded", ldflags.replace("\\", "/"))
+
+    @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
+    @mock.patch("tasks.libs.common.utils.get_rtloader_paths", return_value=(["/dev/lib"], "", ""))
+    def test_does_not_infer_python_home_from_legacy_rtloader_path(self, _get_rtloader_paths, _get_version_ldflags):
+        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev")
+
+        self.assertNotIn("python.pythonHome3", ldflags)
+
+    @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
+    @mock.patch(
+        "tasks.libs.common.utils.get_rtloader_paths", return_value=(["/external/lib", "/dev/embedded/lib"], "", "")
+    )
+    def test_does_not_infer_python_home_when_selected_rtloader_is_legacy(
+        self, _get_rtloader_paths, _get_version_ldflags
+    ):
+        # The selected (first) rtloader is a legacy root; a stale embedded lib from a prior
+        # Bazel build must not override the Python home for the rtloader actually linked.
+        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev", rtloader_root="/external")
+
+        self.assertNotIn("python.pythonHome3", ldflags)
+
     @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
     @mock.patch("tasks.libs.common.utils.get_rtloader_paths", return_value=(["/dev/lib", "/dev/embedded/lib"], "", ""))
     @mock.patch("tasks.libs.common.utils.sys.platform", "darwin")
