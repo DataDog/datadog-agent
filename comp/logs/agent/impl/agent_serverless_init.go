@@ -44,7 +44,7 @@ func (a *logAgent) SetupPipeline(
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, a.hostname, a.config)
 	destinationsCtx := client.NewDestinationsContext()
 
-	// setup the pipeline provider that provides pairs of processor and sender
+	// setup the pipeline provider that Provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,
