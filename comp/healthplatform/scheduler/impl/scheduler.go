@@ -54,8 +54,8 @@ type Requires struct {
 	Store     storedef.Component
 }
 
-// New creates a new scheduler instance and registers its lifecycle hooks.
-func New(reqs Requires) schedulerdef.Component {
+// NewComponent creates a new scheduler instance and registers its lifecycle hooks.
+func NewComponent(reqs Requires) schedulerdef.Component {
 	s := &scheduler{
 		log:    reqs.Log,
 		runner: reqs.Runner,

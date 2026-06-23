@@ -22,8 +22,8 @@ type registryImpl struct {
 	inner *issuesmod.Registry
 }
 
-// New creates the issue registry, instantiating all self-registered modules.
-func New(reqs Requires) registrydef.Component {
+// NewComponent creates the issue registry, instantiating all self-registered modules.
+func NewComponent(reqs Requires) registrydef.Component {
 	r := issuesmod.NewRegistry()
 	for _, module := range issuesmod.GetAllModules(reqs.Config) {
 		r.RegisterModule(module)
