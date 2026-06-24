@@ -151,8 +151,6 @@ var (
 )
 
 var (
-	// BufferSelectorSyscallMonitorKey is the key used to select the active syscall monitor buffer key
-	BufferSelectorSyscallMonitorKey = ZeroUint32MapItem
 	// BufferSelectorERPCMonitorKey is the key used to select the active eRPC monitor buffer key
 	BufferSelectorERPCMonitorKey = Uint32MapItem(1)
 	// BufferSelectorDiscarderMonitorKey is the key used to select the active discarder monitor buffer key
@@ -163,6 +161,8 @@ var (
 	BufferSelectorDNSResponseFilteredMonitorKey = Uint32MapItem(4)
 	// BufferSelectorSampleMonitorKey is the key used to select the active event sample monitor buffer key
 	BufferSelectorSampleMonitorKey = Uint32MapItem(5)
+	// BufferSelectorSyscallMonitorKey is the key used to select the active syscall monitor buffer key
+	BufferSelectorSyscallMonitorKey = Uint32MapItem(6)
 	// BoolFalseMapItem is the value used to set the map entry to false
 	BoolFalseMapItem = Uint8MapItem(0)
 	// BoolTrueMapItem is the value used to set the map entry to true

@@ -84,6 +84,11 @@ const (
 	FailedDNSRuleID = "failed_dns"
 	// FailedDNSRuleDesc is the rule description for raw packet action events
 	FailedDNSRuleDesc = "Failed DNS"
+
+	// SyscallsEventRuleID is the rule ID for syscall cgroup monitor events
+	SyscallsEventRuleID = "syscalls_event"
+	// SyscallEventRuleDesc is the rule description for syscall cgroup monitor events
+	SyscallsEventRuleDesc = "Syscalls event"
 )
 
 // AgentContainerContext is like model.ContainerContext, but without event based resolvers
@@ -129,6 +134,7 @@ func AllCustomRuleIDs() []string {
 		SysCtlSnapshotRuleID,
 		FailedDNSRuleID,
 		RemediationStatusRuleID,
+		SyscallsEventRuleID,
 	}
 }
 

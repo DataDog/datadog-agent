@@ -130,9 +130,6 @@ type Manager struct {
 	isSyscallAnomalyEnabled bool
 
 	// ebpf maps
-	securityProfileMap         *ebpf.Map
-	securityProfileSyscallsMap *ebpf.Map
-
 	profilesLock        sync.Mutex
 	profiles            map[cgroupModel.WorkloadSelector]*profile.Profile
 	evictedVersionsLock sync.Mutex
@@ -186,16 +183,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	activityDumpRateLimitersMap, err := managerhelper.Map(ebpf, "activity_dump_rate_limiters")
-	if err != nil {
-		return nil, err
-	}
-
-	securityProfileMap, err := managerhelper.Map(ebpf, "security_profiles")
-	if err != nil {
-		return nil, err
-	}
-
-	securityProfileSyscallsMap, err := managerhelper.Map(ebpf, "secprofs_syscalls")
 	if err != nil {
 		return nil, err
 	}
@@ -319,9 +306,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 
 		secProfEventTypes:       secProfEventTypes,
 		isSyscallAnomalyEnabled: slices.Contains(cfg.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
-
-		securityProfileMap:         securityProfileMap,
-		securityProfileSyscallsMap: securityProfileSyscallsMap,
 
 		profiles: make(map[cgroupModel.WorkloadSelector]*profile.Profile),
 

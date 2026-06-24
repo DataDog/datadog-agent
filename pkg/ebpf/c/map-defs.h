@@ -61,6 +61,9 @@
 #define BPF_STACK_MAP(name, value_type, max_entries) \
     BPF_MAP(name, BPF_MAP_TYPE_STACK, 0, value_type, max_entries, 0, 0, EXCLUDE_KEY_TYPE)
 
+#define BPF_PERCPU_LRU_MAP_FLAGS(name, key_type, value_type, max_entries, map_flags) \
+    BPF_MAP(name, BPF_MAP_TYPE_LRU_PERCPU_HASH, key_type, value_type, max_entries, 0, map_flags, INCLUDE_KEY_TYPE)
+
 #define BPF_TASK_STORAGE_MAP(name, value_type) \
     struct {                                   \
         __uint(type, BPF_MAP_TYPE_TASK_STORAGE); \

@@ -1500,10 +1500,6 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "Process source"
                 },
-                "syscalls": {
-                    "$ref": "#/$defs/SyscallsEvent",
-                    "description": "List of syscalls captured to generate the event"
-                },
                 "aws_security_credentials": {
                     "items": {
                         "$ref": "#/$defs/AWSSecurityCredentials"
@@ -1682,10 +1678,6 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "source": {
                     "type": "string",
                     "description": "Process source"
-                },
-                "syscalls": {
-                    "$ref": "#/$defs/SyscallsEvent",
-                    "description": "List of syscalls captured to generate the event"
                 },
                 "aws_security_credentials": {
                     "items": {
@@ -2169,25 +2161,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "description": "SysCtlEventSerializer defines a sysctl event serializer"
         },
-        "Syscall": {
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Name of the syscall"
-                },
-                "id": {
-                    "type": "integer",
-                    "description": "ID of the syscall in the host architecture"
-                }
-            },
-            "additionalProperties": false,
-            "type": "object",
-            "required": [
-                "name",
-                "id"
-            ],
-            "description": "SyscallSerializer serializes a syscall"
-        },
         "SyscallArgs": {
             "properties": {
                 "path": {
@@ -2275,13 +2248,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "description": "SyscallContextSerializer serializes syscall context"
-        },
-        "SyscallsEvent": {
-            "items": {
-                "$ref": "#/$defs/Syscall"
-            },
-            "type": "array",
-            "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
         },
         "TLSContext": {
             "properties": {
@@ -2509,9 +2475,6 @@ Workload Protection events for Linux systems have the following JSON schema:
         "mount": {
             "$ref": "#/$defs/MountEvent"
         },
-        "syscalls": {
-            "$ref": "#/$defs/SyscallsEvent"
-        },
         "usr": {
             "$ref": "#/$defs/UserContext"
         },
@@ -2585,7 +2548,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `connect` | $ref | Please see [ConnectEvent](#connectevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
-| `syscalls` | $ref | Please see [SyscallsEvent](#syscallsevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `syscall` | $ref | Please see [SyscallContext](#syscallcontext) |
 | `packet` | $ref | Please see [RawPacket](#rawpacket) |
@@ -4765,10 +4727,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "Process source"
         },
-        "syscalls": {
-            "$ref": "#/$defs/SyscallsEvent",
-            "description": "List of syscalls captured to generate the event"
-        },
         "aws_security_credentials": {
             "items": {
                 "$ref": "#/$defs/AWSSecurityCredentials"
@@ -4834,7 +4792,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `is_parent_missing` | Indicates whether the direct parent is missing |
 | `source` | Process source |
-| `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
 | `tracer` | Metadata from APM tracer instrumentation |
 | `variables` | Variable values |
@@ -4846,7 +4803,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [File](#file) |
 | [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
-| [SyscallsEvent](#syscallsevent) |
 | [TracerMetadata](#tracermetadata) |
 | [Variables](#variables) |
 
@@ -5007,10 +4963,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "Process source"
         },
-        "syscalls": {
-            "$ref": "#/$defs/SyscallsEvent",
-            "description": "List of syscalls captured to generate the event"
-        },
         "aws_security_credentials": {
             "items": {
                 "$ref": "#/$defs/AWSSecurityCredentials"
@@ -5091,7 +5043,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `is_parent_missing` | Indicates whether the direct parent is missing |
 | `source` | Process source |
-| `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
 | `tracer` | Metadata from APM tracer instrumentation |
 | `variables` | Variable values |
@@ -5106,7 +5057,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [File](#file) |
 | [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
-| [SyscallsEvent](#syscallsevent) |
 | [TracerMetadata](#tracermetadata) |
 | [Variables](#variables) |
 | [Process](#process) |
@@ -5786,38 +5736,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `old_value_truncated` | old_value_truncated indicates if the old_value field is truncated |
 
 
-## `Syscall`
-
-
-{{< code-block lang="json" collapsible="true" >}}
-{
-    "properties": {
-        "name": {
-            "type": "string",
-            "description": "Name of the syscall"
-        },
-        "id": {
-            "type": "integer",
-            "description": "ID of the syscall in the host architecture"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "required": [
-        "name",
-        "id"
-    ],
-    "description": "SyscallSerializer serializes a syscall"
-}
-
-{{< /code-block >}}
-
-| Field | Description |
-| ----- | ----------- |
-| `name` | Name of the syscall |
-| `id` | ID of the syscall in the host architecture |
-
-
 ## `SyscallArgs`
 
 
@@ -5936,22 +5854,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [SyscallArgs](#syscallargs) |
-
-## `SyscallsEvent`
-
-
-{{< code-block lang="json" collapsible="true" >}}
-{
-    "items": {
-        "$ref": "#/$defs/Syscall"
-    },
-    "type": "array",
-    "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
-}
-
-{{< /code-block >}}
-
-
 
 ## `TLSContext`
 

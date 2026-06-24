@@ -136,8 +136,6 @@ runtime_security_config:
       enabled: {{ .HostSBOMEnabled }}
   activity_dump:
     enabled: {{ .EnableActivityDump }}
-    syscall_monitor:
-      period: {{ .ActivityDumpSyscallMonitorPeriod }}
 {{if .EnableActivityDump}}
     rate_limiter: {{ .ActivityDumpRateLimiter }}
     tag_rules:

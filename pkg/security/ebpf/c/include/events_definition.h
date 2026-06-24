@@ -385,16 +385,6 @@ struct ptrace_event_t {
     u32 ns_pid;
 };
 
-struct syscall_monitor_event_t {
-    struct kevent_t event;
-    struct process_context_t process;
-    struct span_context_t span;
-    struct cgroup_context_t cgroup;
-
-    u64 event_reason;
-    char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
-};
-
 struct rename_event_t {
     struct kevent_t event;
     struct process_context_t process;

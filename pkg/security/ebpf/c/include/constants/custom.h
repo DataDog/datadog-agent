@@ -175,22 +175,16 @@ static __attribute__((always_inline)) u32 get_netns() {
     return (u32)netns;
 }
 
-static __attribute__((always_inline)) u64 get_syscall_monitor_event_period() {
-    u64 syscall_monitor_event_period;
-    LOAD_CONSTANT("syscall_monitor_event_period", syscall_monitor_event_period);
-    return syscall_monitor_event_period;
-}
-
 static __attribute__((always_inline)) u64 is_send_signal_available() {
     u64 send_signal;
     LOAD_CONSTANT("send_signal", send_signal);
     return send_signal;
 };
 
-static __attribute__((always_inline)) u64 is_anomaly_syscalls_enabled() {
-    u64 anomaly;
-    LOAD_CONSTANT("anomaly_syscalls", anomaly);
-    return anomaly;
+static __attribute__((always_inline)) u64 is_enforcement_raw_syscall_enabled() {
+    u64 enforcement_raw_syscall_enabled;
+    LOAD_CONSTANT("enforcement_raw_syscall_enabled", enforcement_raw_syscall_enabled);
+    return enforcement_raw_syscall_enabled;
 };
 
 static __attribute__((always_inline)) u64 get_imds_ip() {

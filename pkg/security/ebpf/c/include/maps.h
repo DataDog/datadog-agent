@@ -18,7 +18,7 @@
 BPF_ARRAY_MAP(path_id_high, u32, PATH_ID_HIGH_MAP_SIZE)
 BPF_ARRAY_MAP(path_id_low, u32, PATH_ID_LOW_MAP_SIZE)
 BPF_ARRAY_MAP(enabled_events, u64, 1)
-BPF_ARRAY_MAP(buffer_selector, u32, 6)
+BPF_ARRAY_MAP(buffer_selector, u32, 7)
 BPF_ARRAY_MAP(dr_erpc_buffer, char[DR_ERPC_BUFFER_LENGTH * 2], 1)
 BPF_ARRAY_MAP(inode_disc_revisions, u32, REVISION_ARRAY_SIZE)
 BPF_ARRAY_MAP(discarders_revision, u32, 1)
@@ -51,8 +51,6 @@ BPF_HASH_MAP(traced_pids, u32, u64, 8192) // max entries will be overridden at r
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
 BPF_HASH_MAP(netdevice_lookup_cache, u64, struct device_ifindex_t, 1024)
 BPF_HASH_MAP(fd_link_pid, u8, u32, 1)
-BPF_HASH_MAP(security_profiles, u64, struct security_profile_t, 1) // max entries will be overriden at runtime
-BPF_HASH_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
 BPF_HASH_MAP(auid_approvers, u32, struct event_mask_filter_t, 128)
 BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
 BPF_HASH_MAP(active_flows_spin_locks, u32, struct active_flows_spin_lock_t, 1) // max entry will be overridden at runtime
@@ -87,8 +85,6 @@ BPF_LRU_MAP(conntrack, struct namespaced_flow_t, struct namespaced_flow_t, 4096)
 BPF_LRU_MAP(io_uring_ctx_pid, void *, u64, 2048)
 BPF_LRU_MAP(veth_state_machine, u64, struct veth_state_t, 1024)
 BPF_LRU_MAP(veth_devices, struct device_ifindex_t, struct device_t, 1024)
-BPF_LRU_MAP(syscall_monitor, struct syscall_monitor_key_t, struct syscall_monitor_entry_t, 2048)
-BPF_LRU_MAP(syscall_table, struct syscall_table_key_t, u8, 50)
 BPF_LRU_MAP(kill_list, u32, u32, 32)
 BPF_LRU_MAP(user_sessions, struct user_session_key_t, struct user_session_t, 1024)
 BPF_LRU_MAP(dentry_resolver_inputs, u64, struct dentry_resolver_input_t, 256)
@@ -107,6 +103,9 @@ BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, u8, 1, BPF_F_NO_COMMO
 BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+
+BPF_PERCPU_LRU_MAP_FLAGS(fb_syscall_monitor, struct syscall_monitor_key_t, u64, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_PERCPU_LRU_MAP_FLAGS(bb_syscall_monitor, struct syscall_monitor_key_t, u64, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
 BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
 

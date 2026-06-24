@@ -1359,25 +1359,6 @@ func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 72 {
-		return 0, ErrNotEnoughData
-	}
-
-	e.EventReason = SyscallDriftEventReason(binary.NativeEndian.Uint64(data[0:8]))
-
-	for i, b := range data[8:72] {
-		// compute the ID of the syscall
-		for j := 0; j < 8; j++ {
-			if b&(1<<j) > 0 {
-				e.Syscalls = append(e.Syscalls, Syscall(i*8+j))
-			}
-		}
-	}
-	return 72, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
 	const eventSize = 4 + OnDemandParsedArgsCount*OnDemandPerArgSize
 	if len(data) < eventSize {
