@@ -35,22 +35,22 @@ func onlyRshellPrefixedCommands(commands []string) []string {
 	return prefixedCommands
 }
 
-func intersectAllowedCommands(backendAllowed []string, agentAllowed []string) []string {
-	agentAllowedSet := make(map[string]struct{}, len(agentAllowed))
-	for _, c := range agentAllowed {
+func intersectAllowedCommands(backendAllowed []string, operatorAllowed []string) []string {
+	operatorAllowedSet := make(map[string]struct{}, len(operatorAllowed))
+	for _, c := range operatorAllowed {
 		switch {
 		case c == setup.RShellCommandAllowAllWildcard:
 			return append([]string(nil), backendAllowed...)
 		case c == setup.RShellCommandNamespacePrefix || c == "":
 			continue
 		case strings.HasPrefix(c, setup.RShellCommandNamespacePrefix):
-			agentAllowedSet[c] = struct{}{}
+			operatorAllowedSet[c] = struct{}{}
 		}
 	}
 
 	filtered := make([]string, 0, len(backendAllowed))
 	for _, c := range backendAllowed {
-		if _, ok := agentAllowedSet[c]; ok {
+		if _, ok := operatorAllowedSet[c]; ok {
 			filtered = append(filtered, c)
 		}
 	}
@@ -75,11 +75,11 @@ func cleanPathList(paths []string) []string {
 	return cleaned
 }
 
-func intersectAllowedPathsByAccess(agentAllowed []string, backendAllowed []string) []string {
-	filtered := make([]string, 0, len(agentAllowed))
-	seen := make(map[string]struct{}, len(agentAllowed))
+func intersectAllowedPathsByAccess(operatorAllowed []string, backendAllowed []string) []string {
+	filtered := make([]string, 0, len(operatorAllowed))
+	seen := make(map[string]struct{}, len(operatorAllowed))
 
-	for _, agentPath := range agentAllowed {
+	for _, agentPath := range operatorAllowed {
 		for _, backendPath := range backendAllowed {
 			pathToKeep, ok := narrowerPathWithSameAccess(agentPath, backendPath)
 			if !ok {
