@@ -57,9 +57,9 @@ type FlowPayload struct {
 	Packets          uint64           `json:"packets"`
 	EtherType        string           `json:"ether_type,omitempty"`
 	IPProtocol       string           `json:"ip_protocol"`
-	Tos              uint32           `json:"tos"`
-	Dscp             uint32           `json:"dscp"`
-	DscpName         string           `json:"dscp_name"`
+	TOS              uint32           `json:"tos"`
+	DSCP             uint32           `json:"dscp"`
+	DSCPName         string           `json:"dscp_name"`
 	Device           Device           `json:"device"`
 	Exporter         Exporter         `json:"exporter"`
 	Source           Endpoint         `json:"source"`
@@ -84,9 +84,9 @@ func (p FlowPayload) MarshalJSON() ([]byte, error) {
 		"bytes":           p.Bytes,
 		"packets":         p.Packets,
 		"ip_protocol":     p.IPProtocol,
-		"tos":             p.Tos,
-		"dscp":            p.Dscp,
-		"dscp_name":       p.DscpName,
+		"tos":             p.TOS,
+		"dscp":            p.DSCP,
+		"dscp_name":       p.DSCPName,
 		"device":          p.Device,
 		"exporter":        p.Exporter,
 		"source":          p.Source,

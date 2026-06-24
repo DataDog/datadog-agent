@@ -116,9 +116,9 @@ func Test_buildPayload(t *testing.T) {
 				Packets:        2,
 				EtherType:      "IPv4",
 				IPProtocol:     "TCP",
-				Tos:            3,
-				Dscp:           0,
-				DscpName:       "CS0",
+				TOS:            3,
+				DSCP:           0,
+				DSCPName:       "CS0",
 				Device: payload.Device{
 					Namespace: "my-namespace",
 				},
@@ -190,9 +190,9 @@ func Test_buildPayload(t *testing.T) {
 				Packets:        2,
 				EtherType:      "IPv4",
 				IPProtocol:     "TCP",
-				Tos:            3,
-				Dscp:           0,
-				DscpName:       "CS0",
+				TOS:            3,
+				DSCP:           0,
+				DSCPName:       "CS0",
 				Device: payload.Device{
 					Namespace: "my-namespace",
 				},
@@ -260,9 +260,9 @@ func Test_buildPayload(t *testing.T) {
 				Packets:        2,
 				EtherType:      "IPv4",
 				IPProtocol:     "TCP",
-				Tos:            3,
-				Dscp:           0,
-				DscpName:       "CS0",
+				TOS:            3,
+				DSCP:           0,
+				DSCPName:       "CS0",
 				Device: payload.Device{
 					Namespace: "my-namespace",
 				},
@@ -314,7 +314,7 @@ func Test_buildPayload(t *testing.T) {
 				DstPort:         80,
 				InputInterface:  10,
 				OutputInterface: 20,
-				Tos:             184, // 0xb8 -> DSCP 46 (EF)
+				Tos:             0b1011_1000, // same as 184 / 0xb8 -> DSCP 46 (EF)
 				NextHop:         []byte{10, 10, 10, 30},
 				TCPFlags:        uint32(19), // 19 = SYN,ACK,FIN
 			},
@@ -329,9 +329,9 @@ func Test_buildPayload(t *testing.T) {
 				Packets:        2,
 				EtherType:      "IPv4",
 				IPProtocol:     "TCP",
-				Tos:            184,
-				Dscp:           46,
-				DscpName:       "EF",
+				TOS:            184,
+				DSCP:           46,
+				DSCPName:       "EF",
 				Device: payload.Device{
 					Namespace: "my-namespace",
 				},
