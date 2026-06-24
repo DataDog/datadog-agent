@@ -60,6 +60,7 @@ type Worker struct {
 	haAgent                 haagent.Component
 	healthPlatform          healthplatform.Component
 	watchdogWarningTimeout  time.Duration
+	isShadowWorker          bool
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
@@ -73,6 +74,7 @@ func NewWorker(
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 	watchdogWarningTimeout time.Duration,
+	isShadowWorker bool,
 ) (*Worker, error) {
 
 	if checksTracker == nil {
@@ -98,6 +100,7 @@ func NewWorker(
 		healthPlatform,
 		pollingInterval,
 		watchdogWarningTimeout,
+		isShadowWorker,
 	)
 }
 
@@ -115,6 +118,7 @@ func newWorkerWithOptions(
 	healthPlatform healthplatform.Component,
 	utilizationTickInterval time.Duration,
 	watchdogWarningTimeout time.Duration,
+	isShadowWorker bool,
 ) (*Worker, error) {
 
 	if getDefaultSenderFunc == nil {
@@ -122,6 +126,10 @@ func newWorkerWithOptions(
 	}
 
 	workerName := fmt.Sprintf("worker_%d", ID)
+
+	if isShadowWorker {
+		workerName = workerName + " (shadow)"
+	}
 
 	return &Worker{
 		ID:                      ID,
@@ -135,6 +143,7 @@ func newWorkerWithOptions(
 		healthPlatform:          healthPlatform,
 		utilizationTickInterval: utilizationTickInterval,
 		watchdogWarningTimeout:  watchdogWarningTimeout,
+		isShadowWorker:          isShadowWorker,
 	}, nil
 }
 
@@ -142,7 +151,7 @@ func newWorkerWithOptions(
 // The provided ctx is used for cancellable operations such as hostname resolution;
 // it should be cancelled when the agent shuts down.
 func (w *Worker) Run(ctx context.Context) {
-	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
+	log.Debugf("Runner %d, worker %d, shadow: %t: Ready to process checks...", w.runnerID, w.ID, w.isShadowWorker)
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
 	utilizationTracker := utilizationtracker.NewUtilizationTracker(w.utilizationTickInterval, alpha)
@@ -231,7 +240,7 @@ func (w *Worker) Run(ctx context.Context) {
 			serviceCheckStatus = servicecheck.ServiceCheckCritical
 		}
 
-		if sender != nil && !longRunning {
+		if sender != nil && !longRunning && !w.isShadowWorker {
 			if pkgconfigsetup.Datadog().GetBool("integration_check_status_enabled") {
 				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
 			}

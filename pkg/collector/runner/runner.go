@@ -42,20 +42,21 @@ var (
 
 // Runner is the object in charge of running all the checks
 type Runner struct {
-	senderManager       sender.SenderManager
-	haAgent             haagent.Component
-	healthPlatform      healthplatform.Component // Health platform component for reporting issues
-	isRunning           *atomic.Bool
-	id                  int                           // Globally unique identifier for the Runner
-	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
-	workersLock         sync.Mutex                    // Lock to prevent concurrent worker changes
-	isStaticWorkerCount bool                          // Flag indicating if numWorkers is dynamically updated
-	pendingChecksChan   chan check.Check              // The channel where checks come from
-	checksTracker       *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
-	scheduler           *scheduler.Scheduler          // Scheduler runner operates on
-	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
-	utilizationMonitor  *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
-	utilizationLogLimit *log.Limit                    // Log limiter for utilization warnings
+	senderManager           sender.SenderManager
+	haAgent                 haagent.Component
+	healthPlatform          healthplatform.Component // Health platform component for reporting issues
+	isRunning               *atomic.Bool
+	id                      int                           // Globally unique identifier for the Runner
+	workers                 map[int]*worker.Worker        // Workers currrently under this Runner's management
+	workersLock             sync.Mutex                    // Lock to prevent concurrent worker changes
+	isStaticWorkerCount     bool                          // Flag indicating if numWorkers is dynamically updated
+	pendingChecksChan       chan check.Check              // The channel where checks come from
+	pendingShadowChecksChan chan check.Check              // The channel where checks come from
+	checksTracker           *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
+	scheduler               *scheduler.Scheduler          // Scheduler runner operates on
+	schedulerLock           sync.RWMutex                  // Lock around operations on the scheduler
+	utilizationMonitor      *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
+	utilizationLogLimit     *log.Limit                    // Log limiter for utilization warnings
 	// ctx is cancelled when the runner stops, providing a cancellation signal
 	// to any context-aware operation inside workers (e.g. hostname resolution).
 	ctx    context.Context
@@ -69,19 +70,20 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, he
 	ctx, cancel := context.WithCancel(context.Background())
 
 	r := &Runner{
-		senderManager:       senderManager,
-		haAgent:             haAgent,
-		healthPlatform:      healthPlatform,
-		id:                  int(runnerIDGenerator.Inc()),
-		isRunning:           atomic.NewBool(true),
-		workers:             make(map[int]*worker.Worker),
-		isStaticWorkerCount: numWorkers != 0,
-		pendingChecksChan:   make(chan check.Check),
-		checksTracker:       tracker.NewRunningChecksTracker(),
-		utilizationMonitor:  worker.NewUtilizationMonitor(pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold")),
-		utilizationLogLimit: log.NewLogLimit(1, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown")),
-		ctx:                 ctx,
-		cancel:              cancel,
+		senderManager:           senderManager,
+		haAgent:                 haAgent,
+		healthPlatform:          healthPlatform,
+		id:                      int(runnerIDGenerator.Inc()),
+		isRunning:               atomic.NewBool(true),
+		workers:                 make(map[int]*worker.Worker),
+		isStaticWorkerCount:     numWorkers != 0,
+		pendingChecksChan:       make(chan check.Check),
+		pendingShadowChecksChan: make(chan check.Check),
+		checksTracker:           tracker.NewRunningChecksTracker(),
+		utilizationMonitor:      worker.NewUtilizationMonitor(pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold")),
+		utilizationLogLimit:     log.NewLogLimit(1, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown")),
+		ctx:                     ctx,
+		cancel:                  cancel,
 	}
 
 	if !r.isStaticWorkerCount {
@@ -110,7 +112,7 @@ func (r *Runner) ensureMinWorkers(desiredNumWorkers int) {
 
 	workersToAdd := desiredNumWorkers - currentWorkers
 	for idx := 0; idx < workersToAdd; idx++ {
-		worker, err := r.newWorker()
+		worker, err := r.newWorker(false)
 		if err == nil {
 			r.workers[worker.ID] = worker
 		}
@@ -129,15 +131,31 @@ func (r *Runner) AddWorker() {
 	r.workersLock.Lock()
 	defer r.workersLock.Unlock()
 
-	worker, err := r.newWorker()
+	worker, err := r.newWorker(false)
+	if err == nil {
+		r.workers[worker.ID] = worker
+	}
+}
+
+// AddShadowWorker adds a single shadow worker to the runner.
+func (r *Runner) AddShadowWorker() {
+	r.workersLock.Lock()
+	defer r.workersLock.Unlock()
+
+	worker, err := r.newWorker(true)
 	if err == nil {
 		r.workers[worker.ID] = worker
 	}
 }
 
 // newWorker adds a new worker running in a separate goroutine
-func (r *Runner) newWorker() (*worker.Worker, error) {
+func (r *Runner) newWorker(isShadowWorker bool) (*worker.Worker, error) {
 	watchdogWarningTimeout := pkgconfigsetup.Datadog().GetDuration("check_watchdog_warning_timeout")
+
+	pendingChecksChan := r.pendingChecksChan
+	if isShadowWorker {
+		pendingChecksChan = r.pendingShadowChecksChan
+	}
 
 	worker, err := worker.NewWorker(
 		r.senderManager,
@@ -145,10 +163,11 @@ func (r *Runner) newWorker() (*worker.Worker, error) {
 		r.healthPlatform,
 		r.id,
 		int(workerIDGenerator.Inc()),
-		r.pendingChecksChan,
+		pendingChecksChan,
 		r.checksTracker,
 		r.ShouldAddCheckStats,
 		watchdogWarningTimeout,
+		isShadowWorker,
 	)
 	if err != nil {
 		log.Errorf("Runner %d was unable to instantiate a worker: %s", r.id, err)
@@ -256,6 +275,11 @@ func (r *Runner) Stop() {
 // GetChan returns a write-only version of the pending channel
 func (r *Runner) GetChan() chan<- check.Check {
 	return r.pendingChecksChan
+}
+
+// GetChan returns a write-only version of the pending channel
+func (r *Runner) GetShadowChan() chan<- check.Check {
+	return r.pendingShadowChecksChan
 }
 
 // SetScheduler sets the scheduler for the runner

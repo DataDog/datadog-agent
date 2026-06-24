@@ -197,14 +197,19 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 
 		log.Tracef("Jobs in bucket: %v", jobs)
 
-		for _, check := range jobs {
-			if !s.IsCheckScheduled(check.ID()) {
+		for _, ch := range jobs {
+			if !s.IsCheckScheduled(ch.ID()) {
 				continue
+			}
+
+			checksPipe := s.checksPipe
+			if _, isShadowCheck := ch.(*check.ShadowCheck); isShadowCheck {
+				checksPipe = s.shadowChecksPipe
 			}
 
 			select {
 			// blocking, we'll be here as long as it takes
-			case s.checksPipe <- check:
+			case checksPipe <- ch:
 			case <-jq.stop:
 				_ = jq.health.Deregister()
 				return false

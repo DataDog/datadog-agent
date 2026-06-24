@@ -43,6 +43,7 @@ func init() {
 type Scheduler struct {
 	running          *atomic.Bool                // Flag to see if the scheduler is running
 	checksPipe       chan<- check.Check          // The pipe the Runner pops the checks from, initially set to nil
+	shadowChecksPipe chan<- check.Check          // The pipe the Runner pops the checks from, initially set to nil
 	done             chan bool                   // Guard for the main loop
 	halted           chan bool                   // Used to internally communicate all queues are done
 	started          chan bool                   // Used to internally communicate the queues are up
@@ -62,9 +63,10 @@ type Scheduler struct {
 }
 
 // NewScheduler create a Scheduler and returns a pointer to it.
-func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
+func NewScheduler(checksPipe chan<- check.Check, shadowChecksPipe chan<- check.Check) *Scheduler {
 	return &Scheduler{
 		checksPipe:       checksPipe,
+		shadowChecksPipe: shadowChecksPipe,
 		done:             make(chan bool),
 		halted:           make(chan bool),
 		started:          make(chan bool),
