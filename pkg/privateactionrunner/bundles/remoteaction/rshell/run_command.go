@@ -73,6 +73,12 @@ type RunCommandHandler struct {
 	mode                              interp.Mode
 }
 
+// newRunCommandHandler builds a run-command handler and precomputes the
+// operator allowlists:
+//
+//  1. Paths are normalized, reduced to the broadest entries per access group,
+//     and deduplicated so same-path read-write entries replace read-only ones.
+//  2. Commands are deduplicated.
 func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode, pathsConfigured, commandsConfigured bool) *RunCommandHandler {
 	// remove duplicates
 	commands := slices.Clone(operatorAllowedCommands)
@@ -110,14 +116,19 @@ func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []str
 }
 
 // filterAllowedPaths returns the effective path allowlist passed to rshell:
-// the signed task list after path/suffix normalization, optionally narrowed by
-// explicitly configured agent-side paths.
+//
+//  1. Normalize the signed backend paths.
+//  2. If no operator allowlist is configured, use the backend paths directly.
+//  3. If an operator allowlist is configured, intersect operator and backend
+//     paths by access group and containment, keeping the narrower matching path.
+//  4. Remove same-path read-only entries when a read-write entry exists. For example,
+//     if `/var/log:ro` and `/var/log:rw` both exist, only `/var/log:rw` is kept.
 func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 	backendPaths := cleanPathList(backend)
 	if !h.operatorAllowedPathsConfigured {
-		return backendPaths
+		return dedupeSamePathPreferReadWrite(backendPaths)
 	}
-	return intersectAllowedPathsByAccess(cleanPathList(h.operatorAllowedPaths), backendPaths)
+	return dedupeSamePathPreferReadWrite(intersectAllowedPathsByAccess(h.operatorAllowedPaths, cleanPathList(backendPaths)))
 }
 
 // RunCommandInputs defines the user-supplied inputs for the runCommand action.

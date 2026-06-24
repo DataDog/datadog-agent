@@ -242,9 +242,14 @@ func TestReducePathListToBroadest(t *testing.T) {
 			want: []string{"/var/log/:rw", "/var/log/datadog/"},
 		},
 		{
-			name: "same path can exist in read-only and read-write buckets",
+			name: "read-write path replaces unsuffixed read-only path with same path",
 			in:   []string{"/var/log/", "/var/log/:rw"},
-			want: []string{"/var/log/", "/var/log/:rw"},
+			want: []string{"/var/log/:rw"},
+		},
+		{
+			name: "read-write path replaces explicit read-only path with same path",
+			in:   []string{"/var/log/:ro", "/var/log/:rw"},
+			want: []string{"/var/log/:rw"},
 		},
 		{
 			name: "explicit read-only suffix is preserved",
@@ -272,9 +277,9 @@ func TestReducePathListToBroadest(t *testing.T) {
 			want: []string{"/var/log/:ro"},
 		},
 		{
-			name: "duplicates are removed per access bucket",
+			name: "duplicates are removed across access buckets",
 			in:   []string{"/var/log/:rw", "/var/log/:rw", "/var/log/", "/var/log/"},
-			want: []string{"/var/log/", "/var/log/:rw"},
+			want: []string{"/var/log/:rw"},
 		},
 		{
 			name: "root read-only reduces all read-only paths only",
@@ -282,9 +287,9 @@ func TestReducePathListToBroadest(t *testing.T) {
 			want: []string{"/"},
 		},
 		{
-			name: "root read-write reduces all read-write paths only",
+			name: "root read-write replaces read-only root with same path",
 			in:   []string{"/var/log/:rw", "/etc/:rw", "/:rw", "/"},
-			want: []string{"/", "/:rw"},
+			want: []string{"/:rw"},
 		},
 		{
 			name: "mixed access reductions stay isolated",
