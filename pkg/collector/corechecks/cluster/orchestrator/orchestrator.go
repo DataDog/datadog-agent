@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -20,9 +21,12 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
+	corev1listers "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -93,6 +97,8 @@ type OrchestratorCheck struct {
 	apiClient                   *apiserver.APIClient
 	orchestratorInformerFactory *collectors.OrchestratorInformerFactory
 	agentVersion                *model.AgentVersion
+	helmConfigMapLister         corev1listers.ConfigMapLister
+	helmInformerOnce            sync.Once
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg configcomp.Component, wlmStore workloadmeta.Component, tagger tagger.Component) *OrchestratorCheck {
@@ -250,12 +256,35 @@ func (o *OrchestratorCheck) collectAndLogHelmReleases() {
 		return
 	}
 
-	releases, err := helmcollector.CollectReleases(context.TODO(), o.apiClient.Cl)
-	if err != nil {
-		_ = log.Warnc(fmt.Sprintf("helm: failed to collect releases: %v", err), orchestrator.ExtraLogContext...)
+	
+	o.helmInformerOnce.Do(func() {
+		cmInformer := o.orchestratorInformerFactory.HelmConfigMapInformerFactory.Core().V1().ConfigMaps()
+		go cmInformer.Informer().Run(o.stopCh)
+
+		informerName := apiserver.InformerName("helm-configmaps")
+		syncErrors := apiserver.SyncInformersReturnErrors(
+			map[apiserver.InformerName]cache.SharedInformer{informerName: cmInformer.Informer()},
+			o.collectorBundle.extraSyncTimeout,
+		)
+		if err := syncErrors[informerName]; err != nil {
+			_ = log.Warnc(fmt.Sprintf("helm: %v", err), orchestrator.ExtraLogContext...)
+			return
+		}
+		o.helmConfigMapLister = cmInformer.Lister()
+	})
+
+	// Skip Helm collection if the informer never synced.
+	if o.helmConfigMapLister == nil {
 		return
 	}
 
+	configMaps, err := o.helmConfigMapLister.List(labels.Everything())
+	if err != nil {
+		_ = log.Warnc(fmt.Sprintf("helm: failed to list releases: %v", err), orchestrator.ExtraLogContext...)
+		return
+	}
+
+	releases := helmcollector.ReleasesFromConfigMaps(configMaps)
 	log.Debugc(fmt.Sprintf("helm: collected %d release(s)", len(releases)), orchestrator.ExtraLogContext...)
 	for _, r := range releases {
 		var chart string
@@ -295,6 +324,11 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		).String()
 	}
 
+	// Only collect the ConfigMaps that Helm uses to store its release records.
+	helmConfigMapsTweakListOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = helmcollector.StorageLabelSelector
+	}
+
 	of := &collectors.OrchestratorInformerFactory{
 		InformerFactory:              informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval),
 		CRDInformerFactory:           externalversions.NewSharedInformerFactory(apiClient.CRDInformerClient, defaultResyncInterval),
@@ -302,6 +336,7 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
 		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(unassignedPodsTweakListOptions)),
 		TerminatedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(terminatedPodsTweakListOptions)),
+		HelmConfigMapInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(helmConfigMapsTweakListOptions)),
 	}
 
 	return of

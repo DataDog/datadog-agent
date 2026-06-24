@@ -8,38 +8,30 @@
 package helm
 
 import (
-	"context"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// helmStorageLabelSelector matches the ConfigMaps that Helm uses to store its
-// release records. Helm labels every storage object (ConfigMap or Secret) with
+// Helm labels every storage object (ConfigMap or Secret) with
 // "owner=helm".
-const helmStorageLabelSelector = "owner=helm"
+const StorageLabelSelector = "owner=helm"
 
-// CollectReleases lists every Helm-managed ConfigMap across all namespaces and
-// decodes each into a Release.
+// ReleasesFromConfigMaps decodes the given Helm-managed ConfigMaps into Releases.
+// The ConfigMaps are expected to already be filtered to Helm's storage objects
+// (see StorageLabelSelector), for example by an informer's list options.
 //
 // A ConfigMap whose release data cannot be decoded is logged and skipped, so a
 // single malformed object never prevents the rest from being collected.
 //
 // Only the ConfigMap storage backend is supported for now; Helm 3 defaults to
 // Secrets, which use the same blob format and can be added later.
-func CollectReleases(ctx context.Context, client kubernetes.Interface) ([]*Release, error) {
-	configMaps, err := client.CoreV1().ConfigMaps(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-		LabelSelector: helmStorageLabelSelector,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	releases := make([]*Release, 0, len(configMaps.Items))
-	for i := range configMaps.Items {
-		cm := &configMaps.Items[i]
+func ReleasesFromConfigMaps(configMaps []*corev1.ConfigMap) []*Release {
+	releases := make([]*Release, 0, len(configMaps))
+	for _, cm := range configMaps {
+		if cm == nil {
+			continue
+		}
 		release, err := ParseRelease(cm.Data["release"])
 		if err != nil {
 			log.Debugf("Skipping Helm ConfigMap %s/%s: %v", cm.Namespace, cm.Name, err)
@@ -47,6 +39,5 @@ func CollectReleases(ctx context.Context, client kubernetes.Interface) ([]*Relea
 		}
 		releases = append(releases, release)
 	}
-
-	return releases, nil
+	return releases
 }
