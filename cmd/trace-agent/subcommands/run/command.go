@@ -81,7 +81,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}
-	opts := []fx.Option{
+	err := fxutil.Run(
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
@@ -125,17 +125,16 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		configsyncfx.Module(configsync.NewDefaultParams()),
 		fxinstrumentation.Module(),
 		remoteagentfx.Module(),
-		agenttelemetryfx.Module(),
 		fx.Supply(configstreamconsumer.NewParams("trace-agent", cliParams.ConfPath)),
 		configstreamconsumerfx.Module(),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
+		agenttelemetryfx.Module(),
 		fx.Invoke(func(tm coretelemetry.Component) {
 			api.InitTelemetry(tm)
 		}),
 		fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
-	}
-	err := fxutil.Run(opts...)
+	)
 	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {
 		return nil
 	}
