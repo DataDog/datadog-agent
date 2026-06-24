@@ -112,6 +112,10 @@ try {
 		SafeModeAdministratorPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
 		Force                         = $true
 	}; Install-ADDSForest @HashArguments
+	# Install-ADDSForest may return RebootRequired:False yet still require a reboot for ADWS to start.
+	# Schedule the reboot 5 seconds out so the command returns and Pulumi acknowledges success
+	# before the SSH connection drops.
+	shutdown.exe /r /f /t 5
 }
 `, params.DomainName, params.DomainPassword),
 	}, pulumi.Parent(adCtx.comp), pulumi.DependsOn(adCtx.createdResources))
