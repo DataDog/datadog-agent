@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -39,11 +40,12 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	}
 	normalized, err := normalizeForSchema(raw)
 	if err != nil {
-		return nil, fmt.Errorf("normalizing config for schema validation: %w", err)
+		return nil, fmt.Errorf("invalidconfig: normalize config: %w", err)
 	}
 	errs, schemaErr := schema.ValidateCoreConfig(normalized)
 	if schemaErr != nil {
-		return nil, fmt.Errorf("schema validator unavailable: %w", schemaErr)
+		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
+		return nil, schemaErr
 	}
 	if len(errs) == 0 {
 		return nil, nil
