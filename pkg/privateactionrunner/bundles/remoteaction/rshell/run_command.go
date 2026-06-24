@@ -128,7 +128,7 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 	if !h.operatorAllowedPathsConfigured {
 		return dedupeSamePathPreferReadWrite(backendPaths)
 	}
-	return dedupeSamePathPreferReadWrite(intersectAllowedPathsByAccess(h.operatorAllowedPaths, cleanPathList(backendPaths)))
+	return intersectAllowedPathsByAccess(h.operatorAllowedPaths, cleanPathList(backendPaths))
 }
 
 // RunCommandInputs defines the user-supplied inputs for the runCommand action.
