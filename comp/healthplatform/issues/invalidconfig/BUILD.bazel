@@ -14,6 +14,7 @@ go_library(
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "//pkg/config/schema",
+        "//pkg/util/log",
         "//pkg/util/scrubber",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@in_yaml_go_yaml_v3//:yaml",
