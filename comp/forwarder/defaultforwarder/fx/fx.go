@@ -17,7 +17,7 @@ import (
 // Module defines the fx options for this component.
 func Module(params defaultforwarderdef.Params) fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(defaultforwarderimpl.NewForwarderFromDeps),
+		fxutil.ProvideComponentConstructor(defaultforwarderimpl.NewComponent),
 		fx.Supply(params),
 	)
 }
@@ -26,7 +26,7 @@ func Module(params defaultforwarderdef.Params) fxutil.Module {
 // Deprecated: will be removed once configsync cleanup is done.
 func ModuleWithOptionTMP(option fx.Option) fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(defaultforwarderimpl.NewForwarderFromDeps),
+		fxutil.ProvideComponentConstructor(defaultforwarderimpl.NewComponent),
 		option,
 	)
 }
