@@ -912,6 +912,7 @@ require (
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.5.0
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.78.1
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock v0.0.0-00010101000000-000000000000
@@ -1263,6 +1264,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ./comp/core/agenttelemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ./comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def => ./comp/core/configstreamconsumer/def
 	github.com/DataDog/datadog-agent/comp/core/configsync => ./comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ./comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ./comp/core/delegatedauth/api/cloudauth/aws
