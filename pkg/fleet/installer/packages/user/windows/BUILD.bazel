@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:go_test file
+
 go_library(
     name = "windows",
     srcs = [
@@ -24,14 +26,23 @@ go_library(
 )
 
 go_test(
-    name = "windows_test",
-    srcs = [
-        "user_manual_test.go",
-        "user_test.go",
-    ],
+    name = "user_manual_test",
+    srcs = ["user_manual_test.go"],
     embed = [":windows"],
     gotags = ["test"],
-    target_compatible_with = ["@platforms//os:windows"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "user_test",
+    srcs = ["user_test.go"],
+    embed = [":windows"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
