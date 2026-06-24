@@ -121,9 +121,6 @@ py_binary(
 
 - `tasks/libs/common/get_payload_version.py` — reads `go.mod`, emits a Bazel
   Starlark constant; zero invoke imports; exposed as `//tasks:get_payload_version_tool`.
-- `tasks/renovate.py` — thin `@task` wrapper; the Bazel `py_binary` target calls
-  `renovate.py` directly (it is also a standalone script because it resolves paths
-  via `$BUILD_WORKSPACE_DIRECTORY`).
 
 ### Rules of Thumb
 
