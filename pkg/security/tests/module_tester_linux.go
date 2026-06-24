@@ -215,6 +215,9 @@ runtime_security_config:
         period: {{.EnforcementDisarmerExecutablePeriod}}
   file_metadata_resolver:
     enabled: true
+  syscalls:
+    capture_all_errors:
+      enabled: {{ .CaptureAllSyscallErrorsEnabled }}
 `
 
 const (

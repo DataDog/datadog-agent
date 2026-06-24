@@ -67,13 +67,6 @@ namespace Datadog.CustomActions
 
         private static ActionResult ConfigureAutoLogger(ISession session)
         {
-            var autologgerEnabled = session.Property("DD_LOGON_DURATION_AUTOLOGGER");
-            if (!string.Equals(autologgerEnabled, "true", StringComparison.OrdinalIgnoreCase))
-            {
-                session.Log("DD_LOGON_DURATION_AUTOLOGGER is not set to true, skipping AutoLogger configuration");
-                return ActionResult.Success;
-            }
-
             var rollbackDataStore = new RollbackDataStore(session, RollbackDataName);
             try
             {
@@ -89,10 +82,28 @@ namespace Datadog.CustomActions
                 // Snapshot the current registry state before making any changes
                 rollbackDataStore.Add(new RegistryKeyRollbackData(SessionKeyPath));
 
+                // Preserve the runtime Start value set by the agent (e.g. Start=1 when
+                // logon_duration.enabled is true). On upgrades with DD_INSTALL_ONLY=1 the
+                // agent service is not restarted, so the agent never gets to re-apply the
+                // toggle — we must not reset Start=0 in that case.
+                var startValue = 0;
+                using (var existingKey = Registry.LocalMachine.OpenSubKey(SessionKeyPath))
+                {
+                    if (existingKey != null)
+                    {
+                        var raw = existingKey.GetValue("Start");
+                        if (raw is int i)
+                        {
+                            startValue = i;
+                        }
+                        session.Log($"Existing AutoLogger Start={startValue}, preserving through upgrade");
+                    }
+                }
+
                 var logonDurationDir = Path.Combine(appDataDir, LogonDurationSubDir);
                 var etlFilePath = Path.Combine(logonDurationDir, EtlFileName);
 
-                CreateAutoLoggerRegistryKeys(session, etlFilePath);
+                CreateAutoLoggerRegistryKeys(session, etlFilePath, startValue);
 
                 if (!string.IsNullOrEmpty(ddAgentUserSidString))
                 {
@@ -117,7 +128,7 @@ namespace Datadog.CustomActions
             }
         }
 
-        private static void CreateAutoLoggerRegistryKeys(ISession session, string etlFilePath)
+        private static void CreateAutoLoggerRegistryKeys(ISession session, string etlFilePath, int startValue)
         {
             session.Log($"Creating AutoLogger session key: {SessionKeyPath}");
 
@@ -128,7 +139,7 @@ namespace Datadog.CustomActions
                     throw new Exception($"Failed to create registry key: {SessionKeyPath}");
                 }
 
-                sessionKey.SetValue("Start", 0, RegistryValueKind.DWord);
+                sessionKey.SetValue("Start", startValue, RegistryValueKind.DWord);
                 sessionKey.SetValue("Guid", Guid.NewGuid().ToString("B").ToUpperInvariant(), RegistryValueKind.String);
                 sessionKey.SetValue("BufferSize", 128, RegistryValueKind.DWord);
                 sessionKey.SetValue("MaximumBuffers", 32, RegistryValueKind.DWord);
@@ -235,14 +246,6 @@ namespace Datadog.CustomActions
         public static ActionResult ConfigureAutoLoggerRollback(Session session)
         {
             var wrappedSession = new SessionWrapper(session);
-            var autologgerEnabled = wrappedSession.Property("DD_LOGON_DURATION_AUTOLOGGER");
-            if (!string.Equals(autologgerEnabled, "true", StringComparison.OrdinalIgnoreCase))
-            {
-                wrappedSession.Log("DD_LOGON_DURATION_AUTOLOGGER was not set to true; " +
-                                   "skipping rollback to preserve pre-existing autologger state");
-                return ActionResult.Success;
-            }
-
             try
             {
                 var rollbackDataStore = new RollbackDataStore(wrappedSession, RollbackDataName);

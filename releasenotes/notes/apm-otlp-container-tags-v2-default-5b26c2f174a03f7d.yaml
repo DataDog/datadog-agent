@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM : The ``enable_otlp_container_tags_v2`` behavior is now enabled by default.
+    Container tags on OTLP traces are now extracted using the infraattributes processor
+    instead of calling the tagger directly, reducing redundant work and outgoing traffic.
+    To opt out, set ``disable_otlp_container_tags_v2`` in ``apm_config.features``.
+deprecations:
+  - |
+    APM : The ``enable_otlp_container_tags_v2`` feature flag has been removed and no longer has any effect.
+    Use ``disable_otlp_container_tags_v2`` to opt out of the new default behavior.

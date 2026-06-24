@@ -56,6 +56,12 @@ const (
 	// AnnotationSize is the annotiation used to identify the package size.
 	AnnotationSize = "com.datadoghq.package.size"
 
+	// VariantFIPS is the value used in oci.Platform.Variant to mark a FIPS-compliant
+	// build. The OCI spec defines variant for CPU variants; Datadog overloads it as a
+	// build flavor to distinguish sibling manifests for the same os/arch within a single
+	// OCI index.
+	VariantFIPS = "fips"
+
 	// DatadogPackageLayerMediaType is the media type for the main Datadog Package layer.
 	DatadogPackageLayerMediaType types.MediaType = "application/vnd.datadog.package.layer.v1.tar+zstd"
 	// DatadogPackageConfigLayerMediaType is the media type for the optional Datadog Package config layer.
@@ -68,6 +74,61 @@ const (
 
 // ErrNoLayerMatchesAnnotations is the error returned when no layer matches the requested annotations.
 var ErrNoLayerMatchesAnnotations = errors.New("no layer matches the requested annotations")
+
+// RegistryError annotates an error returned while talking to a specific OCI
+// registry. When Downloader.Download has to try multiple registries, each
+// per-registry failure is wrapped in a RegistryError so callers can iterate
+// them (see RegistryErrors) and present each attempt to the user with its
+// registry context — similar to how os.LinkError carries the path alongside
+// the underlying error.
+type RegistryError struct {
+	Registry string // the registry URL / reference that was attempted
+	Err      error  // the underlying error returned by that registry
+}
+
+// Error implements the error interface.
+func (e *RegistryError) Error() string {
+	return fmt.Sprintf("%s: %v", e.Registry, e.Err)
+}
+
+// Unwrap lets errors.Is / errors.As reach the underlying error (e.g. a
+// go-containerregistry *transport.Error, a *net.DNSError, etc.).
+func (e *RegistryError) Unwrap() error {
+	return e.Err
+}
+
+// RegistryErrors walks err and returns all *RegistryError values found in its
+// chain, across multierr branches. Useful for presenting per-registry failure
+// summaries when a multi-registry download fails. Returns an empty slice if
+// there are no RegistryError values.
+func RegistryErrors(err error) []*RegistryError {
+	var out []*RegistryError
+	collectRegistryErrors(err, &out)
+	return out
+}
+
+func collectRegistryErrors(err error, out *[]*RegistryError) {
+	if err == nil {
+		return
+	}
+	if re, ok := err.(*RegistryError); ok {
+		*out = append(*out, re)
+		// Don't descend further: a RegistryError's Err is the underlying
+		// transport / net error, not another RegistryError.
+		return
+	}
+	// multierr (and any other Unwrap-returns-slice error) — walk each child.
+	if u, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, e := range u.Unwrap() {
+			collectRegistryErrors(e, out)
+		}
+		return
+	}
+	// Single-wrap chains.
+	if u, ok := err.(interface{ Unwrap() error }); ok {
+		collectRegistryErrors(u.Unwrap(), out)
+	}
+}
 
 const (
 	layerMaxSize   = 3 << 30 // 3GiB
@@ -293,8 +354,8 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 		log.Debugf("Downloading index from %s", refAndKeychain.ref)
 		ref, err := name.ParseReference(refAndKeychain.ref)
 		if err != nil {
-			multiErr = multierr.Append(multiErr, fmt.Errorf("could not parse reference: %w", err))
-			log.Warnf("could not parse reference: %s", err.Error())
+			multiErr = multierr.Append(multiErr, &RegistryError{Registry: refAndKeychain.ref, Err: err})
+			log.Debugf("could not parse reference: %s", err.Error())
 			continue
 		}
 		index, err := remote.Index(
@@ -304,8 +365,8 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 			remote.WithTransport(transport),
 		)
 		if err != nil {
-			multiErr = multierr.Append(multiErr, fmt.Errorf("could not download image using %s: %w", url, err))
-			log.Warnf("could not download image using %s: %s", url, err.Error())
+			multiErr = multierr.Append(multiErr, &RegistryError{Registry: refAndKeychain.ref, Err: err})
+			log.Debugf("could not download image using %s: %s", url, err.Error())
 			continue
 		}
 		return d.downloadIndex(index)
@@ -330,12 +391,23 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,
 	}
+	desiredVariant := ""
+	if d.env.FIPSMode {
+		desiredVariant = VariantFIPS
+		platform.Variant = VariantFIPS
+	}
 	indexManifest, err := index.IndexManifest()
 	if err != nil {
 		return nil, fmt.Errorf("could not get index manifest: %w", err)
 	}
 	for _, manifest := range indexManifest.Manifests {
 		if manifest.Platform != nil && !manifest.Platform.Satisfies(platform) {
+			continue
+		}
+		// Platform.Satisfies treats an empty required Variant as a wildcard, so
+		// the non-FIPS path could otherwise accept a FIPS-tagged manifest
+		// depending on index order. Filter to an exact variant match.
+		if manifest.Platform != nil && manifest.Platform.Variant != desiredVariant {
 			continue
 		}
 		image, err := index.Image(manifest.Digest)
@@ -439,6 +511,8 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) (err error) {
 }
 
 // PackageURL returns the package URL for the given site, package and version.
+// Both base and FIPS flavors live under the same URL — flavor selection
+// happens at download time via Platform.Variant in downloadIndex.
 func PackageURL(env *env.Env, pkg string, version string) string {
 	switch env.Site {
 	case "datad0g.com":

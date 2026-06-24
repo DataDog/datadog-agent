@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,7 +39,13 @@ type WindowsMonitor struct {
 }
 
 // NewWindowsMonitor returns a new WindowsMonitor instance
-func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
+func NewWindowsMonitor(c *config.Config, dh driver.Handle) (_ Monitor, err error) {
+	defer func() {
+		if err != nil {
+			usmstate.Set(usmstate.NotRunning)
+		}
+	}()
+
 	di, err := http.NewDriverInterface(c, dh)
 	if err != nil {
 		return nil, err
@@ -49,10 +56,27 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 	}
 
 	hei.SetMaxFlows(uint64(c.MaxTrackedConnections))
-	hei.SetMaxRequestBytes(uint64(c.HTTPMaxRequestFragment))
+	maxRequestBytes := uint64(c.HTTPMaxRequestFragment)
+	if c.DiscoveryServiceMapEnabled {
+		// Discovery mode discards the request fragment (path/method are not
+		// part of the key and not serialized) but the ETW reader still
+		// allocates a per-flow buffer of this size. The driver requires a
+		// non-zero value, so we shrink it to the smallest practical value
+		// to minimize per-flow memory; 16 bytes is enough to capture the
+		// HTTP method verb that the driver uses for early protocol
+		// disambiguation, and nothing more.
+		maxRequestBytes = 16
+	}
+	hei.SetMaxRequestBytes(maxRequestBytes)
 	hei.SetCapturedProtocols(c.EnableHTTPMonitoring, c.EnableNativeTLSMonitoring)
 
 	telemetry := http.NewTelemetry("http")
+
+	if c.DiscoveryServiceMapEnabled {
+		usmstate.Set(usmstate.Restricted)
+	} else {
+		usmstate.Set(usmstate.Running)
+	}
 
 	return &WindowsMonitor{
 		di:         di,
@@ -137,5 +161,6 @@ func (m *WindowsMonitor) Stop() error {
 	err := m.di.Close()
 	m.hei.Close()
 	m.eventLoopWG.Wait()
+	usmstate.Set(usmstate.Stopped)
 	return err
 }

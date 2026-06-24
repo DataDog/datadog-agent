@@ -15,8 +15,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gorilla/mux"
-
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
@@ -29,7 +27,7 @@ type server struct {
 }
 
 func newServer(endpoint string, handler http.Handler, optIpcComp option.Option[ipc.Component]) (*server, error) {
-	r := mux.NewRouter()
+	r := http.NewServeMux()
 	r.Handle("/", handler)
 	coverage.SetupCoverageHandler(r)
 
@@ -41,7 +39,7 @@ func newServer(endpoint string, handler http.Handler, optIpcComp option.Option[i
 	if ipcComp, ok := optIpcComp.Get(); ok {
 		// Use the TLS configuration from the IPC component if available
 		s.TLSConfig = ipcComp.GetTLSServerConfig()
-		r.Use(ipcComp.HTTPMiddleware)
+		s.Handler = ipcComp.HTTPMiddleware(r)
 	} else {
 		// Use generated self-signed certificate if running outside of the Agent
 		tlsConfig, err := generateSelfSignedCert()

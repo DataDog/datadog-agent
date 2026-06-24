@@ -295,6 +295,17 @@
       "alt_version_names": [
         "questing"
       ]
+    },
+    "ubuntu_26.04": {
+      "image": "ubuntu-26.04-x86_64.qcow2.xz",
+      "image_version": "20260610_1c4a8911",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "7.0.0-15-generic",
+      "os_version": "26.04",
+      "alt_version_names": [
+        "resolute"
+      ]
     }
   },
   "arm64": {
@@ -553,6 +564,17 @@
       "os_version": "25.10",
       "alt_version_names": [
         "questing"
+      ]
+    },
+    "ubuntu_26.04": {
+      "image": "ubuntu-26.04-arm64.qcow2.xz",
+      "image_version": "20260610_1c4a8911",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "7.0.0-15-generic",
+      "os_version": "26.04",
+      "alt_version_names": [
+        "resolute"
       ]
     }
   }

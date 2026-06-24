@@ -1,0 +1,8 @@
+---
+other:
+  - |
+    The health platform store now accepts fully-built proto ``Issue`` objects
+    directly via ``ReportIssue``, removing its dependency on the issue template
+    registry. Template resolution moves to the runner (for built-in health
+    checks) and to direct callers (for AD misconfiguration and check-failure
+    issues).

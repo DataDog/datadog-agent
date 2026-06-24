@@ -223,27 +223,29 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	if cookie > 0 {
 		e.Cookie = cookie
 	}
+	e.PPid = binary.NativeEndian.Uint32(data[8:12])
+	// [12:16] padding
 
-	e.ForkTime = unmarshalTime(data[8:16])
-	e.ExitTime = unmarshalTime(data[16:24])
-	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[24:32])
-	e.ForkFlags = binary.NativeEndian.Uint64(data[32:40])
-	e.PIDContext.SID = binary.NativeEndian.Uint32(data[40:44])
-	// [44:48] padding_sid
+	e.ForkTime = unmarshalTime(data[16:24])
+	e.ExitTime = unmarshalTime(data[24:32])
+	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[32:40])
+	e.ForkFlags = binary.NativeEndian.Uint64(data[40:48])
+	e.PIDContext.SID = binary.NativeEndian.Uint32(data[48:52])
+	// [52:56] padding_sid
 
 	// Unmarshal the credentials contained in pid_cache_t
-	read, err := e.Credentials.UnmarshalBinary(data[48:])
+	read, err := e.Credentials.UnmarshalBinary(data[56:])
 	if err != nil {
 		return 0, err
 	}
-	read += 48
+	read += 56
 
 	return validateReadSize(size, read)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 300 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 308 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -588,7 +590,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself, process_context_t kernel side
 func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 48 {
+	if len(data) < 40 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -597,13 +599,11 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.NetNS = binary.NativeEndian.Uint32(data[8:12])
 	p.MntNS = binary.NativeEndian.Uint32(data[12:16])
 	p.IsKworker = binary.NativeEndian.Uint32(data[16:20]) > 0
-	p.PPid = binary.NativeEndian.Uint32(data[20:24])
-	p.SID = binary.NativeEndian.Uint32(data[24:28])
-	// [28:32] padding_sid
-	p.ExecInode = binary.NativeEndian.Uint64(data[32:40])
-	p.UserSessionID = binary.NativeEndian.Uint64(data[40:48])
+	p.SID = binary.NativeEndian.Uint32(data[20:24])
+	p.ExecInode = binary.NativeEndian.Uint64(data[24:32])
+	p.UserSessionID = binary.NativeEndian.Uint64(data[32:40])
 
-	return 48, nil
+	return 40, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1558,6 +1558,25 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 	// Store the filter
 	e.RawFilter = []byte(data[filterStart : filterStart+sizeToRead])
 	return filterStart + sizeToRead + read, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SocketEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+	e.Domain = binary.NativeEndian.Uint16(data[0:2])
+	e.Type = binary.NativeEndian.Uint16(data[2:4])
+	e.Protocol = binary.NativeEndian.Uint16(data[4:6])
+	// data[6:8] is a u16 padding in the kernel struct to keep 4-byte alignment
+
+	return read + 8, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

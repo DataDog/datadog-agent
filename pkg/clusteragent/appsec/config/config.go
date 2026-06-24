@@ -107,6 +107,12 @@ type Nginx struct {
 	// ModuleMountPath is where the .so module is mounted in the controller container
 	// Default: "/modules_mount"
 	ModuleMountPath string
+	// InitRunAsUser/InitRunAsGroup set the init container's RunAsUser/RunAsGroup.
+	// The default init image declares no USER (runs as root) and would be rejected
+	// under RunAsNonRoot, so a non-root UID/GID must be supplied. A negative value
+	// leaves the field unset, honoring a custom InitImage's own USER.
+	InitRunAsUser  int64
+	InitRunAsGroup int64
 }
 
 func (p Processor) String() string {
@@ -252,6 +258,8 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 	nginxConfig := Nginx{
 		InitImage:       cfg.GetString("admission_controller.appsec.nginx.init_image"),
 		ModuleMountPath: cfg.GetString("admission_controller.appsec.nginx.module_mount_path"),
+		InitRunAsUser:   int64(cfg.GetInt("admission_controller.appsec.nginx.init_run_as_user")),
+		InitRunAsGroup:  int64(cfg.GetInt("admission_controller.appsec.nginx.init_run_as_group")),
 	}
 
 	staticLabels := map[string]string{

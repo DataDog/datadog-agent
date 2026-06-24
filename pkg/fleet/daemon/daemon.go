@@ -297,10 +297,13 @@ func (d *daemonImpl) decryptSecrets(operations config.Operations, encryptedSecre
 	decryptedSecrets := make(map[string]string)
 
 	for key, encoded := range encryptedSecrets {
-		// 1. Check if any file operation in the config contains SEC[key]
+		// 1. Check if any file operation in the config contains SEC[key], either in a
+		// patch or in a jq operation's arguments. Both are raw JSON blobs, so a flat scan
+		// covers placeholders at any nesting depth.
+		fullKey := fmt.Sprintf("SEC[%s]", key)
 		found := false
 		for _, operation := range operations.FileOperations {
-			if strings.Contains(string(operation.Patch), fmt.Sprintf("SEC[%s]", key)) {
+			if strings.Contains(string(operation.Patch), fullKey) || strings.Contains(string(operation.Arguments), fullKey) {
 				found = true
 				break
 			}
@@ -706,6 +709,8 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 				FileOperationType: config.FileOperationType(operation.FileOperationType),
 				FilePath:          operation.FilePath,
 				Patch:             operation.Patch,
+				Transform:         operation.Transform,
+				Arguments:         operation.Arguments,
 			})
 		}
 		encryptedSecrets := make(map[string]string)
@@ -837,6 +842,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
 			RunningVersion:          runningVersions[pkg],
 			RunningConfigVersion:    runningConfigVersions[pkg],
+			HeartbeatTimestamp:      uint64(time.Now().Unix()),
 		}
 
 		requestState, ok := tasksState[pkg]

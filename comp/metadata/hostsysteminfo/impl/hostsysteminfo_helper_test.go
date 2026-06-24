@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )

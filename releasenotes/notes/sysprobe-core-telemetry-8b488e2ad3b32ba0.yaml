@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add ``ebpf.core_load_success``, ``ebpf.core_load_error``, ``ebpf.core_remoteconfig_success``, and ``ebpf.core_remoteconfig_error`` to internal telemetry.

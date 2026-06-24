@@ -18,6 +18,7 @@ type NetworkPathConnection struct {
 	Dest              netip.AddrPort
 	TranslatedDest    netip.AddrPort
 	SourceContainerID string
+	Namespace         string
 	Type              model.ConnectionType
 	Direction         model.ConnectionDirection
 	Family            model.ConnectionFamily

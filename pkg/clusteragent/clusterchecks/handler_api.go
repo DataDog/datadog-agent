@@ -112,7 +112,7 @@ func (h *Handler) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse,
 
 	for _, decision := range rebalancingDecisions {
 		response = append(response, types.RebalanceResponse{
-			CheckID:        decision.CheckID,
+			Digest:         decision.Digest,
 			CheckWeight:    decision.CheckWeight,
 			SourceNodeName: decision.SourceNodeName,
 			SourceDiff:     decision.SourceDiff,

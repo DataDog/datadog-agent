@@ -4,6 +4,7 @@ import tempfile
 from unittest.mock import patch, MagicMock
 from post import post
 import packages
+from packages import IntegrationsRestoreError, IntegrationInstallError
 
 class TestPost(unittest.TestCase):
     def test_post(self):
@@ -147,6 +148,37 @@ class TestPost(unittest.TestCase):
         # Verify only datadog-custom was installed (requests was excluded)
         mock_install_datadog.assert_called_once_with('datadog-custom==1.0.0', install_directory)
         mock_instalL_dependency.assert_not_called()
+
+        # Cleanup
+        os.remove(diff_file)
+        os.remove(req_file)
+        post_file = os.path.join(storage_location, ".post_python_installed_packages.txt")
+        if os.path.exists(post_file):
+            os.remove(post_file)
+        os.rmdir(install_directory)
+        os.rmdir(storage_location)
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_post_returns_one_when_restore_fails(self):
+        """post() must return 1 (not 0) when install_diff_packages_file raises IntegrationsRestoreError."""
+        install_directory = tempfile.mkdtemp()
+        storage_location = tempfile.mkdtemp()
+
+        diff_file = os.path.join(storage_location, '.diff_python_installed_packages.txt')
+        req_file = os.path.join(install_directory, 'requirements-agent-release.txt')
+
+        with open(diff_file, 'w') as f:
+            f.write("# DO NOT REMOVE/MODIFY\n")
+            f.write("datadog-ping==1.0.2\n")
+
+        with open(req_file, 'w') as f:
+            f.write('')
+
+        failures = [IntegrationInstallError('datadog-ping==1.0.2', 1, 'some error')]
+        with patch('packages.install_diff_packages_file', side_effect=IntegrationsRestoreError(failures)):
+            result = post(install_directory, storage_location)
+
+        self.assertEqual(result, 1)
 
         # Cleanup
         os.remove(diff_file)

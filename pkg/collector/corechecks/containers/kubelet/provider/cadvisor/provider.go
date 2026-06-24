@@ -71,14 +71,15 @@ type processCache struct {
 
 // Provider provides the metrics related to data collected from the `/metrics/cadvisor` Kubelet endpoint
 type Provider struct {
-	podFilter       workloadfilter.FilterBundle
-	containerFilter workloadfilter.FilterBundle
-	store           workloadmeta.Component
-	tagger          tagger.Component
-	podUtils        *common.PodUtils
-	fsUsageBytes    map[string]*processCache
-	memUsageBytes   map[string]*processCache
-	swapUsageBytes  map[string]*processCache
+	podFilter               workloadfilter.FilterBundle
+	containerFilter         workloadfilter.FilterBundle
+	store                   workloadmeta.Component
+	tagger                  tagger.Component
+	podUtils                *common.PodUtils
+	fsUsageBytes            map[string]*processCache
+	memUsageBytes           map[string]*processCache
+	swapUsageBytes          map[string]*processCache
+	useStatsSummaryAsSource bool
 	prometheus.Provider
 }
 
@@ -89,15 +90,18 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 
 	cadvisorConfig.IgnoreMetrics = ignoreMetrics
 
+	useStatsSummaryAsSource := common.UseStatsSummaryAsSource(config)
+
 	provider := &Provider{
-		podFilter:       filterStore.GetPodSharedMetricFilters(),
-		containerFilter: filterStore.GetContainerSharedMetricFilters(),
-		store:           store,
-		tagger:          tagger,
-		podUtils:        podUtils,
-		fsUsageBytes:    map[string]*processCache{},
-		memUsageBytes:   map[string]*processCache{},
-		swapUsageBytes:  map[string]*processCache{},
+		podFilter:               filterStore.GetPodSharedMetricFilters(),
+		containerFilter:         filterStore.GetContainerSharedMetricFilters(),
+		store:                   store,
+		tagger:                  tagger,
+		podUtils:                podUtils,
+		fsUsageBytes:            map[string]*processCache{},
+		memUsageBytes:           map[string]*processCache{},
+		swapUsageBytes:          map[string]*processCache{},
+		useStatsSummaryAsSource: useStatsSummaryAsSource,
 	}
 
 	transformers := prometheus.Transformers{
@@ -125,6 +129,33 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 		"container_memory_swap":                            provider.containerMemorySwap,
 		"container_spec_memory_limit_bytes":                provider.containerSpecMemoryLimitBytes,
 		"container_spec_memory_swap_limit_bytes":           provider.containerSpecMemorySwapLimitBytes,
+	}
+
+	// When use_stats_summary_as_source is enabled, the summary provider emits
+	// the same series for these metrics from /stats/summary. Drop their
+	// cAdvisor transformers here to avoid double-counting: keeping both
+	// sources active produced roughly 2x sums on kubernetes.cpu.usage.total
+	// and kubernetes.memory.* (issue #50544).
+	//
+	// Notes:
+	// - container_memory_usage_bytes is NOT dropped: its transformer still
+	//   needs to populate memUsageBytes so kubernetes.memory.usage_pct can
+	//   be derived from container_spec_memory_limit_bytes (the summary
+	//   provider does not emit memory.usage_pct). The transformer suppresses
+	//   the kubernetes.memory.usage emission via useStatsSummaryAsSource.
+	// - container_fs_limit_bytes is dropped because the summary provider
+	//   already emits both filesystem.usage and filesystem.usage_pct.
+	if useStatsSummaryAsSource {
+		for _, name := range []string{
+			"container_cpu_usage_seconds_total",
+			"container_memory_working_set_bytes",
+			"container_fs_usage_bytes",
+			"container_fs_limit_bytes",
+			"container_network_receive_bytes_total",
+			"container_network_transmit_bytes_total",
+		} {
+			delete(transformers, name)
+		}
 	}
 
 	scraperConfig := &prometheus.ScraperConfig{
@@ -281,7 +312,10 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 		}
 		seenKeys[containerName] = true
 
-		sender.Gauge(metricName, sample.Value, "", tags)
+		// Empty metricName: cache-only path, mirrors processLimitMetric.
+		if metricName != "" {
+			sender.Gauge(metricName, sample.Value, "", tags)
+		}
 	}
 
 	for k, seen := range seenKeys {
@@ -535,6 +569,12 @@ func (p *Provider) containerMemoryUsageBytes(metricFam *prom.MetricFamily, sende
 		return
 	}
 	metricName := common.KubeletMetricsPrefix + "memory.usage"
+	// Suppress emission when the summary provider is the source of truth, but
+	// keep populating memUsageBytes so memory.usage_pct can still be computed
+	// from container_spec_memory_limit_bytes.
+	if p.useStatsSummaryAsSource {
+		metricName = ""
+	}
 	p.processUsageMetric(metricName, metricFam, p.memUsageBytes, nil, sender)
 }
 

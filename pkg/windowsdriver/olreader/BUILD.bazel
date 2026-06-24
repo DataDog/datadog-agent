@@ -8,6 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

@@ -713,7 +713,7 @@ func (f *fakeAttacher) Attach(
 	_ *loader.Program,
 	_ actuator.Executable,
 	_ actuator.ProcessID,
-) (actuator.AttachedProgram, error) {
+) (module.InnerAttachedProgram, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

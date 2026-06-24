@@ -84,27 +84,26 @@ func (s *baseProcmgrSuite) TestBinariesExist() {
 }
 
 func (s *baseProcmgrSuite) TestServiceRunning() {
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute(s.platform.checkSvcRunning)
-		assert.NoError(t, err)
-		assert.Equal(t, s.platform.svcRunningOutput, strings.TrimSpace(out))
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.checkSvcRunning)
+		assert.Equal(ct, s.platform.svcRunningOutput, strings.TrimSpace(out))
 	}, 30*time.Second, 2*time.Second)
 }
 
 func (s *baseProcmgrSuite) TestCLIStatus() {
 	s.requireCLI()
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("status"))
-		assertHasField(t, out, "Version")
-		assertHasField(t, out, "Uptime")
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("status"))
+		assertHasField(ct, out, "Version")
+		assertHasField(ct, out, "Uptime")
 	}, 30*time.Second, 2*time.Second)
 }
 
 func (s *baseProcmgrSuite) TestCLIListShowsConfiguredProcess() {
 	s.requireCLI()
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("list"))
-		assertTableRow(t, out, "test-sleep", map[string]string{
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		assertTableRow(ct, out, "test-sleep", map[string]string{
 			"STATE":   "Running",
 			"COMMAND": s.platform.sleepCommand,
 		})
@@ -113,19 +112,19 @@ func (s *baseProcmgrSuite) TestCLIListShowsConfiguredProcess() {
 
 func (s *baseProcmgrSuite) TestCLIDescribe() {
 	s.requireCLI()
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe test-sleep"))
-		assertField(t, out, "Name", "test-sleep")
-		assertField(t, out, "State", "Running")
-		assertField(t, out, "Command", s.platform.sleepCommand)
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
+		assertField(ct, out, "Name", "test-sleep")
+		assertField(ct, out, "State", "Running")
+		assertField(ct, out, "Command", s.platform.sleepCommand)
 	}, 30*time.Second, 2*time.Second)
 }
 
 func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
 	s.requireCLI()
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("list"))
-		assertTableRow(t, out, "missing-binary", map[string]string{
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		assertTableRow(ct, out, "missing-binary", map[string]string{
 			"STATE": "Created",
 			"PID":   "-",
 		})

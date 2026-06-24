@@ -1,1 +1,29 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "snmptraps",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/snmptraps/server/fx",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "snmptraps_test",
+    srcs = ["bundle_test.go"],
+    embed = [":snmptraps"],
+    gotags = ["test"],
+    deps = [
+        "//comp/aggregator/demultiplexer/impl",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/forwarder/defaultforwarder/mock",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -101,7 +101,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		return err
 	}
 
-	installEcrCredsHelperCmd, err := docker.InstallECRCredentialsHelper(awsEnv.Namer, host)
+	installEcrCredsHelperCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(), params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	} else {
 		kindCluster, err = kubeComp.NewKindClusterWithConfig(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(),
-			kubeComp.KindConfigFlags{WorkerNodes: params.workerNodes},
+			kubeComp.KindConfigFlags{WorkerNodes: params.workerNodes, MountDockerSocket: params.mountDockerSocket},
 			utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	}
 

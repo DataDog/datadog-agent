@@ -11,19 +11,111 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
+
+func TestDiscoverComponentsFromConfigForHTTPSD(t *testing.T) {
+	configmock.SetDefaultConfigType(t, "yaml")
+	flavor.SetTestFlavor(t, flavor.ClusterAgent)
+
+	t.Run("legacy single url triggers provider", func(t *testing.T) {
+		cfg := configmock.NewFromYAML(t, `
+prometheus_http_sd:
+  url: http://legacy/sd
+  check_template: '{"name":"openmetrics","init_config":{},"instances":[{}]}'
+`)
+		providers, _ := DiscoverComponentsFromConfig(cfg)
+		require.True(t, containsProvider(providers, "prometheus_http_sd"))
+	})
+
+	t.Run("configs list triggers provider", func(t *testing.T) {
+		cfg := configmock.NewFromYAML(t, `
+prometheus_http_sd:
+  configs:
+    - url: http://a/sd
+      check_template: '{"name":"openmetrics","init_config":{},"instances":[{}]}'
+`)
+		providers, _ := DiscoverComponentsFromConfig(cfg)
+		require.True(t, containsProvider(providers, "prometheus_http_sd"))
+	})
+
+	t.Run("no http_sd config means no provider", func(t *testing.T) {
+		cfg := configmock.NewFromYAML(t, ``)
+		providers, _ := DiscoverComponentsFromConfig(cfg)
+		require.False(t, containsProvider(providers, "prometheus_http_sd"))
+	})
+}
+
+func containsProvider(providers []pkgconfigsetup.ConfigurationProviders, name string) bool {
+	for _, p := range providers {
+		if p.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func containsListener(listeners []pkgconfigsetup.Listeners, name string) bool {
+	for _, listener := range listeners {
+		if listener.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func TestDiscoverComponentsFromEnvForProcess(t *testing.T) {
+	configmock.SetDefaultConfigType(t, "yaml")
+	cfg := configmock.NewFromYAML(t, ``)
+
+	t.Run("process feature adds process listener", func(t *testing.T) {
+		flavor.SetTestFlavor(t, flavor.DefaultAgent)
+		env.SetFeatures(t, env.Process)
+
+		_, listeners := DiscoverComponentsFromEnv(cfg)
+		assert.True(t, containsListener(listeners, "process"))
+	})
+
+	t.Run("without process feature does not add process listener", func(t *testing.T) {
+		flavor.SetTestFlavor(t, flavor.DefaultAgent)
+		env.SetFeatures(t)
+
+		_, listeners := DiscoverComponentsFromEnv(cfg)
+		assert.False(t, containsListener(listeners, "process"))
+	})
+
+	t.Run("process feature keeps container discovery behavior", func(t *testing.T) {
+		flavor.SetTestFlavor(t, flavor.DefaultAgent)
+		env.SetFeatures(t, env.Process, env.Docker)
+
+		providers, listeners := DiscoverComponentsFromEnv(cfg)
+		assert.True(t, containsProvider(providers, "kubernetes-container-allinone"))
+		assert.True(t, containsListener(listeners, "container"))
+		assert.True(t, containsListener(listeners, "process"))
+	})
+
+	t.Run("cluster agent does not add process listener", func(t *testing.T) {
+		flavor.SetTestFlavor(t, flavor.ClusterAgent)
+		env.SetFeatures(t, env.Process)
+
+		_, listeners := DiscoverComponentsFromEnv(cfg)
+		assert.False(t, containsListener(listeners, "process"))
+	})
+}
 
 func TestDiscoverComponentsFromConfigForSnmp(t *testing.T) {
 	configmock.SetDefaultConfigType(t, "yaml")
 
-	configmock.NewFromYAML(t, `
+	cfg := configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     configs:
       - network: 127.0.0.1/30
 `)
-	_, configListeners := DiscoverComponentsFromConfig()
+	_, configListeners := DiscoverComponentsFromConfig(cfg)
 	require.Len(t, configListeners, 1)
 	assert.Equal(t, "snmp", configListeners[0].Name)
 
@@ -32,7 +124,7 @@ network_devices:
   autodiscovery:
     configs:
 `)
-	_, configListeners = DiscoverComponentsFromConfig()
+	_, configListeners = DiscoverComponentsFromConfig(cfg)
 	assert.Empty(t, len(configListeners))
 
 	configmock.NewFromYAML(t, `
@@ -40,7 +132,7 @@ snmp_listener:
   configs:
     - network: 127.0.0.1/30
 `)
-	_, configListeners = DiscoverComponentsFromConfig()
+	_, configListeners = DiscoverComponentsFromConfig(cfg)
 	require.Len(t, configListeners, 1)
 	assert.Equal(t, "snmp", configListeners[0].Name)
 
@@ -52,7 +144,7 @@ network_devices:
         ignored_ip_addresses:
           - 127.0.0.3
 `)
-	_, configListeners = DiscoverComponentsFromConfig()
+	_, configListeners = DiscoverComponentsFromConfig(cfg)
 	require.Len(t, configListeners, 1)
 	assert.Equal(t, "snmp", configListeners[0].Name)
 }

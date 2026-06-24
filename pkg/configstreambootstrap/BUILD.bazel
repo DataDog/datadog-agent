@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "configstreambootstrap",
+    srcs = [
+        "bootstrap.go",
+        "testhelpers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/configstreambootstrap",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/api/security",
+        "//pkg/api/security/cert",
+        "//pkg/config/create",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "configstreambootstrap_test",
+    srcs = ["bootstrap_test.go"],
+    embed = [":configstreambootstrap"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/setup",
+        "@com_github_stretchr_testify//require",
+    ],
+)

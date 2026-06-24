@@ -29,6 +29,9 @@ func TestNetworkPathCollectorEnabled(t *testing.T) {
 
 	config.connectionsMonitoringEnabled = false
 	assert.False(t, config.networkPathCollectorEnabled())
+
+	config.netflowMonitoringEnabled = true
+	assert.True(t, config.networkPathCollectorEnabled())
 }
 
 func TestNewConfig(t *testing.T) {
@@ -44,6 +47,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
+				netflowMonitoringEnabled:     false,
 				workers:                      4,
 				timeout:                      1000 * time.Millisecond,
 				maxTTL:                       30,
@@ -71,7 +75,7 @@ func TestNewConfig(t *testing.T) {
 				networkDevicesNamespace:   "default",
 				filterConfig:              []connfilter.Config{},
 				monitorIPWithoutDomain:    false,
-				ddSite:                    "",
+				ddSite:                    "datadoghq.com",
 				sourceProduct:             payload.SourceProductNetworkPath,
 			},
 		},
@@ -114,6 +118,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
+				netflowMonitoringEnabled:     false,
 				workers:                      8,
 				timeout:                      5000 * time.Millisecond,
 				maxTTL:                       64,

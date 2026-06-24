@@ -73,7 +73,7 @@ func TestWaitForPendingSamplesThenFlush(t *testing.T) {
 		}
 
 		<-blockChan
-		demux.Stop(false)
+		demux.Stop()
 
 		if len(series) == 0 {
 			missed++

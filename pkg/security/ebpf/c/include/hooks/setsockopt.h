@@ -7,7 +7,7 @@
 #include <uapi/linux/filter.h>
 #include <helpers/approvers.h>
 
-static long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_fd, int level, int optname) {
+static long __attribute__((always_inline)) trace__sys_setsock_opt(void *ctx, u8 async, int socket_fd, int level, int optname) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -23,7 +23,7 @@ static long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int 
         }
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -63,7 +63,7 @@ static int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int re
 }
 
 HOOK_SYSCALL_ENTRY3(setsockopt, int, socket, int, level, int, optname) {
-    return trace__sys_setsock_opt(SYNC_SYSCALL, socket, level, optname);
+    return trace__sys_setsock_opt(ctx, SYNC_SYSCALL, socket, level, optname);
 }
 
 HOOK_SYSCALL_EXIT(setsockopt) {

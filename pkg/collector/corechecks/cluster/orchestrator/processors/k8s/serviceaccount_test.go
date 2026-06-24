@@ -48,7 +48,7 @@ func TestServiceAccountHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewServiceAccountHandlers(tagger)
 
-	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -121,16 +121,16 @@ func TestServiceAccountHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*corev1.ServiceAccount)
 	assert.True(t, ok)
 	assert.Equal(t, "test-serviceaccount", resource1.Name)
-	assert.NotSame(t, serviceAccount1, resource1) // Should be a copy
+	assert.Same(t, serviceAccount1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*corev1.ServiceAccount)
 	assert.True(t, ok)
 	assert.Equal(t, "serviceaccount2", resource2.Name)
-	assert.NotSame(t, serviceAccount2, resource2) // Should be a copy
+	assert.Same(t, serviceAccount2, resource2) // ResourceList returns raw informer references
 }
 
 func TestServiceAccountHandlers_ResourceUID(t *testing.T) {
@@ -408,4 +408,14 @@ func createTestServiceAccount() *corev1.ServiceAccount {
 			},
 		},
 	}
+}
+
+func TestServiceAccountHandlers_CloneResource(t *testing.T) {
+	handlers := &ServiceAccountHandlers{}
+	original := createTestServiceAccount()
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*corev1.ServiceAccount)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

@@ -7,6 +7,7 @@ ignore_directories([
     ".g*",  # .git, .github, .gitlab
     ".i*",  # .idea, .ijwb
     ".v*",  # .venv, .vscode
+    ".worktrees",  # git worktrees checked out under .worktrees/
     "bazel-*",  # bazel convenience symlinks: suddenly caused issues inside arm64 Linux containers
     "target",  # cargo build creates it where Cargo.toml lives
 ])

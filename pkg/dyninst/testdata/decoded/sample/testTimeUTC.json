@@ -1,0 +1,72 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testTimeUTC",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testTimeUTC",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go",
+            "lineNumber": 27
+          },
+          {
+            "function": "main.executeTimeFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go",
+            "lineNumber": 42
+          },
+          {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 76
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 39
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testTimeUTC",
+          "location": {
+            "method": "main.testTimeUTC"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "time.Time",
+                "value": "2023-11-14T22:13:20.123456789Z"
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "message": "2023-11-14T22:13:20.123456789Z",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

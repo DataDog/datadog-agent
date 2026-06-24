@@ -540,3 +540,8 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 		"last_check":       p.lastCheck.Load(),
 	}
 }
+
+// GetDeviceCache returns the device cache used by the GPU probe.
+func (p *Probe) GetDeviceCache() safenvml.DeviceCache {
+	return p.sysCtx.deviceCache
+}

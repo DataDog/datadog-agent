@@ -6,9 +6,11 @@
 package com_datadoghq_remoteaction_rshell
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/rshell/interp"
 )
 
 func makeTask(command string, allowedCommands []string) *types.Task {
@@ -536,6 +539,49 @@ func TestRunCommandSandboxWarningsNilWhenCleanConfig(t *testing.T) {
 		"a clean sandbox configuration must produce no warnings")
 }
 
+func TestRunCommandOutputLimitsReturnActionErrors(t *testing.T) {
+	// RunCommandOutputs has no truncation marker. Treat output caps as
+	// action errors instead of returning partial stdout/stderr as normal
+	// command results.
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "payload.txt"),
+		bytes.Repeat([]byte("x"), 10*1024*1024+1),
+		0600,
+	))
+
+	cases := []struct {
+		name    string
+		command string
+		wantErr error
+	}{
+		{
+			name:    "stdout limit",
+			command: "cat payload.txt",
+			wantErr: interp.ErrOutputLimitExceeded,
+		},
+		{
+			name:    "stderr limit",
+			command: "cat payload.txt >&2",
+			wantErr: interp.ErrStderrLimitExceeded,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := NewRunCommandHandler([]string{setup.RShellPathAllowAll}, []string{"rshell:cat"})
+			task := makeTaskWithPaths(tc.command,
+				[]string{"rshell:cat"},
+				map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+
+			out, err := handler.Run(context.Background(), task, nil)
+
+			require.Error(t, err)
+			assert.ErrorIs(t, err, tc.wantErr)
+			assert.Nil(t, out)
+		})
+	}
+}
+
 func mockStatFn(existing map[string]bool) func(string) (os.FileInfo, error) {
 	return func(path string) (os.FileInfo, error) {
 		if existing[path] {
@@ -576,4 +622,98 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 	result := resolveProcPath()
 
 	assert.Equal(t, "/proc", result)
+}
+
+// --- runRemediationCommand ---
+
+// TestNewRshellBundleRegistersBothModes verifies the bundle exposes both
+// actions and that each carries the expected rshell execution mode.
+func TestNewRshellBundleRegistersBothModes(t *testing.T) {
+	bundle := NewRshellBundle(&config.Config{})
+
+	runCommand, ok := bundle.GetAction("runCommand").(*RunCommandHandler)
+	require.True(t, ok, "runCommand should be registered")
+	assert.Equal(t, interp.ModeReadOnly, runCommand.mode)
+
+	runRemediation, ok := bundle.GetAction("runRemediationCommand").(*RunCommandHandler)
+	require.True(t, ok, "runRemediationCommand should be registered")
+	assert.Equal(t, interp.ModeRemediation, runRemediation.mode)
+}
+
+// TestRunRemediationCommandAllowsFileRedirect verifies that, in remediation
+// mode, a file-target output redirection into a path inside the AllowedPaths
+// sandbox succeeds and writes the file.
+func TestRunRemediationCommandAllowsFileRedirect(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "out.txt")
+
+	handler := NewRunRemediationCommandHandler(
+		[]string{setup.RShellPathAllowAll},
+		[]string{setup.RShellCommandAllowAllWildcard},
+	)
+	task := makeTaskWithPaths("echo hello > "+target,
+		[]string{"rshell:echo"},
+		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	content, readErr := os.ReadFile(target)
+	require.NoError(t, readErr)
+	assert.Equal(t, "hello\n", string(content))
+}
+
+// TestRunCommandReadOnlyBlocksFileRedirect verifies that the read-only
+// runCommand handler rejects the same file-target redirection, leaving no
+// file behind. This is the security guarantee that distinguishes the two
+// actions.
+func TestRunCommandReadOnlyBlocksFileRedirect(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "out.txt")
+
+	handler := NewRunCommandHandler(
+		[]string{setup.RShellPathAllowAll},
+		[]string{setup.RShellCommandAllowAllWildcard},
+	)
+	task := makeTaskWithPaths("echo hello > "+target,
+		[]string{"rshell:echo"},
+		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.NotEqual(t, 0, result.ExitCode,
+		"read-only mode must reject file-target redirections")
+	_, statErr := os.Stat(target)
+	assert.True(t, os.IsNotExist(statErr),
+		"read-only mode must not create the redirect target")
+}
+
+// TestRunRemediationCommandRedirectOutsideSandboxBlocked verifies that even
+// in remediation mode, a redirection target outside the effective AllowedPaths
+// is rejected.
+func TestRunRemediationCommandRedirectOutsideSandboxBlocked(t *testing.T) {
+	allowedDir := t.TempDir()
+	outsideTarget := filepath.Join(t.TempDir(), "out.txt")
+
+	handler := NewRunRemediationCommandHandler(
+		[]string{setup.RShellPathAllowAll},
+		[]string{setup.RShellCommandAllowAllWildcard},
+	)
+	// Only allowedDir is in the sandbox; the write targets a sibling temp dir.
+	task := makeTaskWithPaths("echo hello > "+outsideTarget,
+		[]string{"rshell:echo"},
+		map[string][]string{setup.RShellPathAllowMapDefaultKey: {allowedDir}})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.NotEqual(t, 0, result.ExitCode,
+		"redirection outside the sandbox must be rejected even in remediation mode")
+	_, statErr := os.Stat(outsideTarget)
+	assert.True(t, os.IsNotExist(statErr))
 }

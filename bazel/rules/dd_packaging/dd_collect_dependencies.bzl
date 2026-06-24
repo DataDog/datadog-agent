@@ -51,12 +51,17 @@ def _dd_collect_dependencies_impl(ctx):
     pkg_dirs = []
     pkg_symlinks = []
 
-    for src in ctx.attr.srcs:
-        if _CollectedPackagingInfo in src:
-            for fg in src[_CollectedPackagingInfo].pkg_filegroups.to_list():
-                pkg_files.extend(fg.pkg_files)
-                pkg_dirs.extend(fg.pkg_dirs)
-                pkg_symlinks.extend(fg.pkg_symlinks)
+    # Merge per-src depsets before iterating so a PackageFilegroupInfo
+    # reachable through multiple srcs (diamond deps) appears only once.
+    combined = depset(transitive = [
+        src[_CollectedPackagingInfo].pkg_filegroups
+        for src in ctx.attr.srcs
+        if _CollectedPackagingInfo in src
+    ])
+    for fg in combined.to_list():
+        pkg_files.extend(fg.pkg_files)
+        pkg_dirs.extend(fg.pkg_dirs)
+        pkg_symlinks.extend(fg.pkg_symlinks)
 
     all_files = depset([
         f
@@ -64,12 +69,18 @@ def _dd_collect_dependencies_impl(ctx):
         for f in pkg_files_info.dest_src_map.values()
     ])
 
+    merged = PackageFilegroupInfo(
+        pkg_files = pkg_files,
+        pkg_dirs = pkg_dirs,
+        pkg_symlinks = pkg_symlinks,
+    )
+
     return [
-        PackageFilegroupInfo(
-            pkg_files = pkg_files,
-            pkg_dirs = pkg_dirs,
-            pkg_symlinks = pkg_symlinks,
-        ),
+        merged,
+        # Also expose as DdPackagingInfo so an outer dd_collect_dependencies
+        # picks this target up through the aspect and chains the collected
+        # files transparently.
+        DdPackagingInfo(installed_files = [merged]),
         DefaultInfo(files = all_files),
     ]
 
@@ -90,5 +101,5 @@ dd_collect_dependencies = rule(
             aspects = [_collect_dd_packaging_aspect],
         ),
     },
-    provides = [PackageFilegroupInfo],
+    provides = [PackageFilegroupInfo, DdPackagingInfo],
 )
