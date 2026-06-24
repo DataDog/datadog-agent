@@ -224,6 +224,9 @@ def download(
         path = os.getcwd()
     if extract_dir is None:
         extract_dir = path
+    else:
+        # If extract_dir is provided, always extract
+        extract = True
 
     match _type:
         case "deb":
