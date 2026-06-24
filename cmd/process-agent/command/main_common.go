@@ -107,7 +107,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		Config       config.Component
 		WorkloadMeta workloadmeta.Component
 	}
-	opts := []fx.Option{
+	app := fx.New(
 		fx.Supply(
 			core.BundleParams{
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(
@@ -196,6 +196,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 					"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
 					"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
 					"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+					"internal_profiling_period":      commonsettings.NewProfilingPeriod(),
 					"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
 				},
 				Config: c,
@@ -230,8 +231,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			}
 			return nil
 		}),
-	}
-	app := fx.New(opts...)
+	)
 
 	err := app.Start(ctx)
 	if err != nil {
