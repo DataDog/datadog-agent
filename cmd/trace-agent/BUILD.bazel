@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "COMMON_TAGS", "TRACE_AGENT_TAGS")
 
 go_library(
@@ -13,8 +14,21 @@ go_library(
     ],
 )
 
-go_binary(
+# TODO(agent-build): tasks/trace_agent.py also runs `go generate` on pkg/trace/info
+# before building. There are currently no //go:generate directives in that package,
+# so this is a no-op today. If directives are added in the future, add the
+# corresponding Bazel code-generation target here and wire it into srcs/deps.
+
+# TODO(agent-build): Replace `dda inv -- -e trace-agent.build` in
+# omnibus/config/software/datadog-agent.rb (and datadog-iot-agent.rb) with
+# `bazel build //cmd/trace-agent` once the Bazel build is fully validated.
+dd_agent_go_binary(
     name = "trace-agent",
+    # keep
+    srcs = select({
+        "@platforms//os:windows": ["//cmd/trace-agent/windows/resources:rsrc"],
+        "//conditions:default": [],
+    }),
     embed = [":trace-agent_lib"],
     gotags = sorted(COMMON_TAGS | TRACE_AGENT_TAGS),
     visibility = ["//visibility:public"],
