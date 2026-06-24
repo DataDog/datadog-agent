@@ -270,6 +270,10 @@ def retrieve_default_value(keypath, schema):
         return 'false'
 
     elif settingType == 'integer':
+        if get_golang_type_tag(node) == 'int64':
+            return f"int64({settingDefault})"
+        if get_golang_type_tag(node) == 'float64':
+            return f"float64({settingDefault})"
         durationValue = try_parse_duration(settingDefault)
         if durationValue is not None:
             return str(durationValue)
