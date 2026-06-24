@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -35,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
+	sharedlibrarycheck "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -176,7 +176,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	defer c.m.Unlock()
 
 	run := runner.NewRunner(c.senderManager, c.haAgent, c.healthPlatform)
-	sched := scheduler.NewScheduler(run.GetChan())
+	sched := scheduler.NewScheduler(run.GetChan(), run.GetShadowChan())
 
 	// let the runner some visibility into the scheduler
 	run.SetScheduler(sched)
@@ -237,6 +237,10 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		// checks.
 		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
 		c.runner.AddWorker()
+	} else if _, ok := inner.(*check.ShadowCheck); ok {
+		// Adding a temporary runner for shadow check
+		c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
+		c.runner.AddShadowWorker()
 	} else {
 		c.runner.UpdateNumWorkers(c.checkInstances)
 	}

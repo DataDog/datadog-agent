@@ -101,7 +101,7 @@ func getLocalIntegrationConfigs(
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.
-	pkgcollector.InitCheckScheduler(option.None[collector.Component](), aggregator.NewNoOpSenderManager(), option.None[integrations.Component](), tagger, filterStore)
+	pkgcollector.InitCheckScheduler(option.None[collector.Component](), aggregator.NewNoOpSenderManager(), option.None[integrations.Component](), tagger, filterStore, config)
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))
