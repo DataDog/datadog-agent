@@ -90,6 +90,16 @@ go_library(
             "@com_github_open_policy_agent_opa//v1/types",
             "@org_uber_go_atomic//:atomic",
         ],
+        "@rules_go//go/platform:android": [
+            "//pkg/compliance/scap",
+            "@com_github_elastic_go_libaudit_v2//:go-libaudit",
+            "@com_github_elastic_go_libaudit_v2//rule",
+            "@com_github_elastic_go_libaudit_v2//rule/flags",
+            "@com_github_open_policy_agent_opa//v1/ast",
+            "@com_github_open_policy_agent_opa//v1/rego",
+            "@com_github_open_policy_agent_opa//v1/types",
+            "@org_uber_go_atomic//:atomic",
+        ],
         "@rules_go//go/platform:darwin": [
             "//pkg/compliance/scap",
             "@com_github_open_policy_agent_opa//v1/ast",

@@ -78,6 +78,7 @@ dd_agent_go_test(
         "ksm_sharding_test.go",
     ],
     embed = [":clusterchecks"],
+    flavors = ["base"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/scheduler",
