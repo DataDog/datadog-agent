@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add a new ``dogstatsd_no_aggregation_pipeline_workers_count`` configuration option
+    to control the number of parallel workers processing messages in the no-aggregation
+    pipeline. Defaults to ``1`` to preserve existing behavior.
