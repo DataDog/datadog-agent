@@ -57,6 +57,7 @@ go_test(
     name = "impl_test",
     srcs = [
         "demultiplexer_mock_test.go",
+        "demultiplexer_options_test.go",
         "status_test.go",
     ],
     embed = [":impl"],
@@ -64,6 +65,7 @@ go_test(
     deps = [
         "//comp/aggregator/demultiplexer/def",
         "//comp/core",
+        "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/secrets/def",
         "//comp/core/secrets/mock",

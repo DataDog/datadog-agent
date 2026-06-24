@@ -1,0 +1,67 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "report",
+    srcs = [
+        "interface_bandwidth_usage_rate.go",
+        "report_device_metadata.go",
+        "report_format.go",
+        "report_interface_volume_metrics.go",
+        "report_memory_usage.go",
+        "report_metrics.go",
+        "report_testing.go",
+        "report_utils.go",
+        "vpn_tunnels.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report",
+    visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/corechecks/snmp/internal/checkconfig",
+        "//pkg/collector/corechecks/snmp/internal/common",
+        "//pkg/collector/corechecks/snmp/internal/lldp",
+        "//pkg/collector/corechecks/snmp/internal/metadata",
+        "//pkg/collector/corechecks/snmp/internal/valuestore",
+        "//pkg/metrics/servicecheck",
+        "//pkg/networkdevice/integrations",
+        "//pkg/networkdevice/metadata",
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/networkdevice/utils",
+        "//pkg/snmp/snmpintegration",
+        "//pkg/util/log",
+        "//pkg/util/sort",
+    ],
+)
+
+dd_agent_go_test(
+    name = "report_test",
+    srcs = [
+        "interface_bandwidth_usage_rate_test.go",
+        "report_device_metadata_test.go",
+        "report_format_test.go",
+        "report_interface_volume_metrics_test.go",
+        "report_memory_usage_test.go",
+        "report_metrics_test.go",
+        "report_utils_test.go",
+        "vpn_tunnels_test.go",
+    ],
+    data = ["//pkg/collector/corechecks/snmp/internal/test:testdata"],
+    embed = [":report"],
+    deps = [
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/snmp/internal/checkconfig",
+        "//pkg/collector/corechecks/snmp/internal/common",
+        "//pkg/collector/corechecks/snmp/internal/profile",
+        "//pkg/collector/corechecks/snmp/internal/valuestore",
+        "//pkg/networkdevice/metadata",
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/snmp/snmpintegration",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)

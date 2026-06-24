@@ -1696,6 +1696,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
 	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
+	// How many workers are used by the no-aggregation pipeline.
+	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_workers_count", 1)
 	// Force the amount of dogstatsd workers (mainly used for benchmarks or some very specific use-case)
 	config.BindEnvAndSetDefault("dogstatsd_workers_count", 0)
 	config.BindEnvAndSetDefault("dogstatsd_experimental_http.enabled", false)

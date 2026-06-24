@@ -89,7 +89,7 @@ func (a *Port) lessThan(b *Port) bool {
 		return a.Proto < b.Proto
 	}
 	if a.IP != b.IP {
-		return a.IP < b.IP
+		return a.IP.Compare(b.IP) == -1
 	}
 	return a.Process < b.Process
 }

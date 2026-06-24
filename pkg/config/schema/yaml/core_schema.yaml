@@ -2508,6 +2508,16 @@ properties:
     - template_section:Dogstatsd
     comment: How many metrics maximum in payloads sent by the no-aggregation pipeline
       to the intake.
+  dogstatsd_no_aggregation_pipeline_workers_count:
+    node_type: setting
+    type: integer
+    default: 1
+    visibility: public
+    description: How many workers are used by the no-aggregation pipeline.
+    tags:
+    - template_section:Dogstatsd
+    comment: How many workers are used by the no-aggregation pipeline. Default of
+      1 applies when the pipeline is enabled via dogstatsd_no_aggregation_pipeline.
   statsd_forward_host:
     node_type: setting
     type: string
