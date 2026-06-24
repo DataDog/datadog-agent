@@ -9,7 +9,11 @@ package handlers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
@@ -30,6 +34,11 @@ const (
 	reasonAPMDeleted         = "Deleted"
 	reasonAPMUnsupportedLang = "UnsupportedLanguage"
 	reasonAPMInvalidConfig   = "InvalidTracerConfig"
+
+	reasonAPMRolloutTriggered  = "RolloutTriggered"
+	reasonAPMRolloutCurrent    = "RolloutCurrent"
+	reasonAPMRolloutSkipped    = "RolloutSkipped"
+	reasonAPMRolloutFailed     = "RolloutFailed"
 )
 
 var supportedAPMLanguages = map[string]struct{}{
@@ -45,12 +54,21 @@ var supportedAPMLanguages = map[string]struct{}{
 // APMHandler translates DatadogInstrumentation APM sections into SSI admission
 // webhook configuration.
 type APMHandler struct {
-	apmStore *crstore.Store
+	apmStore       *crstore.Store
+	rolloutPatcher APMRolloutPatcher
 }
 
 // NewAPMHandler returns the APM DatadogInstrumentation handler.
 func NewAPMHandler(deps *Deps) *APMHandler {
-	return &APMHandler{apmStore: deps.APMStore}
+	var rolloutPatcher APMRolloutPatcher
+	if deps.UpdateClient != nil {
+		rolloutPatcher = NewAPMDeploymentRolloutPatcher(deps.UpdateClient, deps.IsLeader)
+	}
+
+	return &APMHandler{
+		apmStore:       deps.APMStore,
+		rolloutPatcher: rolloutPatcher,
+	}
 }
 
 // Name returns the unique handler name.
@@ -108,7 +126,7 @@ func (h *APMHandler) Validate(cr *datadoghq.DatadogInstrumentation) []instrument
 }
 
 // Handle applies or removes APM configuration in the shared CR store.
-func (h *APMHandler) Handle(_ context.Context, event instrumentation.EventType, cr *datadoghq.DatadogInstrumentation) (instrumentation.HandlerStatus, error) {
+func (h *APMHandler) Handle(ctx context.Context, event instrumentation.EventType, cr *datadoghq.DatadogInstrumentation) (instrumentation.HandlerStatus, error) {
 	if cr == nil {
 		return instrumentation.HandlerStatus{
 			Type:    apmReadyConditionType,
@@ -134,7 +152,69 @@ func (h *APMHandler) Handle(_ context.Context, event instrumentation.EventType, 
 		Namespace: cr.Namespace,
 		Name:      cr.Spec.TargetRef.Name,
 	}
-	h.apmStore.UpsertAPM(target, apmConfigFromCR(crRef, cr.Spec.Config.APM))
+	apmConfig := apmConfigFromCR(crRef, cr.Spec.Config.APM)
+	h.apmStore.UpsertAPM(target, apmConfig)
+
+	if cr.Spec.TargetRef.Kind != kubernetes.DeploymentKind {
+		return instrumentation.HandlerStatus{
+			Type:    apmReadyConditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  reasonAPMConfigured,
+			Message: fmt.Sprintf("APM settings configured for %s/%s", cr.Spec.TargetRef.Kind, cr.Spec.TargetRef.Name),
+		}, nil
+	}
+
+	if !apmConfig.Enabled {
+		return instrumentation.HandlerStatus{
+			Type:    apmReadyConditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  reasonAPMConfigured,
+			Message: fmt.Sprintf("APM settings configured for %s/%s; rollout not triggered because APM is disabled", cr.Spec.TargetRef.Kind, cr.Spec.TargetRef.Name),
+		}, nil
+	}
+
+	if h.rolloutPatcher == nil {
+		return instrumentation.HandlerStatus{
+			Type:    apmReadyConditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  reasonAPMConfigured,
+			Message: fmt.Sprintf("APM settings configured for %s/%s; awaiting pod restart", cr.Spec.TargetRef.Kind, cr.Spec.TargetRef.Name),
+		}, nil
+	}
+
+	result, err := h.rolloutPatcher.RolloutDeployment(ctx, target.Namespace, target.Name, apmRolloutConfigHash(target, apmConfig))
+	if err != nil {
+		return instrumentation.HandlerStatus{
+			Type:    apmReadyConditionType,
+			Status:  metav1.ConditionFalse,
+			Reason:  reasonAPMRolloutFailed,
+			Message: fmt.Sprintf("APM settings configured for %s/%s; failed to trigger rollout: %v", cr.Spec.TargetRef.Kind, cr.Spec.TargetRef.Name, err),
+		}, err
+	}
+
+	switch result.State {
+	case APMRolloutTriggered:
+		return instrumentation.HandlerStatus{
+			Type:    apmReadyConditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  reasonAPMRolloutTriggered,
+			Message: fmt.Sprintf("APM settings configured for %s/%s; rollout triggered", cr.Spec.TargetRef.Kind, cr.Spec.TargetRef.Name),
+		}, nil
+	case APMRolloutAlreadyCurrent:
+		return instrumentation.HandlerStatus{
+			Type:    apmReadyConditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  reasonAPMRolloutCurrent,
+			Message: fmt.Sprintf("APM settings configured for %s/%s; rollout already reflects current configuration", cr.Spec.TargetRef.Kind, cr.Spec.TargetRef.Name),
+		}, nil
+	case APMRolloutSkipped:
+		return instrumentation.HandlerStatus{
+			Type:    apmReadyConditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  reasonAPMRolloutSkipped,
+			Message: fmt.Sprintf("APM settings configured for %s/%s; rollout skipped because this Cluster Agent is not the leader", cr.Spec.TargetRef.Kind, cr.Spec.TargetRef.Name),
+		}, nil
+	}
 
 	return instrumentation.HandlerStatus{
 		Type:    apmReadyConditionType,
@@ -159,4 +239,42 @@ func apmConfigFromCR(crRef types.NamespacedName, apm *datadoghq.DatadogInstrumen
 		config.TracerConfigs = append([]corev1.EnvVar(nil), apm.TracerConfigs...)
 	}
 	return config
+}
+
+func apmRolloutConfigHash(target crstore.WorkloadTarget, config crstore.APMConfig) string {
+	h := sha256.New()
+
+	writeHashField := func(value string) {
+		h.Write([]byte(value))
+		h.Write([]byte{0})
+	}
+
+	writeHashField(config.CR.Namespace)
+	writeHashField(config.CR.Name)
+	writeHashField(target.Kind)
+	writeHashField(target.Namespace)
+	writeHashField(target.Name)
+	writeHashField(fmt.Sprintf("%t", config.Enabled))
+
+	langs := make([]string, 0, len(config.TracerVersions))
+	for lang := range config.TracerVersions {
+		langs = append(langs, lang)
+	}
+	sort.Strings(langs)
+	for _, lang := range langs {
+		writeHashField(lang)
+		writeHashField(config.TracerVersions[lang])
+	}
+
+	for _, envVar := range config.TracerConfigs {
+		payload, err := json.Marshal(envVar)
+		if err != nil {
+			writeHashField(envVar.Name)
+			writeHashField(envVar.Value)
+			continue
+		}
+		writeHashField(string(payload))
+	}
+
+	return hex.EncodeToString(h.Sum(nil))
 }
