@@ -150,6 +150,54 @@ func TestToNetpathConfig(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "UDP request without timeout falls back to 60s default",
+			input: common.SyntheticsTestConfig{
+				Config: struct {
+					Assertions []common.Assertion   `json:"assertions"`
+					Request    common.ConfigRequest `json:"request"`
+				}{
+					Request: common.UDPConfigRequest{
+						Host: "dns.example.com",
+						Port: &udpPort,
+						NetworkConfigRequest: common.NetworkConfigRequest{
+							MaxTTL: &udpTTL,
+							// Timeout intentionally absent — API may omit it
+						},
+					},
+				},
+			},
+			expect: config.Config{
+				Protocol:     payload.ProtocolUDP,
+				DestHostname: "dns.example.com",
+				DestPort:     uint16(udpPort),
+				MaxTTL:       uint8(udpTTL),
+				Timeout:      time.Duration(float64(defaultTestTimeoutSeconds) * 0.9 / float64(udpTTL) * float64(time.Second)),
+				ReverseDNS:   true,
+			},
+			expectError: false,
+		},
+		{
+			name: "UDP request without timeout or maxTTL falls back to defaults",
+			input: common.SyntheticsTestConfig{
+				Config: struct {
+					Assertions []common.Assertion   `json:"assertions"`
+					Request    common.ConfigRequest `json:"request"`
+				}{
+					Request: common.UDPConfigRequest{
+						Host: "dns.example.com",
+					},
+				},
+			},
+			expect: config.Config{
+				Protocol:     payload.ProtocolUDP,
+				DestHostname: "dns.example.com",
+				MaxTTL:       defaultMaxTTL,
+				Timeout:      time.Duration(float64(defaultTestTimeoutSeconds) * 0.9 / float64(defaultMaxTTL) * float64(time.Second)),
+				ReverseDNS:   true,
+			},
+			expectError: false,
+		},
+		{
 			name: "Unsupported subtype",
 			input: common.SyntheticsTestConfig{
 				Config: struct {
