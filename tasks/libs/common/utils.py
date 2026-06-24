@@ -164,19 +164,42 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
         if not base_path:
             continue
 
-        for libdir in ["lib", "lib64", "build/rtloader"]:
-            if os.path.exists(os.path.join(base_path, libdir, RTLOADER_LIB_NAME)):
-                rtloader_lib.append(os.path.join(base_path, libdir))
+        rtloader_lib_found = False
+        for candidate_path in [base_path, os.path.join(base_path, "embedded")]:
+            # Keep only the first libdir that holds the lib for a given base_path, but still
+            # look for headers under every candidate: a legacy lib install can be paired with
+            # headers that only exist under the embedded directory.
+            if not rtloader_lib_found:
+                for libdir in ["lib", "lib64", "build/rtloader"]:
+                    if os.path.exists(os.path.join(candidate_path, libdir, RTLOADER_LIB_NAME)):
+                        rtloader_lib.append(os.path.join(candidate_path, libdir))
+                        rtloader_lib_found = True
+                        break
 
-        header_path = os.path.join(base_path, "include")
-        if not rtloader_headers and os.path.exists(os.path.join(header_path, RTLOADER_HEADER_NAME)):
-            rtloader_headers = header_path
+            if not rtloader_headers:
+                header_path = os.path.join(candidate_path, "include")
+                if os.path.exists(os.path.join(header_path, RTLOADER_HEADER_NAME)):
+                    rtloader_headers = header_path
 
-        common_path = os.path.join(base_path, "common")
-        if not rtloader_common_headers and os.path.exists(common_path):
-            rtloader_common_headers = common_path
+            if not rtloader_common_headers:
+                common_path = os.path.join(candidate_path, "common")
+                if os.path.exists(common_path):
+                    rtloader_common_headers = common_path
 
     return rtloader_lib, rtloader_headers, rtloader_common_headers
+
+
+def get_bazel_python_home(rtloader_lib):
+    # The first entry is the rtloader that actually gets linked (it takes -L / rpath
+    # precedence), so only infer the Python home from it.
+    if not rtloader_lib:
+        return None
+
+    embedded_dir = Path(os.path.abspath(rtloader_lib[0])).parent
+    if embedded_dir.name == "embedded":
+        return str(embedded_dir)
+
+    return None
 
 
 def get_embedded_path(ctx):
@@ -260,6 +283,9 @@ def get_build_flags(
             raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
+    if not python_home_3:
+        python_home_3 = get_bazel_python_home(rtloader_lib)
+
     # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/util/defaultpaths.defaultInstallPath={install_path} "
@@ -321,7 +347,9 @@ def get_build_flags(
         ldflags += "-s -w -linkmode=external "
         extldflags += "-static "
     elif rtloader_lib:
-        if sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
+        if sys.platform == "darwin":
+            extldflags += " ".join(f"-Wl,-rpath,{lib_path}" for lib_path in rtloader_lib) + " "
+        elif sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
             ldflags += f"-r {':'.join(rtloader_lib)} "
 
     if os.environ.get("DELVE"):
