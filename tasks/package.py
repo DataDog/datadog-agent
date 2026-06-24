@@ -18,7 +18,7 @@ from tasks.libs.package.size import (
     compare,
     compute_package_size_metrics,
 )
-from tasks.libs.package.url import get_deb_package_url, get_docker_image_url, get_rpm_package_url
+from tasks.libs.package.url import get_deb_package_url, get_docker_image_url, get_installer_oci_url, get_rpm_package_url
 from tasks.libs.package.utils import (
     PackageSize,
     get_ancestor,
@@ -187,6 +187,7 @@ def diff(
         "path": "The path to download the package to",
         "extract": "Whether to extract the package (ignored for docker/oci types)",
         "extract_dir": "The directory to extract the package to",
+        "ecr_release_suffix": "ECR image repo suffix for nightly/release pipelines, e.g. '-nightly' or '-release'",
     }
 )
 def download(
@@ -200,12 +201,14 @@ def download(
     extract: bool = True,
     extract_dir: str | None = None,
     pull_request_id: str | None = None,
+    ecr_release_suffix: str = "",
 ):
     """
     Download the package from the given pipeline.
 
     Exactly one of --pipeline or --pull-request-id must be provided.
     For docker/oci types, extraction is always disabled.
+    The installer OCI image uses a different registry and tag scheme from agent/dogstatsd.
     """
 
     assert binary in ("agent", "dogstatsd", "installer"), "Unknown binary"
@@ -242,11 +245,16 @@ def download(
                 extract_rpm(ctx, download_path, extract_dir)
 
         case "docker" | "oci":
-            if repo is None:
-                repo = get_gitlab_repo("DataDog/datadog-agent")
-            gitlab_pipeline = repo.pipelines.get(int(pipeline))
-            commit_short_sha = gitlab_pipeline.sha[:8]
-            image_url = get_docker_image_url(int(pipeline), binary, flavor, arch, commit_short_sha)
+            if binary == "installer":
+                image_url = get_installer_oci_url(int(pipeline))
+            else:
+                if repo is None:
+                    repo = get_gitlab_repo("DataDog/datadog-agent")
+                gitlab_pipeline = repo.pipelines.get(int(pipeline))
+                commit_short_sha = gitlab_pipeline.sha[:8]
+                image_url = get_docker_image_url(
+                    int(pipeline), binary, flavor, arch, commit_short_sha, ecr_release_suffix
+                )
             output_path = os.path.join(path, f"{get_package_name(binary, flavor)}-{arch}.tar")
             crane_format = "--format=oci " if _type == "oci" else ""
             ctx.run(f"crane pull {crane_format}{shlex.quote(image_url)} {shlex.quote(output_path)}")
