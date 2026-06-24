@@ -82,7 +82,8 @@ type PrivateActionRunner struct {
 	ipc            ipc.Component
 	// metricsClient is the resolved metrics sink: a DogStatsD client built from
 	// config (standalone runner) or an in-process adapter (Cluster Agent).
-	metricsClient statsdclient.ClientInterface
+	metricsClient     statsdclient.ClientInterface
+	ownsMetricsClient bool
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
@@ -114,6 +115,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	runner.ownsMetricsClient = true
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
 		OnStop:  runner.Stop,
@@ -271,22 +273,33 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		// Don't return - continue to cleanup what we can
 	}
 
+	var stopErr error
 	if p.workflowRunner != nil {
 		err := p.workflowRunner.Stop(ctx)
 		if err != nil {
-			return err
+			err = fmt.Errorf("failed to stop workflow runner: %w", err)
 		}
+		stopErr = errors.Join(stopErr, err)
 	}
 	if p.commonRunner != nil {
 		err := p.commonRunner.Stop(ctx)
 		if err != nil {
-			return err
+			err = fmt.Errorf("failed to stop common runner: %w", err)
 		}
+		stopErr = errors.Join(stopErr, err)
 	}
 	if p.telemetry != nil {
 		p.telemetry.Stop()
 	}
-	return nil
+	if p.ownsMetricsClient && p.metricsClient != nil {
+		if err := p.metricsClient.Flush(); err != nil {
+			stopErr = errors.Join(stopErr, fmt.Errorf("failed to flush metrics client: %w", err))
+		}
+		if err := p.metricsClient.Close(); err != nil {
+			stopErr = errors.Join(stopErr, fmt.Errorf("failed to close metrics client: %w", err))
+		}
+	}
+	return stopErr
 }
 
 func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
