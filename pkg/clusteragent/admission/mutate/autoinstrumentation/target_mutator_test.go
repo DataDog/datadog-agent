@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -104,8 +106,10 @@ func TestNewTargetMutator(t *testing.T) {
 func TestMutatePod(t *testing.T) {
 	tests := map[string]struct {
 		configPath                  string
+		configOverrides             map[string]any
 		in                          *corev1.Pod
 		namespaces                  []workloadmeta.KubernetesMetadata
+		crdAPMEntries               map[crstore.WorkloadKey]crstore.APMEntry
 		expectedEnv                 map[string]string
 		expectedAnnotations         map[string]string
 		expectedInitContainerImages []string
@@ -221,13 +225,72 @@ func TestMutatePod(t *testing.T) {
 				"DD_SERVICE": "best-service",
 			},
 		},
+		"CRD target gets SSI defaults when static instrumentation is disabled": {
+			configOverrides: map[string]any{
+				"apm_config.instrumentation.enabled": false,
+			},
+			in: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "web-bcdfg",
+			}.Create(),
+			crdAPMEntries: map[crstore.WorkloadKey]crstore.APMEntry{
+				{Kind: "Deployment", Namespace: "application", Name: "web"}: {
+					CR:             types.NamespacedName{Namespace: "default", Name: "ddi-web"},
+					Enabled:        true,
+					TracerVersions: map[string]string{"python": "v4"},
+					TracerConfigs:  []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+				},
+			},
+			expectedInitContainerImages: []string{
+				"registry/apm-inject:0",
+				"registry/dd-lib-python-init:v4",
+			},
+			expectedEnv: map[string]string{
+				"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+				"DD_LOGS_INJECTION":               "true",
+				"DD_RUNTIME_METRICS_ENABLED":      "true",
+				"DD_SERVICE":                      "web",
+				"DD_TRACE_ENABLED":                "true",
+				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+				AppliedTargetEnvVar:               "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
+			},
+			expectedAnnotations: map[string]string{
+				annotation.AppliedTarget: "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
+			},
+		},
+		"CRD target in disabled namespace does not mutate pod": {
+			configOverrides: map[string]any{
+				"apm_config.instrumentation.disabled_namespaces": []string{"application"},
+			},
+			in: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "web-bcdfg",
+			}.Create(),
+			crdAPMEntries: map[crstore.WorkloadKey]crstore.APMEntry{
+				{Kind: "Deployment", Namespace: "application", Name: "web"}: {
+					Enabled:        true,
+					TracerVersions: map[string]string{"python": "v4"},
+				},
+			},
+			expectNoChange: true,
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
-			mockConfig := configmock.NewFromFile(t, test.configPath)
+			var mockConfig model.BuildableConfig
+			if test.configPath == "" {
+				mockConfig = configmock.New(t)
+			} else {
+				mockConfig = configmock.NewFromFile(t, test.configPath)
+			}
 			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
+			for key, value := range test.configOverrides {
+				mockConfig.SetInTest(key, value)
+			}
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -244,8 +307,16 @@ func TestMutatePod(t *testing.T) {
 				wmeta.Set(&ns)
 			}
 
+			var store *crstore.Store
+			if len(test.crdAPMEntries) > 0 {
+				store = crstore.New()
+				for workload, entry := range test.crdAPMEntries {
+					store.UpsertAPM(workload, entry)
+				}
+			}
+
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, store)
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -705,6 +776,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 			require.NotNil(t, actual.target)
 			require.Equal(t, test.expected.libVersions, actual.target.libVersions)
 			require.Equal(t, test.expected.envVars, actual.target.envVars)
+			require.True(t, actual.target.usesSSI)
 		})
 	}
 }

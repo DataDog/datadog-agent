@@ -48,7 +48,7 @@ type WebhookConfig struct {
 // NewWebhookConfig retrieves the configuration for the autoinstrumentation webhook from the datadog config.
 func NewWebhookConfig(datadogConfig config.Component) *WebhookConfig {
 	return &WebhookConfig{
-		IsEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled") || datadogConfig.GetBool("instrumentation_crd_controller.enabled"),
+		IsEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled"),
 		Endpoint:  datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
 	}
 }

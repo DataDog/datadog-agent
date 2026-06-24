@@ -205,7 +205,7 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	if target == nil {
 		return false, nil
 	}
-	extracted := m.core.initExtractedLibInfo(pod).withLibs(target.libVersions)
+	extracted := m.core.initExtractedLibInfo(pod, target.usesSSI).withLibs(target.libVersions)
 
 	// If the user did not specify versions, this target is eligible for language detection.
 	if target.usesDefaultLibs {
@@ -316,6 +316,7 @@ type targetInternal struct {
 	wmeta                workloadmeta.Component
 	json                 string
 	usesDefaultLibs      bool
+	usesSSI              bool
 }
 
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
@@ -397,6 +398,7 @@ func (m *TargetMutator) buildCRDTarget(workload crstore.WorkloadKey, entry crsto
 		envVars:         entry.TracerConfigs,
 		json:            createCRDTargetJSON(name, workload, entry),
 		usesDefaultLibs: usesDefaultLibs,
+		usesSSI:         true,
 	}
 }
 
