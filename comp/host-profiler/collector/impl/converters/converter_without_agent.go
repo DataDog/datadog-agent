@@ -474,7 +474,7 @@ func hasInternalHealthMetricsPipelineConflicts(conf confMap) bool {
 		}
 	}
 	if processors, ok := confmaputils.Get[confMap](conf, "processors"); ok {
-		for _, reserved := range []string{reservedFilterProcessor, reservedCumulativeToDeltaProcessor} {
+		for _, reserved := range []string{reservedFilterProcessor, reservedCumulativeToDeltaProcessor, reservedContainerIDProcessor} {
 			if _, exists := processors[reserved]; exists {
 				slog.Warn("skipping internal health metrics pipeline",
 					slog.String("reason", "processor name conflicts with reserved name"),
@@ -595,17 +595,16 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 	metricsProcessors := []any{reservedFilterProcessor, reservedCumulativeToDeltaProcessor}
 
 	if containerID, err := cgroup.GetSelfContainerID(); err == nil {
-		const containerIDProcessorName = "resource/" + confmaputils.AutoConfiguredSuffix + "-container-attribute"
 		containerIDProcessor := confMap{
 			"attributes": []any{confMap{
 				"key":    version.OTelContainerIDKey,
 				"value":  containerID,
 				"action": "insert",
 			}}}
-		if err := confmaputils.Set(conf, pathPrefixProcessors+containerIDProcessorName, containerIDProcessor); err != nil {
+		if err := confmaputils.Set(conf, pathPrefixProcessors+reservedContainerIDProcessor, containerIDProcessor); err != nil {
 			return fmt.Errorf("failed to add container ID processor: %w", err)
 		}
-		metricsProcessors = append(metricsProcessors, containerIDProcessorName)
+		metricsProcessors = append(metricsProcessors, reservedContainerIDProcessor)
 	}
 
 	metricsProcessors = append(metricsProcessors, profilesProcessors...)

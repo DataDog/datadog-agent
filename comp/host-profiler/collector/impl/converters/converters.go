@@ -56,6 +56,7 @@ const (
 	reservedPrometheusReceiver         = "prometheus/dd-hp-internal"
 	reservedFilterProcessor            = "filter/dd-hp-drop-internal"
 	reservedCumulativeToDeltaProcessor = "cumulativetodelta/dd-hp-internal"
+	reservedContainerIDProcessor       = "resource/" + confmaputils.AutoConfiguredSuffix + "-container-attribute"
 	internalHealthMetricsPipelineName  = "metrics/profiler-internal-health"
 )
 
