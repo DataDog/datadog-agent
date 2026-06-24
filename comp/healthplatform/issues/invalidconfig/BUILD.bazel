@@ -30,8 +30,6 @@ go_test(
     deps = [
         "//comp/core/config",
         "//pkg/config/schema",
-        "//test/fakeintake/client",
-        "//test/fakeintake/server",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
