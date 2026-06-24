@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 
@@ -25,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,11 +47,12 @@ type TargetMutator struct {
 	containerRegistry             string
 	mutateUnlabelled              bool
 	defaultLibVersions            []libInfo
+	apmStore                      *crstore.Store
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher) (*TargetMutator, error) {
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, apmStore *crstore.Store) (*TargetMutator, error) {
 	// Create a map of user-configured disabled namespaces for quick lookups.
 	// Default namespaces (kube-system, datadog agent namespace) are excluded at
 	// the webhook layer via namespace selectors and not duplicated here.
@@ -152,6 +156,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		containerRegistry:             config.containerRegistry,
 		mutateUnlabelled:              config.mutateUnlabelled,
 		defaultLibVersions:            defaultLibVersions,
+		apmStore:                      apmStore,
 	}
 
 	// Create the core mutator. This is a bit gross.
@@ -314,8 +319,14 @@ type targetInternal struct {
 }
 
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
+// Precedence is annotation, then DatadogInstrumentation CRD, then static config.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
 	result := m.getTargetFromAnnotation(pod)
+	if !result.shouldContinue {
+		return result.target
+	}
+
+	result = m.getTargetFromCRD(pod)
 	if !result.shouldContinue {
 		return result.target
 	}
@@ -323,24 +334,105 @@ func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
 	return m.getMatchingTarget(pod)
 }
 
-type annotationResult struct {
+type filterResult struct {
 	shouldContinue bool
 	target         *targetInternal
 }
 
+func (m *TargetMutator) getTargetFromCRD(pod *corev1.Pod) *filterResult {
+	if m.apmStore == nil {
+		return &filterResult{shouldContinue: true}
+	}
+
+	workload, ok := workloadKeyForPod(pod)
+	if !ok {
+		return &filterResult{shouldContinue: true}
+	}
+
+	entry, ok := m.apmStore.GetAPM(workload)
+	if !ok {
+		return &filterResult{shouldContinue: true}
+	}
+
+	if !entry.Enabled {
+		return &filterResult{shouldContinue: false}
+	}
+
+	return &filterResult{shouldContinue: false, target: m.buildCRDTarget(workload, entry)}
+}
+
+func workloadKeyForPod(pod *corev1.Pod) (crstore.WorkloadKey, bool) {
+	ref := metav1.GetControllerOf(pod)
+	if ref == nil {
+		return crstore.WorkloadKey{}, false
+	}
+
+	switch ref.Kind {
+	case kubernetes.ReplicaSetKind:
+		deploymentName := kubernetes.ParseDeploymentForReplicaSet(ref.Name)
+		if deploymentName == "" {
+			return crstore.WorkloadKey{}, false
+		}
+		return crstore.WorkloadKey{Kind: kubernetes.DeploymentKind, Namespace: pod.Namespace, Name: deploymentName}, true
+	case kubernetes.DaemonSetKind, kubernetes.StatefulSetKind:
+		return crstore.WorkloadKey{Kind: ref.Kind, Namespace: pod.Namespace, Name: ref.Name}, true
+	default:
+		return crstore.WorkloadKey{}, false
+	}
+}
+
+func (m *TargetMutator) buildCRDTarget(workload crstore.WorkloadKey, entry crstore.APMEntry) *targetInternal {
+	libVersions := m.defaultLibVersions
+	usesDefaultLibs := true
+	if len(entry.TracerVersions) > 0 {
+		pinned := getPinnedLibraries(entry.TracerVersions, m.containerRegistry, true)
+		libVersions = pinned.libs
+		usesDefaultLibs = pinned.areSetToDefaults
+	}
+
+	name := fmt.Sprintf("datadoginstrumentation:%s/%s", entry.CR.Namespace, entry.CR.Name)
+	return &targetInternal{
+		name:            name,
+		libVersions:     libVersions,
+		envVars:         entry.TracerConfigs,
+		json:            createCRDTargetJSON(name, workload, entry),
+		usesDefaultLibs: usesDefaultLibs,
+	}
+}
+
+func createCRDTargetJSON(name string, workload crstore.WorkloadKey, entry crstore.APMEntry) string {
+	payload := struct {
+		Name           string              `json:"name"`
+		Workload       crstore.WorkloadKey `json:"workload"`
+		TracerVersions map[string]string   `json:"ddTraceVersions,omitempty"`
+		TracerConfigs  []corev1.EnvVar     `json:"ddTraceConfigs,omitempty"`
+	}{
+		Name:           name,
+		Workload:       workload,
+		TracerVersions: entry.TracerVersions,
+		TracerConfigs:  entry.TracerConfigs,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Errorf("error marshalling CRD target %q: %v", name, err)
+		return fmt.Sprintf("error marshalling CRD target %q: %v", name, err)
+	}
+	return string(data)
+}
+
 // getTargetFromAnnotation determines which tracing libraries to use given
-func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResult {
+func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *filterResult {
 	// The enabled label existing takes precedence...
 	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
 	if enabledLabelExists && !enabledLabelVal {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target:         nil,
 		}
 	}
 
 	if !enabledLabelExists && !m.mutateUnlabelled {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: true,
 			target:         nil,
 		}
@@ -349,7 +441,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 	// If local lib is enabled, then we should prefer the user defined libs.
 	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
 	if len(extractedLibraries) > 0 {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: extractedLibraries,
@@ -360,7 +452,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 
 	injectAllAnnotation := strings.ToLower(annotation.LibraryVersion.Format("all"))
 	if _, found := pod.Annotations[injectAllAnnotation]; found {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: m.defaultLibVersions,
@@ -369,7 +461,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 		}
 	}
 
-	return &annotationResult{
+	return &filterResult{
 		shouldContinue: true,
 		target:         nil,
 	}

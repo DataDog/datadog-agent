@@ -40,6 +40,16 @@ func TestNewWebhookConfig(t *testing.T) {
 				Endpoint:  "/injectlib",
 			},
 		},
+		"CRD instrumentation enables the webhook": {
+			config: map[string]any{
+				"admission_controller.auto_instrumentation.enabled": false,
+				"instrumentation_crd_controller.enabled":            true,
+			},
+			expected: &autoinstrumentation.WebhookConfig{
+				IsEnabled: true,
+				Endpoint:  "/injectlib",
+			},
+		},
 		"updated endpoint is updated": {
 			config: map[string]any{
 				"admission_controller.auto_instrumentation.endpoint": "/foo",

@@ -10,6 +10,7 @@ package handlers
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 )
 
 // Deps contains dependencies used to construct DatadogInstrumentation product handlers.
@@ -26,11 +27,16 @@ type Deps struct {
 	// ServiceCheckTemplateStore holds check templates for Service-targeted DDI CRs.
 	// Shared with the endpoint slices CR config provider that resolves templates into endpoint configs.
 	ServiceCheckTemplateStore *ServiceCheckTemplateStore
+
+	// APMStore is used as a shared store for APM SSI configuration between the
+	// DDI handler and the auto-instrumentation admission webhook.
+	APMStore *crstore.Store
 }
 
 // DefaultHandlers returns the product handlers registered for the shared controller.
 func DefaultHandlers(deps *Deps) []instrumentation.Handler {
 	return []instrumentation.Handler{
 		NewAutodiscoveryHandler(deps),
+		NewAPMHandler(deps),
 	}
 }
