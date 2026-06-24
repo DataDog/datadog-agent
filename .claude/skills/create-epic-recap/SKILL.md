@@ -95,7 +95,7 @@ Call the **Fetch issue** tool for your runtime (see *Runtime & MCP tooling → T
 
 Validate:
 - If the issue cannot be found, stop and inform the user.
-- If `issue_type.name` is not `Epic`, stop and inform the user that this skill only works on Epics. Suggest using `/run-jira` for non-Epic issues.
+- Read the issue type name from whichever shape the runtime returns — accept **both** `issuetype.name` (Jira's native field, the Claude Code/Rovo shape) **and** `issue_type.name` (the snake_cased shape some `mcp-atlassian` versions return). If the resolved name is not `Epic`, stop and inform the user that this skill only works on Epics. Suggest using `/run-jira` for non-Epic issues. Do **not** reject the issue just because one of the two shapes is absent.
 
 Keep the response in memory — `summary`, `description`, `status`, `labels` will be used during rendering.
 
