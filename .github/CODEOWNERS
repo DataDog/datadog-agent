@@ -13,7 +13,34 @@
 # a slack channel in tasks/libs/pipeline_notifications.py
 
 # Config files for various CI systems / tasks
-/.*                                     @DataDog/agent-devx
+/.*                                              @DataDog/agent-devx
+/.claude/settings.json                           @DataDog/agent-devx
+/.claude/agents/tend.md                          @DataDog/single-machine-performance
+/.claude/agents/weed.md                          @DataDog/single-machine-performance
+/.claude/rules/allium.md                         @DataDog/single-machine-performance
+/.claude/rules/bazel.md                          @DataDog/agent-build
+/.claude/skills/codereview_guideline.md          @DataDog/agent-devx
+/.claude/skills/allium/                          @DataDog/single-machine-performance
+/.claude/skills/agent-supply-chain-newsletter/   @DataDog/agent-devx
+/.claude/skills/auto-jira/                       @DataDog/agent-devx
+/.claude/skills/create-component/                @DataDog/agent-runtimes
+/.claude/skills/create-config-field/             @DataDog/agent-configuration
+/.claude/skills/create-core-check/               @DataDog/agent-runtimes
+/.claude/skills/create-go-module/                @DataDog/agent-runtimes
+/.claude/skills/create-invoke-task/              @DataDog/agent-devx
+/.claude/skills/create-pr/                       @DataDog/agent-devx
+/.claude/skills/create-release-note/             @DataDog/agent-devx
+/.claude/skills/create-runtime-setting/          @DataDog/agent-runtimes @DataDog/agent-configuration
+/.claude/skills/create-status-provider/          @DataDog/agent-configuration
+/.claude/skills/create-subcommand/               @DataDog/agent-configuration
+/.claude/skills/explain-lading-config            @DataDog/single-machine-performance
+/.claude/skills/quality-gate-size-analysis/      @DataDog/agent-build
+/.claude/skills/review-pr-comments/              @DataDog/agent-devx
+/.claude/skills/run-e2e/                         @DataDog/agent-devx
+/.claude/skills/run-jira/                        @DataDog/agent-devx
+/.claude/skills/update-3rd-party-libs            @DataDog/agent-build
+/.claude/skills/update-otel-deps/                @DataDog/opentelemetry-agent
+/.claude/skills/write-e2e/                       @DataDog/agent-devx
 # changing the config of mockery will regenerate the mocks, so owners will have to review anyway
 /.mockery.yaml                          # do not notify anyone
 /.go-version                            @DataDog/agent-runtimes @DataDog/agent-build
@@ -43,6 +70,8 @@
 
 /*.md                                   @DataDog/agent-devx
 /CHANGELOG-AIX.md                       @DataDog/agent-runtimes
+/AGENTS.md                              @DataDog/agent-devx
+/CLAUDE.md                              @DataDog/agent-devx
 /NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone
@@ -572,6 +601,7 @@
 /pkg/config/setup/security_agent.go             @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config
+/pkg/configstreambootstrap              @DataDog/agent-configuration
 /pkg/containerlifecycle/                @DataDog/container-integrations
 /pkg/diagnose/                          @DataDog/agent-configuration
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
@@ -830,6 +860,8 @@
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
 /test/integration/                      @DataDog/serverless-azure-gcp
 /test/integration/docker/               @DataDog/opentelemetry-agent
+/test/e2e-framework/AGENTS.md                           @DataDog/agent-devx
+/test/e2e-framework/CLAUDE.md                          @DataDog/agent-devx
 /test/e2e-framework/testing/testcommon/check            @DataDog/agent-runtimes
 /test/e2e-framework/testing/utils/e2e/client/ecs/       @DataDog/ecs-experiences
 /test/e2e-framework/testing/provisioners/aws/ecs/       @DataDog/ecs-experiences
@@ -957,11 +989,6 @@
 # Add here modules that need explicit review from the team owning them
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
-
-# AI-related files
-/.claude/rules/bazel.md               @DataDog/agent-build
-/.claude/skills/explain-lading-config @DataDog/single-machine-performance
-/.claude/skills/update-3rd-party-libs @DataDog/agent-build
 
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
