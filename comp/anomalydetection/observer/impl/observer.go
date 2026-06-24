@@ -795,7 +795,7 @@ func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView
 }
 
 func normalizeMetricSource(name, source string) string {
-	if strings.HasPrefix(name, "datadog.agent.") {
+	if strings.HasPrefix(name, "datadog.") {
 		return observerdef.AgentNamespace
 	}
 	return source
