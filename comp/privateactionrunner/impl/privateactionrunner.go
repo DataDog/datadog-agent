@@ -365,7 +365,7 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		}
 	}
 	// taskExecutor (orchestrator side) tears down an in-process server; no-op for
-	// the binary/ipc modes.
+	// binary mode.
 	if p.taskExecutor != nil {
 		err := p.taskExecutor.Stop(ctx)
 		if err != nil {

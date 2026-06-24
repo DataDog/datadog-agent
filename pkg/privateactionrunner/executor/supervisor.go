@@ -40,6 +40,13 @@ type Supervisor struct {
 	conn           *grpc.ClientConn
 	client         executorpb.ExecutorClient
 
+	// procCtx owns the spawned executor child's lifetime. It is deliberately
+	// independent of the per-task submission context so that cancelling a submit
+	// (or the polling loop) does not SIGKILL the child; the child is torn down
+	// only by Close (procCancel), its own idle timeout, or a Drain-then-Close.
+	procCtx    context.Context
+	procCancel context.CancelFunc
+
 	mu          sync.Mutex
 	cmd         *exec.Cmd
 	noAutoStart bool
@@ -58,6 +65,7 @@ func NewSupervisor(socketPath, confPath string, extraConfFiles []string, capacit
 		capacity = 1
 	}
 	conn, client, _ := newGRPCClient(socketPath, 5*time.Second)
+	procCtx, procCancel := context.WithCancel(context.Background())
 	return &Supervisor{
 		socketPath:     socketPath,
 		confPath:       confPath,
@@ -67,6 +75,8 @@ func NewSupervisor(socketPath, confPath string, extraConfFiles []string, capacit
 		command:        defaultExecutorCommand(),
 		conn:           conn,
 		client:         client,
+		procCtx:        procCtx,
+		procCancel:     procCancel,
 	}
 }
 
@@ -148,8 +158,22 @@ func (s *Supervisor) Status(ctx context.Context) (*executorpb.StatusResponse, er
 	return s.client.Status(withAuth(ctx, s.authToken), &executorpb.StatusRequest{})
 }
 
-// Close releases the supervisor's client-side IPC connection.
+// Drain asks the executor to stop accepting new tasks and finish the ones it has
+// already accepted. The server blocks until its in-flight tasks complete, so this
+// call returns once the executor has drained or ctx's deadline elapses. It is
+// best-effort: if no executor is listening, the error is returned for the caller
+// to ignore.
+func (s *Supervisor) Drain(ctx context.Context) error {
+	_, err := s.client.Shutdown(withAuth(ctx, s.authToken), &executorpb.StatusRequest{})
+	return err
+}
+
+// Close terminates any spawned executor child and releases the supervisor's
+// client-side IPC connection.
 func (s *Supervisor) Close() error {
+	if s.procCancel != nil {
+		s.procCancel()
+	}
 	if s.conn == nil {
 		return nil
 	}
@@ -183,7 +207,10 @@ func (s *Supervisor) ShutdownExisting(ctx context.Context) {
 	}
 }
 
-func (s *Supervisor) ensureRunning(ctx context.Context) error {
+// ensureRunning starts the executor child if it is not already running. The
+// child's lifetime is bound to the supervisor-owned procCtx, not to any caller
+// context, so the parameter is intentionally unused.
+func (s *Supervisor) ensureRunning(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.noAutoStart {
@@ -200,7 +227,9 @@ func (s *Supervisor) ensureRunning(ctx context.Context) error {
 		args = append(args, "--extracfgpath", extra)
 	}
 	commandArgs := append(append([]string(nil), s.command.baseArgs...), args...)
-	cmd := exec.CommandContext(ctx, s.command.path, commandArgs...)
+	// Bind the child to procCtx (supervisor-owned), not the submit ctx, so the
+	// child outlives any single task submission and is only torn down by Close.
+	cmd := exec.CommandContext(s.procCtx, s.command.path, commandArgs...)
 	cmd.Dir = s.command.dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

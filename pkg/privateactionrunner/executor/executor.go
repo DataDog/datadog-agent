@@ -22,9 +22,6 @@ const (
 	// ModeBinary spawns the task executor as a child process, re-execing the
 	// current binary (or the configured binary path).
 	ModeBinary = "binary"
-	// ModeIPC submits to an executor managed outside this process, already
-	// listening on the socket. The orchestrator never spawns or kills it.
-	ModeIPC = "ipc"
 )
 
 // TaskHandler is what an Executor needs from the orchestrator to serve tasks:
@@ -57,8 +54,7 @@ type Executor interface {
 
 // Params configures which executor implementation NewExecutor builds.
 type Params struct {
-	// Mode is one of ModeInProcess, ModeBinary, or ModeIPC. Empty defaults to
-	// ModeInProcess.
+	// Mode is one of ModeInProcess or ModeBinary. Empty defaults to ModeInProcess.
 	Mode string
 	// SocketPath is the local IPC socket or named pipe the orchestrator and
 	// executor communicate over.
@@ -82,14 +78,12 @@ type Params struct {
 func NewExecutor(p Params) (Executor, error) {
 	sup := NewSupervisor(p.SocketPath, p.ConfPath, p.ExtraConfFiles, p.Capacity, p.AuthToken)
 	switch p.Mode {
-	case ModeIPC:
-		return newRemoteExecutor(sup), nil
 	case ModeBinary:
 		return newSubprocessExecutor(sup), nil
 	case ModeInProcess, "":
 		return newInProcessExecutor(sup, p.SocketPath, p.Version, p.AuthToken, p.OnShutdown), nil
 	default:
-		return nil, fmt.Errorf("unknown executor mode %q (want %q, %q, or %q)", p.Mode, ModeInProcess, ModeBinary, ModeIPC)
+		return nil, fmt.Errorf("unknown executor mode %q (want %q or %q)", p.Mode, ModeInProcess, ModeBinary)
 	}
 }
 
@@ -109,29 +103,18 @@ func (e *subprocessExecutor) Start(ctx context.Context, _ TaskHandler) error {
 	return nil
 }
 
-func (e *subprocessExecutor) Stop(_ context.Context) error {
-	// The child process is bound to the context passed to SubmitTask and is torn
-	// down when that context is cancelled.
+func (e *subprocessExecutor) Stop(ctx context.Context) error {
+	// Drain first: let the executor finish tasks it has already accepted (bounded
+	// by ctx's deadline) before Close tears the child down. Without this the child
+	// would be killed with in-flight tasks still running, to be recovered only
+	// later via lease expiry.
+	_ = e.Supervisor.Drain(ctx)
 	return e.Supervisor.Close()
 }
 
-// remoteExecutor submits to an executor whose lifecycle is managed outside this
-// process (e.g. started manually for debugging).
-type remoteExecutor struct {
-	*Supervisor
-}
-
-func newRemoteExecutor(sup *Supervisor) Executor {
-	sup.noAutoStart = true
-	return &remoteExecutor{Supervisor: sup}
-}
-
-func (e *remoteExecutor) Start(_ context.Context, _ TaskHandler) error { return nil }
-func (e *remoteExecutor) Stop(_ context.Context) error                 { return e.Supervisor.Close() }
-
 // inProcessExecutor serves submitted tasks from a goroutine in the orchestrator
 // process. Tasks still travel over the local IPC socket, so the submit path is
-// identical to the other modes.
+// identical to binary mode.
 type inProcessExecutor struct {
 	*Supervisor
 	socketPath string

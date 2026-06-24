@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    The Private Action Runner now supports two executor modes, configured via
+    ``private_action_runner.executor_mode``:
+
+    - ``in-process`` (default): actions execute in a goroutine inside the
+      orchestrator process. No subprocess is spawned.
+    - ``binary``: actions execute in a dedicated subprocess. The orchestrator
+      re-execs the same binary, isolating action execution from the
+      orchestration loop. In-flight actions are allowed to finish (bounded by
+      the shutdown timeout) before the subprocess is torn down.

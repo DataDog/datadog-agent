@@ -68,9 +68,6 @@ properties:
         orchestrator process. No subprocess is spawned.
       - binary: spawn the executor as a subprocess. The orchestrator re-execs
         itself (works with both installed binaries and `go run`).
-      - ipc: assume an executor is already running on the socket path and connect
-        to it. The orchestrator never spawns or shuts down an executor; useful
-        when starting the executor manually for debugging.
     example: in-process
     tags:
     - template_section:PrivateActionRunner
