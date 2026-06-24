@@ -120,7 +120,7 @@ anomaly_detection:
     processing_rules:
       - type: exclude_at_match
         name: drop_dogstatsd
-        namespace: dogstatsd
+        source: dogstatsd
 `)
 	lc := &testLifecycle{}
 	telComp := telemetryimpl.GetCompatComponent()

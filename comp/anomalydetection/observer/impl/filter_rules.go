@@ -10,7 +10,7 @@
 //         processing_rules:
 //           - type: exclude_at_match
 //             name: drop_dev_dogstatsd
-//             namespace: dogstatsd
+//             source: dogstatsd
 //             tags: ["env:dev"]
 //
 //   code:
@@ -41,7 +41,7 @@ type metricsProcessingRule struct {
 	Name        string   `mapstructure:"name"`
 	NamePattern string   `mapstructure:"name_pattern"`
 	Tags        []string `mapstructure:"tags"`
-	Namespace   string   `mapstructure:"namespace"`
+	Source      string   `mapstructure:"source"`
 }
 
 // metricsFilterRules evaluates the ordered rule list against incoming metrics.
@@ -54,7 +54,7 @@ type metricsCompiledRule struct {
 	name       string
 	namePrefix string
 	tags       []string
-	namespace  string
+	source     string
 }
 
 // newMetricsFilterRules parses, validates, and compiles rules.
@@ -91,7 +91,7 @@ func newMetricsFilterRules(rules []metricsProcessingRule) (*metricsFilterRules, 
 			name:       name,
 			namePrefix: namePrefix,
 			tags:       tags,
-			namespace:  strings.TrimSpace(rule.Namespace),
+			source:     strings.TrimSpace(rule.Source),
 		})
 	}
 
@@ -113,9 +113,9 @@ func newDefaultMetricsFilterRules() *metricsFilterRules {
 func defaultMetricsProcessingRules() []metricsProcessingRule {
 	return []metricsProcessingRule{
 		{
-			Type:      excludeAtMatch,
-			Name:      "drop_agent_metrics",
-			Namespace: observerdef.AgentNamespace,
+			Type:   excludeAtMatch,
+			Name:   "drop_agent_metrics",
+			Source: observerdef.AgentNamespace,
 		},
 	}
 }
@@ -168,17 +168,17 @@ func compileRuleTags(tags []string) ([]string, error) {
 }
 
 // isAllowed returns true if the metric should be ingested.
-func (f *metricsFilterRules) isAllowed(name, namespace string, tags []string) bool {
+func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool {
 	if f == nil {
 		return true
 	}
 
-	if namespace == LogMetricsExtractorName {
+	if source == LogMetricsExtractorName {
 		return true
 	}
 
 	for _, rule := range f.rules {
-		if rule.matches(name, namespace, tags) {
+		if rule.matches(name, source, tags) {
 			return !rule.exclude
 		}
 	}
@@ -186,8 +186,8 @@ func (f *metricsFilterRules) isAllowed(name, namespace string, tags []string) bo
 	return true
 }
 
-func (r metricsCompiledRule) matches(name, namespace string, tags []string) bool {
-	if r.namespace != "" && namespace != r.namespace {
+func (r metricsCompiledRule) matches(name, source string, tags []string) bool {
+	if r.source != "" && source != r.source {
 		return false
 	}
 

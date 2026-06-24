@@ -140,12 +140,12 @@ func TestMetricsFilterRulesTagAndSemantics(t *testing.T) {
 	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"service:web"}))
 }
 
-func TestMetricsFilterRulesNamespaceFilter(t *testing.T) {
+func TestMetricsFilterRulesSourceFilter(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
-		Type:      excludeAtMatch,
-		Name:      "drop_dogstatsd_dev",
-		Namespace: "dogstatsd",
-		Tags:      []string{"env:dev"},
+		Type:   excludeAtMatch,
+		Name:   "drop_dogstatsd_dev",
+		Source: "dogstatsd",
+		Tags:   []string{"env:dev"},
 	}})
 	require.NoError(t, err)
 
@@ -194,9 +194,9 @@ func TestDefaultMetricsProcessingRulesExcludeAgentNamespace(t *testing.T) {
 func TestDefaultAgentRuleCanBeOverriddenByEarlierIncludeRule(t *testing.T) {
 	filter, err := newMetricsFilterRules(append([]metricsProcessingRule{
 		{
-			Type:      includeAtMatch,
-			Name:      "keep_agent_metrics",
-			Namespace: observerdef.AgentNamespace,
+			Type:   includeAtMatch,
+			Name:   "keep_agent_metrics",
+			Source: observerdef.AgentNamespace,
 		},
 	}, defaultMetricsProcessingRules()...))
 	require.NoError(t, err)
@@ -255,10 +255,10 @@ func TestMetricsFilterRulesExactPrefixNamePatternWithoutWildcard(t *testing.T) {
 
 func TestPrepareMetricIngestDropsMatchingMetrics(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
-		Type:      excludeAtMatch,
-		Name:      "drop_dev_dogstatsd",
-		Namespace: "dogstatsd",
-		Tags:      []string{"env:dev"},
+		Type:   excludeAtMatch,
+		Name:   "drop_dev_dogstatsd",
+		Source: "dogstatsd",
+		Tags:   []string{"env:dev"},
 	}})
 	require.NoError(t, err)
 
@@ -283,9 +283,9 @@ func TestPrepareMetricIngestDropsNormalizedAgentMetricsViaDefaultRule(t *testing
 func TestPrepareMetricIngestAllowsNormalizedAgentMetricsWhenIncludedEarlier(t *testing.T) {
 	filter, err := newMetricsFilterRules(append([]metricsProcessingRule{
 		{
-			Type:      includeAtMatch,
-			Name:      "keep_agent_metrics",
-			Namespace: observerdef.AgentNamespace,
+			Type:   includeAtMatch,
+			Name:   "keep_agent_metrics",
+			Source: observerdef.AgentNamespace,
 		},
 	}, defaultMetricsProcessingRules()...))
 	require.NoError(t, err)
@@ -305,12 +305,12 @@ func TestPrepareMetricIngestMixedAgentRulesKeepIncludedMetricAndDropOthers(t *te
 			Type:        includeAtMatch,
 			Name:        "keep_agent_running",
 			NamePattern: "datadog.agent.running",
-			Namespace:   observerdef.AgentNamespace,
+			Source:      observerdef.AgentNamespace,
 		},
 		{
-			Type:      excludeAtMatch,
-			Name:      "drop_other_agent_metrics",
-			Namespace: observerdef.AgentNamespace,
+			Type:   excludeAtMatch,
+			Name:   "drop_other_agent_metrics",
+			Source: observerdef.AgentNamespace,
 		},
 	}, defaultMetricsProcessingRules()...))
 	require.NoError(t, err)
@@ -332,11 +332,11 @@ func TestPrepareMetricIngestMixedAgentRulesKeepIncludedMetricAndDropOthers(t *te
 	assert.Equal(t, observerdef.AgentNamespace, dropped.source)
 }
 
-func TestObserverAppliesMetricFilterBySourceNamespace(t *testing.T) {
+func TestObserverAppliesMetricFilterBySource(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
-		Type:      excludeAtMatch,
-		Name:      "drop_dogstatsd",
-		Namespace: "dogstatsd",
+		Type:   excludeAtMatch,
+		Name:   "drop_dogstatsd",
+		Source: "dogstatsd",
 	}})
 	require.NoError(t, err)
 
@@ -386,11 +386,11 @@ func TestObserverAppliesMetricFilterBySourceNamespace(t *testing.T) {
 	assert.Equal(t, "system.cpu.user", checkSeries[0].Name)
 }
 
-func TestIngestMetricSyncAppliesMetricFilterBySourceNamespace(t *testing.T) {
+func TestIngestMetricSyncAppliesMetricFilterBySource(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
-		Type:      excludeAtMatch,
-		Name:      "drop_dogstatsd",
-		Namespace: "dogstatsd",
+		Type:   excludeAtMatch,
+		Name:   "drop_dogstatsd",
+		Source: "dogstatsd",
 	}})
 	require.NoError(t, err)
 
@@ -420,9 +420,9 @@ func TestIngestMetricSyncAppliesMetricFilterBySourceNamespace(t *testing.T) {
 
 func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
-		Type:      excludeAtMatch,
-		Name:      "drop_dogstatsd",
-		Namespace: "dogstatsd",
+		Type:   excludeAtMatch,
+		Name:   "drop_dogstatsd",
+		Source: "dogstatsd",
 	}})
 	require.NoError(t, err)
 
@@ -450,9 +450,9 @@ func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 
 func TestFilteredMetricTelemetrySyncPath(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
-		Type:      excludeAtMatch,
-		Name:      "drop_check",
-		Namespace: "check",
+		Type:   excludeAtMatch,
+		Name:   "drop_check",
+		Source: "check",
 	}})
 	require.NoError(t, err)
 
@@ -625,12 +625,12 @@ func TestMixedAgentRulesAsyncPathKeepsIncludedMetricAndCountsDroppedMetric(t *te
 			Type:        includeAtMatch,
 			Name:        "keep_agent_running",
 			NamePattern: "datadog.agent.running",
-			Namespace:   observerdef.AgentNamespace,
+			Source:      observerdef.AgentNamespace,
 		},
 		{
-			Type:      excludeAtMatch,
-			Name:      "drop_other_agent_metrics",
-			Namespace: observerdef.AgentNamespace,
+			Type:   excludeAtMatch,
+			Name:   "drop_other_agent_metrics",
+			Source: observerdef.AgentNamespace,
 		},
 	}, defaultMetricsProcessingRules()...))
 	require.NoError(t, err)
@@ -685,11 +685,11 @@ func TestMixedAgentRulesAsyncPathKeepsIncludedMetricAndCountsDroppedMetric(t *te
 	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
 }
 
-func TestAsyncAndSyncFilteringForCheckNamespaceRemainConsistent(t *testing.T) {
+func TestAsyncAndSyncFilteringForCheckSourceRemainConsistent(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
-		Type:      excludeAtMatch,
-		Name:      "drop_check",
-		Namespace: "check",
+		Type:   excludeAtMatch,
+		Name:   "drop_check",
+		Source: "check",
 	}})
 	require.NoError(t, err)
 

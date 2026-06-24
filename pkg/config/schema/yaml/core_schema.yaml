@@ -6397,7 +6397,7 @@ properties:
 
                 - type: exclude_at_match
                   name: drop_dev_dogstatsd
-                  namespace: dogstatsd
+                  source: dogstatsd
                   tags: ["env:dev"]
                 - type: include_at_match
                   name: keep_prod_kubernetes
@@ -6416,7 +6416,7 @@ properties:
                   type: array
                   items:
                     type: string
-                namespace:
+                source:
                   type: string
       recording:
         node_type: section
