@@ -1251,7 +1251,7 @@ runtime_success_sec: 5
         let path_str = path.to_str().unwrap();
         let (sh, flag) = test_helpers::shell_cmd();
         for msg in ["first", "second"] {
-            let status = std::process::Command::new(&sh)
+            let status = std::process::Command::new(sh)
                 .arg(flag)
                 .arg(format!("echo {msg}"))
                 .stdout(super::stdio_from_str(path_str))
