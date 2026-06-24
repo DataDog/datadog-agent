@@ -40,7 +40,7 @@ func intersectAllowedCommands(backendAllowed []string, operatorAllowed []string)
 	for _, c := range operatorAllowed {
 		switch {
 		case c == setup.RShellCommandAllowAllWildcard:
-			return append([]string(nil), backendAllowed...)
+			return slices.Clone(backendAllowed)
 		case c == setup.RShellCommandNamespacePrefix || c == "":
 			continue
 		case strings.HasPrefix(c, setup.RShellCommandNamespacePrefix):
