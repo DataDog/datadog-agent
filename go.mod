@@ -948,6 +948,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/bazelbuild/rules_go v0.61.1
+	github.com/cenkalti/backoff/v6 v6.0.1
 	github.com/creack/pty v1.1.24
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/hashicorp/consul/api v1.34.3
@@ -962,7 +963,7 @@ require (
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/qri-io/jsonpointer v0.1.1
-	github.com/rabbitmq/amqp091-go v1.11.0
+	github.com/rabbitmq/amqp091-go v1.12.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.etcd.io/etcd/client/v2 v2.305.31

@@ -18,7 +18,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.86.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
-	github.com/cenkalti/backoff/v5 v5.0.3
+	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/docker/cli v29.5.3+incompatible // indirect
 	github.com/fatih/color v1.19.0
 	github.com/google/uuid v1.6.0
@@ -214,6 +214,7 @@ require (
 	github.com/DataDog/orchestrion v1.10.0
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
+	github.com/cenkalti/backoff/v6 v6.0.1
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-viper/mapstructure/v2 v2.5.0
