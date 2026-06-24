@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -106,7 +107,7 @@ type daemonImpl struct {
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
 	return func(env *env.Env) installer.Installer {
-		return exec.NewInstallerExec(env, installerBin)
+		return exec.NewInstallerExec(env, installerBin, exec.WithPreRemoveHooks(packages.AsyncPreRemoveHooks))
 	}
 }
 

@@ -14,9 +14,12 @@ import (
 	"fmt"
 	"io/fs"
 	"os/exec"
+	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -69,4 +72,48 @@ func (i *InstallerExec) getStates(ctx context.Context) (_ *repository.PackageSta
 		States:       packageStates,
 		ConfigStates: configStates,
 	}, nil
+}
+
+func (i *InstallerExec) installerDirectories() paths.InstallerDirectories {
+	if i.env == nil {
+		return paths.CurrentInstallerDirectories()
+	}
+	return paths.InstallerDirectoriesForMsiParams(i.env.MsiParams)
+}
+
+// GarbageCollect runs the garbage collector.
+// On Windows there is no privilege boundary between the daemon and the installer
+// binary, so we clean up unused packages and temporary files in-process instead
+// of spawning a subprocess.
+func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "installer.garbage-collect")
+	var packagesDB *db.PackagesDB
+	defer func() {
+		if packagesDB != nil {
+			if dbErr := packagesDB.Close(); dbErr != nil {
+				dbErr = fmt.Errorf("failed to close packages database: %w", dbErr)
+				err = errors.Join(err, dbErr)
+			}
+		}
+		span.Finish(err)
+	}()
+
+	installerDirs := i.installerDirectories()
+	if err := paths.EnsureInstallerDirectoriesForPaths(installerDirs); err != nil {
+		return fmt.Errorf("could not ensure packages and config directory exists: %w", err)
+	}
+
+	// Hold the same packages database lock as the installer command while
+	// deleting unused package directories.
+	packagesDB, err = db.New(ctx, filepath.Join(installerDirs.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
+	if err != nil {
+		return fmt.Errorf("could not create packages db: %w", err)
+	}
+
+	repos := repository.NewRepositories(installerDirs.PackagesPath, i.preRemoveHooks)
+	err = repository.GarbageCollect(ctx, repos, installerDirs.RootTmpDir)
+	if err != nil {
+		return err
+	}
+	return nil
 }

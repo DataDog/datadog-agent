@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "exec",
@@ -17,5 +17,24 @@ go_library(
         "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/repository",
         "//pkg/fleet/installer/telemetry",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/db",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "exec_test",
+    srcs = ["installer_exec_windows_test.go"],
+    embed = [":exec"],
+    gotags = ["test"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/env",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
 )

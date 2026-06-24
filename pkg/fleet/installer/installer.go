@@ -92,7 +92,7 @@ type installerImpl struct {
 
 // NewInstaller returns a new Package Manager.
 func NewInstaller(ctx context.Context, env *env.Env) (Installer, error) {
-	err := ensureRepositoriesExist()
+	err := paths.EnsureInstallerDirectories()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
@@ -706,15 +706,7 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 func (i *installerImpl) GarbageCollect(ctx context.Context) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := i.packages.Cleanup(ctx)
-	if err != nil {
-		return fmt.Errorf("could not cleanup packages: %w", err)
-	}
-	err = cleanupTmpDirectory(paths.RootTmpDir)
-	if err != nil {
-		return fmt.Errorf("could not cleanup tmp directory: %w", err)
-	}
-	return nil
+	return repository.GarbageCollect(ctx, i.packages, paths.RootTmpDir)
 }
 
 // InstrumentAPMInjector instruments the APM injector.
@@ -937,92 +929,6 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 	if availableDiskSpace < uint64(requiredDiskSpace) {
 		return fmt.Errorf("not enough disk space at %s: %d bytes available, %d bytes required", repositories.RootPath(), availableDiskSpace, requiredDiskSpace)
 	}
-	return nil
-}
-
-// ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
-func ensureRepositoriesExist() error {
-	// Enforce permissions on the installer data directory
-	//
-	// TODO: Avoid setup-like work in the installer constructor.
-	// These directories should be created properly at install/setup time, however
-	// the installer constructor is called before install/setup runs, and will fail if
-	// these directories do not exist, so we must do some minimal creation/validation here.
-	// We must avoid doing too much work here (e.g. iterating the filesystem tree)
-	// because the constructor is called for every subprocess, even "read only"
-	// subcommands like `get-states`.
-	err := paths.EnsureInstallerDataDir()
-	if err != nil {
-		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
-	}
-
-	// create subdirectories
-	err = os.MkdirAll(paths.PackagesPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating packages directory: %w", err)
-	}
-	err = os.MkdirAll(paths.ConfigsPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating configs directory: %w", err)
-	}
-	err = os.MkdirAll(paths.RootTmpDir, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating tmp directory: %w", err)
-	}
-	err = os.MkdirAll(paths.RunPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating tmp directory: %w", err)
-	}
-
-	return nil
-}
-
-// cleanupTmpDirectory removes files and directories in RootTmpDir that are older than 24 hours
-func cleanupTmpDirectory(rootTmpDir string) error {
-	// Check if RootTmpDir exists
-	if _, err := os.Stat(rootTmpDir); os.IsNotExist(err) {
-		// Directory doesn't exist, nothing to clean up
-		return nil
-	}
-
-	// Calculate the cutoff time (24 hours ago)
-	cutoffTime := time.Now().Add(-24 * time.Hour)
-
-	// Read the directory contents
-	entries, err := os.ReadDir(rootTmpDir)
-	if err != nil {
-		return fmt.Errorf("could not read tmp directory: %w", err)
-	}
-
-	var cleanupErrors []string
-	for _, entry := range entries {
-		entryPath := filepath.Join(rootTmpDir, entry.Name())
-
-		// Get file info to check modification time
-		info, err := entry.Info()
-		if err != nil {
-			log.Warnf("Could not get info for %s: %v", entryPath, err)
-			continue
-		}
-
-		// Check if the file/directory is older than 24 hours
-		if info.ModTime().Before(cutoffTime) {
-			log.Debugf("Removing old tmp file/directory: %s (modified: %v)", entryPath, info.ModTime())
-
-			err := os.RemoveAll(entryPath)
-			if err != nil {
-				cleanupErrors = append(cleanupErrors, fmt.Sprintf("failed to remove %s: %v", entryPath, err))
-				log.Warnf("Could not remove old tmp file/directory %s: %v", entryPath, err)
-			} else {
-				log.Debugf("Successfully removed old tmp file/directory: %s", entryPath)
-			}
-		}
-	}
-
-	if len(cleanupErrors) > 0 {
-		return fmt.Errorf("tmp directory cleanup completed with errors: %s", strings.Join(cleanupErrors, "; "))
-	}
-
 	return nil
 }
 

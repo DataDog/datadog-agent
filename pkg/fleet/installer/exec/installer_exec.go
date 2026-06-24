@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,14 +31,29 @@ import (
 type InstallerExec struct {
 	env              *env.Env
 	installerBinPath string
+	preRemoveHooks   map[string]repository.PreRemoveHook
+}
+
+// Option configures InstallerExec.
+type Option func(*InstallerExec)
+
+// WithPreRemoveHooks configures hooks run before package versions are removed by garbage collection.
+func WithPreRemoveHooks(preRemoveHooks map[string]repository.PreRemoveHook) Option {
+	return func(i *InstallerExec) {
+		i.preRemoveHooks = maps.Clone(preRemoveHooks)
+	}
 }
 
 // NewInstallerExec returns a new InstallerExec.
-func NewInstallerExec(env *env.Env, installerBinPath string) *InstallerExec {
-	return &InstallerExec{
+func NewInstallerExec(env *env.Env, installerBinPath string, opts ...Option) *InstallerExec {
+	i := &InstallerExec{
 		env:              env,
 		installerBinPath: installerBinPath,
 	}
+	for _, opt := range opts {
+		opt(i)
+	}
+	return i
 }
 
 type installerCmd struct {
@@ -226,13 +242,6 @@ func (i *InstallerExec) RemoveConfigExperiment(ctx context.Context, pkg string) 
 // PromoteConfigExperiment promotes an experiment to stable.
 func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "promote-config-experiment", pkg)
-	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
-}
-
-// GarbageCollect runs the garbage collector.
-func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
-	cmd := i.newInstallerCmd(ctx, "garbage-collect")
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
