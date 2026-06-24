@@ -7,7 +7,6 @@
 package securityagentimpl
 
 import (
-	"context"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -70,10 +69,4 @@ type remoteagentImpl struct {
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
-}
-
-// WaitSessionID blocks until the remote agent is registered and a session ID is available.
-// Used by the config stream consumer to wait for RAR registration before subscribing.
-func (r *remoteagentImpl) WaitSessionID(ctx context.Context) (string, error) {
-	return r.remoteAgentServer.WaitSessionID(ctx)
 }

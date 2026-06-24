@@ -10,10 +10,10 @@ package start
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,41 +26,40 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
-	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// mockConfigStreamServer is a gRPC server that streams config events when sent on the events channel.
-type mockConfigStreamServer struct {
+// mockCoreAgent implements the subset of AgentSecure the consumer calls:
+// RegisterRemoteAgent and StreamConfigEvents. Test feeds events via the channel.
+type mockCoreAgent struct {
 	pb.UnimplementedAgentSecureServer
-	events chan *pb.ConfigEvent
-	closed bool
+	sessionID string
+	events    chan *pb.ConfigEvent
+	closeOnce sync.Once
 }
 
-func (m *mockConfigStreamServer) StreamConfigEvents(_ *pb.ConfigStreamRequest, stream pb.AgentSecure_StreamConfigEventsServer) error {
+func (m *mockCoreAgent) RegisterRemoteAgent(_ context.Context, _ *pb.RegisterRemoteAgentRequest) (*pb.RegisterRemoteAgentResponse, error) {
+	return &pb.RegisterRemoteAgentResponse{SessionId: m.sessionID}, nil
+}
+
+func (m *mockCoreAgent) StreamConfigEvents(_ *pb.ConfigStreamRequest, stream pb.AgentSecure_StreamConfigEventsServer) error {
 	md, ok := metadata.FromIncomingContext(stream.Context())
 	if !ok {
 		return status.Error(codes.Unauthenticated, "missing gRPC metadata")
 	}
-	sessionIDs := md.Get("session_id")
-	if len(sessionIDs) == 0 || sessionIDs[0] == "" {
-		return status.Error(codes.Unauthenticated, "session_id required in metadata")
+	if got := md.Get("session_id"); len(got) == 0 || got[0] != m.sessionID {
+		return status.Error(codes.Unauthenticated, "invalid session_id")
 	}
 	for event := range m.events {
-		if m.closed {
-			return io.EOF
-		}
 		if err := stream.Send(event); err != nil {
 			return err
 		}
@@ -68,118 +67,141 @@ func (m *mockConfigStreamServer) StreamConfigEvents(_ *pb.ConfigStreamRequest, s
 	return nil
 }
 
-// mockRAR provides a fixed session ID so the config stream consumer can connect without a real RAR.
-type mockRAR struct{}
+func (m *mockCoreAgent) close() {
+	m.closeOnce.Do(func() { close(m.events) })
+}
 
-func (m *mockRAR) WaitSessionID(_ context.Context) (string, error) {
-	return "test-session", nil
+// setupFakeCoreAgent generates real IPC cert + auth_token files (so the consumer's
+// micro-resolution and mTLS dial succeed) and starts a gRPC server using the same
+// TLS config. Returns the listener address (host:port) and a cleanup func.
+func setupFakeCoreAgent(t *testing.T, dir string) (addr string, mock *mockCoreAgent, cleanup func()) {
+	t.Helper()
+
+	// Seed the global config so cert/auth helpers know where to put their files.
+	// GlobalConfigBuilder needed here: it's the only accessor that exposes SetConfigFile (Setup interface).
+	pkgconfigsetup.InitConfigObjects()
+	cfg := pkgconfigsetup.GlobalConfigBuilder()
+	cfg.SetConfigFile(filepath.Join(dir, "datadog.yaml"))
+
+	_, err := pkgtoken.FetchOrCreateAuthToken(context.Background(), cfg)
+	require.NoError(t, err)
+	_, serverTLS, _, err := cert.FetchOrCreateIPCCert(context.Background(), cfg)
+	require.NoError(t, err)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	mock = &mockCoreAgent{
+		sessionID: "test-session-id",
+		events:    make(chan *pb.ConfigEvent, 16),
+	}
+	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(serverTLS)))
+	pb.RegisterAgentSecureServer(grpcServer, mock)
+	go func() { _ = grpcServer.Serve(listener) }()
+
+	cleanup = func() {
+		mock.close()
+		grpcServer.Stop()
+		_ = listener.Close()
+	}
+	return listener.Addr().String(), mock, cleanup
 }
 
 func mustNewValue(t *testing.T, v interface{}) *structpb.Value {
+	t.Helper()
 	val, err := structpb.NewValue(v)
 	require.NoError(t, err)
 	return val
 }
 
-// setupMockConfigStreamServer starts a gRPC server that implements the config stream and returns
-// the server address and a channel to send events. Calls the returned cleanup when done.
-func setupMockConfigStreamServer(t *testing.T, ipcComp *ipcmock.IPCMock) (addr string, events chan *pb.ConfigEvent, cleanup func()) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	addr = listener.Addr().String()
-	events = make(chan *pb.ConfigEvent, 100)
-	mockServer := &mockConfigStreamServer{events: events}
-	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(ipcComp.GetTLSServerConfig())))
-	pb.RegisterAgentSecureServer(grpcServer, mockServer)
-	go func() { _ = grpcServer.Serve(listener) }()
-	cleanup = func() {
-		mockServer.closed = true
-		close(events)
-		grpcServer.Stop()
-		_ = listener.Close()
-	}
-	return addr, events, cleanup
-}
-
-// TestRunBlocksUntilConfigStreamSnapshot verifies that FX startup does not complete until the config
-// stream consumer receives a snapshot. Uses a minimal FX graph to keep the test focused on the
-// configstreamconsumer wiring.
+// TestRunBlocksUntilConfigStreamSnapshot verifies the end-to-end wiring:
+// the consumer dials the (fake) core, registers with the RAR, opens the stream, and
+// blocks fxutil.OneShot until the first snapshot is applied.
 func TestRunBlocksUntilConfigStreamSnapshot(t *testing.T) {
-	ipcComp := ipcmock.New(t)
-	serverAddr, events, cleanup := setupMockConfigStreamServer(t, ipcComp)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
 	defer cleanup()
 
-	host, port, err := net.SplitHostPort(serverAddr)
+	host, port, err := net.SplitHostPort(addr)
 	require.NoError(t, err)
-
-	tmpDir := t.TempDir()
-	datadogPath := filepath.Join(tmpDir, "datadog.yaml")
 
 	datadogYaml := fmt.Sprintf(`
 cmd_host: %s
 cmd_port: %s
+auth_token_file_path: %s
+ipc_cert_file_path: %s
 remote_agent:
   registry:
-    enabled: false
+    enabled: true
   configstream:
     consumer:
       enabled: true
-`, host, port)
+`, host, port,
+		filepath.Join(dir, "auth_token"),
+		filepath.Join(dir, "ipc_cert.pem"),
+	)
+	datadogPath := filepath.Join(dir, "datadog.yaml")
 	require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
 
 	opts := fx.Options(
-		fx.Supply(config.NewSecurityAgentParams([]string{datadogPath})),
-		config.Module(),
-		delegatedauthnoopfx.Module(),
-		secretsnoopfx.Module(),
-		fx.Supply(log.ForDaemon("SECURITY", "log_file", "")),
-		logfx.Module(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		telemetryfx.Module(),
-		fx.Provide(func() ipc.Component { return ipcComp }),
-		fx.Provide(func(c config.Component) model.Writer { return c }),
-		fx.Supply(configstreamconsumer.Params{
-			ClientName:        "security-agent",
-			CoreAgentAddress:  serverAddr,
-			SessionIDProvider: &mockRAR{},
-			ReadyTimeout:      10 * time.Second,
-		}),
+		fx.Supply(configstreamconsumer.NewParams("security-agent", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
 		configstreamconsumerfx.Module(),
 	)
 
-	// testRun is injected by FX; the consumer's OnStart blocks until a snapshot arrives.
 	testRun := func(_ configstreamconsumer.Component) error { return nil }
 
-	t.Run("startup_completes_after_snapshot", func(t *testing.T) {
-		done := make(chan error, 1)
-		go func() {
-			done <- fxutil.OneShot(testRun, opts)
-		}()
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
 
-		// Startup should still be blocking (no snapshot yet).
-		select {
-		case err := <-done:
-			t.Fatalf("run completed before snapshot was sent: %v", err)
-		case <-time.After(500 * time.Millisecond):
-			// Good: still blocking.
-		}
+	select {
+	case err := <-done:
+		t.Fatalf("OneShot completed before snapshot was sent: %v", err)
+	case <-time.After(500 * time.Millisecond):
+	}
 
-		// Send snapshot so WaitReady unblocks.
-		events <- &pb.ConfigEvent{
-			Event: &pb.ConfigEvent_Snapshot{
-				Snapshot: &pb.ConfigSnapshot{
-					SequenceId: 1,
-					Settings: []*pb.ConfigSetting{
-						{Key: "test.key", Value: mustNewValue(t, "ok")},
-					},
-				},
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings:   []*pb.ConfigSetting{{Key: "test.key", Value: mustNewValue(t, "ok"), Source: "file"}},
 			},
-		}
+		},
+	}
 
-		select {
-		case err := <-done:
-			require.NoError(t, err)
-		case <-time.After(30 * time.Second):
-			t.Fatal("run did not complete after sending snapshot")
-		}
-	})
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(15 * time.Second):
+		t.Fatal("OneShot did not complete after sending snapshot")
+	}
+}
+
+// TestRunNoopWhenConfigstreamDisabled verifies that when configstream is disabled,
+// NewComponent returns a no-op and FX startup does NOT block on the consumer.
+func TestRunNoopWhenConfigstreamDisabled(t *testing.T) {
+	dir := t.TempDir()
+	datadogPath := filepath.Join(dir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(datadogPath, []byte(""), 0600))
+
+	// Ensure no env override re-enables.
+	t.Setenv("DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED", "false")
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("security-agent", datadogPath)),
+		configstreamconsumerfx.Module(),
+	)
+	testRun := func(_ configstreamconsumer.Component) error { return nil }
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("OneShot blocked unexpectedly when configstream is disabled")
+	}
 }

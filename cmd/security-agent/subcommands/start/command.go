@@ -11,20 +11,16 @@ import (
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
-	"net"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	yaml "go.yaml.in/yaml/v3"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
@@ -46,7 +42,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-securityagent"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
@@ -196,9 +191,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ipcfx.ModuleReadWrite(),
 				remoteagentfx.Module(),
 				fxinstrumentation.Module(),
-			}
-			if IsConfigstreamEnabled(params.ConfigFilePaths) {
-				opts = append(opts, ConfigstreamFxOptions())
+				fx.Supply(configstreamconsumer.NewParams("security-agent", func() string {
+					if len(params.ConfigFilePaths) > 0 {
+						return params.ConfigFilePaths[0]
+					}
+					return ""
+				}())),
+				configstreamconsumerfx.Module(),
 			}
 			return fxutil.OneShot(start, opts...)
 		},
@@ -492,162 +491,4 @@ func RuntimeSettings() map[string]settings.RuntimeSetting {
 		"internal_profiling_goroutines": goroutines,
 		"internal_profiling_period":     period,
 	}
-}
-
-// configstreamConsumerEnabledEnvVar is the environment variable that controls whether the configstream consumer is enabled.
-const configstreamConsumerEnabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
-
-// ConfigstreamFxOptions returns FX options for the config stream consumer.
-// Only include when remote_agent.configstream.consumer.enabled is true.
-func ConfigstreamFxOptions() fx.Option {
-	return fx.Options(
-		// Expose config.Component as model.Writer for the config stream consumer to write remote config into.
-		fx.Provide(func(c config.Component) model.Writer {
-			return c
-		}),
-		// SessionIDProvider from RAR: the remote agent component implements this when registry is enabled.
-		fx.Provide(func(ra remoteagent.Component) configstreamconsumer.SessionIDProvider {
-			if ra == nil {
-				return nil
-			}
-			if p, ok := ra.(configstreamconsumer.SessionIDProvider); ok {
-				return p
-			}
-			return nil
-		}),
-		fx.Provide(func(c config.Component, sessionProvider configstreamconsumer.SessionIDProvider) configstreamconsumer.Params {
-			host := c.GetString("cmd_host")
-			port := c.GetInt("cmd_port")
-			if port <= 0 {
-				port = 5001
-			}
-			return configstreamconsumer.Params{
-				ClientName:        "security-agent",
-				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
-				SessionIDProvider: sessionProvider,
-			}
-		}),
-		configstreamconsumerfx.Module(),
-		// Trigger instantiation; OnStart handles the blocking wait internally.
-		fx.Invoke(func(_ configstreamconsumer.Component) {}),
-	)
-}
-
-// IsConfigstreamEnabled is a pre-FX feature flag check; the env var takes precedence over YAML.
-// Scans every --cfgpath because NewSecurityAgentParams merges them.
-func IsConfigstreamEnabled(cliConfigPaths []string) bool {
-	if v, ok := os.LookupEnv(configstreamConsumerEnabledEnvVar); ok {
-		if enabled, err := strconv.ParseBool(v); err == nil {
-			return enabled
-		}
-	}
-	candidates := append([]string{}, cliConfigPaths...)
-	candidates = append(candidates, config.DefaultConfPath)
-	for _, path := range candidates {
-		if path == "" {
-			continue
-		}
-		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
-			path = filepath.Join(path, "datadog.yaml")
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var cfg struct {
-			RemoteAgent struct {
-				ConfigStream struct {
-					Consumer struct {
-						Enabled bool `yaml:"enabled"`
-					} `yaml:"consumer"`
-				} `yaml:"configstream"`
-			} `yaml:"remote_agent"`
-		}
-		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			continue
-		}
-		if cfg.RemoteAgent.ConfigStream.Consumer.Enabled {
-			return true
-		}
-	}
-	return false
-}
-
-// configstreamConsumerEnabledEnvVar is the environment variable that controls whether the configstream consumer is enabled.
-const configstreamConsumerEnabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
-
-// ConfigstreamFxOptions returns FX options for the config stream consumer.
-// Only include when remote_agent.configstream.consumer.enabled is true.
-func ConfigstreamFxOptions() fx.Option {
-	return fx.Options(
-		// Expose config.Component as model.Writer for the config stream consumer to write remote config into.
-		fx.Provide(func(c config.Component) model.Writer {
-			return c
-		}),
-		// SessionIDProvider from RAR: the remote agent component implements this when registry is enabled.
-		fx.Provide(func(ra remoteagent.Component) configstreamconsumer.SessionIDProvider {
-			if ra == nil {
-				return nil
-			}
-			if p, ok := ra.(configstreamconsumer.SessionIDProvider); ok {
-				return p
-			}
-			return nil
-		}),
-		fx.Provide(func(c config.Component, sessionProvider configstreamconsumer.SessionIDProvider) configstreamconsumer.Params {
-			host := c.GetString("cmd_host")
-			port := c.GetInt("cmd_port")
-			if port <= 0 {
-				port = 5001
-			}
-			return configstreamconsumer.Params{
-				ClientName:        "security-agent",
-				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
-				SessionIDProvider: sessionProvider,
-			}
-		}),
-		configstreamconsumerfx.Module(),
-		// Trigger instantiation; OnStart handles the blocking wait internally.
-		fx.Invoke(func(_ configstreamconsumer.Component) {}),
-	)
-}
-
-// IsConfigstreamEnabled is a pre-FX feature flag check; the env var takes precedence over YAML.
-// Scans every --cfgpath because NewSecurityAgentParams merges them.
-func IsConfigstreamEnabled(cliConfigPaths []string) bool {
-	if v, ok := os.LookupEnv(configstreamConsumerEnabledEnvVar); ok {
-		if enabled, err := strconv.ParseBool(v); err == nil {
-			return enabled
-		}
-	}
-	candidates := append([]string{}, cliConfigPaths...)
-	candidates = append(candidates, config.DefaultConfPath)
-	for _, path := range candidates {
-		if path == "" {
-			continue
-		}
-		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
-			path = filepath.Join(path, "datadog.yaml")
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var cfg struct {
-			RemoteAgent struct {
-				ConfigStream struct {
-					Consumer struct {
-						Enabled bool `yaml:"enabled"`
-					} `yaml:"consumer"`
-				} `yaml:"configstream"`
-			} `yaml:"remote_agent"`
-		}
-		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			continue
-		}
-		if cfg.RemoteAgent.ConfigStream.Consumer.Enabled {
-			return true
-		}
-	}
-	return false
 }

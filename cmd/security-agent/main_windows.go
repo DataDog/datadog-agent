@@ -26,6 +26,8 @@ import (
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -150,9 +152,8 @@ func (s *service) Run(svcctx context.Context) error {
 		logscompressionfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		remoteagentfx.Module(),
-	}
-	if start.IsConfigstreamEnabled(defaultSecurityAgentConfigFilePaths) {
-		opts = append(opts, start.ConfigstreamFxOptions())
+		fx.Supply(configstreamconsumer.NewParams("security-agent", defaultSecurityAgentConfigFilePaths[0])),
+		configstreamconsumerfx.Module(),
 	}
 
 	err := fxutil.OneShot(
