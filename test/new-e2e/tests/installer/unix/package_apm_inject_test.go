@@ -599,10 +599,10 @@ func (s *packageApmInjectSuite) TestSystemdService() {
 	s.assertLDPreloadNotInstrumented()
 }
 
-// crashyConstructorSrc is a tiny C source compiled into a shared library
-// whose ELF constructor calls _exit(1) — but only when the library was
-// loaded via the LD_PRELOAD environment variable (i.e., the deliberate
-// "is this .so loadable?" probe that verifySharedLib runs via
+// crashyConstructorGuardedSrc is a tiny C source compiled into a shared
+// library whose ELF constructor calls _exit(1) — but only when the
+// library was loaded via the LD_PRELOAD environment variable (i.e., the
+// deliberate "is this .so loadable?" probe that verifySharedLib runs via
 // `LD_PRELOAD=lib echo 1`). When the library is loaded via
 // /etc/ld.so.preload alone, the constructor returns without crashing,
 // because /etc/ld.so.preload entries do not propagate into the loading
@@ -613,15 +613,14 @@ func (s *packageApmInjectSuite) TestSystemdService() {
 // not set in its environment — so the test can actually invoke
 // `systemctl stop` after the bad lib is in place.
 //
-// The unconditional-crash variant (no getenv guard) is what the
-// production bug actually requires for the brick to occur, because
-// during shutdown systemd execs ExecStop with no /bin/sh wrapper and
-// the static installer doesn't consult ld.so at all. Reproducing that
-// here would also kill the test's own ssh/sudo/systemctl chain, so it
-// can only be exercised via a real shutdown — covered by the no-shell
-// unit-file unit test (TestSystemdServiceManager_writeServiceFile_NoShWrapper)
-// and by manual / pre-merge reboot testing.
-const crashyConstructorSrc = `#include <stdlib.h>
+// The unconditional-crash variant (crashyConstructorUnconditionalSrc)
+// is what the production bug actually requires for the brick to occur,
+// because on the next boot init(1) is launched by the kernel with
+// /etc/ld.so.preload still pointing at the bad lib. That variant is
+// only safe to use in tests that go through a real reboot — see
+// TestSystemdServiceRebootBrokenInjector in
+// package_apm_inject_reboot_test.go.
+const crashyConstructorGuardedSrc = `#include <stdlib.h>
 #include <unistd.h>
 __attribute__((constructor)) static void crash(void) {
     const char *p = getenv("LD_PRELOAD");
@@ -643,19 +642,22 @@ func (s *packageApmInjectSuite) installGCC() {
 	}
 }
 
-// buildCrashyInjectorSO writes crashyConstructorSrc to a temp file,
-// compiles it as a shared library, and places the resulting .so at dst.
-// The result is a real, ld.so-loadable ELF — not a missing file or a
-// junk-content blob — which matches the user-facing failure shape: the
-// library is on disk and looks fine to ld.so, but its constructor
-// rejects the verifySharedLib probe.
-func (s *packageApmInjectSuite) buildCrashyInjectorSO(dst string) {
+// buildCrashyInjectorSO compiles src as a shared library and places the
+// resulting .so at dst. The result is a real, ld.so-loadable ELF — not a
+// missing file or a junk-content blob — which matches the user-facing
+// failure shape: the library is on disk and looks fine to ld.so, but
+// its constructor rejects the verifySharedLib probe. Callers choose
+// between the guarded source (safe to leave in /etc/ld.so.preload while
+// running tests in-process) and the unconditional source (only safe for
+// tests that go through a real reboot before any process tries to use
+// the lib).
+func (s *packageApmInjectSuite) buildCrashyInjectorSO(dst, src string) {
 	s.T().Helper()
 	s.installGCC()
 	host := s.Env().RemoteHost
-	host.MustExecute("sudo tee /tmp/crashy.c >/dev/null <<'CRASHY_EOF'\n" + crashyConstructorSrc + "CRASHY_EOF")
+	host.MustExecute("sudo tee /tmp/crashy.c >/dev/null <<'CRASHY_EOF'\n" + src + "CRASHY_EOF")
 	host.MustExecute("sudo gcc -shared -fPIC -o " + dst + " /tmp/crashy.c")
-	host.MustExecute("sudo chmod 0755 " + dst)
+	//host.MustExecute("sudo chmod 0755 " + dst)
 }
 
 // TestSystemdServiceStopBrokenInjector verifies the safety property the unit
@@ -668,9 +670,9 @@ func (s *packageApmInjectSuite) buildCrashyInjectorSO(dst string) {
 // execve — the static, CGO_ENABLED=0 installer does not consult
 // /etc/ld.so.preload, so a broken injector on disk never blocks cleanup.
 //
-// See crashyConstructorSrc's commentary for why the fixture crashes
-// selectively (via LD_PRELOAD env var only, not via /etc/ld.so.preload)
-// rather than unconditionally.
+// See crashyConstructorGuardedSrc's commentary for why the fixture
+// crashes selectively (via LD_PRELOAD env var only, not via
+// /etc/ld.so.preload) rather than unconditionally.
 func (s *packageApmInjectSuite) TestSystemdServiceStopBrokenInjector() {
 	if _, err := s.Env().RemoteHost.Execute("test \"$(cat /proc/1/comm 2>/dev/null)\" = systemd"); err != nil {
 		s.T().Skip("systemd is not running as PID 1 on this host")
@@ -691,7 +693,7 @@ func (s *packageApmInjectSuite) TestSystemdServiceStopBrokenInjector() {
 	launcherPath := filepath.Join(injectOCIPath, "stable", "inject", "launcher.preload.so")
 	host := s.Env().RemoteHost
 	host.MustExecute(fmt.Sprintf("sudo mv %[1]s %[1]s.bak", launcherPath))
-	s.buildCrashyInjectorSO(launcherPath)
+	s.buildCrashyInjectorSO(launcherPath, crashyConstructorGuardedSrc)
 	defer host.Execute(fmt.Sprintf("sudo mv -f %[1]s.bak %[1]s 2>/dev/null || true", launcherPath)) //nolint:errcheck
 
 	// Confirm the shared object actually crashes the same probe
