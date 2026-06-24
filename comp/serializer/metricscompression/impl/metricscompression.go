@@ -18,8 +18,8 @@ type Requires struct {
 	Cfg config.Component
 }
 
-// NewCompressorReq returns the compression component
-func NewCompressorReq(req Requires) Provides {
+// NewComponent returns the compression component
+func NewComponent(req Requires) Provides {
 	return Provides{
 		selector.FromConfig(req.Cfg),
 	}

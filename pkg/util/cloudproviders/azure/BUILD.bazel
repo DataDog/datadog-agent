@@ -16,7 +16,7 @@ go_library(
         "//pkg/util/cachedfetch",
         "//pkg/util/hostname/validate",
         "//pkg/util/http",
-        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_cenkalti_backoff_v6//:backoff",
     ],
 )
 

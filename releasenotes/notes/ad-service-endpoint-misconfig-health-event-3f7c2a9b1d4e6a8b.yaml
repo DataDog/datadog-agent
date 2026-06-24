@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Malformed ``ad.datadoghq.com/service.*`` and ``ad.datadoghq.com/endpoints.*``
+    annotations on Kubernetes services are now reported as Autodiscovery
+    misconfiguration health events when the health platform is enabled. The
+    issue is resolved automatically once the annotation is fixed.

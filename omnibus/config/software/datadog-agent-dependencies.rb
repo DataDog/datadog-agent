@@ -13,7 +13,7 @@ dependency 'datadog-agent-data-plane' if (linux_target? || osx_target?) && !hero
 dependency 'datadog-agent-integrations-py3'
 
 build do
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} #{flavor_flag} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
+    command "bazel run --//:install_dir=#{install_dir} #{flavor_flag} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
         :live_stream => Omnibus.logger.live_stream(:info)
 end
 

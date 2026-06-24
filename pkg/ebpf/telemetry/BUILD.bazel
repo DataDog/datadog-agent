@@ -68,11 +68,7 @@ dd_agent_go_test(
         "modifier_test.go",
         "types_linux_test.go",
     ],
-    # Omnibus excludes **/testdata/**; empty glob would fail package load on Windows.
-    data = glob(
-        ["testdata/**"],
-        allow_empty = True,
-    ),  # keep
+    data = glob(["testdata/**"]),
     embed = [":telemetry"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [

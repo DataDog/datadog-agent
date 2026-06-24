@@ -64,8 +64,8 @@ type Agent struct {
 	pipelineProvider pipeline.Provider
 }
 
-// NewLogsAgentComponent returns a new instance of Agent as a Component
-func NewLogsAgentComponent(deps Dependencies) option.Option[logsagentpipeline.Component] {
+// NewComponent returns a new instance of Agent as a Component
+func NewComponent(deps Dependencies) option.Option[logsagentpipeline.Component] {
 	logsAgent := NewLogsAgent(deps)
 	if logsAgent == nil {
 		return option.None[logsagentpipeline.Component]()

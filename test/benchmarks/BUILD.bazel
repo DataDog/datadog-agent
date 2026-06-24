@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "benchmarks_lib",
+    srcs = ["util.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/benchmarks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/util/log/setup",
+    ],
+)

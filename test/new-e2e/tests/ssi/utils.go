@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -33,12 +34,31 @@ func GetPodsInNamespace(t *testing.T, client kubeClient.Interface, namespace str
 func FindPodInNamespace(t *testing.T, client kubeClient.Interface, namespace string, appName string) *corev1.Pod {
 	pods := GetPodsInNamespace(t, client, namespace)
 	for _, pod := range pods {
-		if strings.Contains(pod.Name, appName) {
+		if strings.Contains(pod.Name, appName) && pod.DeletionTimestamp == nil {
 			return &pod
 		}
 	}
 	require.NoError(t, fmt.Errorf("did not find pod with app name %s in namespace %s", appName, namespace))
 	return nil
+}
+
+// RestartPod deletes the pod backing appName so its Deployment recreates it, forcing a fresh pass
+// through the admission webhook. It blocks until a new running pod (different from the deleted one)
+// is observed.
+func RestartPod(t *testing.T, client kubeClient.Interface, namespace string, appName string) {
+	old := FindPodInNamespace(t, client, namespace, appName)
+	err := client.CoreV1().Pods(namespace).Delete(context.Background(), old.Name, v1.DeleteOptions{})
+	require.NoError(t, err, "failed to delete pod %s in namespace %s", old.Name, namespace)
+
+	require.Eventually(t, func() bool {
+		for _, pod := range GetPodsInNamespace(t, client, namespace) {
+			if strings.Contains(pod.Name, appName) && pod.Name != old.Name &&
+				pod.DeletionTimestamp == nil && pod.Status.Phase == corev1.PodRunning {
+				return true
+			}
+		}
+		return false
+	}, 2*time.Minute, 5*time.Second, "pod %s was not recreated in namespace %s", appName, namespace)
 }
 
 func FindTracesForService(t *testing.T, intake *fakeintake.Client, serviceName string) []*trace.TracerPayload {

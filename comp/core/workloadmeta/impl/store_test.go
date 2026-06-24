@@ -38,7 +38,7 @@ func newWorkloadmetaObject(t *testing.T) *workloadmeta {
 		Params: wmdef.NewParams(),
 	}
 
-	return NewWorkloadMeta(deps).Comp.(*workloadmeta)
+	return NewComponent(deps).Comp.(*workloadmeta)
 }
 
 func TestHandleEvents(t *testing.T) {

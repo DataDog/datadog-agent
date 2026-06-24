@@ -10,7 +10,7 @@ import (
 	"time"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 )
 
 // RetryHTTPOptions controls the retry policy for RetryHTTPRequest.

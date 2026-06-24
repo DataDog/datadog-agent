@@ -297,7 +297,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			useImprovedAlgorithm: true,
 			cmdline: []string{
 				"/usr/bin/node",
-				"./nodejs/testData/inner/index.js",
+				"./nodejs/testdata/inner/index.js",
 			},
 			expectedServiceTag: "process_context:node",
 		},
@@ -310,7 +310,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/private/node-patches_legacy/register.js",
 				"--preserve-symlinks-main",
 				"--",
-				"./nodejs/testData/index.js",
+				"./nodejs/testdata/index.js",
 			},
 			expectedServiceTag: "process_context:my-awesome-package",
 		},

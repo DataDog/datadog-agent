@@ -195,7 +195,6 @@ func (h *Histogram) sampleSum() float64 {
 	return (s + (c + cNeg + cPos)) * h.sharedWeight
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (h *Histogram) addSample(sample *MetricSample, _ float64) {
 	rate := sample.SampleRate
 	if rate == 0 {

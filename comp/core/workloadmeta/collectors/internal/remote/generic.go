@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -161,7 +161,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	_, err := backoff.Retry(c.ctx, func() (any, error) {
 		select {
 		case <-c.ctx.Done():
-			return nil, &backoff.PermanentError{Err: errWorkloadmetaStreamNotStarted}
+			return nil, backoff.Permanent(errWorkloadmetaStreamNotStarted)
 		default:
 		}
 

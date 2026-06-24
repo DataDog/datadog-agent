@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	backoffticker "github.com/cenkalti/backoff/v5"
+	backoffticker "github.com/cenkalti/backoff/v6"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"

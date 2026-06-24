@@ -682,8 +682,6 @@ func (d *AgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 }
 
 // AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (d *AgentDemultiplexer) AggregateCheckSample(_ metrics.MetricSample) {
 	panic("not implemented yet.")
 }

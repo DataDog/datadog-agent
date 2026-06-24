@@ -14,6 +14,6 @@ import (
 // Module conditionally provides the HA DC remote config service.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(rcservicemrfimpl.NewMrfRemoteConfigServiceOptional),
+		fxutil.ProvideComponentConstructor(rcservicemrfimpl.NewComponent),
 	)
 }

@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	backoffticker "github.com/cenkalti/backoff/v5"
+	backoffticker "github.com/cenkalti/backoff/v6"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

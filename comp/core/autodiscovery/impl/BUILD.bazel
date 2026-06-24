@@ -53,7 +53,7 @@ go_library(
         "//pkg/util/retry",
         "//pkg/util/slices",
         "@//pkg/flare",
-        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_cenkalti_backoff_v6//:backoff",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_mohae_deepcopy//:deepcopy",
     ],

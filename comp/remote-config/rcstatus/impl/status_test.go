@@ -16,7 +16,7 @@ import (
 )
 
 func TestStatusOuput(t *testing.T) {
-	provides := NewStatus(Requires{
+	provides := NewComponent(Requires{
 		Config: config.NewMock(t),
 	})
 

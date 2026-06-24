@@ -12,8 +12,8 @@ import (
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 )
 
-// NewNoopComponent returns a recorder Component that does nothing.
-func NewNoopComponent() recorder.Component {
+// NewComponent returns a recorder Component that does nothing.
+func NewComponent() recorder.Component {
 	return &noopRecorder{}
 }
 
