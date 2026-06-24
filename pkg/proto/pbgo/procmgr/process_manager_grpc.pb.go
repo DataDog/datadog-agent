@@ -26,6 +26,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	ProcessManager_List_FullMethodName         = "/datadog.procmgr.ProcessManager/List"
 	ProcessManager_Describe_FullMethodName     = "/datadog.procmgr.ProcessManager/Describe"
+	ProcessManager_GetMetrics_FullMethodName   = "/datadog.procmgr.ProcessManager/GetMetrics"
 	ProcessManager_GetStatus_FullMethodName    = "/datadog.procmgr.ProcessManager/GetStatus"
 	ProcessManager_Create_FullMethodName       = "/datadog.procmgr.ProcessManager/Create"
 	ProcessManager_Start_FullMethodName        = "/datadog.procmgr.ProcessManager/Start"
@@ -40,6 +41,7 @@ const (
 type ProcessManagerClient interface {
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 	Describe(ctx context.Context, in *DescribeRequest, opts ...grpc.CallOption) (*DescribeResponse, error)
+	GetMetrics(ctx context.Context, in *GetMetricsRequest, opts ...grpc.CallOption) (*GetMetricsResponse, error)
 	GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error)
 	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
 	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error)
@@ -70,6 +72,16 @@ func (c *processManagerClient) Describe(ctx context.Context, in *DescribeRequest
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DescribeResponse)
 	err := c.cc.Invoke(ctx, ProcessManager_Describe_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *processManagerClient) GetMetrics(ctx context.Context, in *GetMetricsRequest, opts ...grpc.CallOption) (*GetMetricsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMetricsResponse)
+	err := c.cc.Invoke(ctx, ProcessManager_GetMetrics_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +154,7 @@ func (c *processManagerClient) GetConfig(ctx context.Context, in *GetConfigReque
 type ProcessManagerServer interface {
 	List(context.Context, *ListRequest) (*ListResponse, error)
 	Describe(context.Context, *DescribeRequest) (*DescribeResponse, error)
+	GetMetrics(context.Context, *GetMetricsRequest) (*GetMetricsResponse, error)
 	GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error)
 	Create(context.Context, *CreateRequest) (*CreateResponse, error)
 	Start(context.Context, *StartRequest) (*StartResponse, error)
@@ -163,6 +176,9 @@ func (UnimplementedProcessManagerServer) List(context.Context, *ListRequest) (*L
 }
 func (UnimplementedProcessManagerServer) Describe(context.Context, *DescribeRequest) (*DescribeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Describe not implemented")
+}
+func (UnimplementedProcessManagerServer) GetMetrics(context.Context, *GetMetricsRequest) (*GetMetricsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMetrics not implemented")
 }
 func (UnimplementedProcessManagerServer) GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetStatus not implemented")
@@ -235,6 +251,24 @@ func _ProcessManager_Describe_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProcessManagerServer).Describe(ctx, req.(*DescribeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProcessManager_GetMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessManagerServer).GetMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProcessManager_GetMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessManagerServer).GetMetrics(ctx, req.(*GetMetricsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -361,6 +395,10 @@ var ProcessManager_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Describe",
 			Handler:    _ProcessManager_Describe_Handler,
+		},
+		{
+			MethodName: "GetMetrics",
+			Handler:    _ProcessManager_GetMetrics_Handler,
 		},
 		{
 			MethodName: "GetStatus",
