@@ -53,53 +53,120 @@ func TestInternalProcessesRegex(t *testing.T) {
 	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/otel-agent"))
 }
 
-func TestAttachPidExcludesInternal(t *testing.T) {
-	exe := "datadog-agent/bin/system-probe"
-	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
-	config := AttacherConfig{
-		ExcludeTargets: ExcludeInternal,
-		ProcRoot:       procRoot,
-	}
-	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, AttacherDependencies{ProcessMonitor: newMockProcessMonitor()})
-	require.NoError(t, err)
-	require.NotNil(t, ua)
+func TestAttachPidReturnsCorrectErrors(t *testing.T) {
+	type setupFunc func(t *testing.T, pid uint32) (AttacherConfig, *MockBinaryInspector)
 
-	err = ua.AttachPIDWithOptions(1, false)
-	require.ErrorIs(t, err, ErrInternalDDogProcessRejected)
-}
+	tests := []struct {
+		// name identifies the subtest scenario.
+		name string
+		// pid is the process ID passed to AttachPIDWithOptions and to setup.
+		pid uint32
+		// attachToLibs controls whether AttachPIDWithOptions should also scan mapped libraries.
+		attachToLibs bool
+		// setup creates the attacher configuration and optional inspector mock for the scenario.
+		setup setupFunc
+		// expectedError is the exact error that AttachPIDWithOptions should return or wrap.
+		expectedError error
+		// isExpected indicates whether the error should avoid UnknownAttachmentError classification.
+		isExpected bool
+		// mockFileRegistry makes the mock registry execute the activation callback instead of returning directly.
+		mockFileRegistry bool
+	}{
+		{
+			name: "internal process",
+			pid:  1,
+			setup: func(t *testing.T, pid uint32) (AttacherConfig, *MockBinaryInspector) {
+				exe := "datadog-agent/bin/system-probe"
+				procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe}})
+				return AttacherConfig{
+					ExcludeTargets: ExcludeInternal,
+					ProcRoot:       procRoot,
+				}, nil
+			},
+			expectedError: ErrInternalDDogProcessRejected,
+			isExpected:    true,
+		},
+		{
+			name: "containerd temporary mount",
+			pid:  1,
+			setup: func(t *testing.T, pid uint32) (AttacherConfig, *MockBinaryInspector) {
+				tmpdir := t.TempDir()
 
-func TestAttachPidExcludesContainerdTmp(t *testing.T) {
-	tmpdir := t.TempDir()
+				// Create a tmpdir/tmpmounts/containerd-mount/bar directory with a file in
+				// it to simulate a containerd tmp mount. It needs to exist so that the code
+				// will be able to read that file.
+				exe := filepath.Join(tmpdir, "tmpmounts/containerd-mount/bar")
+				require.NoError(t, os.MkdirAll(filepath.Dir(exe), 0755))
+				require.NoError(t, os.WriteFile(exe, []byte{}, 0644))
 
-	// Create a tmpdir/tmpmounts/containerd-mount/bar directory with a file in
-	// it to simulate a containerd tmp mount. It needs to exist so that the code
-	// will be able to read that file
-	exe := filepath.Join(tmpdir, "tmpmounts/containerd-mount/bar")
-	require.NoError(t, os.MkdirAll(filepath.Dir(exe), 0755))
-	require.NoError(t, os.WriteFile(exe, []byte{}, 0644))
+				procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe}})
+				config := AttacherConfig{
+					ExcludeTargets:        ExcludeContainerdTmp,
+					ProcRoot:              procRoot,
+					EnableDetailedLogging: true,
+					Rules: []*AttachRule{
+						{Targets: AttachToExecutable},
+					},
+				}
 
-	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
-	config := AttacherConfig{
-		ExcludeTargets:        ExcludeContainerdTmp,
-		ProcRoot:              procRoot,
-		EnableDetailedLogging: true,
-		Rules: []*AttachRule{
-			{Targets: AttachToExecutable},
+				// Cleanup should be called anyways, even if the attach fails.
+				inspector := &MockBinaryInspector{}
+				inspector.On("Cleanup", mock.Anything).Return(nil)
+
+				return config, inspector
+			},
+			expectedError:    utils.ErrEnvironment,
+			isExpected:       true,
+			mockFileRegistry: true,
+		},
+		{
+			name: "self excluded",
+			pid:  uint32(os.Getpid()),
+			setup: func(t *testing.T, _ uint32) (AttacherConfig, *MockBinaryInspector) {
+				return AttacherConfig{
+					ExcludeTargets: ExcludeSelf,
+				}, nil
+			},
+			expectedError: ErrSelfExcluded,
+			isExpected:    true,
 		},
 	}
 
-	// Cleanup should be called anyways, even if the attach fails
-	inspector := &MockBinaryInspector{}
-	inspector.On("Cleanup", mock.Anything).Return(nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, inspector := tt.setup(t, tt.pid)
+			deps := AttacherDependencies{ProcessMonitor: newMockProcessMonitor()}
+			if inspector != nil {
+				deps.Inspector = inspector
+				defer inspector.AssertExpectations(t)
+			}
 
-	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, AttacherDependencies{Inspector: inspector, ProcessMonitor: newMockProcessMonitor()})
-	require.NoError(t, err)
-	require.NotNil(t, ua)
+			ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, deps)
+			require.NoError(t, err)
+			require.NotNil(t, ua)
+			if tt.mockFileRegistry {
+				registry := &MockFileRegistry{}
+				registry.On("Register", mock.Anything, tt.pid, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+					namespacedPath := args.String(0)
+					activationCB := args.Get(2).(utils.Callback)
+					deactivationCB := args.Get(3).(utils.Callback)
+					path := utils.FilePath{HostPath: namespacedPath, PID: tt.pid}
+					if activationCB(path) != nil {
+						_ = deactivationCB(utils.FilePath{ID: path.ID})
+					}
+				}).Return(tt.expectedError)
+				ua.fileRegistry = registry
+				defer registry.AssertExpectations(t)
+			}
 
-	err = ua.AttachPIDWithOptions(1, false)
-	require.ErrorIs(t, err, utils.ErrEnvironment)
+			err = ua.AttachPIDWithOptions(tt.pid, tt.attachToLibs)
+			require.ErrorIs(t, err, tt.expectedError)
 
-	inspector.AssertExpectations(t)
+			var unknownErr *utils.UnknownAttachmentError
+			isUnexpected := errors.As(err, &unknownErr)
+			require.Equal(t, !tt.isExpected, isUnexpected)
+		})
+	}
 }
 
 func TestAttachPidReadsSharedLibraries(t *testing.T) {
@@ -139,18 +206,6 @@ func TestAttachPidReadsSharedLibraries(t *testing.T) {
 	// We should get calls to Register both with the executable and the library
 	// name, even though the executable returns an error
 	registry.AssertExpectations(t)
-}
-
-func TestAttachPidExcludesSelf(t *testing.T) {
-	config := AttacherConfig{
-		ExcludeTargets: ExcludeSelf,
-	}
-	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, AttacherDependencies{ProcessMonitor: newMockProcessMonitor()})
-	require.NoError(t, err)
-	require.NotNil(t, ua)
-
-	err = ua.AttachPIDWithOptions(uint32(os.Getpid()), false)
-	require.ErrorIs(t, err, ErrSelfExcluded)
 }
 
 func TestAttachToBinaryContainerdTmpReturnsErrEnvironment(t *testing.T) {
