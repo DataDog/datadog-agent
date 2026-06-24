@@ -212,7 +212,7 @@ func newResolverSettings(uris []string, enhanced bool) confmap.ResolverSettings 
 func newConverterFactory(enhanced bool) []confmap.ConverterFactory {
 	converterFactories := []confmap.ConverterFactory{}
 
-	converter, err := converterimpl.NewConverterForAgent(converterimpl.Requires{})
+	converter, err := converterimpl.NewComponent(converterimpl.Requires{})
 	if err != nil {
 		return []confmap.ConverterFactory{}
 	}
