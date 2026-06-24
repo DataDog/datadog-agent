@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/text/cases"
@@ -19,6 +20,7 @@ import (
 
 	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -57,20 +59,23 @@ func init() {
 
 // CheckScheduler is the check scheduler
 type CheckScheduler struct {
-	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
-	loaders        []check.Loader
-	collector      option.Option[collectorcomp.Component]
-	senderManager  sender.SenderManager
-	m              sync.RWMutex
+	config              config.Component
+	configToChecks      map[string][]checkid.ID // cache the ID of checks we load for each config
+	loaders             []check.Loader
+	collector           option.Option[collectorcomp.Component]
+	senderManager       sender.SenderManager
+	shadowSenderManager sender.SenderManager
+	m                   sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
+func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component, config config.Component) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
-		collector:      collector,
-		senderManager:  senderManager,
-		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
+		collector:           collector,
+		senderManager:       senderManager,
+		shadowSenderManager: &noopRingBuffer{},
+		configToChecks:      make(map[string][]checkid.ID),
+		loaders:             make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
@@ -207,12 +212,24 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				continue
 			}
 			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
-			if err == nil {
-				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-				checks = append(checks, c)
-				break
+
+			if err != nil {
+				loaderErrors[fmt.Sprintf("%v", loader)] = err
+				continue
 			}
-			loaderErrors[fmt.Sprintf("%v", loader)] = err
+			log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
+			checks = append(checks, c)
+
+			if yes, shadowConfig := s.mustBeShadowed(config); yes {
+				shadowCheck, err := loader.Load(s.shadowSenderManager, config, instance, instanceIndex)
+				if err != nil {
+					log.Errorf("failing to schedule shadow check while succeeding scheduling normal check")
+				}
+				// wrap the check in order to override some methods and route it to dedicated runner
+				shadowCheck = check.NewShadowCheck(shadowCheck, shadowConfig)
+				checks = append(checks, shadowCheck)
+			}
+			break
 		}
 
 		if len(loaderErrors) == numLoaders {
@@ -290,4 +307,10 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 // GetLoaderErrors returns the check loader errors
 func GetLoaderErrors() map[string]map[string]string {
 	return errorStats.getLoaderErrors()
+}
+
+func (s *CheckScheduler) mustBeShadowed(_ integration.Config) (bool, check.ShadowConfig) {
+	return true, check.ShadowConfig{
+		Interval: time.Second,
+	}
 }
