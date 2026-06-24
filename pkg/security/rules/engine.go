@@ -60,6 +60,7 @@ type RuleEngine struct {
 	currentRuleSet   *atomic.Value
 	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
 	policiesVersions []string
+	rulesetHash      string
 	policyProviders  []rules.PolicyProvider
 	policyLoader     *rules.PolicyLoader
 	policyOpts       rules.PolicyLoaderOpts
@@ -349,11 +350,12 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 					tags = append(tags, "mode:default")
 				}
 
-				e.RLock()
-				for _, version := range e.policiesVersions {
-					tags = append(tags, "policies_version:"+version)
-				}
-				e.RUnlock()
+			e.RLock()
+			for _, version := range e.policiesVersions {
+				tags = append(tags, "policies_version:"+version)
+			}
+			tags = append(tags, "ruleset_hash:"+e.rulesetHash)
+			e.RUnlock()
 
 				if e.config.RuntimeEnabled {
 					_ = e.statsdClient.Gauge(runtimeMetric, 1, tags, 1)
@@ -401,6 +403,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	// update current policies related module attributes
 	e.policiesVersions = getPoliciesVersions(rs, e.config.PolicyMonitorReportInternalPolicies)
+	e.rulesetHash = rs.Hash()
 
 	// notify listeners
 	if e.rulesLoaded != nil {
