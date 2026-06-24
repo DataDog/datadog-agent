@@ -198,6 +198,12 @@ become part of the same automated workflow — you do not need to know which ext
 Only add rules manually when they express something that no Gazelle extension can derive from source (e.g., integration
 test targets that wire together multiple packages, or targets with non-standard attributes).
 
+### Excluding directories from Gazelle
+
+When a directory should not be managed by Gazelle, add a `# gazelle:exclude <path>` directive to the **root `BUILD.bazel`** rather than creating a local `BUILD.bazel` containing only `# gazelle:ignore`. The root file maintains a centralized, alphabetically-sorted exclusion list — this keeps ownership in one place and avoids cluttering subdirectories with single-directive files.
+
+Do not use `# keep` inside a Gazelle-managed rule unless Gazelle would actually remove that rule without it (e.g., a test target whose source file is not discovered automatically). When adding a new package that is not Gazelle-managed, add the `# gazelle:exclude` line in the root `BUILD.bazel` at the correct alphabetical position within the existing list.
+
 ### Always name files `BUILD.bazel`, never `BUILD`
 
 This repo enforces `BUILD.bazel` exclusively:

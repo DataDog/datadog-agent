@@ -471,6 +471,7 @@ exports_files(["go.mod"])
 # gazelle:exclude test/files
 # gazelle:exclude test/integration
 # gazelle:exclude test/new-e2e/examples
+# gazelle:exclude test/new-e2e/run
 # gazelle:exclude test/new-e2e/system-probe/config
 # gazelle:exclude test/new-e2e/system-probe/test
 # gazelle:exclude test/new-e2e/test-infra-definition
