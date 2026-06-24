@@ -40,10 +40,10 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		}
 	}
 	marshalVariable := func(enc *jsontext.Encoder, v *ir.Variable) error {
-		// Synthetic variables (e.g. @duration) are not bound to any
+		// Synthetic variables (e.g. @duration, @it) are not bound to any
 		// subprogram — emit just their role and name so snapshots
 		// remain deterministic.
-		if v.Role == ir.VariableRoleDuration {
+		if v.Role == ir.VariableRoleDuration || v.Role == ir.VariableRoleLoopIt {
 			return json.MarshalEncode(enc, struct {
 				Name string          `json:"name"`
 				Role ir.VariableRole `json:"role"`
@@ -100,6 +100,8 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 				return enc.WriteToken(jsontext.String("string"))
 			case ir.DynamicSizeHashmap:
 				return enc.WriteToken(jsontext.String("hashmap"))
+			case ir.DynamicSizeFilterDeferred:
+				return enc.WriteToken(jsontext.String("filter_deferred"))
 			case ir.StaticSize:
 				return enc.WriteToken(jsontext.String("static"))
 			default:
@@ -322,6 +324,7 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.ArrayType)(nil)),
 	reflect.TypeOf((*ir.BaseType)(nil)),
 	reflect.TypeOf((*ir.DurationType)(nil)),
+	reflect.TypeOf((*ir.TraceContextType)(nil)),
 	reflect.TypeOf((*ir.EventRootType)(nil)),
 	reflect.TypeOf((*ir.GoChannelType)(nil)),
 	reflect.TypeOf((*ir.GoEmptyInterfaceType)(nil)),
@@ -336,8 +339,15 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.GoSubroutineType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapGroupsType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapHeaderType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredSliceType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredSliceDataType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredMapType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredMapDataType)(nil)),
+	reflect.TypeOf((*ir.GoTimeType)(nil)),
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
+	reflect.TypeOf((*ir.GoContextImplementationType)(nil)),
+	reflect.TypeOf((*ir.DDTraceSpanType)(nil)),
 	reflect.TypeOf((*ir.VoidPointerType)(nil)),
 	reflect.TypeOf((*ir.UnresolvedPointeeType)(nil)),
 }
@@ -415,6 +425,36 @@ func makeOperationMarshaler(
 		case *ir.ConditionLeafLoadOp:
 			toMarshal = newWithKind(op)
 		case *ir.ConditionCheckPreserveErrorOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprLoadAddressOp:
+			toMarshal = newWithKind(op)
+		case *ir.ArrayLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.ArrayLoopEndOp:
+			toMarshal = newWithKind(op)
+		case *ir.SliceLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.SliceLoopEndOp:
+			toMarshal = newWithKind(op)
+		case *ir.SwissMapLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.SwissMapLoopEndOp:
+			toMarshal = newWithKind(op)
+		case *ir.PanicUnwindPrepareOp:
+			toMarshal = newWithKind(op)
+		case *ir.PanicUnwindEvictSlotsOp:
+			toMarshal = newWithKind(op)
+		case *ir.EmitFilterSliceMarkerOp:
+			toMarshal = newWithKind(op)
+		case *ir.EmitFilterMapMarkerOp:
+			toMarshal = newWithKind(op)
+		case *ir.InitFilterSliceLoopOp:
+			toMarshal = newWithKind(op)
+		case *ir.FilterSliceLoopStepOp:
+			toMarshal = newWithKind(op)
+		case *ir.InitFilterMapLoopOp:
+			toMarshal = newWithKind(op)
+		case *ir.FilterMapLoopStepOp:
 			toMarshal = newWithKind(op)
 		default:
 			return fmt.Errorf("unknown operation: %T", op)

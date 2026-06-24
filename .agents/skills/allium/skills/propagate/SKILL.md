@@ -1,6 +1,7 @@
 ---
 name: propagate
 description: "Generate tests from Allium specifications. Use when the user wants to propagate tests, generate test files from a spec, write tests for a specification, create property-based tests, produce state machine tests, check test coverage against spec obligations, or understand what tests a specification requires."
+model: sonnet
 ---
 
 # Propagation

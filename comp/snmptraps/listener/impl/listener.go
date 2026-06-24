@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
@@ -167,7 +167,7 @@ func (t *trapListener) stop() error {
 }
 
 func (t *trapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-	pkt := &packet.SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli(), Namespace: t.config.Namespace}
+	pkt := &packet.SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli(), Namespace: t.config.Namespace, Tags: t.config.Tags}
 	tags := pkt.GetTags()
 
 	t.sender.Count("datadog.snmp_traps.received", 1, "", tags)

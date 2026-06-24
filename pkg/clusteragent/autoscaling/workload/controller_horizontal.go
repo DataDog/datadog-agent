@@ -118,8 +118,9 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 		return autoscaling.NoRequeue, nil
 	}
 
-	scale.Spec.Replicas = horizontalAction.ToReplicas
-	_, err = hr.scaler.update(ctx, gr, scale)
+	newScale := scale.DeepCopy()
+	newScale.Spec.Replicas = horizontalAction.ToReplicas
+	_, err = hr.scaler.update(ctx, gr, newScale)
 	if err != nil {
 		err = autoscaling.NewConditionError(autoscaling.ConditionReasonScaleFailed, fmt.Errorf("failed to scale target: %s/%s to %d replicas, err: %w", scale.Namespace, scale.Name, horizontalAction.ToReplicas, err))
 		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, err.Error())

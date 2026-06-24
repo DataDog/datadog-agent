@@ -292,6 +292,12 @@ func (d *dispatcher) remove(config integration.Config) {
 
 // reset empties the store and resets all states
 func (d *dispatcher) reset() {
+	// clean up shards because if this pod becomes a leader again
+	// it should reschedule the check
+	d.ksmShardingMutex.Lock()
+	d.ksmShardedConfigs = make(map[string][]string)
+	d.ksmShardingMutex.Unlock()
+
 	d.store.Lock()
 	defer d.store.Unlock()
 	d.store.reset()
@@ -312,6 +318,27 @@ func (d *dispatcher) scanUnscheduledChecks() {
 	}
 }
 
+// logWarmupSummary logs the nodes seen by the leader at the end of the warmup phase.
+func (d *dispatcher) logWarmupSummary() {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	clcCount, nodeAgentCount := 0, 0
+	for _, node := range d.store.nodes {
+		node.RLock()
+		nodetype := node.nodetype
+		node.RUnlock()
+		switch nodetype {
+		case cctypes.NodeTypeCLCRunner:
+			clcCount++
+		case cctypes.NodeTypeNodeAgent:
+			nodeAgentCount++
+		}
+	}
+	log.Infof("Warmup summary: %d nodes registered (%d CLC runners, %d node agents)",
+		len(d.store.nodes), clcCount, nodeAgentCount)
+}
+
 // UpdateAdvancedDispatchingMode checks if any node agents are in the pool
 // and disables advanced dispatching if found
 func (d *dispatcher) UpdateAdvancedDispatchingMode() {
@@ -325,7 +352,10 @@ func (d *dispatcher) UpdateAdvancedDispatchingMode() {
 	// Check if any node agents are in the pool
 	hasNodeAgent := false
 	for _, node := range d.store.nodes {
-		if node.nodetype == cctypes.NodeTypeNodeAgent {
+		node.RLock()
+		nodetype := node.nodetype
+		node.RUnlock()
+		if nodetype == cctypes.NodeTypeNodeAgent {
 			hasNodeAgent = true
 			break
 		}

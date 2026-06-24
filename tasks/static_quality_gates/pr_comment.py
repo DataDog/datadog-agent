@@ -51,7 +51,10 @@ def get_change_metrics(
 
     Returns:
         Tuple of (change_str, limit_bounds_str, is_neutral) for display in PR comment.
-        - change_str: e.g., "neutral", "-58.7 KiB (0.29% reduction)", "+98.3 KiB (1.35% increase)"
+        - change_str: e.g., "neutral", "-58.7 KiB (0.29% reduction, +2.10% of buffer)",
+          "+98.3 KiB (1.35% increase, -12.40% of buffer)"
+          Buffer % is reported from the buffer's POV: a size increase shrinks the buffer (negative),
+          a size reduction grows it (positive).
         - limit_bounds_str: e.g., "**707.163** MiB" for neutral, "707.000 → **707.163** → 707.240" for changes
         - is_neutral: True if the change is below the threshold (< 2 KiB)
     """
@@ -94,6 +97,15 @@ def get_change_metrics(
     else:
         limit_bounds_str = f"N/A → **{current_mib:.3f}** → {max_mib:.3f}"
 
+    # Buffer = headroom between baseline and max. Change reported from buffer's POV:
+    # size increase shrinks buffer (negative), size reduction grows buffer (positive).
+    buffer_size = max_size - baseline_size if baseline_size is not None else None
+    if buffer_size is not None and buffer_size > 0 and relative_size is not None:
+        buffer_pct = -(relative_size / buffer_size) * 100
+        buffer_str = f"{buffer_pct:+.2f}% of buffer"
+    else:
+        buffer_str = None
+
     # Build change string with delta and percentage
     if baseline_size is None or relative_size is None:
         change_str = "N/A"
@@ -117,6 +129,9 @@ def get_change_metrics(
                 change_str = f"+{delta_str} (new)"
             else:
                 change_str = f"{delta_str} (reduction)"
+
+        if buffer_str is not None:
+            change_str = f"{change_str[:-1]}, {buffer_str})"
 
     return change_str, limit_bounds_str, is_neutral
 

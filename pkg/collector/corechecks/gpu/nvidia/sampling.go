@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/hashicorp/go-multierror"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -48,7 +47,7 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 	// We have to do a time-based average, as not all the samples are collected in the same period
 	total := 0.0
 	currentTimestamp := lastTimestamp
-	var multiErr error
+	var multiErr []error
 
 	// We're assuming "samples" is a sorted array by time. Here we traverse the list of samples
 	// and compute the average over time, which means weighing each sample by the time
@@ -69,7 +68,7 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 		var value float64
 		value, err = fieldValueToNumber[float64](valueType, s.SampleValue)
 		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to convert sample value %s from %v with type %v: %w", metricName, s.SampleValue, valueType, err))
+			multiErr = append(multiErr, fmt.Errorf("failed to convert sample value %s from %v with type %v: %w", metricName, s.SampleValue, valueType, err))
 			continue
 		}
 
@@ -93,7 +92,7 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 		Priority: priority,
 	}
 
-	return []Metric{metric}, currentTimestamp, multiErr
+	return []Metric{metric}, currentTimestamp, errors.Join(multiErr...)
 }
 
 // processUtilizationSample handles process utilization sampling logic

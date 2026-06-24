@@ -33,7 +33,6 @@ include:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   variables:
-    DD_PKG_ARCH: x86_64
     PACKAGE_ARCH: amd64
     STATIC_QUALITY_GATE_ARCH: x86_64
 
@@ -42,7 +41,6 @@ include:
   tags: ["arch:arm64", "specific:true"]
   variables:
     PACKAGE_ARCH: arm64
-    DD_PKG_ARCH: arm64
     STATIC_QUALITY_GATE_ARCH: aarch64
 
 .package_suse_rpm_common:
@@ -268,7 +266,6 @@ iot_agent_rpm-armhf:
   needs: ["iot-agent-armhf"]
   variables:
     PACKAGE_ARCH: armhf
-    DD_PKG_ARCH: "arm64"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
     DD_ENABLE_VPA: false
   before_script:

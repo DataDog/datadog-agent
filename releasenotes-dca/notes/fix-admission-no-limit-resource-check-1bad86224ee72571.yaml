@@ -1,0 +1,6 @@
+fixes:
+  - |
+    Fix APM auto-injection being blocked when a container has no CPU or memory
+    limit and requests below the minimum threshold. The Admission Controller now correctly distinguishes between "no limit
+    set" (unlimited resources) and "low limit", preventing the request value from
+    being incorrectly used as the effective limit.

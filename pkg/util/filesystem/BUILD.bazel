@@ -11,7 +11,8 @@ go_library(
         "file.go",
         "open_nix.go",
         "open_windows.go",
-        "permission_nowindows.go",
+        "permission_check.go",
+        "permission_nix.go",
         "permission_windows.go",
         "rights_nix.go",
         "rights_nix_test_util.go",
@@ -100,7 +101,7 @@ go_test(
     srcs = [
         "concurrent_write_test.go",
         "file_test.go",
-        "permission_nowindows_test.go",
+        "permission_nix_test.go",
         "permission_windows_test.go",
         "rights_nix_test.go",
         "rights_windows_test.go",
@@ -115,6 +116,7 @@ go_test(
         "@org_golang_x_sync//errgroup",
     ] + select({
         "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

@@ -30,6 +30,14 @@ type expectedPod struct {
 	nsAnnotations map[string]string
 }
 
+type expectedKueueQueue struct {
+	namespace        string
+	name             string
+	clusterQueueName string
+	resolvedTags     []string
+	uid              string
+}
+
 // This is a simple test for run(). Exhaustive tests for the individual
 // functions it calls are defined below.
 func TestStreamingProvider_run(t *testing.T) {
@@ -386,11 +394,12 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 		preExistingEvents []workloadmeta.CollectorEvent
 		initialSeenPods   map[string]string
 
-		update       streamUpdate
-		expectedPods map[string]expectedPod
+		update              streamUpdate
+		expectedPods        map[string]expectedPod
+		expectedKueueQueues map[string]expectedKueueQueue
 	}{
 		{
-			name: "full state re-enriches all seen pods",
+			name: "full state emits Kueue queue entities and re-enriches all seen pods",
 			dcaResponse: &pb.KubeMetadataStreamResponse{
 				IsFullState: true,
 				Mappings: []*pb.PodServiceMapping{
@@ -413,6 +422,17 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 						Labels:      map[string]string{"l1": "v1"},
 						Annotations: map[string]string{"a1": "v1"},
 						Type:        pb.KubeMetadataEventType_SET,
+					},
+				},
+				KueueQueues: []*pb.KueueQueue{
+					{
+						Namespace:    "default",
+						Name:         "batch",
+						QueueType:    pb.KueueQueueType_LOCAL_QUEUE,
+						ClusterQueue: "cluster-batch",
+						ResolvedTags: []string{"queue:batch", "+owner:team-a"},
+						Uid:          "queue-uid",
+						Type:         pb.KubeMetadataEventType_SET,
 					},
 				},
 			},
@@ -449,7 +469,12 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 				},
 			},
 			initialSeenPods: map[string]string{"default/pod1": "uid-1", "default/pod2": "uid-2"},
-			update:          streamUpdate{updateIsFullState: true},
+			update: streamUpdate{
+				updateIsFullState: true,
+				updatedKueueQueues: map[string]struct{}{
+					"localqueue/default/batch": {},
+				},
+			},
 			expectedPods: map[string]expectedPod{
 				"uid-1": {
 					services:      []string{"svc-a"},
@@ -460,6 +485,15 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 					services:      []string{"svc-b"},
 					nsLabels:      map[string]string{"l1": "v1"},
 					nsAnnotations: map[string]string{"a1": "v1"},
+				},
+			},
+			expectedKueueQueues: map[string]expectedKueueQueue{
+				"localqueue/default/batch": {
+					namespace:        "default",
+					name:             "batch",
+					clusterQueueName: "cluster-batch",
+					resolvedTags:     []string{"queue:batch", "+owner:team-a"},
+					uid:              "queue-uid",
 				},
 			},
 		},
@@ -608,6 +642,34 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 			},
 			expectedPods: map[string]expectedPod{},
 		},
+		{
+			name: "Kueue queue unset removes local entity",
+			preExistingEvents: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesKueueQueue{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesKueueQueue,
+							ID:   "localqueue/default/batch",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "batch",
+							Namespace: "default",
+						},
+						QueueType:        workloadmeta.KueueLocalQueue,
+						ClusterQueueName: "cluster-batch",
+					},
+				},
+			},
+			update: streamUpdate{
+				updatedKueueQueues: map[string]struct{}{
+					"localqueue/default/batch": {},
+				},
+			},
+			expectedPods:        map[string]expectedPod{},
+			expectedKueueQueues: map[string]expectedKueueQueue{},
+		},
 	}
 
 	for _, test := range tests {
@@ -648,6 +710,7 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 				assert.Equal(t, expected.nsLabels, pod.NamespaceLabels)
 				assert.Equal(t, expected.nsAnnotations, pod.NamespaceAnnotations)
 			}
+			assertKueueQueues(t, wmetaMock, test.expectedKueueQueues)
 		})
 	}
 }
@@ -892,6 +955,7 @@ func TestDCAStreamClient_ApplyResponse(t *testing.T) {
 			sc := &dcaStreamClient{
 				podServices: test.initialPodServices,
 				namespaces:  test.initialNamespaces,
+				kueueQueues: make(map[string]*workloadmeta.KubernetesKueueQueue),
 				initialized: test.initialActive,
 				readyCh:     make(chan struct{}),
 				updateCh:    make(chan struct{}, 1),
@@ -903,6 +967,25 @@ func TestDCAStreamClient_ApplyResponse(t *testing.T) {
 			assert.Equal(t, test.expectedPodServices, sc.podServices)
 			assert.Equal(t, test.expectedNamespaces, sc.namespaces)
 		})
+	}
+}
+
+func assertKueueQueues(t *testing.T, wmetaMock workloadmetamock.Mock, expected map[string]expectedKueueQueue) {
+	t.Helper()
+
+	entities := wmetaMock.DumpStructured().Entities[string(workloadmeta.KindKubernetesKueueQueue)]
+	assert.Len(t, entities, len(expected))
+
+	for _, entity := range entities {
+		queue := entity.(*workloadmeta.KubernetesKueueQueue)
+		expectedQueue, found := expected[queue.EntityID.ID]
+		require.True(t, found)
+		assert.Equal(t, expectedQueue.namespace, queue.Namespace)
+		assert.Equal(t, expectedQueue.name, queue.Name)
+		assert.Equal(t, workloadmeta.KueueLocalQueue, queue.QueueType)
+		assert.Equal(t, expectedQueue.clusterQueueName, queue.ClusterQueueName)
+		assert.Equal(t, expectedQueue.resolvedTags, queue.ResolvedTags)
+		assert.Equal(t, expectedQueue.uid, queue.UID)
 	}
 }
 

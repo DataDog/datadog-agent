@@ -5,12 +5,12 @@
 #include "helpers/syscalls.h"
 #include "helpers/events_predicates.h"
 
-int __attribute__((always_inline)) credentials_update(u64 type) {
+int __attribute__((always_inline)) credentials_update(void *ctx, u64 type) {
     struct syscall_cache_t syscall = {
         .type = type,
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -72,7 +72,7 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
 }
 
 HOOK_SYSCALL_ENTRY0(setuid) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setuid) {
@@ -81,7 +81,7 @@ HOOK_SYSCALL_EXIT(setuid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setfsuid) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setfsuid) {
@@ -90,7 +90,7 @@ HOOK_SYSCALL_EXIT(setfsuid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setreuid) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setreuid) {
@@ -99,7 +99,7 @@ HOOK_SYSCALL_EXIT(setreuid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setresuid) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setresuid) {
@@ -108,7 +108,7 @@ HOOK_SYSCALL_EXIT(setresuid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setuid16) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setuid16) {
@@ -117,7 +117,7 @@ HOOK_SYSCALL_EXIT(setuid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setfsuid16) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setfsuid16) {
@@ -126,7 +126,7 @@ HOOK_SYSCALL_EXIT(setfsuid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setreuid16) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setreuid16) {
@@ -135,7 +135,7 @@ HOOK_SYSCALL_EXIT(setreuid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setresuid16) {
-    return credentials_update(EVENT_SETUID);
+    return credentials_update(ctx, EVENT_SETUID);
 }
 
 HOOK_SYSCALL_EXIT(setresuid16) {
@@ -144,7 +144,7 @@ HOOK_SYSCALL_EXIT(setresuid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setgid) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setgid) {
@@ -153,7 +153,7 @@ HOOK_SYSCALL_EXIT(setgid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setfsgid) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setfsgid) {
@@ -162,7 +162,7 @@ HOOK_SYSCALL_EXIT(setfsgid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setregid) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setregid) {
@@ -171,7 +171,7 @@ HOOK_SYSCALL_EXIT(setregid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setresgid) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setresgid) {
@@ -180,7 +180,7 @@ HOOK_SYSCALL_EXIT(setresgid) {
 }
 
 HOOK_SYSCALL_ENTRY0(setgid16) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setgid16) {
@@ -189,7 +189,7 @@ HOOK_SYSCALL_EXIT(setgid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setfsgid16) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setfsgid16) {
@@ -198,7 +198,7 @@ HOOK_SYSCALL_EXIT(setfsgid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setregid16) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setregid16) {
@@ -207,7 +207,7 @@ HOOK_SYSCALL_EXIT(setregid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(setresgid16) {
-    return credentials_update(EVENT_SETGID);
+    return credentials_update(ctx, EVENT_SETGID);
 }
 
 HOOK_SYSCALL_EXIT(setresgid16) {
@@ -216,7 +216,7 @@ HOOK_SYSCALL_EXIT(setresgid16) {
 }
 
 HOOK_SYSCALL_ENTRY0(capset) {
-    return credentials_update(EVENT_CAPSET);
+    return credentials_update(ctx, EVENT_CAPSET);
 }
 
 HOOK_SYSCALL_EXIT(capset) {

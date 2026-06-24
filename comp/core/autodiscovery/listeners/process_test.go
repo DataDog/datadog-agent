@@ -477,6 +477,89 @@ func TestProcessServiceFilterTemplates_DedupesStaticConfigs(t *testing.T) {
 	})
 }
 
+func TestProcessServiceFilterTemplates_DropsDiscovery(t *testing.T) {
+	process := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "1234"},
+		Pid:      1234,
+		Service:  &workloadmeta.Service{GeneratedName: "redis"},
+	}
+
+	mkSvc := func(idx *StaticConfigIndex) *ProcessService {
+		return &ProcessService{
+			process:           process,
+			pid:               1234,
+			ready:             true,
+			staticConfigIndex: idx,
+		}
+	}
+
+	discoveryTpl := integration.Config{
+		Name:          "redis",
+		ADIdentifiers: []string{string(adtypes.CelProcessIdentifier)},
+		Discovery:     &integration.DiscoveryConfig{},
+	}
+	siblingTpl := integration.Config{
+		Name:          "redis",
+		ADIdentifiers: []string{string(adtypes.CelProcessIdentifier)},
+		Instances:     []integration.Data{[]byte("port: 6379")},
+	}
+	unrelatedTpl := integration.Config{
+		Name:          "nginx",
+		ADIdentifiers: []string{string(adtypes.CelProcessIdentifier)},
+		Instances:     []integration.Data{[]byte("port: 80")},
+	}
+
+	t.Run("discovery dropped when sibling template matches same service", func(t *testing.T) {
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest(): discoveryTpl,
+			siblingTpl.Digest():   siblingTpl,
+		}
+		mkSvc(nil).FilterTemplates(configs)
+		assert.NotContains(t, configs, discoveryTpl.Digest(), "discovery template should be dropped")
+		assert.Contains(t, configs, siblingTpl.Digest(), "non-discovery sibling should be kept")
+	})
+
+	t.Run("discovery dropped when static config of same name exists", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("redis")
+
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest(): discoveryTpl,
+			unrelatedTpl.Digest(): unrelatedTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.NotContains(t, configs, discoveryTpl.Digest(), "discovery template should be dropped")
+		assert.Contains(t, configs, unrelatedTpl.Digest(), "unrelated template should be kept")
+	})
+
+	t.Run("discovery kept when no sibling and no static config", func(t *testing.T) {
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest(): discoveryTpl,
+			unrelatedTpl.Digest(): unrelatedTpl,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, discoveryTpl.Digest(), "discovery template should be kept")
+		assert.Contains(t, configs, unrelatedTpl.Digest(), "unrelated template should be kept")
+	})
+
+	t.Run("discovery kept when sibling template has only logs config", func(t *testing.T) {
+		logsOnlySibling := integration.Config{
+			Name:          "redis",
+			ADIdentifiers: []string{string(adtypes.CelProcessIdentifier)},
+			LogsConfig:    []byte(`{"source":"redis"}`),
+		}
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest():    discoveryTpl,
+			logsOnlySibling.Digest(): logsOnlySibling,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, discoveryTpl.Digest(),
+			"discovery template should be kept when the sibling is logs-only")
+		assert.Contains(t, configs, logsOnlySibling.Digest(),
+			"logs-only sibling should be kept")
+	})
+}
+
 func newProcessListener(t *testing.T, tagger tagger.Component) (*ProcessListener, *testWorkloadmetaListener) {
 	return newProcessListenerWithFilters(t, tagger, nil)
 }

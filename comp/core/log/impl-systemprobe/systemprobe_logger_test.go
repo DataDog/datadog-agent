@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	comp "github.com/DataDog/datadog-agent/comp/def"
 )
 
@@ -21,7 +21,7 @@ func TestNewComponent(t *testing.T) {
 	deps := Requires{
 		Lc:     testLC,
 		Params: log.ForOneShot("test", "info", false),
-		Config: sysprobeconfigimpl.NewMock(t),
+		Config: sysprobeconfigmock.NewMock(t),
 	}
 
 	provides, err := NewComponent(deps)

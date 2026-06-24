@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "client.go",
         "par.go",
+        "rc.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/client",
     visibility = ["//visibility:public"],
@@ -47,6 +48,7 @@ go_test(
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/fixtures",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({

@@ -130,6 +130,34 @@ type ProcessGoInterfaceOp struct {
 	baseOp
 }
 
+// GoContextChainInitOp is emitted at the head of the enqueue_pc subroutine
+// for any concrete context.Context implementation IR type (and for pointer
+// types whose Pointee is one). It rewrites the just-serialized data item
+// header (written by the chase preamble) to use TraceContextType as its
+// type, zeroes the first 40 bytes of payload, and initializes the SM's
+// go_context_walk state. ImplTypeID is the IR type id of the
+// context-impl struct (e.g. context.cancelCtx) — the chain walk's first
+// hop uses this directly rather than re-resolving via go_runtime_type,
+// because the impl's runtime type isn't always registered in the binary.
+// See pkg/dyninst/irgen/trace_context.md.
+type GoContextChainInitOp struct {
+	baseOp
+	ImplTypeID ir.TypeID
+}
+
+// GoContextChainHopOp is emitted after GoContextChainInitOp. It executes one
+// step of the context-chain walk per dispatch: looks up the current link's
+// IR type (using the IR type stashed by INIT for hop 0, otherwise resolving
+// via go_runtime_type), tries to extract a dd-trace span via the value-key
+// lookup, and either (a) writes the populated trace_context_t and terminates,
+// (b) advances to the next link by reading the embedded Context field's
+// interface header and self-jumps (sm->pc -= 1), or (c) terminates with
+// valid=0 if the chain ends or a depth/error guard fires. Self-jumps up to
+// MAX_GO_CONTEXT_DEPTH (32) times.
+type GoContextChainHopOp struct {
+	baseOp
+}
+
 // ProcessGoDictTypeOp resolves a generic shape type parameter to its concrete
 // type by reading the runtime dictionary at probe time. The eBPF stack machine:
 // 1. Reads the dict pointer from the register specified by DictRegister
@@ -161,6 +189,27 @@ type CallDictResolvedOp struct {
 	baseOp
 	OutputOffset uint32     // byte offset in event root where resolved runtime type was written
 	FallbackFunc FunctionID // shape type's ProcessType function ID
+}
+
+// ProcessGoTimeOp adjusts a captured time.Time in place. It reads the loc
+// pointer at LocFieldOffset and, when CacheResolved is true, performs one
+// userspace probe-read on the *time.Location cache fields followed by a
+// second read on cacheZone.offset. The 8 bytes at LocFieldOffset are then
+// overwritten with either the resolved offset (in seconds east of UTC,
+// sign-extended to int64) or the sentinel ir.GoTimeUnresolvedOffset
+// (INT64_MIN) when the cache miss path is taken. The op does not enqueue
+// the loc pointer for chasing.
+type ProcessGoTimeOp struct {
+	baseOp
+	WallFieldOffset       uint32
+	ExtFieldOffset        uint32
+	LocFieldOffset        uint32
+	CacheResolved         bool
+	CacheStartOffset      uint32
+	CacheEndOffset        uint32
+	CacheZoneOffset       uint32
+	ZoneOffsetFieldOffset uint32
+	ZoneOffsetFieldSize   uint32
 }
 
 type ProcessGoHmapOp struct {
@@ -369,6 +418,210 @@ type ConditionCheckPreserveErrorOp struct {
 // armed by the leaf's prelude ConditionBeginOp.
 type ConditionLeafCompleteOp struct {
 	baseOp
+}
+
+// ExprAdvanceOffsetOp shifts sm->offset by Offset bytes. Used by the
+// LocationOp lowering for `@it` (any/all loop iterator) to position
+// sm->offset at a specific field within the @it scratch slot before the
+// body's ExprPushOffsetOp/ExprCmpBaseOp sequence reads it.
+type ExprAdvanceOffsetOp struct {
+	baseOp
+	Offset uint32
+}
+
+// ExprLoadAddressOp writes an 8-byte address at sm->offset.
+//
+// When LocationKind == ExprAddressFromCfa, the bytecode params carry CFA-base
+// information for the variable; the BPF handler emits cfa + Offset.
+//
+// When LocationKind == ExprAddressInPlace, the bytecode is parameterless;
+// the BPF handler expects an 8-byte pointer already at sm->offset and adds
+// PointerBias to it in place.
+type ExprLoadAddressOp struct {
+	baseOp
+	LocationKind ExprAddressLocationKind
+	// CfaOffset is used when LocationKind == ExprAddressFromCfa. It is the
+	// final byte offset (already including any DWARF location offset).
+	CfaOffset uint32
+	// PointerBias is added to the produced pointer regardless of kind.
+	PointerBias uint32
+}
+
+// ExprAddressLocationKind selects how ExprLoadAddressOp computes the address.
+type ExprAddressLocationKind uint8
+
+const (
+	// ExprAddressInPlace adds PointerBias to a pointer already at sm->offset.
+	ExprAddressInPlace ExprAddressLocationKind = 1
+	// ExprAddressFromCfa computes cfa + CfaOffset + PointerBias.
+	ExprAddressFromCfa ExprAddressLocationKind = 2
+)
+
+// ArrayLoopBeginOp begins iteration over a Go array; see ir.ArrayLoopBeginOp.
+type ArrayLoopBeginOp struct {
+	baseOp
+	Quantifier     ir.Quantifier
+	ElemByteSize   uint32
+	CompileTimeLen uint32
+	EndLabel       ir.LabelID
+}
+
+// ArrayLoopEndOp closes an array loop body; see ir.ArrayLoopEndOp.
+type ArrayLoopEndOp struct {
+	baseOp
+	BodyLabel ir.LabelID
+}
+
+// SliceLoopBeginOp begins iteration over a Go slice; see ir.SliceLoopBeginOp.
+type SliceLoopBeginOp struct {
+	baseOp
+	Quantifier   ir.Quantifier
+	ElemByteSize uint32
+	EndLabel     ir.LabelID
+}
+
+// SliceLoopEndOp closes a slice loop body; see ir.SliceLoopEndOp.
+type SliceLoopEndOp struct {
+	baseOp
+	BodyLabel ir.LabelID
+}
+
+// SwissMapLoopBeginOp begins iteration over a Go swiss-table map; see
+// ir.SwissMapLoopBeginOp.
+type SwissMapLoopBeginOp struct {
+	baseOp
+	Quantifier  ir.Quantifier
+	KeyByteSize uint32
+	ValByteSize uint32
+	EndLabel    ir.LabelID
+
+	DirPtrOffset             uint8
+	DirLenOffset             uint8
+	CtrlOffset               uint8
+	SlotsOffset              uint8
+	KeyInSlotOffset          uint8
+	ValInSlotOffset          uint16
+	SlotSize                 uint16
+	GroupByteSize            uint16
+	TableGroupsFieldOffset   uint8
+	GroupsDataFieldOffset    uint8
+	GroupsLenMaskFieldOffset uint8
+}
+
+// SwissMapLoopEndOp closes a swiss-map loop body; see ir.SwissMapLoopEndOp.
+type SwissMapLoopEndOp struct {
+	baseOp
+	BodyLabel ir.LabelID
+}
+
+// PanicUnwindPrepareOp validates the recovered panic and computes
+// (panic_lo_depth, panic_hi_depth) into the event header. Sets
+// condition_failed on validation failure so probe_run aborts the
+// event. Carries no operands.
+type PanicUnwindPrepareOp struct {
+	baseOp
+}
+
+// PanicUnwindEvictSlotsOp walks in_progress_calls[goid] and zeroes
+// every call_depths_entry_t whose depth lies in
+// (panic_lo_depth, panic_hi_depth]. Carries no operands.
+type PanicUnwindEvictSlotsOp struct {
+	baseOp
+}
+
+// EmitFilterSliceMarkerOp is the inline-pass op for a top-level
+// filter(slice, pred) expression; see ir.EmitFilterSliceMarkerOp.
+type EmitFilterSliceMarkerOp struct {
+	baseOp
+	FilterDataTypeID ir.TypeID
+	ElemByteSize     uint32
+}
+
+// EmitFilterMapMarkerOp is the inline-pass op for a top-level
+// filter(map, pred) expression; see ir.EmitFilterMapMarkerOp.
+type EmitFilterMapMarkerOp struct {
+	baseOp
+	FilterDataTypeID ir.TypeID
+	SwissHeaderSize  uint32
+	UsedFieldOffset  uint32
+}
+
+// InitFilterSliceLoopOp is the first op inside a filter slice data
+// type's enqueue_pc; see ir.InitFilterSliceLoopOp.
+type InitFilterSliceLoopOp struct {
+	baseOp
+	ElemByteSize      uint32
+	IterScratchBudget uint32
+	EndLabel          ir.LabelID
+}
+
+// EmitFilterSliceElementOp emits a per-passing-element data item for a
+// slice filter. It runs after the body has written a 1 byte at
+// sm->offset and a preceding CondJumpIfFalse has skipped past this op
+// when the predicate was false. On a true predicate the op reads the
+// current source element from filter_loop_state.data_ptr into a fresh
+// data-item payload at the buffer tail (header type =
+// filter_data_type_id, length = ElemByteSize, address = output_index),
+// then sets sm->offset to the just-emitted payload start so the
+// trailing CallOp{ElementHandler} can chase nested pointers. Increments
+// output_index. Handles flush-and-retry on buffer-full and emits a
+// failure sentinel on read fault.
+type EmitFilterSliceElementOp struct {
+	baseOp
+	ElemByteSize uint32
+}
+
+// FilterSliceAdvanceOp closes the slice filter loop body. Advances
+// data_ptr / remaining; if remaining > 0 it reserves room for the next
+// iteration's @it (flush if needed), reads the next element into @it
+// scratch, and jumps to BodyLabel. Otherwise falls through.
+type FilterSliceAdvanceOp struct {
+	baseOp
+	ElemByteSize uint32
+	BodyLabel    ir.LabelID
+}
+
+// InitFilterMapLoopOp is the first op inside a filter map data type's
+// enqueue_pc; see ir.InitFilterMapLoopOp.
+type InitFilterMapLoopOp struct {
+	baseOp
+	KeyByteSize       uint32
+	ValByteSize       uint32
+	ValOffsetInPair   uint32
+	IterScratchBudget uint32
+	EndLabel          ir.LabelID
+
+	DirPtrOffset             uint8
+	DirLenOffset             uint8
+	CtrlOffset               uint8
+	SlotsOffset              uint8
+	KeyInSlotOffset          uint8
+	ValInSlotOffset          uint16
+	SlotSize                 uint16
+	GroupByteSize            uint16
+	TableGroupsFieldOffset   uint8
+	GroupsDataFieldOffset    uint8
+	GroupsLenMaskFieldOffset uint8
+}
+
+// EmitFilterMapElementOp emits a per-passing-(k,v) data item for a map
+// filter; analogous to EmitFilterSliceElementOp but reads key and value
+// separately from the swiss-map slot's distinct field offsets and lays
+// them out as [key][padding to 8-byte-align][value].
+type EmitFilterMapElementOp struct {
+	baseOp
+	KeyByteSize     uint32
+	ValByteSize     uint32
+	ValOffsetInPair uint32
+}
+
+// FilterMapAdvanceOp closes the map filter loop body. Advances the
+// swiss-map slot cursor (consume after a successful step), checks
+// for end of iteration, reads the next (k, v) pair if available, and
+// jumps to BodyLabel.
+type FilterMapAdvanceOp struct {
+	baseOp
+	BodyLabel ir.LabelID
 }
 
 //revive:enable:exported

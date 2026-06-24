@@ -10,6 +10,7 @@ package appsec
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 )
 
@@ -127,7 +129,7 @@ func newTestWebhook(patterns []appsecconfig.SidecarInjectionPattern) *Webhook {
 		name:          webhookName,
 		isEnabled:     len(patterns) > 0,
 		endpoint:      "/appsec-proxies",
-		resources:     map[string][]string{"": {"pods"}},
+		resources:     []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}},
 		operations:    []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Delete},
 		patterns:      patterns,
 		configMutator: &noopMutator{},
@@ -475,14 +477,14 @@ func TestAppsecWebhookMatchConditions(t *testing.T) {
 			patterns: []*mockSidecarPattern{
 				{matchExpression: "'label1' in object.metadata.labels"},
 			},
-			expectedOrCount: 0,
+			expectedOrCount: 1,
 		},
 		"two patterns": {
 			patterns: []*mockSidecarPattern{
 				{matchExpression: "'label1' in object.metadata.labels"},
 				{matchExpression: "'label2' in object.metadata.labels"},
 			},
-			expectedOrCount: 1,
+			expectedOrCount: 3,
 		},
 		"three patterns": {
 			patterns: []*mockSidecarPattern{
@@ -490,7 +492,7 @@ func TestAppsecWebhookMatchConditions(t *testing.T) {
 				{matchExpression: "'label2' in object.metadata.labels"},
 				{matchExpression: "'label3' in object.metadata.labels"},
 			},
-			expectedOrCount: 2,
+			expectedOrCount: 5,
 		},
 	}
 
@@ -521,7 +523,10 @@ func TestAppsecWebhookMatchConditions(t *testing.T) {
 			// Verify each pattern's expression is included
 			for _, p := range test.patterns {
 				assert.Contains(t, expression, p.matchExpression, "Expression should contain pattern's match expression")
+				assert.Contains(t, expression, strings.ReplaceAll(p.matchExpression, "object.", "oldObject."), "Expression should contain DELETE-safe oldObject expression")
 			}
+			assert.Contains(t, expression, "request.operation == 'DELETE'", "Expression should branch for DELETE requests")
+			assert.Contains(t, expression, "request.operation != 'DELETE'", "Expression should keep object-based matching for non-DELETE requests")
 
 			t.Logf("Generated expression: %s", expression)
 		})

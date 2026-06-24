@@ -1,0 +1,38 @@
+=== yield 1 [final=true] ===
+Package: main
+	Function: a (main.a) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [89:94] injectible: [89-90], [93-94]
+	Function: a.func1 (main.a.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [90:92] injectible: [90-92]
+	Function: b (main.b) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [97:98] injectible: [97-98]
+		Arg: x: int (declared at line 97, available: [97-98])
+		Arg: ~r0: string (declared at line 97, available: )
+	Function: c (main.c) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [102:114] injectible: [102-103], [112-112], [114-114]
+		Arg: x: int (declared at line 102, available: [102-114])
+		Arg: s: string (declared at line 102, available: [102-114])
+		Arg: ~r0: string (declared at line 102, available: )
+	Function: d (main.d) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [124:129] injectible: [124-125], [128-129]
+	Function: d.func1 (main.d.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [125:127] injectible: [125-127]
+	Function: e (main.e) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [132:134] injectible: [132-134]
+	Function: f (main.f) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [137:138] injectible: [137-138]
+	Function: goroutineInner (main.goroutineInner) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [192:197] injectible: [192-195], [197-197]
+		Arg: out: string (declared at line 192, available: )
+	Function: goroutinePanic (main.goroutinePanic) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [181:186] injectible: [181-182], [185-186]
+	Function: goroutinePanic.func1 (main.goroutinePanic.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [182:184] injectible: [182-184]
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [19:75] injectible: [19-19], [21-22], [26-26], [30-30], [34-34], [40-40], [46-48], [52-52], [58-59], [64-64], [72-72], [74-75]
+		Var: scanner: *bufio.Scanner (declared at line 21, available: )
+		Var: &wg: *sync.WaitGroup (declared at line 46, available: [19-75])
+	Function: main.func1 (main.main.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [48:51] injectible: [48-51]
+		Var: &wg: *sync.WaitGroup (declared at line 48, available: [49-49])
+	Function: main.func2 (main.main.func2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [59:63] injectible: [59-63]
+		Var: &wg: *sync.WaitGroup (declared at line 59, available: [60-60])
+	Function: main.func2.1 (main.main.func2.1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [61:61] injectible: [61-61]
+	Function: probedDeep (main.probedDeep) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [164:169] injectible: [164-167], [169-169]
+		Arg: out: string (declared at line 164, available: )
+	Function: probedRecoverer (main.probedRecoverer) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [142:147] injectible: [142-143], [146-147]
+	Function: probedRecoverer.func1 (main.probedRecoverer.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [143:145] injectible: [143-145]
+	Function: recoverNoPanic (main.recoverNoPanic) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [118:120] injectible: [118-120]
+		Arg: ~r0: bool (declared at line 118, available: )
+		Var: r: interface {} (declared at line 119, available: [120-120])
+	Function: unprobedMiddle (main.unprobedMiddle) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [153:155] injectible: [153-155]
+	Function: unprobedPanicker (main.unprobedPanicker) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [208:210] injectible: [208-210]
+	Function: warmupErrorType (main.warmupErrorType) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go [86:86] injectible: [86-86]
+		Arg: err: error (declared at line 84, available: [86-86])

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Main package for the dogstatsd binary
 package main
 
 import (
@@ -13,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/command"
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"

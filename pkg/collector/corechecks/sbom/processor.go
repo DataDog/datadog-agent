@@ -20,7 +20,7 @@ import (
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 

@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix the ``health_platform.forwarder.interval`` configuration field type from
+    integer to string. Previously, setting an integer value (e.g. ``900``) would
+    be interpreted as nanoseconds by the agent instead of seconds, resulting in
+    an unexpectedly short flush interval. The field now accepts duration strings
+    such as ``15m`` or ``5m30s``, consistent with other duration configuration
+    fields in the agent.

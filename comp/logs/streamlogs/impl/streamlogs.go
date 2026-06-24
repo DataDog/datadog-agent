@@ -16,9 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logger "github.com/DataDog/datadog-agent/comp/core/log/def"
-	coresetting "github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -29,7 +29,7 @@ type Requires struct {
 	LogsAgent   option.Option[logsAgent.Component]
 	Logger      logger.Component
 	Config      config.Component
-	CoreSetting coresetting.Component
+	CoreSetting settings.Component
 }
 
 // Provides defines the output of the streamlogs component
@@ -44,7 +44,7 @@ type streamlogsimpl struct {
 	logsAgent   logsAgent.Component
 	logger      logger.Component
 	config      config.Component
-	coresetting coresetting.Component
+	coresetting settings.Component
 }
 
 // LogParams represents the parameters for streaming logs

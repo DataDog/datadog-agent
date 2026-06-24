@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    On macOS, preserve user customizations to ``system-probe.yaml`` across Agent upgrades.

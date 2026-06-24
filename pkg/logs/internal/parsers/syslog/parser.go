@@ -90,11 +90,6 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 	structured.ParsingExtra = msg.ParsingExtra
 	structured.ParsingExtra.Timestamp = parsed.Timestamp
 
-	if parsed.AppName != "" && parsed.AppName != nilvalue {
-		structured.ParsingExtra.SourceOverride = parsed.AppName
-		structured.ParsingExtra.ServiceOverride = parsed.AppName
-	}
-
 	return structured, err
 }
 

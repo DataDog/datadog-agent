@@ -184,9 +184,24 @@ func ComputeFilters(config *config.Config, rs *rules.RuleSet) (*FilterReport, er
 				continue
 			}
 
+			// effectiveWeight mirrors getApprovers: for capabilities whose weight depends on
+			// the actual filter values (e.g. a coarse parent-basename path approver weighs less
+			// than a precise leaf-basename one), take the minimum weight across the field values
+			// present in the rule set instead of the static FilterWeight.
+			effectiveWeight := func(cap *rules.FieldCapability) int {
+				weight := cap.FilterWeight
+				if cap.FilterWeightFnc != nil {
+					for _, value := range rs.GetFieldValues(cap.Field) {
+						filterValue := rules.FilterValue{Field: cap.Field, Value: value.Value, Type: value.Type, Mode: cap.FilterMode}
+						weight = min(weight, cap.FilterWeightFnc(filterValue))
+					}
+				}
+				return weight
+			}
+
 			// try to convert the most efficient approver so that weak approvers are still backed by a discarder
 			sort.Slice(evtCapabilities, func(i, j int) bool {
-				return evtCapabilities[i].FilterWeight > evtCapabilities[j].FilterWeight
+				return effectiveWeight(evtCapabilities[i]) > effectiveWeight(evtCapabilities[j])
 			})
 
 			for _, evtCapability := range evtCapabilities {

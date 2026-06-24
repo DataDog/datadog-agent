@@ -17,6 +17,9 @@ DEFAULT_ALLOWLIST_PATH = "../dd-analytics/luigiscripts/billing/usage/standard_me
 METADATA_PACKAGE = f"{SPEC_PACKAGE}/metadata"
 METADATA_BINARY = f"{METADATA_PACKAGE}/gpu-metrics-metadata"
 DEFAULT_METADATA_PATH = "../integrations-core/gpu/metadata.csv"
+METRICS_LIST_PACKAGE = f"{SPEC_PACKAGE}/metrics-list"
+METRICS_LIST_BINARY = f"{METRICS_LIST_PACKAGE}/gpu-metrics-list"
+DEFAULT_METRICS_LIST_PATH = "gpu_metrics.tsv"
 VALIDATOR_PACKAGE = f"{SPEC_PACKAGE}/metrics-validator"
 VALIDATOR_BINARY = f"{VALIDATOR_PACKAGE}/gpu-metrics-validator"
 VALIDATOR_SITE = "datadoghq.com"
@@ -33,9 +36,10 @@ def build_binary(ctx, package: str, output_path: str, label: str) -> str:
     help={
         "lookback_seconds": "Metrics lookback window in seconds",
         "org": "Datadog org filter: prod, staging. If not provided, use all configured orgs",
+        "metric_filter": "Additional Datadog metric filter expression, ANDed with the GPU config filter",
     },
 )
-def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
+def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None, metric_filter: str | None = None):
     """
     Validate live GPU metrics for the selected Datadog org(s).
     """
@@ -69,6 +73,8 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
                     f"--lookback-seconds {int(lookback_seconds)} "
                     f"--output-file {shlex.quote(tmp.name)}"
                 )
+                if metric_filter:
+                    command += f" --metric-filter {shlex.quote(metric_filter)}"
                 print(" - running validator...")
                 res = ctx.run(command, warn=True)
                 result = validation_results_from_dict(json.load(tmp), site=VALIDATOR_SITE)
@@ -134,4 +140,23 @@ def update_metadata(
         f"--default-interval {int(default_interval)}"
     )
     print(f"== Updating GPU metadata at {metadata_path} ==")
+    ctx.run(command)
+
+
+@task(
+    name="generate-metrics-list",
+    help={
+        "output_path": f"Path to write generated TSV (default: {DEFAULT_METRICS_LIST_PATH})",
+    },
+)
+def generate_metrics_list(
+    ctx,
+    output_path: str = DEFAULT_METRICS_LIST_PATH,
+):
+    """
+    Generate a GPU metrics list TSV from the shared GPU spec.
+    """
+    binary_path = build_binary(ctx, METRICS_LIST_PACKAGE, METRICS_LIST_BINARY, "metrics list generator")
+    command = f"{shlex.quote(binary_path)} " f"--output-path {shlex.quote(output_path)}"
+    print(f"== Generating GPU metrics list TSV at {output_path} ==")
     ctx.run(command)

@@ -41,7 +41,7 @@ func NewComponent() Provides {
 	}
 }
 
-func (n *noopHealthPlatform) ReportIssue(_ healthplatformdef.IssueReport) error {
+func (n *noopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {
 	return nil
 }
 
@@ -53,10 +53,16 @@ func (n *noopHealthPlatform) GetIssue(_ string) *healthplatformpayload.Issue {
 	return nil
 }
 
+func (n *noopHealthPlatform) RegisterIssuesObserver(_ healthplatformdef.IssuesObserver) {}
+
 func (n *noopHealthPlatform) ResolveIssue(_ string) {
 }
 
 func (n *noopHealthPlatform) ResolveAllIssues() {
+}
+
+func (n *noopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
+	return nil
 }
 
 func (n *noopHealthPlatform) getIssuesHandler(w http.ResponseWriter, _ *http.Request) {

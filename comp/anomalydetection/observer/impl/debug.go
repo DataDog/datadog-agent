@@ -22,7 +22,9 @@ type DebugView interface {
 	// parquet data to ensure StateView reflects all ingested observations.
 	Flush()
 	// Reset clears all engine state, resets storage, and reconfigures components.
-	Reset(settings ComponentSettings)
+	// storageCfg is forwarded to the engine so callers control retention policy
+	// (e.g. testbench passes StorageConfig{PointRetentionSecs: 0} for unbounded replay storage).
+	Reset(settings ComponentSettings, storageCfg StorageConfig)
 	// GetReplayProgress returns lock-free replay progress counters.
 	GetReplayProgress() ReplayProgress
 	// SetReplayPhase updates the replay phase string for progress reporting.
@@ -32,9 +34,9 @@ type DebugView interface {
 	// AddTelemetry writes a data point into the engine's telemetry namespace.
 	// Used by the testbench to store per-detector timing stats for UI display.
 	AddTelemetry(name string, value float64, timestamp int64, tags []string)
-	// ReplayStoredData resets analysis state (preserving extractor context and
-	// contextRefs) then replays all data currently in storage through the
-	// scheduler in chronological order. Call after Flush().
+	// ReplayStoredData resets analysis state (preserving extractor context)
+	// then replays all data currently in storage through the scheduler in
+	// chronological order. Call after Flush().
 	ReplayStoredData()
 	// StorageReader returns a read-only view of the engine's time-series storage.
 	// Used by the testbench to compute windowed log rates in change messages.
@@ -47,6 +49,12 @@ type DebugView interface {
 	// IngestMetricSync feeds a metric directly into the engine, bypassing
 	// the dispatch channel. Synchronous; same caveats as IngestLogSync.
 	IngestMetricSync(source string, sample observerdef.MetricView)
+	// IngestLogNoAdvance feeds a log directly into the engine without driving
+	// any scheduler-triggered advances. Used during batch pre-loading in the
+	// testbench replay path so that extractor state is built up and log
+	// metrics are written to storage, but detector/correlator advances are
+	// deferred to the subsequent ReplayStoredData call.
+	IngestLogNoAdvance(source string, msg observerdef.LogView)
 }
 
 // StateView is a read-only window into engine state.
@@ -73,9 +81,6 @@ type StateView interface {
 	// Detector / correlator metadata
 	ListDetectors() []ComponentStateInfo
 	ListCorrelators() []ComponentStateInfo
-
-	// Telemetry
-	Telemetry() []observerdef.ObserverTelemetry
 
 	// Timing
 	LastAnalyzedTime() int64

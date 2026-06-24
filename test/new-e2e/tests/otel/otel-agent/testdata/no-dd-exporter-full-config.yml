@@ -78,7 +78,7 @@ extensions:
     gateway_destination: ""
     gateway_service: ""
     hostname: ""
-    installation_method: "" # TODO: change to "helm" after helm chart version bump
+    installation_method: kubernetes
     http:
       cors: null
       endpoint: localhost:9875
@@ -134,7 +134,7 @@ extensions:
     write_timeout: 30s
 processors:
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
-    error_mode: propagate
+    error_mode: ignore
     log_conditions: []
     logs:
       exclude: null

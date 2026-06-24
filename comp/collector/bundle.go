@@ -7,7 +7,7 @@
 package collector
 
 import (
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

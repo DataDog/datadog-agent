@@ -23,6 +23,13 @@ const (
 	MutatingWebhook = "mutating"
 )
 
+// WebhookResourceRule identifies the API group, version, and resources a webhook applies to.
+type WebhookResourceRule struct {
+	APIGroup   string
+	APIVersion string
+	Resources  []string
+}
+
 const (
 	// EnabledLabelKey pod label to disable/enable mutations at the pod level.
 	EnabledLabelKey = "admission.datadoghq.com/enabled"
