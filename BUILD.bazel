@@ -184,7 +184,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/snmpscanmanager/fx
 # gazelle:exclude comp/snmpscanmanager/impl
 # gazelle:exclude comp/snmptraps/formatter/fx
-# gazelle:exclude comp/snmptraps/formatter/impl
 # gazelle:exclude comp/snmptraps/forwarder/fx
 # gazelle:exclude comp/snmptraps/forwarder/impl
 # gazelle:exclude comp/snmptraps/listener/fx
