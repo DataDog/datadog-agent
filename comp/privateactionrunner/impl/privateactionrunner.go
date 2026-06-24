@@ -220,6 +220,10 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		ExtraTags:     cfg.Tags,
 	}
 	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
+	// Stamp runner identity (runner_id, runner_version, modes) on every PAR metric so
+	// executions are attributable to the runner that produced them. Done here because
+	// runner_id is only finalized after enrollment.
+	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
 
 	p.telemetry = telemetry.NewTelemetry(
 		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},

@@ -4,6 +4,7 @@ go_library(
     name = "observability",
     srcs = [
         "metrics.go",
+        "tagged_client.go",
         "tags.go",
         "traces.go",
     ],
