@@ -19,6 +19,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -178,6 +179,60 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 			mockFileRegistryExecuteCallbacks: false,
 		},
 		{
+			name: "registry returns os.ErrNotExist",
+			pid:  1,
+			setup: func(t *testing.T, pid uint32) (AttacherConfig, *MockBinaryInspector) {
+				procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Cmdline: "foobar", Command: "foobar", Exe: "/bin/foobar"}})
+				return AttacherConfig{
+					ProcRoot: procRoot,
+					Rules: []*AttachRule{
+						{Targets: AttachToExecutable},
+					},
+				}, nil
+			},
+			expectedError:                    os.ErrNotExist,
+			registryReturnError:              os.ErrNotExist,
+			isExpected:                       true,
+			shouldLog:                        false,
+			mockFileRegistry:                 true,
+			mockFileRegistryExecuteCallbacks: false,
+		},
+		{
+			name: "registry returns os.ErrNotExist, with libraries",
+			pid:  1,
+			setup: func(t *testing.T, pid uint32) (AttacherConfig, *MockBinaryInspector) {
+				exe := "foobar"
+				libname := "/target/libssl.so"
+				maps := "08048000-08049000 r-xp 00000000 03:00 8312       " + libname
+				procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe, Maps: maps}})
+				config := AttacherConfig{
+					ProcRoot: procRoot,
+					Rules: []*AttachRule{
+						{
+							LibraryNameRegex: regexp.MustCompile(`libssl\.so`),
+							ProbesSelector: []manager.ProbesSelector{
+								&manager.ProbeSelector{
+									ProbeIdentificationPair: manager.ProbeIdentificationPair{
+										EBPFFuncName: "uprobe__SSL_connect",
+									},
+								},
+							},
+							Targets: AttachToSharedLibraries,
+						},
+					},
+					SharedLibsLibsets: []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
+				}
+				return config, nil
+			},
+			expectedError:                    os.ErrNotExist,
+			registryReturnError:              os.ErrNotExist,
+			isExpected:                       true,
+			shouldLog:                        false,
+			mockFileRegistry:                 true,
+			mockFileRegistryExecuteCallbacks: false,
+			attachToLibs:                     true,
+		},
+		{
 			name:         "library has no symbols",
 			pid:          1,
 			attachToLibs: true,
@@ -253,12 +308,19 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 			}
 
 			err = ua.AttachPIDWithOptions(tt.pid, tt.attachToLibs)
-			require.ErrorIs(t, err, tt.expectedError)
+			assert.ErrorIs(t, err, tt.expectedError, "AttachPIDWithOptions returned unexpected error")
 
-			var unknownErr *utils.UnknownAttachmentError
-			isUnexpected := errors.As(err, &unknownErr)
-			require.Equal(t, !tt.isExpected, isUnexpected)
-			require.Equal(t, tt.shouldLog, ua.shouldLogRegistryError(err))
+			notStr := " not"
+			if tt.isExpected {
+				notStr = ""
+			}
+			assert.Equal(t, tt.isExpected, !utils.IsUnknownAttachmentError(err), "Returned error (%v) should%s be expected", err, notStr)
+
+			notLogStr := " not"
+			if tt.shouldLog {
+				notLogStr = ""
+			}
+			assert.Equal(t, tt.shouldLog, ua.shouldLogRegistryError(err), "Returned error (%v) should%s be logged", err, notLogStr)
 		})
 	}
 }

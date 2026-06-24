@@ -1104,6 +1104,7 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 	if err != nil {
 		return utils.NewUnknownAttachmentError(err)
 	}
+
 	for _, libpath := range libs {
 		err := ua.AttachLibrary(libpath, pid)
 
@@ -1118,22 +1119,10 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 		if len(registerErrors) == 0 {
 			return nil // No libraries found to attach
 		}
-		err := errors.Join(registerErrors...)
-		if hasUnknownAttachmentError(err) {
-			return utils.NewUnknownAttachmentError(fmt.Errorf("no rules matched for pid %d: %w", pid, err))
-		}
-		return err
+		return fmt.Errorf("no rules matched for pid %d: %w", pid, errors.Join(registerErrors...))
 	}
 	if len(registerErrors) > 0 {
-		err := errors.Join(registerErrors...)
-		if hasUnknownAttachmentError(err) {
-			return utils.NewUnknownAttachmentError(fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %w", successfulMatches, pid, err))
-		}
+		return fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %w", successfulMatches, pid, errors.Join(registerErrors...))
 	}
 	return nil
-}
-
-func hasUnknownAttachmentError(err error) bool {
-	var unknownErr *utils.UnknownAttachmentError
-	return errors.As(err, &unknownErr)
 }
