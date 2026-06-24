@@ -2,6 +2,49 @@
 Release Notes
 =============
 
+.. _Release Notes_7.80.3:
+
+7.80.3
+======
+
+.. _Release Notes_7.80.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-24
+
+- Please refer to the `7.80.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7803>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.80.3_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.25.11``.
+
+
+.. _Release Notes_7.80.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Workload autoscaling: fixed a bug where, when running the Cluster Agent in
+  high-availability mode (multiple replicas), the burstable mode of a
+  ``DatadogPodAutoscaler`` could leave the CPU limit in place on a random
+  subset of pods. The CPU-limit removal is now re-derived from the autoscaler
+  spec in the admission controller, so every replica applies it consistently
+  regardless of which one handles the admission request.
+
+- Fix Private Action Runner self-enrollment failing silently on hosts with no
+  direct internet access when a proxy is configured in ``datadog.yaml``.
+  Enrollment requests now respect the agent proxy settings
+  (``proxy.https``, ``proxy.http``, and ``no_proxy``).
+
+- Disable v3beta metrics intake shadow payloads when zlib compression is used.
+
+
 .. _Release Notes_7.80.2:
 
 7.80.2
