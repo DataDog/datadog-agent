@@ -231,6 +231,12 @@ func TestFilterAllowedPathsIntersectsConfiguredAgentAllowlistByAccess(t *testing
 			expected: []string{"/var/log/:ro"},
 		},
 		{
+			name:     "explicit empty agent list blocks all backend paths",
+			agent:    []string{},
+			backend:  []string{"/var/log:ro", "/tmp:rw"},
+			expected: []string{},
+		},
+		{
 			name:     "backend descendant of agent path is kept",
 			agent:    []string{"/var/log:ro"},
 			backend:  []string{"/var/log/datadog:ro"},
