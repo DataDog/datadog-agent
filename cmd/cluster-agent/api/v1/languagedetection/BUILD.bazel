@@ -8,6 +8,7 @@ go_library(
         "handler.go",
         "language_detection.go",
         "language_detection_nocompile.go",
+        "ownership.go",
         "telemetry.go",
         "util.go",
     ],
@@ -22,6 +23,7 @@ go_library(
         "//pkg/languagedetection/languagemodels",
         "//pkg/languagedetection/util",
         "//pkg/proto/pbgo/process",
+        "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/apiserver/leaderelection",
         "//pkg/util/log",
         "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
@@ -33,6 +35,7 @@ dd_agent_go_test(
     name = "languagedetection_test",
     srcs = [
         "handler_test.go",
+        "ownership_test.go",
         "util_test.go",
     ],
     embed = [":languagedetection"],

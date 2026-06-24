@@ -64,8 +64,8 @@ type Provides struct {
 	FlareProvider flaretypes.Provider
 }
 
-// NewRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
-func NewRemoteConfigServiceOptional(deps Dependencies) Provides {
+// NewComponent conditionally creates and configures a new remote config service, based on whether RC is enabled.
+func NewComponent(deps Dependencies) Provides {
 	none := option.None[rcservice.Component]()
 	if !configUtils.IsRemoteConfigEnabled(deps.Cfg) {
 		return Provides{Comp: none}

@@ -73,6 +73,7 @@ go_deps.gazelle_default_attributes(
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib @@//pkg/util/compression/impl-zlib:impl-zlib",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/option @@//pkg/util/option:option",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state:state",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/network/driver @@//pkg/network/driver:driver",
     ],
 )
 go_deps.gazelle_override(
