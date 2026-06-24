@@ -106,6 +106,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       -e CI
       -e CI_COMMIT_BRANCH
       -e CI_PIPELINE_ID
+      -e CI_JOB_ID
       -e CI_PROJECT_NAME
       -e CI_JOB_NAME_SLUG
       -e CI_COMMIT_REF_NAME
