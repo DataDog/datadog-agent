@@ -1,4 +1,5 @@
 import os
+import shlex
 import tempfile
 from datetime import datetime
 
@@ -245,8 +246,7 @@ def download(
             image_url = get_docker_image_url(int(pipeline), binary, flavor, arch, commit_short_sha)
             output_path = os.path.join(path, f"{get_package_name(binary, flavor)}-{arch}.tar")
             crane_format = "--format=oci " if _type == "oci" else ""
-            print(f"crane pull {crane_format}{image_url} {output_path}")
-            ctx.run(f"crane pull {crane_format}{image_url} {output_path}")
+            ctx.run(f"crane pull {crane_format}{shlex.quote(image_url)} {shlex.quote(output_path)}")
 
         case _:
             raise Exit(code=1, message=f"Unknown package type: {_type}")

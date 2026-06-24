@@ -11,14 +11,25 @@ DEB_TESTING_BUCKET_URL = "https://apttesting.datad0g.com"
 RPM_TESTING_BUCKET_URL = "https://yumtesting.datad0g.com"
 DOCKER_REGISTRY = "registry.ddbuild.io/ci/datadog-agent"
 
-# Binaries that carry the "-7" tag suffix in their image name
-_BINARIES_WITH_7_SUFFIX = {"agent"}
+# Maps (binary, flavor) -> Docker tag suffix.
+# Only (binary, flavor) pairs that have a published Docker image are listed.
+# All agent variants share the same `agent` image repo; flavor is encoded in the tag suffix.
+_DOCKER_TAG_SUFFIXES: dict[str, dict[str, str]] = {
+    "agent": {
+        "": "-7",
+        "fips": "-7-fips",
+    },
+    "dogstatsd": {"": ""},
+    "installer": {"": ""},
+}
 
 
 def get_docker_image_url(pipeline_id: int, binary: str, flavor: str, arch: str, commit_short_sha: str) -> str:
-    image_name = binary if not flavor else f"{binary}-{flavor}"
-    suffix = "-7" if binary in _BINARIES_WITH_7_SUFFIX else ""
-    return f"{DOCKER_REGISTRY}/{image_name}:v{pipeline_id}-{commit_short_sha}{suffix}-{arch}"
+    flavor_map = _DOCKER_TAG_SUFFIXES.get(binary, {})
+    if flavor not in flavor_map:
+        raise Exit(code=1, message=f"No Docker image for binary='{binary}' flavor='{flavor}'")
+    suffix = flavor_map[flavor]
+    return f"{DOCKER_REGISTRY}/{binary}:v{pipeline_id}-{commit_short_sha}{suffix}-{arch}"
 
 
 def get_rpm_package_url(ctx: Context, pipeline_id: int, package_name: str, arch: str):
