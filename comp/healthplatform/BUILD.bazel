@@ -53,6 +53,7 @@ go_test(
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/scheduler/def",
         "//comp/healthplatform/store/def",
+        "//pkg/config/schema",
         "//pkg/util/fxutil",
         "//test/fakeintake/client",
         "//test/fakeintake/server",
