@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 const (
@@ -68,7 +69,7 @@ func (h *APMHandler) HasSection(cr *datadoghq.DatadogInstrumentation) bool {
 // SupportsTarget returns whether APM SSI supports the target kind.
 func (h *APMHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
 	switch ref.Kind {
-	case "Deployment", "DaemonSet", "StatefulSet":
+	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.CronJobKind, kubernetes.JobKind:
 		return true
 	default:
 		return false

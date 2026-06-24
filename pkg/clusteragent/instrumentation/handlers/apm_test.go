@@ -83,9 +83,9 @@ func TestAPMHandlerSupportsTarget(t *testing.T) {
 		{name: "deployment", kind: "Deployment", want: true},
 		{name: "statefulset", kind: "StatefulSet", want: true},
 		{name: "daemonset", kind: "DaemonSet", want: true},
+		{name: "job", kind: "Job", want: true},
+		{name: "cronjob", kind: "CronJob", want: true},
 		{name: "service", kind: "Service", want: false},
-		{name: "job", kind: "Job", want: false},
-		{name: "cronjob", kind: "CronJob", want: false},
 		{name: "pod", kind: "Pod", want: false},
 		{name: "empty kind", kind: "", want: false},
 	}

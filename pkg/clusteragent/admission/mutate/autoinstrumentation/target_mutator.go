@@ -345,40 +345,46 @@ func (m *TargetMutator) getTargetFromCRD(pod *corev1.Pod) *filterResult {
 		return &filterResult{shouldContinue: true}
 	}
 
-	target, ok := workloadTargetFromPod(pod)
-	if !ok {
-		return &filterResult{shouldContinue: true}
+	targets := workloadTargetsFromPod(pod)
+	for _, target := range targets {
+		config, ok := m.apmStore.GetAPM(target)
+		if !ok {
+			continue
+		}
+
+		if !config.Enabled {
+			return &filterResult{shouldContinue: false}
+		}
+
+		return &filterResult{shouldContinue: false, target: m.buildCRDTarget(target, config)}
 	}
 
-	config, ok := m.apmStore.GetAPM(target)
-	if !ok {
-		return &filterResult{shouldContinue: true}
-	}
-
-	if !config.Enabled {
-		return &filterResult{shouldContinue: false}
-	}
-
-	return &filterResult{shouldContinue: false, target: m.buildCRDTarget(target, config)}
+	return &filterResult{shouldContinue: true}
 }
 
-func workloadTargetFromPod(pod *corev1.Pod) (crstore.WorkloadTarget, bool) {
+func workloadTargetsFromPod(pod *corev1.Pod) []crstore.WorkloadTarget {
 	ref := metav1.GetControllerOf(pod)
 	if ref == nil {
-		return crstore.WorkloadTarget{}, false
+		return nil
 	}
 
 	switch ref.Kind {
 	case kubernetes.ReplicaSetKind:
 		deploymentName := kubernetes.ParseDeploymentForReplicaSet(ref.Name)
 		if deploymentName == "" {
-			return crstore.WorkloadTarget{}, false
+			return nil
 		}
-		return crstore.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: pod.Namespace, Name: deploymentName}, true
+		return []crstore.WorkloadTarget{{Kind: kubernetes.DeploymentKind, Namespace: pod.Namespace, Name: deploymentName}}
+	case kubernetes.JobKind:
+		targets := []crstore.WorkloadTarget{{Kind: kubernetes.JobKind, Namespace: pod.Namespace, Name: ref.Name}}
+		if cronJobName, _ := kubernetes.ParseCronJobForJob(ref.Name); cronJobName != "" {
+			targets = append(targets, crstore.WorkloadTarget{Kind: kubernetes.CronJobKind, Namespace: pod.Namespace, Name: cronJobName})
+		}
+		return targets
 	case kubernetes.DaemonSetKind, kubernetes.StatefulSetKind:
-		return crstore.WorkloadTarget{Kind: ref.Kind, Namespace: pod.Namespace, Name: ref.Name}, true
+		return []crstore.WorkloadTarget{{Kind: ref.Kind, Namespace: pod.Namespace, Name: ref.Name}}
 	default:
-		return crstore.WorkloadTarget{}, false
+		return nil
 	}
 }
 

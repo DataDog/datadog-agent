@@ -736,6 +736,36 @@ func TestGetTargetFromCRD(t *testing.T) {
 				libVersions: []libInfo{defaultLibInfoWithVersion(java, "v1")},
 			},
 		},
+		"job owned pod gets CRD target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "job",
+				ParentName: "batch-job",
+			}.Create(),
+			workload: crstore.WorkloadTarget{Kind: "Job", Namespace: "application", Name: "batch-job"},
+			entry: crstore.APMConfig{
+				Enabled:        true,
+				TracerVersions: map[string]string{"dotnet": "v3"},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{defaultLibInfoWithVersion(dotnet, "v3")},
+			},
+		},
+		"cronjob owned job pod gets CRD target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "job",
+				ParentName: "nightly-28104120",
+			}.Create(),
+			workload: crstore.WorkloadTarget{Kind: "CronJob", Namespace: "application", Name: "nightly"},
+			entry: crstore.APMConfig{
+				Enabled:        true,
+				TracerVersions: map[string]string{"ruby": "v2"},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{defaultLibInfoWithVersion(ruby, "v2")},
+			},
+		},
 		"disabled CRD target stops resolution": {
 			pod: mutatecommon.FakePodSpec{
 				NS:         "application",
