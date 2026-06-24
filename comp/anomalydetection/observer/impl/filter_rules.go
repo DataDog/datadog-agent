@@ -19,6 +19,7 @@
 package observerimpl
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -136,7 +137,7 @@ func compileNamePattern(pattern string) (string, error) {
 	}
 
 	if idx := strings.IndexByte(pattern, '*'); idx >= 0 && idx != len(pattern)-1 {
-		return "", fmt.Errorf("name_pattern must be a prefix with an optional trailing *")
+		return "", errors.New("name_pattern must be a prefix with an optional trailing *")
 	}
 
 	return strings.TrimSuffix(pattern, "*"), nil
@@ -151,7 +152,7 @@ func compileRuleTags(tags []string) ([]string, error) {
 	for _, tag := range tags {
 		trimmed := strings.TrimSpace(tag)
 		if trimmed == "" {
-			return nil, fmt.Errorf("tags must not contain empty values")
+			return nil, errors.New("tags must not contain empty values")
 		}
 		compiled = append(compiled, trimmed)
 	}

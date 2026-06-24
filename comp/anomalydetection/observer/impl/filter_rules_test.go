@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 
@@ -23,7 +22,7 @@ func requireCounterMetricValueBySource(t *testing.T, source string, want float64
 	metricFamilies, err := telemetryComp.Gather(false)
 	require.NoError(t, err)
 
-	metricName := fmt.Sprintf("observer__%s", telemetryFilteredMetrics)
+	metricName := "observer__" + telemetryFilteredMetrics
 	for _, family := range metricFamilies {
 		if family.GetName() != metricName {
 			continue
@@ -50,7 +49,7 @@ func requireCounterMetricValueForNameBySource(t *testing.T, metricName, source s
 	metricFamilies, err := telemetryComp.Gather(false)
 	require.NoError(t, err)
 
-	fullMetricName := fmt.Sprintf("observer__%s", metricName)
+	fullMetricName := "observer__" + metricName
 	for _, family := range metricFamilies {
 		if family.GetName() != fullMetricName {
 			continue
@@ -77,7 +76,7 @@ func requireNoCounterMetricForNameBySource(t *testing.T, metricName, source stri
 	metricFamilies, err := telemetryComp.Gather(false)
 	require.NoError(t, err)
 
-	fullMetricName := fmt.Sprintf("observer__%s", metricName)
+	fullMetricName := "observer__" + metricName
 	for _, family := range metricFamilies {
 		if family.GetName() != fullMetricName {
 			continue
