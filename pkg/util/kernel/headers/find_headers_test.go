@@ -9,6 +9,7 @@ package headers
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,11 +71,12 @@ func TestParseHeaderVersion(t *testing.T) {
 
 func TestInvalidExistingKernelHeaders(t *testing.T) {
 	kv := kernel.VersionCode(4, 14, 200)
+	headerDirName := fmt.Sprintf("linux-headers-%s", kv)
 
 	t.Run("write perms", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		sp := filepath.Join(tmpDir, "system-probe")
-		err := os.MkdirAll(sp, 0777)
+		err := os.MkdirAll(filepath.Join(sp, headerDirName), 0777)
 		require.NoError(t, err)
 
 		// must chmod because umask affects mkdir
@@ -91,7 +93,7 @@ func TestInvalidExistingKernelHeaders(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		sp := filepath.Join(tmpDir, "system-probe")
-		err := os.MkdirAll(sp, 0777)
+		err := os.MkdirAll(filepath.Join(sp, headerDirName), 0777)
 		require.NoError(t, err)
 
 		err = os.Chown(sp, 1, 0)
@@ -107,7 +109,7 @@ func TestInvalidExistingKernelHeaders(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		sp := filepath.Join(tmpDir, "system-probe")
-		err := os.MkdirAll(sp, 0777)
+		err := os.MkdirAll(filepath.Join(sp, headerDirName), 0777)
 		require.NoError(t, err)
 
 		err = os.Chown(sp, 0, 1)
@@ -119,7 +121,7 @@ func TestInvalidExistingKernelHeaders(t *testing.T) {
 	t.Run("symlink", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		dst := filepath.Join(tmpDir, "symdst")
-		err := os.MkdirAll(dst, 0777)
+		err := os.MkdirAll(filepath.Join(dst, headerDirName), 0777)
 		require.NoError(t, err)
 
 		sp := filepath.Join(tmpDir, "system-probe")
