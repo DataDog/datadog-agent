@@ -644,10 +644,6 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 		return false
 	}
 
-	if errors.Is(err, utils.ErrProcessDoesNotExist) {
-		return false
-	}
-
 	// Always log all errors if detailed logging is enabled
 	if ua.config.EnableDetailedLogging {
 		return true
@@ -657,6 +653,11 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 	if errors.As(err, &unknownErr) {
 		return ua.attachLimiter.ShouldLog()
 	}
+
+	if errors.Is(err, utils.ErrProcessDoesNotExist) {
+		return false
+	}
+
 	return false
 }
 
