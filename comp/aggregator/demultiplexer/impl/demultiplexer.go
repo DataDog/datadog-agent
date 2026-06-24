@@ -112,7 +112,12 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 func createAgentDemultiplexerOptions(config config.Component, params Params) aggregator.AgentDemultiplexerOptions {
 	options := aggregator.DefaultAgentDemultiplexerOptions()
 	if params.useDogstatsdNoAggregationPipelineConfig {
-		options.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+		if config.GetBool("dogstatsd_no_aggregation_pipeline") {
+			options.NoAggregationPipelineWorkersCount = config.GetInt("dogstatsd_no_aggregation_pipeline_workers_count")
+			if options.NoAggregationPipelineWorkersCount <= 0 {
+				options.NoAggregationPipelineWorkersCount = 1
+			}
+		}
 	}
 
 	// Override FlushInterval only if flushInterval is set by the user
