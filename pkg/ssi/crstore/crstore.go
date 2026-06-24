@@ -14,48 +14,44 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// WorkloadKey identifies the workload a DatadogInstrumentation CR applies to.
-type WorkloadKey struct {
+// WorkloadTarget identifies the workload target selected by a DatadogInstrumentation CR.
+type WorkloadTarget struct {
 	Kind      string
 	Namespace string
 	Name      string
 }
 
-// APMEntry is the per-workload APM configuration extracted from a
+// APMConfig is the per-target APM configuration extracted from a
 // DatadogInstrumentation custom resource.
-type APMEntry struct {
+type APMConfig struct {
 	CR             types.NamespacedName
 	Enabled        bool
 	TracerVersions map[string]string
 	TracerConfigs  []corev1.EnvVar
 }
 
-// Store holds APM configuration indexed by workload and CR.
+// Store holds APM configuration indexed by workload target and CR.
 type Store struct {
-	mu            sync.RWMutex
-	apmByWorkload map[WorkloadKey]APMEntry
-	workloadByCR  map[types.NamespacedName]WorkloadKey
+	mu          sync.RWMutex
+	apmByTarget map[WorkloadTarget]APMConfig
+	targetByCR  map[types.NamespacedName]WorkloadTarget
 }
 
 // New returns an empty Store.
 func New() *Store {
 	return &Store{
-		apmByWorkload: make(map[WorkloadKey]APMEntry),
-		workloadByCR:  make(map[types.NamespacedName]WorkloadKey),
+		apmByTarget: make(map[WorkloadTarget]APMConfig),
+		targetByCR:  make(map[types.NamespacedName]WorkloadTarget),
 	}
 }
 
-// UpsertAPM stores the APM configuration for a workload. If the CR previously
-// pointed at a different workload, the old workload entry is removed.
-func (s *Store) UpsertAPM(workload WorkloadKey, entry APMEntry) {
+// UpsertAPM stores the APM configuration for a workload target.
+func (s *Store) UpsertAPM(target WorkloadTarget, config APMConfig) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if prev, ok := s.workloadByCR[entry.CR]; ok && prev != workload {
-		delete(s.apmByWorkload, prev)
-	}
-	s.apmByWorkload[workload] = copyAPMEntry(entry)
-	s.workloadByCR[entry.CR] = workload
+	s.apmByTarget[target] = config
+	s.targetByCR[config.CR] = target
 }
 
 // DeleteByCR removes the entry sourced from the given CR, if present.
@@ -63,39 +59,25 @@ func (s *Store) DeleteByCR(cr types.NamespacedName) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	workload, ok := s.workloadByCR[cr]
+	target, ok := s.targetByCR[cr]
 	if !ok {
 		return
 	}
-	delete(s.workloadByCR, cr)
+	delete(s.targetByCR, cr)
 
-	if existing, ok := s.apmByWorkload[workload]; ok && existing.CR == cr {
-		delete(s.apmByWorkload, workload)
+	if existing, ok := s.apmByTarget[target]; ok && existing.CR == cr {
+		delete(s.apmByTarget, target)
 	}
 }
 
-// GetAPM returns the APM entry for a workload, if any.
-func (s *Store) GetAPM(workload WorkloadKey) (APMEntry, bool) {
+// GetAPM returns the APM configuration for a workload target, if any.
+func (s *Store) GetAPM(target WorkloadTarget) (APMConfig, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	entry, ok := s.apmByWorkload[workload]
+	config, ok := s.apmByTarget[target]
 	if !ok {
-		return APMEntry{}, false
+		return APMConfig{}, false
 	}
-	return copyAPMEntry(entry), true
-}
-
-func copyAPMEntry(entry APMEntry) APMEntry {
-	copied := entry
-	if entry.TracerVersions != nil {
-		copied.TracerVersions = make(map[string]string, len(entry.TracerVersions))
-		for lang, version := range entry.TracerVersions {
-			copied.TracerVersions[lang] = version
-		}
-	}
-	if entry.TracerConfigs != nil {
-		copied.TracerConfigs = append([]corev1.EnvVar(nil), entry.TracerConfigs...)
-	}
-	return copied
+	return config, true
 }

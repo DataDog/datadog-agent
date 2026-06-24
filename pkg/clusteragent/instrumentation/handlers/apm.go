@@ -151,12 +151,12 @@ func (h *APMHandler) Handle(_ context.Context, event instrumentation.EventType, 
 		}, errors.New("APM CR store is not configured")
 	}
 
-	workload := crstore.WorkloadKey{
+	target := crstore.WorkloadTarget{
 		Kind:      cr.Spec.TargetRef.Kind,
 		Namespace: cr.Namespace,
 		Name:      cr.Spec.TargetRef.Name,
 	}
-	h.apmStore.UpsertAPM(workload, apmEntryFromCR(crRef, cr.Spec.Config.APM))
+	h.apmStore.UpsertAPM(target, apmConfigFromCR(crRef, cr.Spec.Config.APM))
 
 	return instrumentation.HandlerStatus{
 		Type:    apmReadyConditionType,
@@ -166,19 +166,19 @@ func (h *APMHandler) Handle(_ context.Context, event instrumentation.EventType, 
 	}, nil
 }
 
-func apmEntryFromCR(crRef types.NamespacedName, apm *datadoghq.DatadogInstrumentationAPMConfig) crstore.APMEntry {
-	entry := crstore.APMEntry{
+func apmConfigFromCR(crRef types.NamespacedName, apm *datadoghq.DatadogInstrumentationAPMConfig) crstore.APMConfig {
+	config := crstore.APMConfig{
 		CR:      crRef,
 		Enabled: apm.Enabled,
 	}
 	if len(apm.TracerVersions) > 0 {
-		entry.TracerVersions = make(map[string]string, len(apm.TracerVersions))
+		config.TracerVersions = make(map[string]string, len(apm.TracerVersions))
 		for lang, version := range apm.TracerVersions {
-			entry.TracerVersions[lang] = version
+			config.TracerVersions[lang] = version
 		}
 	}
 	if len(apm.TracerConfigs) > 0 {
-		entry.TracerConfigs = append([]corev1.EnvVar(nil), apm.TracerConfigs...)
+		config.TracerConfigs = append([]corev1.EnvVar(nil), apm.TracerConfigs...)
 	}
-	return entry
+	return config
 }

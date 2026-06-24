@@ -198,8 +198,8 @@ func TestAPMHandlerValidate(t *testing.T) {
 }
 
 func TestAPMHandlerHandle(t *testing.T) {
-	workload := crstore.WorkloadKey{Kind: "Deployment", Namespace: "default", Name: "web"}
-	unsupportedWorkload := crstore.WorkloadKey{Kind: "Service", Namespace: "default", Name: "web"}
+	workload := crstore.WorkloadTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
+	unsupportedWorkload := crstore.WorkloadTarget{Kind: "Service", Namespace: "default", Name: "web"}
 	validCR := newAPMDDI("ddi-web", "default", "Deployment", "web", &datadoghq.DatadogInstrumentationAPMConfig{
 		Enabled:        true,
 		TracerVersions: map[string]string{"java": "v1"},

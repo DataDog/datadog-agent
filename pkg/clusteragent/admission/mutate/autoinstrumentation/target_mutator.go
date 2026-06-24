@@ -345,74 +345,74 @@ func (m *TargetMutator) getTargetFromCRD(pod *corev1.Pod) *filterResult {
 		return &filterResult{shouldContinue: true}
 	}
 
-	workload, ok := workloadKeyForPod(pod)
+	target, ok := workloadTargetFromPod(pod)
 	if !ok {
 		return &filterResult{shouldContinue: true}
 	}
 
-	entry, ok := m.apmStore.GetAPM(workload)
+	config, ok := m.apmStore.GetAPM(target)
 	if !ok {
 		return &filterResult{shouldContinue: true}
 	}
 
-	if !entry.Enabled {
+	if !config.Enabled {
 		return &filterResult{shouldContinue: false}
 	}
 
-	return &filterResult{shouldContinue: false, target: m.buildCRDTarget(workload, entry)}
+	return &filterResult{shouldContinue: false, target: m.buildCRDTarget(target, config)}
 }
 
-func workloadKeyForPod(pod *corev1.Pod) (crstore.WorkloadKey, bool) {
+func workloadTargetFromPod(pod *corev1.Pod) (crstore.WorkloadTarget, bool) {
 	ref := metav1.GetControllerOf(pod)
 	if ref == nil {
-		return crstore.WorkloadKey{}, false
+		return crstore.WorkloadTarget{}, false
 	}
 
 	switch ref.Kind {
 	case kubernetes.ReplicaSetKind:
 		deploymentName := kubernetes.ParseDeploymentForReplicaSet(ref.Name)
 		if deploymentName == "" {
-			return crstore.WorkloadKey{}, false
+			return crstore.WorkloadTarget{}, false
 		}
-		return crstore.WorkloadKey{Kind: kubernetes.DeploymentKind, Namespace: pod.Namespace, Name: deploymentName}, true
+		return crstore.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: pod.Namespace, Name: deploymentName}, true
 	case kubernetes.DaemonSetKind, kubernetes.StatefulSetKind:
-		return crstore.WorkloadKey{Kind: ref.Kind, Namespace: pod.Namespace, Name: ref.Name}, true
+		return crstore.WorkloadTarget{Kind: ref.Kind, Namespace: pod.Namespace, Name: ref.Name}, true
 	default:
-		return crstore.WorkloadKey{}, false
+		return crstore.WorkloadTarget{}, false
 	}
 }
 
-func (m *TargetMutator) buildCRDTarget(workload crstore.WorkloadKey, entry crstore.APMEntry) *targetInternal {
+func (m *TargetMutator) buildCRDTarget(target crstore.WorkloadTarget, config crstore.APMConfig) *targetInternal {
 	libVersions := m.defaultLibVersions
 	usesDefaultLibs := true
-	if len(entry.TracerVersions) > 0 {
-		pinned := getPinnedLibraries(entry.TracerVersions, m.containerRegistry, true)
+	if len(config.TracerVersions) > 0 {
+		pinned := getPinnedLibraries(config.TracerVersions, m.containerRegistry, true)
 		libVersions = pinned.libs
 		usesDefaultLibs = pinned.areSetToDefaults
 	}
 
-	name := fmt.Sprintf("datadoginstrumentation:%s/%s", entry.CR.Namespace, entry.CR.Name)
+	name := fmt.Sprintf("datadoginstrumentation:%s/%s", config.CR.Namespace, config.CR.Name)
 	return &targetInternal{
 		name:            name,
 		libVersions:     libVersions,
-		envVars:         entry.TracerConfigs,
-		json:            createCRDTargetJSON(name, workload, entry),
+		envVars:         config.TracerConfigs,
+		json:            createCRDTargetJSON(name, target, config),
 		usesDefaultLibs: usesDefaultLibs,
 		usesSSI:         true,
 	}
 }
 
-func createCRDTargetJSON(name string, workload crstore.WorkloadKey, entry crstore.APMEntry) string {
+func createCRDTargetJSON(name string, target crstore.WorkloadTarget, config crstore.APMConfig) string {
 	payload := struct {
-		Name           string              `json:"name"`
-		Workload       crstore.WorkloadKey `json:"workload"`
-		TracerVersions map[string]string   `json:"ddTraceVersions,omitempty"`
-		TracerConfigs  []corev1.EnvVar     `json:"ddTraceConfigs,omitempty"`
+		Name           string                 `json:"name"`
+		Workload       crstore.WorkloadTarget `json:"workload"`
+		TracerVersions map[string]string      `json:"ddTraceVersions,omitempty"`
+		TracerConfigs  []corev1.EnvVar        `json:"ddTraceConfigs,omitempty"`
 	}{
 		Name:           name,
-		Workload:       workload,
-		TracerVersions: entry.TracerVersions,
-		TracerConfigs:  entry.TracerConfigs,
+		Workload:       target,
+		TracerVersions: config.TracerVersions,
+		TracerConfigs:  config.TracerConfigs,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {

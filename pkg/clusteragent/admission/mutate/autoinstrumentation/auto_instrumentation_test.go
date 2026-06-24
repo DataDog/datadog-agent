@@ -94,7 +94,7 @@ func TestAutoinstrumentation(t *testing.T) {
 		pod           *corev1.Pod
 		namespaces    []workloadmeta.KubernetesMetadata
 		deployments   []common.MockDeployment
-		crdAPMEntries map[crstore.WorkloadKey]crstore.APMEntry
+		crdAPMEntries map[crstore.WorkloadTarget]crstore.APMConfig
 		shouldMutate  bool
 		expected      *expected
 	}{
@@ -1286,7 +1286,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			}.Create(),
 			deployments: defaultDeployments,
 			namespaces:  defaultNamespaces,
-			crdAPMEntries: map[crstore.WorkloadKey]crstore.APMEntry{
+			crdAPMEntries: map[crstore.WorkloadTarget]crstore.APMConfig{
 				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: {
 					CR:             types.NamespacedName{Namespace: "default", Name: "ddi-deployment"},
 					Enabled:        true,
@@ -1333,7 +1333,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			}.Create(),
 			deployments: defaultDeployments,
 			namespaces:  defaultNamespaces,
-			crdAPMEntries: map[crstore.WorkloadKey]crstore.APMEntry{
+			crdAPMEntries: map[crstore.WorkloadTarget]crstore.APMConfig{
 				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: {
 					CR:             types.NamespacedName{Namespace: "default", Name: "ddi-deployment"},
 					Enabled:        true,
@@ -1381,7 +1381,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			}.Create(),
 			deployments: defaultDeployments,
 			namespaces:  defaultNamespaces,
-			crdAPMEntries: map[crstore.WorkloadKey]crstore.APMEntry{
+			crdAPMEntries: map[crstore.WorkloadTarget]crstore.APMConfig{
 				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: {
 					CR:             types.NamespacedName{Namespace: "default", Name: "ddi-deployment"},
 					Enabled:        true,

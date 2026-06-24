@@ -109,7 +109,7 @@ func TestMutatePod(t *testing.T) {
 		configOverrides             map[string]any
 		in                          *corev1.Pod
 		namespaces                  []workloadmeta.KubernetesMetadata
-		crdAPMEntries               map[crstore.WorkloadKey]crstore.APMEntry
+		crdAPMEntries               map[crstore.WorkloadTarget]crstore.APMConfig
 		expectedEnv                 map[string]string
 		expectedAnnotations         map[string]string
 		expectedInitContainerImages []string
@@ -234,7 +234,7 @@ func TestMutatePod(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "web-bcdfg",
 			}.Create(),
-			crdAPMEntries: map[crstore.WorkloadKey]crstore.APMEntry{
+			crdAPMEntries: map[crstore.WorkloadTarget]crstore.APMConfig{
 				{Kind: "Deployment", Namespace: "application", Name: "web"}: {
 					CR:             types.NamespacedName{Namespace: "default", Name: "ddi-web"},
 					Enabled:        true,
@@ -268,7 +268,7 @@ func TestMutatePod(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "web-bcdfg",
 			}.Create(),
-			crdAPMEntries: map[crstore.WorkloadKey]crstore.APMEntry{
+			crdAPMEntries: map[crstore.WorkloadTarget]crstore.APMConfig{
 				{Kind: "Deployment", Namespace: "application", Name: "web"}: {
 					Enabled:        true,
 					TracerVersions: map[string]string{"python": "v4"},
@@ -700,8 +700,8 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 func TestGetTargetFromCRD(t *testing.T) {
 	tests := map[string]struct {
 		pod      *corev1.Pod
-		workload crstore.WorkloadKey
-		entry    crstore.APMEntry
+		workload crstore.WorkloadTarget
+		entry    crstore.APMConfig
 		expected *targetInternal
 	}{
 		"deployment owned pod gets CRD target": {
@@ -710,8 +710,8 @@ func TestGetTargetFromCRD(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "web-bcdfg",
 			}.Create(),
-			workload: crstore.WorkloadKey{Kind: "Deployment", Namespace: "application", Name: "web"},
-			entry: crstore.APMEntry{
+			workload: crstore.WorkloadTarget{Kind: "Deployment", Namespace: "application", Name: "web"},
+			entry: crstore.APMConfig{
 				Enabled:        true,
 				TracerVersions: map[string]string{"python": "v4"},
 				TracerConfigs:  []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
@@ -727,8 +727,8 @@ func TestGetTargetFromCRD(t *testing.T) {
 				ParentKind: "statefulset",
 				ParentName: "db",
 			}.Create(),
-			workload: crstore.WorkloadKey{Kind: "StatefulSet", Namespace: "application", Name: "db"},
-			entry: crstore.APMEntry{
+			workload: crstore.WorkloadTarget{Kind: "StatefulSet", Namespace: "application", Name: "db"},
+			entry: crstore.APMConfig{
 				Enabled:        true,
 				TracerVersions: map[string]string{"java": "v1"},
 			},
@@ -742,8 +742,8 @@ func TestGetTargetFromCRD(t *testing.T) {
 				ParentKind: "daemonset",
 				ParentName: "node-agent",
 			}.Create(),
-			workload: crstore.WorkloadKey{Kind: "DaemonSet", Namespace: "application", Name: "node-agent"},
-			entry:    crstore.APMEntry{Enabled: false},
+			workload: crstore.WorkloadTarget{Kind: "DaemonSet", Namespace: "application", Name: "node-agent"},
+			entry:    crstore.APMConfig{Enabled: false},
 			expected: nil,
 		},
 	}
@@ -794,8 +794,8 @@ func TestGetTargetPrecedenceWithCRD(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	store := crstore.New()
-	workload := crstore.WorkloadKey{Kind: "Deployment", Namespace: "application", Name: "web"}
-	store.UpsertAPM(workload, crstore.APMEntry{Enabled: true, TracerVersions: map[string]string{"python": "v4"}})
+	workload := crstore.WorkloadTarget{Kind: "Deployment", Namespace: "application", Name: "web"}
+	store.UpsertAPM(workload, crstore.APMConfig{Enabled: true, TracerVersions: map[string]string{"python": "v4"}})
 	mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, store)
 	require.NoError(t, err)
 
@@ -816,7 +816,7 @@ func TestGetTargetPrecedenceWithCRD(t *testing.T) {
 	require.NotNil(t, target)
 	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, target.libVersions)
 
-	store.UpsertAPM(workload, crstore.APMEntry{Enabled: false})
+	store.UpsertAPM(workload, crstore.APMConfig{Enabled: false})
 	require.Nil(t, mutator.getTarget(pod), "CRD opt-out should block static config fallback")
 }
 
