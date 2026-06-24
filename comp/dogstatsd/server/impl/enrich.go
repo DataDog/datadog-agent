@@ -20,9 +20,8 @@ import (
 )
 
 var (
-	hostTagPrefix     = "host:"
-	entityIDTagPrefix = "dd.internal.entity_id:"
-	//nolint:revive // TODO(AML) Fix revive linter
+	hostTagPrefix        = "host:"
+	entityIDTagPrefix    = "dd.internal.entity_id:"
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
 

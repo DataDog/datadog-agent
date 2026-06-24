@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-//nolint:revive // TODO(AML) Fix revive linter
 type Requires struct {
 	Lc     compdef.Lifecycle
 	Config configComponent.Component
@@ -40,7 +39,6 @@ type trafficCapture struct {
 	sync.RWMutex
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func NewTrafficCapture(deps Requires) replay.Component {
 	tc := &trafficCapture{
 		config: deps.Config,
