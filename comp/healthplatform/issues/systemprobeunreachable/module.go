@@ -30,14 +30,12 @@ const (
 // systemProbeUnreachableModule implements issues.Module
 type systemProbeUnreachableModule struct {
 	template *SystemProbeUnreachableIssue
-	conf     config.Component
 }
 
 // NewModule creates a new system-probe unreachable issue module
-func NewModule(conf config.Component) issues.Module {
+func NewModule(_ config.Component) issues.Module {
 	return &systemProbeUnreachableModule{
 		template: NewSystemProbeUnreachableIssue(),
-		conf:     conf,
 	}
 }
 
@@ -58,8 +56,6 @@ func (m *systemProbeUnreachableModule) BuiltInPeriodicHealthCheck() *runnerdef.B
 func (m *systemProbeUnreachableModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "system-probe",
-		Fn: func() ([]runnerdef.IssueReport, error) {
-			return Check(m.conf)
-		},
+		Fn:     Check,
 	}
 }

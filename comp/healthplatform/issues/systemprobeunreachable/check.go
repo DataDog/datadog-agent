@@ -11,8 +11,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const (
@@ -22,15 +22,16 @@ const (
 
 // Check detects whether NPM/USM is enabled but system-probe is not reachable.
 // Returns an IssueReport if the socket is unreachable, nil otherwise.
-func Check(cfg config.Component) ([]runnerdef.IssueReport, error) {
-	npmEnabled := cfg.GetBool("network_config.enabled")
-	usmEnabled := cfg.GetBool("service_monitoring_config.enabled")
+func Check() ([]runnerdef.IssueReport, error) {
+	sysCfg := pkgconfigsetup.SystemProbe()
+	npmEnabled := sysCfg.GetBool("network_config.enabled")
+	usmEnabled := sysCfg.GetBool("service_monitoring_config.enabled")
 
 	if !npmEnabled && !usmEnabled {
 		return nil, nil
 	}
 
-	socketPath := cfg.GetString("system_probe_config.sysprobe_socket")
+	socketPath := sysCfg.GetString("system_probe_config.sysprobe_socket")
 	if socketPath == "" {
 		socketPath = defaultSocketPath
 	}
