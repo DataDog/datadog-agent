@@ -92,7 +92,7 @@ func intersectAllowedPathsByAccess(agentAllowed []string, backendAllowed []strin
 			seen[pathToKeep] = struct{}{}
 		}
 	}
-	return filtered
+	return dedupeSamePathPreferReadWrite(filtered)
 }
 
 func splitPathAccessSuffix(pathSpec string) (pathPart string, accessSuffix string) {
@@ -119,7 +119,7 @@ func pathSpecPath(pathSpec string) string {
 	return pathPart
 }
 
-func narrowerPathWithSameAccess(a, b string) (string, bool) {
+func narrowerPathWithSameAccess(a, b string) (pathToKeep string, ok bool) {
 	aPath := pathSpecPath(a)
 	bPath := pathSpecPath(b)
 	if isUnsuffixedRootPath(a) {
@@ -151,6 +151,8 @@ func isUnsuffixedRootPath(pathSpec string) bool {
 // keeping the broadest path for each common prefix.
 // Read-only and read-write paths are reduced independently so write access does
 // not collapse into a broader read-only path with the same prefix.
+// When the same path exists in both groups, the read-write path is kept because
+// it already permits read access.
 //
 // Assumptions:
 //
@@ -166,10 +168,31 @@ func reducePathListToBroadest(paths []string) []string {
 	reducedReadOnly := reducePathSpecsToBroadest(readOnlyPaths)
 	reducedReadWrite := reducePathSpecsToBroadest(readWritePaths)
 
-	reduced := slices.Concat(reducedReadOnly, reducedReadWrite)
+	reduced := dedupeSamePathPreferReadWrite(slices.Concat(reducedReadOnly, reducedReadWrite))
 
 	slices.Sort(reduced)
 	return slices.Compact(reduced)
+}
+
+// dedupeSamePathPreferReadWrite drops read-only entries when the same path also has read-write access.
+func dedupeSamePathPreferReadWrite(paths []string) []string {
+	readWritePaths := make(map[string]struct{}, len(paths))
+	for _, p := range paths {
+		if pathAccessGroup(p) == pathAccessReadWrite {
+			readWritePaths[pathSpecPath(p)] = struct{}{}
+		}
+	}
+
+	deduped := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if pathAccessGroup(p) == pathAccessReadOnly {
+			if _, ok := readWritePaths[pathSpecPath(p)]; ok {
+				continue
+			}
+		}
+		deduped = append(deduped, p)
+	}
+	return deduped
 }
 
 func splitPathListByAccess(paths []string) (readOnly []string, readWrite []string) {

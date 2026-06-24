@@ -178,6 +178,11 @@ func TestFilterAllowedPathsUsesBackendPayload(t *testing.T) {
 			want:    []string{"/var/log/:ro", "/var/log/datadog/:rw"},
 		},
 		{
+			name:    "backend read-write path replaces read-only duplicate with same path",
+			backend: []string{"/var/log:ro", "/var/log:rw", "/etc:ro"},
+			want:    []string{"/etc/:ro", "/var/log/:rw"},
+		},
+		{
 			name:    "backend dot segments are cleaned without reducing siblings",
 			backend: []string{"/var/./log/../log:ro", "/var/logger:rw"},
 			want:    []string{"/var/log/:ro", "/var/logger/:rw"},
@@ -244,6 +249,24 @@ func TestFilterAllowedPathsIntersectsConfiguredAgentAllowlistByAccess(t *testing
 			expected: []string{"/var/log/:rw"},
 		},
 		{
+			name:     "explicit agent root keeps backend read-write over read-only duplicate",
+			agent:    []string{"/"},
+			backend:  []string{"/var/log:ro", "/var/log:rw"},
+			expected: []string{"/var/log/:rw"},
+		},
+		{
+			name:     "agent read-only path can still match backend read-only when same backend read-write also exists",
+			agent:    []string{"/var/log:ro"},
+			backend:  []string{"/var/log:ro", "/var/log:rw"},
+			expected: []string{"/var/log/:ro"},
+		},
+		{
+			name:     "agent read-only and read-write paths keep read-write when same backend path matches both",
+			agent:    []string{"/var/log:ro", "/var/log:rw"},
+			backend:  []string{"/var/log:ro", "/var/log:rw"},
+			expected: []string{"/var/log/:rw"},
+		},
+		{
 			name:     "agent read-write root keeps narrower backend read-write paths",
 			agent:    []string{"/:rw"},
 			backend:  []string{"/var/log:rw"},
@@ -284,6 +307,18 @@ func TestFilterAllowedPathsIntersectsConfiguredAgentAllowlistByAccess(t *testing
 			agent:    []string{"/var/log/datadog:ro", "/opt/datadog:rw", "/tmp/cache:ro"},
 			backend:  []string{"/var/log:ro", "/opt:rw", "/tmp:rw"},
 			expected: []string{"/opt/datadog/:rw", "/var/log/datadog/:ro"},
+		},
+		{
+			name:     "operator paths are reduced before backend intersection",
+			agent:    []string{"/var/log/datadog:rw", "/var/log:rw", "/etc/datadog:ro", "/etc:ro"},
+			backend:  []string{"/var/log/datadog/agent:rw", "/etc/datadog/agent:ro"},
+			expected: []string{"/etc/datadog/agent/:ro", "/var/log/datadog/agent/:rw"},
+		},
+		{
+			name:     "duplicate backend matches are emitted once",
+			agent:    []string{"/var/log:rw"},
+			backend:  []string{"/var/log:rw", "/var/log:rw", "/var/log/datadog:rw"},
+			expected: []string{"/var/log/:rw", "/var/log/datadog/:rw"},
 		},
 	}
 	for _, tc := range cases {
@@ -335,7 +370,7 @@ func TestNewRunCommandHandlerReducesOperatorAllowedPathsByAccess(t *testing.T) {
 		},
 	})
 
-	assert.Equal(t, []string{"/etc/:ro", "/var/log/", "/var/log/:rw"}, handler.operatorAllowedPaths)
+	assert.Equal(t, []string{"/etc/:ro", "/var/log/:rw"}, handler.operatorAllowedPaths)
 }
 
 func TestRunCommandEmptyCommandReturnsError(t *testing.T) {
