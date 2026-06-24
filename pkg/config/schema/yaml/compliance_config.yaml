@@ -30,7 +30,7 @@ properties:
     - full-agent-only:true
   check_interval:
     node_type: setting
-    type: number
+    type: string
     default: 20m0s
     format: duration
     visibility: public

@@ -9,9 +9,10 @@ use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use tokio::sync::Notify;
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, TRUE};
+use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE, TRUE};
 use windows_sys::Win32::System::Console::{
-    AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, SetConsoleCtrlHandler,
+    AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, GetStdHandle,
+    STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, SetConsoleCtrlHandler, SetStdHandle,
 };
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -25,8 +26,13 @@ use windows_sys::Win32::System::Threading::{
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
 
-/// Serialize console attach / ctrl-event / detach: these APIs are process-global.
-static GRACEFUL_CONSOLE_LOCK: Mutex<()> = Mutex::new(());
+/// Serialize process-global console state: attach/detach, std-handle reads for inherit, and spawn.
+static CONSOLE_LOCK: Mutex<()> = Mutex::new(());
+
+/// Hold while touching std handles or the attached console (graceful stop, inherit checks, spawn).
+pub(crate) fn console_lock() -> std::sync::MutexGuard<'static, ()> {
+    CONSOLE_LOCK.lock().expect("console lock poisoned")
+}
 
 /// Returns the global shutdown notifier. The SCM control handler calls
 /// `notify_one()` on this from its OS thread to trigger graceful shutdown
@@ -135,9 +141,39 @@ impl Drop for JobObject {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Platform functions
-// ---------------------------------------------------------------------------
+/// True when this process has a non-null stdout/stderr handle (safe to honor `inherit` in YAML).
+/// Caller must hold [`console_lock`]; cleared by [`reset_std_handles`] after [`detach_console`].
+fn std_handle_inheritable(handle: u32) -> bool {
+    unsafe {
+        let h = GetStdHandle(handle);
+        !h.is_null() && h != INVALID_HANDLE_VALUE
+    }
+}
+
+pub fn stdout_inheritable() -> bool {
+    std_handle_inheritable(STD_OUTPUT_HANDLE)
+}
+
+pub fn stderr_inheritable() -> bool {
+    std_handle_inheritable(STD_ERROR_HANDLE)
+}
+
+/// `FreeConsole` leaves stale values in the process std-handle table; clear them so a
+/// recycled handle is not mistaken for a valid inherit target.
+fn reset_std_handles() {
+    unsafe {
+        for std_handle in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
+            let _ = SetStdHandle(std_handle, std::ptr::null_mut());
+        }
+    }
+}
+
+fn detach_console() {
+    unsafe {
+        let _ = FreeConsole();
+    }
+    reset_std_handles();
+}
 
 /// Give the child its own hidden console plus a new process group so
 /// `GenerateConsoleCtrlEvent` / `AttachConsole` graceful shutdown can work (null stdio alone
@@ -155,12 +191,10 @@ unsafe extern "system" fn ignore_console_ctrl_events(_: u32) -> i32 {
 /// Send CTRL_BREAK to the child's process group (`pid` is the group root from `CREATE_NEW_PROCESS_GROUP`).
 /// Services have no console, so we `AttachConsole(pid)` before `GenerateConsoleCtrlEvent`; then detach.
 pub fn send_graceful_stop(pid: u32) -> Result<()> {
-    let _guard = GRACEFUL_CONSOLE_LOCK
-        .lock()
-        .expect("graceful console lock poisoned");
+    let _guard = console_lock();
 
     unsafe {
-        let _ = FreeConsole();
+        detach_console();
         if AttachConsole(pid) == 0 {
             anyhow::bail!(
                 "AttachConsole({pid}) failed: {}",
@@ -170,9 +204,7 @@ pub fn send_graceful_stop(pid: u32) -> Result<()> {
         struct DetachOnDrop;
         impl Drop for DetachOnDrop {
             fn drop(&mut self) {
-                unsafe {
-                    let _ = FreeConsole();
-                }
+                detach_console();
             }
         }
         let _detach = DetachOnDrop;

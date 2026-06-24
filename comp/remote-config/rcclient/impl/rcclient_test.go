@@ -75,7 +75,7 @@ type testDeps struct {
 func TestRCClientCreate(t *testing.T) {
 	// Test missing params — expect the fx app to fail to build
 	_, _, err := fxutil.TestApp[testDeps](
-		fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		fxutil.ProvideOptional[rcclient.Component](),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return configmock.New(t) }),
@@ -88,7 +88,7 @@ func TestRCClientCreate(t *testing.T) {
 
 	// Test success case
 	app, deps, err := fxutil.TestApp[testDeps](
-		fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		fxutil.ProvideOptional[rcclient.Component](),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return configmock.New(t) }),
@@ -117,7 +117,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	rcComponent := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			fxutil.Component(
-				fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+				fxutil.ProvideComponentConstructor(NewComponent),
 				fxutil.ProvideOptional[rcclient.Component](),
 			),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -224,7 +224,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	rcComponent := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			fxutil.Component(
-				fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+				fxutil.ProvideComponentConstructor(NewComponent),
 				fxutil.ProvideOptional[rcclient.Component](),
 			),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
