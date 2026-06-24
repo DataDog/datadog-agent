@@ -34,13 +34,10 @@ var dscpMap = map[uint32]string{
 	56: "CS7",
 }
 
-// DSCPFromTOS extracts the 6-bit DSCP value from an 8-bit IP ToS field (RFC 2474).
 func DSCPFromTOS(tos uint32) uint32 {
 	return tos >> 2
 }
 
-// DSCPNameFromTOS maps the DSCP value carried in an 8-bit IP ToS field to its
-// standard RFC name. Unknown values fall back to "DSCP-<n>" so they remain groupable.
 func DSCPNameFromTOS(tos uint32) string {
 	dscp := DSCPFromTOS(tos)
 	if name, ok := dscpMap[dscp]; ok {
