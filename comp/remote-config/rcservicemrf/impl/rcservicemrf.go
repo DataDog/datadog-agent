@@ -48,8 +48,8 @@ type Provides struct {
 	FlareProvider flaretypes.Provider
 }
 
-// NewMrfRemoteConfigServiceOptional conditionally creates and configures a new MRF remote config service, based on whether RC is enabled.
-func NewMrfRemoteConfigServiceOptional(deps Dependencies) Provides {
+// NewComponent conditionally creates and configures a new MRF remote config service, based on whether RC is enabled.
+func NewComponent(deps Dependencies) Provides {
 	none := option.None[rcservicemrf.Component]()
 	if !configUtils.IsRemoteConfigEnabled(deps.Cfg) || !deps.Cfg.GetBool("multi_region_failover.enabled") {
 		return Provides{Comp: none}
