@@ -1669,10 +1669,6 @@ properties:
             node_type: setting
             type: string
             default: 1m
-          enrichment_ticker:
-            node_type: setting
-            type: string
-            default: 1m
           forward_interval:
             node_type: setting
             type: string
