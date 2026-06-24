@@ -16,7 +16,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//cmd/agent/windows/controlsvc",
             "//comp/core/config",
             "//comp/core/diagnose/def",
             "//comp/core/diagnose/format",
@@ -35,6 +34,7 @@ go_library(
             "//pkg/util/winutil",
             "//pkg/version",
             "@//cmd/agent/common",
+            "@//cmd/agent/windows/controlsvc",
             "@//comp/core/flare",
             "@com_github_lxn_walk//:walk",
             "@com_github_lxn_win//:win",
