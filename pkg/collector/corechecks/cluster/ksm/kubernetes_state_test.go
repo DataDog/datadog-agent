@@ -1307,6 +1307,74 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 			wantTags:     []string{"new_foo_label:foo_value"},
 			wantHostname: "",
 		},
+		{
+			// Argo Rollout pods: created_by_kind=ReplicaSet + rollouts-pod-template-hash label
+			// should produce kube_argo_rollout:<deployment> instead of kube_deployment:<deployment>
+			name: "argo rollout owner via label join",
+			config: &KSMConfig{
+				labelJoins: map[string]*joinsConfig{
+					"kube_pod_info": {
+						labelsToMatch: []string{"pod", "namespace"},
+						labelsToGet:   map[string]string{"created_by_kind": "created_by_kind", "created_by_name": "created_by_name"},
+					},
+					"kube_pod_labels": {
+						labelsToMatch: []string{"pod", "namespace"},
+						labelsToGet:   map[string]string{"label_rollouts_pod_template_hash": "label_rollouts_pod_template_hash"},
+					},
+				},
+			},
+			args: args{
+				labels: map[string]string{"pod": "myapp-6768ddc4d-xvz12", "namespace": "default"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name: "kube_pod_info",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+							"pod": "myapp-6768ddc4d-xvz12", "namespace": "default",
+							"created_by_kind": "ReplicaSet", "created_by_name": "myapp-6768ddc4d",
+						}}},
+					},
+					{
+						Name: "kube_pod_labels",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+							"pod": "myapp-6768ddc4d-xvz12", "namespace": "default",
+							"label_rollouts_pod_template_hash": "6768ddc4d",
+						}}},
+					},
+				},
+			},
+			wantTags:     []string{"pod:myapp-6768ddc4d-xvz12", "namespace:default", "kube_argo_rollout:myapp"},
+			wantHostname: "",
+		},
+		{
+			// Regular deployment pods (no rollouts label) should still get kube_deployment tag
+			name: "regular deployment owner via label join (no argo label)",
+			config: &KSMConfig{
+				labelJoins: map[string]*joinsConfig{
+					"kube_pod_info": {
+						labelsToMatch: []string{"pod", "namespace"},
+						labelsToGet:   map[string]string{"created_by_kind": "created_by_kind", "created_by_name": "created_by_name"},
+					},
+					"kube_pod_labels": {
+						labelsToMatch: []string{"pod", "namespace"},
+						labelsToGet:   map[string]string{"label_rollouts_pod_template_hash": "label_rollouts_pod_template_hash"},
+					},
+				},
+			},
+			args: args{
+				labels: map[string]string{"pod": "myapp-6768ddc4d-xvz12", "namespace": "default"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name: "kube_pod_info",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+							"pod": "myapp-6768ddc4d-xvz12", "namespace": "default",
+							"created_by_kind": "ReplicaSet", "created_by_name": "myapp-6768ddc4d",
+						}}},
+					},
+				},
+			},
+			wantTags:     []string{"pod:myapp-6768ddc4d-xvz12", "namespace:default", "kube_replica_set:myapp-6768ddc4d", "kube_deployment:myapp"},
+			wantHostname: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1966,6 +2034,12 @@ func TestOwnerTags(t *testing.T) {
 			kind: "ReplicationController",
 			name: "foo",
 			want: []string{"kube_replication_controller:foo"},
+		},
+		{
+			tc:   "argo rollout",
+			kind: "Rollout",
+			name: "foo",
+			want: []string{"kube_argo_rollout:foo"},
 		},
 	}
 	for _, tt := range tests {

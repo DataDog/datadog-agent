@@ -24,6 +24,7 @@ var kubernetesKindToTagName = map[string]string{
 	kubernetes.CronJobKind:               tags.KubeCronjob,
 	kubernetes.ServiceKind:               tags.KubeService,
 	kubernetes.NamespaceKind:             tags.KubeNamespace,
+	kubernetes.RolloutKind:               tags.KubeArgoRollout,
 }
 
 // GetTagForKubernetesKind returns the tag name for the given kind

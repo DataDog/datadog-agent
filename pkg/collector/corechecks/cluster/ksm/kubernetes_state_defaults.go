@@ -174,7 +174,7 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 		},
 		"kube_pod_labels": {
 			LabelsToMatch: getLabelToMatchForKind("pod"),
-			LabelsToGet:   defaultStandardLabels,
+			LabelsToGet:   append(defaultStandardLabels, "label_rollouts_pod_template_hash"),
 		},
 		"kube_pod_status_reason": {
 			LabelsToMatch: getLabelToMatchForKind("pod"),

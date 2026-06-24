@@ -71,6 +71,9 @@ const (
 	ownerNameKey = "owner_name"
 	// namespaceKey represents the KSM label key namespace
 	namespaceKey = "namespace"
+	// argoRolloutLabelJoinKey is the KSM label key for the Argo Rollout pod template hash,
+	// surfaced via the kube_pod_labels label join as "label_" + ArgoRolloutLabelKey (hyphens → underscores).
+	argoRolloutLabelJoinKey = "label_rollouts_pod_template_hash"
 )
 
 var extendedCollectors = map[string]string{
@@ -851,6 +854,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	tagList := make([]string, 0, len(labels)+len(labelsToAdd))
 
 	ownerKind, ownerName, resourceNamespace := "", "", ""
+	isArgoRollout := false
 
 	for key, value := range labels {
 
@@ -888,6 +892,10 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 			ownerKind = label.value
 		case createdByNameKey, ownerNameKey:
 			ownerName = label.value
+		case argoRolloutLabelJoinKey:
+			if label.value != "" {
+				isArgoRollout = true
+			}
 		default:
 			tag, hostTag := k.buildTag(label.key, label.value, lMapperOverride)
 			tagList = append(tagList, tag)
@@ -898,6 +906,15 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 					hostname = hostTag
 				}
 			}
+		}
+	}
+
+	// If the pod has the Argo Rollout label and its controller is a ReplicaSet,
+	// resolve the owner to the Rollout instead of the Deployment.
+	if isArgoRollout && ownerKind == kubernetes.ReplicaSetKind {
+		if deployment := kubernetes.ParseDeploymentForReplicaSet(ownerName); deployment != "" {
+			ownerKind = kubernetes.RolloutKind
+			ownerName = deployment
 		}
 	}
 

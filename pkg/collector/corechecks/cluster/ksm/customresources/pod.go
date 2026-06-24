@@ -9,15 +9,15 @@ package customresources
 
 import (
 	"context"
-
+x
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	v1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/xcore/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apimachinery/pkg/watch"x
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -170,7 +170,11 @@ func containerResourceOwnerGenerator(c v1.Container, p *v1.Pod, resourceType str
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			kind = kubernetes.DeploymentKind
+			if p.Labels[kubernetes.ArgoRolloutLabelKey] != "" {
+				kind = kubernetes.RolloutKind
+			} else {
+				kind = kubernetes.DeploymentKind
+			}
 			name = deployment
 		}
 	}
