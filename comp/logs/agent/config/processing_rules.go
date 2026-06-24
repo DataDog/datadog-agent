@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	"github.com/DataDog/fastjq"
 )
 
 // Processing rule types
@@ -19,6 +21,13 @@ const (
 	MultiLine        = "multi_line"
 	ExcludeTruncated = "exclude_truncated"
 	RemapSource      = "remap_source"
+	// ExcludeAtJQMatch drops log lines for which the jq expression produces output.
+	// The pattern must be a valid jq expression (e.g. `select(.level == "debug")`).
+	// Non-JSON content is passed through unchanged.
+	ExcludeAtJQMatch = "exclude_at_jq_match"
+	// IncludeAtJQMatch keeps only log lines for which the jq expression produces output.
+	// Non-JSON content is passed through unchanged.
+	IncludeAtJQMatch = "include_at_jq_match"
 )
 
 // SourceMatchEntry defines a single attribute-value-to-source match
@@ -39,6 +48,10 @@ type ProcessingRule struct {
 	Regex              *regexp.Regexp
 	Placeholder        []byte
 	Matching           []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
+	// JQFilter is set for ExcludeAtJQMatch and IncludeAtJQMatch rules after compilation.
+	// It returns (true, nil) when the jq program produces output for the given input,
+	// (false, nil) when it produces no output, and (false, err) on program error.
+	JQFilter func(input []byte) (bool, error) `json:"-" yaml:"-" mapstructure:"-"`
 }
 
 // ValidateProcessingRules validates the rules and raises an error if one is misconfigured.
@@ -60,6 +73,13 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 			_, err := regexp.Compile(rule.Pattern)
 			if err != nil {
 				return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
+			}
+		case ExcludeAtJQMatch, IncludeAtJQMatch:
+			if rule.Pattern == "" {
+				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+			}
+			if _, err := fastjq.Compile(rule.Pattern); err != nil {
+				return fmt.Errorf("invalid jq pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
 			}
 		case ExcludeTruncated:
 			break
@@ -87,10 +107,18 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 	return nil
 }
 
-// CompileProcessingRules compiles all processing rule regular expressions.
+// CompileProcessingRules compiles all processing rule regular expressions and jq programs.
 func CompileProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
-		if rule.Type == ExcludeTruncated || rule.Type == RemapSource {
+		switch rule.Type {
+		case ExcludeTruncated, RemapSource:
+			continue
+		case ExcludeAtJQMatch, IncludeAtJQMatch:
+			prog, err := fastjq.Compile(rule.Pattern)
+			if err != nil {
+				return fmt.Errorf("invalid jq pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
+			}
+			rule.JQFilter = makeJQFilter(prog)
 			continue
 		}
 		re, err := regexp.Compile(rule.Pattern)
@@ -111,4 +139,25 @@ func CompileProcessingRules(rules []*ProcessingRule) error {
 		}
 	}
 	return nil
+}
+
+// makeJQFilter returns a function that reports whether a jq program produces output for the given input.
+// Non-JSON input always returns (false, nil) — never silently dropped.
+func makeJQFilter(prog *fastjq.Program) func([]byte) (bool, error) {
+	buf := make([]byte, 0, 4096)
+	return func(input []byte) (bool, error) {
+		matched := false
+		buf = buf[:0]
+		err := prog.RunFunc(input, func(result []byte) error {
+			if len(result) > 0 {
+				matched = true
+			}
+			return nil
+		})
+		if err != nil {
+			// Non-JSON or jq runtime error: treat as no match (pass-through).
+			return false, err
+		}
+		return matched, nil
+	}
 }

@@ -84,6 +84,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.81.0-devel.0.20260603133502-a41610237dba // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.81.0-devel.0.20260603133502-a41610237dba // indirect
+	github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect

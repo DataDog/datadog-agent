@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/logs/agent/config
 
-go 1.25.0
+go 1.25.4
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
@@ -13,6 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.75.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.75.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.75.4
+	github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	go.yaml.in/yaml/v3 v3.0.4
