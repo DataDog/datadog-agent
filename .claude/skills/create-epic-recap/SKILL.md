@@ -253,11 +253,12 @@ For each merged PR identified in Step 4, fetch full details. Run these in parall
 ```bash
 gh pr view <number> \
   --repo <owner>/<repo> \
-  --json title,body,files,labels,mergedAt,baseRefName,author
+  --json title,body,files,labels,mergedAt,baseRefName,author,mergeCommit
 ```
 
 Collect:
 - `title`, `body`, `mergedAt`, `baseRefName`
+- `mergeCommit.oid` — the merge commit SHA. **Store it** as `mergeSha`; Step 6 needs it to fetch release-note files that were added by the PR and are no longer (or not yet) present on the current base branch. If `mergeCommit` is null (e.g. the PR was rebase/squash-merged with no merge commit recorded, or the field is unavailable), fall back to fetching the commit list and using the last commit's `oid` via `gh pr view <number> --repo <owner>/<repo> --json commits --jq '.commits[-1].oid'`.
 - `files[].path` — used in Step 7 (signal classification) and Step 6 (release-note discovery)
 - `labels[].name` — look for `team/opentelemetry`, `component/*`, `changelog/*`, `qa/*`
 
@@ -275,12 +276,14 @@ gh api "repos/<owner>/<repo>/contents/<path>?ref=<baseRefName>" \
   --jq '.content' | base64 -d
 ```
 
-If a release-note file is **added** by the PR (not yet on `main` at the PR's base), fall back to fetching it from the merge commit:
+If a release-note file is **added** by the PR (not yet on `main` at the PR's base), or has since been removed from the base branch, fall back to fetching it from the merge commit using the `mergeSha` captured in Step 5:
 
 ```bash
 gh api "repos/<owner>/<repo>/contents/<path>?ref=<mergeSha>" \
   --jq '.content' | base64 -d
 ```
+
+If `mergeSha` is unavailable for the PR (the Step 5 `commits` fallback also yielded nothing), skip this file and note that its release note could not be read — do not fail the run; Step 9's PR-body fallback covers it.
 
 Parse each YAML release note and collect the section name (`features`, `enhancements`, `fixes`, `upgrade`, `deprecations`, `security`, `other`, `issues`) and its prose. Keep the original wording — release notes are already customer-facing.
 
