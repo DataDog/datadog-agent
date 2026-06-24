@@ -657,6 +657,44 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 	mockMan.AssertExpectations(t)
 }
 
+func TestAttachToBinaryReturnsInspectionResultErrorUnwrapped(t *testing.T) {
+	proc := kernel.FakeProcFSEntry{
+		Pid:     1,
+		Cmdline: "/bin/bash",
+		Exe:     "/bin/bash",
+	}
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
+
+	config := AttacherConfig{
+		ProcRoot: procFS,
+		Rules: []*AttachRule{
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
+				},
+			},
+		},
+	}
+
+	inspector := &MockBinaryInspector{}
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, AttacherDependencies{Inspector: inspector, ProcessMonitor: newMockProcessMonitor()})
+	require.NoError(t, err)
+
+	target := utils.FilePath{HostPath: proc.Exe, PID: proc.Pid}
+	expectedErr := errors.New("symbols SSL_connect not found")
+	inspector.On("Inspect", target, mock.Anything).Return(map[int]*InspectionResult{
+		0: {Error: expectedErr},
+	}, nil)
+
+	err = ua.attachToBinary(target, config.Rules, NewProcInfo(procFS, proc.Pid))
+	require.ErrorIs(t, err, expectedErr)
+
+	var unknownErr *utils.UnknownAttachmentError
+	require.False(t, errors.As(err, &unknownErr))
+	inspector.AssertExpectations(t)
+}
+
 func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
