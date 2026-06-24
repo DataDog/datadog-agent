@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
----
 enhancements:
   - |
     OTLP trace ingestion now uses ``otel.scope.name`` and ``otel.scope.version``
