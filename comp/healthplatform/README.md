@@ -53,12 +53,12 @@ On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store 
 
 | Package | `id` | `issue_name` | `title` |
 |---|---|---|---|
-| `admisconfig` | set by caller | `ad_misconfiguration` | `"Autodiscovery Misconfiguration on '<entityName>'"` |
-| `invalidconfig` | `invalid-config` | `invalid-config` | `"Datadog Agent configuration has <N> schema violation(s)"` |
-| `rofspermissions` | `rofs-permissions` | `read-only-filesystem-error` | `"Agent Cannot Write to Read-Only Filesystem"` |
-| `checkfailure` | `check-execution-failure` | `check_execution_failure` | `"Check '<checkName>' Failed"` |
-| `admissionprobe` | `admission-controller-connectivity-failure` | `admission_controller_unreachable` | `"Admission Controller Unreachable"` |
-| `dockerpermissions` | `docker-socket-permissions` | `docker_file_tailing_disabled` | `"Host Agent Cannot Tail Docker Log Files"` |
+| `admisconfig` | set by caller | `Autodiscovery Misconfiguration` | `"Autodiscovery Misconfiguration on '<entityName>'"` |
+| `invalidconfig` | `invalid-config` | `Invalid Config` | `"Datadog Agent Configuration Has <N> Schema Violation(s)"` |
+| `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `"Agent cannot write to: <directories>"` |
+| `checkfailure` | `check-execution-failure` | `Check Execution Failure` | `"Check '<checkName>' Failed"` |
+| `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `"Admission Controller Unreachable"` |
+| `dockerpermissions` | `docker-socket-permissions` | `Docker File Tailing Disabled` | `"Docker log tailing disabled for '<dockerDir>'"` |
 
 ## Adding a new issue module
 
