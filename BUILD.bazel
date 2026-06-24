@@ -161,7 +161,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/process/expvars/impl
 # gazelle:exclude comp/process/gpusubscriber/fx
 # gazelle:exclude comp/process/gpusubscriber/fx-mock
-# gazelle:exclude comp/process/gpusubscriber/impl
 # gazelle:exclude comp/process/hostinfo
 # gazelle:exclude comp/process/processcheck
 # gazelle:exclude comp/process/processdiscoverycheck
@@ -171,7 +170,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/process/status/impl
 # gazelle:exclude comp/process/submitter
 # gazelle:exclude comp/process/types
-# gazelle:exclude comp/remote-config/rcservicemrf/fx
 # gazelle:exclude comp/systray/systray/fx
 # gazelle:exclude comp/systray/systray/impl
 # gazelle:exclude pkg/cli/subcommands/autoscalerlist
@@ -235,9 +233,7 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance/cli
 # gazelle:exclude pkg/compliance/tests
-# gazelle:exclude pkg/config/autodiscovery
 # gazelle:exclude pkg/config/legacy
-# gazelle:exclude pkg/discovery/language
 # gazelle:exclude pkg/dyninst/ebpfbench
 # gazelle:exclude pkg/dyninst/irgen/cli
 # gazelle:exclude pkg/dyninst/module
@@ -276,12 +272,10 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/ebpf/uprobes
 # gazelle:exclude pkg/ebpf/verifier
 # gazelle:exclude pkg/eventmonitor/consumers
-# gazelle:exclude pkg/eventmonitor/examples
 # gazelle:exclude pkg/eventmonitor/testutil
 # Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
 # gazelle:exclude pkg/flare
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
-# gazelle:exclude pkg/gpu/containers
 # gazelle:exclude pkg/gpu/integrationtests
 # gazelle:exclude pkg/kubestatemetrics/builder
 # gazelle:exclude pkg/logs/client/http
@@ -299,8 +293,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/network/containers
 # gazelle:exclude pkg/network/encoding
 # gazelle:exclude pkg/network/encoding/marshal
-# gazelle:exclude pkg/network/events
-# gazelle:exclude pkg/network/protocols/http/debugging
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/luts.go
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/main.go
 # gazelle:exclude pkg/network/protocols/kafka/debugging
@@ -314,7 +306,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/network/usm/testutil/grpc
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privateactionrunner/runners
-# gazelle:exclude pkg/privileged-logs/module
 # gazelle:exclude pkg/privileged-logs/test
 # gazelle:exclude pkg/process/checks
 # gazelle:exclude pkg/process/metadata/parser/*.go
@@ -323,17 +314,10 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/process/net
 # gazelle:exclude pkg/process/runner/mocks
 # gazelle:exclude pkg/process/util/containers
-# gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
 # gazelle:exclude pkg/sbom/collectors/host
 # gazelle:exclude pkg/sbom/collectors/procfs
-# gazelle:exclude pkg/security/clihelpers
-# gazelle:exclude pkg/security/ebpf/tests
-# gazelle:exclude pkg/security/generators/backend_doc
-# gazelle:exclude pkg/security/probe/constantfetch/btfhub
-# gazelle:exclude pkg/security/module
 # gazelle:exclude pkg/serverless/logs
-# gazelle:exclude pkg/serverless/metrics
 # gazelle:exclude pkg/serverless/otlp
 # gazelle:exclude pkg/serverless/trace/span_modifer_test.go
 # gazelle:exclude pkg/serverless/trace/span_modifier.go
