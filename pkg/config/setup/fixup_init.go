@@ -67,8 +67,16 @@ func fixupLogsAgent(config pkgconfigmodel.Config) {
 
 // always called, for both full-agent and serverless-init, after declaring settings
 func fixupInitCommonConfigComponents(config pkgconfigmodel.Config) {
+	// container syspath
 	fixupContainerSyspath(config)
+
+	// logs-agent
 	fixupLogsAgent(config)
+
+	// processes
+	pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
+
+	// misc
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
 	pkgconfigmodel.AddOverrideFunc(ApplyUseDogstatsdSuppression)
