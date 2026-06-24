@@ -35,7 +35,6 @@ import (
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -87,6 +86,7 @@ type dependencies struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	Secrets            secrets.Component
+	IntegrationsLogs   integrations.Component
 }
 
 type provides struct {
@@ -142,12 +142,10 @@ type logAgent struct {
 }
 
 func newLogsAgent(deps dependencies) provides {
-	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
+	if config.IsLogsEnabled(deps.Config) {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
-
-		integrationsLogs := integrationsimpl.NewLogsIntegration()
 
 		logsAgent := &logAgent{
 			log:                deps.Log,
@@ -162,7 +160,7 @@ func newLogsAgent(deps dependencies) provides {
 			flarecontroller:    flareController.NewFlareController(),
 			wmeta:              deps.WMeta,
 			schedulerProviders: deps.SchedulerProviders,
-			integrationsLogs:   integrationsLogs,
+			integrationsLogs:   deps.IntegrationsLogs,
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
 			secrets:            deps.Secrets,
@@ -176,7 +174,7 @@ func newLogsAgent(deps dependencies) provides {
 			Comp:           option.New[agent.Component](logsAgent),
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
-			LogsReciever:   option.New[integrations.Component](integrationsLogs),
+			LogsReciever:   option.New[integrations.Component](deps.IntegrationsLogs),
 			APIStreamLogs: api.NewAgentEndpointProvider(streamLogsEvents(logsAgent),
 				"/stream-logs",
 				"POST",
