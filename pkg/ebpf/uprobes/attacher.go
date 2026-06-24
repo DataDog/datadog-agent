@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -791,7 +792,9 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) (e
 	if ua.handlesExecutables() || (ua.config.ExcludeTargets&ExcludeInternal) != 0 {
 		binPath, err = procInfo.Exe()
 		if err != nil {
-			if !errors.Is(err, os.ErrNotExist) {
+			// procfs can return ESRCH if the process exits while the kernel is
+			// resolving /proc/<pid>/exe, even after path lookup has found it.
+			if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ESRCH) {
 				return utils.NewUnknownAttachmentError(err)
 			}
 			return err
