@@ -157,7 +157,7 @@ type SecurityModuleCmdClientWrapper_DumpNetworkNamespace_Call struct {
 
 // DumpNetworkNamespace is a helper method to define mock.On call
 //   - snapshotInterfaces bool
-func (_e *SecurityModuleCmdClientWrapper_Expecter) DumpNetworkNamespace(snapshotInterfaces interface{}) *SecurityModuleCmdClientWrapper_DumpNetworkNamespace_Call {
+func (_e *SecurityModuleCmdClientWrapper_Expecter) DumpNetworkNamespace(snapshotInterfaces any) *SecurityModuleCmdClientWrapper_DumpNetworkNamespace_Call {
 	return &SecurityModuleCmdClientWrapper_DumpNetworkNamespace_Call{Call: _e.mock.On("DumpNetworkNamespace", snapshotInterfaces)}
 }
 
@@ -218,7 +218,7 @@ type SecurityModuleCmdClientWrapper_DumpProcessCache_Call struct {
 // DumpProcessCache is a helper method to define mock.On call
 //   - withArgs bool
 //   - format string
-func (_e *SecurityModuleCmdClientWrapper_Expecter) DumpProcessCache(withArgs interface{}, format interface{}) *SecurityModuleCmdClientWrapper_DumpProcessCache_Call {
+func (_e *SecurityModuleCmdClientWrapper_Expecter) DumpProcessCache(withArgs any, format any) *SecurityModuleCmdClientWrapper_DumpProcessCache_Call {
 	return &SecurityModuleCmdClientWrapper_DumpProcessCache_Call{Call: _e.mock.On("DumpProcessCache", withArgs, format)}
 }
 
@@ -285,7 +285,7 @@ type SecurityModuleCmdClientWrapper_GenerateActivityDump_Call struct {
 
 // GenerateActivityDump is a helper method to define mock.On call
 //   - request *api.ActivityDumpParams
-func (_e *SecurityModuleCmdClientWrapper_Expecter) GenerateActivityDump(request interface{}) *SecurityModuleCmdClientWrapper_GenerateActivityDump_Call {
+func (_e *SecurityModuleCmdClientWrapper_Expecter) GenerateActivityDump(request any) *SecurityModuleCmdClientWrapper_GenerateActivityDump_Call {
 	return &SecurityModuleCmdClientWrapper_GenerateActivityDump_Call{Call: _e.mock.On("GenerateActivityDump", request)}
 }
 
@@ -347,7 +347,7 @@ type SecurityModuleCmdClientWrapper_GenerateEncoding_Call struct {
 
 // GenerateEncoding is a helper method to define mock.On call
 //   - request *api.TranscodingRequestParams
-func (_e *SecurityModuleCmdClientWrapper_Expecter) GenerateEncoding(request interface{}) *SecurityModuleCmdClientWrapper_GenerateEncoding_Call {
+func (_e *SecurityModuleCmdClientWrapper_Expecter) GenerateEncoding(request any) *SecurityModuleCmdClientWrapper_GenerateEncoding_Call {
 	return &SecurityModuleCmdClientWrapper_GenerateEncoding_Call{Call: _e.mock.On("GenerateEncoding", request)}
 }
 
@@ -464,7 +464,7 @@ type SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call struct {
 
 // GetLoadedPolicies is a helper method to define mock.On call
 //   - includeBundled bool
-func (_e *SecurityModuleCmdClientWrapper_Expecter) GetLoadedPolicies(includeBundled interface{}) *SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call {
+func (_e *SecurityModuleCmdClientWrapper_Expecter) GetLoadedPolicies(includeBundled any) *SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call {
 	return &SecurityModuleCmdClientWrapper_GetLoadedPolicies_Call{Call: _e.mock.On("GetLoadedPolicies", includeBundled)}
 }
 
@@ -691,7 +691,7 @@ type SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call struct {
 
 // ListSecurityProfiles is a helper method to define mock.On call
 //   - includeCache bool
-func (_e *SecurityModuleCmdClientWrapper_Expecter) ListSecurityProfiles(includeCache interface{}) *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call {
+func (_e *SecurityModuleCmdClientWrapper_Expecter) ListSecurityProfiles(includeCache any) *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call {
 	return &SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call{Call: _e.mock.On("ListSecurityProfiles", includeCache)}
 }
 
@@ -864,7 +864,7 @@ type SecurityModuleCmdClientWrapper_SaveSecurityProfile_Call struct {
 // SaveSecurityProfile is a helper method to define mock.On call
 //   - name string
 //   - tag string
-func (_e *SecurityModuleCmdClientWrapper_Expecter) SaveSecurityProfile(name interface{}, tag interface{}) *SecurityModuleCmdClientWrapper_SaveSecurityProfile_Call {
+func (_e *SecurityModuleCmdClientWrapper_Expecter) SaveSecurityProfile(name any, tag any) *SecurityModuleCmdClientWrapper_SaveSecurityProfile_Call {
 	return &SecurityModuleCmdClientWrapper_SaveSecurityProfile_Call{Call: _e.mock.On("SaveSecurityProfile", name, tag)}
 }
 
@@ -933,7 +933,7 @@ type SecurityModuleCmdClientWrapper_StopActivityDump_Call struct {
 //   - name string
 //   - container string
 //   - cgroup string
-func (_e *SecurityModuleCmdClientWrapper_Expecter) StopActivityDump(name interface{}, container interface{}, cgroup interface{}) *SecurityModuleCmdClientWrapper_StopActivityDump_Call {
+func (_e *SecurityModuleCmdClientWrapper_Expecter) StopActivityDump(name any, container any, cgroup any) *SecurityModuleCmdClientWrapper_StopActivityDump_Call {
 	return &SecurityModuleCmdClientWrapper_StopActivityDump_Call{Call: _e.mock.On("StopActivityDump", name, container, cgroup)}
 }
 

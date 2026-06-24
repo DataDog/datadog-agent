@@ -63,7 +63,7 @@ type SecurityModuleEventServer_GetActivityDumpStream_Call struct {
 // GetActivityDumpStream is a helper method to define mock.On call
 //   - empty *emptypb.Empty
 //   - serverStreamingServer grpc.ServerStreamingServer[api.ActivityDumpStreamMessage]
-func (_e *SecurityModuleEventServer_Expecter) GetActivityDumpStream(empty interface{}, serverStreamingServer interface{}) *SecurityModuleEventServer_GetActivityDumpStream_Call {
+func (_e *SecurityModuleEventServer_Expecter) GetActivityDumpStream(empty any, serverStreamingServer any) *SecurityModuleEventServer_GetActivityDumpStream_Call {
 	return &SecurityModuleEventServer_GetActivityDumpStream_Call{Call: _e.mock.On("GetActivityDumpStream", empty, serverStreamingServer)}
 }
 
@@ -120,7 +120,7 @@ type SecurityModuleEventServer_GetEventStream_Call struct {
 // GetEventStream is a helper method to define mock.On call
 //   - empty *emptypb.Empty
 //   - serverStreamingServer grpc.ServerStreamingServer[api.SecurityEventMessage]
-func (_e *SecurityModuleEventServer_Expecter) GetEventStream(empty interface{}, serverStreamingServer interface{}) *SecurityModuleEventServer_GetEventStream_Call {
+func (_e *SecurityModuleEventServer_Expecter) GetEventStream(empty any, serverStreamingServer any) *SecurityModuleEventServer_GetEventStream_Call {
 	return &SecurityModuleEventServer_GetEventStream_Call{Call: _e.mock.On("GetEventStream", empty, serverStreamingServer)}
 }
 

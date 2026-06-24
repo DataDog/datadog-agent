@@ -339,6 +339,7 @@ func (k *ContainerConfigProvider) reportConfigurationError(entityName string, er
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
 			IssueName: healthplatformdef.ADMisconfigurationIssueName,
+			Title:     "Autodiscovery Misconfiguration on '" + entityName + "'",
 			Source:    healthplatformdef.ADMisconfigurationSource,
 		}
 	} else {

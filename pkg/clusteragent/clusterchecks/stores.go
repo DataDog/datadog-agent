@@ -48,7 +48,7 @@ func (s *clusterStore) reset() {
 	s.digestToConfig = make(map[string]integration.Config)
 	s.digestToNode = make(map[string]string)
 	s.nodes = make(map[string]*nodeStore)
-	s.danglingConfigs = make(map[string]*danglingConfigWrapper)
+	s.clearDangling()
 	s.endpointsConfigs = make(map[string]map[string]integration.Config)
 	s.idToDigest = make(map[checkid.ID]string)
 }
@@ -97,8 +97,16 @@ func (s *clusterStore) getOrCreateNodeStore(nodeName, clientIP string) *nodeStor
 	return node
 }
 
-// clearDangling resets the danglingConfigs map to a new empty one
+// clearDangling resets the danglingConfigs map to a new empty one, cleaning up
+// the telemetry tracked for the configs it held.
+// sticky) at their last value until the process restarts.
 func (s *clusterStore) clearDangling() {
+	for _, c := range s.danglingConfigs {
+		if c.unscheduledCheck {
+			unscheduledCheck.Delete(le.JoinLeaderValue, c.config.Name, c.config.Source)
+		}
+	}
+	danglingConfigs.Delete(le.JoinLeaderValue)
 	s.danglingConfigs = make(map[string]*danglingConfigWrapper)
 }
 
