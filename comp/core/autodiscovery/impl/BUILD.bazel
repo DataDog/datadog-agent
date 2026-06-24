@@ -97,6 +97,7 @@ go_test(
         "//comp/core/workloadmeta/mock",
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/mock",
+        "//comp/healthplatform/store/noop-impl",
         "//pkg/collector/check/id",
         "//pkg/config/mock",
         "//pkg/config/setup",
