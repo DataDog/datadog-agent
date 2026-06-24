@@ -33,8 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-// === Tests
-
 const (
 	testModuleName   = "mock-module"
 	testAttacherName = "mock"
@@ -70,8 +68,14 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 		expectedError error
 		// isExpected indicates whether the error should avoid UnknownAttachmentError classification.
 		isExpected bool
-		// mockFileRegistry makes the mock registry execute the activation callback instead of returning directly.
+		// shouldLog indicates whether the error should be logged by the default logging gate.
+		shouldLog bool
+		// registryReturnError is the error returned by the mock registry.
+		registryReturnError error
+		// mockFileRegistry uses a mock registry so the test can control registration behavior.
 		mockFileRegistry bool
+		// mockFileRegistryExecuteCallbacks indicates whether the mock registry should execute the activation and deactivation callbacks or return early
+		mockFileRegistryExecuteCallbacks bool
 	}{
 		{
 			name: "internal process",
@@ -86,6 +90,7 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 			},
 			expectedError: ErrInternalDDogProcessRejected,
 			isExpected:    true,
+			shouldLog:     false,
 		},
 		{
 			name: "containerd temporary mount",
@@ -116,9 +121,12 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 
 				return config, inspector
 			},
-			expectedError:    utils.ErrEnvironment,
-			isExpected:       true,
-			mockFileRegistry: true,
+			expectedError:                    utils.ErrEnvironment,
+			isExpected:                       true,
+			shouldLog:                        true, // because EnableDetailedLogging is true
+			registryReturnError:              utils.ErrEnvironment,
+			mockFileRegistry:                 true,
+			mockFileRegistryExecuteCallbacks: true,
 		},
 		{
 			name: "self excluded",
@@ -130,6 +138,44 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 			},
 			expectedError: ErrSelfExcluded,
 			isExpected:    true,
+			shouldLog:     false,
+		},
+		{
+			name: "process does not exist",
+			pid:  1,
+			setup: func(t *testing.T, pid uint32) (AttacherConfig, *MockBinaryInspector) {
+				// No process entry setup, so we will fail when we try to get the executable path
+				procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{})
+
+				return AttacherConfig{
+					ProcRoot: procRoot,
+					Rules: []*AttachRule{
+						{Targets: AttachToExecutable},
+					},
+				}, nil
+			},
+			expectedError: os.ErrNotExist,
+			isExpected:    true,
+			shouldLog:     false,
+		},
+		{
+			name: "process disappears before registry can inspect",
+			pid:  1,
+			setup: func(t *testing.T, pid uint32) (AttacherConfig, *MockBinaryInspector) {
+				procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Cmdline: "foobar", Command: "foobar", Exe: "/bin/foobar"}})
+				return AttacherConfig{
+					ProcRoot: procRoot,
+					Rules: []*AttachRule{
+						{Targets: AttachToExecutable},
+					},
+				}, nil
+			},
+			expectedError:                    utils.ErrProcessDoesNotExist,
+			registryReturnError:              utils.ErrProcessDoesNotExist,
+			isExpected:                       true,
+			shouldLog:                        false,
+			mockFileRegistry:                 true,
+			mockFileRegistryExecuteCallbacks: false,
 		},
 		{
 			name:         "library has no symbols",
@@ -166,9 +212,12 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 
 				return config, inspector
 			},
-			expectedError:    safeelf.ErrNoSymbols,
-			isExpected:       true,
-			mockFileRegistry: true,
+			expectedError:                    safeelf.ErrNoSymbols,
+			isExpected:                       true,
+			shouldLog:                        false,
+			registryReturnError:              safeelf.ErrNoSymbols,
+			mockFileRegistry:                 true,
+			mockFileRegistryExecuteCallbacks: true,
 		},
 	}
 
@@ -187,6 +236,10 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 			if tt.mockFileRegistry {
 				registry := &MockFileRegistry{}
 				registry.On("Register", mock.Anything, tt.pid, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+					if !tt.mockFileRegistryExecuteCallbacks {
+						return
+					}
+
 					namespacedPath := args.String(0)
 					activationCB := args.Get(2).(utils.Callback)
 					deactivationCB := args.Get(3).(utils.Callback)
@@ -194,7 +247,7 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 					if activationCB(path) != nil {
 						_ = deactivationCB(utils.FilePath{ID: path.ID})
 					}
-				}).Return(tt.expectedError)
+				}).Return(tt.registryReturnError)
 				ua.fileRegistry = registry
 				defer registry.AssertExpectations(t)
 			}
@@ -205,6 +258,7 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 			var unknownErr *utils.UnknownAttachmentError
 			isUnexpected := errors.As(err, &unknownErr)
 			require.Equal(t, !tt.isExpected, isUnexpected)
+			require.Equal(t, tt.shouldLog, ua.shouldLogRegistryError(err))
 		})
 	}
 }
