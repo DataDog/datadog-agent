@@ -7,6 +7,7 @@
 package invalidconfig
 
 import (
+	"fmt"
 	"strconv"
 
 	"go.yaml.in/yaml/v3"
@@ -14,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -39,16 +39,11 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	}
 	normalized, err := normalizeForSchema(raw)
 	if err != nil {
-		// Normalization failed — treat as no violations so bundle.go still
-		// calls ResolveIssue for any stale issues from a prior run.
-		pkglog.Warnf("invalidconfig: normalize config: %v; skipping check", err)
-		return nil, nil
+		return nil, fmt.Errorf("normalizing config for schema validation: %w", err)
 	}
 	errs, schemaErr := schema.ValidateCoreConfig(normalized)
 	if schemaErr != nil {
-		// Schema unavailable — same rationale: allow stale-issue resolution.
-		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
-		return nil, nil
+		return nil, fmt.Errorf("schema validator unavailable: %w", schemaErr)
 	}
 	if len(errs) == 0 {
 		return nil, nil
