@@ -194,8 +194,14 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	}
 
-	// The otel-agent forces zlib compression, which is incompatible with the v3
-	// metrics intake.
+	// Compression: the otel-agent (DDOT) uses zstd for every signal (metrics, traces,
+	// logs) so the compression algorithm stays consistent across signals. The level
+	// defaults to 3 but stays overridable via DD_SERIALIZER_ZSTD_COMPRESSOR_LEVEL
+	// (SourceDefault < SourceEnvVar). DDOT deliberately stays on the v2 metrics intake:
+	// zstd is v3-compatible, but moving to v3 is a separate effort, so v3 is disabled
+	// here regardless of the compressor.
+	pkgconfig.Set("serializer_compressor_kind", pkgconfigsetup.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
+	pkgconfig.Set("serializer_zstd_compressor_level", 3, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
 	pkgconfig.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
@@ -205,7 +211,21 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("logs_config.logs_dd_url", ddc.Logs.Endpoint, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("logs_config.use_compression", ddc.Logs.UseCompression, pkgconfigmodel.SourceFile)
+	// logs_config.compression_level carries the exporter's logs::compression_level
+	// (a gzip level, 0-9); it only applies when the active log compressor is gzip.
 	pkgconfig.Set("logs_config.compression_level", ddc.Logs.CompressionLevel, pkgconfigmodel.SourceFile)
+	// DDOT logs use zstd to match metrics/traces. compression_kind is set at SourceFile
+	// (not SourceDefault) so config.IsConfigured() is true, which bypasses the logs
+	// pipeline's fallback to gzip when logs_config.additional_endpoints is set. That
+	// fallback is a conservative default for non-Datadog intakes (PR #35625), but
+	// additional_endpoints here are other Datadog endpoints (multi-region / dual-ship /
+	// MRF) that accept zstd, and the metrics forwarder already sends zstd to all of
+	// them. The logs pipeline shares one compressor across destinations, so this makes
+	// every log endpoint use zstd. Override with DD_LOGS_CONFIG_COMPRESSION_KIND=gzip
+	// if a non-Datadog log endpoint is ever added. The zstd level defaults to 3,
+	// overridable via DD_LOGS_CONFIG_ZSTD_COMPRESSION_LEVEL.
+	pkgconfig.Set("logs_config.compression_kind", pkgconfigsetup.DefaultLogCompressionKind, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_config.zstd_compression_level", 3, pkgconfigmodel.SourceDefault)
 
 	// APM & OTel trace configs
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceDefault)

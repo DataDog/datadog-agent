@@ -79,6 +79,10 @@ func (s *completeTestSuite) TestOTLPLogs() {
 	utils.TestLogs(s, minimalParams)
 }
 
+func (s *completeTestSuite) TestOTLPCompression() {
+	utils.TestCompression(s)
+}
+
 func (s *completeTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
