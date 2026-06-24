@@ -20,23 +20,23 @@ const (
 	dialTimeout       = 2 * time.Second
 )
 
-// BuiltInStartupHealthCheck returns nil if neither NPM nor USM is enabled so the check is
-// never registered. Otherwise it returns a startup check that dials the system-probe socket.
+// BuiltInStartupHealthCheck returns a startup check that dials the system-probe socket once at
+// agent startup. The NPM/USM enabled gate runs inside Check() after system-probe.yaml is loaded.
 func (m *systemProbeUnreachableModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
-	sysCfg := pkgconfigsetup.SystemProbe()
-	if !sysCfg.GetBool("network_config.enabled") && !sysCfg.GetBool("service_monitoring_config.enabled") {
-		return nil
-	}
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "system-probe",
 		Fn:     Check,
 	}
 }
 
-// Check dials the system-probe socket and returns an IssueReport if unreachable.
-// It assumes NPM or USM is enabled — callers must gate on that before registering.
+// Check returns nil if neither NPM nor USM is enabled. Otherwise it dials the system-probe
+// socket and returns an IssueReport if the socket is unreachable.
 func Check() ([]runnerdef.IssueReport, error) {
 	sysCfg := pkgconfigsetup.SystemProbe()
+	if !sysCfg.GetBool("network_config.enabled") && !sysCfg.GetBool("service_monitoring_config.enabled") {
+		return nil, nil
+	}
+
 	socketPath := sysCfg.GetString("system_probe_config.sysprobe_socket")
 	if socketPath == "" {
 		socketPath = defaultSocketPath

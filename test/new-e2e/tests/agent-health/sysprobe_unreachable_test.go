@@ -63,6 +63,9 @@ func sysprobeUnreachableEnvProvisioner() provisioners.PulumiEnvRunFunc[sysprobeU
 		hostAgent, err := agent.NewHostAgent(&awsEnv, remoteHost,
 			agentparams.WithFakeintake(fakeIntake),
 			agentparams.WithAgentConfig(sysprobeUnreachableAgentConfig),
+			// network_config and sysprobe_socket must be in system-probe.yaml;
+			// the startup check reads them via pkgconfigsetup.SystemProbe().
+			agentparams.WithSystemProbeConfig("network_config:\n  enabled: true\nsystem_probe_config:\n  sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock"),
 		)
 		if err != nil {
 			return err
