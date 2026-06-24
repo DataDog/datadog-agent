@@ -105,7 +105,7 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	s, err = demux.GetDefaultSender()
 	assert.Nil(t, err)
 	defaultSender2 := s.(*checkSender)
-	assert.Equal(t, defaultSender1.id, defaultSender2.id)
+	assert.Equal(t, defaultSender1.CheckID(), defaultSender2.CheckID())
 }
 
 func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
@@ -127,14 +127,14 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	assert.Nil(t, err)
 	sender2 := s.(*checkSender)
 	assertAggSamplersLen(t, aggregatorInstance, 2)
-	assert.NotEqual(t, sender1.id, sender2.id)
+	assert.NotEqual(t, sender1.CheckID(), sender2.CheckID())
 
 	s, err = demux.GetDefaultSender()
 	assert.Nil(t, err)
 	defaultSender := s.(*checkSender)
 	assertAggSamplersLen(t, aggregatorInstance, 3)
-	assert.NotEqual(t, sender1.id, defaultSender.id)
-	assert.NotEqual(t, sender2.id, defaultSender.id)
+	assert.NotEqual(t, sender1.CheckID(), defaultSender.CheckID())
+	assert.NotEqual(t, sender2.CheckID(), defaultSender.CheckID())
 }
 
 func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
@@ -228,8 +228,9 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	checksender, ok := sender.(*checkSender)
 	require.True(t, ok)
 
-	assert.Equal(t, demux.Aggregator().hostname, checksender.defaultHostname)
-	assert.Equal(t, false, checksender.defaultHostnameDisabled)
+	assert.Equal(t, demux.Aggregator().hostname, checksender.Hostname(""))
+	checksender.DisableDefaultHostname(true)
+	assert.Empty(t, checksender.Hostname(""))
 
 	aggregatorInstance.Stop()
 }
@@ -332,7 +333,7 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	// simulate tags in the configuration file
 	customTags := []string{"custom:tag1", "custom:tag2"}
 	s.sender.SetCheckCustomTags(customTags)
-	assert.Len(t, s.sender.checkTags, 2)
+	assert.Len(t, s.sender.CheckTags(), 2)
 
 	// only tags coming from the configuration file
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false, 0)
@@ -425,7 +426,7 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	// simulate tags in the configuration file
 	customTags := []string{"custom:tag1", "custom:tag2"}
 	s.sender.SetCheckCustomTags(customTags)
-	assert.Len(t, s.sender.checkTags, 2)
+	assert.Len(t, s.sender.CheckTags(), 2)
 
 	// only tags coming from the configuration file
 	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", nil, "test message")
@@ -467,7 +468,7 @@ func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
 	// simulate tags in the configuration file
 	customTags := []string{"custom:tag1", "custom:tag2"}
 	s.sender.SetCheckCustomTags(customTags)
-	assert.Len(t, s.sender.checkTags, 2)
+	assert.Len(t, s.sender.CheckTags(), 2)
 
 	// only tags coming from the configuration file
 	event.Tags = nil
@@ -502,7 +503,7 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	// simulate tags in the configuration file
 	customTags := []string{"custom:tag1", "custom:tag2"}
 	s.sender.SetCheckCustomTags(customTags)
-	assert.Len(t, s.sender.checkTags, 2)
+	assert.Len(t, s.sender.CheckTags(), 2)
 
 	// only tags coming from the configuration file
 	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)

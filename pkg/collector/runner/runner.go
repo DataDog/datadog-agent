@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
-	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -52,7 +51,7 @@ type Runner struct {
 	isStaticWorkerCount bool                          // Flag indicating if numWorkers is dynamically updated
 	pendingChecksChan   chan check.Check              // The channel where checks come from
 	checksTracker       *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
-	scheduler           *scheduler.Scheduler          // Scheduler runner operates on
+	scheduler           ScheduledChecks               // Scheduler runner operates on
 	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
 	utilizationMonitor  *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
 	utilizationLogLimit *log.Limit                    // Log limiter for utilization warnings
@@ -60,10 +59,29 @@ type Runner struct {
 	// to any context-aware operation inside workers (e.g. hostname resolution).
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	workerOptions worker.Options
+}
+
+// ScheduledChecks checks whether a check is still scheduled.
+type ScheduledChecks interface {
+	IsCheckScheduled(checkid.ID) bool
+}
+
+// Options configures runner worker side effects. Nil fields preserve normal
+// runner behavior.
+type Options struct {
+	StatusEmitter worker.StatusEmitter
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
 func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, healthPlatform healthplatform.Component) *Runner {
+	return NewRunnerWithOptions(senderManager, haAgent, healthPlatform, Options{})
+}
+
+// NewRunnerWithOptions takes the number of desired goroutines processing
+// incoming checks, with injectable worker side effects for specialized runners.
+func NewRunnerWithOptions(senderManager sender.SenderManager, haAgent haagent.Component, healthPlatform healthplatform.Component, opts Options) *Runner {
 	numWorkers := pkgconfigsetup.Datadog().GetInt("check_runners")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -82,6 +100,7 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, he
 		utilizationLogLimit: log.NewLogLimit(1, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown")),
 		ctx:                 ctx,
 		cancel:              cancel,
+		workerOptions:       worker.Options{StatusEmitter: opts.StatusEmitter},
 	}
 
 	if !r.isStaticWorkerCount {
@@ -139,7 +158,7 @@ func (r *Runner) AddWorker() {
 func (r *Runner) newWorker() (*worker.Worker, error) {
 	watchdogWarningTimeout := pkgconfigsetup.Datadog().GetDuration("check_watchdog_warning_timeout")
 
-	worker, err := worker.NewWorker(
+	worker, err := worker.NewWorkerWithOptions(
 		r.senderManager,
 		r.haAgent,
 		r.healthPlatform,
@@ -149,6 +168,7 @@ func (r *Runner) newWorker() (*worker.Worker, error) {
 		r.checksTracker,
 		r.ShouldAddCheckStats,
 		watchdogWarningTimeout,
+		r.workerOptions,
 	)
 	if err != nil {
 		log.Errorf("Runner %d was unable to instantiate a worker: %s", r.id, err)
@@ -259,14 +279,14 @@ func (r *Runner) GetChan() chan<- check.Check {
 }
 
 // SetScheduler sets the scheduler for the runner
-func (r *Runner) SetScheduler(s *scheduler.Scheduler) {
+func (r *Runner) SetScheduler(s ScheduledChecks) {
 	r.schedulerLock.Lock()
 	r.scheduler = s
 	r.schedulerLock.Unlock()
 }
 
 // getScheduler gets the scheduler set on the runner
-func (r *Runner) getScheduler() *scheduler.Scheduler {
+func (r *Runner) getScheduler() ScheduledChecks {
 	r.schedulerLock.RLock()
 	defer r.schedulerLock.RUnlock()
 

@@ -51,8 +51,8 @@
   <span class="stat_title">Running Checks</span>
   <span class="stat_data">
     {{- with .runnerStats -}}
-      {{- if and (not .Runs) (not .Checks)}}
-        No checks have run yet
+      {{- if not .Checks}}
+        No normal checks have run yet
       {{end -}}
       {{- range $CheckName, $CheckInstances := .Checks}}
         {{ $version := version $CheckInstances}}
@@ -87,6 +87,45 @@
     {{- end -}}
     <span/>
 </div>
+
+{{- with .shadowRunnerStats }}
+<div class="stat">
+  <span class="stat_title">Shadow Checks</span>
+  <span class="stat_data">
+    <span class="stat_subdata">Runner aggregate counts and worker utilization are shared across normal and shadow checks. This section splits only check instance rows by full :shadow check IDs.</span>
+    {{- range $CheckName, $CheckInstances := .Checks}}
+      {{ $version := version $CheckInstances}}
+      <span class="stat_subtitle">{{$CheckName}}{{ if $version }} ({{$version}}){{ end }}</span>
+      {{- range $instance := $CheckInstances }}
+        <span class="stat_subdata">
+            {{ if .LongRunning -}}
+            {{ template "longRunningCheckStats" . }}
+            {{- else -}}
+            {{ template "checkStats" . }}
+            {{- end }}
+            {{- if index $.inventories .CheckID }}
+            Metadata:<br>
+            <span class="stat_subdata">
+              {{- range $k, $v := index $.inventories .CheckID }}
+                {{ $k }}: {{ $v }}<br>
+              {{- end }}
+            </span>
+            {{- end }}
+          {{- if .LastError}}
+            <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
+                  {{lastErrorTraceback .LastError -}}
+          {{- end -}}
+          {{- if .LastWarnings}}
+            {{- range .LastWarnings }}
+              <span class="warning">Warning</span>: {{.}}<br>
+            {{- end -}}
+          {{- end -}}
+        </span>
+      {{ end }}
+    {{- end -}}
+  </span>
+</div>
+{{- end }}
 
 {{- with .workerStats }}
 <div class="stat">

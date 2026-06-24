@@ -1,31 +1,39 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "sender",
+    name = "lookbacksender",
     srcs = [
-        "base_sender.go",
         "sender.go",
+        "telemetry.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/sender",
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/telemetry/impl",
+        "//pkg/aggregator/sender",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
         "//pkg/serializer/types",
+        "//pkg/util/log",
     ],
 )
 
 go_test(
-    name = "sender_test",
-    srcs = ["base_sender_test.go"],
-    embed = [":sender"],
+    name = "lookbacksender_test",
+    srcs = ["sender_test.go"],
+    embed = [":lookbacksender"],
     gotags = ["test"],
     deps = [
+        "//comp/core/telemetry/impl",
         "//pkg/collector/check/id",
+        "//pkg/config/mock",
         "//pkg/metrics",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

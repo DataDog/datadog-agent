@@ -8,8 +8,19 @@ package demultiplexerimpl
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
+
+// LookbackRetentionFactory creates the optional metric lookback retention
+// backend for binaries that support lookback.
+type LookbackRetentionFactory func(config.Component, string) aggregator.LookbackRetention
+
+// LookbackTriggerFactory creates the optional DogStatsD metric lookback trigger
+// for binaries that support trigger evaluation.
+type LookbackTriggerFactory func(config.Component, log.Component, aggregator.LookbackDumper) aggregator.LookbackTrigger
 
 // Params contains the parameters for the demultiplexer
 type Params struct {
@@ -17,6 +28,9 @@ type Params struct {
 
 	// This is an optional field to override the default flush interval only if it is set
 	flushInterval option.Option[time.Duration]
+
+	lookbackRetentionFactory LookbackRetentionFactory
+	lookbackTriggerFactory   LookbackTriggerFactory
 
 	useDogstatsdNoAggregationPipelineConfig bool
 }
@@ -51,5 +65,25 @@ func WithFlushInterval(duration time.Duration) Option {
 func WithDogstatsdNoAggregationPipelineConfig() Option {
 	return func(p *Params) {
 		p.useDogstatsdNoAggregationPipelineConfig = true
+	}
+}
+
+// WithLookbackRetentionFactory wires the concrete metric lookback retention
+// backend into demux instances created by this module. Binaries that do not
+// support lookback should not set this option, which keeps the concrete
+// lookback packages out of their link graph.
+func WithLookbackRetentionFactory(factory LookbackRetentionFactory) Option {
+	return func(p *Params) {
+		p.lookbackRetentionFactory = factory
+	}
+}
+
+// WithLookbackTriggerFactory wires the concrete metric lookback DogStatsD
+// trigger into demux instances created by this module. Binaries that do not
+// support lookback triggers should not set this option, which keeps the
+// concrete trigger package out of their link graph.
+func WithLookbackTriggerFactory(factory LookbackTriggerFactory) Option {
+	return func(p *Params) {
+		p.lookbackTriggerFactory = factory
 	}
 }

@@ -81,7 +81,10 @@ func NewComponent(deps Dependencies) (Provides, error) {
 			return Provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
-	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
+	options := createAgentDemultiplexerOptions(deps.Config, deps.Log, deps.Params)
+	if deps.Params.lookbackRetentionFactory != nil {
+		options.LookbackRetention = deps.Params.lookbackRetentionFactory(deps.Config, hostnameDetected)
+	}
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
@@ -113,7 +116,7 @@ func NewComponent(deps Dependencies) (Provides, error) {
 	}, nil
 }
 
-func createAgentDemultiplexerOptions(config config.Component, params Params) aggregator.AgentDemultiplexerOptions {
+func createAgentDemultiplexerOptions(config config.Component, logger log.Component, params Params) aggregator.AgentDemultiplexerOptions {
 	options := aggregator.DefaultAgentDemultiplexerOptions()
 	if params.useDogstatsdNoAggregationPipelineConfig {
 		if config.GetBool("dogstatsd_no_aggregation_pipeline") {
@@ -121,6 +124,11 @@ func createAgentDemultiplexerOptions(config config.Component, params Params) agg
 			if options.NoAggregationPipelineWorkersCount <= 0 {
 				options.NoAggregationPipelineWorkersCount = 1
 			}
+		}
+	}
+	if params.lookbackTriggerFactory != nil {
+		options.LookbackTriggerFactory = func(dump aggregator.LookbackDumper) aggregator.LookbackTrigger {
+			return params.lookbackTriggerFactory(config, logger, dump)
 		}
 	}
 

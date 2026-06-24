@@ -10,10 +10,8 @@ import (
 	"expvar"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 
-	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -25,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/checkloader"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,14 +35,6 @@ var (
 	errorStats     = newCollectorErrors()
 	checkScheduler *CheckScheduler
 )
-
-type commonInitConfig struct {
-	LoaderName string `yaml:"loader"`
-}
-
-type commonInstanceConfig struct {
-	LoaderName string `yaml:"loader"`
-}
 
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
@@ -59,6 +50,7 @@ func init() {
 type CheckScheduler struct {
 	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
 	loaders        []check.Loader
+	loader         *checkloader.Loader
 	collector      option.Option[collectorcomp.Component]
 	senderManager  sender.SenderManager
 	m              sync.RWMutex
@@ -77,6 +69,7 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 		checkScheduler.addLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
+	checkScheduler.loader = checkloader.New(checkScheduler.loaders, senderManager, schedulerLoaderErrorRecorder{})
 
 	return checkScheduler
 }
@@ -165,74 +158,10 @@ func (s *CheckScheduler) addLoader(loader check.Loader) {
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
 func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
-	checks := []check.Check{}
-	numLoaders := len(s.loaders)
-
-	initConfig := commonInitConfig{}
-	err := yaml.Unmarshal(config.InitConfig, &initConfig)
-	if err != nil {
-		return nil, err
+	if s.loader == nil {
+		s.loader = checkloader.New(s.loaders, s.senderManager, schedulerLoaderErrorRecorder{})
 	}
-	selectedLoader := initConfig.LoaderName
-
-	for instanceIndex, instance := range config.Instances {
-		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
-			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
-			continue
-		}
-
-		selectedInstanceLoader := selectedLoader
-		instanceConfig := commonInstanceConfig{}
-
-		err := yaml.Unmarshal(instance, &instanceConfig)
-		if err != nil {
-			log.Warnf("Unable to parse instance config for check `%s`: %v", config.Name, instance)
-			continue
-		}
-
-		if instanceConfig.LoaderName != "" {
-			selectedInstanceLoader = instanceConfig.LoaderName
-		}
-		if selectedInstanceLoader != "" {
-			log.Debugf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
-		} else {
-			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
-		}
-
-		loaderErrors := make(map[string]error, len(s.loaders))
-		for _, loader := range s.loaders {
-			// the loader is skipped if the loader name is set and does not match
-			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
-				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
-				continue
-			}
-			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
-			if err == nil {
-				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-				checks = append(checks, c)
-				break
-			}
-			loaderErrors[fmt.Sprintf("%v", loader)] = err
-		}
-
-		if len(loaderErrors) == numLoaders {
-			var concatErr strings.Builder
-			for loaderName, err := range loaderErrors {
-				errMsg := err.Error()
-				errorStats.setLoaderError(config.Name, loaderName, errMsg)
-
-				concatErr.WriteString(loaderName)
-				concatErr.WriteString(": ")
-				concatErr.WriteString(errMsg)
-				concatErr.WriteString("; ")
-			}
-			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, concatErr.String())
-		} else {
-			errorStats.removeLoaderErrors(config.Name)
-		}
-	}
-
-	return checks, nil
+	return s.loader.LoadConfig(config)
 }
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
@@ -290,4 +219,14 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 // GetLoaderErrors returns the check loader errors
 func GetLoaderErrors() map[string]map[string]string {
 	return errorStats.getLoaderErrors()
+}
+
+type schedulerLoaderErrorRecorder struct{}
+
+func (schedulerLoaderErrorRecorder) SetLoaderError(checkName, loaderName, err string) {
+	errorStats.setLoaderError(checkName, loaderName, err)
+}
+
+func (schedulerLoaderErrorRecorder) RemoveLoaderErrors(checkName string) {
+	errorStats.removeLoaderErrors(checkName)
 }

@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metriclookback",
+    srcs = [
+        "autoconfig_adapter.go",
+        "config.go",
+        "retention.go",
+        "scheduler.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/metriclookback",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/telemetry/impl",
+        "//comp/core/workloadfilter/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/checkloader",
+        "//pkg/collector/metriclookback/lookbacksender",
+        "//pkg/collector/metriclookback/ringbuffer",
+        "//pkg/collector/runner",
+        "//pkg/collector/runner/expvars",
+        "//pkg/config/model",
+        "//pkg/serializer",
+        "//pkg/util/log",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+go_test(
+    name = "metriclookback_test",
+    srcs = [
+        "autoconfig_adapter_test.go",
+        "config_test.go",
+        "retention_test.go",
+        "scheduler_test.go",
+    ],
+    embed = [":metriclookback"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/diagnose/def",
+        "//comp/haagent/mock",
+        "//comp/healthplatform/store/mock",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
+        "//pkg/collector/metriclookback/ringbuffer",
+        "//pkg/collector/runner",
+        "//pkg/collector/runner/expvars",
+        "//pkg/config/mock",
+        "//pkg/metrics",
+        "//pkg/serializer/mocks",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

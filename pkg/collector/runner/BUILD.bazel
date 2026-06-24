@@ -1,0 +1,25 @@
+# gazelle:ignore
+
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "runner",
+    srcs = [
+        "runner.go",
+        "runner_nopython.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/runner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/haagent/def",
+        "//comp/healthplatform/store/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/runner/tracker",
+        "//pkg/collector/worker",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
