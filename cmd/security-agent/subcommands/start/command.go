@@ -101,7 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			// note that any changes to the arguments to OneShot need to be reflected into
 			// the service initialization in ../../main_windows.go
-			opts := []fx.Option{
+			return fxutil.OneShot(start,
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
@@ -191,15 +191,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ipcfx.ModuleReadWrite(),
 				remoteagentfx.Module(),
 				fxinstrumentation.Module(),
-				fx.Supply(configstreamconsumer.NewParams("security-agent", func() string {
-					if len(params.ConfigFilePaths) > 0 {
-						return params.ConfigFilePaths[0]
-					}
-					return ""
-				}())),
+				fx.Supply(configstreamconsumer.NewParams("security-agent", params.ConfigFilePaths[0])),
 				configstreamconsumerfx.Module(),
-			}
-			return fxutil.OneShot(start, opts...)
+			)
 		},
 	}
 
