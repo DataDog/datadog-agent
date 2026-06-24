@@ -9,15 +9,9 @@ package run
 import (
 	"context"
 	"errors"
-	"net"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
@@ -34,7 +28,6 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-trace"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -49,16 +42,12 @@ import (
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
-
-// configstreamConsumerEnabledEnvVar is the environment variable that controls whether the configstream consumer is enabled.
-const configstreamConsumerEnabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
@@ -137,93 +126,18 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fxinstrumentation.Module(),
 		remoteagentfx.Module(),
 		agenttelemetryfx.Module(),
-	}
-	// Wire the consumer before trace-agent so its OnStart blocks on snapshot first.
-	if isConfigstreamEnabled(cliParams.ConfPath) {
-		opts = append(opts, configstreamFxOptions())
-	}
-	opts = append(opts,
+		fx.Supply(configstreamconsumer.NewParams("trace-agent", cliParams.ConfPath)),
+		configstreamconsumerfx.Module(),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
 		fx.Invoke(func(tm coretelemetry.Component) {
 			api.InitTelemetry(tm)
 		}),
 		fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
-	)
+	}
 	err := fxutil.Run(opts...)
 	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {
 		return nil
 	}
 	return err
-}
-
-// configstreamFxOptions returns FX options for the config stream consumer.
-// Only include this when remote_agent.configstream.consumer.enabled is true.
-func configstreamFxOptions() fx.Option {
-	return fx.Options(
-		// Expose config.Component as model.Writer for the config stream consumer to write remote config into.
-		fx.Provide(func(c coreconfig.Component) model.Writer {
-			return c
-		}),
-		// SessionIDProvider from RAR: the remote agent component implements this when registry is enabled.
-		fx.Provide(func(ra remoteagent.Component) configstreamconsumer.SessionIDProvider {
-			if ra == nil {
-				return nil
-			}
-			if p, ok := ra.(configstreamconsumer.SessionIDProvider); ok {
-				return p
-			}
-			return nil
-		}),
-		fx.Provide(func(c coreconfig.Component, sessionProvider configstreamconsumer.SessionIDProvider) configstreamconsumer.Params {
-			host := c.GetString("cmd_host")
-			port := c.GetInt("cmd_port")
-			if port <= 0 {
-				port = 5001
-			}
-			return configstreamconsumer.Params{
-				ClientName:        "trace-agent",
-				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
-				SessionIDProvider: sessionProvider,
-			}
-		}),
-		configstreamconsumerfx.Module(),
-		// Trigger instantiation; OnStart handles the blocking wait internally.
-		fx.Invoke(func(_ configstreamconsumer.Component) {}),
-	)
-}
-
-// isConfigstreamEnabled is a pre-FX feature flag check; the env var takes precedence over YAML.
-func isConfigstreamEnabled(cliConfigPath string) bool {
-	if v, ok := os.LookupEnv(configstreamConsumerEnabledEnvVar); ok {
-		if enabled, err := strconv.ParseBool(v); err == nil {
-			return enabled
-		}
-	}
-	for _, path := range []string{cliConfigPath, coreconfig.DefaultConfPath} {
-		if path == "" {
-			continue
-		}
-		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
-			path = filepath.Join(path, "datadog.yaml")
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var cfg struct {
-			RemoteAgent struct {
-				ConfigStream struct {
-					Consumer struct {
-						Enabled bool `yaml:"enabled"`
-					} `yaml:"consumer"`
-				} `yaml:"configstream"`
-			} `yaml:"remote_agent"`
-		}
-		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			return false
-		}
-		return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
-	}
-	return false
 }
