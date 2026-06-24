@@ -2656,6 +2656,12 @@ api_key:
 #
 # dogstatsd_no_aggregation_pipeline_batch_size: 2048
 
+## @param dogstatsd_no_aggregation_pipeline_workers_count - integer - optional - default: 1
+## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE_WORKERS_COUNT - integer - optional - default: 1
+## How many workers are used by the no-aggregation pipeline.
+#
+# dogstatsd_no_aggregation_pipeline_workers_count: 1
+
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
