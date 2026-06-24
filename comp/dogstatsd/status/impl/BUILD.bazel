@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/dogstatsd.tmpl",
+        "status_templates/dogstatsdHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/status/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/status",
+        "//comp/def",
+        "//comp/dogstatsd/config",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["status_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/dogstatsd/server/impl",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

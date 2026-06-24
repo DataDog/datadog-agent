@@ -299,7 +299,7 @@ func start(log log.Component,
 	_ metadatarunner.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
-	healthPlatform option.Option[healthplatformdef.Component],
+	healthPlatform healthplatformdef.Component,
 	autoscalingGate *autoscalinggate.Gate,
 	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
 ) error {
@@ -517,7 +517,7 @@ func start(log log.Component,
 	// create and setup the autoconfig instance
 	// The autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(ac, config.GetString("confd_path"))
+	common.LoadComponents(ac, config)
 
 	// Set up check collector
 	registerChecks(wmeta, taggerComp, config)
