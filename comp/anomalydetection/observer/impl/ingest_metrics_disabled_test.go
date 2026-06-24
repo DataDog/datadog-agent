@@ -25,6 +25,9 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	telComp.Reset()
 	t.Cleanup(telComp.Reset)
 
+	defaultFilter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
 	storage := newTimeSeriesStorage()
 	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
 	eng := newEngine(engineConfig{
@@ -37,7 +40,7 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 		obsCh:                make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: false,
-		metricFilter:         newDefaultMetricsFilterRules(),
+		metricFilter:         defaultFilter,
 	}
 	obs.handleFunc = obs.innerHandle
 
@@ -98,6 +101,9 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 }
 
 func TestAgentMetricsAreDropped(t *testing.T) {
+	defaultFilter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
 	storage := newTimeSeriesStorage()
 	eng := newEngine(engineConfig{storage: storage})
 
@@ -105,7 +111,7 @@ func TestAgentMetricsAreDropped(t *testing.T) {
 		engine:               eng,
 		obsCh:                make(chan observation, 16),
 		ingestMetricsEnabled: true,
-		metricFilter:         newDefaultMetricsFilterRules(),
+		metricFilter:         defaultFilter,
 	}
 	obs.handleFunc = obs.innerHandle
 
@@ -151,10 +157,13 @@ func TestAgentMetricsAreDropped(t *testing.T) {
 }
 
 func TestIngestMetricSyncDropsNormalizedAgentMetrics(t *testing.T) {
+	defaultFilter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
 		engine:       newEngine(engineConfig{storage: storage}),
-		metricFilter: newDefaultMetricsFilterRules(),
+		metricFilter: defaultFilter,
 	}
 
 	obs.IngestMetricSync("dogstatsd", &metricObs{

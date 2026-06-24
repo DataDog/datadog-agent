@@ -272,7 +272,8 @@ func TestPrepareMetricIngestDropsMatchingMetrics(t *testing.T) {
 }
 
 func TestPrepareMetricIngestDropsNormalizedAgentMetricsViaDefaultRule(t *testing.T) {
-	filter := newDefaultMetricsFilterRules()
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
 	decision := prepareMetricIngest("dogstatsd", &metricObs{
 		name:  "datadog.agent.running",
 		value: 1,
@@ -480,13 +481,16 @@ func TestDefaultFilterAsyncPathIngestsNonAgentMetricsAndCountsFilteredAgentMetri
 	telComp.Reset()
 	t.Cleanup(telComp.Reset)
 
+	defaultFilter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
 		engine:               newEngine(engineConfig{storage: storage}),
 		obsCh:                make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
-		metricFilter:         newDefaultMetricsFilterRules(),
+		metricFilter:         defaultFilter,
 	}
 	obs.handleFunc = obs.innerHandle
 

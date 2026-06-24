@@ -98,18 +98,6 @@ func newMetricsFilterRules(rules []metricsProcessingRule) (*metricsFilterRules, 
 	return &metricsFilterRules{rules: compiled}, nil
 }
 
-func mustNewMetricsFilterRules(rules []metricsProcessingRule) *metricsFilterRules {
-	filter, err := newMetricsFilterRules(rules)
-	if err != nil {
-		panic(err)
-	}
-	return filter
-}
-
-func newDefaultMetricsFilterRules() *metricsFilterRules {
-	return mustNewMetricsFilterRules(defaultMetricsProcessingRules())
-}
-
 func defaultMetricsProcessingRules() []metricsProcessingRule {
 	return []metricsProcessingRule{
 		{
@@ -118,6 +106,10 @@ func defaultMetricsProcessingRules() []metricsProcessingRule {
 			Source: observerdef.AgentNamespace,
 		},
 	}
+}
+
+func newDefaultMetricsFilterRules() (*metricsFilterRules, error) {
+	return newMetricsFilterRules(defaultMetricsProcessingRules())
 }
 
 func loadMetricFilter(cfg config.Component) (*metricsFilterRules, error) {
