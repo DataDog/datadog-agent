@@ -47,19 +47,18 @@ dd_agent_go_binary(
     # Subtle: This should be passed to the C linker, so the -Wl is redundant,
     # but it is handled by the mingw driver instead of ld, so we still need
     # -Wl to pass it on a second layer deep.
-    clinkopts = [
-        "-extldflags=-Wl,--subsystem,%s" % SUBSYSTEM,
-    ],
     embed = [":systray_lib"],
-    # TODO: Move selection of strip flags (-s -w) into dd_agent_go_binary
+    # TODO: Move selection of strip flags (-s -w) into dd_agent_go_binary. But that
+    # requires refactoring to merge fixed and variable parts.
     gc_linkopts = [
         "-linkmode=external",
+        "-extldflags=-Wl,--subsystem,%s" % SUBSYSTEM,
     ] + select({
         "//:is_release": [
             "-s",
             "-w",
         ],
-        "//conditions:default": None,
+        "//conditions:default": [],
     }),
     gotags = ["grpcnotrace"],
     target_compatible_with = ["@platforms//os:windows"],
