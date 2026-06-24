@@ -9,6 +9,16 @@ from tasks.libs.common.download import download
 
 DEB_TESTING_BUCKET_URL = "https://apttesting.datad0g.com"
 RPM_TESTING_BUCKET_URL = "https://yumtesting.datad0g.com"
+DOCKER_REGISTRY = "registry.ddbuild.io/ci/datadog-agent"
+
+# Binaries that carry the "-7" tag suffix in their image name
+_BINARIES_WITH_7_SUFFIX = {"agent"}
+
+
+def get_docker_image_url(pipeline_id: int, binary: str, flavor: str, arch: str, commit_short_sha: str) -> str:
+    image_name = binary if not flavor else f"{binary}-{flavor}"
+    suffix = "-7" if binary in _BINARIES_WITH_7_SUFFIX else ""
+    return f"{DOCKER_REGISTRY}/{image_name}:v{pipeline_id}-{commit_short_sha}{suffix}-{arch}"
 
 
 def get_rpm_package_url(ctx: Context, pipeline_id: int, package_name: str, arch: str):
