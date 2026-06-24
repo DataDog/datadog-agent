@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
@@ -628,6 +629,83 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetrics
 	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(150), "", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
 	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(50), "", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
 	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(15), "", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+}
+
+func diskCheckWithBareIOCounters(t *testing.T) check.Check {
+	diskCheck := createDiskCheck(t)
+	return diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return map[string]gopsutil_disk.IOCountersStat{
+			"sda1": {
+				Name:      "sda1",
+				ReadTime:  300,
+				WriteTime: 450,
+			},
+			"sda2": {
+				Name:      "sda2",
+				ReadTime:  500,
+				WriteTime: 150,
+			},
+		}, nil
+	})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenBareIOCountersAreReturned_ThenAllIOCountersMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := diskCheckWithBareIOCounters(t)
+	m := configureCheck(t, diskCheck, nil, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(300), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(450), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(30), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(45), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(500), "", []string{"device:sda2", "device_name:sda2"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(150), "", []string{"device:sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(50), "", []string{"device:sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(15), "", []string{"device:sda2", "device_name:sda2"})
+}
+
+func TestGivenADiskCheckWithDeviceIncludeConfigured_WhenBareIOCountersAreReturned_ThenOnlyIncludedIOCountersMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := diskCheckWithBareIOCounters(t)
+	config := integration.Data([]byte(`
+device_include:
+  - /dev/sda1
+`))
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(300), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(450), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(30), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(45), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "MonotonicCount", "system.disk.read_time", float64(500), "", []string{"device:sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "MonotonicCount", "system.disk.write_time", float64(150), "", []string{"device:sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Rate", "system.disk.read_time_pct", float64(50), "", []string{"device:sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Rate", "system.disk.write_time_pct", float64(15), "", []string{"device:sda2", "device_name:sda2"})
+}
+
+func TestGivenADiskCheckWithDeviceExcludeConfigured_WhenBareIOCountersAreReturned_ThenExcludedIOCountersMetricsAreNotReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := diskCheckWithBareIOCounters(t)
+	config := integration.Data([]byte(`
+device_exclude:
+  - /dev/sda2
+`))
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(300), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(450), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(30), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(45), "", []string{"device:sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "MonotonicCount", "system.disk.read_time", float64(500), "", []string{"device:sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "MonotonicCount", "system.disk.write_time", float64(150), "", []string{"device:sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Rate", "system.disk.read_time_pct", float64(50), "", []string{"device:sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Rate", "system.disk.write_time_pct", float64(15), "", []string{"device:sda2", "device_name:sda2"})
 }
 
 func TestGivenADiskCheckWithTagByLabelConfiguredFalse_WhenCheckRuns_ThenBlkidLabelsAreNotReportedAsTags(t *testing.T) {
