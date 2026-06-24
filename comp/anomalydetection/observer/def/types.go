@@ -47,11 +47,13 @@ type MetricView interface {
 // This interface exists to prevent data races. Implementations must not store
 // the LogView itself. Copy any needed values synchronously.
 type LogView interface {
-	GetContent() []byte
+	GetContent() string
 	GetStatus() string
-	GetTags() []string
+	Tags() []string
 	GetHostname() string
-	// GetTimestampUnixMilli returns the log timestamp in Unix milliseconds.
+	// GetTimestampUnixMilli returns the agent ingestion timestamp in Unix milliseconds.
+	// This is not the log's own timestamp — it reflects when the agent received the log,
+	// and is used for internal pipeline latency tracking.
 	GetTimestampUnixMilli() int64
 }
 
@@ -78,19 +80,19 @@ type LogObserver interface {
 // The storage keeps full summaries (min/max/sum/count) so aggregation
 // is specified at read time, not write time.
 type MetricOutput struct {
-	Name       string
-	Value      float64
-	Tags       []string
-	ContextKey string
+	Name    string
+	Value   float64
+	Tags    []string
+	Context *MetricContext // optional; stored on the series for anomaly enrichment
 }
 
 // LogMetricsExtractorOutput is what we obtain when we process a log with a log metrics extractor.
 type LogMetricsExtractorOutput struct {
 	Metrics   []MetricOutput
 	Telemetry []ObserverTelemetry
-	// EvictedContextKeys lists context keys that are no longer valid (e.g. after
-	// extractor garbage collection). The engine removes matching contextRefs entries.
-	EvictedContextKeys []string
+	// EvictedMetricNames lists metric names whose series should be removed from
+	// storage (e.g. after extractor LRU eviction or garbage collection).
+	EvictedMetricNames []string
 }
 
 // SeriesDescriptor is the fully resolved identity of a time series.
@@ -307,6 +309,144 @@ type Correlator interface {
 	Reset()
 }
 
+// ScorerConfig holds the tunable parameters for the anomaly scoring pipeline.
+type ScorerConfig struct {
+	// Alpha is the EWMA smoothing factor (0 < α ≤ 1). Lower = smoother.
+	Alpha float64 `json:"alpha"`
+	// SaturationK is the saturation constant k: saturation = 1−exp(−n/k).
+	// Calibrated against the window count (unique anomalous series), not per-second count.
+	SaturationK float64 `json:"saturation_k"`
+	// WindowSecs is the number of seconds a series stays in the active deduplication
+	// window. A series seen at time t expires after t+WindowSecs. The saturation
+	// function is applied to the number of unique series in the window, not to the
+	// per-second event count.
+	WindowSecs int64 `json:"window_secs"`
+	// LowThreshold is the EWMA level defining the Low/Medium severity boundary.
+	LowThreshold float64 `json:"low_threshold"`
+	// HighThreshold is the EWMA level defining the Medium/High severity boundary.
+	HighThreshold float64 `json:"high_threshold"`
+	// MarginPct is the hysteresis margin as a fraction of HighThreshold.
+	// effectiveMargin = HighThreshold × MarginPct.
+	MarginPct float64 `json:"margin_pct"`
+	// DetectorThresholds overrides the default score-to-level boundaries for
+	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds.
+	// Detectors not in this map default to level 2 (Medium) regardless of their score.
+	DetectorThresholds map[string][4]float64 `json:"detector_thresholds,omitempty"`
+}
+
+// ScoreBucket is the per-second telemetry unit emitted by the scorer.
+// One bucket is produced for every 1-second tick, even if it has no anomalies.
+type ScoreBucket struct {
+	// Second is the Unix timestamp (floor) for this bucket.
+	Second int64 `json:"second"`
+	// Bins[L] is the number of deduplicated anomalies at level L (0=VeryLow … 4=XHigh).
+	Bins [5]int `json:"bins"`
+	// Count is the total number of anomalies in this bucket (sum of Bins).
+	Count int `json:"count"`
+	// WeightSum is the sum of level weights for all anomalies in this bucket.
+	WeightSum float64 `json:"weight_sum"`
+	// Ewma is the EWMA value after processing this bucket.
+	Ewma float64 `json:"ewma"`
+}
+
+// SeverityLevel represents one of three severity states: Low, Medium, High.
+type SeverityLevel int
+
+const (
+	SeverityLow    SeverityLevel = 0
+	SeverityMedium SeverityLevel = 1
+	SeverityHigh   SeverityLevel = 2
+)
+
+// ScorerEventDirection describes whether a severity transition is an
+// escalation or de-escalation.
+type ScorerEventDirection int
+
+const (
+	// ScorerEventBoth delivers transitions in either direction (default zero value).
+	ScorerEventBoth ScorerEventDirection = 0
+	// ScorerEventEscalation delivers only transitions where ToLevel > FromLevel.
+	ScorerEventEscalation ScorerEventDirection = 1
+	// ScorerEventDeescalation delivers only transitions where ToLevel < FromLevel.
+	ScorerEventDeescalation ScorerEventDirection = 2
+)
+
+// SeverityEvent records a severity state-machine transition.
+type SeverityEvent struct {
+	// Timestamp is the data time (unix seconds) when the transition occurred.
+	Timestamp int64 `json:"timestamp"`
+	// FromLevel is the state before the transition.
+	FromLevel SeverityLevel `json:"from_level"`
+	// ToLevel is the state after the transition.
+	ToLevel SeverityLevel `json:"to_level"`
+	// Direction is ScorerEventEscalation when ToLevel > FromLevel, and
+	// ScorerEventDeescalation when ToLevel < FromLevel.
+	Direction ScorerEventDirection `json:"direction"`
+}
+
+// ScorerListener receives severity state-machine transitions from the scorer.
+type ScorerListener interface {
+	OnSeverityTransition(event SeverityEvent)
+}
+
+// ScorerEventFilter selects which SeverityEvents are delivered to a listener.
+// All conditions are ANDed; a nil or empty slice means "any value".
+// The zero value ScorerEventFilter{} matches every transition.
+type ScorerEventFilter struct {
+	// FromLevels restricts to events whose FromLevel is in the set.
+	FromLevels []SeverityLevel
+	// ToLevels restricts to events whose ToLevel is in the set.
+	ToLevels []SeverityLevel
+	// Direction restricts by escalation or de-escalation.
+	Direction ScorerEventDirection
+}
+
+// AnomalyScorerConfiguration is the single object passed to SubscribeScorer
+// when registering a listener. It bundles who to call (Listener), which
+// transitions to deliver (Filter), and per-subscription state-machine tuning.
+type AnomalyScorerConfiguration struct {
+	// Listener is called for each matching severity transition. Required.
+	Listener ScorerListener
+	// Filter controls which transitions are delivered.
+	// Zero value ScorerEventFilter{} delivers all transitions.
+	Filter ScorerEventFilter
+	// CooldownSecs is the minimum number of seconds that must elapse after a
+	// delivered transition before a downward (de-escalation) transition can be
+	// delivered again.
+	// Zero means no cooldown (every matching transition is delivered).
+	CooldownSecs int64
+}
+
+// ScoreState is the accumulated telemetry snapshot from the scorer.
+type ScoreState struct {
+	Buckets []ScoreBucket `json:"buckets"`
+	Config  ScorerConfig  `json:"config"`
+}
+
+// AnomalyScorer computes a smoothed anomaly intensity signal (EWMA) from the
+// stream of anomalies produced by the detection pipeline. It mirrors the
+// Correlator lifecycle: ProcessAnomaly → Advance (once per second tick) → ScoreState → Reset.
+type AnomalyScorer interface {
+	// Name returns the scorer name for debugging.
+	Name() string
+	// ProcessAnomaly feeds a raw anomaly into the scorer's current-second buffer.
+	ProcessAnomaly(a Anomaly)
+	// Advance finalises the bucket at dataTime (unix seconds) and runs the
+	// EWMA + state-machine update for that second. Callers must invoke this
+	// after each 1-second detection cycle.
+	Advance(dataTime int64)
+	// LastScore returns the most recently computed EWMA score. Returns 0
+	// before the first Advance call.
+	LastScore() float64
+	// ScoreState returns the accumulated telemetry (all buckets + events so far).
+	ScoreState() ScoreState
+	// Reset clears all internal state for reanalysis.
+	Reset()
+	// Subscribe registers a listener to receive severity transitions matching
+	// cfg.Filter. Returns an unsubscribe function. Safe to call concurrently.
+	Subscribe(cfg AnomalyScorerConfiguration) func()
+}
+
 // Reporter receives reports and displays or delivers them.
 type Reporter interface {
 	// Name returns the reporter name for debugging.
@@ -393,17 +533,6 @@ func AggregateString(agg Aggregate) string {
 	default:
 		return "unknown"
 	}
-}
-
-// ContextProvider resolves metric keys back to richer context about their
-// origin. Components that synthesize metrics from richer data (e.g. log
-// extractors that turn log patterns into count metrics) can implement this
-// interface so that downstream consumers (detectors, reporters) can produce
-// more descriptive anomaly reports.
-type ContextProvider interface {
-	// GetContextByKey returns contextual information for a previously emitted
-	// context key, if available.
-	GetContextByKey(key string) (MetricContext, bool)
 }
 
 // MetricContext describes the origin of a synthesized metric.

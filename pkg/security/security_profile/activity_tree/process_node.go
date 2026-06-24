@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 
@@ -32,7 +33,7 @@ type ProcessNodeParent interface {
 	GetChildren() *[]*ProcessNode
 	GetSiblings() *[]*ProcessNode
 	AppendChild(node *ProcessNode)
-	AppendImageTag(imageTag string, timestamp time.Time)
+	AppendImageTagID(imageTagID uint64, timestamp time.Time)
 }
 
 // ProcessNode holds the activity of a process
@@ -52,6 +53,30 @@ type ProcessNode struct {
 	Syscalls     []*SyscallNode
 	Capabilities []*CapabilityNode
 	Children     []*ProcessNode
+}
+
+// size approximates the in-memory heap footprint of this process node, excluding the
+// child nodes it owns
+func (pn *ProcessNode) size() int64 {
+	s := int64(unsafe.Sizeof(*pn))
+	s += seenBytes(pn.NodeBase)
+	s += processStringsBytes(&pn.Process)
+
+	// Backing arrays for direct-children slices. We charge for the slice slots only;
+	// the nodes pointed to are accounted for by their own size() invocations.
+	s += sliceBackingBytes(cap(pn.Sockets), unsafe.Sizeof((*SocketNode)(nil)))
+	s += sliceBackingBytes(cap(pn.Syscalls), unsafe.Sizeof((*SyscallNode)(nil)))
+	s += sliceBackingBytes(cap(pn.Capabilities), unsafe.Sizeof((*CapabilityNode)(nil)))
+	s += sliceBackingBytes(cap(pn.Children), unsafe.Sizeof((*ProcessNode)(nil)))
+	s += sliceBackingBytes(cap(pn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+
+	// Map bucket overhead. We use stringMapBytes for string-keyed maps (it adds the key
+	// content too) and fixedKeyMapBytes for struct-keyed maps where the key has no heap.
+	s += stringMapBytes(pn.Files)
+	s += stringMapBytes(pn.DNSNames)
+	s += fixedKeyMapBytes(pn.IMDSEvents)
+	s += fixedKeyMapBytes(pn.NetworkDevices)
+	return s
 }
 
 // NewProcessNode returns a new ProcessNode instance
@@ -220,13 +245,13 @@ func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize b
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump
-func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTag string, syscallMask map[int]int, stats *Stats, dryRun bool) bool {
+func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) bool {
 	var hasNewSyscalls bool
 newSyscallLoop:
 	for _, newSyscall := range e.Syscalls.Syscalls {
 		for _, existingSyscall := range pn.Syscalls {
 			if existingSyscall.Syscall == int(newSyscall) {
-				existingSyscall.AppendImageTag(imageTag, e.ResolveEventTime())
+				existingSyscall.AppendImageTagID(imageTagID, e.ResolveEventTime())
 				continue newSyscallLoop
 			}
 		}
@@ -236,9 +261,11 @@ newSyscallLoop:
 			// exit early
 			break
 		}
-		pn.Syscalls = append(pn.Syscalls, NewSyscallNode(int(newSyscall), e.ResolveEventTime(), imageTag, Runtime))
+		sn := NewSyscallNode(int(newSyscall), e.ResolveEventTime(), imageTagID, Runtime)
+		pn.Syscalls = append(pn.Syscalls, sn)
 		syscallMask[int(newSyscall)] = int(newSyscall)
 		stats.SyscallNodes++
+		stats.SizeBytes += sn.size()
 	}
 
 	return hasNewSyscalls
@@ -246,7 +273,7 @@ newSyscallLoop:
 
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool, reducer *PathsReducer, resolvers *resolvers.EBPFResolvers) bool {
+func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducer *PathsReducer, resolvers *resolvers.EBPFResolvers) bool {
 	var filePath string
 	if generationType != Snapshot {
 		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
@@ -265,23 +292,25 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 
 	child, ok := pn.Files[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTag, generationType, stats, dryRun, filePath, resolvers)
+		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
 	}
 
 	if !dryRun {
 		// create new child
 		if len(filePath) <= nextParentIndex+1 {
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
-			node := NewFileNode(fileEvent, event, parent, imageTag, generationType, filePath, resolvers)
+			node := NewFileNode(fileEvent, event, parent, imageTagID, generationType, filePath, resolvers)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 			stats.FileNodes++
+			stats.SizeBytes += node.size()
 			pn.Files[parent] = node
 		} else {
 			// This is an intermediary node in the branch that leads to the leaf we want to add. Create a node without the
 			// fileEvent context.
-			newChild := NewFileNode(nil, nil, parent, imageTag, generationType, filePath, resolvers)
-			newChild.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTag, generationType, stats, dryRun, filePath, resolvers)
+			newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, filePath, resolvers)
+			newChild.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
 			stats.FileNodes++
+			stats.SizeBytes += newChild.size()
 			pn.Files[parent] = newChild
 		}
 	}
@@ -308,7 +337,7 @@ func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType
 }
 
 // InsertDNSEvent inserts a DNS event in a process node
-func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
+func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
 	if dryRun {
 		// Use DNSMatchMaxDepth only when searching for a node, not when trying to insert
 		return !pn.findDNSNode(evt.DNS.Question.Name, dnsMatchMaxDepth, evt.DNS.Question.Type)
@@ -320,7 +349,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 		// update matched rules
 		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
 
-		dnsNode.AppendImageTag(imageTag, evt.ResolveEventTime())
+		dnsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
@@ -329,50 +358,58 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 			}
 		}
 
-		// insert the new request
+		sizeBefore := dnsNode.size()
 		dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
+		stats.SizeBytes += dnsNode.size() - sizeBefore
 		return true
 	}
 
-	pn.DNSNames[evt.DNS.Question.Name] = NewDNSNode(&evt.DNS, evt, evt.Rules, generationType, imageTag)
+	dnsNode = NewDNSNode(&evt.DNS, evt, evt.Rules, generationType, imageTagID)
+	pn.DNSNames[evt.DNS.Question.Name] = dnsNode
 	stats.DNSNodes++
+	stats.SizeBytes += dnsNode.size()
 	return true
 }
 
 // InsertIMDSEvent inserts an IMDS event in a process node
-func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
+func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
 	imdsNode, ok := pn.IMDSEvents[evt.IMDS]
 	if ok {
 		imdsNode.MatchedRules = model.AppendMatchedRule(imdsNode.MatchedRules, evt.Rules)
-		imdsNode.AppendImageTag(imageTag, evt.ResolveEventTime())
+		imdsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 		return false
 	}
 
 	if !dryRun {
 		// create new node
-		pn.IMDSEvents[evt.IMDS] = NewIMDSNode(&evt.IMDS, evt, evt.Rules, generationType, imageTag)
+		imdsNode := NewIMDSNode(&evt.IMDS, evt, evt.Rules, generationType, imageTagID)
+		pn.IMDSEvents[evt.IMDS] = imdsNode
 		stats.IMDSNodes++
+		stats.SizeBytes += imdsNode.size()
 	}
 	return true
 }
 
 // InsertNetworkFlowMonitorEvent inserts a Network Flow Monitor event in a process node
-func (pn *ProcessNode) InsertNetworkFlowMonitorEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
+func (pn *ProcessNode) InsertNetworkFlowMonitorEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
 	deviceNode, ok := pn.NetworkDevices[evt.NetworkFlowMonitor.Device]
 	if ok {
-		return deviceNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, evt, dryRun, evt.Rules, generationType, imageTag, stats)
+		return deviceNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, evt, dryRun, evt.Rules, generationType, imageTagID, stats)
 	}
 
 	if !dryRun {
 		newNode := NewNetworkDeviceNode(&evt.NetworkFlowMonitor.Device, generationType)
-		newNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, evt, dryRun, evt.Rules, generationType, imageTag, stats)
 		pn.NetworkDevices[evt.NetworkFlowMonitor.Device] = newNode
+		// Charge for the device struct itself before its first flow is inserted; the
+		// flow's own size is added by insertNetworkFlowMonitorEvent below.
+		stats.SizeBytes += newNode.size()
+		newNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, evt, dryRun, evt.Rules, generationType, imageTagID, stats)
 	}
 	return true
 }
 
 // InsertBindEvent inserts a bind event in a process node
-func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
+func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
 	if evt.Bind.SyscallEvent.Retval != 0 {
 		return false
 	}
@@ -390,13 +427,14 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 		sock = NewSocketNode(evtFamily, generationType)
 		if !dryRun {
 			stats.SocketNodes++
+			stats.SizeBytes += sock.size()
 			pn.Sockets = append(pn.Sockets, sock)
 		}
 		newNode = true
 	}
 
 	// Insert bind event
-	if sock.InsertBindEvent(&evt.Bind, evt, imageTag, generationType, evt.Rules, dryRun) {
+	if sock.InsertBindEvent(&evt.Bind, evt, imageTagID, generationType, evt.Rules, stats, dryRun) {
 		newNode = true
 	}
 
@@ -404,7 +442,7 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 }
 
 // InsertCapabilitiesUsageEvent inserts a capabilities usage event in a process node
-func (pn *ProcessNode) InsertCapabilitiesUsageEvent(evt *model.Event, imageTag string, stats *Stats, dryRun bool) bool {
+func (pn *ProcessNode) InsertCapabilitiesUsageEvent(evt *model.Event, imageTagID uint64, stats *Stats, dryRun bool) bool {
 	hasNewCapabilitiesUsage := false
 nextCapability:
 	for capability := uint64(0); capability <= unix.CAP_LAST_CAP; capability++ {
@@ -416,7 +454,7 @@ nextCapability:
 
 		for _, existingCapabilityNode := range pn.Capabilities {
 			if existingCapabilityNode.Capability == capability && existingCapabilityNode.Capable == capable {
-				existingCapabilityNode.AppendImageTag(imageTag, evt.ResolveEventTime())
+				existingCapabilityNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 				continue nextCapability
 			}
 		}
@@ -426,137 +464,160 @@ nextCapability:
 			break
 		}
 
-		capabilityNode := NewCapabilityNode(capability, capable, evt.ResolveEventTime(), imageTag, Runtime)
+		capabilityNode := NewCapabilityNode(capability, capable, evt.ResolveEventTime(), imageTagID, Runtime)
 		pn.Capabilities = append(pn.Capabilities, capabilityNode)
 		stats.CapabilityNodes++
+		stats.SizeBytes += capabilityNode.size()
 	}
 
 	return hasNewCapabilitiesUsage
 }
 
-func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string) {
-	if pn.HasImageTag(imageTag) {
+func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTagID uint64) {
+	if pn.HasImageTag(imageTagID) {
 		return
 	}
-	pn.AppendImageTag(imageTag, pn.Process.ExecTime)
+	pn.AppendImageTagID(imageTagID, pn.Process.ExecTime)
 	parent := pn.GetParent()
 	for parent != nil {
-		parent.AppendImageTag(imageTag, pn.Process.ExecTime)
+		parent.AppendImageTagID(imageTagID, pn.Process.ExecTime)
 		parent = parent.GetParent()
 	}
 }
 
 // TagAllNodes tags this process, its files/dns/socks and childrens with the given image tag
-func (pn *ProcessNode) TagAllNodes(imageTag string, timestamp time.Time) {
-	if imageTag == "" {
+func (pn *ProcessNode) TagAllNodes(imageTagID uint64, timestamp time.Time) {
+	if imageTagID == 0 {
 		return
 	}
 
-	pn.AppendImageTag(imageTag, timestamp)
+	pn.AppendImageTagID(imageTagID, timestamp)
 	for _, file := range pn.Files {
-		file.tagAllNodes(imageTag, timestamp)
+		file.tagAllNodes(imageTagID, timestamp)
 	}
 	for _, dns := range pn.DNSNames {
-		dns.AppendImageTag(imageTag, timestamp)
+		dns.AppendImageTagID(imageTagID, timestamp)
 	}
 	for _, sock := range pn.Sockets {
-		sock.AppendImageTag(imageTag, timestamp)
+		sock.AppendImageTagID(imageTagID, timestamp)
 	}
 	for _, scall := range pn.Syscalls {
-		scall.AppendImageTag(imageTag, timestamp)
+		scall.AppendImageTagID(imageTagID, timestamp)
 	}
 	for _, imds := range pn.IMDSEvents {
-		imds.AppendImageTag(imageTag, timestamp)
+		imds.AppendImageTagID(imageTagID, timestamp)
 	}
 	for _, device := range pn.NetworkDevices {
-		device.appendImageTag(imageTag, timestamp)
+		device.appendImageTag(imageTagID, timestamp)
 	}
 	for _, capabilityNode := range pn.Capabilities {
-		capabilityNode.AppendImageTag(imageTag, timestamp)
+		capabilityNode.AppendImageTagID(imageTagID, timestamp)
 	}
 	for _, child := range pn.Children {
-		child.TagAllNodes(imageTag, timestamp)
+		child.TagAllNodes(imageTagID, timestamp)
 	}
 }
 
 // EvictImageTag will remove every trace of this image tag, and returns true if the process node should be removed
 // also, recompute the list of dnsnames and syscalls
-func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys, SyscallsMask map[int]int) bool {
-	if !pn.HasImageTag(imageTag) {
-		return false // this node doesn't have the tag, and all its children/files/dns/etc shouldn't have it either
+func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKeys, SyscallsMask map[int]int) (bool, int64) {
+	if !pn.HasImageTag(imageTagID) {
+		return false, 0 // this node doesn't have the tag, and all its children/files/dns/etc shouldn't have it either
 	}
-	IsNodeEmpty := pn.NodeBase.EvictImageTag(imageTag)
+	IsNodeEmpty := pn.NodeBase.EvictImageTag(imageTagID)
 	if IsNodeEmpty {
 		// if we removed the last tag, remove entirely the process node from the tree
-		return true
+		return true, processSubtreeSizeBytes(pn)
 	}
 
+	var removed int64
+
 	for filename, file := range pn.Files {
-		if shouldRemoveNode := file.evictImageTag(imageTag); shouldRemoveNode {
+		shouldRemove, fileRemoved := file.evictImageTag(imageTagID)
+		if shouldRemove {
 			delete(pn.Files, filename)
 		}
+		removed += fileRemoved
 	}
 
 	// Evict image tag from dns nodes
 	for question, dns := range pn.DNSNames {
-		if shouldRemoveNode := dns.evictImageTag(imageTag, DNSNames); shouldRemoveNode {
+		if shouldRemoveNode := dns.evictImageTag(imageTagID, DNSNames); shouldRemoveNode {
+			removed += dns.size()
 			delete(pn.DNSNames, question)
 		}
 	}
 
 	// Evict image tag from IMDS nodes
 	for key, imds := range pn.IMDSEvents {
-		if shouldRemoveNode := imds.EvictImageTag(imageTag); shouldRemoveNode {
+		if shouldRemoveNode := imds.EvictImageTag(imageTagID); shouldRemoveNode {
+			removed += imds.size()
 			delete(pn.IMDSEvents, key)
 		}
 	}
 
 	// Evict image tag from network device nodes
 	for key, device := range pn.NetworkDevices {
-		if shouldRemoveNode := device.evictImageTag(imageTag); shouldRemoveNode {
+		shouldRemove, deviceRemoved := device.evictImageTag(imageTagID)
+		removed += deviceRemoved
+		if shouldRemove {
+			removed += device.size()
 			delete(pn.NetworkDevices, key)
 		}
 	}
 
 	newSockets := []*SocketNode{}
 	for _, sock := range pn.Sockets {
-		if shouldRemoveNode := sock.evictImageTag(imageTag); !shouldRemoveNode {
-			newSockets = append(newSockets, sock)
+		shouldRemoveNode, bindBytes := sock.evictImageTag(imageTagID)
+		removed += bindBytes
+		if shouldRemoveNode {
+			removed += sock.size()
+			continue
 		}
+		newSockets = append(newSockets, sock)
 	}
 	pn.Sockets = newSockets
 
 	newSyscalls := []*SyscallNode{}
 	for _, scall := range pn.Syscalls {
-		if shouldRemove := scall.EvictImageTag(imageTag); !shouldRemove {
+		if shouldRemove := scall.EvictImageTag(imageTagID); !shouldRemove {
 			newSyscalls = append(newSyscalls, scall)
 			SyscallsMask[scall.Syscall] = scall.Syscall
+		} else {
+			removed += scall.size()
 		}
 	}
 	pn.Syscalls = newSyscalls
 
 	var newCapabilities []*CapabilityNode
 	for _, capabilityNode := range pn.Capabilities {
-		if shouldRemove := capabilityNode.EvictImageTag(imageTag); !shouldRemove {
+		if shouldRemove := capabilityNode.EvictImageTag(imageTagID); !shouldRemove {
 			newCapabilities = append(newCapabilities, capabilityNode)
+		} else {
+			removed += capabilityNode.size()
 		}
 	}
 	pn.Capabilities = newCapabilities
 
 	newChildren := []*ProcessNode{}
 	for _, child := range pn.Children {
-		if shouldRemoveNode := child.EvictImageTag(imageTag, DNSNames, SyscallsMask); !shouldRemoveNode {
+		shouldRemoveNode, childRemoved := child.EvictImageTag(imageTagID, DNSNames, SyscallsMask)
+		if !shouldRemoveNode {
 			newChildren = append(newChildren, child)
 		}
+		removed += childRemoved
 	}
 	pn.Children = newChildren
-	return false
+	return false, removed
 }
 
 // EvictUnusedNodes evicts all child nodes that haven't been touched since the given timestamp
-// and returns the total number of process nodes evicted, a node is only evicted if all its children are evictable.
-func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName, profileImageTag string) int {
+// and returns the total number of process nodes evicted and the total bytes freed.
+// A node is only evicted if all its children are evictable.
+// profileImageTagID is the pre-resolved internal ID for the profile's image tag (0 means unknown/no tag).
+func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string, profileImageTag string, profileImageTagID uint64) (int, int64) {
 	totalEvicted := 0
+	var removedBytes int64
 
 	key := ImageProcessKey{
 		ImageName: profileImageName,
@@ -566,11 +627,13 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// First, recursively evict unused nodes from children
 	for i := len(pn.Children) - 1; i >= 0; i-- {
 		child := pn.Children[i]
-		evicted := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag)
+		evicted, childRemoved := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
 		totalEvicted += evicted
+		removedBytes += childRemoved
 
-		// If the child process node itself has no image tags left after eviction, remove it entirely
-		if len(child.Seen) == 0 {
+		// If the child process node itself has no image tags left after eviction, remove it entirely.
+		if child.SeenIsEmpty() {
+			removedBytes += processSubtreeSizeBytes(child)
 			pn.Children = append(pn.Children[:i], pn.Children[i+1:]...)
 			totalEvicted++
 		}
@@ -582,27 +645,27 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// Edge case: foo->bar->foo, if the second foo is no longer in the process cache, it will still be refreshed because of the first foo
 	key.Filepath = pn.Process.FileEvent.PathnameStr
 
-	if filepathsInProcessCache[key] {
+	if filepathsInProcessCache[key] && profileImageTagID != 0 {
 		// check if the node was supposed to be removed, then update the last seen to now
-		if pn.Seen[key.ImageTag] != nil && pn.Seen[key.ImageTag].LastSeen.Before(before) {
-			pn.NodeBase.AppendImageTag(key.ImageTag, time.Now())
+		if elem, ok := pn.GetSeenTimes(profileImageTagID); ok && elem.LastSeen.Before(before) {
+			pn.NodeBase.AppendImageTagID(profileImageTagID, time.Now())
 		}
 	}
 
 	_ = pn.NodeBase.EvictBeforeTimestamp(before)
 
-	// If the process node itself can be evicted
-	if len(pn.Children) == 0 && len(pn.Seen) == 0 {
-		return totalEvicted
-		// No need to evict the activity nodes, since this process node will be removed entirely
-
+	// If the process node itself can be evicted, return early.
+	// The caller will subtract the remaining subtree size when it removes this node.
+	if len(pn.Children) == 0 && pn.SeenIsEmpty() {
+		return totalEvicted, removedBytes
 	}
 
 	// Evict unused syscall nodes
 	for i := len(pn.Syscalls) - 1; i >= 0; i-- {
 		syscallNode := pn.Syscalls[i]
 		if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(syscallNode.Seen) == 0 {
+			if syscallNode.SeenIsEmpty() {
+				removedBytes += syscallNode.size()
 				pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
 			}
 		}
@@ -611,7 +674,8 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// Evict unused file nodes
 	for path, fileNode := range pn.Files {
 		if fileNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(fileNode.Seen) == 0 {
+			if fileNode.SeenIsEmpty() {
+				removedBytes += fileSubtreeSizeBytes(fileNode)
 				delete(pn.Files, path)
 			}
 		}
@@ -620,7 +684,8 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// Evict unused DNS nodes
 	for name, dnsNode := range pn.DNSNames {
 		if dnsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(dnsNode.Seen) == 0 {
+			if dnsNode.SeenIsEmpty() {
+				removedBytes += dnsNode.size()
 				delete(pn.DNSNames, name)
 			}
 		}
@@ -629,7 +694,8 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	// Evict unused IMDS nodes
 	for event, imdsNode := range pn.IMDSEvents {
 		if imdsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(imdsNode.Seen) == 0 {
+			if imdsNode.SeenIsEmpty() {
+				removedBytes += imdsNode.size()
 				delete(pn.IMDSEvents, event)
 			}
 		}
@@ -641,7 +707,8 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	for i := len(pn.Sockets) - 1; i >= 0; i-- {
 		socketNode := pn.Sockets[i]
 		if socketNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(socketNode.Seen) == 0 {
+			if socketNode.SeenIsEmpty() {
+				removedBytes += socketNode.size()
 				pn.Sockets = append(pn.Sockets[:i], pn.Sockets[i+1:]...)
 			}
 		}
@@ -651,11 +718,12 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	for i := len(pn.Capabilities) - 1; i >= 0; i-- {
 		capabilityNode := pn.Capabilities[i]
 		if capabilityNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if len(capabilityNode.Seen) == 0 {
+			if capabilityNode.SeenIsEmpty() {
+				removedBytes += capabilityNode.size()
 				pn.Capabilities = append(pn.Capabilities[:i], pn.Capabilities[i+1:]...)
 			}
 		}
 	}
 
-	return totalEvicted
+	return totalEvicted, removedBytes
 }

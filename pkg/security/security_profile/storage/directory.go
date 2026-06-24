@@ -67,6 +67,14 @@ func fileHasProfileExtension(path string) bool {
 	return err == nil && format == config.Profile
 }
 
+// profileNameFromFile returns the profile name encoded in a storage filename. Persist writes
+// files as "<name>.<format>" (with an optional ".gz" suffix), so the name is the filename with
+// those extensions stripped. Used to attribute an on-disk file back to its profile selector.
+func profileNameFromFile(filename string) string {
+	filename = strings.TrimSuffix(filename, ".gz")
+	return strings.TrimSuffix(filename, filepath.Ext(filename))
+}
+
 type profileFile struct {
 	path  string
 	mTime time.Time
@@ -253,6 +261,45 @@ func (d *Directory) Load(wls *cgroupModel.WorkloadSelector, p *profile.Profile) 
 	}
 
 	return false, nil
+}
+
+// SizesBySelector returns the on-disk size in bytes used by each stored profile, keyed by
+// workload selector. It walks the directory and attributes every storage-format file to the
+// selector of the profile it belongs to (matched by file name), so all persisted formats of a
+// profile (e.g. .profile + .json) are summed together.
+func (d *Directory) SizesBySelector() map[cgroupModel.WorkloadSelector]int64 {
+	d.profilesLock.RLock()
+	selectorByName := make(map[string]cgroupModel.WorkloadSelector, d.profiles.Len())
+	for _, name := range d.profiles.Keys() {
+		if entry, ok := d.profiles.Peek(name); ok {
+			selectorByName[name] = entry.selector
+		}
+	}
+	d.profilesLock.RUnlock()
+
+	result := make(map[cgroupModel.WorkloadSelector]int64, len(selectorByName))
+	files, err := os.ReadDir(d.directoryPath)
+	if err != nil {
+		seclog.Warnf("couldn't list files in %s, %s metric may be inaccurate: %v", d.directoryPath, metrics.MetricSecurityProfileV2ProfileSize, err)
+		return result
+	}
+
+	for _, file := range files {
+		if _, err := config.ParseStorageFormat(filepath.Ext(file.Name())); err != nil {
+			continue
+		}
+		selector, ok := selectorByName[profileNameFromFile(file.Name())]
+		if !ok {
+			continue
+		}
+		info, err := os.Stat(filepath.Join(d.directoryPath, file.Name()))
+		if err != nil {
+			continue
+		}
+		result[selector] += info.Size()
+	}
+
+	return result
 }
 
 // GetStorageType returns the storage type

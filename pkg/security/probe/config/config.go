@@ -50,6 +50,9 @@ type Config struct {
 	// EnableApprovers defines if in-kernel approvers should be activated or not
 	EnableApprovers bool
 
+	// BasenameApproversSize defines the size of the map used for the basename approvers
+	BasenameApproversSize int
+
 	// EnableDiscarders defines if in-kernel discarders should be activated or not
 	EnableDiscarders bool
 
@@ -159,6 +162,9 @@ type Config struct {
 	// DNSResolverCacheSize is the numer of entries in the DNS resolver LRU cache
 	DNSResolverCacheSize int
 
+	// DNSResolverCnameMaxDepth is the maximum CNAME chain depth followed when resolving an IP to hostnames
+	DNSResolverCnameMaxDepth int
+
 	// DNSResolutionEnabled resolving DNS names from IP addresses
 	DNSResolutionEnabled bool
 
@@ -188,6 +194,7 @@ func NewConfig() (*Config, error) {
 		EnableAllProbes:                    getBool("enable_all_probes"),
 		EnableKernelFilters:                getBool("enable_kernel_filters"),
 		EnableApprovers:                    getBool("enable_approvers"),
+		BasenameApproversSize:              getInt("basename_approvers_size"),
 		EnableDiscarders:                   getBool("enable_discarders"),
 		FlushDiscarderWindow:               getInt("flush_discarder_window"),
 		PIDCacheSize:                       getInt("pid_cache_size"),
@@ -221,6 +228,7 @@ func NewConfig() (*Config, error) {
 		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 		SyscallsMonitorEnabled:      getBool("syscalls_monitor.enabled"),
 		DNSResolverCacheSize:        getInt("dns_resolution.cache_size"),
+		DNSResolverCnameMaxDepth:    getInt("dns_resolution.cname_max_depth"),
 		DNSResolutionEnabled:        getBool("dns_resolution.enabled"),
 
 		// runtime compilation
@@ -335,7 +343,7 @@ func getInt(key string) int {
 
 func getDuration(key string) time.Duration {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetDuration(deprecatedKey)
 	}

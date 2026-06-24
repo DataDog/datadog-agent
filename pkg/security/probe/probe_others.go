@@ -61,6 +61,11 @@ func (p *Probe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, bool, er
 func (p *Probe) OnNewRuleSetLoaded(_ *rules.RuleSet) {
 }
 
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *Probe) ShouldEvaluateDiscarders(_ *model.Event) bool {
+	return false
+}
+
 // OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
 func (p *Probe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
 }
@@ -121,6 +126,9 @@ func (p *Probe) RefreshUserCache(_ containerutils.ContainerID) error {
 
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+
+// EnrichRuleEvent is a no-op on unsupported platforms
+func (p *Probe) EnrichRuleEvent(_ *model.Event) {}
 
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(_ bool) {}

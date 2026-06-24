@@ -8,6 +8,7 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -105,6 +106,30 @@ func (a *Agent) InstalledIntegrations() (map[string]string, error) {
 func (a *Agent) InstallIntegration(name string) error {
 	_, err := a.runCommand("integration", "install", "-t", name)
 	return err
+}
+
+// InstallIntegrationAs installs a custom integration running the agent CLI as the specified
+// Unix user (e.g. "root" or "dd-agent"). Linux-only.
+func (a *Agent) InstallIntegrationAs(user, name string) error {
+	if a.host.RemoteHost.OSFamily != e2eos.LinuxFamily {
+		return errors.New("InstallIntegrationAs is only supported on Linux")
+	}
+	// --allow-root is required when running as root: the CLI rejects root execution by
+	// default to prevent root-owned integration files. Tests use it deliberately to cover
+	// the adversarial case where an operator force-installs as root.
+	allowRoot := ""
+	if user == "root" {
+		allowRoot = "--allow-root "
+	}
+	_, err := a.host.RemoteHost.Execute(
+		fmt.Sprintf("sudo -u %s datadog-agent integration install %s-t %s", user, allowRoot, name),
+	)
+	return err
+}
+
+// IntegrationShow runs integration show for the given integration name and returns its output.
+func (a *Agent) IntegrationShow(name string) (string, error) {
+	return a.runCommand("integration", "show", name)
 }
 
 // runCommand runs a command on the remote host.

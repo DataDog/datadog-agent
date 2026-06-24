@@ -20,13 +20,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -69,13 +69,14 @@ func makeRequires(deps testDeps) Requires {
 }
 
 func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
+	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, sysprobeConfOverrides)
 	return NewComponent(
 		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
-			sysprobeconfigimpl.MockModule(),
-			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
+			fx.Provide(func() sysprobeconfig.Component { return sysprobeConf }),
+			fxutil.ProvideOptional[sysprobeconfig.Component](),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
@@ -378,12 +379,12 @@ func TestFetchSecurityAgent(t *testing.T) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsKnown("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for security-agent fetcher",
 		)
 		assert.True(
 			t,
-			config.IsSet("hostname"),
+			config.IsKnown("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 
@@ -419,12 +420,12 @@ func TestFetchProcessAgent(t *testing.T) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsKnown("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for process-agent fetcher",
 		)
 		assert.True(
 			t,
-			config.IsSet("hostname"),
+			config.IsKnown("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 
@@ -466,12 +467,12 @@ func TestFetchTraceAgent(t *testing.T) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsKnown("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for trace-agent fetcher",
 		)
 		assert.True(
 			t,
-			config.IsSet("hostname"),
+			config.IsKnown("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 
@@ -509,12 +510,12 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 		// test that the system-probe config was passed and not the agent config
 		assert.True(
 			t,
-			config.IsSet("system_probe_config.sysprobe_socket"),
+			config.IsConfigured("system_probe_config.sysprobe_socket"),
 			"wrong configuration received for system-probe fetcher",
 		)
 		assert.False(
 			t,
-			config.IsSet("hostname"),
+			config.IsConfigured("hostname"),
 			"wrong configuration received for security-agent fetcher",
 		)
 

@@ -58,10 +58,10 @@ func TestWhichTailer(t *testing.T) {
 			identifier := "abc123"
 
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("logs_config.docker_container_use_file", c.dcuf)
-			cfg.SetWithoutSource("logs_config.docker_container_force_use_file", c.dcfuf)
-			cfg.SetWithoutSource("logs_config.k8s_container_use_kubelet_api", c.kcua)
-			cfg.SetWithoutSource("logs_config.k8s_container_use_file", c.kcuf)
+			cfg.SetInTest("logs_config.docker_container_use_file", c.dcuf)
+			cfg.SetInTest("logs_config.docker_container_force_use_file", c.dcfuf)
+			cfg.SetInTest("logs_config.k8s_container_use_kubelet_api", c.kcua)
+			cfg.SetInTest("logs_config.k8s_container_use_file", c.kcuf)
 
 			registryID := fmt.Sprintf("%s:%s", runtime, identifier)
 

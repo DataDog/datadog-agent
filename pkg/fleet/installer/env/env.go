@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"golang.org/x/net/http/httpproxy"
+
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 )
 
 const (
@@ -47,6 +49,10 @@ const (
 	envDDNoProxy             = "DD_PROXY_NO_PROXY"
 	envNoProxy               = "NO_PROXY"
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
+	envProcessManagerEnabled = "DD_PROCESS_MANAGER_ENABLED"
+	// envFIPSMode is the canonical FIPS toggle, also recognized by
+	// pkg/fleet/installer/setup/defaultscript/default_script.go.
+	envFIPSMode = "DD_FIPS_MODE"
 
 	// install script
 	envApmInstrumentationEnabled   = "DD_APM_INSTRUMENTATION_ENABLED"
@@ -81,14 +87,16 @@ const (
 	envAgentUserPasswordCompat  = "DDAGENTUSER_PASSWORD"
 	envProjectLocation          = "DD_PROJECTLOCATION"
 	envApplicationDataDirectory = "DD_APPLICATIONDATADIRECTORY"
+	envAgentUserKeepRights      = "DDAGENTUSER_KEEP_RIGHTS"
 )
 
 var defaultEnv = Env{
-	APIKey:               "",
-	Site:                 "datadoghq.com",
-	RemoteUpdates:        false,
-	OTelCollectorEnabled: false,
-	Mirror:               "",
+	APIKey:                "",
+	Site:                  "datadoghq.com",
+	RemoteUpdates:         false,
+	OTelCollectorEnabled:  false,
+	ProcessManagerEnabled: true,
+	Mirror:                "",
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
@@ -146,6 +154,9 @@ type MsiParamsEnv struct {
 	AgentUserPassword        string
 	ProjectLocation          string
 	ApplicationDataDirectory string
+	// AgentUserKeepRights opts the installer out of re-applying the ddagentuser
+	// SeDeny*LogonRight assignments. Accepts MSI-style truthy values (1/true/yes).
+	AgentUserKeepRights string
 }
 
 // InstallScriptEnv contains the environment variables for the install script.
@@ -175,11 +186,12 @@ type InstallScriptEnv struct {
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey               string
-	Site                 string
-	RemoteUpdates        bool
-	OTelCollectorEnabled bool
-	ConfigID             string
+	APIKey                string
+	Site                  string
+	RemoteUpdates         bool
+	OTelCollectorEnabled  bool
+	ProcessManagerEnabled bool
+	ConfigID              string
 
 	Mirror                      string
 	RegistryOverride            string
@@ -219,6 +231,11 @@ type Env struct {
 	IsCentos6 bool
 
 	IsFromDaemon bool
+
+	// FIPSMode requests the FIPS-compliant flavor of any package downloaded by the
+	// installer. When true, only manifests annotated with com.datadoghq.package.flavor=fips
+	// are eligible, with no fallback to the base flavor.
+	FIPSMode bool
 }
 
 func (e *Env) HasDefaultRegistryOverride() bool {
@@ -268,12 +285,19 @@ func FromEnv() *Env {
 	splitFunc := func(c rune) bool {
 		return c == ','
 	}
+	// thisBinaryIsFips is true when the installer is running as the FIPS-compiled agent binary
+	// (embedded/bin/installer is a symlink to the agent binary in DEB/RPM packages).
+	thisBinaryIsFips, _ := pkgfips.Enabled()
+	// fipsIsRequested is true when the caller explicitly sets DD_FIPS_MODE=true,
+	// which is the signal used by the fleet OCI install path.
+	fipsIsRequested := strings.ToLower(os.Getenv(envFIPSMode)) == "true"
 
 	return &Env{
-		APIKey:               getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:                 getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates:        strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
-		OTelCollectorEnabled: strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
+		APIKey:                getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:                  getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates:         strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		OTelCollectorEnabled:  strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
+		ProcessManagerEnabled: processManagerEnabledFromEnv(),
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -298,6 +322,7 @@ func FromEnv() *Env {
 			AgentUserPassword:        getEnvOrDefault(envAgentUserPassword, os.Getenv(envAgentUserPasswordCompat)),
 			ProjectLocation:          getEnvOrDefault(envProjectLocation, ""),
 			ApplicationDataDirectory: getEnvOrDefault(envApplicationDataDirectory, ""),
+			AgentUserKeepRights:      os.Getenv(envAgentUserKeepRights),
 		},
 
 		InstallScript: InstallScriptEnv{
@@ -337,6 +362,7 @@ func FromEnv() *Env {
 
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
+		FIPSMode:     fipsIsRequested || thisBinaryIsFips,
 	}
 }
 
@@ -380,6 +406,7 @@ func (e *MsiParamsEnv) ToEnv(env []string) []string {
 	env = appendStringEnv(env, envAgentUserPassword, e.AgentUserPassword, "")
 	env = appendStringEnv(env, envProjectLocation, e.ProjectLocation, "")
 	env = appendStringEnv(env, envApplicationDataDirectory, e.ApplicationDataDirectory, "")
+	env = appendStringEnv(env, envAgentUserKeepRights, e.AgentUserKeepRights, "")
 	return env
 }
 
@@ -434,6 +461,9 @@ func (e *Env) ToEnv() []string {
 		// The easiest way to do this without having to import setup/log & pkg/config
 		// is by env var.
 		env = append(env, "DD_LOG_LEVEL=off")
+	}
+	if e.FIPSMode {
+		env = append(env, envFIPSMode+"=true")
 	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
@@ -539,6 +569,14 @@ func getBoolEnv(env string) *bool {
 	default:
 		return nil
 	}
+}
+
+func processManagerEnabledFromEnv() bool {
+	v := strings.TrimSpace(os.Getenv(envProcessManagerEnabled))
+	if v == "" {
+		return defaultEnv.ProcessManagerEnabled
+	}
+	return !strings.EqualFold(v, "false")
 }
 
 func getProxySetting(ddEnv string, env string) string {

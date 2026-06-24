@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Send CNM/USM data directly to Datadog from system-probe on Linux.
+    This eliminates the need to run process-agent in certain configurations.

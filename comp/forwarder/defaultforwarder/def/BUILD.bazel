@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "def",
+    srcs = [
+        "component.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//pkg/util/option",
+    ],
+)

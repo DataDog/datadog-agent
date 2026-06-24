@@ -292,7 +292,7 @@ func testLoadHACheck(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			C.reset_loader_mock()
 
-			pkgconfigsetup.Datadog().SetWithoutSource("ha_agent.enabled", tc.haAgentEnabled)
+			pkgconfigsetup.Datadog().SetInTest("ha_agent.enabled", tc.haAgentEnabled)
 
 			// testing loading custom checks
 			C.get_class_return = 1
@@ -371,7 +371,7 @@ func testLoadCustomCheckEmitsCheckReadyMetric(t *testing.T) {
 	mockRtloader(t)
 
 	// Ensure py3 validation is enabled (default)
-	pkgconfigsetup.Datadog().SetWithoutSource("disable_py3_validation", false)
+	pkgconfigsetup.Datadog().SetInTest("disable_py3_validation", false)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()

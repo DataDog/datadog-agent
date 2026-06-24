@@ -41,6 +41,10 @@ import (
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
+// maxNumberOfPorts mirrors the per-service port cap enforced by
+// libdd_discovery; the test asserts the API contract.
+const maxNumberOfPorts = 50
+
 // getServices call the /discovery/services endpoint. It will perform a /proc scan
 // to get the list of running pids and use them as the pids query param.
 func getServices(t require.TestingT, discovery *testDiscoveryModule) *model.ServicesResponse {

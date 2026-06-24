@@ -252,6 +252,38 @@ func (d *safeDeviceImpl) GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32
 	return throughput, NewNvmlAPIErrorOrNil("GetPcieThroughput", ret)
 }
 
+func (d *safeDeviceImpl) GetCurrPcieLinkGeneration() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetCurrPcieLinkGeneration")); err != nil {
+		return 0, err
+	}
+	gen, ret := d.nvmlDevice.GetCurrPcieLinkGeneration()
+	return gen, NewNvmlAPIErrorOrNil("GetCurrPcieLinkGeneration", ret)
+}
+
+func (d *safeDeviceImpl) GetMaxPcieLinkGeneration() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetMaxPcieLinkGeneration")); err != nil {
+		return 0, err
+	}
+	gen, ret := d.nvmlDevice.GetMaxPcieLinkGeneration()
+	return gen, NewNvmlAPIErrorOrNil("GetMaxPcieLinkGeneration", ret)
+}
+
+func (d *safeDeviceImpl) GetCurrPcieLinkWidth() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetCurrPcieLinkWidth")); err != nil {
+		return 0, err
+	}
+	width, ret := d.nvmlDevice.GetCurrPcieLinkWidth()
+	return width, NewNvmlAPIErrorOrNil("GetCurrPcieLinkWidth", ret)
+}
+
+func (d *safeDeviceImpl) GetMaxPcieLinkWidth() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetMaxPcieLinkWidth")); err != nil {
+		return 0, err
+	}
+	width, ret := d.nvmlDevice.GetMaxPcieLinkWidth()
+	return width, NewNvmlAPIErrorOrNil("GetMaxPcieLinkWidth", ret)
+}
+
 func (d *safeDeviceImpl) GetPerformanceState() (nvml.Pstates, error) {
 	if err := d.lib.lookup(toNativeName("GetPerformanceState")); err != nil {
 		return 0, err

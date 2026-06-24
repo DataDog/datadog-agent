@@ -64,8 +64,7 @@ HOOK_SYSCALL_ENTRY2(memfd_create, const char *, uname, unsigned int, flags) {
     for (int i = 0; i < TRACER_MEMFD_SUFFIX_LEN; i++) {
         syscall.tracer_memfd_create.suffix[i] = name[MEMFD_TRACER_PREFIX_LEN + i];
     }
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 

@@ -131,6 +131,7 @@ func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
 func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.SyscallMsg) {
 	event := p.zeroEvent()
 	event.PIDContext.NSID = cl.nsID
+	event.TimestampRaw = syscallMsg.Timestamp
 
 	switch syscallMsg.Type {
 	case ebpfless.SyscallTypeExec:
@@ -141,12 +142,12 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 			entry = p.Resolvers.ProcessResolver.AddProcFSEntry(
 				process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
 				syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
-				syscallMsg.ContainerID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
+				syscallMsg.ContainerID, syscallMsg.CGroupID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		} else {
 			entry = p.Resolvers.ProcessResolver.AddExecEntry(
 				process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
 				syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
-				syscallMsg.ContainerID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
+				syscallMsg.ContainerID, syscallMsg.CGroupID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		}
 
 		if syscallMsg.Exec.Credentials != nil {
@@ -164,7 +165,9 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 
 	case ebpfless.SyscallTypeFork:
 		event.Type = uint32(model.ForkEventType)
-		p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID, syscallMsg.Timestamp)
+		if entry := p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID, syscallMsg.Timestamp); entry != nil && syscallMsg.CGroupID != "" {
+			entry.Process.CGroup.CGroupID = syscallMsg.CGroupID
+		}
 
 	case ebpfless.SyscallTypeOpen:
 		event.Type = uint32(model.FileOpenEventType)
@@ -361,6 +364,12 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Type = uint32(model.PrCtlEventType)
 		event.PrCtl.Option = syscallMsg.Prctl.Option
 		event.PrCtl.NewName = syscallMsg.Prctl.NewName
+	case ebpfless.SyscallTypeSocket:
+		event.Type = uint32(model.SocketEventType)
+		event.Socket.Domain = syscallMsg.SocketEvent.Domain
+		event.Socket.Type = syscallMsg.SocketEvent.Type
+		event.Socket.Protocol = syscallMsg.SocketEvent.Protocol
+		event.Socket.Retval = syscallMsg.Retval
 	}
 
 	// container context
@@ -379,6 +388,9 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	event.ProcessCacheEntry = p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID})
 	if event.ProcessCacheEntry == nil {
 		event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(syscallMsg.PID, syscallMsg.PID, false)
+	}
+	if event.ProcessCacheEntry.Process.CGroup.CGroupID == "" && syscallMsg.CGroupID != "" {
+		event.ProcessCacheEntry.Process.CGroup.CGroupID = syscallMsg.CGroupID
 	}
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
@@ -608,6 +620,11 @@ func (p *EBPFLessProbe) Walk(callback func(*model.ProcessCacheEntry)) {
 	p.Resolvers.ProcessResolver.Walk(callback)
 }
 
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *EBPFLessProbe) ShouldEvaluateDiscarders(_ *model.Event) bool {
+	return false
+}
+
 // OnNewDiscarder handles discarders
 func (p *EBPFLessProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
 }
@@ -646,6 +663,12 @@ func (p *EBPFLessProbe) ReplayEvents() {
 func (p *EBPFLessProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
 }
+
+// EnrichRuleEvent is a no-op for the ebpf-less probe. The ptracer-based
+// userspace pipeline applies its own truncation in pkg/security/ptracer and
+// does not retain the pre-truncation argv/envp, so there is no cheap source
+// of fuller values to backfill from at rule-match time.
+func (p *EBPFLessProbe) EnrichRuleEvent(_ *model.Event) {}
 
 // HandleActions handles the rule actions
 func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {

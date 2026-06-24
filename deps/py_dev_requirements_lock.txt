@@ -8,6 +8,10 @@ invoke==2.2.1 \
     --hash=sha256:2413bc441b376e5cd3f55bb5d364f973ad8bdd7bf87e53c79de3c11bf3feecc8 \
     --hash=sha256:515bf49b4a48932b79b024590348da22f39c4942dff991ad1fb8b8baea1be707
     # via -r deps/py_dev_requirements.txt
+patch-ng==1.19.1 \
+    --hash=sha256:036a3cc00134ec53f37e92333958ee75e117f2e62a5ec2b85c7122e5e815c29e \
+    --hash=sha256:d45fd47b3f74b48c3e336690341876bb26244a077a06f5f7e6e47c19c15c1ca4
+    # via -r deps/py_dev_requirements.txt
 pyyaml==6.0.3 \
     --hash=sha256:00c4bdeba853cc34e7dd471f16b4114f4162dc03e6b7afcc2128711f0eca823c \
     --hash=sha256:0150219816b6a1fa26fb4699fb7daa9caf09eb1999f3b70fb6e786805e80375a \

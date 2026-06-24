@@ -229,6 +229,10 @@ func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, para
 		command = append(command, "-retention-period="+params.RetentionPeriod)
 	}
 
+	// Always supply the global RC signing key so fakeintake's TUF root is
+	// deterministic and matches what the agent is configured with at provision time.
+	command = append(command, "--rc-key-data="+fakeintake.DefaultRCSigningKeySeed)
+
 	return &awsxEcs.TaskDefinitionContainerDefinitionArgs{
 		Name:        pulumi.String(containerName),
 		Image:       pulumi.String(params.ImageURL),

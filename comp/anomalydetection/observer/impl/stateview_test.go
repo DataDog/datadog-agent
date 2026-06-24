@@ -174,28 +174,6 @@ func TestStateView_SchedulingState(t *testing.T) {
 	}
 }
 
-func TestStateView_Telemetry(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
-	sv := e.StateView()
-
-	// Initially empty
-	if len(sv.Telemetry()) != 0 {
-		t.Fatalf("expected 0 telemetry, got %d", len(sv.Telemetry()))
-	}
-
-	// Manually accumulate telemetry
-	e.telemetryMu.Lock()
-	e.accumulatedTelemetry = append(e.accumulatedTelemetry, observerdef.ObserverTelemetry{
-		DetectorName: "test",
-	})
-	e.telemetryMu.Unlock()
-
-	tel := sv.Telemetry()
-	if len(tel) != 1 || tel[0].DetectorName != "test" {
-		t.Fatalf("unexpected telemetry: %+v", tel)
-	}
-}
-
 // mockDetector is a minimal Detector for testing.
 type mockDetector struct {
 	name string

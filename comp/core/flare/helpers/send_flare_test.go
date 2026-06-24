@@ -88,7 +88,7 @@ func TestFlareHasRightForm(t *testing.T) {
 
 			ddURL := ts.URL
 
-			archivePath := "./test/blank.zip"
+			archivePath := "./testdata/blank.zip"
 			caseID := "12345"
 			email := "dev@datadoghq.com"
 			apiKey := "abcdef"
@@ -388,7 +388,7 @@ func TestSendToRetryLogic(t *testing.T) {
 				io.WriteString(w, "Not Found")
 			}))
 			defer server.Close()
-			result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+			result, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
 
 			assert.Equal(t, tc.expectedAttempts, attemptCount, "Unexpected number of attempts")
 
@@ -516,7 +516,7 @@ func TestSendToWithNetworkErrors(t *testing.T) {
 		}))
 		defer server.Close()
 
-		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+		result, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
 
 		assert.NoError(t, err, "Expected success after retries")
 		assert.Contains(t, result, "Your logs were successfully uploaded", "Expected success message")
@@ -544,7 +544,7 @@ func TestSendToWithNetworkErrors(t *testing.T) {
 		}))
 		defer server.Close()
 
-		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+		result, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
 
 		assert.Error(t, err, "Expected error after exhausting retries")
 		assert.Contains(t, err.Error(), "failed to send flare after", "Expected retry exhaustion error")
@@ -574,7 +574,7 @@ func TestSendToWithNetworkErrors(t *testing.T) {
 		}))
 		defer server.Close()
 
-		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+		result, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
 
 		assert.Error(t, err, "Expected error")
 		assert.Equal(t, 1, attemptCount, "Expected only 1 attempt (no retries)")

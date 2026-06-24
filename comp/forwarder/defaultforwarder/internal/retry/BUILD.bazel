@@ -50,7 +50,6 @@ go_library(
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/utils",
         "//pkg/util/filesystem",
-        "@com_github_hashicorp_go_multierror//:go-multierror",
         "@org_golang_google_protobuf//proto",
     ],
 )

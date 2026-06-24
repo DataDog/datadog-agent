@@ -332,7 +332,7 @@ func Test_getEventSource(t *testing.T) {
 	}
 	for _, tt := range tests {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("kubernetes_events_source_detection.enabled", tt.kubernetesEventSourceDetectionEnabled)
+		mockConfig.SetInTest("kubernetes_events_source_detection.enabled", tt.kubernetesEventSourceDetectionEnabled)
 		t.Run(tt.name, func(t *testing.T) {
 			if got := getEventSource(tt.controllerName, tt.sourceComponent); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getEventSource() = %v, want %v", got, tt.want)

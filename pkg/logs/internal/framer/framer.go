@@ -55,6 +55,15 @@ const (
 	// Process() call represents a complete, discrete message — there is no
 	// subsequent data that could complete a partial frame.
 	UTF8NewlineDatagram
+
+	// UTF8NewlineStream splits on newlines like UTF8Newline, but emits any
+	// buffered remainder when the framer is flushed (Flush()). Used by
+	// stream-oriented transports where the end-of-stream (e.g. peer-driven
+	// TCP close) is a legitimate frame boundary for the final message —
+	// some forwarders send one message per connection without a trailing
+	// newline. Unlike UTF8NewlineDatagram, partial frames are only emitted
+	// at end-of-stream, not after every Process() call.
+	UTF8NewlineStream
 )
 
 // Framer gets chunks of bytes (via Process(..)) and uses an
@@ -111,7 +120,7 @@ func NewFramer(
 	var matcher FrameMatcher
 	switch framing {
 	case UTF8Newline:
-		matcher = &oneByteNewLineMatcher{contentLenLimit}
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit}
 	case UTF16BENewline:
 		contentLenLimit = contentLenLimit & ^0x1 // align to 2-byte character boundary for UTF-16
 		if contentLenLimit < 2 {
@@ -127,7 +136,7 @@ func NewFramer(
 	case SHIFTJISNewline:
 		// No special handling required for the newline matcher since Shift JIS does not use
 		// newline characters (0x0a) as the second byte of a multibyte sequence.
-		matcher = &oneByteNewLineMatcher{contentLenLimit}
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit}
 	case DockerStream:
 		matcher = &dockerStreamMatcher{contentLenLimit}
 	case SyslogFraming:
@@ -135,7 +144,9 @@ func NewFramer(
 	case NoFraming:
 		matcher = &noFramingMatcher{}
 	case UTF8NewlineDatagram:
-		matcher = &oneByteNewLineMatcher{contentLenLimit}
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit}
+	case UTF8NewlineStream:
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit, flushPartial: true}
 	default:
 		panic(fmt.Sprintf("unknown framing %d", framing))
 	}

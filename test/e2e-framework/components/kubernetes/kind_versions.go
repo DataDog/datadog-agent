@@ -29,6 +29,7 @@ type KindConfig struct {
 type KindConfigFlags struct {
 	NewContainerdRegistryConfig bool             // whether to use the new containerd registry mirror config format (for containerd >= 2.2, used in kubernetes >= v1.32)
 	KubeProxyReplacement        bool             // whether to set kubeProxyMode to "none" in the kind config
+	MountDockerSocket           bool             // whether to bind-mount /var/run/docker.sock from the host into each kind node
 	WorkerNodes                 []KindWorkerNode // additional worker nodes beyond the control-plane
 }
 

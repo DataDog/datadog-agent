@@ -1,9 +1,11 @@
 # comp/anomalydetection/observer — AI Agent Guide
 
+Subsystem overview, wiring, and config: see `../AGENTS.md`.
+
 ## What This Component Does
 
 The observer watches data flowing through the agent and runs anomaly detection
-on it. It is a pipeline:
+on it:
 
 ```
 Handle → Storage → Detect → Correlate → Report
@@ -11,44 +13,7 @@ Handle → Storage → Detect → Correlate → Report
 
 Data enters through lightweight **Handles** (non-blocking, copy-on-send).
 The **engine** stores metrics, runs detectors and correlators, and emits
-events to reporters. See `README.md` for the full pipeline diagram and
-extension guide.
-
-## Component structure
-
-The observer lives inside `comp/anomalydetection/` alongside three sibling
-components it depends on at runtime:
-
-```
-comp/anomalydetection/
-  observer/
-    def/        ← public interfaces (own go.mod)
-    fx/         ← production Fx wiring
-    impl/       ← engine, detectors, correlators, extractors, telemetry
-      hfrunner/ ← high-frequency check runner subpackage
-      patterns/ ← log pattern tokenizer/clusterer subpackage
-  logssource/   ← container log source feeding the observer
-    def/ fx/ impl/
-  reporter/     ← anomaly event reporter
-    def/
-    fx/           ← production (Datadog notify + events API)
-    fx-noop/      ← stub wired in the main agent build
-    fx-testbench/ ← SSE debug reporter wired in the testbench
-    impl/
-    impl-testbench/
-    mock/
-  recorder/     ← parquet recorder for scenario capture
-    def/
-    fx/         ← full implementation (parquet, heavy deps)
-    fx-noop/    ← stub wired in the main agent build
-    impl/
-    impl-noop/
-```
-
-The **production agent** wires `reporter/fx-noop` and `recorder/fx-noop` to
-keep those heavy dependencies out of the agent binary. The
-**testbench** (`internal/qbranch/anomalydetection-testbench/`) wires the full
-`fx` + `impl` variants.
+events to reporters injected via the `anomalydetection_reporters` Fx group.
 
 ## Architecture
 
@@ -56,7 +21,7 @@ keep those heavy dependencies out of the agent binary. The
 
 | Layer | Code | Role |
 |-------|------|------|
-| **Component** (`observerImpl`) | `impl/observer.go` | Fx lifecycle, channel dispatch, Handle factory, HF check runners |
+| **Component** (`observerImpl`) | `impl/observer.go` | Fx lifecycle, channel dispatch, Handle factory, agent-internal log tap |
 | **Engine** (`engine`) | `impl/engine.go` | Storage, detection, correlation, replay — the shared core |
 
 The engine is a plain Go struct, not an Fx component. Both the live observer
@@ -66,28 +31,35 @@ and the testbench use the same engine.
 
 | File | Purpose |
 |------|---------|
-| `def/component.go` | Public interfaces: Component, Handle, View types, Detector, Correlator, etc. |
+| `def/component.go` | Component interface (GetHandle, RecordSamplerDropped, DumpMetrics) |
+| `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
 | `impl/storage.go` | In-memory columnar time-series storage (1s buckets, read-time aggregation) |
 | `impl/scheduler.go` | Scheduling policy: when to advance analysis |
-| `impl/observer.go` | Fx component: lifecycle, channel loop, handle creation |
+| `impl/observer.go` | Fx component: lifecycle, channel loop, handle creation, log tap |
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
+| `impl/agent_logs.go` | Agent-internal log tap (source: `agent-internal-logs`) |
+| `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
+| `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
+| `impl/anomaly_correlator_time_cluster.go` | Default time-proximity correlator |
+| `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
 
-## Allium Specification
+### Component catalog (defaults)
 
-`observer-engine.allium` is the **behavioral specification** for the engine,
-written in [Allium](../../.agents/skills/allium/SKILL.md).
+Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 
-The spec is authoritative for behavior. If the code disagrees with the spec,
-one of them is wrong. Open questions in the spec are unresolved design
-ambiguities, not documentation — resolving them requires a decision, not just
-code.
+| Kind | Name | Default |
+|------|------|---------|
+| Extractor | `log_metrics_extractor` | on |
+| Extractor | `log_pattern_extractor` | on |
+| Extractor | `connection_error_extractor` | off |
+| Detector | `bocpd` | on |
+| Detector | `rrcf` | on |
+| Detector | `cusum`, `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
+| Correlator | `time_cluster` | on |
+| Correlator | `cross_signal`, `passthrough` | off |
 
-**Reading order:**
-1. `README.md` — pipeline overview, extension guide, configuration
-2. `observer-engine.allium` — behavioral spec (rules, contracts, invariants)
-3. `def/component.go` — public interfaces
-4. `impl/engine.go` — implementation of the spec
+Toggle via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
 
 ## Key Design Decisions
 
@@ -107,6 +79,13 @@ writing. Detectors can pick any aggregation without re-ingesting data.
 Handles do non-blocking sends to a buffered channel. If the channel is full,
 observations are silently dropped. Analysis never back-pressures data ingestion.
 
+### Metric ingestion gate
+
+When `anomaly_detection.metrics.enabled=false`, handles wrap with
+`metricDropHandle` so external metrics are dropped at the edge. `ObserveLog`
+still passes through; log-derived virtual metrics produced inside the engine
+are unaffected.
+
 ## Common Pitfalls
 
 1. **Don't call engine methods from multiple goroutines.** The engine assumes
@@ -121,9 +100,22 @@ observations are silently dropped. Analysis never back-pressures data ingestion.
 4. **Extractor names must be unique.** The name is the storage namespace for
    derived metrics. Duplicates cause silent data collision.
 
+5. **Agent-internal logs are not logssource.** The internal tap is wired in
+   `impl/observer.go`, gated by `anomaly_detection.logs.internal.*`.
+
 ## Testing
 
 ```bash
 dda inv test --targets=./comp/anomalydetection/observer/...
 dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
 ```
+
+**Testbench** (algorithm iteration + scenario replay):
+
+```bash
+dda inv anomalydetection.build-testbench
+dda inv anomalydetection.launch-testbench
+```
+
+Reads scenarios from `observer/scenarios/`. See
+`internal/qbranch/anomalydetection-testbench/README.md`.

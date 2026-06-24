@@ -23,7 +23,14 @@ var JSONEncoder Encoder = &jsonEncoder{}
 var JSONPayload = jsonPayload{}
 
 // jsonEncoder transforms a message into a JSON byte array.
-type jsonEncoder struct{}
+type jsonEncoder struct {
+	useContainerTimestamp bool
+}
+
+// NewJSONEncoder returns a JSON encoder configured to optionally use container-provided timestamps.
+func NewJSONEncoder(useContainerTimestamp bool) Encoder {
+	return &jsonEncoder{useContainerTimestamp: useContainerTimestamp}
+}
 
 // JSON representation of a message.
 type jsonPayload struct {
@@ -42,9 +49,14 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		return errors.New("message passed to encoder isn't rendered")
 	}
 
-	ts := time.Now().UTC()
-	if !msg.ServerlessExtra.Timestamp.IsZero() {
-		ts = msg.ServerlessExtra.Timestamp
+	ts := msg.ServerlessExtra.Timestamp
+	if ts.IsZero() {
+		ts = time.Now().UTC()
+		if msg.ParsingExtra.Timestamp != "" && j.useContainerTimestamp {
+			if logTime, err := time.Parse(time.RFC3339Nano, msg.ParsingExtra.Timestamp); err == nil {
+				ts = logTime
+			}
+		}
 	}
 
 	encoded, err := json.Marshal(jsonPayload{

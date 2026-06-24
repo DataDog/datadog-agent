@@ -10,7 +10,7 @@ package collectorimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -170,6 +170,7 @@ func (e extraFactoriesWithoutAgentCore) GetAgentConfig() config.Component {
 // GetExtensions returns the extensions for the collector.
 func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
 	return []extension.Factory{
+		ddprofilingextensionimpl.NewFactory(),
 		healthcheckextension.NewFactory(),
 	}
 }

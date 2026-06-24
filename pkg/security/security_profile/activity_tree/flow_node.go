@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"unsafe"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -19,22 +21,26 @@ type FlowNode struct {
 	Flow           model.Flow
 }
 
+// size approximates this node's heap footprint
+func (fn *FlowNode) size() int64 {
+	return int64(unsafe.Sizeof(*fn)) + seenBytes(fn.NodeBase)
+}
+
 // NewFlowNode returns a new FlowNode instance
-func NewFlowNode(flow model.Flow, event *model.Event, generationType NodeGenerationType, imageTag string) *FlowNode {
+func NewFlowNode(flow model.Flow, event *model.Event, generationType NodeGenerationType, imageTagID uint64) *FlowNode {
 	node := &FlowNode{
 		GenerationType: generationType,
 		Flow:           flow,
 	}
 	node.NodeBase = NewNodeBase()
-	node.AppendImageTag(imageTag, event.ResolveEventTime())
+	node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 	return node
 }
 
-func (node *FlowNode) addFlow(flow model.Flow, event *model.Event, imageTag string) {
-	node.AppendImageTag(imageTag, event.ResolveEventTime())
+func (fn *FlowNode) addFlow(flow model.Flow, event *model.Event, imageTagID uint64) {
+	fn.AppendImageTagID(imageTagID, event.ResolveEventTime())
 
 	// add metrics
-	node.Flow.Egress.Add(flow.Egress)
-	node.Flow.Ingress.Add(flow.Ingress)
-
+	fn.Flow.Egress.Add(flow.Egress)
+	fn.Flow.Ingress.Add(flow.Ingress)
 }

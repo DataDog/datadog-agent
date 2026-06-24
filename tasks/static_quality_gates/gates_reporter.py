@@ -6,6 +6,10 @@ Provides clear, customer-friendly reporting and output formatting for external u
 from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.decisions import GateVerdict
 
+# Visual width of the summary table dividers. Update together with the column widths
+# in the header below if columns are added or resized.
+SUMMARY_TABLE_WIDTH = 160
+
 
 class QualityGateOutputFormatter:
     """
@@ -82,17 +86,21 @@ class QualityGateOutputFormatter:
             gate_verdicts: List of GateVerdicts with decisions on gates
             metric_handler: Optional GateMetricHandler for getting measurement data
         """
-        print(color_message("\n" + "=" * 132, "magenta"))
+        print(color_message("\n" + "=" * SUMMARY_TABLE_WIDTH, "magenta"))
         print(color_message("🛡️  STATIC QUALITY GATES SUMMARY", "magenta"))
-        print(color_message("=" * 132, "magenta"))
+        print(color_message("=" * SUMMARY_TABLE_WIDTH, "magenta"))
 
         # Create a lookup for gate states
         verdict_lookup = {verdict.name: verdict for verdict in gate_verdicts}
 
         # Table header
-        header = f"{'Gate Name':<40} {'Status':<8} {'Compressed':<20} {'Uncompressed':<20} {'Comp Remain':<12} {'Uncomp Remain':<14}"
+        # "PR Buffer %" = share of headroom (max - baseline) consumed by this PR (relative / buffer * 100)
+        header = (
+            f"{'Gate Name':<40} {'Status':<8} {'Compressed':<20} {'Uncompressed':<20} "
+            f"{'Comp Remain':<12} {'Uncomp Remain':<14} {'Comp PR Buf%':<13} {'Uncomp PR Buf%':<14}"
+        )
         print(color_message(header, "cyan"))
-        print(color_message("-" * 132, "cyan"))
+        print(color_message("-" * SUMMARY_TABLE_WIDTH, "cyan"))
 
         passed_count = 0
         failed_count = 0
@@ -116,11 +124,15 @@ class QualityGateOutputFormatter:
             # Get measurement data from metric handler if available
             wire_current_bytes = 0
             disk_current_bytes = 0
+            wire_relative_bytes = None
+            disk_relative_bytes = None
 
             if metric_handler and gate.config.gate_name in metric_handler.metrics:
                 gate_metrics = metric_handler.metrics[gate.config.gate_name]
                 wire_current_bytes = gate_metrics.get('current_on_wire_size', 0)
                 disk_current_bytes = gate_metrics.get('current_on_disk_size', 0)
+                wire_relative_bytes = gate_metrics.get('relative_on_wire_size')
+                disk_relative_bytes = gate_metrics.get('relative_on_disk_size')
 
             # Convert to MB for display
             wire_current = wire_current_bytes / (1024 * 1024)
@@ -163,12 +175,34 @@ class QualityGateOutputFormatter:
             comp_remain_padding = 12 - len(compressed_remaining_text)
             uncomp_remain_padding = 14 - len(uncompressed_remaining_text)
 
+            # Change in buffer from this PR, expressed from the buffer's POV:
+            # a size increase shrinks the buffer (negative), a reduction grows it (positive).
+            # Formula: -relative / (max - baseline) * 100, with baseline = current - relative.
+            def format_buffer_pct(relative_bytes, current_bytes, max_bytes):
+                if relative_bytes is None:
+                    return "—"
+                baseline = current_bytes - relative_bytes
+                buffer_bytes = max_bytes - baseline
+                if buffer_bytes <= 0:
+                    return "n/a"
+                return f"{-(relative_bytes / buffer_bytes) * 100:+6.2f}%"
+
+            comp_buffer_pct_text = format_buffer_pct(
+                wire_relative_bytes, wire_current_bytes, gate.config.max_on_wire_size
+            )
+            uncomp_buffer_pct_text = format_buffer_pct(
+                disk_relative_bytes, disk_current_bytes, gate.config.max_on_disk_size
+            )
+
             print(
-                f"{display_name:<40} {status:<8} {compressed_info:<20} {uncompressed_info:<20} {compressed_remaining_info}{' ' * comp_remain_padding} {uncompressed_remaining_info}{' ' * uncomp_remain_padding}"
+                f"{display_name:<40} {status:<8} {compressed_info:<20} {uncompressed_info:<20} "
+                f"{compressed_remaining_info}{' ' * comp_remain_padding} "
+                f"{uncompressed_remaining_info}{' ' * uncomp_remain_padding} "
+                f"{comp_buffer_pct_text:<13} {uncomp_buffer_pct_text:<14}"
             )
 
         # Summary footer
-        print(color_message("-" * 132, "cyan"))
+        print(color_message("-" * SUMMARY_TABLE_WIDTH, "cyan"))
 
         # Overall statistics
         total_gates = len(gate_list)
@@ -183,4 +217,4 @@ class QualityGateOutputFormatter:
         print(
             color_message("📊 Dashboard: https://app.datadoghq.com/dashboard/5np-man-vak/static-quality-gates", "cyan")
         )
-        print(color_message("=" * 132, "magenta"))
+        print(color_message("=" * SUMMARY_TABLE_WIDTH, "magenta"))

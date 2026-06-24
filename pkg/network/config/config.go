@@ -22,9 +22,13 @@ const (
 	netNS = "network_config"
 	smNS  = "service_monitoring_config"
 	evNS  = "event_monitoring_config"
+	dscNS = "discovery"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
+
+	// Must stay in sync with DNS_PORTS_MAX in pkg/network/ebpf/c/prebuilt/dns.c.
+	DNSPortsMax = 8
 )
 
 // Config stores all flags used by the network eBPF tracer
@@ -333,17 +337,35 @@ func New() *Config {
 		log.Warnf("failed to parse dns_monitoring_ports: %v", err)
 	}
 
+	dnsPortsKey := sysconfig.FullKeyPath(netNS, "dns_monitoring_ports")
+	c.DNSMonitoringPortList = slices.DeleteFunc(c.DNSMonitoringPortList, func(port int) bool {
+		if port < 1 || port > 65535 {
+			log.Warnf("CNM detected and removed invalid port %d from %s (must be 1-65535)", port, dnsPortsKey)
+			return true
+		}
+		if port == 80 || port == 443 {
+			log.Warnf("CNM detected and removed HTTP port %d from %s, which is unsupported due to the large volume of traffic it would capture", port, dnsPortsKey)
+			return true
+		}
+		return false
+	})
+	// Sort + dedup before applying the slot cap.
+	slices.Sort(c.DNSMonitoringPortList)
+	c.DNSMonitoringPortList = slices.Compact(c.DNSMonitoringPortList)
+	numPorts := len(c.DNSMonitoringPortList)
+	if numPorts > DNSPortsMax {
+		dropped := c.DNSMonitoringPortList[DNSPortsMax:]
+		c.DNSMonitoringPortList = c.DNSMonitoringPortList[:DNSPortsMax]
+		log.Warnf(
+			"%s has %d distinct entries, exceeding the maximum of %d. "+
+				"Monitoring only %v (sorted ascending). Ports %v will NOT be monitored.",
+			dnsPortsKey, numPorts, DNSPortsMax, c.DNSMonitoringPortList, dropped,
+		)
+	}
+
 	if len(c.DNSMonitoringPortList) == 0 {
 		c.DNSMonitoringPortList = []int{53}
 	}
-
-	c.DNSMonitoringPortList = slices.DeleteFunc(c.DNSMonitoringPortList, func(port int) bool {
-		isHTTP := port == 80 || port == 443
-		if isHTTP {
-			log.Warnf("CNM detected and removed HTTP port %d from %s, which is unsupported due to the large volume of traffic it would capture", port, sysconfig.FullKeyPath(netNS, "dns_monitoring_ports"))
-		}
-		return isHTTP
-	})
 
 	if !c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring disabled")

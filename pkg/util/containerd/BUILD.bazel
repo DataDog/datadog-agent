@@ -25,7 +25,6 @@ go_library(
         "@com_github_containerd_containerd//oci",
         "@com_github_containerd_containerd_api//types",
         "@com_github_containerd_errdefs//:errdefs",
-        "@com_github_hashicorp_go_multierror//:go-multierror",
         "@com_github_opencontainers_image_spec//identity",
     ],
 )

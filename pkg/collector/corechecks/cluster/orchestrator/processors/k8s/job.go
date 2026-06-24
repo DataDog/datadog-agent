@@ -36,10 +36,10 @@ func NewJobHandlers(tagger tagger.Component) *JobHandlers {
 	return &JobHandlers{tagger: tagger}
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
+// EnrichModel is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *JobHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *JobHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*batchv1.Job)
 	m := resourceModel.(*model.Job)
 
@@ -114,10 +114,24 @@ func (h *JobHandlers) ResourceList(ctx processors.ProcessorContext, list interfa
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+//
+//nolint:revive
+func (h *JobHandlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*batchv1.Job).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns the resource version from the raw resource.
+//
+//nolint:revive
+func (h *JobHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
+	return resource.(*batchv1.Job).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

@@ -3,7 +3,7 @@
 
 #define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
                                       : "=r"(var))
-#define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES && retval != -EPERM
+#define IS_UNHANDLED_ERROR(retval) !capture_all_errors_enabled() && retval < 0 && retval != -EACCES && retval != -EPERM
 #define IS_ERR(ptr) ((unsigned long)(ptr) > (unsigned long)(-1000))
 #define IS_KTHREADD(pid) (pid == 2)
 #define IS_KERNEL_THREAD(pid) (IS_KTHREADD(pid) || bpf_map_lookup_elem(&kernel_thread_pids, &pid)) // will be reported as kworker userspace side

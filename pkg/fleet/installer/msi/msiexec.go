@@ -78,9 +78,10 @@ type msiexecArgs struct {
 
 	// logFile should be a full local path where msiexec will write the installation logs.
 	// If nothing is specified, a random, temporary file is used.
-	logFile             string
-	ddagentUserName     string
-	ddagentUserPassword string
+	logFile               string
+	ddagentUserName       string
+	ddagentUserPassword   string
+	ddagentUserKeepRights string
 
 	// additionalArgs are further args that can be passed to msiexec
 	additionalArgs []string
@@ -206,6 +207,16 @@ func WithDdAgentUserName(ddagentUserName string) MsiexecOption {
 func WithDdAgentUserPassword(ddagentUserPassword string) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.ddagentUserPassword = ddagentUserPassword
+		return nil
+	}
+}
+
+// WithDdAgentUserKeepRights opts the MSI out of re-applying the ddagentuser
+// SeDeny*LogonRight assignments by setting DDAGENTUSER_KEEP_RIGHTS. The MSI
+// accepts truthy values (1/true/yes); empty disables the opt-out.
+func WithDdAgentUserKeepRights(ddagentUserKeepRights string) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		a.ddagentUserKeepRights = ddagentUserKeepRights
 		return nil
 	}
 }
@@ -532,6 +543,9 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	}
 	if a.ddagentUserPassword != "" {
 		properties["DDAGENTUSER_PASSWORD"] = a.ddagentUserPassword
+	}
+	if a.ddagentUserKeepRights != "" {
+		properties["DDAGENTUSER_KEEP_RIGHTS"] = a.ddagentUserKeepRights
 	}
 	if a.msiAction == "/i" {
 		properties["MSIFASTINSTALL"] = "7"

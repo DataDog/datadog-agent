@@ -27,6 +27,22 @@ type APMTags struct {
 	DDVersion string `json:"DD_VERSION"`
 }
 
+// Overlay returns a copy of t with each non-empty field of higher taking
+// precedence. Empty fields in higher leave t's value untouched, so chaining
+// expresses per-field precedence low to high: low.Overlay(mid).Overlay(high).
+func (t APMTags) Overlay(higher APMTags) APMTags {
+	if higher.DDService != "" {
+		t.DDService = higher.DDService
+	}
+	if higher.DDEnv != "" {
+		t.DDEnv = higher.DDEnv
+	}
+	if higher.DDVersion != "" {
+		t.DDVersion = higher.DDVersion
+	}
+	return t
+}
+
 // keep a count of errors to avoid flooding the log
 var (
 	jsonLogCount          = 0
@@ -68,60 +84,71 @@ type iisAppSettings struct {
 type appConfiguration struct {
 	XMLName     xml.Name `xml:"configuration"`
 	AppSettings iisAppSettings
+	// Presence of <system.webServer><aspNetCore> marks an ASP.NET Core app; see
+	// ReadDotNetConfig for how its env vars override <appSettings>.
+	SystemWebServer iisLocationSystemWebServer `xml:"system.webServer"`
 }
 
 var (
 	errorlogcount = 0
 )
 
-// ReadDotNetConfig reads an iis config file(xml) and returns the APM tags
-func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
+// ReadDotNetConfig reads an IIS web.config and returns its APM tags split by
+// source tier: the first return holds env-var tags from <aspNetCore> (real
+// process env, ASP.NET Core apps), the second holds <appSettings> tags (.NET
+// Framework apps, merged with any datadog.json referenced by
+// DD_TRACE_CONFIG_FILE). A web.config is one or the other, so at most one of the
+// two is non-empty.
+func ReadDotNetConfig(cfgpath string) (envTags APMTags, appSettingsTags APMTags, err error) {
 	var newcfg appConfiguration
-	var apmtags APMTags
-	var chasedatadogJSON string
 	f, err := os.ReadFile(cfgpath)
 	if err != nil {
-		return apmtags, err
+		return APMTags{}, APMTags{}, err
 	}
 	err = xml.Unmarshal(f, &newcfg)
 	if err != nil {
 		if dotnetConfigLogCount%logErrorCountInterval == 0 {
-			log.Warnf("Error reading datadog.json file %s: %v", cfgpath, err)
-			jsonLogCount++
+			log.Warnf("Error reading .NET config file %s: %v", cfgpath, err)
 		}
-		return apmtags, err
+		dotnetConfigLogCount++
+		return APMTags{}, APMTags{}, err
 	}
+
+	// ASP.NET Core app: <aspNetCore> env vars are real process env; the Core
+	// tracer ignores <appSettings> (Framework-only), so we do too.
+	if newcfg.SystemWebServer.AspNetCore.XMLName.Local != "" {
+		return applyEnvVarsOver(APMTags{}, newcfg.SystemWebServer.AspNetCore.EnvVars), APMTags{}, nil
+	}
+
+	// .NET Framework path: <appSettings>, plus the datadog.json a
+	// DD_TRACE_CONFIG_FILE appSetting points to.
+	var appSettings APMTags
+	var chasedatadogJSON string
 	for _, setting := range newcfg.AppSettings.Adds {
 		switch setting.Key {
 		case "DD_SERVICE":
-			apmtags.DDService = setting.Value
+			appSettings.DDService = setting.Value
 		case "DD_ENV":
-			apmtags.DDEnv = setting.Value
+			appSettings.DDEnv = setting.Value
 		case "DD_VERSION":
-			apmtags.DDVersion = setting.Value
+			appSettings.DDVersion = setting.Value
 		case "DD_TRACE_CONFIG_FILE":
 			chasedatadogJSON = setting.Value
 		}
 	}
 	if len(chasedatadogJSON) > 0 {
-		ddjson, err := ReadDatadogJSON(chasedatadogJSON)
-		if err == nil {
-			if len(ddjson.DDService) > 0 {
-				apmtags.DDService = ddjson.DDService
-			}
-			if len(ddjson.DDEnv) > 0 {
-				apmtags.DDEnv = ddjson.DDEnv
-			}
-			if len(ddjson.DDVersion) > 0 {
-				apmtags.DDVersion = ddjson.DDVersion
-			}
+		ddjson, jsonErr := ReadDatadogJSON(chasedatadogJSON)
+		if jsonErr == nil {
+			// appSettings outranks datadog.json in the tracer, so appSettings
+			// overlays the datadog.json base.
+			appSettings = ddjson.Overlay(appSettings)
 		} else {
 			// only log every logErrorCountInterval occurrences because if this is misconfigured, it could flood the log
 			if errorlogcount%logErrorCountInterval == 0 {
-				log.Warnf("Error reading configured datadog.json file %s: %v", chasedatadogJSON, err)
+				log.Warnf("Error reading configured datadog.json file %s: %v", chasedatadogJSON, jsonErr)
 			}
 			errorlogcount++
 		}
 	}
-	return apmtags, nil
+	return APMTags{}, appSettings, nil
 }

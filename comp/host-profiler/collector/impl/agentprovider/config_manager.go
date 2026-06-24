@@ -55,22 +55,8 @@ func newConfigManager(config config.Component) configManager {
 	}
 
 	endpointsTotalLength := 0
-	profilingDDURL := config.GetString("apm_config.profiling_dd_url")
-	ddSite := config.GetString("site")
+	profilingSendToMainEndpoint := config.GetBool("apm_config.profiling_send_to_main_endpoint")
 	apiKey := config.GetString("api_key")
-
-	var usedSite string
-	switch {
-	case profilingDDURL != "":
-		usedSite = configutils.ExtractSiteFromURL(profilingDDURL)
-		if usedSite == "" {
-			log.Warnf("Could not extract site from apm_config.profiling_dd_url %s, skipping endpoint", profilingDDURL)
-		}
-	case ddSite != "":
-		usedSite = ddSite
-	default:
-		usedSite = "datadoghq.com"
-	}
 
 	profilingAdditionalEndpoints := config.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
 	var endpoints []endpoint
@@ -92,14 +78,16 @@ func newConfigManager(config config.Component) configManager {
 		})
 		endpointsTotalLength += len(keys)
 	}
-	log.Infof("Main site inferred from core configuration is %s", usedSite)
-
-	// Add main endpoint if we have a valid site and API key
-	if usedSite != "" && apiKey != "" {
-		endpoints = append(endpoints, endpoint{site: usedSite, apiKeys: []string{apiKey}})
-		endpointsTotalLength++
-	} else if apiKey == "" {
-		log.Warnf("No API key registered for main site %s", usedSite)
+	if profilingSendToMainEndpoint {
+		usedSite := resolveMainProfilingSite(config)
+		if usedSite != "" && apiKey != "" {
+			endpoints = append(endpoints, endpoint{site: usedSite, apiKeys: []string{apiKey}})
+			endpointsTotalLength++
+		} else if apiKey == "" {
+			log.Warnf("No API key registered for main site %s", usedSite)
+		} else {
+			log.Warnf("Skipping main profiling endpoint: could not determine site")
+		}
 	}
 
 	// Read hostprofiler fields from leaf keys directly. GetStringMap on the parent
@@ -127,4 +115,21 @@ func newConfigManager(config config.Component) configManager {
 		endpointsTotalLength: endpointsTotalLength,
 		hostProfilerConfig:   hostProfilerConfig,
 	}
+}
+
+// resolveMainProfilingSite returns the site to use for the main profiling
+// endpoint, preferring an explicit DD URL override, then the configured site,
+// then falling back to datadoghq.com.
+func resolveMainProfilingSite(config config.Component) string {
+	if ddURL := config.GetString("apm_config.profiling_dd_url"); ddURL != "" {
+		site := configutils.ExtractSiteFromURL(ddURL)
+		if site == "" {
+			log.Warnf("Could not extract site from apm_config.profiling_dd_url %s, skipping endpoint", ddURL)
+		}
+		return site
+	}
+	if site := config.GetString("site"); site != "" {
+		return site
+	}
+	return "datadoghq.com"
 }

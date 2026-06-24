@@ -523,7 +523,6 @@ def cws_go_generate(ctx, verbose=False):
     # run different `go generate` for pkg/security/secl and pkg/security
     ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
     ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
-    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/event_deep_copy")
     # CWS codegens migrated to Bazel keep their //go:generate directives so a future
     # Gazelle extension can pick them up; we just skip them in `go generate` here.
     # See ABLD-420.
@@ -531,16 +530,17 @@ def cws_go_generate(ctx, verbose=False):
     bazel(ctx, "run", "//pkg/security/secl/model:consts_map_names_linux")
     bazel(ctx, "run", "//pkg/security/secl/model:accessors_unix")
     bazel(ctx, "run", "//pkg/security/secl/model:accessors_windows")
+    bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_unix")
+    bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_windows")
     bazel(ctx, "run", "//docs/cloud-workload-security:secl_linux")
     bazel(ctx, "run", "//docs/cloud-workload-security:secl_windows")
+    skip = "operators|bpf_maps_generator|accessors|event_deep_copy"
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":
-            ctx.run("GOOS=windows go generate -run=-tag.+windows -skip='operators|bpf_maps_generator|accessors' ./...")
+            ctx.run(f"GOOS=windows go generate -run=-tag.+windows -skip='{skip}' ./...")
         elif is_windows:
-            ctx.run(
-                'set "GOOS=linux" && go generate -run=-tag.+unix -skip="operators|bpf_maps_generator|accessors" ./...'
-            )
-        cmd = "go generate -skip='operators|bpf_maps_generator|accessors'"
+            ctx.run(f'set "GOOS=linux" && go generate -run=-tag.+unix -skip="{skip}" ./...')
+        cmd = f"go generate -skip='{skip}'"
         if verbose:
             cmd += " -v"
         ctx.run(cmd + " ./...")
@@ -553,9 +553,7 @@ def cws_go_generate(ctx, verbose=False):
 
     ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
     ctx.run("go generate ./pkg/security/probe/custom_events.go")
-    ctx.run(
-        "go generate -skip='operators|bpf_maps_generator|accessors' -tags=linux_bpf,cws_go_generate ./pkg/security/..."
-    )
+    ctx.run(f"go generate -skip='{skip}' -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
     # synchronize the seclwin package from the secl package
     bazel(ctx, "run", "//pkg/security/seclwin:sync")
