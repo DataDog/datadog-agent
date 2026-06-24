@@ -61,7 +61,6 @@ go_library(
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
-        "//pkg/serverless/env",
         "//pkg/status/health",
         "//pkg/tagger/types",
         "//pkg/tagset",
