@@ -1,7 +1,18 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
-# gazelle:dd_agent_go_test on
+go_test(
+    name = "test_test",
+    srcs = [
+        "buffer_test.go",
+        "example_test.go",
+    ],
+    embed = [":test"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/testutil",
+    ],
+)
 
 go_library(
     name = "test",
@@ -32,18 +43,5 @@ go_library(
         "@org_golang_google_grpc//credentials",
         "@org_golang_google_protobuf//proto",
         "@org_uber_go_atomic//:atomic",
-    ],
-)
-
-dd_agent_go_test(
-    name = "test_test",
-    srcs = [
-        "buffer_test.go",
-        "example_test.go",
-    ],
-    embed = [":test"],
-    deps = [
-        "//pkg/proto/pbgo/trace",
-        "//pkg/trace/testutil",
     ],
 )
