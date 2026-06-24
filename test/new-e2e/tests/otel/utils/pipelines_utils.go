@@ -111,9 +111,9 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
 		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
 		if sp.Meta["span.kind"] == "client" {
-			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
+			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.scope.name"])
 		} else {
-			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.scope.name"])
 		}
 		ctags, ok := getContainerTags(s.T(), tp)
 		assert.True(s.T(), ok)
@@ -180,14 +180,14 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 			assert.Equal(s.T(), "http", sp.Type)
 			assert.IsType(s.T(), uint64(0), sp.ParentID)
 			assert.NotZero(s.T(), sp.ParentID)
-			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
+			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.scope.name"])
 		} else {
 			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
 			assert.Equal(s.T(), "http.server.request", sp.Name)
 			assert.Equal(s.T(), "GET", sp.Resource)
 			assert.Equal(s.T(), "web", sp.Type)
 			assert.Zero(s.T(), sp.ParentID)
-			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.scope.name"])
 		}
 		assert.IsType(s.T(), uint64(0), sp.TraceID)
 		assert.NotZero(s.T(), sp.TraceID)
