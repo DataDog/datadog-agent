@@ -286,9 +286,6 @@ func InitConfigObjects() {
 	// Configuration defaults, should only be logic-free calls to BindEnvAndSetDefault / BindEnv / SetDefault
 	initConfig()
 
-	// Post-init fixups, custom logic to tweak certain settings
-	fixupInitConfig()
-
 	// Build the environment variable layer
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
@@ -313,6 +310,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	initCoreAgentFull(config)
 	// Settings associated with a feature / product that only appear in the full agent, not in serverless
 	initFullAgentOnlyComponents(config)
+
+	// Post-init fixups, custom logic to tweak certain settings
+	fixupInitConfig()
 }
 
 // settings shared by full agent and serverless

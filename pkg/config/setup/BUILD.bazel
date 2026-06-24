@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "setup",
     srcs = [
-        "apm.go",
+        "apm_settings.go",
         "common_settings.go",
         "config.go",
         "config_accessor.go",
@@ -16,10 +16,13 @@ go_library(
         "config_windows.go",
         "fixup_init.go",
         "ipc_address.go",
-        "multi_region_failover.go",
+        "multi_region_failover_settings.go",
         "otlp.go",
+        "otlp_settings.go",
         "privateactionrunner.go",
+        "privateactionrunner_settings.go",
         "process.go",
+        "process_settings.go",
         "security_agent.go",
         "standard_names.go",
         "system_probe.go",
