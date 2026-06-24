@@ -49,6 +49,21 @@ build do
     python = "#{install_dir}/embedded/bin/python3"
   end
 
+  # Temporary debug for PR #52657: force the real Bazel BuildPythonWheel action for php_fpm
+  # to run locally, uncached, from an output base under the checkout. The instrumented
+  # build_wheel.py intentionally fails after printing which .gitignore Hatchling sees and
+  # whether the wheel contains datadog_checks/php_fpm/vendor.
+  command_on_repo_root "probe_output_base=\"${PWD}/.cache/bazel/php-fpm-gitignore-probe\"; " \
+                       "rm -rf \"${probe_output_base}\"; " \
+                       "bazelisk --output_base=\"${probe_output_base}\" build " \
+                       "--sandbox_debug --verbose_failures --subcommands " \
+                       "--modify_execution_info=BuildPythonWheel=+no-cache,+no-remote-cache,+no-remote-exec " \
+                       "--noremote_accept_cached --noremote_upload_local_results --disk_cache= " \
+                       "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
+                       "--//:install_dir=#{install_dir} " \
+                       "@integration_source_packages//php_fpm:wheel",
+    :live_stream => Omnibus.logger.live_stream(:info)
+
   # Install integration dependencies, datadog-checks-base, datadog-checks-downloader, and integration wheels
   command_on_repo_root "bazelisk run " \
                        "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
