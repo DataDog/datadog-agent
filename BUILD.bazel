@@ -210,7 +210,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
 # gazelle:exclude pkg/collector/corechecks/gpu/nvidia
 # gazelle:exclude pkg/collector/corechecks/gpu/spec
-# gazelle:exclude pkg/collector/corechecks/net
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/sdwan_test.go
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/sdwan.go
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/*.go
@@ -226,7 +225,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/orchestrator/pod
 # gazelle:exclude pkg/collector/corechecks/sbom
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/test
-# gazelle:exclude pkg/collector/corechecks/system/cpu
 # gazelle:exclude pkg/collector/corechecks/system/disk
 # gazelle:exclude pkg/collector/corechecks/system/filehandles
 # gazelle:exclude pkg/collector/corechecks/system/wincrashdetect/*.go
