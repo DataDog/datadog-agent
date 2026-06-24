@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fixed spurious ``could not set '<endpoint>.use_http' unknown key`` errors
+    logged at startup when ``fips.enabled`` is set to ``true``. The ``use_http``
+    setting is now registered for the database monitoring, network devices,
+    runtime security, and compliance endpoints that FIPS mode configures, so it
+    is applied instead of being rejected as an unknown key.

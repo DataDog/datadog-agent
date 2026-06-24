@@ -1802,8 +1802,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.kubelet_api_client_read_timeout", "30s")
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultpaths.GetDefaultRunPath())
-	// DEPRECATED in favor of `logs_config.force_use_http`.
-	config.BindEnvAndSetDefault("logs_config.use_http", false)
+	// logs_config.use_http is registered for all log endpoints via bindEnvAndSetLogsConfigKeys.
+	// force_use_http is the preferred way to force HTTP and takes precedence over use_http.
 	config.BindEnvAndSetDefault("logs_config.force_use_http", false)
 	// DEPRECATED in favor of `logs_config.force_use_tcp`.
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)

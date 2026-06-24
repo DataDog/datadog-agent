@@ -1118,6 +1118,34 @@ fips:
 	require.Error(t, err)
 }
 
+// TestSetupFipsEndpointsUseHTTPRegistered ensures use_http is a known config key
+// for every endpoint that FIPS overrides. It uses a production-like config
+// (schema built, dynamic schema disabled) because the other FIPS tests enable
+// dynamic schema, which masks the unknown-key rejection that happens in
+// production and would otherwise hide a missing schema registration.
+func TestSetupFipsEndpointsUseHTTPRegistered(t *testing.T) {
+	conf := newSchemaTestConf(t, `
+fips:
+  enabled: true
+  local_address: localhost
+  port_range_start: 5000
+`)
+	require.NoError(t, setupFipsEndpoints(conf))
+
+	for _, prefix := range []string{
+		"database_monitoring.metrics.",
+		"database_monitoring.activity.",
+		"database_monitoring.samples.",
+		"network_devices.metadata.",
+		"network_devices.snmp_traps.forwarder.",
+		"network_devices.netflow.forwarder.",
+		"runtime_security_config.endpoints.",
+		"compliance_config.endpoints.",
+	} {
+		assert.True(t, conf.GetBool(prefix+"use_http"), "%suse_http should be forced to true under FIPS", prefix)
+	}
+}
+
 func TestEnablePeerServiceStatsAggregationYAML(t *testing.T) {
 	datadogYaml := `
 apm_config:
