@@ -277,14 +277,6 @@ properties:
           - apps/deployments
           - /nodes
           - nodes
-  kueue:
-    node_type: section
-    type: object
-    properties:
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
   kubernetes_resources_collection:
     node_type: section
     type: object
@@ -305,6 +297,14 @@ properties:
         - ^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$
         items:
           type: string
+  kueue:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
   language_detection:
     node_type: section
     type: object
@@ -339,18 +339,6 @@ properties:
             node_type: setting
             type: string
             default: 1h
-  mcp:
-    node_type: section
-    type: object
-    properties:
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
-      endpoint:
-        node_type: setting
-        type: string
-        default: /mcp
   refresh_on_cache_miss:
     node_type: setting
     type: boolean

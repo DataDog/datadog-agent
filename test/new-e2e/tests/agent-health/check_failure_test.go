@@ -89,7 +89,7 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 
 		require.NotEmpty(t, issues)
 		issue := issues[0]
-		assert.Equal(t, "check_execution_failure", issue.IssueName)
+		assert.Equal(t, "Check Execution Failure", issue.IssueName)
 		assert.Equal(t, "check-execution", issue.Category)
 		assert.Equal(t, "collector", issue.Source)
 		assert.Contains(t, issue.Tags, "broken_check")
