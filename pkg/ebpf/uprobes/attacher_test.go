@@ -132,7 +132,7 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 		{
 			name: "self excluded",
 			pid:  uint32(os.Getpid()),
-			setup: func(t *testing.T, _ uint32) (AttacherConfig, *MockBinaryInspector) {
+			setup: func(_ *testing.T, _ uint32) (AttacherConfig, *MockBinaryInspector) {
 				return AttacherConfig{
 					ExcludeTargets: ExcludeSelf,
 				}, nil
@@ -144,7 +144,7 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 		{
 			name: "process does not exist",
 			pid:  1,
-			setup: func(t *testing.T, pid uint32) (AttacherConfig, *MockBinaryInspector) {
+			setup: func(t *testing.T, _ uint32) (AttacherConfig, *MockBinaryInspector) {
 				// No process entry setup, so we will fail when we try to get the executable path
 				procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{})
 
