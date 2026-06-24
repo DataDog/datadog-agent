@@ -397,7 +397,7 @@ func getSysfsHeaderDirs(tmpDir string, v kernel.Version) ([]string, error) {
 	sysprobeTmpPath := filepath.Join(tmpDir, "system-probe")
 	tmpPath := filepath.Join(sysprobeTmpPath, fmt.Sprintf("linux-headers-%s", v))
 
-	sfi, statErr := os.Stat(sysprobeTmpPath)
+	sfi, statErr := os.Lstat(sysprobeTmpPath)
 	if statErr != nil {
 		if errors.Is(statErr, fs.ErrNotExist) {
 			if err := os.MkdirAll(sysprobeTmpPath, 0755); err != nil {
@@ -409,6 +409,9 @@ func getSysfsHeaderDirs(tmpDir string, v kernel.Version) ([]string, error) {
 	} else {
 		if !sfi.IsDir() {
 			return nil, fmt.Errorf("%w: %s is not a directory", errInvalidTempDirectory, sysprobeTmpPath)
+		}
+		if sfi.Mode()&fs.ModeSymlink != 0 {
+			return nil, fmt.Errorf("%w: %s is not allowed to be a symlink", errInvalidTempDirectory, sysprobeTmpPath)
 		}
 
 		stat, ok := sfi.Sys().(*syscall.Stat_t)
