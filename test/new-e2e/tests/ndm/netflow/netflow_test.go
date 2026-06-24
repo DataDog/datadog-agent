@@ -146,9 +146,9 @@ func (s *netflowDockerSuite) TestNetflow() {
 		for _, ndmflow := range ndmflows {
 			stats.flowTypes[ndmflow.FlowType]++
 			stats.ipProtocols[ndmflow.IPProtocol]++
-			stats.dscpNames[ndmflow.DscpName]++
-			assert.NotEmpty(c, ndmflow.DscpName, "dscp_name should always be populated (falls back to DSCP-<n>)")
-			assert.Equal(c, ndmflow.Tos>>2, ndmflow.Dscp, "dscp should be the top 6 bits of the tos byte")
+			stats.dscpNames[ndmflow.DSCPName]++
+			assert.NotEmpty(c, ndmflow.DSCPName, "dscp_name should always be populated (falls back to DSCP-<n>)")
+			assert.Equal(c, ndmflow.TOS>>2, ndmflow.DSCP, "dscp should be the top 6 bits of the tos byte")
 		}
 		s.T().Logf("flows_flushed metric shows that agent sent %d flows, fakeintake received %d ndmflows", int(totalFlowsFlushed), len(ndmflows))
 		s.T().Logf("stats: %+v", stats)
