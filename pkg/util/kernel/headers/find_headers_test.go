@@ -117,4 +117,18 @@ func TestInvalidExistingKernelHeaders(t *testing.T) {
 		_, err = getSysfsHeaderDirs(tmpDir, kv)
 		require.ErrorIs(t, err, errInvalidTempDirectory)
 	})
+
+	t.Run("symlink", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		dst := filepath.Join(tmpDir, "symdst")
+		err := os.MkdirAll(dst, 0777)
+		require.NoError(t, err)
+
+		sp := filepath.Join(tmpDir, "system-probe")
+		err = os.Symlink(dst, sp)
+		require.NoError(t, err)
+
+		_, err = getSysfsHeaderDirs(tmpDir, kv)
+		require.ErrorIs(t, err, errInvalidTempDirectory)
+	})
 }
