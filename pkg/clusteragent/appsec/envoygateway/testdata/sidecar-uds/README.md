@@ -134,11 +134,14 @@ kubectl wait --for=condition=ready pod \
 - existing `envoy` container volumeMount: `datadog-appsec-uds` mounted at `/var/run/datadog`
 - sidecar container: `datadog-appsec`
 - sidecar image: `ghcr.io/datadog/dd-trace-go/service-extensions-callout@sha256:d2a11c0346ee8a907749a7af5a7aba96546a0200cd9e4da34b1048e4c07c764f`
-- sidecar env:
+- sidecar env (injected by the webhook `BuildExtProcProcessorContainerUDS`):
   - `DD_SERVICE_EXTENSION_UDS_PATH=/var/run/datadog/extproc.sock`
+  - `DD_SERVICE_EXTENSION_TLS=false`
   - `DD_SERVICE_EXTENSION_HEALTHCHECK_PORT=8081`
   - `DD_SERVICE_EXTENSION_OBSERVABILITY_MODE=false`
   - `DD_APM_TRACING_ENABLED=false`
+  - `DD_APPSEC_BODY_PARSING_SIZE_LIMIT` (only when configured)
+- sidecar env set ONLY by the manual `02-envoyproxy.yaml` patch (the webhook does NOT inject these):
   - `DD_APPSEC_WAF_TIMEOUT=10ms`
   - `DD_TRACE_AGENT_URL=http://127.0.0.1:8126` (optional local-test placeholder)
 - sidecar port: named `health`, `containerPort: 8081`

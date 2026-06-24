@@ -177,6 +177,10 @@ properties:
             node_type: section
             type: object
             properties:
+              controller_namespace:
+                node_type: setting
+                type: string
+                default: envoy-gateway-system
               namespace:
                 node_type: setting
                 type: string

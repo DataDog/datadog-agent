@@ -56,6 +56,17 @@ func (e *envoyGatewayInjectionPattern) envoyGatewayNamespace() string {
 	return envoyGatewaySystemNamespace
 }
 
+// envoyGatewayControllerNamespace returns the configured Envoy Gateway control-plane namespace, where
+// the envoy-gateway-config ConfigMap lives, falling back to envoy-gateway-system when unset. It is
+// resolved separately from the data-plane namespace because proxies can run in Gateway namespaces
+// while the controller config stays in the control-plane namespace.
+func (e *envoyGatewayInjectionPattern) envoyGatewayControllerNamespace() string {
+	if ns := e.config.EnvoyGatewayControllerNamespace; ns != "" {
+		return ns
+	}
+	return envoyGatewaySystemNamespace
+}
+
 func (e *envoyGatewaySidecarPattern) ShouldMutatePod(pod *corev1.Pod) bool {
 	if pod.Labels[owningGatewayNameLabel] == "" {
 		return false
@@ -116,7 +127,7 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 		return false, nil
 	}
 
-	e.warnIfBackendDisabled(context.TODO(), e.envoyGatewayNamespace())
+	e.warnIfBackendDisabled(context.TODO(), e.envoyGatewayControllerNamespace())
 
 	gwName := pod.Labels[owningGatewayNameLabel]
 	if gwName == "" {

@@ -86,6 +86,19 @@ func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) 
 		return fmt.Errorf("%w: error getting Gateway", err)
 	}
 
+	if e.Mode() == appsecconfig.InjectionModeSidecar {
+		// Sidecar mode creates Backend resources per pod, so verify the CRD up front: this makes the
+		// injector fail once at startup instead of failing on every Envoy pod admission.
+		_, err = e.client.Resource(crdGVR).Get(ctx, gvrToName(backendGVR), metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			return fmt.Errorf("%w: Backend CRD not found, is the Envoy Gateway Backend extension API enabled? Cannot enable appsec proxy injection for envoy-gateway sidecar mode", err)
+		}
+
+		if err != nil {
+			return fmt.Errorf("%w: error getting Backend CRD", err)
+		}
+	}
+
 	if e.Mode() != appsecconfig.InjectionModeSidecar {
 		// Check if the ReferenceGrant CRD is present
 		_, err = e.client.Resource(crdGVR).Get(ctx, gvrToName(referenceGrantGVR), metav1.GetOptions{})

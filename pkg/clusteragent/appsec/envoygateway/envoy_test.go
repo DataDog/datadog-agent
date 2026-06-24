@@ -835,3 +835,61 @@ func TestDeleted_PolicyDeletionError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to delete policy")
 }
+
+func TestIsInjectionPossible_SidecarChecksBackendCRD(t *testing.T) {
+	allCRDsPresent := func(client *dynamicfake.FakeDynamicClient) {
+		client.PrependReactor("get", "customresourcedefinitions", func(action k8stesting.Action) (bool, runtime.Object, error) {
+			crd := &unstructured.Unstructured{}
+			crd.SetName(action.(k8stesting.GetAction).GetName())
+			return true, crd, nil
+		})
+	}
+
+	tests := []struct {
+		name      string
+		setupMock func(*dynamicfake.FakeDynamicClient)
+		wantErr   bool
+		errMsg    string
+	}{
+		{
+			name:      "all CRDs present",
+			setupMock: allCRDsPresent,
+			wantErr:   false,
+		},
+		{
+			name: "backend CRD missing",
+			setupMock: func(client *dynamicfake.FakeDynamicClient) {
+				client.PrependReactor("get", "customresourcedefinitions", func(action k8stesting.Action) (bool, runtime.Object, error) {
+					name := action.(k8stesting.GetAction).GetName()
+					if name == "backends.gateway.envoyproxy.io" {
+						return true, nil, apierrors.NewNotFound(schema.GroupResource{Group: "apiextensions.k8s.io", Resource: "customresourcedefinitions"}, name)
+					}
+					crd := &unstructured.Unstructured{}
+					crd.SetName(name)
+					return true, crd, nil
+				})
+			},
+			wantErr: true,
+			errMsg:  "Backend CRD not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			logger := logmock.New(t)
+			client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
+			config := appsecconfig.Config{Product: appsecconfig.Product{Mode: appsecconfig.InjectionModeSidecar}}
+			pattern := newTestEnvoyGatewayPattern(t, client, logger, config)
+			tt.setupMock(client)
+
+			err := pattern.IsInjectionPossible(ctx)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

@@ -374,3 +374,41 @@ func TestEnvoyGatewaySidecarIsNamespaceEligibleHonorsConfig(t *testing.T) {
 	assert.True(t, custom.IsNamespaceEligible("custom-eg"), "configured namespace must be eligible")
 	assert.False(t, custom.IsNamespaceEligible(envoyGatewaySystemNamespace), "non-configured namespace must be rejected")
 }
+
+func TestEnvoyGatewaySidecarBackendCheckUsesControllerNamespace(t *testing.T) {
+	logger := logmock.New(t)
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
+	recorder := record.NewFakeRecorder(100)
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Mode:    appsecconfig.InjectionModeSidecar,
+			Sidecar: appsecconfig.Sidecar{UDSPath: "/var/run/datadog/extproc.sock", RunAsUser: 65532},
+		},
+		Injection: appsecconfig.Injection{
+			EnvoyGatewayNamespace:           "custom-dataplane",
+			EnvoyGatewayControllerNamespace: "custom-control",
+			CommonLabels:                    map[string]string{"app": "datadog"},
+			CommonAnnotations:               map[string]string{"managed-by": "datadog"},
+		},
+	}
+	seedConfigMap(t, client, "custom-control", "extensionApis:\n  enableBackend: true\n")
+
+	pattern, ok := New(client, logger, config, recorder).(appsecconfig.SidecarInjectionPattern)
+	require.True(t, ok)
+	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
+
+	mutated, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+	require.NoError(t, err)
+	require.True(t, mutated)
+
+	for draining := true; draining; {
+		select {
+		case evt := <-recorder.Events:
+			assert.NotContains(t, evt, EventReasonBackendExtensionDisabled,
+				"backend-disabled warning must not fire: controller-namespace ConfigMap has enableBackend=true")
+		case <-time.After(200 * time.Millisecond):
+			draining = false
+		}
+	}
+}
