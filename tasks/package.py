@@ -255,7 +255,9 @@ def download(
                 image_url = get_docker_image_url(
                     int(pipeline), binary, flavor, arch, commit_short_sha, ecr_release_suffix
                 )
-            output_path = os.path.join(path, f"{get_package_name(binary, flavor)}-{arch}.tar")
+            if not os.path.isdir(path):
+                raise Exit(code=1, message=f"--path must be a directory for docker/oci downloads, got: {path}")
+            output_path = os.path.join(path, f"{get_package_name(binary, flavor)}-{arch}.{_type}")
             crane_format = "--format=oci " if _type == "oci" else ""
             ctx.run(f"crane pull {crane_format}{shlex.quote(image_url)} {shlex.quote(output_path)}")
 
