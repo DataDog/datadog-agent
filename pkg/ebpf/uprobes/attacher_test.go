@@ -30,6 +30,7 @@ import (
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // === Tests
@@ -129,6 +130,45 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 			},
 			expectedError: ErrSelfExcluded,
 			isExpected:    true,
+		},
+		{
+			name:         "library has no symbols",
+			pid:          1,
+			attachToLibs: true,
+			setup: func(t *testing.T, pid uint32) (AttacherConfig, *MockBinaryInspector) {
+				exe := "foobar"
+				libname := "/target/libssl.so"
+				maps := "08048000-08049000 r-xp 00000000 03:00 8312       " + libname
+				procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe, Maps: maps}})
+				config := AttacherConfig{
+					ProcRoot: procRoot,
+					Rules: []*AttachRule{
+						{
+							LibraryNameRegex: regexp.MustCompile(`libssl\.so`),
+							ProbesSelector: []manager.ProbesSelector{
+								&manager.ProbeSelector{
+									ProbeIdentificationPair: manager.ProbeIdentificationPair{
+										EBPFFuncName: "uprobe__SSL_connect",
+									},
+								},
+							},
+							Targets: AttachToSharedLibraries,
+						},
+					},
+					SharedLibsLibsets: []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
+				}
+
+				inspector := &MockBinaryInspector{}
+				inspector.On("Inspect", mock.Anything, mock.Anything).Return(map[int]*InspectionResult{
+					0: {Error: safeelf.ErrNoSymbols},
+				}, nil)
+				inspector.On("Cleanup", mock.Anything).Return(nil)
+
+				return config, inspector
+			},
+			expectedError:    safeelf.ErrNoSymbols,
+			isExpected:       true,
+			mockFileRegistry: true,
 		},
 	}
 
