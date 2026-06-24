@@ -1,0 +1,855 @@
+2026-05-16 05:12:56 UTC | CORE | INFO | (pkg/util/log/log.go:739 in func1) | config lib used: nodetreemodel
+2026-05-16 05:12:56 UTC | CORE | INFO | (pkg/util/log/log.go:739 in func1) | Using '/opt/datadog-agent/embedded' as Python home
+2026-05-16 05:12:56 UTC | CORE | INFO | (pkg/util/log/log.go:739 in func1) | config lib used: nodetreemodel
+2026-05-16 05:12:56 UTC | CORE | INFO | (pkg/util/log/log.go:734 in func1) | Starting to load the configuration
+2026-05-16 05:12:56 UTC | CORE | WARN | (pkg/util/log/log.go:779 in func1) | Unknown environment variable: DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED
+2026-05-16 05:12:56 UTC | CORE | INFO | (pkg/util/log/log.go:734 in func1) | Loading proxy settings
+2026-05-16 05:12:56 UTC | CORE | WARN | (pkg/util/log/log.go:779 in func1) | Set('proxy.no_proxy'): converting value from []interface {} to []string to match default type
+2026-05-16 05:12:56 UTC | CORE | INFO | (pkg/util/log/log.go:734 in func1) | Starting to resolve secrets
+2026-05-16 05:12:56 UTC | CORE | INFO | (pkg/util/log/log.go:734 in func1) | Finished resolving secrets
+2026-05-16 05:12:56 UTC | CORE | WARN | (pkg/util/log/log.go:779 in func1) | Deactivating Autoconfig will disable most components. It's recommended to use autoconfig_exclude_features and autoconfig_include_features to activate/deactivate features selectively
+2026-05-16 05:12:56 UTC | CORE | INFO | (pkg/util/log/log.go:739 in func1) | Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false
+2026-05-16 05:12:56 UTC | CORE | INFO | (pkg/config/setup/config.go:830 in loadCustom) | Starting to load the configuration
+2026-05-16 05:12:56 UTC | CORE | INFO | (comp/core/ipc/impl/ipc.go:194 in printAuthSignature) | successfully loaded the IPC auth primitives (fingerprint: 3490cb8e7749ca2e)
+Getting the status from the agent.
+
+=====================================
+Agent (v7.80.0-devel+git.820.dff3e96)
+=====================================
+  Status date: 2026-05-16 05:12:56.236 UTC (1778908376236)
+  Agent start: 2026-05-16 05:09:25.373 UTC (1778908165373)
+  Pid: 1
+  Go Version: go1.25.10
+  Python Version: 3.13.13
+  Build arch: amd64
+  Agent flavor: agent
+  FIPS Mode: not available
+  Log Level: info
+  Configuration lib used: nodetreemodel
+
+  Paths
+  =====
+    Config File: /etc/datadog-agent/datadog.yaml
+    conf.d: /etc/datadog-agent/conf.d
+    checks.d: /etc/datadog-agent/checks.d
+
+========
+Hostname
+========
+
+  cluster-name: orch-starve
+  host_aliases: [i-0de85fbd6be37e687]
+  hostname: orch-starve-control-plane
+  hostname-resolution-version: 1
+  instance-id: i-0de85fbd6be37e687
+  socket-fqdn: lab-cluster-checks-runner-6bddbddf64-kxgq7
+  socket-hostname: lab-cluster-checks-runner-6bddbddf64-kxgq7
+  host tags:
+    cluster_name:orch-starve
+    kube_cluster_name:orch-starve
+    lab:orchestrator-starvation
+    orch_cluster_id:f99c7447-374e-4112-a040-33da2baf9445
+  hostname provider: configuration
+
+
+Host Info
+=========
+  bootTime: 2026-05-06 19:44:24 UTC (1778096664000)
+  hostId: a81c2e18-a555-4fab-95f6-31c67ad7f38d
+  kernelArch: x86_64
+  kernelVersion: 6.8.0-1040-aws
+  os: linux
+  platform: ubuntu
+  platformFamily: debian
+  platformVersion: 24.04
+  procs: 1
+  uptime: 9d9h25m2s
+
+
+======
+Clocks
+======
+
+Intake offset: -651.798ms
+
+========
+Metadata
+========
+
+
+=================
+HA Agent Metadata
+=================
+
+
+=========
+Collector
+=========
+
+
+  Running Checks
+  ==============
+
+    openmetrics (7.4.1)
+    -------------------
+      Instance ID: openmetrics:126e85b2ce51d8a6 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0071[0]
+      Total Runs: 9
+      Metric Samples: Last Run: 2,000, Total: 18,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 9
+      Average Execution Time : 10.194s
+      Last Execution Date : 2026-05-16 05:12:46.586 UTC (1778908366586)
+      Last Successful Execution Date : 2026-05-16 05:12:46 UTC (1778908366000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0071[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:15f7935c8575dac1 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0134[0]
+      Total Runs: 9
+      Metric Samples: Last Run: 2,000, Total: 18,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 9
+      Average Execution Time : 10.556s
+      Last Execution Date : 2026-05-16 05:12:48.449 UTC (1778908368449)
+      Last Successful Execution Date : 2026-05-16 05:12:48 UTC (1778908368000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0134[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:1d6cfd64a1898336 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0192[0]
+      Total Runs: 8
+      Metric Samples: Last Run: 2,000, Total: 16,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 8
+      Average Execution Time : 11.663s
+      Last Execution Date : 2026-05-16 05:12:43.967 UTC (1778908363967)
+      Last Successful Execution Date : 2026-05-16 05:12:43 UTC (1778908363000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0192[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:22b679a69ddee617 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0064[0]
+      Total Runs: 5
+      Metric Samples: Last Run: 2,000, Total: 10,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 5
+      Average Execution Time : 15.6s
+      Last Execution Date : 2026-05-16 05:12:47.679 UTC (1778908367679)
+      Last Successful Execution Date : 2026-05-16 05:12:47 UTC (1778908367000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0064[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:22f982973b47c90a [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0023[0]
+      Total Runs: 9
+      Metric Samples: Last Run: 2,000, Total: 18,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 9
+      Average Execution Time : 10.601s
+      Last Execution Date : 2026-05-16 05:12:35.939 UTC (1778908355939)
+      Last Successful Execution Date : 2026-05-16 05:12:35 UTC (1778908355000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0023[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:253c653c61c0e64d [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0180[0]
+      Total Runs: 5
+      Metric Samples: Last Run: 2,000, Total: 10,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 5
+      Average Execution Time : 18.095s
+      Last Execution Date : 2026-05-16 05:12:54.872 UTC (1778908374872)
+      Last Successful Execution Date : 2026-05-16 05:12:54 UTC (1778908374000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0180[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:2a64c4bdef7b62b [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0042[0]
+      Total Runs: 4
+      Metric Samples: Last Run: 2,000, Total: 8,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 4
+      Average Execution Time : 16.476s
+      Last Execution Date : 2026-05-16 05:12:22.528 UTC (1778908342528)
+      Last Successful Execution Date : 2026-05-16 05:12:22 UTC (1778908342000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0042[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:2d9945d4d57da4d7 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0085[0]
+      Total Runs: 5
+      Metric Samples: Last Run: 2,000, Total: 10,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 5
+      Average Execution Time : 16.977s
+      Last Execution Date : 2026-05-16 05:12:52.322 UTC (1778908372322)
+      Last Successful Execution Date : 2026-05-16 05:12:52 UTC (1778908372000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0085[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:2e5f53fb6ac44fca [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0163[0]
+      Total Runs: 7
+      Metric Samples: Last Run: 2,000, Total: 14,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 7
+      Average Execution Time : 13.335s
+      Last Execution Date : 2026-05-16 05:12:47.655 UTC (1778908367655)
+      Last Successful Execution Date : 2026-05-16 05:12:47 UTC (1778908367000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0163[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:447cd43c4aa8ad7 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0029[0]
+      Total Runs: 8
+      Metric Samples: Last Run: 2,000, Total: 16,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 8
+      Average Execution Time : 10.885s
+      Last Execution Date : 2026-05-16 05:12:31.666 UTC (1778908351666)
+      Last Successful Execution Date : 2026-05-16 05:12:31 UTC (1778908351000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0029[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:4a3683da56066362 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0169[0]
+      Total Runs: 8
+      Metric Samples: Last Run: 2,000, Total: 16,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 8
+      Average Execution Time : 8.213s
+      Last Execution Date : 2026-05-16 05:12:23.795 UTC (1778908343795)
+      Last Successful Execution Date : 2026-05-16 05:12:23 UTC (1778908343000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0169[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:4ba163a8aa2ed447 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0094[0]
+      Total Runs: 7
+      Metric Samples: Last Run: 2,000, Total: 14,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 7
+      Average Execution Time : 12.024s
+      Last Execution Date : 2026-05-16 05:12:32.296 UTC (1778908352296)
+      Last Successful Execution Date : 2026-05-16 05:12:32 UTC (1778908352000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0094[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:54a925015d89b502 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0036[0]
+      Total Runs: 8
+      Metric Samples: Last Run: 2,000, Total: 16,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 8
+      Average Execution Time : 12.094s
+      Last Execution Date : 2026-05-16 05:12:44.189 UTC (1778908364189)
+      Last Successful Execution Date : 2026-05-16 05:12:44 UTC (1778908364000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0036[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:5617b606f76d55e2 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0011[0]
+      Total Runs: 4
+      Metric Samples: Last Run: 2,000, Total: 8,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 4
+      Average Execution Time : 16.361s
+      Last Execution Date : 2026-05-16 05:12:35.251 UTC (1778908355251)
+      Last Successful Execution Date : 2026-05-16 05:12:35 UTC (1778908355000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0011[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:5982c65ae58b5c48 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0031[0]
+      Total Runs: 9
+      Metric Samples: Last Run: 2,000, Total: 18,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 9
+      Average Execution Time : 11.244s
+      Last Execution Date : 2026-05-16 05:12:53.698 UTC (1778908373698)
+      Last Successful Execution Date : 2026-05-16 05:12:53 UTC (1778908373000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0031[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:5a5e4c40285f5054 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0083[0]
+      Total Runs: 9
+      Metric Samples: Last Run: 2,000, Total: 18,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 9
+      Average Execution Time : 10.579s
+      Last Execution Date : 2026-05-16 05:12:47.95 UTC (1778908367950)
+      Last Successful Execution Date : 2026-05-16 05:12:47 UTC (1778908367000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0083[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:5bf69e52f5cccfd1 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0128[0]
+      Total Runs: 6
+      Metric Samples: Last Run: 2,000, Total: 12,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 6
+      Average Execution Time : 12.468s
+      Last Execution Date : 2026-05-16 05:12:21.255 UTC (1778908341255)
+      Last Successful Execution Date : 2026-05-16 05:12:21 UTC (1778908341000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0128[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:69a2a1600836d483 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0111[0]
+      Total Runs: 4
+      Metric Samples: Last Run: 2,000, Total: 8,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 4
+      Average Execution Time : 15.818s
+      Last Execution Date : 2026-05-16 05:12:22.629 UTC (1778908342629)
+      Last Successful Execution Date : 2026-05-16 05:12:22 UTC (1778908342000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0111[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:6a62c2a37aad8c [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0105[0]
+      Total Runs: 4
+      Metric Samples: Last Run: 2,000, Total: 8,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 4
+      Average Execution Time : 17.368s
+      Last Execution Date : 2026-05-16 05:12:40.566 UTC (1778908360566)
+      Last Successful Execution Date : 2026-05-16 05:12:40 UTC (1778908360000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0105[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:6b69f276f3ba4817 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0184[0]
+      Total Runs: 7
+      Metric Samples: Last Run: 2,000, Total: 14,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 7
+      Average Execution Time : 11.728s
+      Last Execution Date : 2026-05-16 05:12:55.456 UTC (1778908375456)
+      Last Successful Execution Date : 2026-05-16 05:12:55 UTC (1778908375000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0184[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:792be483bf0e193c [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0106[0]
+      Total Runs: 9
+      Metric Samples: Last Run: 2,000, Total: 18,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 9
+      Average Execution Time : 10.21s
+      Last Execution Date : 2026-05-16 05:12:54.215 UTC (1778908374215)
+      Last Successful Execution Date : 2026-05-16 05:12:54 UTC (1778908374000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0106[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:7ac895916f9e9ac5 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0170[0]
+      Total Runs: 4
+      Metric Samples: Last Run: 2,000, Total: 8,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 4
+      Average Execution Time : 15.835s
+      Last Execution Date : 2026-05-16 05:12:28.855 UTC (1778908348855)
+      Last Successful Execution Date : 2026-05-16 05:12:28 UTC (1778908348000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0170[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:7ff38b1eb2cd601e [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0052[0]
+      Total Runs: 10
+      Metric Samples: Last Run: 2,000, Total: 20,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 10
+      Average Execution Time : 9.786s
+      Last Execution Date : 2026-05-16 05:12:55.183 UTC (1778908375183)
+      Last Successful Execution Date : 2026-05-16 05:12:55 UTC (1778908375000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0052[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:835d73a58a112dc7 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0129[0]
+      Total Runs: 4
+      Metric Samples: Last Run: 2,000, Total: 8,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 4
+      Average Execution Time : 15.072s
+      Last Execution Date : 2026-05-16 05:12:20.992 UTC (1778908340992)
+      Last Successful Execution Date : 2026-05-16 05:12:20 UTC (1778908340000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0129[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:85cd5fc7d4513cb6 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0179[0]
+      Total Runs: 8
+      Metric Samples: Last Run: 2,000, Total: 16,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 8
+      Average Execution Time : 13.57s
+      Last Execution Date : 2026-05-16 05:12:55.429 UTC (1778908375429)
+      Last Successful Execution Date : 2026-05-16 05:12:55 UTC (1778908375000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0179[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:87d59089be1576bb [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0012[0]
+      Total Runs: 5
+      Metric Samples: Last Run: 2,000, Total: 10,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 5
+      Average Execution Time : 17.927s
+      Last Execution Date : 2026-05-16 05:12:53.382 UTC (1778908373382)
+      Last Successful Execution Date : 2026-05-16 05:12:53 UTC (1778908373000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0012[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:901c97c920dff740 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0072[0]
+      Total Runs: 7
+      Metric Samples: Last Run: 2,000, Total: 14,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 7
+      Average Execution Time : 12.925s
+      Last Execution Date : 2026-05-16 05:12:36.059 UTC (1778908356059)
+      Last Successful Execution Date : 2026-05-16 05:12:36 UTC (1778908356000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0072[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:a7741610522411d1 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0087[0]
+      Total Runs: 4
+      Metric Samples: Last Run: 2,000, Total: 8,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 4
+      Average Execution Time : 15.76s
+      Last Execution Date : 2026-05-16 05:12:22.599 UTC (1778908342599)
+      Last Successful Execution Date : 2026-05-16 05:12:22 UTC (1778908342000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0087[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:b1a0a99dc322b5cb [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0030[0]
+      Total Runs: 6
+      Metric Samples: Last Run: 2,000, Total: 12,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 6
+      Average Execution Time : 12.022s
+      Last Execution Date : 2026-05-16 05:12:25.39 UTC (1778908345390)
+      Last Successful Execution Date : 2026-05-16 05:12:25 UTC (1778908345000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0030[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:bcc4b0c765cd1396 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0099[0]
+      Total Runs: 7
+      Metric Samples: Last Run: 2,000, Total: 14,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 7
+      Average Execution Time : 13.671s
+      Last Execution Date : 2026-05-16 05:12:50.311 UTC (1778908370311)
+      Last Successful Execution Date : 2026-05-16 05:12:50 UTC (1778908370000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0099[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:dd23f74f5af4765 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0001[0]
+      Total Runs: 7
+      Metric Samples: Last Run: 2,000, Total: 14,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 7
+      Average Execution Time : 12.525s
+      Last Execution Date : 2026-05-16 05:12:44.661 UTC (1778908364661)
+      Last Successful Execution Date : 2026-05-16 05:12:44 UTC (1778908364000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0001[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:e1e78afce6c8075c [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0053[0]
+      Total Runs: 5
+      Metric Samples: Last Run: 2,000, Total: 10,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 5
+      Average Execution Time : 17.503s
+      Last Execution Date : 2026-05-16 05:12:45.486 UTC (1778908365486)
+      Last Successful Execution Date : 2026-05-16 05:12:45 UTC (1778908365000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0053[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:e2c8adc4a6e7ea41 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0122[0]
+      Total Runs: 9
+      Metric Samples: Last Run: 2,000, Total: 18,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 9
+      Average Execution Time : 9.735s
+      Last Execution Date : 2026-05-16 05:12:24.927 UTC (1778908344927)
+      Last Successful Execution Date : 2026-05-16 05:12:24 UTC (1778908344000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0122[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:e2ce2e16bfef621a [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0054[0]
+      Total Runs: 5
+      Metric Samples: Last Run: 2,000, Total: 10,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 5
+      Average Execution Time : 18.134s
+      Last Execution Date : 2026-05-16 05:12:53.24 UTC (1778908373240)
+      Last Successful Execution Date : 2026-05-16 05:12:53 UTC (1778908373000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0054[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:f21518f1bc84ff8 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0061[0]
+      Total Runs: 6
+      Metric Samples: Last Run: 2,000, Total: 12,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 6
+      Average Execution Time : 16.188s
+      Last Execution Date : 2026-05-16 05:12:46.027 UTC (1778908366027)
+      Last Successful Execution Date : 2026-05-16 05:12:46 UTC (1778908366000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0061[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:f3aeb3ea08d508f3 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0039[0]
+      Total Runs: 8
+      Metric Samples: Last Run: 2,000, Total: 16,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 8
+      Average Execution Time : 13.07s
+      Last Execution Date : 2026-05-16 05:12:38.871 UTC (1778908358871)
+      Last Successful Execution Date : 2026-05-16 05:12:38 UTC (1778908358000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0039[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+      Instance ID: openmetrics:f8003de98bd3d771 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0046[0]
+      Total Runs: 4
+      Metric Samples: Last Run: 2,000, Total: 8,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 4
+      Average Execution Time : 17.833s
+      Last Execution Date : 2026-05-16 05:12:42.306 UTC (1778908362306)
+      Last Successful Execution Date : 2026-05-16 05:12:42 UTC (1778908362000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0046[0]
+
+      Warning: Check openmetrics exceeded limit of 2000 metrics, ignoring next ones
+
+  Check Worker Utilization
+  ========================
+    Total Workers: 64
+    Average Utilization: 35.8%
+
+    Top Workers (by utilization):
+      worker_62: 60.0%
+      worker_18: 58.0%
+      worker_48: 56.0%
+      worker_40: 55.0%
+      worker_1: 54.0%
+      worker_7: 54.0%
+      worker_59: 53.0%
+      worker_46: 53.0%
+      worker_30: 53.0%
+      worker_60: 52.0%
+      worker_44: 52.0%
+      worker_57: 52.0%
+      worker_42: 51.0%
+      worker_31: 49.0%
+      worker_37: 48.0%
+      worker_17: 46.0%
+      worker_25: 46.0%
+      worker_35: 46.0%
+      worker_58: 46.0%
+      worker_33: 45.0%
+      worker_43: 45.0%
+      worker_14: 45.0%
+      worker_38: 45.0%
+      worker_26: 45.0%
+      worker_9: 44.0%
+
+==========
+Aggregator
+==========
+
+  Checks Metric Sample: 498,719
+  Dogstatsd Metric Sample: 1
+  Event: 1
+  Events Flushed: 1
+  Number Of Flushes: 14
+  Series Flushed: 243,071
+  Service Check: 260
+  Service Checks Flushed: 273
+
+=========
+APM Agent
+=========
+
+
+  Status: Not running or unreachable on localhost:5012.
+  Error: Get "https://localhost:5012/debug/vars": dial tcp [::1]:5012: connect: connection refused
+
+=============
+Autodiscovery
+=============
+
+  Enabled Features
+  ================
+    kube_orchestratorexplorer
+    kubelet_config_orchestrator_check
+    kubernetes
+
+=====================
+Datadog Cluster Agent
+=====================
+
+    - Datadog Cluster Agent endpoint detected: https://10.96.39.222:5005
+    Successfully connected to the Datadog Cluster Agent.
+    - Running: 7.81.0-devel+git.21.3ec880f.commit.3ec880f14a3
+
+=============
+Delegatedauth
+=============
+
+Delegated Authentication is not enabled
+
+=========
+Endpoints
+=========
+
+  http://fakeintake.datadog.svc.cluster.local - API Key ending with:
+      - 0000
+
+================
+Fleet Automation
+================
+
+
+  Fleet Management is disabled
+
+  Remote Management Status:    Enabled
+  Datadog Installer Status:    Not running
+
+
+=========
+Forwarder
+=========
+
+  Transactions
+  ============
+    Cluster: 0
+    ClusterRole: 0
+    ClusterRoleBinding: 0
+    CronJob: 0
+    CustomResource: 0
+    CustomResourceDefinition: 0
+    DaemonSet: 0
+    Deployment: 0
+    Dropped: 0
+    ECSTask: 0
+    EndpointSlice: 0
+    HighPriorityQueueFull: 0
+    HorizontalPodAutoscaler: 0
+    Ingress: 0
+    Job: 0
+    KubeletConfiguration: 0
+    LimitRange: 0
+    Namespace: 0
+    NetworkPolicy: 0
+    Node: 0
+    OrchestratorManifest: 0
+    PersistentVolume: 0
+    PersistentVolumeClaim: 0
+    Pod: 0
+    PodDisruptionBudget: 0
+    ReplicaSet: 0
+    Requeued: 0
+    Retried: 0
+    RetryQueueSize: 0
+    Role: 0
+    RoleBinding: 0
+    Service: 0
+    ServiceAccount: 0
+    StatefulSet: 0
+    StorageClass: 0
+    VerticalPodAutoscaler: 0
+
+  Transaction Successes
+  =====================
+    Total number: 48
+    Successes By Endpoint:
+      check_run_v1: 14
+      intake: 1
+      series_v2: 33
+
+  On-disk storage
+  ===============
+    On-disk storage is disabled. Configure `forwarder_storage_max_size_in_bytes` to enable it.
+
+  API Keys status
+  ===============
+    API key ending with 0000: API Key valid
+
+=========
+JMX Fetch
+=========
+
+  Information
+  ==================
+  Initialized checks
+  ==================
+    no checks
+
+  Failed checks
+  =============
+    no checks
+
+
+==========
+Logs Agent
+==========
+
+  Logs Agent is not running
+
+==========
+OTel Agent
+==========
+
+
+  Status: Not running or unreachable on https://localhost:7777.
+  Error: OTel Agent is not enabled.
+
+====
+OTLP
+====
+
+  Status: Not enabled
+  Collector status: Not running
+
+
+
+=====================
+Private Action Runner
+=====================
+Status: Disabled
+
+=============
+Process Agent
+=============
+
+  Status: Not running or unreachable
+
+=============
+Remote Agents
+=============
+
+No remote agents registered
+
+====================
+Remote Configuration
+====================
+
+
+Startup Failure Reason: remote Configuration does not allow skipping TLS validation by default (currently skipped because `skip_ssl_validation` is set to true). While it is not advised, the `remote_configuration.no_tls_validation` config option can be set to `true` to disable this protection
+
+
+
+=======
+Secrets
+=======
+
+No secret_backend_command set: secrets feature is not enabled
+===
+SSI
+===
+
+    SSI is not enabled.
+
+
+============
+System Probe
+============
+
+  Status: Not running or unreachable
+  Error: issue querying stats from system probe: Get "http://sysprobe/debug/stats": dial unix /opt/datadog-agent/run/sysprobe.sock: connect: no such file or directory
+
+========================
+Transport Proxy Warnings
+========================
+
+  No Transport Proxy Warnings
+

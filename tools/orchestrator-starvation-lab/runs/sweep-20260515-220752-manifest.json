@@ -1,0 +1,55 @@
+{
+  "sweep_id": "20260515-220752",
+  "agent_image": "registry.datadoghq.com/agent-dev:nightly-full-main-jmx",
+  "cluster_agent_image": "registry.datadoghq.com/cluster-agent-dev:master",
+  "window_seconds": 180,
+  "observe_interval_seconds": 20,
+  "observe_duration_seconds": 180,
+  "settle_seconds": 90,
+  "cells": [
+    {
+      "label": "idle",
+      "prom_endpoints": 0,
+      "workload_pods": 0,
+      "workload_deployments": 100,
+      "workload_crs": 500,
+      "clcr_replicas": 2,
+      "check_runners": "default",
+      "ootb_crds": true,
+      "csv": "sweep-20260515-220752-cell-00-idle.csv"
+    },
+    {
+      "label": "noise-100",
+      "prom_endpoints": 100,
+      "workload_pods": 0,
+      "workload_deployments": 100,
+      "workload_crs": 500,
+      "clcr_replicas": 2,
+      "check_runners": "default",
+      "ootb_crds": true,
+      "csv": "sweep-20260515-220752-cell-01-noise-100.csv"
+    },
+    {
+      "label": "noise-300",
+      "prom_endpoints": 300,
+      "workload_pods": 0,
+      "workload_deployments": 100,
+      "workload_crs": 500,
+      "clcr_replicas": 2,
+      "check_runners": "default",
+      "ootb_crds": true,
+      "csv": "sweep-20260515-220752-cell-02-noise-300.csv"
+    },
+    {
+      "label": "saturated",
+      "prom_endpoints": 300,
+      "workload_pods": 0,
+      "workload_deployments": 100,
+      "workload_crs": 500,
+      "clcr_replicas": 1,
+      "check_runners": "1",
+      "ootb_crds": true,
+      "csv": "sweep-20260515-220752-cell-03-saturated.csv"
+    }
+  ]
+}

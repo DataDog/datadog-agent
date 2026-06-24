@@ -1,0 +1,47 @@
+=== DD_CHECK_RUNNERS=1 pods=3 total_workers=3 ===
+2026-05-16T04:26:48+00:00
+--- lab-cluster-checks-runner-65ff57994f-7mpkb ---
+    openmetrics (7.4.1)
+    -------------------
+      Instance ID: openmetrics:15f7935c8575dac1 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0134[0]
+      Total Runs: 4
+      Metric Samples: Last Run: 2,000, Total: 8,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 4
+      Average Execution Time : 570ms
+      Last Execution Date : 2026-05-16 04:26:25.936 UTC (1778905585936)
+      Last Successful Execution Date : 2026-05-16 04:26:25 UTC (1778905585000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0134[0]
+
+--- lab-cluster-checks-runner-65ff57994f-dh4dh ---
+    openmetrics (7.4.1)
+    -------------------
+      Instance ID: openmetrics:10b8d5b0629a6248 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0041[0]
+      Total Runs: 3
+      Metric Samples: Last Run: 2,000, Total: 6,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 3
+      Average Execution Time : 521ms
+      Last Execution Date : 2026-05-16 04:26:21.005 UTC (1778905581005)
+      Last Successful Execution Date : 2026-05-16 04:26:21 UTC (1778905581000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0041[0]
+
+--- lab-cluster-checks-runner-65ff57994f-s65x2 ---
+    openmetrics (7.4.1)
+    -------------------
+      Instance ID: openmetrics:12086a2113400d16 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0047[0]
+      Total Runs: 5
+      Metric Samples: Last Run: 2,000, Total: 10,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 5
+      Average Execution Time : 659ms
+      Last Execution Date : 2026-05-16 04:26:27.879 UTC (1778905587879)
+      Last Successful Execution Date : 2026-05-16 04:26:27 UTC (1778905587000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0047[0]
+

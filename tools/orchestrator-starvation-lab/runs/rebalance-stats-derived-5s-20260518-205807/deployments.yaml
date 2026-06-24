@@ -1,0 +1,593 @@
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      agent.datadoghq.com/agentspechash: 5450c14e89f7723e8621f463c424146c
+      deployment.kubernetes.io/revision: "4"
+    creationTimestamp: "2026-05-16T04:18:46Z"
+    generation: 4
+    labels:
+      agent.datadoghq.com/component: cluster-agent
+      agent.datadoghq.com/name: lab
+      app.kubernetes.io/component: cluster-agent
+      app.kubernetes.io/instance: lab-cluster-agent
+      app.kubernetes.io/managed-by: datadog-operator
+      app.kubernetes.io/name: datadog-agent-deployment
+      app.kubernetes.io/part-of: datadog-lab
+      app.kubernetes.io/version: ""
+    name: lab-cluster-agent
+    namespace: datadog
+    ownerReferences:
+    - apiVersion: datadoghq.com/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: DatadogAgentInternal
+      name: lab
+      uid: d542cb35-8526-4bc3-b759-adb4ca9a7e53
+    resourceVersion: "707306"
+    uid: 18d30e1c-6941-4f99-a195-dadbfc9c8865
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        agent.datadoghq.com/component: cluster-agent
+        app.kubernetes.io/instance: lab-cluster-agent
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          checksum/cluster_checks-custom-config: dd67482b385a64075d38f42c9ae04554
+          checksum/ksm-custom-config: 9a0e5ec969efa20ad9905f344d7fb255
+        creationTimestamp: null
+        labels:
+          agent.datadoghq.com/component: cluster-agent
+          agent.datadoghq.com/name: lab
+          app.kubernetes.io/component: cluster-agent
+          app.kubernetes.io/instance: lab-cluster-agent
+          app.kubernetes.io/managed-by: datadog-operator
+          app.kubernetes.io/name: datadog-agent-deployment
+          app.kubernetes.io/part-of: datadog-lab
+          app.kubernetes.io/version: ""
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    agent.datadoghq.com/component: cluster-agent
+                topologyKey: kubernetes.io/hostname
+              weight: 50
+        containers:
+        - env:
+          - name: DD_POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
+            value: lab-cluster-agent
+          - name: DD_KUBE_RESOURCES_NAMESPACE
+            value: datadog
+          - name: DD_LEADER_ELECTION
+            value: "true"
+          - name: DD_HEALTH_PORT
+            value: "5555"
+          - name: DD_INSTRUMENTATION_INSTALL_ID
+            valueFrom:
+              configMapKeyRef:
+                key: install_id
+                name: datadog-apm-telemetry-kpi
+          - name: DD_INSTRUMENTATION_INSTALL_TIME
+            valueFrom:
+              configMapKeyRef:
+                key: install_time
+                name: datadog-apm-telemetry-kpi
+          - name: DD_INSTRUMENTATION_INSTALL_TYPE
+            valueFrom:
+              configMapKeyRef:
+                key: install_type
+                name: datadog-apm-telemetry-kpi
+          - name: DD_AUTH_TOKEN_FILE_PATH
+            value: /etc/datadog-agent/auth/token
+          - name: DD_CLUSTER_AGENT_SERVICE_ACCOUNT_NAME
+            value: lab-cluster-agent
+          - name: AGENT_DAEMONSET
+            value: lab-agent
+          - name: CLUSTER_AGENT_DEPLOYMENT
+            value: lab-cluster-agent
+          - name: DATADOGAGENT_CR_NAME
+            value: lab
+          - name: DD_CLUSTER_NAME
+            value: orch-starve
+          - name: DD_SITE
+            value: datadoghq.com
+          - name: DD_LOG_LEVEL
+            value: info
+          - name: DD_TAGS
+            value: '["lab:orchestrator-starvation"]'
+          - name: DD_API_KEY
+            valueFrom:
+              secretKeyRef:
+                key: api_key
+                name: lab-secret
+          - name: DD_APP_KEY
+            valueFrom:
+              secretKeyRef:
+                key: app_key
+                name: lab-secret
+          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: token
+                name: lab-token
+          - name: DD_ADMISSION_CONTROLLER_ENABLED
+            value: "true"
+          - name: DD_ADMISSION_CONTROLLER_VALIDATION_ENABLED
+            value: "true"
+          - name: DD_ADMISSION_CONTROLLER_MUTATION_ENABLED
+            value: "true"
+          - name: DD_ADMISSION_CONTROLLER_MUTATE_UNLABELLED
+            value: "false"
+          - name: DD_ADMISSION_CONTROLLER_CONTAINER_REGISTRY
+            value: registry.datadoghq.com
+          - name: DD_ADMISSION_CONTROLLER_SERVICE_NAME
+            value: datadog-admission-controller
+          - name: DD_ADMISSION_CONTROLLER_INJECT_CONFIG_MODE
+            value: socket
+          - name: DD_ADMISSION_CONTROLLER_INJECT_CONFIG_LOCAL_SERVICE_NAME
+            value: lab-agent
+          - name: DD_ADMISSION_CONTROLLER_WEBHOOK_NAME
+            value: datadog-webhook
+          - name: DD_APM_INSTRUMENTATION_ENABLED
+            value: "false"
+          - name: DD_CLUSTER_CHECKS_ENABLED
+            value: "true"
+          - name: DD_EXTRA_CONFIG_PROVIDERS
+            value: kube_services kube_endpoints
+          - name: DD_EXTRA_LISTENERS
+            value: kube_services kube_endpoints
+          - name: DD_COLLECT_KUBERNETES_EVENTS
+            value: "true"
+          - name: DD_LEADER_LEASE_NAME
+            value: lab-leader-election
+          - name: DD_CLUSTER_AGENT_TOKEN_NAME
+            value: lab-token
+          - name: DD_KUBE_STATE_METRICS_CORE_ENABLED
+            value: "true"
+          - name: DD_KUBE_STATE_METRICS_CORE_CONFIGMAP_NAME
+            value: lab-kube-state-metrics-core-config
+          - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
+            value: "true"
+          - name: DD_ORCHESTRATOR_EXPLORER_CONTAINER_SCRUBBING_ENABLED
+            value: "true"
+          - name: DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL
+            value: http://fakeintake.datadog.svc.cluster.local
+          - name: DD_PROMETHEUS_SCRAPE_ENABLED
+            value: "true"
+          - name: DD_PROMETHEUS_SCRAPE_SERVICE_ENDPOINTS
+            value: "false"
+          - name: DD_PROMETHEUS_SCRAPE_VERSION
+            value: "2"
+          - name: DD_REMOTE_CONFIGURATION_ENABLED
+            value: "true"
+          - name: DD_DD_URL
+            value: http://fakeintake.datadog.svc.cluster.local
+          - name: DD_SKIP_SSL_VALIDATION
+            value: "true"
+          - name: DD_ORCHESTRATOR_EXPLORER_CUSTOM_RESOURCES_OOTB_ENABLED
+            value: "true"
+          - name: DD_CLUSTER_CHECKS_REBALANCE_PERIOD
+            value: 5s
+          - name: DD_CLUSTER_CHECKS_REBALANCE_MIN_PERCENTAGE_IMPROVEMENT
+            value: "1"
+          image: registry.datadoghq.com/cluster-agent-dev:master
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /live
+              port: 5555
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: cluster-agent
+          ports:
+          - containerPort: 5005
+            name: agentport
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /ready
+              port: 5555
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          startupProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /startup
+              port: 5555
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/datadog-agent/install_info
+            name: installinfo
+            readOnly: true
+            subPath: install_info
+          - mountPath: /conf.d
+            name: confd
+            readOnly: true
+          - mountPath: /var/log/datadog
+            name: logdatadog
+          - mountPath: /etc/datadog-agent/certificates
+            name: certificates
+          - mountPath: /etc/datadog-agent/auth
+            name: datadog-agent-auth
+          - mountPath: /tmp
+            name: tmp
+          - mountPath: /etc/datadog-agent/conf.d/kubernetes_state_core.d
+            name: ksm-core-config
+            readOnly: true
+          - mountPath: /etc/datadog-agent/conf.d/orchestrator.d
+            name: orchestrator-explorer-config
+            readOnly: true
+          - mountPath: /opt/datadog-agent/run/
+            name: datadogrun
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: lab-cluster-agent
+        serviceAccountName: lab-cluster-agent
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - configMap:
+            defaultMode: 420
+            name: lab-install-info
+          name: installinfo
+        - emptyDir: {}
+          name: confd
+        - emptyDir: {}
+          name: logdatadog
+        - emptyDir: {}
+          name: certificates
+        - emptyDir: {}
+          name: datadog-agent-auth
+        - emptyDir: {}
+          name: tmp
+        - configMap:
+            defaultMode: 420
+            name: lab-kube-state-metrics-core-config
+          name: ksm-core-config
+        - configMap:
+            defaultMode: 420
+            name: lab-orchestrator-explorer-config
+          name: orchestrator-explorer-config
+        - emptyDir: {}
+          name: datadogrun
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-16T04:19:03Z"
+      lastUpdateTime: "2026-05-16T04:19:03Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-16T04:18:46Z"
+      lastUpdateTime: "2026-05-18T20:55:12Z"
+      message: ReplicaSet "lab-cluster-agent-5d7b8f89c" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 4
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      agent.datadoghq.com/agentspechash: f4894ed4f8c99641350ccb4a5851f503
+      deployment.kubernetes.io/revision: "13"
+    creationTimestamp: "2026-05-16T04:18:46Z"
+    generation: 13
+    labels:
+      agent.datadoghq.com/component: cluster-checks-runner
+      agent.datadoghq.com/name: lab
+      app.kubernetes.io/component: cluster-checks-runner
+      app.kubernetes.io/instance: lab-cluster-checks-runner
+      app.kubernetes.io/managed-by: datadog-operator
+      app.kubernetes.io/name: datadog-agent-deployment
+      app.kubernetes.io/part-of: datadog-lab
+      app.kubernetes.io/version: ""
+    name: lab-cluster-checks-runner
+    namespace: datadog
+    ownerReferences:
+    - apiVersion: datadoghq.com/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: DatadogAgentInternal
+      name: lab
+      uid: d542cb35-8526-4bc3-b759-adb4ca9a7e53
+    resourceVersion: "707144"
+    uid: 92f2cb71-9bf7-42cf-87b1-9c6cc48aea55
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 3
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        agent.datadoghq.com/component: cluster-checks-runner
+        app.kubernetes.io/instance: lab-cluster-checks-runner
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          agent.datadoghq.com/component: cluster-checks-runner
+          agent.datadoghq.com/name: lab
+          app.kubernetes.io/component: cluster-checks-runner
+          app.kubernetes.io/instance: lab-cluster-checks-runner
+          app.kubernetes.io/managed-by: datadog-operator
+          app.kubernetes.io/name: datadog-agent-deployment
+          app.kubernetes.io/part-of: datadog-lab
+          app.kubernetes.io/version: ""
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    agent.datadoghq.com/component: cluster-checks-runner
+                topologyKey: kubernetes.io/hostname
+              weight: 50
+        containers:
+        - args:
+          - agent run
+          command:
+          - bash
+          - -c
+          env:
+          - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
+            value: lab-cluster-agent
+          - name: DD_CLUSTER_AGENT_ENABLED
+            value: "true"
+          - name: DD_HEALTH_PORT
+            value: "5555"
+          - name: KUBERNETES
+            value: "yes"
+          - name: DD_ENABLE_METADATA_COLLECTION
+            value: "false"
+          - name: DD_CLC_RUNNER_ENABLED
+            value: "true"
+          - name: DD_CLC_RUNNER_HOST
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.podIP
+          - name: DD_CLC_RUNNER_ID
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: DD_USE_DOGSTATSD
+            value: "false"
+          - name: DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED
+            value: "false"
+          - name: DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED
+            value: "false"
+          - name: DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED
+            value: "true"
+          - name: DD_LOGS_ENABLED
+            value: "false"
+          - name: DD_APM_ENABLED
+            value: "false"
+          - name: DD_HOSTNAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: DD_APM_ERROR_TRACKING_STANDALONE_ENABLED
+            value: "false"
+          - name: DD_CLUSTER_NAME
+            value: orch-starve
+          - name: DD_SITE
+            value: datadoghq.com
+          - name: DD_LOG_LEVEL
+            value: info
+          - name: DD_TAGS
+            value: '["lab:orchestrator-starvation"]'
+          - name: DD_API_KEY
+            valueFrom:
+              secretKeyRef:
+                key: api_key
+                name: lab-secret
+          - name: DD_APP_KEY
+            valueFrom:
+              secretKeyRef:
+                key: app_key
+                name: lab-secret
+          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: token
+                name: lab-token
+          - name: DD_CLUSTER_CHECKS_ENABLED
+            value: "true"
+          - name: DD_EXTRA_CONFIG_PROVIDERS
+            value: clusterchecks
+          - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
+            value: "true"
+          - name: DD_ORCHESTRATOR_EXPLORER_CONTAINER_SCRUBBING_ENABLED
+            value: "true"
+          - name: DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL
+            value: http://fakeintake.datadog.svc.cluster.local
+          - name: DD_DD_URL
+            value: http://fakeintake.datadog.svc.cluster.local
+          - name: DD_SKIP_SSL_VALIDATION
+            value: "true"
+          - name: DD_LEADER_LEASE_DURATION
+            value: "60"
+          - name: DD_CHECK_RUNNERS
+            value: "1"
+          - name: DD_ORCHESTRATOR_EXPLORER_CUSTOM_RESOURCES_OOTB_ENABLED
+            value: "true"
+          image: registry.datadoghq.com/agent-dev:nightly-full-main-jmx
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /live
+              port: 5555
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: agent
+          readinessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /ready
+              port: 5555
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          startupProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /startup
+              port: 5555
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/datadog-agent/install_info
+            name: installinfo
+            readOnly: true
+            subPath: install_info
+          - mountPath: /etc/datadog-agent
+            name: config
+          - mountPath: /var/log/datadog
+            name: logdatadog
+          - mountPath: /tmp
+            name: tmp
+          - mountPath: /etc/datadog-agent/conf.d
+            name: remove-corechecks
+          - mountPath: /opt/datadog-agent/run
+            name: pointerdir
+        dnsPolicy: ClusterFirst
+        initContainers:
+        - args:
+          - for script in $(find /etc/cont-init.d/ -type f -name '*.sh' | sort) ;
+            do bash $script ; done
+          command:
+          - bash
+          - -c
+          image: registry.datadoghq.com/agent-dev:nightly-full-main-jmx
+          imagePullPolicy: IfNotPresent
+          name: init-config
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/datadog-agent/install_info
+            name: installinfo
+            readOnly: true
+            subPath: install_info
+          - mountPath: /etc/datadog-agent
+            name: config
+          - mountPath: /var/log/datadog
+            name: logdatadog
+          - mountPath: /tmp
+            name: tmp
+          - mountPath: /etc/datadog-agent/conf.d
+            name: remove-corechecks
+          - mountPath: /checks.d
+            name: checksd
+            readOnly: true
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: lab-cluster-checks-runner
+        serviceAccountName: lab-cluster-checks-runner
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - configMap:
+            defaultMode: 420
+            name: lab-install-info
+          name: installinfo
+        - emptyDir: {}
+          name: config
+        - emptyDir: {}
+          name: remove-corechecks
+        - emptyDir: {}
+          name: logdatadog
+        - emptyDir: {}
+          name: checksd
+        - emptyDir: {}
+          name: pointerdir
+        - emptyDir: {}
+          name: tmp
+  status:
+    availableReplicas: 3
+    conditions:
+    - lastTransitionTime: "2026-05-16T04:18:46Z"
+      lastUpdateTime: "2026-05-18T20:42:54Z"
+      message: ReplicaSet "lab-cluster-checks-runner-754b456bf4" has successfully
+        progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-05-18T20:53:51Z"
+      lastUpdateTime: "2026-05-18T20:53:51Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 13
+    readyReplicas: 3
+    replicas: 3
+    updatedReplicas: 3
+kind: List
+metadata:
+  resourceVersion: ""
