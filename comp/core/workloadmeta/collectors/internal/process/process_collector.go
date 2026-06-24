@@ -334,13 +334,10 @@ func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemo
 }
 
 // filterPidsToRequest filters PIDs to categorize them as new or needing heartbeat refresh.
-// It returns separate slices for new PIDs and heartbeat PIDs, along with a map of pids to *model.Service
-// to be filled up with the response received from system-probe.
-func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]int32, []int32, map[int32]*model.Service) {
+func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]int32, []int32) {
 	now := c.clock.Now().UTC()
 	newPids := make([]int32, 0, len(alivePids))
 	heartbeatPids := make([]int32, 0, len(alivePids))
-	pidsToService := make(map[int32]*model.Service, len(alivePids))
 
 	for pid := range alivePids {
 		if c.ignoredPids.Has(pid) {
@@ -360,16 +357,14 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 		if !exists {
 			// Never seen this process before, need full service info
 			newPids = append(newPids, pid)
-			pidsToService[pid] = nil
 		} else if now.Sub(lastHeartbeat) > core.HeartbeatTime {
 			// Service data is stale, need heartbeat refresh
 			// Since we have a pidHeartbeats entry, we know service data exists
 			heartbeatPids = append(heartbeatPids, pid)
-			pidsToService[pid] = nil
 		}
 	}
 
-	return newPids, heartbeatPids, pidsToService
+	return newPids, heartbeatPids
 }
 
 // getDiscoveryServices calls the system-probe /discovery/services endpoint
@@ -589,7 +584,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 
 // updateServices retrieves service discovery data for alive processes and returns workloadmeta entities
 func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, core.PidSet) {
-	newPids, heartbeatPids, _ := c.filterPidsToRequest(alivePids, procs)
+	newPids, heartbeatPids := c.filterPidsToRequest(alivePids, procs)
 	if len(newPids) == 0 && len(heartbeatPids) == 0 {
 		return nil, nil
 	}

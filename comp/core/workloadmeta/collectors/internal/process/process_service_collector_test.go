@@ -95,7 +95,7 @@ func TestFilterPidsToRequest(t *testing.T) {
 	// Add ignored PID (simulating a PID that exceeded max retry attempts)
 	c.collector.ignoredPids.Add(pidIgnoredService)
 
-	newPids, heartbeatPids, pidsToService := c.collector.filterPidsToRequest(alivePids, procs)
+	newPids, heartbeatPids := c.collector.filterPidsToRequest(alivePids, procs)
 	pids := append(newPids, heartbeatPids...)
 
 	// Verify categorization
@@ -111,15 +111,6 @@ func TestFilterPidsToRequest(t *testing.T) {
 	require.NotContains(t, pids, int32(pidFreshService))   // Fresh, should not be requested
 	require.NotContains(t, pids, int32(pidIgnoredService)) // Ignored, should not be requested
 	require.NotContains(t, pids, int32(pidRecentService))  // too recent (< 1 minute)
-
-	// The pidsToService map should have entries for all requested PIDs
-	require.Len(t, pidsToService, 2)
-	require.Contains(t, pidsToService, int32(pidNewService))
-	require.Contains(t, pidsToService, int32(pidStaleService))
-
-	// Initially nil, will be filled by service discovery
-	require.Nil(t, pidsToService[pidNewService])
-	require.Nil(t, pidsToService[pidStaleService])
 }
 
 func TestBuildServiceDiscoveryPIDBatchesRequestSizes(t *testing.T) {
@@ -276,7 +267,7 @@ func TestServiceDiscoveryPartialBatchFailurePreservesRetries(t *testing.T) {
 	}
 
 	c.mockClock.Add(3 * time.Minute)
-	nextNewPids, _, _ := c.collector.filterPidsToRequest(alivePids, procs)
+	nextNewPids, _ := c.collector.filterPidsToRequest(alivePids, procs)
 	assert.Subset(t, nextNewPids, unsuccessfulPids)
 }
 
