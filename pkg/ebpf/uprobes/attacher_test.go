@@ -274,6 +274,43 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 			mockFileRegistry:                 true,
 			mockFileRegistryExecuteCallbacks: true,
 		},
+		{
+			name: "executable inspection result error",
+			pid:  1,
+			setup: func(t *testing.T, pid uint32) (AttacherConfig, *MockBinaryInspector) {
+				exe := "/bin/bash"
+				procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe}})
+				config := AttacherConfig{
+					ProcRoot: procRoot,
+					Rules: []*AttachRule{
+						{
+							Targets: AttachToExecutable,
+							ProbesSelector: []manager.ProbesSelector{
+								&manager.ProbeSelector{
+									ProbeIdentificationPair: manager.ProbeIdentificationPair{
+										EBPFFuncName: "uprobe__SSL_connect",
+									},
+								},
+							},
+						},
+					},
+				}
+
+				inspector := &MockBinaryInspector{}
+				inspector.On("Inspect", mock.Anything, mock.Anything).Return(map[int]*InspectionResult{
+					0: {Error: safeelf.ErrNoSymbols},
+				}, nil)
+				inspector.On("Cleanup", mock.Anything).Return(nil)
+
+				return config, inspector
+			},
+			expectedError:                    safeelf.ErrNoSymbols,
+			isExpected:                       true,
+			shouldLog:                        false,
+			registryReturnError:              safeelf.ErrNoSymbols,
+			mockFileRegistry:                 true,
+			mockFileRegistryExecuteCallbacks: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -866,44 +903,6 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 	require.NoError(t, err)
 	inspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
-}
-
-func TestAttachToBinaryReturnsInspectionResultErrorUnwrapped(t *testing.T) {
-	proc := kernel.FakeProcFSEntry{
-		Pid:     1,
-		Cmdline: "/bin/bash",
-		Exe:     "/bin/bash",
-	}
-	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
-
-	config := AttacherConfig{
-		ProcRoot: procFS,
-		Rules: []*AttachRule{
-			{
-				Targets: AttachToExecutable,
-				ProbesSelector: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
-				},
-			},
-		},
-	}
-
-	inspector := &MockBinaryInspector{}
-	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, AttacherDependencies{Inspector: inspector, ProcessMonitor: newMockProcessMonitor()})
-	require.NoError(t, err)
-
-	target := utils.FilePath{HostPath: proc.Exe, PID: proc.Pid}
-	expectedErr := errors.New("symbols SSL_connect not found")
-	inspector.On("Inspect", target, mock.Anything).Return(map[int]*InspectionResult{
-		0: {Error: expectedErr},
-	}, nil)
-
-	err = ua.attachToBinary(target, config.Rules, NewProcInfo(procFS, proc.Pid))
-	require.ErrorIs(t, err, expectedErr)
-
-	var unknownErr *utils.UnknownAttachmentError
-	require.False(t, errors.As(err, &unknownErr))
-	inspector.AssertExpectations(t)
 }
 
 func TestAttachToBinaryAtReturnLocation(t *testing.T) {
