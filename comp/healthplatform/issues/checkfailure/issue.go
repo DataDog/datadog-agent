@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	issueName  = "check_execution_failure"
+	issueName  = IssueName
 	category   = "check-execution"
 	location   = "collector"
 	severity   = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM

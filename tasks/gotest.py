@@ -263,7 +263,7 @@ def get_bazel_test_targets(
                 return True
         return False
 
-    result = {}
+    targets = {}
     for line in output.splitlines():
         line = line.strip()
         if not line or not line.startswith('//'):
@@ -275,8 +275,8 @@ def get_bazel_test_targets(
         # Keep map of bazel target to Go package name: //pkg/util/log:log_test -> pkg/util/log
         package = label.split(':')[0]
         dir_path = package[2:]  # strip //
-        result[label] = f'{MODULE_PREFIX}/{dir_path}'
-    return result
+        targets[label] = f'{MODULE_PREFIX}/{dir_path}'
+    return targets
 
 
 def _parse_bazel_test_line(line: str) -> tuple[str, str, str | None, bool] | None:
@@ -534,9 +534,6 @@ def sanitize_env_vars():
     We want to ignore all `DD_` variables, as they will interfere with the behavior of some unit tests
     """
     for env in os.environ:
-        # Allow the env var that enables NodeTreeModel for testing purposes
-        if env == "DD_CONF_NODETREEMODEL":
-            continue
         if env.startswith("DD_"):
             del os.environ[env]
 

@@ -154,7 +154,7 @@ func (a *InjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 			// /etc/ld.so.preload on every boot. This never fails the install — the
 			// unit is a reliability enhancement, and the direct InstrumentLDPreload
 			// below already persists across reboots on its own.
-			a.setupHostPreload(ctx)
+			a.setupSystemdPreloadUnit(ctx)
 		}
 		// Always write /etc/ld.so.preload directly so the current boot is covered
 		// (and so host injection works even when the systemd unit was skipped).
@@ -188,15 +188,15 @@ func (a *InjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 	return nil
 }
 
-// setupHostPreload installs (or refreshes) the datadog-apm-inject systemd unit
+// setupSystemdPreloadUnit installs (or refreshes) the datadog-apm-inject systemd unit
 // that re-asserts /etc/ld.so.preload on every boot, when a datadog-installer
 // supporting `apm instrument-start` is available. If none is available, or the
 // unit setup fails for any reason, it degrades to direct ld.so.preload management
 // (the InstrumentLDPreload call in Instrument): the unit is a reliability
 // enhancement and must never fail the package install. Any stale unit left by a
 // previous install is removed so a doomed ExecStart is not left enabled.
-func (a *InjectorInstaller) setupHostPreload(ctx context.Context) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_host_preload")
+func (a *InjectorInstaller) setupSystemdPreloadUnit(ctx context.Context) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_systemd_preload_unit")
 	defer func() { span.Finish(nil) }()
 
 	mgr := NewSystemdServiceManager()
@@ -210,8 +210,10 @@ func (a *InjectorInstaller) setupHostPreload(ctx context.Context) {
 		// the direct /etc/ld.so.preload write in Instrument, removing any stale
 		// unit a previous install left behind.
 		span.SetTag("mode", "direct_fallback")
-		if err := mgr.Uninstall(ctx); err != nil {
-			log.Warnf("failed to remove stale apm-inject systemd service: %v", err)
+		if mgr.serviceFileExists() {
+			if err := mgr.Uninstall(ctx); err != nil {
+				log.Warnf("failed to remove stale apm-inject systemd service: %v", err)
+			}
 		}
 		return
 	}
@@ -223,8 +225,10 @@ func (a *InjectorInstaller) setupHostPreload(ctx context.Context) {
 		span.SetTag("mode", "direct_fallback_after_setup_error")
 		span.SetTag("setup_error", err.Error())
 		log.Warnf("failed to set up apm-inject systemd service, using direct /etc/ld.so.preload: %v", err)
-		if uErr := mgr.Uninstall(ctx); uErr != nil {
-			log.Warnf("failed to clean up partial apm-inject systemd service: %v", uErr)
+		if mgr.serviceFileExists() {
+			if uErr := mgr.Uninstall(ctx); uErr != nil {
+				log.Warnf("failed to clean up partial apm-inject systemd service: %v", uErr)
+			}
 		}
 		return
 	}
@@ -323,7 +327,10 @@ func (a *InjectorInstaller) verifySharedLib(ctx context.Context, libPath string)
 // This is called by the systemd service via "datadog-installer apm instrument-start host"
 // and must not attempt to manage systemd (it would loop).
 func (a *InjectorInstaller) InstrumentLDPreload(ctx context.Context) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_ld_preload")
+	defer func() { span.Finish(err) }()
 	launcherPath := path.Join(a.installPath, "inject", "launcher.preload.so")
+	span.SetTag("launcher_path", launcherPath)
 	log.Infof("Verifying APM injector launcher %s", launcherPath)
 	if err := a.verifySharedLib(ctx, launcherPath); err != nil {
 		return err
@@ -342,9 +349,11 @@ func (a *InjectorInstaller) InstrumentLDPreload(ctx context.Context) (err error)
 // UninstrumentLDPreload directly removes the injector library from /etc/ld.so.preload.
 // This is called by the systemd service via "datadog-installer apm instrument-stop host"
 // and must not attempt to manage systemd (it would loop).
-func (a *InjectorInstaller) UninstrumentLDPreload(ctx context.Context) error {
+func (a *InjectorInstaller) UninstrumentLDPreload(ctx context.Context) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_ld_preload")
+	defer func() { span.Finish(err) }()
 	log.Infof("Removing APM injector launcher from %s", ldSoPreloadPath)
-	_, err := a.ldPreloadFileUninstrument.mutate(ctx)
+	_, err = a.ldPreloadFileUninstrument.mutate(ctx)
 	if err != nil {
 		return err
 	}

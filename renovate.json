@@ -1,6 +1,8 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended", "mergeConfidence:all-badges", ":enablePreCommit", "schedule:nonOfficeHours"],
+    "timezone": "Europe/Paris",
+    "updateNotScheduled": false,
     "ignorePaths": [],
     "minimumReleaseAge": "7 days",
     "prConcurrentLimit": 20,
@@ -8,6 +10,7 @@
     "stopUpdatingLabel": "stop-updating",
     "gitIgnoredAuthors": ["200755185+dd-octo-sts[bot]@users.noreply.github.com"],
     "platformCommit": "enabled",
+    "postUpdateOptions": ["gomodUpdateImportPaths"],
     "packageRules": [
       {
         "matchDepNames": ["*"],

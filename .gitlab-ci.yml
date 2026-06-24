@@ -22,9 +22,10 @@
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 # Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
-.windows_path: &windows_path
-  # Windows-specific Go source files (by filename convention)
+.windows_path:
+  &windows_path # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
+  - "**/*_windows_test.go"
 
   # Windows-specific packages in pkg/
   - pkg/util/winutil/**/*
@@ -62,6 +63,7 @@
   - "*.bazel*"
   - deps/**/*
   - bazel/**/*
+  - tasks/build_tags.bzl
 
 # Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting paths
 .windows_path_2: &windows_path_2 # Windows-specific comp/ components
@@ -114,6 +116,14 @@
   - test/new-e2e/tests/process/**/*
   - test/new-e2e/tests/agent-runtimes/**/*
 
+# Process manager
+.windows_path_4: &windows_path_4
+  - pkg/procmgr/**/*
+  - pkg/proto/datadog/procmgr/**/*
+  - pkg/proto/pbgo/procmgr/**/*
+  - Cargo.toml
+  - Cargo.lock
+
 include:
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
@@ -141,6 +151,9 @@ include:
           compare_to: main
       - changes:
           paths: *windows_path_3
+          compare_to: main
+      - changes:
+          paths: *windows_path_4
           compare_to: main
       - changes:
           paths: *bazel_paths
@@ -277,25 +290,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v116983866-e2293bec
+  CI_IMAGE_BTF_GEN: v120029388-43933fee
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v116983866-e2293bec
+  CI_IMAGE_DOCKER_X64: v120029388-43933fee
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v116983866-e2293bec
+  CI_IMAGE_DOCKER_ARM64: v120029388-43933fee
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v116983866-e2293bec
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v120029388-43933fee
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v116983866-e2293bec
+  CI_IMAGE_LINUX: v120029388-43933fee
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v116983866-e2293bec
+  CI_IMAGE_RPM_X64: v120029388-43933fee
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v116983866-e2293bec
+  CI_IMAGE_RPM_ARM64: v120029388-43933fee
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v116983866-e2293bec
+  CI_IMAGE_RPM_ARMHF: v120029388-43933fee
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v116983866-e2293bec
+  CI_IMAGE_WIN_LTSC2022_X64: v120143276-cb5277fb
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v116983866-e2293bec
+  CI_IMAGE_WIN_LTSC2025_X64: v120143276-cb5277fb
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -529,6 +542,11 @@ workflow:
         SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path_3
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *windows_path_4
         compare_to: main
       variables:
         SKIP_WINDOWS: "false"
