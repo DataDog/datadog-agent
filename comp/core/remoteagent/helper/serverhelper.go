@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
