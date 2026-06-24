@@ -106,7 +106,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// The standalone runner sends metrics over a DogStatsD socket/UDP, built from
 	// the Agent's configured endpoint (it runs alongside a node Agent listener).
-	metricsClient := parconfig.NewMetricsClient(reqs.Config, reqs.Statsd)
+	metricsClient, err := parconfig.NewMetricsClient(reqs.Config, reqs.Statsd)
+	if err != nil {
+		reqs.Log.Errorf("Private action runner metrics disabled: %v", err)
+	}
 	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient)
 	if err != nil {
 		return Provides{}, err
