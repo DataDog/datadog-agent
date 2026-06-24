@@ -153,11 +153,15 @@ Call the **Fetch issue** tool for your runtime (see *Tool mapping*) requesting o
 - **Cursor:** `jira_get_issue` — `issue_key: <KEY>`, `fields: "customfield_10000"`, `comment_limit: 0`. The field comes back under `customfield_10000.value`.
 - **Claude Code:** `mcp__atlassian__getJiraIssue` — `cloudId`, `issueIdOrKey: <KEY>`, `fields: ["customfield_10000"]`. The value is a **string** (see [Appendix A — `customfield_10000` shape](#customfield_10000-shape-a2)), not an object — extract the embedded `json={…}` first.
 
-In both cases the embedded JSON holds `cachedValue.summary.pullrequest.overall.count` (number of linked PRs) and `…overall.state` (`MERGED`, `OPEN`, etc.).
+In both cases the embedded JSON holds `cachedValue.summary.pullrequest.overall.count` (the total number of linked PRs in **any** state) and `…overall.state` (`MERGED`, `OPEN`, etc.).
 
-Record the expected PR count per key in a `jira_pr_counts` map: `{ "OTAGENT-307": 4, "OTAGENT-510": 3, … }`. Keys with no `pullrequest` in the summary (or where `customfield_10000` is null) have count 0.
+**Count merged PRs only — `overall.count` is not comparable.** This skill deliberately collects only **merged** PRs (`status == "MERGED"` in A1, `gh search prs --merged` in Phase B), but `overall.count` totals every linked PR regardless of state. Comparing the two directly produces a false `pr_shortfall` whenever a completed issue still has an open or backport PR linked. Derive a **merged-only** count instead:
+- If the summary exposes a per-state breakdown (e.g. `stateCount` for `state: "MERGED"`, or a `byInstanceType`/per-state map), use the merged count directly.
+- Otherwise, only treat `overall.count` as the expected merged count when `overall.state == "MERGED"` (i.e. every linked PR is merged). If `overall.state` is anything else (`OPEN`, `DECLINED`, mixed), the count includes non-merged PRs and is **not** comparable — mark this key's merged count as **unknown** and skip the shortfall comparison for it.
 
-This map is used in Phase B for **cross-validation**: after tier classification, compare the number of included PRs (Tier 0 + Tier 1 + Tier 2) per key against `jira_pr_counts`. Record every key where Phase B found fewer in a `pr_shortfall` list (`{key, jira_count, found_count}`) — it drives **both** the preview warning below **and** the report's `{{pr_discovery_note}}` (Step 9), so the limitation reaches stakeholders, not just the engineer. If Phase B found fewer, show a warning in the preview:
+Record the expected **merged** PR count per key in a `jira_pr_counts` map: `{ "OTAGENT-307": 4, "OTAGENT-510": 3, … }`. Keys with no `pullrequest` in the summary (or where `customfield_10000` is null) have count 0. Keys whose merged count is unknown (per the rule above) are omitted from the map so they never trigger a shortfall.
+
+This map is used in Phase B for **cross-validation**: after tier classification, for each key with a **known** merged count, compare the number of included PRs (Tier 0 + Tier 1 + Tier 2) against `jira_pr_counts`. Record every key where Phase B found fewer in a `pr_shortfall` list (`{key, jira_count, found_count}`) — it drives **both** the preview warning below **and** the report's `{{pr_discovery_note}}` (Step 9), so the limitation reaches stakeholders, not just the engineer. If Phase B found fewer, show a warning in the preview:
 
 ```
 ⚠️ Jira says OTAGENT-307 has 4 linked PRs, but only 2 were found via GitHub search.
@@ -465,6 +469,8 @@ The Rovo server exposes **no Development/dev-status endpoint**, so on Claude Cod
 ### `customfield_10000` shape (A2)
 
 On Rovo, `customfield_10000` comes back as a **single string**, e.g. `{pullrequest={dataType=pullrequest, state=MERGED, stateCount=4}, json={"cachedValue":{…}}}`. Extract the embedded `json={…}` object and read `cachedValue.summary.pullrequest.overall.count` and `…overall.state`. Keys whose dev field has no `pullrequest` block (or is null) have count 0.
+
+Remember (per Step 4-A2) that `overall.count` totals **all** linked PRs, not just merged ones. The summary-prefix `state`/`stateCount` pair (`state=MERGED, stateCount=4` above) is the merged-only count when present; otherwise only trust `overall.count` as a merged count when `overall.state == "MERGED"`. When the state is `OPEN`/mixed, treat the merged count as unknown and skip the shortfall comparison for that key — comparing a total-PR count against a merged-only result would raise a false shortfall for issues that still have an open or backport PR linked.
 
 ## Appendix B — cloudId and large responses (Claude Code)
 
