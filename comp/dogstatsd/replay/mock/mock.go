@@ -22,7 +22,6 @@ type Mock interface {
 	replay.Component
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 type Requires struct {
 	T testing.TB
 }
@@ -75,7 +74,6 @@ func (tc *mockTrafficCapture) Enqueue(msg *replay.CaptureBuffer) bool {
 	return true
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) GetStartUpError() error {
 	return nil
 }
