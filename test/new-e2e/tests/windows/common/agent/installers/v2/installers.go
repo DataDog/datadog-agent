@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 )
 
 // Arch is the architecture-specific URL for an installer
