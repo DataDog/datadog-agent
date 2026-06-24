@@ -43,18 +43,15 @@ build do
 
   if linux_target?
     command "invoke agent.build --flavor iot --no-development", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-    mkdir "#{install_dir}/bin"
-    mkdir "#{install_dir}/run/"
 
+    # Installs: bin/ and run/ dirs, datadog.yaml.example, conf.d/, and the agent binary.
+    command "bazel run --//packages/agent:flavor=iot --//:install_dir='#{install_dir}' -- " \
+            "//packages/agent/iot:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
+    project.extra_package_file "#{install_dir}/etc/datadog-agent/datadog.yaml.example"
+    project.extra_package_file "#{install_dir}/etc/datadog-agent/conf.d/"
 
-    # Config
-    mkdir '/etc/datadog-agent'
-    mkdir "/etc/init"
+    # /var/log/datadog is a runtime directory; not managed by Bazel packaging.
     mkdir "/var/log/datadog"
-
-    move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
-    move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
-    copy 'bin/agent', "#{install_dir}/bin/"
   end
   block do
     if windows_target?

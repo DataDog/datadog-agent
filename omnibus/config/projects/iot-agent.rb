@@ -156,11 +156,7 @@ end
 
 # Linux
 if linux_target?
-  # Example configuration files for the agent and the checks
-  extra_package_file '/etc/datadog-agent/datadog.yaml.example'
-  extra_package_file '/etc/datadog-agent/conf.d/'
-
-  # Logs directory
+  # Logs directory (created by datadog-iot-agent.rb; not managed by Bazel).
   extra_package_file '/var/log/datadog/'
 end
 
