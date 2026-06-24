@@ -146,34 +146,34 @@ func TestHandleValidateEmitsMetricAndReturns200(t *testing.T) {
 	assert.Contains(t, emitter.getEmitted(), validateMetricName)
 }
 
-func TestHandleLaunchEmitsMetricAndReturns200(t *testing.T) {
+func TestHandleRunEmitsMetricAndReturns200(t *testing.T) {
 	srv, _, _, _, emitter, _ := newTestServer()
-	req := httptest.NewRequest(http.MethodPost, pathLaunch, nil)
+	req := httptest.NewRequest(http.MethodPost, pathRun, nil)
 	rec := httptest.NewRecorder()
-	srv.handleLaunch(rec, req)
+	srv.handleRun(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, emitter.getEmitted(), launchMetricName)
+	assert.Contains(t, emitter.getEmitted(), runMetricName)
 }
 
-func TestHandleLaunchParsesInstanceID(t *testing.T) {
+func TestHandleRunParsesInstanceID(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 
-	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
-	req := httptest.NewRequest(http.MethodPost, pathLaunch, body)
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	req := httptest.NewRequest(http.MethodPost, pathRun, body)
 	rec := httptest.NewRecorder()
-	srv.handleLaunch(rec, req)
+	srv.handleRun(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	id := srv.instanceID.Load()
 	assert.Equal(t, "vm-abc123", id, "instance ID must be stored on the server for lifecycle metric tags")
 }
 
-// TestHandleLaunchWithForwarderParsesInstanceID verifies that when a forwarder is
-// configured, /launch still decodes the MicroVM instance ID from the request body
+// TestHandleRunWithForwarderParsesInstanceID verifies that when a forwarder is
+// configured, /run still decodes the MicroVM instance ID from the request body
 // before delegating to handleWithForwarder. Without the decode-then-restore fix, the
 // forwarder path consumed r.Body first, so instanceID was never stored and all
 // subsequent lifecycle metrics lost the instance_id tag.
-func TestHandleLaunchWithForwarderParsesInstanceID(t *testing.T) {
+func TestHandleRunWithForwarderParsesInstanceID(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -187,19 +187,19 @@ func TestHandleLaunchWithForwarderParsesInstanceID(t *testing.T) {
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
 
-	body := strings.NewReader(`{"microVmId":"vm-fwd123"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+	body := strings.NewReader(`{"microvmId":"vm-fwd123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
 	id := srv.instanceID.Load()
 	assert.Equal(t, "vm-fwd123", id, "instance ID must be stored even when forwarder is configured")
 }
 
-func TestHandleLaunchEmptyBodyDoesNotSetInstanceID(t *testing.T) {
+func TestHandleRunEmptyBodyDoesNotSetInstanceID(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 
-	req := httptest.NewRequest(http.MethodPost, pathLaunch, nil)
+	req := httptest.NewRequest(http.MethodPost, pathRun, nil)
 	rec := httptest.NewRecorder()
-	srv.handleLaunch(rec, req)
+	srv.handleRun(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	id := srv.instanceID.Load()
@@ -257,7 +257,7 @@ func TestHandleTerminate_NoForwarder_FlushesAndEmitsMetric_NoSigterm(t *testing.
 	assert.Equal(t, int32(1), drainer.count.Load(), "pending samples must be drained before flush")
 
 	// No SIGTERM should reach the test process within a reasonable window.
-	// 100ms is generous: today's removed code launched the syscall in a
+	// 100ms is generous: today's removed code runed the syscall in a
 	// fire-and-forget goroutine that fires immediately after WriteHeader.
 	select {
 	case sig := <-sigCh:
@@ -276,7 +276,7 @@ func TestEmittedMetricsCarryCurrentTimestamp(t *testing.T) {
 
 	before := float64(time.Now().UnixNano()) / float64(time.Second)
 	rec := httptest.NewRecorder()
-	srv.handleLaunch(rec, httptest.NewRequest(http.MethodPost, pathLaunch, nil))
+	srv.handleRun(rec, httptest.NewRequest(http.MethodPost, pathRun, nil))
 	after := float64(time.Now().UnixNano()) / float64(time.Second)
 
 	emitted := emitter.getEmittedMetrics()
@@ -306,7 +306,7 @@ func TestEmittedMetricsCarryCurrentTimestamp_ForwarderPath(t *testing.T) {
 	}
 
 	before := float64(time.Now().UnixNano()) / float64(time.Second)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, nil))
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
 	after := float64(time.Now().UnixNano()) / float64(time.Second)
 
 	emitted := emitter.getEmittedMetrics()
@@ -324,7 +324,7 @@ func TestRoutes(t *testing.T) {
 	h := newFakeChildHandle()
 	h.alive.Store(true)
 	srv.childHandle = h
-	routes := []string{pathReady, pathValidate, pathLaunch, pathSuspend, pathResume, pathTerminate}
+	routes := []string{pathReady, pathValidate, pathRun, pathSuspend, pathResume, pathTerminate}
 	handler := srv.handler()
 	for _, route := range routes {
 		req := httptest.NewRequest(http.MethodPost, route, nil)
@@ -340,7 +340,7 @@ func TestRoutes(t *testing.T) {
 func TestRoutes_NonPost_Returns405(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	handler := srv.handler()
-	routes := []string{pathReady, pathValidate, pathLaunch, pathSuspend, pathResume, pathTerminate}
+	routes := []string{pathReady, pathValidate, pathRun, pathSuspend, pathResume, pathTerminate}
 	for _, route := range routes {
 		req := httptest.NewRequest(http.MethodGet, route, nil)
 		rec := httptest.NewRecorder()
@@ -401,12 +401,12 @@ func TestHandleReady_WithForwarder_PassesThrough(t *testing.T) {
 	assert.Equal(t, `{"ready":false,"reason":"warming"}`, rec.Body.String())
 }
 
-// /launch with a forwarder configured mirrors the user-app's status code,
-// body, and Content-Type, and emits the launch metric. Replaces the prior
+// /run with a forwarder configured mirrors the user-app's status code,
+// body, and Content-Type, and emits the run metric. Replaces the prior
 // fire-and-forget contract.
-func TestHandleLaunch_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
+func TestHandleRun_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/x-launch")
+		w.Header().Set("Content-Type", "application/x-run")
 		w.WriteHeader(207)
 		_, _ = w.Write([]byte(`{"warmed":true}`))
 	}))
@@ -421,14 +421,14 @@ func TestHandleLaunch_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	srv.handleLaunch(rec, httptest.NewRequest(http.MethodPost, pathLaunch, nil))
+	srv.handleRun(rec, httptest.NewRequest(http.MethodPost, pathRun, nil))
 
 	assert.Equal(t, 207, rec.Code, "must mirror user-app status, not hardcoded 200")
-	assert.Equal(t, "application/x-launch", rec.Header().Get("Content-Type"))
+	assert.Equal(t, "application/x-run", rec.Header().Get("Content-Type"))
 	assert.Equal(t, `{"warmed":true}`, rec.Body.String())
-	assert.Contains(t, emitter.getEmitted(), launchMetricName)
-	// /launch does NOT flush — these are no-op for launch/resume.
-	assert.Equal(t, int32(0), metric.count.Load(), "launch must not flush")
+	assert.Contains(t, emitter.getEmitted(), runMetricName)
+	// /run does NOT flush — these are no-op for run/resume.
+	assert.Equal(t, int32(0), metric.count.Load(), "run must not flush")
 	assert.Equal(t, int32(0), trace.count.Load())
 	assert.Equal(t, int32(0), logs.count.Load())
 }
@@ -890,17 +890,17 @@ func TestNewServerWithForwarderWriteTimeoutCoversForwardBudget(t *testing.T) {
 		"WriteTimeout must cover forwardTimeout+flushTimeout (terminate sequential-flush path)")
 }
 
-// TestInstanceIDTagAppearsInMetricsAfterLaunch verifies that once /launch stores a
+// TestInstanceIDTagAppearsInMetricsAfterRun verifies that once /run stores a
 // MicroVM instance ID, subsequent lifecycle metrics include lambda_microvm_id:<id> as
 // an extra tag. This is the primary tagging path for identifying individual MicroVM
 // instances in lifecycle metrics.
-func TestInstanceIDTagAppearsInMetricsAfterLaunch(t *testing.T) {
+func TestInstanceIDTagAppearsInMetricsAfterRun(t *testing.T) {
 	srv, _, _, _, emitter, _ := newTestServer()
 
-	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
-	// Suspend after launch — the suspend metric must carry the instance_id tag.
+	// Suspend after run — the suspend metric must carry the instance_id tag.
 	srv.handleSuspend(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathSuspend, nil))
 
 	emitted := emitter.getEmittedMetrics()
@@ -971,7 +971,7 @@ func TestMirrorResponse_BodyReadError_DoesNotPanic(t *testing.T) {
 // calls it, to pin the contract of the extracted shared path.
 
 // TestDispatchHook_NoForwarder_WithFlushFalse emits a metric and returns 200
-// without flushing (the launch/resume path).
+// without flushing (the run/resume path).
 func TestDispatchHook_NoForwarder_WithFlushFalse_EmitsMetricReturns200NoFlush(t *testing.T) {
 	srv, metric, trace, logs, emitter, drainer := newTestServer()
 	rec := httptest.NewRecorder()
@@ -1055,58 +1055,58 @@ func withFakeHeartbeat(t *testing.T, srv *Server) (started func() bool, teardown
 	return started, teardown
 }
 
-func TestHandleLaunch_StartsHeartbeat(t *testing.T) {
+func TestHandleRun_StartsHeartbeat(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	started, teardown := withFakeHeartbeat(t, srv)
 	defer teardown()
 
 	rec := httptest.NewRecorder()
-	srv.handleLaunch(rec, httptest.NewRequest(http.MethodPost, pathLaunch, nil))
+	srv.handleRun(rec, httptest.NewRequest(http.MethodPost, pathRun, nil))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.True(t, started(), "/launch must start the heartbeat")
+	assert.True(t, started(), "/run must start the heartbeat")
 }
 
-// /launch must extract the MicroVM ID from the JSON body and apply it to the
+// /run must extract the MicroVM ID from the JSON body and apply it to the
 // heartbeat before Start so the very first emission carries the correct
-// microvm_id. The test calls handleLaunch then inspects the tags that the
+// microvm_id. The test calls handleRun then inspects the tags that the
 // heartbeat would emit on its next tick.
-func TestHandleLaunch_AppliesMicroVMIDFromBody(t *testing.T) {
+func TestHandleRun_AppliesMicroVMIDFromBody(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	_, teardown := withFakeHeartbeat(t, srv)
 	defer teardown()
 
-	body := strings.NewReader(`{"microVmId":"vm-from-body"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+	body := strings.NewReader(`{"microvmId":"vm-from-body"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
 	assert.Contains(t, srv.heartbeat.tagsForEmit(), "microvm_id:vm-from-body")
 	id := srv.instanceID.Load()
 	assert.Equal(t, "vm-from-body", id)
 }
 
-// When the platform body does not include microVmId, the heartbeat keeps the
+// When the platform body does not include microvmId, the heartbeat keeps the
 // "unknown" placeholder rather than crashing or emitting an empty value.
-func TestHandleLaunch_MissingBodyIDUsesUnknown(t *testing.T) {
+func TestHandleRun_MissingBodyIDUsesUnknown(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	_, teardown := withFakeHeartbeat(t, srv)
 	defer teardown()
 
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, nil))
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
 
 	assert.Contains(t, srv.heartbeat.tagsForEmit(), "microvm_id:unknown")
 }
 
 // traced_invocations is emitted by the Heartbeat on each tick, not directly by
-// handleLaunch. This test verifies the separation of concerns: the server's own
+// handleRun. This test verifies the separation of concerns: the server's own
 // emitter must never receive traced_invocations. Billing tag correctness is
 // covered in heartbeat_test.go.
-func TestHandleLaunch_ServerDoesNotDirectlyEmitTracedInvocations(t *testing.T) {
+func TestHandleRun_ServerDoesNotDirectlyEmitTracedInvocations(t *testing.T) {
 	srv, _, _, _, emitter, _ := newTestServer()
 	_, teardown := withFakeHeartbeat(t, srv)
 	defer teardown()
 
-	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
 	for _, m := range emitter.getEmittedMetrics() {
 		assert.NotEqual(t, activeInstancesMetricName, m.name,
@@ -1118,7 +1118,7 @@ func TestHandleSuspend_StopsHeartbeat(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	started, teardown := withFakeHeartbeat(t, srv)
 	defer teardown()
-	srv.heartbeat.Start() // simulate post-launch state
+	srv.heartbeat.Start() // simulate post-run state
 
 	rec := httptest.NewRecorder()
 	srv.handleSuspend(rec, httptest.NewRequest(http.MethodPost, pathSuspend, nil))
@@ -1234,65 +1234,65 @@ func TestSetLogsTagSetter_WiresFields(t *testing.T) {
 	assert.Equal(t, baseTags, srv.baseTags)
 }
 
-// TestHandleLaunch_UpdatesLogTagsWithMicroVMID is the primary feature test:
-// /launch with a microVmId body calls SetLogsTags with baseTags + lambdaMicroVMID + id.
-func TestHandleLaunch_UpdatesLogTagsWithMicroVMID(t *testing.T) {
+// TestHandleRun_UpdatesLogTagsWithMicroVMID is the primary feature test:
+// /run with a microvmId body calls SetLogsTags with baseTags + lambdaMicroVMID + id.
+func TestHandleRun_UpdatesLogTagsWithMicroVMID(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	setter := &mockLogsTagSetter{}
 	srv.SetLogsTagSetter(setter, []string{"env:prod", "region:us-east-1"})
 
-	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
-	require.Equal(t, 1, setter.callCount(), "SetLogsTags must be called exactly once on /launch")
+	require.Equal(t, 1, setter.callCount(), "SetLogsTags must be called exactly once on /run")
 	assert.Equal(t, []string{"env:prod", "region:us-east-1", lambdaMicroVMID + "vm-abc123"}, setter.lastCall())
 }
 
-// TestHandleLaunch_NoMicroVmID_DoesNotUpdateLogTags verifies that when the platform
-// sends /launch with no microVmId, SetLogsTags is not called — the tag pipeline
+// TestHandleRun_NoMicroVmID_DoesNotUpdateLogTags verifies that when the platform
+// sends /run with no microvmId, SetLogsTags is not called — the tag pipeline
 // should not be updated with an unknown value.
-func TestHandleLaunch_NoMicroVmID_DoesNotUpdateLogTags(t *testing.T) {
+func TestHandleRun_NoMicroVmID_DoesNotUpdateLogTags(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	setter := &mockLogsTagSetter{}
 	srv.SetLogsTagSetter(setter, []string{"env:prod"})
 
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, nil))
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
 
-	assert.Equal(t, 0, setter.callCount(), "SetLogsTags must not be called when microVmId is absent")
+	assert.Equal(t, 0, setter.callCount(), "SetLogsTags must not be called when microvmId is absent")
 }
 
-// TestHandleLaunch_NilLogsTagSetter_DoesNotPanic verifies nil-safety: a server
-// constructed without SetLogsTagSetter must not panic when /launch fires.
-func TestHandleLaunch_NilLogsTagSetter_DoesNotPanic(t *testing.T) {
+// TestHandleRun_NilLogsTagSetter_DoesNotPanic verifies nil-safety: a server
+// constructed without SetLogsTagSetter must not panic when /run fires.
+func TestHandleRun_NilLogsTagSetter_DoesNotPanic(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	// logsTagSetter is nil by default
 
-	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
 	assert.NotPanics(t, func() {
-		srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 	})
 }
 
-// TestHandleLaunch_BaseTagsNotMutated verifies the safe-append contract: each
-// call to handleLaunch produces an independent slice and does not modify the
+// TestHandleRun_BaseTagsNotMutated verifies the safe-append contract: each
+// call to handleRun produces an independent slice and does not modify the
 // baseTags stored on the server. This guards against the naive
 // append(s.baseTags, ...) pattern which can corrupt baseTags when the slice
 // has spare capacity.
-func TestHandleLaunch_BaseTagsNotMutated(t *testing.T) {
+func TestHandleRun_BaseTagsNotMutated(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	setter := &mockLogsTagSetter{}
 	baseTags := []string{"env:prod", "service:foo"}
 	originalBase := slices.Clone(baseTags)
 	srv.SetLogsTagSetter(setter, baseTags)
 
-	body1 := strings.NewReader(`{"microVmId":"vm-first"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body1))
-	assert.Equal(t, originalBase, baseTags, "handleLaunch must not mutate the baseTags slice")
+	body1 := strings.NewReader(`{"microvmId":"vm-first"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body1))
+	assert.Equal(t, originalBase, baseTags, "handleRun must not mutate the baseTags slice")
 
-	// Simulate a second /launch (e.g. resumed from snapshot with a new ID) to
+	// Simulate a second /run (e.g. resumed from snapshot with a new ID) to
 	// confirm each call produces an independent result.
-	body2 := strings.NewReader(`{"microVmId":"vm-second"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body2))
+	body2 := strings.NewReader(`{"microvmId":"vm-second"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body2))
 
 	calls := setter.allCalls()
 	require.Len(t, calls, 2)
@@ -1300,25 +1300,25 @@ func TestHandleLaunch_BaseTagsNotMutated(t *testing.T) {
 	assert.Equal(t, []string{"env:prod", "service:foo", lambdaMicroVMID + "vm-second"}, calls[1])
 }
 
-// TestHandleLaunch_EmptyBaseTags_AppendsMicroVMIDOnly verifies that when the
+// TestHandleRun_EmptyBaseTags_AppendsMicroVMIDOnly verifies that when the
 // server is started with no base tags, the resulting tag slice contains only
 // the microvm_id tag (not an empty leading element).
-func TestHandleLaunch_EmptyBaseTags_AppendsMicroVMIDOnly(t *testing.T) {
+func TestHandleRun_EmptyBaseTags_AppendsMicroVMIDOnly(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	setter := &mockLogsTagSetter{}
 	srv.SetLogsTagSetter(setter, nil)
 
-	body := strings.NewReader(`{"microVmId":"vm-solo"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+	body := strings.NewReader(`{"microvmId":"vm-solo"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
 	require.Equal(t, 1, setter.callCount())
 	assert.Equal(t, []string{lambdaMicroVMID + "vm-solo"}, setter.lastCall())
 }
 
-// TestHandleLaunch_WithForwarder_UpdatesLogTags verifies that the log tag update
-// fires even when a user-app forwarder is configured. handleLaunch parses the
+// TestHandleRun_WithForwarder_UpdatesLogTags verifies that the log tag update
+// fires even when a user-app forwarder is configured. handleRun parses the
 // body and calls the setter before delegating to handleWithForwarder.
-func TestHandleLaunch_WithForwarder_UpdatesLogTags(t *testing.T) {
+func TestHandleRun_WithForwarder_UpdatesLogTags(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -1334,8 +1334,8 @@ func TestHandleLaunch_WithForwarder_UpdatesLogTags(t *testing.T) {
 	setter := &mockLogsTagSetter{}
 	srv.SetLogsTagSetter(setter, []string{"env:staging"})
 
-	body := strings.NewReader(`{"microVmId":"vm-fwd456"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+	body := strings.NewReader(`{"microvmId":"vm-fwd456"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
 	require.Equal(t, 1, setter.callCount(), "SetLogsTags must be called even when forwarder is configured")
 	assert.Equal(t, []string{"env:staging", lambdaMicroVMID + "vm-fwd456"}, setter.lastCall())
@@ -1396,72 +1396,72 @@ func TestSetTraceTagSetter_WiresFields(t *testing.T) {
 	assert.Equal(t, base, srv.baseTraceTags)
 }
 
-// TestHandleLaunch_UpdatesTraceTagsWithMicroVMID is the primary feature test:
-// /launch with a microVmId body calls SetTraceTags with baseTraceTags + lambda_microvm_id.
-func TestHandleLaunch_UpdatesTraceTagsWithMicroVMID(t *testing.T) {
+// TestHandleRun_UpdatesTraceTagsWithMicroVMID is the primary feature test:
+// /run with a microvmId body calls SetTraceTags with baseTraceTags + lambda_microvm_id.
+func TestHandleRun_UpdatesTraceTagsWithMicroVMID(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	setter := &mockTraceTagSetter{}
 	srv.SetTraceTagSetter(setter, map[string]string{"env": "prod", "region": "us-east-1"})
 
-	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
-	require.Equal(t, 1, setter.callCount(), "SetTraceTags must be called exactly once on /launch")
+	require.Equal(t, 1, setter.callCount(), "SetTraceTags must be called exactly once on /run")
 	got := setter.lastCall()
 	assert.Equal(t, "vm-abc123", got["lambda_microvm_id"])
 	assert.Equal(t, "prod", got["env"])
 	assert.Equal(t, "us-east-1", got["region"])
 }
 
-// TestHandleLaunch_NoMicroVmID_DoesNotUpdateTraceTags verifies that when the
-// platform sends /launch with no microVmId, SetTraceTags is not called.
-func TestHandleLaunch_NoMicroVmID_DoesNotUpdateTraceTags(t *testing.T) {
+// TestHandleRun_NoMicroVmID_DoesNotUpdateTraceTags verifies that when the
+// platform sends /run with no microvmId, SetTraceTags is not called.
+func TestHandleRun_NoMicroVmID_DoesNotUpdateTraceTags(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	setter := &mockTraceTagSetter{}
 	srv.SetTraceTagSetter(setter, map[string]string{"env": "prod"})
 
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, nil))
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
 
-	assert.Equal(t, 0, setter.callCount(), "SetTraceTags must not be called when microVmId is absent")
+	assert.Equal(t, 0, setter.callCount(), "SetTraceTags must not be called when microvmId is absent")
 }
 
-// TestHandleLaunch_NilTraceTagSetter_DoesNotPanic verifies nil-safety: a server
-// constructed without SetTraceTagSetter must not panic when /launch fires.
-func TestHandleLaunch_NilTraceTagSetter_DoesNotPanic(t *testing.T) {
+// TestHandleRun_NilTraceTagSetter_DoesNotPanic verifies nil-safety: a server
+// constructed without SetTraceTagSetter must not panic when /run fires.
+func TestHandleRun_NilTraceTagSetter_DoesNotPanic(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 
-	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
 	assert.NotPanics(t, func() {
-		srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 	})
 }
 
-// TestHandleLaunch_BaseTraceTagsNotMutated verifies the safe-copy contract: each
-// /launch call produces an independent map and does not modify baseTraceTags.
-func TestHandleLaunch_BaseTraceTagsNotMutated(t *testing.T) {
+// TestHandleRun_BaseTraceTagsNotMutated verifies the safe-copy contract: each
+// /run call produces an independent map and does not modify baseTraceTags.
+func TestHandleRun_BaseTraceTagsNotMutated(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	setter := &mockTraceTagSetter{}
 	base := map[string]string{"env": "prod"}
 	srv.SetTraceTagSetter(setter, base)
 
-	body1 := strings.NewReader(`{"microVmId":"vm-first"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body1))
+	body1 := strings.NewReader(`{"microvmId":"vm-first"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body1))
 
-	assert.Equal(t, map[string]string{"env": "prod"}, base, "handleLaunch must not mutate baseTraceTags")
+	assert.Equal(t, map[string]string{"env": "prod"}, base, "handleRun must not mutate baseTraceTags")
 	assert.Equal(t, "vm-first", setter.lastCall()["lambda_microvm_id"])
 
-	// A second /launch (e.g. resume from snapshot with new ID) must produce an
+	// A second /run (e.g. resume from snapshot with new ID) must produce an
 	// independent result without leaking the first ID into baseTraceTags.
-	body2 := strings.NewReader(`{"microVmId":"vm-second"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body2))
+	body2 := strings.NewReader(`{"microvmId":"vm-second"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body2))
 
-	assert.Equal(t, map[string]string{"env": "prod"}, base, "baseTraceTags must still be unmodified after second /launch")
+	assert.Equal(t, map[string]string{"env": "prod"}, base, "baseTraceTags must still be unmodified after second /run")
 	assert.Equal(t, "vm-second", setter.lastCall()["lambda_microvm_id"])
 }
 
-// TestHandleLaunch_WithForwarder_UpdatesTraceTags verifies that the trace tag
+// TestHandleRun_WithForwarder_UpdatesTraceTags verifies that the trace tag
 // update fires even when a user-app forwarder is configured.
-func TestHandleLaunch_WithForwarder_UpdatesTraceTags(t *testing.T) {
+func TestHandleRun_WithForwarder_UpdatesTraceTags(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -1477,8 +1477,8 @@ func TestHandleLaunch_WithForwarder_UpdatesTraceTags(t *testing.T) {
 	setter := &mockTraceTagSetter{}
 	srv.SetTraceTagSetter(setter, map[string]string{"env": "staging"})
 
-	body := strings.NewReader(`{"microVmId":"vm-fwd789"}`)
-	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+	body := strings.NewReader(`{"microvmId":"vm-fwd789"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 
 	require.Equal(t, 1, setter.callCount(), "SetTraceTags must be called even when forwarder is configured")
 	assert.Equal(t, "vm-fwd789", setter.lastCall()["lambda_microvm_id"])

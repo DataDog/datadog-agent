@@ -5,14 +5,18 @@
 
 // Package lifecycle implements the AWS Lambda MicroVM lifecycle hook server.
 // The MicroVM platform calls POST endpoints on port 9000 at key points in
-// the MicroVM lifecycle: ready, validate, launch, resume, suspend, terminate.
+// the MicroVM lifecycle: ready, validate, run, resume, suspend, terminate.
 //
 // Hook semantics:
 //   - /ready    — "I am booted and ready to be snapshotted." The platform
-//     sends this once after cold start; a 200 triggers snapshot.
-//   - /validate — "I was resumed from a snapshot and everything is good."
-//     The platform sends this after each resume from snapshot.
-//   - /launch   — VM is starting (cold start or from snapshot).
+//     sends this during image build, before snapshot capture; a 200 triggers
+//     snapshot, and it is retried on 503 until a 200 or the configured timeout.
+//   - /validate — build-time hook. After the snapshot is captured the platform
+//     runs a test MicroVM from it and sends /validate to smoke-test the
+//     snapshot (retried on 503 until a 200 or the configured timeout); a 200
+//     marks the image version valid. It is NOT sent during the normal
+//     run/resume lifecycle of a production MicroVM.
+//   - /run      — VM is starting (cold start or from snapshot).
 //   - /resume   — VM is resuming from a suspended snapshot.
 //   - /suspend  — VM is about to be snapshotted/frozen.
 //   - /terminate — VM is being torn down permanently.
@@ -21,14 +25,14 @@
 //
 //   - When DD_AWS_MICROVM_USER_APP_PORT is unset: the agent responds
 //     to each hook itself. /ready checks child-process liveness; /validate
-//     returns 200 directly; /launch, /resume, /suspend, and /terminate emit
+//     returns 200 directly; /run, /resume, /suspend, and /terminate emit
 //     an enhanced metric and, for /suspend and /terminate, flush telemetry
 //     before responding.
 //
 //   - When the env var is set: the agent forwards each hook to
 //     127.0.0.1:<user-app-port> on the same path and mirrors the user app's
 //     response (status, body, Content-Type) back to the platform. /ready and
-//     /validate wait for TCP reachability before forwarding. For /launch,
+//     /validate wait for TCP reachability before forwarding. For /run,
 //     /resume, /suspend, and /terminate the agent's own work — metric
 //     emission, /suspend and /terminate telemetry flush — runs in a goroutine
 //     in parallel with the pass-through.
@@ -60,17 +64,17 @@ import (
 const DefaultPort = 9000
 
 const (
-	basePath      = "/aws/lambda-microvms/runtime/beta/v1/"
+	basePath      = "/aws/lambda-microvms/runtime/v1/"
 	pathReady     = basePath + "ready"
 	pathValidate  = basePath + "validate"
-	pathLaunch    = basePath + "launch"
+	pathRun       = basePath + "run"
 	pathSuspend   = basePath + "suspend"
 	pathResume    = basePath + "resume"
 	pathTerminate = basePath + "terminate"
 
 	postReady     = "POST " + pathReady
 	postValidate  = "POST " + pathValidate
-	postLaunch    = "POST " + pathLaunch
+	postRun       = "POST " + pathRun
 	postSuspend   = "POST " + pathSuspend
 	postResume    = "POST " + pathResume
 	postTerminate = "POST " + pathTerminate
@@ -80,7 +84,7 @@ const (
 	flushWorkerCount = 3
 
 	baseMetricPrefix    = "aws.lambda.enhanced.microvm."
-	launchMetricName    = baseMetricPrefix + "launch"
+	runMetricName       = baseMetricPrefix + "run"
 	suspendMetricName   = baseMetricPrefix + "suspend"
 	resumeMetricName    = baseMetricPrefix + "resume"
 	terminateMetricName = baseMetricPrefix + "terminate"
@@ -101,7 +105,7 @@ const (
 type flushMode int
 
 const (
-	noFlush         flushMode = iota // /launch, /resume: no flush
+	noFlush         flushMode = iota // /run, /resume: no flush
 	flushParallel                    // /suspend: flush concurrently with forward
 	flushSequential                  // /terminate: flush after forward completes
 )
@@ -154,9 +158,9 @@ type TraceTagSetterFunc func(map[string]string)
 // SetTraceTags implements TraceTagSetter.
 func (f TraceTagSetterFunc) SetTraceTags(tags map[string]string) { f(tags) }
 
-// launchBody is the JSON payload sent by the MicroVM platform on /launch.
-type launchBody struct {
-	MicroVMID string `json:"microVmId"`
+// runBody is the JSON payload sent by the MicroVM platform on /run.
+type runBody struct {
+	MicroVMID string `json:"microvmId"`
 }
 
 // Server is the MicroVM lifecycle hook HTTP server.
@@ -166,7 +170,7 @@ type Server struct {
 	logsFlusher   LogsFlusher
 	metricEmitter MetricEmitter
 	sampleDrainer SampleDrainer
-	instanceID    *atomic.String // set once from /launch body
+	instanceID    *atomic.String // set once from /run body
 	metricSource  metrics.MetricSource
 	flushTimeout  time.Duration
 
@@ -176,9 +180,9 @@ type Server struct {
 	heartbeat   *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
 
 	logsTagSetter  LogsTagSetter     // nil-safe; set via SetLogsTagSetter after construction
-	baseTags       []string          // startup tag snapshot; lambda_microvm_id is appended at /launch
+	baseTags       []string          // startup tag snapshot; lambda_microvm_id is appended at /run
 	traceTagSetter TraceTagSetter    // nil-safe; set via SetTraceTagSetter after construction
-	baseTraceTags  map[string]string // startup trace tag snapshot; lambda_microvm_id is added at /launch
+	baseTraceTags  map[string]string // startup trace tag snapshot; lambda_microvm_id is added at /run
 
 	httpServer *http.Server
 }
@@ -217,7 +221,7 @@ func NewServer(
 	}
 	// WriteTimeout must cover the full handler wall-clock for every path:
 	//   - No forwarder: flushTimeout (flush budget + write headroom)
-	//   - /launch, /resume, /suspend, /terminate: forwardTimeout (default 30s)
+	//   - /run, /resume, /suspend, /terminate: forwardTimeout (default 1s)
 	//   - /ready: readyTimeout (default 60s, matching platform /ready timeout)
 	//   - /validate: validateTimeout (default 60s, matching platform /validate timeout)
 	// Use the largest of all applicable budgets so the HTTP server does not
@@ -240,16 +244,16 @@ func NewServer(
 }
 
 // SetLogsTagSetter wires a LogsTagSetter and a baseline tag slice into the server.
-// Must be called before the first /launch request. baseTags is the startup tag
-// snapshot; lambda_microvm_id is appended to it when /launch fires.
+// Must be called before the first /run request. baseTags is the startup tag
+// snapshot; lambda_microvm_id is appended to it when /run fires.
 func (s *Server) SetLogsTagSetter(setter LogsTagSetter, baseTags []string) {
 	s.logsTagSetter = setter
 	s.baseTags = baseTags
 }
 
 // SetTraceTagSetter wires a TraceTagSetter and a baseline trace tag map into the
-// server. Must be called before the first /launch request. baseTraceTags is the
-// startup trace tag snapshot; lambda_microvm_id is added to it when /launch fires.
+// server. Must be called before the first /run request. baseTraceTags is the
+// startup trace tag snapshot; lambda_microvm_id is added to it when /run fires.
 func (s *Server) SetTraceTagSetter(setter TraceTagSetter, baseTraceTags map[string]string) {
 	s.traceTagSetter = setter
 	s.baseTraceTags = baseTraceTags
@@ -302,7 +306,7 @@ func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(postReady, s.handleReady)
 	mux.HandleFunc(postValidate, s.handleValidate)
-	mux.HandleFunc(postLaunch, s.handleLaunch)
+	mux.HandleFunc(postRun, s.handleRun)
 	mux.HandleFunc(postSuspend, s.handleSuspend)
 	mux.HandleFunc(postResume, s.handleResume)
 	mux.HandleFunc(postTerminate, s.handleTerminate)
@@ -336,17 +340,26 @@ func (s *Server) passThroughReady(w http.ResponseWriter, r *http.Request) {
 	mirrorResponse(w, resp)
 }
 
-// handleValidate answers the platform's "you were resumed from a snapshot —
-// is everything good?" signal. The platform sends /validate after each resume
-// from snapshot; a 200 confirms the restored VM is healthy.
+// handleValidate answers the platform's build-time snapshot smoke test. After
+// the snapshot is captured the platform runs a test MicroVM from it and sends
+// /validate; a 200 marks the image version valid, a 503 asks the platform to
+// retry until validateTimeout. It is NOT sent during the normal run/resume
+// lifecycle of a production MicroVM.
 //
 // When a Forwarder is configured (DD_AWS_MICROVM_USER_APP_PORT set):
-// pass-through to the user app with TCP-wait, mirroring the response. The
-// TCP-wait handles the rare crash-then-restart window between resume and this
-// call. Without a forwarder the agent returns 200 directly; the user app is
-// not required to implement /validate in that mode.
+// pass-through to the user app with TCP-wait, mirroring the response, so the
+// user app's own smoke test drives the build's validity decision. The TCP-wait
+// absorbs the window before the app is reachable on the test run. Without a
+// forwarder the agent returns 200 directly; the user app is not required to
+// implement /validate in that mode.
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: validate")
+	// TODO(microvm-validate-metric): /validate is a build-time hook that only
+	// fires on the ephemeral test MicroVM during image build (and may be retried
+	// on 503), never during a production instance's run/resume lifecycle. This
+	// metric therefore reflects build-step activity, not production behavior, and
+	// may not reliably flush before the test VM is torn down. Revisit whether it
+	// carries enough value to keep alongside the genuine runtime lifecycle metrics.
 	s.emitLifecycleMetric(validateMetricName)
 	if s.fwd != nil {
 		s.passThroughValidate(w, r)
@@ -419,7 +432,7 @@ func (s *Server) flushAll(flushCtx context.Context) {
 // for the user app's response, then joins and mirrors the user app's
 // response back to the platform.
 //
-// Used for /launch and /resume (noFlush), /suspend (flushParallel), and
+// Used for /run and /resume (noFlush), /suspend (flushParallel), and
 // /terminate (flushSequential). /ready and /validate use passThroughReady
 // and passThroughValidate directly (TCP-wait path, not this function).
 //
@@ -506,25 +519,25 @@ func (s *Server) aliveCheckReady(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusServiceUnavailable)
 }
 
-// handleLaunch emits the launch metric, captures the MicroVM instance ID
+// handleRun emits the run metric, captures the MicroVM instance ID
 // from the platform's request body, starts the periodic heartbeat, and
 // (when a forwarder is configured) mirrors the user app's response.
-// handleLaunch is the only hook that reads r.Body and is therefore not
+// handleRun is the only hook that reads r.Body and is therefore not
 // collapsed into dispatchHook directly. The ID is captured before Start
 // so the first heartbeat emission already carries the correct microvm_id tag.
-func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	// Read the body once so we can parse the instance ID AND still forward the
 	// original payload to the user app. Without this, the forwarder path would
 	// consume r.Body before the decode, losing the instance_id tag on all
 	// subsequent lifecycle metrics.
 	bodyBytes, _ := io.ReadAll(r.Body)
 	_ = r.Body.Close()
-	var body launchBody
+	var body runBody
 	if err := json.Unmarshal(bodyBytes, &body); err != nil {
-		log.Debugf("MicroVM lifecycle: could not parse launch body: %v", err)
+		log.Debugf("MicroVM lifecycle: could not parse run body: %v", err)
 	}
 	if body.MicroVMID != "" {
-		log.Infof("MicroVM lifecycle: launch (microvm_id=%s)", body.MicroVMID)
+		log.Infof("MicroVM lifecycle: run (microvm_id=%s)", body.MicroVMID)
 		s.instanceID.Store(body.MicroVMID)
 		s.heartbeat.SetMicroVMID(body.MicroVMID)
 		if s.logsTagSetter != nil {
@@ -536,17 +549,17 @@ func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
 			s.traceTagSetter.SetTraceTags(tags)
 		}
 	} else {
-		log.Info("MicroVM lifecycle: launch")
+		log.Info("MicroVM lifecycle: run")
 	}
 	s.heartbeat.Start()
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	// Go strips Content-Length from server request headers into r.ContentLength
 	// so the forwarder's header-based Content-Length path in do() sees an empty
 	// string. Put it back now that we know the exact buffered length, so the
-	// forwarded /launch request carries a fixed Content-Length rather than
+	// forwarded /run request carries a fixed Content-Length rather than
 	// chunked encoding (which some user-app HTTP servers reject).
 	r.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
-	s.dispatchHook(launchMetricName, pathLaunch, noFlush, w, r)
+	s.dispatchHook(runMetricName, pathRun, noFlush, w, r)
 }
 
 // handleResume emits the resume metric, restarts the heartbeat (stopped at
@@ -612,7 +625,7 @@ func (s *Server) handleTerminate(w http.ResponseWriter, r *http.Request) {
 	s.dispatchHook(terminateMetricName, pathTerminate, flushSequential, w, r)
 }
 
-// dispatchHook is the shared dispatch path for launch, resume, suspend, and
+// dispatchHook is the shared dispatch path for run, resume, suspend, and
 // terminate. When a forwarder is configured (DD_AWS_MICROVM_USER_APP_PORT
 // set): delegates to handleWithForwarder which mirrors the user app's response.
 // When no forwarder is configured: emit metric, optionally flush, return 200.
@@ -633,7 +646,7 @@ func (s *Server) dispatchHook(metricName, path string, mode flushMode, w http.Re
 }
 
 // emitLifecycleMetric records a lifecycle event metric, appending the stored
-// MicroVM instance ID tag when one has been captured from the /launch body.
+// MicroVM instance ID tag when one has been captured from the /run body.
 func (s *Server) emitLifecycleMetric(name string) {
 	var extraTags []string
 	if id := s.instanceID.Load(); id != "" {

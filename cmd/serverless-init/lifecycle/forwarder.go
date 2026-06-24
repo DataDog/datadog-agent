@@ -30,14 +30,14 @@ const defaultMaxResponseBodyBytes int64 = 1 << 20
 type Forwarder struct {
 	target               string        // e.g. "http://127.0.0.1:8080"
 	client               *http.Client  // shared; no client-level Timeout (per-call deadlines via ctx)
-	forwardTimeout       time.Duration // default 1s, used for suspend/terminate/launch/resume
+	forwardTimeout       time.Duration // default 1s, used for suspend/terminate/run/resume
 	readyTimeout         time.Duration // default 60s, used for /ready
 	validateTimeout      time.Duration // default 1s, used for /validate
 	maxResponseBodyBytes int64         // default defaultMaxResponseBodyBytes; cap on user-app body surfaced to platform
 }
 
 // NewForwarder constructs a Forwarder targeting 127.0.0.1:<port>. The forwardTimeout
-// is used for /launch, /resume, /suspend, and /terminate; readyTimeout for /ready;
+// is used for /run, /resume, /suspend, and /terminate; readyTimeout for /ready;
 // validateTimeout for /validate. Callers should pass the wire.go default constants
 // or values parsed from the DD_AWS_MICROVM_*_TIMEOUT_MS env vars.
 func NewForwarder(port int, forwardTimeout, readyTimeout, validateTimeout time.Duration) *Forwarder {
@@ -116,9 +116,9 @@ func (f *Forwarder) waitForUserApp(ctx context.Context) error {
 	}
 }
 
-// PassThrough forwards a per-MicroVM lifecycle hook (/launch, /resume,
+// PassThrough forwards a per-MicroVM lifecycle hook (/run, /resume,
 // /suspend, /terminate) to the user app and returns the user-app response.
-// Bounded by forwardTimeout (default 30s) — sized as <50% of the tightest
+// Bounded by forwardTimeout (default 1s) — sized as <50% of the tightest
 // AWS Lambda MicroVM platform bound (/terminate's 60s) so the agent always
 // returns within the platform's window. Dial errors map to 503; deadline
 // exceeded maps to 504. The returned *http.Response always has a non-nil
