@@ -240,16 +240,14 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 	}
 	if ncr.MaxTTL != nil {
 		cfg.MaxTTL = uint8(*ncr.MaxTTL)
+	} else {
+		cfg.MaxTTL = defaultMaxTTL
 	}
 	timeoutSec := defaultTestTimeoutSeconds
 	if ncr.Timeout != nil {
 		timeoutSec = *ncr.Timeout
 	}
-	maxTTL := cfg.MaxTTL
-	if maxTTL == 0 {
-		maxTTL = defaultMaxTTL
-	}
-	cfg.Timeout = time.Duration(float64(timeoutSec) * 0.9 / float64(maxTTL) * float64(time.Second))
+	cfg.Timeout = time.Duration(float64(timeoutSec) * 0.9 / float64(cfg.MaxTTL) * float64(time.Second))
 	if ncr.TracerouteCount != nil {
 		cfg.TracerouteQueries = *ncr.TracerouteCount
 	}

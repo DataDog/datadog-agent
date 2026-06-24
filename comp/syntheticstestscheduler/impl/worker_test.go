@@ -191,6 +191,7 @@ func TestToNetpathConfig(t *testing.T) {
 			expect: config.Config{
 				Protocol:     payload.ProtocolUDP,
 				DestHostname: "dns.example.com",
+				MaxTTL:       defaultMaxTTL,
 				Timeout:      time.Duration(float64(defaultTestTimeoutSeconds) * 0.9 / float64(defaultMaxTTL) * float64(time.Second)),
 				ReverseDNS:   true,
 			},
