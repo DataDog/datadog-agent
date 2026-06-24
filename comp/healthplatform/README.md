@@ -31,14 +31,16 @@ Every health issue has three identity fields. Follow these rules when adding a n
 
 ## Issue lifecycle state
 
-Issues have two states defined in the `IssueState` proto enum:
+Issues have two canonical states defined in the `IssueState` proto enum:
 
 | Value | Name | Meaning |
 |---|---|---|
-| `0` | `ISSUE_STATE_ACTIVE` | Issue is currently present (proto3 default — unset = active) |
+| `4` | `ISSUE_STATE_ACTIVE` | Issue is currently present |
 | `3` | `ISSUE_STATE_RESOLVED` | Issue has been resolved |
 
-`RESOLVED` keeps wire value `3` (its original value before the enum was simplified) so agents still sending the old `NEW=1` / `ONGOING=2` / `RESOLVED=3` wire values are handled transparently by all consumers — old `NEW` and `ONGOING` simply fall through as active, and `RESOLVED=3` is recognised identically.
+The enum also retains three deprecated values for wire compatibility with older agents:
+`UNSPECIFIED=0`, `NEW=1`, `ONGOING=2` — consumers must treat all three as equivalent to `ACTIVE`.
+`RESOLVED=3` is unchanged from the original enum so agents that pre-date this simplification are handled transparently.
 
 The state machine in the store (`store/impl/store.go`):
 - Any `ReportIssue` call sets or keeps the issue `ACTIVE` and updates `LastSeen`.

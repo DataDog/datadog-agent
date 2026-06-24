@@ -120,7 +120,7 @@ func issueStateFromString(s string) IssueState {
 	case "resolved":
 		return IssueStateResolved
 	}
-	return 0
+	return IssueStateActive
 }
 
 // PersistedIssue tracks the lifecycle state of an issue.
