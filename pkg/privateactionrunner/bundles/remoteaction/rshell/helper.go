@@ -75,6 +75,9 @@ func cleanPathList(paths []string) []string {
 	return cleaned
 }
 
+// intersectAllowedPathsByAccess keeps narrower paths shared by the operator and backend allowlists.
+// Paths only match within the same access group, except unsuffixed operator root
+// which admits backend paths with their original access suffix.
 func intersectAllowedPathsByAccess(operatorAllowed []string, backendAllowed []string) []string {
 	filtered := make([]string, 0, len(operatorAllowed))
 	seen := make(map[string]struct{}, len(operatorAllowed))
