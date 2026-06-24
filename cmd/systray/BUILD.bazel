@@ -44,7 +44,12 @@ SUBSYSTEM = "windows"
 dd_agent_go_binary(
     name = "ddtray",
     cgo = True,
-    clinkopts = ["--subsystem,%s" % SUBSYSTEM],
+    # Subtle: This should be passed to the C linker, so the -Wl is redundant,
+    # but it is handled by the mingw driver instead of ld, so we still need
+    # -Wl to pass it on a second layer deep.
+    clinkopts = [
+        "-extldflags=-Wl,--subsystem,%s" % SUBSYSTEM,
+    ],
     embed = [":systray_lib"],
     # TODO: Move selection of strip flags (-s -w) into dd_agent_go_binary
     gc_linkopts = [
