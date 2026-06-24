@@ -42,13 +42,13 @@ SUBSYSTEM = "windows"
 # ldflags += f"-linkmode external '-extldflags=-Wl,--subsystem,{subsystem}' "
 
 dd_agent_go_binary(
-    name = "systray",
+    name = "ddtray",
     cgo = True,
     clinkopts = ["--subsystem,%s" % SUBSYSTEM],
     embed = [":systray_lib"],
     # TODO: Move selection of strip flags (-s -w) into dd_agent_go_binary
     gc_linkopts = [
-        "--subsystem,%s" % SUBSYSTEM,
+        "-linkmode=external",
     ] + select({
         "//:is_release": [
             "-s",
