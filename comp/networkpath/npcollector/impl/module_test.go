@@ -12,6 +12,6 @@ import (
 // Module defines the fx options for the npcollector component for use in tests.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(NewNpCollector),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
 }
