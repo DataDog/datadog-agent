@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/test/e2e-framework
 go 1.26.0
 
 require (
+	al.essio.dev/pkg/shellescape v1.6.0
 	cloud.google.com/go/compute v1.64.0
 	dario.cat/mergo v1.0.2
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
@@ -11,7 +12,6 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go/v2 v2.60.0
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/alessio/shellescape v1.4.2
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.307.0
@@ -28,7 +28,7 @@ require (
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/pkg/sftp v1.13.10
-	github.com/pulumi/pulumi-aws/sdk/v7 v7.32.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.33.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.6.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3
