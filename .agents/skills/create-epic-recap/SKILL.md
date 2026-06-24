@@ -1,6 +1,6 @@
 ---
 name: create-epic-recap
-description: Generate a resolution recap for a Jira Epic from merged PRs and release notes, then post it as a comment after user approval
+description: "Use when an engineer or manager asks to recap, summarize, or post a Jira Epic resolution: gathers completed child issues, merged GitHub PRs, and release notes, previews a stakeholder-ready recap, and posts only after approval."
 argument-hint: "<EPIC-KEY e.g. OTAGENT-820> [--dry-run]"
 model: sonnet
 allowed-tools: Bash, Read, Write, Glob, Grep, AskUserQuestion, mcp__atlassian__getJiraIssue, mcp__atlassian__searchJiraIssuesUsingJql, mcp__atlassian__getJiraIssueRemoteIssueLinks, mcp__atlassian__addCommentToJiraIssue, mcp__atlassian__getAccessibleAtlassianResources
@@ -10,16 +10,59 @@ Generate a resolution recap for the Jira Epic **$ARGUMENTS**, aggregating inform
 
 This skill is intended for an engineer who has finished work on an Epic and wants to communicate the resolution to PMs and stakeholders without losing flow. See [OTAGENT-1038](https://datadoghq.atlassian.net/browse/OTAGENT-1038) for motivation.
 
-## Runtime & MCP tooling — read before Step 2
+**Owning team:** `team/opentelemetry-agent` (`@DataDog/opentelemetry-agent`)
 
-This skill runs in **two environments with different Atlassian MCP servers**. Detect which one you have, then use the matching column in every Jira step below. Everything in Steps 2–12 that mentions a `jira_*` tool has a Rovo equivalent in the mapping table — never assume one runtime's tool names exist in the other.
+## Prerequisites
 
-- **Cursor** — community `mcp-atlassian` server. Tools: `jira_get_issue`, `jira_search`, `jira_get_issue_development_info`, `jira_add_comment`. No `cloudId`. `fields` is a comma-separated string. Comment body param is `body`.
-- **Claude Code** — official Atlassian (Rovo) server. Tools: `mcp__atlassian__getJiraIssue`, `mcp__atlassian__searchJiraIssuesUsingJql`, `mcp__atlassian__getJiraIssueRemoteIssueLinks`, `mcp__atlassian__addCommentToJiraIssue`, `mcp__atlassian__getAccessibleAtlassianResources`. **`cloudId` is required on every call.** `fields` is a JSON array. Comment body param is `commentBody`.
+Before running this skill, verify the following. If any check fails, stop and tell the user what to fix.
 
-**Detection:** if `jira_get_issue_development_info` / `jira_get_issue` is callable → Cursor path. If `mcp__atlassian__getJiraIssue` is callable → Claude path. If neither, stop and ask the user to connect/authenticate an Atlassian MCP server.
+1. **Atlassian MCP server** — an Atlassian/Jira MCP server must be connected and authenticated. Cursor uses the community `mcp-atlassian` server (`user-atlassian`); Claude Code uses the official Atlassian Rovo server. Run a quick probe (e.g. fetch a known issue) to confirm connectivity; if it fails, ask the user to authenticate or connect the server.
+2. **GitHub CLI (`gh`)** — must be installed and authenticated. Run `gh auth status`; if it reports no active account, ask the user to run `gh auth login`.
+3. **Repository context** — the skill uses `gh search prs --owner DataDog` and `gh pr view --repo DataDog/<repo>`. It does not need to be run from inside a checkout, but `gh` must have access to the DataDog GitHub org.
 
-**cloudId (Claude/Rovo only):** pass `cloudId: "datadoghq.atlassian.net"` directly — the site hostname works. If a call rejects it, call `mcp__atlassian__getAccessibleAtlassianResources` once and use the returned `id` (UUID) for the `datadoghq` site.
+## Example
+
+**Input:** `/create-epic-recap OTAGENT-304 --dry-run`
+
+**What happens:**
+1. Fetches Epic OTAGENT-304 ("Move opentelemetry-mapping-go to datadog-agent repo")
+2. Finds 11 completed child issues, filters to Done status
+3. Queries Jira Development panel (Phase A) and GitHub search (Phase B) for merged PRs across all child keys
+4. Discovers 8 PRs in `datadog-agent`, 2 in `opentelemetry-mapping-go`, 1 in `documentation`; excludes 6 cross-references
+5. Reads release notes from PR file lists
+6. Renders the recap and prints a preview (dry-run — no Jira comment posted)
+
+**Output preview (abbreviated):**
+
+```markdown
+# Resolution recap: OTAGENT-304 — Move opentelemetry-mapping-go to datadog-agent repo
+
+## Summary
+Migrated the opentelemetry-mapping-go library into the datadog-agent monorepo,
+bumped OTel Collector dependencies through v0.136.0, removed the deprecated
+routing processor, and added support for the new `deployment.environment.name`
+semconv in workload meta.
+
+## What's new for users
+- OTel Collector dependencies upgraded to v0.136.0
+- Deprecated OTel routing processor removed (upstream removal)
+- New `deployment.environment.name` env convention supported in workload meta
+...
+
+## Linked PRs & release notes
+- [datadog-agent#36512](…) — [OTAGENT-304] Move opentelemetry-mapping-go to datadog-agent repo
+- [datadog-agent#40230](…) — [OTAGENT-510] bump otel versions to v0.133.0
+- [opentelemetry-mapping-go#767](…) — migrate pkg/otlp/rum to otel/semconv _(linked via Jira)_
+...
+```
+
+`Saved draft to /tmp/OTAGENT-304-recap.md`
+
+## Runtime & MCP tooling
+
+This skill runs in **two environments** with different Atlassian MCP servers. Detect which one you have at the start of every run, then use the matching column in the tool mapping below. Never assume one runtime's tool names exist in the other.
+
+**Detection:** if `jira_get_issue` / `jira_get_issue_development_info` is callable → **Cursor** path. If `mcp__atlassian__getJiraIssue` is callable → **Claude Code** path. If neither, stop and ask the user to connect/authenticate an Atlassian MCP server.
 
 ### Tool mapping
 
@@ -27,29 +70,14 @@ This skill runs in **two environments with different Atlassian MCP servers**. De
 |---|---|---|
 | Fetch issue (Steps 2 & 4-A2) | `jira_get_issue` — `issue_key`, `fields` (CSV), `comment_limit` | `mcp__atlassian__getJiraIssue` — `cloudId`, `issueIdOrKey`, `fields` (array), `responseContentFormat:"markdown"` |
 | Search children (Step 3) | `jira_search` — `jql`, `fields` (CSV), `limit` | `mcp__atlassian__searchJiraIssuesUsingJql` — `cloudId`, `jql`, `fields` (array), `maxResults` |
-| **PR detail / Tier 0 (Step 4-A1)** | `jira_get_issue_development_info` — `issue_key`, `application_type:"GitHub"`, `data_type:"pullrequest"` | **NOT AVAILABLE** — no dev-status endpoint; skip A1 entirely (see capability gap below) |
+| **PR detail / Tier 0 (Step 4-A1)** | `jira_get_issue_development_info` — `issue_key`, `application_type:"GitHub"`, `data_type:"pullrequest"` | **NOT AVAILABLE** — skip A1 entirely (see [Appendix A](#appendix-a--claude-code-rovo-capability-gap)) |
 | Post comment (Step 11) | `jira_add_comment` — `issue_key`, `body` | `mcp__atlassian__addCommentToJiraIssue` — `cloudId`, `issueIdOrKey`, `commentBody`, `contentFormat:"markdown"` |
 
-### Capability gap on Claude Code (Rovo) — affects PR-URL discovery
+**Key runtime differences (details in Appendix):**
+- **Cursor** — no `cloudId` needed; `fields` is CSV; has full Jira Development panel access (Tier 0 PRs).
+- **Claude Code** — `cloudId` required on every call (pass `"datadoghq.atlassian.net"`; see [Appendix B](#appendix-b--cloudid-and-large-responses-claude-code)); `fields` is a JSON array; **no dev-status endpoint** — Phase A1/Tier 0 is unavailable, all PR URLs come from GitHub search.
 
-The Rovo server exposes **no Development/dev-status endpoint**, so on Claude Code:
-
-- **Phase A1 / Tier 0 is unavailable** — you cannot read linked-PR **URLs** from Jira. Do **not** use remote links as a substitute: `getJiraIssueRemoteIssueLinks` does **not** return GitHub PRs (the GitHub↔Jira integration stores them in dev-status, not remote links — verified empty on OTAGENT-304).
-- The only Jira-side PR signal is **Phase A2** (`customfield_10000`), which gives **counts + state, never URLs**.
-- Therefore **all PR URLs come from Phase B (`gh search prs`)**; the A2 counts are only a weak cross-check. `gh search prs <KEY>` over-matches body/cross-reference mentions, so a count can coincide while the actual PRs differ — e.g. OTAGENT-307: Jira count 4, `gh` also returns 4, but two carry a *different* key in their title. Lean on the Tier 1/2/4 classification and surface Tier 3 in preview rather than trusting a count match.
-- **Surface this limitation in the recap itself**, not just in the preview. Step 9 renders a `{{pr_discovery_note}}` into the posted report: a quiet footnote that PR discovery was GitHub-only, escalating to a loud warning + MCP-install recommendation when an A2 shortfall proves Jira-attached PRs were missed. This is the graceful-degradation path — the recap never silently implies its PR list is authoritative when the MCP server cannot read Jira's Development panel. The fix for the user is to connect a community Atlassian MCP server with a dev-status tool (e.g. `mcp-atlassian`, the `user-atlassian` server, which exposes `jira_get_issue_development_info`); the recap tells them so rather than failing silently.
-
-### `customfield_10000` shape (A2)
-
-On Rovo, `customfield_10000` comes back as a **single string**, e.g. `{pullrequest={dataType=pullrequest, state=MERGED, stateCount=4}, json={"cachedValue":{…}}}`. Extract the embedded `json={…}` object and read `cachedValue.summary.pullrequest.overall.count` and `…overall.state`. Keys whose dev field has no `pullrequest` block (or is null) have count 0.
-
-### JQL for Epic children (Step 3)
-
-Use **`parent = <EPIC-KEY>`** — it works on both runtimes and modern Jira hierarchies (verified: `parent = OTAGENT-304` returns its 17 children). The legacy **`"Epic Link" = <EPIC-KEY>`** form only works on classic/company-managed projects; keep it as a fallback if `parent =` is rejected.
-
-### Large search responses (Claude/Rovo)
-
-`searchJiraIssuesUsingJql` can exceed the MCP response token cap and be spilled to a file. To avoid/handle this, request **only the fields you need** (e.g. `["summary","status","issuetype","customfield_10000"]`); if the result is saved to a file, parse it with `jq` instead of re-reading the whole blob.
+**JQL for Epic children (Step 3):** use `parent = <EPIC-KEY>` — works on both runtimes and modern Jira hierarchies. Fall back to `"Epic Link" = <EPIC-KEY>` only if `parent =` is rejected on a classic project.
 
 ## Step 1: Parse arguments
 
@@ -123,7 +151,7 @@ If A1 failed (fail-fast triggered) or returned zero Tier 0 PRs for any key, fetc
 
 Call the **Fetch issue** tool for your runtime (see *Tool mapping*) requesting only `customfield_10000` (the "Development" field, type `com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf`):
 - **Cursor:** `jira_get_issue` — `issue_key: <KEY>`, `fields: "customfield_10000"`, `comment_limit: 0`. The field comes back under `customfield_10000.value`.
-- **Claude Code:** `mcp__atlassian__getJiraIssue` — `cloudId`, `issueIdOrKey: <KEY>`, `fields: ["customfield_10000"]`. The value is a **string** (see *`customfield_10000` shape* above), not an object — extract the embedded `json={…}` first.
+- **Claude Code:** `mcp__atlassian__getJiraIssue` — `cloudId`, `issueIdOrKey: <KEY>`, `fields: ["customfield_10000"]`. The value is a **string** (see [Appendix A — `customfield_10000` shape](#customfield_10000-shape-a2)), not an object — extract the embedded `json={…}` first.
 
 In both cases the embedded JSON holds `cachedValue.summary.pullrequest.overall.count` (number of linked PRs) and `…overall.state` (`MERGED`, `OPEN`, etc.).
 
@@ -422,3 +450,24 @@ When the user picks `Cancel` or `--dry-run` was specified:
 - **Always include the attribution footer** so future readers know the recap was AI-generated.
 - **Never include secrets, internal-only URLs, or sensitive customer data** in the recap. If a release note contains a customer name, mask it as `<customer>` and flag it during preview.
 - **Comment body uses markdown** — pass Markdown directly; do not pre-render to ADF or Wiki markup. On Cursor `jira_add_comment` accepts Markdown in `body`; on Claude Code pass `commentBody` with `contentFormat: "markdown"`.
+
+---
+
+## Appendix A — Claude Code (Rovo) capability gap
+
+The Rovo server exposes **no Development/dev-status endpoint**, so on Claude Code:
+
+- **Phase A1 / Tier 0 is unavailable** — you cannot read linked-PR **URLs** from Jira. Do **not** use remote links as a substitute: `getJiraIssueRemoteIssueLinks` does **not** return GitHub PRs (the GitHub↔Jira integration stores them in dev-status, not remote links — verified empty on OTAGENT-304).
+- The only Jira-side PR signal is **Phase A2** (`customfield_10000`), which gives **counts + state, never URLs**.
+- Therefore **all PR URLs come from Phase B (`gh search prs`)**; the A2 counts are only a weak cross-check. `gh search prs <KEY>` over-matches body/cross-reference mentions, so a count can coincide while the actual PRs differ — e.g. OTAGENT-307: Jira count 4, `gh` also returns 4, but two carry a *different* key in their title. Lean on the Tier 1/2/4 classification and surface Tier 3 in preview rather than trusting a count match.
+- **Surface this limitation in the recap itself**, not just in the preview. Step 9 renders a `{{pr_discovery_note}}` into the posted report: a quiet footnote that PR discovery was GitHub-only, escalating to a loud warning + MCP-install recommendation when an A2 shortfall proves Jira-attached PRs were missed. The fix for the user is to connect a community Atlassian MCP server with a dev-status tool (e.g. `mcp-atlassian`, the `user-atlassian` server, which exposes `jira_get_issue_development_info`); the recap tells them so rather than failing silently.
+
+### `customfield_10000` shape (A2)
+
+On Rovo, `customfield_10000` comes back as a **single string**, e.g. `{pullrequest={dataType=pullrequest, state=MERGED, stateCount=4}, json={"cachedValue":{…}}}`. Extract the embedded `json={…}` object and read `cachedValue.summary.pullrequest.overall.count` and `…overall.state`. Keys whose dev field has no `pullrequest` block (or is null) have count 0.
+
+## Appendix B — cloudId and large responses (Claude Code)
+
+**cloudId:** pass `cloudId: "datadoghq.atlassian.net"` directly — the site hostname works. If a call rejects it, call `mcp__atlassian__getAccessibleAtlassianResources` once and use the returned `id` (UUID) for the `datadoghq` site.
+
+**Large search responses:** `searchJiraIssuesUsingJql` can exceed the MCP response token cap and be spilled to a file. To avoid/handle this, request **only the fields you need** (e.g. `["summary","status","issuetype","customfield_10000"]`); if the result is saved to a file, parse it with `jq` instead of re-reading the whole blob.
