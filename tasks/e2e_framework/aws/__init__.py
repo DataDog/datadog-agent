@@ -1,8 +1,10 @@
 from invoke.collection import Collection
 
+from tasks.e2e_framework.aws.aws_neuron import collection as aws_neuron_collection
 from tasks.e2e_framework.aws.docker import create_docker, destroy_docker
 from tasks.e2e_framework.aws.ecs import create_ecs, destroy_ecs
 from tasks.e2e_framework.aws.eks import create_eks, destroy_eks
+from tasks.e2e_framework.aws.etcd import collection as etcd_collection
 from tasks.e2e_framework.aws.gensim_eks import (
     destroy_gensim_eks,
     status_gensim_eks,
@@ -11,7 +13,10 @@ from tasks.e2e_framework.aws.gensim_eks import (
     update_manifest_shas_gensim_eks,
 )
 from tasks.e2e_framework.aws.installer import create_installer_lab, destroy_installer_lab
+from tasks.e2e_framework.aws.kafka import collection as kafka_collection
 from tasks.e2e_framework.aws.kind import create_kind, destroy_kind
+from tasks.e2e_framework.aws.postgres import collection as postgres_collection
+from tasks.e2e_framework.aws.redisdb import collection as redisdb_collection
 from tasks.e2e_framework.aws.vm import create_vm, destroy_vm, get_vm_password, rdp_vm, show_vm
 
 collection = Collection()
@@ -42,3 +47,8 @@ collection.add_task(destroy_kind)
 collection.add_task(show_vm)
 collection.add_task(get_vm_password)
 collection.add_task(rdp_vm)
+collection.add_collection(redisdb_collection)
+collection.add_collection(postgres_collection)
+collection.add_collection(kafka_collection)
+collection.add_collection(etcd_collection)
+collection.add_collection(aws_neuron_collection)
