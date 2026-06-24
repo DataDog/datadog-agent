@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
@@ -101,7 +103,22 @@ func hostTrafficDynamicPathProvisioner() provisioners.Provisioner {
 			return err
 		}
 
-		dockerManager, err := docker.NewAWSManager(&awsEnv, httpbinHost)
+		// The Ubuntu e2e AMI installs apache2 (via the php meta-package) which binds to
+		// port 80 by default. Stop and disable it so the httpbin container below can
+		// claim the port during docker-compose up. `|| true` keeps this idempotent on
+		// hosts where apache2 is absent.
+		stopApache, err := httpbinHost.OS.Runner().Command(
+			"stop-apache2",
+			&command.Args{
+				Create: pulumi.String("systemctl disable --now apache2 || true"),
+				Sudo:   true,
+			},
+		)
+		if err != nil {
+			return err
+		}
+
+		dockerManager, err := docker.NewAWSManager(&awsEnv, httpbinHost, utils.PulumiDependsOn(stopApache))
 		if err != nil {
 			return err
 		}
