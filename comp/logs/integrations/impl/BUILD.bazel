@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/def",
         "//comp/logs/integrations/def",
     ],
 )
