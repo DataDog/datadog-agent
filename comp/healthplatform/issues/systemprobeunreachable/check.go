@@ -20,17 +20,23 @@ const (
 	dialTimeout       = 2 * time.Second
 )
 
-// Check detects whether NPM/USM is enabled but system-probe is not reachable.
-// Returns an IssueReport if the socket is unreachable, nil otherwise.
+// BuiltInStartupHealthCheck returns nil if neither NPM nor USM is enabled so the check is
+// never registered. Otherwise it returns a startup check that dials the system-probe socket.
+func (m *systemProbeUnreachableModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	sysCfg := pkgconfigsetup.SystemProbe()
+	if !sysCfg.GetBool("network_config.enabled") && !sysCfg.GetBool("service_monitoring_config.enabled") {
+		return nil
+	}
+	return &runnerdef.BuiltInHealthCheck{
+		Source: "system-probe",
+		Fn:     Check,
+	}
+}
+
+// Check dials the system-probe socket and returns an IssueReport if unreachable.
+// It assumes NPM or USM is enabled — callers must gate on that before registering.
 func Check() ([]runnerdef.IssueReport, error) {
 	sysCfg := pkgconfigsetup.SystemProbe()
-	npmEnabled := sysCfg.GetBool("network_config.enabled")
-	usmEnabled := sysCfg.GetBool("service_monitoring_config.enabled")
-
-	if !npmEnabled && !usmEnabled {
-		return nil, nil
-	}
-
 	socketPath := sysCfg.GetString("system_probe_config.sysprobe_socket")
 	if socketPath == "" {
 		socketPath = defaultSocketPath
@@ -42,18 +48,12 @@ func Check() ([]runnerdef.IssueReport, error) {
 		return nil, nil
 	}
 
-	networkEnabled := "false"
-	if npmEnabled {
-		networkEnabled = "true"
-	}
-
 	return []runnerdef.IssueReport{
 		{
 			IssueID:   IssueID,
 			IssueName: IssueName,
 			Context: map[string]string{
-				"socket":          socketPath,
-				"network_enabled": networkEnabled,
+				"socket": socketPath,
 			},
 		},
 	}, nil

@@ -27,12 +27,9 @@ func (t *SystemProbeUnreachableIssue) BuildIssue(context map[string]string) (*he
 		socketPath = "/var/run/sysprobe/sysprobe.sock"
 	}
 
-	networkEnabled := context["network_enabled"]
-
 	extra, err := structpb.NewStruct(map[string]any{
-		"socket":          socketPath,
-		"network_enabled": networkEnabled,
-		"impact":          "Network Performance Monitoring and/or Universal Service Monitoring data will not be collected.",
+		"socket": socketPath,
+		"impact": "Network Performance Monitoring and/or Universal Service Monitoring data will not be collected.",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error building system-probe unreachable issue: %w", err)

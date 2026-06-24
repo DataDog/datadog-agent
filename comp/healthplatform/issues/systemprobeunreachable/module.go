@@ -52,10 +52,4 @@ func (m *systemProbeUnreachableModule) BuiltInPeriodicHealthCheck() *runnerdef.B
 	return nil
 }
 
-// BuiltInStartupHealthCheck runs the system-probe reachability check once at agent startup.
-func (m *systemProbeUnreachableModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
-	return &runnerdef.BuiltInHealthCheck{
-		Source: "system-probe",
-		Fn:     Check,
-	}
-}
+// BuiltInStartupHealthCheck is implemented in check.go (linux) and check_noop.go (other platforms).

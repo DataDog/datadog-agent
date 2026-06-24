@@ -11,6 +11,11 @@ import (
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
+// BuiltInStartupHealthCheck returns nil on non-Linux platforms — system-probe is not supported.
+func (m *systemProbeUnreachableModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	return nil
+}
+
 // Check is a no-op on non-Linux platforms where system-probe is not supported.
 func Check() ([]runnerdef.IssueReport, error) {
 	return nil, nil
