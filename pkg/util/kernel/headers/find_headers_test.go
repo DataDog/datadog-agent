@@ -85,6 +85,10 @@ func TestInvalidExistingKernelHeaders(t *testing.T) {
 		require.ErrorIs(t, err, errInvalidTempDirectory)
 	})
 	t.Run("user", func(t *testing.T) {
+		if os.Geteuid() != 0 {
+			t.Skip("skipping test because not root")
+		}
+
 		tmpDir := t.TempDir()
 		sp := filepath.Join(tmpDir, "system-probe")
 		err := os.MkdirAll(sp, 0777)
@@ -97,6 +101,10 @@ func TestInvalidExistingKernelHeaders(t *testing.T) {
 		require.ErrorIs(t, err, errInvalidTempDirectory)
 	})
 	t.Run("group", func(t *testing.T) {
+		if os.Geteuid() != 0 {
+			t.Skip("skipping test because not root")
+		}
+
 		tmpDir := t.TempDir()
 		sp := filepath.Join(tmpDir, "system-probe")
 		err := os.MkdirAll(sp, 0777)
