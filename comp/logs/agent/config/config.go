@@ -84,6 +84,13 @@ var (
 )
 
 // GlobalProcessingRules returns the global processing rules to apply to all logs.
+// IsLogsEnabled reports whether the logs collection feature is enabled.
+// Use this as the single canonical check so the logs agent and integrations
+// component cannot silently diverge on the definition of "enabled".
+func IsLogsEnabled(coreConfig pkgconfigmodel.Reader) bool {
+	return coreConfig.GetBool("logs_enabled") || coreConfig.GetBool("log_enabled")
+}
+
 func GlobalProcessingRules(coreConfig pkgconfigmodel.Reader) ([]*ProcessingRule, error) {
 	var rules []*ProcessingRule
 	err := structure.UnmarshalKey(coreConfig, "logs_config.processing_rules", &rules, structure.EnableStringUnmarshal)

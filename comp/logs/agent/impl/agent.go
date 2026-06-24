@@ -142,7 +142,7 @@ type logAgent struct {
 }
 
 func newLogsAgent(deps dependencies) provides {
-	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
+	if config.IsLogsEnabled(deps.Config) {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
