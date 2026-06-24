@@ -33,9 +33,11 @@ go_test(
     embed = [":config"],
     gotags = ["test"],
     deps = [
+        "//comp/dogstatsd/statsd/def",
         "//pkg/config/mock",
         "//pkg/config/setup",
         "//pkg/util/flavor",
+        "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/util/sets",

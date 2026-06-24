@@ -6,10 +6,13 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -226,6 +229,29 @@ func TestFromDDConfig(t *testing.T) {
 			assert.Equal(t, "api."+tt.expectedDDSite, cfg.DDApiHost, "DDApiHost should be api.<site>")
 		})
 	}
+}
+
+func TestFromDDConfigUsesProvidedMetricsClient(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	metricsClient := &statsd.NoOpClient{}
+	cfg, err := FromDDConfig(mockConfig, metricsClient)
+
+	require.NoError(t, err)
+	assert.Same(t, metricsClient, cfg.MetricsClient)
+}
+
+func TestFromDDConfigDefaultsNilMetricsClientToNoOp(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+
+	require.NoError(t, err)
+	assert.IsType(t, &statsd.NoOpClient{}, cfg.MetricsClient)
 }
 
 func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
@@ -478,4 +504,140 @@ private_action_runner:
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
+}
+
+func TestNewMetricsClientSelectsConfiguredEndpoint(t *testing.T) {
+	tests := []struct {
+		name       string
+		port       int
+		bindHost   string
+		pipeName   string
+		socketPath string
+		statsdURL  string
+		wantCall   string
+		wantHost   string
+		wantPort   int
+		wantAddr   string
+	}{
+		{
+			name:     "uses UDP when dogstatsd_port is enabled",
+			port:     8126,
+			bindHost: "127.0.0.1",
+			wantCall: "host_port",
+			wantHost: "127.0.0.1",
+			wantPort: 8126,
+		},
+		{
+			name:     "uses configured pipe when UDP is disabled",
+			port:     0,
+			pipeName: "dd-dogstatsd",
+			wantCall: "addr",
+			wantAddr: `\\.\pipe\dd-dogstatsd`,
+		},
+		{
+			name:       "uses configured Unix socket when UDP and pipe are disabled",
+			port:       0,
+			socketPath: "/var/run/datadog/dsd.socket",
+			wantCall:   "addr",
+			wantAddr:   "unix:///var/run/datadog/dsd.socket",
+		},
+		{
+			name:      "uses default client when STATSD_URL is set",
+			port:      0,
+			statsdURL: "unix:///tmp/dsd.socket",
+			wantCall:  "create",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("STATSD_URL", tt.statsdURL)
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("dogstatsd_port", tt.port)
+			mockConfig.SetInTest("dogstatsd_pipe_name", tt.pipeName)
+			mockConfig.SetInTest("dogstatsd_socket", tt.socketPath)
+			if tt.bindHost != "" {
+				mockConfig.SetInTest("bind_host", tt.bindHost)
+			}
+
+			wantClient := &statsd.NoOpClient{}
+			statsdComp := &recordingStatsdComponent{client: wantClient}
+			got, err := NewMetricsClient(mockConfig, statsdComp)
+			require.NoError(t, err)
+			assert.Same(t, wantClient, got)
+			assert.Equal(t, tt.wantCall, statsdComp.call)
+			assert.Equal(t, tt.wantHost, statsdComp.host)
+			assert.Equal(t, tt.wantPort, statsdComp.port)
+			assert.Equal(t, tt.wantAddr, statsdComp.addr)
+		})
+	}
+}
+
+func TestNewMetricsClientReturnsNoOpAndErrorWhenDogStatsDClientCreationFails(t *testing.T) {
+	t.Setenv("STATSD_URL", "")
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("dogstatsd_port", 0)
+	mockConfig.SetInTest("dogstatsd_pipe_name", "")
+	mockConfig.SetInTest("dogstatsd_socket", "/var/run/datadog/dsd.socket")
+
+	createErr := errors.New("permission denied")
+	statsdComp := &recordingStatsdComponent{err: createErr}
+	got, err := NewMetricsClient(mockConfig, statsdComp)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to create DogStatsD client")
+	assert.ErrorIs(t, err, createErr)
+	assert.IsType(t, &statsd.NoOpClient{}, got)
+	assert.Equal(t, "addr", statsdComp.call)
+	assert.Equal(t, "unix:///var/run/datadog/dsd.socket", statsdComp.addr)
+}
+
+func TestNewMetricsClientReturnsNoOpAndErrorWhenNoEndpointIsConfigured(t *testing.T) {
+	t.Setenv("STATSD_URL", "")
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("dogstatsd_port", 0)
+	mockConfig.SetInTest("dogstatsd_pipe_name", "")
+	mockConfig.SetInTest("dogstatsd_socket", "")
+
+	statsdComp := &recordingStatsdComponent{client: &statsd.NoOpClient{}}
+	got, err := NewMetricsClient(mockConfig, statsdComp)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "no DogStatsD endpoint configured")
+	assert.IsType(t, &statsd.NoOpClient{}, got)
+	assert.Empty(t, statsdComp.call)
+}
+
+type recordingStatsdComponent struct {
+	client statsd.ClientInterface
+	err    error
+	call   string
+	addr   string
+	host   string
+	port   int
+}
+
+var _ statsdcomp.Component = (*recordingStatsdComponent)(nil)
+
+func (r *recordingStatsdComponent) Get() (statsd.ClientInterface, error) {
+	r.call = "get"
+	return r.client, r.err
+}
+
+func (r *recordingStatsdComponent) Create(_ ...statsd.Option) (statsd.ClientInterface, error) {
+	r.call = "create"
+	return r.client, r.err
+}
+
+func (r *recordingStatsdComponent) CreateForAddr(addr string, _ ...statsd.Option) (statsd.ClientInterface, error) {
+	r.call = "addr"
+	r.addr = addr
+	return r.client, r.err
+}
+
+func (r *recordingStatsdComponent) CreateForHostPort(host string, port int, _ ...statsd.Option) (statsd.ClientInterface, error) {
+	r.call = "host_port"
+	r.host = host
+	r.port = port
+	return r.client, r.err
 }
