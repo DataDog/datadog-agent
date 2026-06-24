@@ -277,7 +277,7 @@ func (r *Runner) GetChan() chan<- check.Check {
 	return r.pendingChecksChan
 }
 
-// GetChan returns a write-only version of the pending channel
+// GetShadowChan returns a write-only version of the pending shadow check channel
 func (r *Runner) GetShadowChan() chan<- check.Check {
 	return r.pendingShadowChecksChan
 }

@@ -16,11 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 )
 
-// ShadowableCheck is implemented by checks that can create a shadow copy of themselves.
-type ShadowableCheck interface {
-	ShadowCheck() (Check, error)
-}
-
 // ShadowCheck wraps an inner Check and delegates all method calls to it.
 type ShadowCheck struct {
 	inner  Check
