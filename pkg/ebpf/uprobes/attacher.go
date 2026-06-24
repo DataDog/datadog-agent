@@ -654,10 +654,6 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 		return ua.attachLimiter.ShouldLog()
 	}
 
-	if errors.Is(err, utils.ErrProcessDoesNotExist) {
-		return false
-	}
-
 	return false
 }
 
