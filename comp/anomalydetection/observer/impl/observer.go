@@ -819,14 +819,19 @@ func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView
 	o.replayMu.Unlock()
 }
 
+func normalizeMetricSource(name, source string) string {
+	if strings.HasPrefix(name, "datadog.") {
+		return observerdef.AgentNamespace
+	}
+	return source
+}
+
 // IngestMetricSync feeds a metric directly into the engine, bypassing the
 // dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
 // the non-blocking channel send. Implements DebugView.
 func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
 	name := sample.GetName()
-	if strings.HasPrefix(name, "datadog.") {
-		source = observerdef.AgentNamespace
-	}
+	source = normalizeMetricSource(name, source)
 	if source == observerdef.AgentNamespace {
 		return
 	}
@@ -874,10 +879,7 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 	}
 
 	name := sample.GetName()
-	source := h.source
-	if strings.HasPrefix(name, "datadog.") {
-		source = observerdef.AgentNamespace
-	}
+	source := normalizeMetricSource(name, h.source)
 	if source == observerdef.AgentNamespace {
 		return false
 	}

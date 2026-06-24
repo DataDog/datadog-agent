@@ -140,6 +140,31 @@ func TestAgentMetricsAreDropped(t *testing.T) {
 	assert.Equal(t, "dogstatsd", workloadSeries[0].Namespace)
 }
 
+func TestIngestMetricSyncDropsNormalizedAgentMetrics(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	obs := &observerImpl{
+		engine: newEngine(engineConfig{storage: storage}),
+	}
+
+	obs.IngestMetricSync("dogstatsd", &metricObs{
+		name:      "system.cpu.user",
+		value:     50,
+		timestamp: 1000,
+	})
+	obs.IngestMetricSync("dogstatsd", &metricObs{
+		name:      "datadog.agent.running",
+		value:     1,
+		timestamp: 1000,
+	})
+
+	dogstatsdSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: "dogstatsd"})
+	require.Len(t, dogstatsdSeries, 1)
+	assert.Equal(t, "system.cpu.user", dogstatsdSeries[0].Name)
+
+	agentSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.AgentNamespace})
+	assert.Empty(t, agentSeries)
+}
+
 // TestMetricDropHandle covers the metricDropHandle wrapper in isolation.
 func TestMetricDropHandle(t *testing.T) {
 	inner := &countingHandle{}
