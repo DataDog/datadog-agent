@@ -207,9 +207,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/containers/cri
 # gazelle:exclude pkg/collector/corechecks/containers/docker
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet
-# gazelle:exclude pkg/collector/corechecks/ebpf/noisyneighbor
-# gazelle:exclude pkg/collector/corechecks/ebpf/oomkill
-# gazelle:exclude pkg/collector/corechecks/ebpf/tcpqueuelength
 # gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
 # gazelle:exclude pkg/collector/corechecks/gpu/nvidia
 # gazelle:exclude pkg/collector/corechecks/gpu/spec
