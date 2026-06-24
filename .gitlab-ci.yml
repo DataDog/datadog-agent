@@ -873,7 +873,6 @@ workflow:
       - .gitlab/windows/test/e2e_install_packages/windows.yml
       - test/new-e2e/tests/windows/install-test/**/*
       - test/new-e2e/tests/windows/domain-test/**/*
-      - test/e2e-framework/components/activedirectory/**/*
       - tasks/msi.py
       - omnibus/python-scripts/**/*
       - omnibus/lib/**/*
