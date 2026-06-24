@@ -180,7 +180,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/process/submitter
 # gazelle:exclude comp/process/types
 # gazelle:exclude comp/remote-config/rcservicemrf/fx
-# gazelle:exclude comp/snmpscan/fx
 # gazelle:exclude comp/snmpscanmanager/fx
 # gazelle:exclude comp/snmpscanmanager/impl
 # gazelle:exclude comp/softwareinventory/fx
