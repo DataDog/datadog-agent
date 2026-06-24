@@ -182,7 +182,7 @@ func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hos
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
-	opts.EnableNoAggregationPipeline = true
+	opts.NoAggregationPipelineWorkersCount = 1
 
 	sharedForwarder := defaultforwardernoop.NewComponent()
 	filterList := filterlist.NewNoopFilterList()

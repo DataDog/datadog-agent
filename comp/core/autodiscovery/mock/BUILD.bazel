@@ -20,7 +20,7 @@ go_library(
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//comp/def",
-        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/store/noop-impl",
         "//pkg/util/fxutil",
         "//pkg/util/option",
     ],
