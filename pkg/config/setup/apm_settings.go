@@ -11,9 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
-// Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
-const Traces string = "traces"
-
 func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.socket_activation.enabled", true, "DD_APM_SOCKET_ACTIVATION_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.socket_activation.handle_tcp_probe", true, "DD_APM_SOCKET_ACTIVATION_HANDLE_TCP_PROBE")
