@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "impl",
     srcs = [
+        "adaptive_sampling_poc_debug.go",
         "advance_log.go",
         "agent_logs.go",
         "anomaly_correlator_passthrough.go",

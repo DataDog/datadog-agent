@@ -79,18 +79,28 @@ func (s *SamplingBoostStore) Set(boost SamplingBoost) SamplingBoost {
 // Lookup returns the best boost for containerID/patternHash at now. Exact
 // container+pattern boosts take precedence over container-wide boosts.
 func (s *SamplingBoostStore) Lookup(containerID, patternHash string, now time.Time) (SamplingBoost, bool) {
+	boost, ok, _ := s.LookupWithActiveCount(containerID, patternHash, now)
+	return boost, ok
+}
+
+// LookupWithActiveCount returns the best boost and the number of active boosts
+// retained after expiring stale entries. The count is useful for bounded POC
+// diagnostics when a sampler misses despite active boosts existing.
+func (s *SamplingBoostStore) LookupWithActiveCount(containerID, patternHash string, now time.Time) (SamplingBoost, bool, int) {
 	if s == nil || containerID == "" {
-		return SamplingBoost{}, false
+		return SamplingBoost{}, false, 0
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	activeCount := s.expireLocked(now)
 	if patternHash != "" {
 		if boost, ok := s.lookupLocked(boostKey{containerID: containerID, patternHash: patternHash}, now); ok {
-			return boost, true
+			return boost, true, activeCount
 		}
 	}
-	return s.lookupLocked(boostKey{containerID: containerID}, now)
+	boost, ok := s.lookupLocked(boostKey{containerID: containerID}, now)
+	return boost, ok, activeCount
 }
 
 func (s *SamplingBoostStore) lookupLocked(key boostKey, now time.Time) (SamplingBoost, bool) {
@@ -103,6 +113,18 @@ func (s *SamplingBoostStore) lookupLocked(key boostKey, now time.Time) (Sampling
 		return SamplingBoost{}, false
 	}
 	return boost, true
+}
+
+func (s *SamplingBoostStore) expireLocked(now time.Time) int {
+	activeCount := 0
+	for key, boost := range s.boosts {
+		if !boost.ExpiresAt.IsZero() && !boost.ExpiresAt.After(now) {
+			delete(s.boosts, key)
+			continue
+		}
+		activeCount++
+	}
+	return activeCount
 }
 
 // Reset clears all boosts.

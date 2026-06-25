@@ -521,6 +521,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 
 		result := detector.Detect(storageForDetect, upTo)
+		logDetectorScanForSamplingPOC(detector.Name(), upTo, result.Anomalies)
 
 		// Emit detect digest (captures raw result BEFORE dedup).
 		if e.onDetectDigest != nil {
@@ -549,6 +550,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate
 			}
+			logAnomalyCreatedForSamplingPOC(anomaly)
 			e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
 			e.emit(engineEvent{

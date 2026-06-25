@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -25,8 +24,6 @@ const (
 	samplingBoostCreditGrant     = 100.0
 	samplingBoostScorerHighTTL   = samplingBoostTTL
 )
-
-var samplingBoostDecisionDebugCount atomic.Uint64
 
 type samplingBoostEventSink struct {
 	store     *adaptivesampling.SamplingBoostStore
@@ -89,6 +86,7 @@ func (s *samplingBoostEventSink) maybeEmitSamplingBoostForAnomaly(anomaly observ
 	}
 	s.rememberCandidate(anomaly, now)
 	if level < samplingBoostMinAnomalyLevel && !scorerHigh {
+		logSamplingBoostSkipLowSeverity(anomaly, level, scorerHigh)
 		return false
 	}
 	return emitSamplingBoostForAnomaly(anomaly, s.store, now)
@@ -177,7 +175,7 @@ func boostableLogPatternAnomaly(anomaly observerdef.Anomaly) (bool, string) {
 	if anomaly.Source.Namespace != LogMetricsExtractorName {
 		return false, "namespace is not log_metrics_extractor"
 	}
-	if !strings.HasPrefix(anomaly.Source.Name, "log.pattern.") || !strings.HasSuffix(anomaly.Source.Name, ".count") {
+	if !isLogPatternCountAnomalySource(anomaly.Source.Namespace, anomaly.Source.Name) {
 		return false, "metric is not log.pattern.*.count"
 	}
 	if anomaly.Context == nil {
@@ -192,10 +190,22 @@ func boostableLogPatternAnomaly(anomaly observerdef.Anomaly) (bool, string) {
 	return true, "boostable"
 }
 
+func isLogPatternCountAnomalySource(namespace, name string) bool {
+	return namespace == LogMetricsExtractorName && strings.HasPrefix(name, "log.pattern.") && strings.HasSuffix(name, ".count")
+}
+
 func logSamplingBoostDecision(anomaly observerdef.Anomaly, level int, boostable bool, reason string, scorerHigh bool) {
-	count := samplingBoostDecisionDebugCount.Add(1)
-	if !adaptivesampling.ShouldLogDebugSample(count) {
-		return
+	var count uint64
+	if boostable {
+		count = adaptiveSamplingPOCBoostableCandidateLogCount.Add(1)
+		if !shouldLogSamplingPOCDebug(count, 50, 100) {
+			return
+		}
+	} else {
+		count = adaptiveSamplingPOCNonBoostableDecisionLogCount.Add(1)
+		if !adaptivesampling.ShouldLogDebugSample(count) {
+			return
+		}
 	}
 	var containerID, patternHash, pattern string
 	if anomaly.Context != nil {
@@ -208,6 +218,28 @@ func logSamplingBoostDecision(anomaly observerdef.Anomaly, level int, boostable 
 		count,
 		boostable,
 		reason,
+		level,
+		samplingBoostMinAnomalyLevel,
+		scorerHigh,
+		anomaly.Source.Namespace,
+		anomaly.Source.Name,
+		anomaly.DetectorName,
+		scoreForDebug(anomaly.Score),
+		containerID,
+		patternHash,
+		adaptivesampling.TruncateDebugString(pattern, 180))
+}
+
+func logSamplingBoostSkipLowSeverity(anomaly observerdef.Anomaly, level int, scorerHigh bool) {
+	var containerID, patternHash, pattern string
+	if anomaly.Context != nil {
+		containerID = anomaly.Context.ContainerID
+		patternHash = anomaly.Context.PatternHash
+		pattern = anomaly.Context.Pattern
+	}
+	pkglog.Infof("%s boost skipped reason=%q level=%d min_level=%d scorer_high=%t namespace=%q metric=%q detector=%q score=%s container_id=%q pattern_hash=%q pattern=%q",
+		adaptivesampling.DebugLogPrefix,
+		"anomaly severity below boost threshold",
 		level,
 		samplingBoostMinAnomalyLevel,
 		scorerHigh,

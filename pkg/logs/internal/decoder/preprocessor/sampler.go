@@ -159,6 +159,7 @@ type AdaptiveSampler struct {
 	now               func() time.Time
 	baseBytesEstimate int
 	boostLookupLogs   atomic.Uint64
+	boostMissLogs     atomic.Uint64
 	boostOutcomeLogs  atomic.Uint64
 }
 
@@ -265,8 +266,12 @@ func (s *AdaptiveSampler) samplingLimits(msg *message.Message, tokens []Token, n
 	if containerID == "" {
 		return limits
 	}
-	boost, ok := adaptivesampling.DefaultSamplingBoostStore().Lookup(containerID, adaptiveSamplerLogHash(tokens), now)
+	patternHash := adaptiveSamplerLogHash(tokens)
+	boost, ok, activeBoosts := adaptivesampling.DefaultSamplingBoostStore().LookupWithActiveCount(containerID, patternHash, now)
 	if !ok {
+		if activeBoosts > 0 {
+			s.logBoostMiss(msg, tokens, containerID, patternHash, activeBoosts)
+		}
 		return limits
 	}
 	limits.boost = boost
@@ -384,6 +389,23 @@ func (s *AdaptiveSampler) logBoostLookup(msg *message.Message, tokens []Token, l
 		limits.rateLimit,
 		limits.burstSize,
 		limits.boost.CreditGrant,
+		s.config.DetectionOnly,
+		adaptivesampling.TruncateDebugString(TokensToString(tokens), 180),
+		adaptivesampling.TruncateDebugString(string(msg.GetContent()), 180))
+}
+
+func (s *AdaptiveSampler) logBoostMiss(msg *message.Message, tokens []Token, containerID, patternHash string, activeBoosts int) {
+	count := s.boostMissLogs.Add(1)
+	if !adaptivesampling.ShouldLogDebugSample(count) {
+		return
+	}
+	pkglog.Infof("%s sampler boost lookup miss count=%d source=%q container_id=%q pattern_hash=%q active_boosts=%d detection_only=%t pattern=%q content=%q",
+		adaptivesampling.DebugLogPrefix,
+		count,
+		s.source,
+		containerID,
+		patternHash,
+		activeBoosts,
 		s.config.DetectionOnly,
 		adaptivesampling.TruncateDebugString(TokensToString(tokens), 180),
 		adaptivesampling.TruncateDebugString(string(msg.GetContent()), 180))

@@ -62,12 +62,16 @@ func installLogsAgentTokenizedLogTap(obs *observerImpl, cfg config.Component, li
 			},
 		}))
 	}
-	pkglog.Infof("%s tokenized log tap registered analysis_enabled=%t recorder_enabled=%t logs_enabled=%t logs_agent_enabled=%t",
+	pkglog.Infof("%s tokenized log tap registered analysis_enabled=%t recorder_enabled=%t logs_enabled=%t logs_agent_enabled=%t detectors=%d scorers=%d boost_sink_registered=%t scorer_high_subscriptions=%d",
 		adaptivesampling.DebugLogPrefix,
 		analysisEnabled,
 		recorderEnabled,
 		logsEnabled,
-		logsAgentCollectionEnabled(cfg))
+		logsAgentCollectionEnabled(cfg),
+		len(obs.engine.detectors),
+		len(obs.engine.scorers),
+		boostCleanup != nil,
+		len(scorerCleanups))
 
 	lifecycle.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
