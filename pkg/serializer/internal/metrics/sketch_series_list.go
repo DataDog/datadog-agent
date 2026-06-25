@@ -283,30 +283,30 @@ func (pb *payloadsBuilder) WriteDDSketch(meta metrics.DistributionMetadata, numP
 	}
 
 	for i := 0; i < numPoints; i++ {
-		ts, cnt, min, max, sum, avg, k, n := points.GetDDSketchPoint(i)
+		p := points.GetDDSketchPoint(i)
 		err := ps.Embedded(sketchDogsketches, func(ps *molecule.ProtoStream) error {
-			if err := ps.Int64(dogsketchTs, ts); err != nil {
+			if err := ps.Int64(dogsketchTs, p.Ts); err != nil {
 				return err
 			}
-			if err := ps.Int64(dogsketchCnt, cnt); err != nil {
+			if err := ps.Int64(dogsketchCnt, p.Cnt); err != nil {
 				return err
 			}
-			if err := ps.Double(dogsketchMin, min); err != nil {
+			if err := ps.Double(dogsketchMin, p.Min); err != nil {
 				return err
 			}
-			if err := ps.Double(dogsketchMax, max); err != nil {
+			if err := ps.Double(dogsketchMax, p.Max); err != nil {
 				return err
 			}
-			if err := ps.Double(dogsketchAvg, avg); err != nil {
+			if err := ps.Double(dogsketchAvg, p.Avg); err != nil {
 				return err
 			}
-			if err := ps.Double(dogsketchSum, sum); err != nil {
+			if err := ps.Double(dogsketchSum, p.Sum); err != nil {
 				return err
 			}
-			if err := ps.Sint32Packed(dogsketchK, k); err != nil {
+			if err := ps.Sint32Packed(dogsketchK, p.K); err != nil {
 				return err
 			}
-			return ps.Uint32Packed(dogsketchN, n)
+			return ps.Uint32Packed(dogsketchN, p.N)
 		})
 		if err != nil {
 			return err

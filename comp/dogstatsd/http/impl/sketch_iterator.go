@@ -39,9 +39,9 @@ func (s *dogstatsdSketchSeries) WriteTo(w metrics.DistributionWriter) error {
 }
 
 // GetDDSketchPoint returns the buffered sketch point at index i.
-func (s *dogstatsdSketchSeries) GetDDSketchPoint(i int) (ts, cnt int64, min, max, sum, avg float64, k []int32, n []uint32) {
+func (s *dogstatsdSketchSeries) GetDDSketchPoint(i int) metrics.DDSketchPoint {
 	p := s.Points[i]
-	return p.ts, p.cnt, p.min, p.max, p.sum, p.avg, p.k, p.n
+	return metrics.DDSketchPoint{Ts: p.ts, Cnt: p.cnt, Min: p.min, Max: p.max, Sum: p.sum, Avg: p.avg, K: p.k, N: p.n}
 }
 
 type sketchIterator struct {
