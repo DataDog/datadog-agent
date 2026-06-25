@@ -114,6 +114,7 @@ rm -f "$STAGING/opt/datadog-agent/bin/agent/agent-bin"
 # needed globally (env.sh) for tools like ar that don't respect AIX_OBJECT_MODE.
 unset OBJECT_MODE
 python3.12 -m invoke agent.build \
+    --no-enable-bazel \
     --exclude-rtloader \
     --rtloader-root=/opt/datadog-agent/rtloader \
     --embedded-path="$EMBEDDED_DESTDIR" \

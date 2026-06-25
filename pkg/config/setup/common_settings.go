@@ -352,6 +352,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.envoy_gateway.namespace", "envoy-gateway-system")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.envoy_gateway.controller_namespace", "envoy-gateway-system")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")
 
 	// APM tracing for the cluster agent itself (currently covers cluster check dispatching)
@@ -369,6 +371,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.cpu", "")
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.memory", "")
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.body_parsing_size_limit", "")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.uds_path", "/var/run/datadog/extproc.sock")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.run_as_user", 65532)
 
 	// ingress-nginx injection configuration
 	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_image", "datadog/ingress-nginx-injection")
@@ -1803,12 +1807,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.kubelet_api_client_read_timeout", "30s")
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultpaths.GetDefaultRunPath())
-	// DEPRECATED in favor of `logs_config.force_use_http`.
-	config.BindEnvAndSetDefault("logs_config.use_http", false)
-	config.BindEnvAndSetDefault("logs_config.force_use_http", false)
-	// DEPRECATED in favor of `logs_config.force_use_tcp`.
-	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
-	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
 	// Maximum interval for HTTP connectivity retry checks with exponential backoff (in seconds)
 	// When TCP fallback occurs, the agent will retry HTTP connectivity at increasing intervals
 	// up to this ceiling, then continue checking at this interval. Default: 1 hour
