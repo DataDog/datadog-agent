@@ -256,7 +256,6 @@ func (o *OrchestratorCheck) collectAndLogHelmReleases() {
 		return
 	}
 
-	
 	o.helmInformerOnce.Do(func() {
 		cmInformer := o.orchestratorInformerFactory.HelmConfigMapInformerFactory.Core().V1().ConfigMaps()
 		go cmInformer.Informer().Run(o.stopCh)
