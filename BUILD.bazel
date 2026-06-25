@@ -170,7 +170,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/otelcol/otlp/integrationtest
 # gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/privateactionrunner/impl
-# gazelle:exclude comp/process/apiserver/fx
 # gazelle:exclude comp/process/apiserver/impl
 # gazelle:exclude comp/process/agent/*.go
 # gazelle:exclude comp/process/agent/fx
