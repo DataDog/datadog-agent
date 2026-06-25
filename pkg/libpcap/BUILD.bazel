@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "libpcap",
+    srcs = ["pcap.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/libpcap",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/libpcap/bpf",
+        "//pkg/libpcap/codegen",
+        "//pkg/libpcap/grammar",
+        "//pkg/libpcap/nameresolver",
+        "//pkg/libpcap/optimizer",
+    ],
+)
+
+go_test(
+    name = "libpcap_test",
+    srcs = [
+        "match_test.go",
+        "pcap_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":libpcap"],
+)
