@@ -9,6 +9,7 @@ package http2
 
 import (
 	"io"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -416,6 +417,24 @@ func (p *Protocol) processHTTP2(events []EbpfTx) {
 		eventWrapper := &EventWrapper{
 			EbpfTx: &events[i],
 		}
+
+		// TRACE: Log k8s API requests at HTTP/2 layer (before statkeeper)
+		if log.ShouldLog(log.TraceLvl) {
+			var pathBuf [256]byte
+			if rawPath, _ := eventWrapper.Path(pathBuf[:]); len(rawPath) > 0 {
+				pathStr := string(rawPath)
+
+				// Filter for specific resource types: persistentvolumes, configmaps, namespaces
+				if strings.Contains(pathStr, "persistentvolumes") ||
+					strings.Contains(pathStr, "configmaps") ||
+					strings.Contains(pathStr, "namespaces") {
+					tuple := eventWrapper.ConnTuple()
+					log.Tracef("[HTTP2-K8S-API] path=%s method=%v pid=%d netns=%d tuple=%s",
+						pathStr, eventWrapper.Method(), eventWrapper.EbpfTx.Tuple.Pid, eventWrapper.EbpfTx.Tuple.Netns, tuple.String())
+				}
+			}
+		}
+
 		p.telemetry.Count(eventWrapper)
 		p.statkeeper.Process(eventWrapper)
 	}
