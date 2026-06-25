@@ -102,6 +102,28 @@ func newGroupedStats() *groupedStats {
 	}
 }
 
+// BucketCardinalityLimits holds per-field and whole-key cardinality limits for a RawBucket.
+// A value of 0 disables the cap for that field. These are tracer-only controls;
+// the Agent intentionally leaves them all at 0 (no-op).
+type BucketCardinalityLimits struct {
+	AdditionalTags int
+	Resource       int
+	HTTPEndpoint   int
+	PeerTags       int
+	Origin         int
+	WholeKey       int
+}
+
+// SpanCollapseResult reports which cardinality collapses were applied to a span in HandleSpan.
+type SpanCollapseResult struct {
+	WholeKeyCollapsed      bool
+	ResourceCollapsed      bool
+	HTTPEndpointCollapsed  bool
+	PeerTagsCollapsed      bool
+	OriginCollapsed        bool
+	AdditionalTagsCapBlock bool
+}
+
 // RawBucket is used to compute span data and aggregate it
 // within a time-framed bucket. This should not be used outside
 // the agent, use ClientStatsBucket for this.
@@ -115,26 +137,63 @@ type RawBucket struct {
 	data map[Aggregation]*groupedStats
 
 	additionalMetricTagValueBlockSentinel string
-	additionalTagsCardinalityLimit        int
-	additionalTagsEntries                 int
-	warnedThisBucket                      bool
+
+	// per-field cardinality limits and trackers (nil map = limit disabled)
+	additionalTagsCardinalityLimit int
+	additionalTagsEntries          int
+	resourceCardinalityLimit       int
+	distinctResources              map[string]struct{}
+	httpEndpointCardinalityLimit   int
+	distinctHTTPEndpoints          map[string]struct{}
+	peerTagsCardinalityLimit       int
+	distinctPeerTagHashes          map[uint64]struct{}
+	originCardinalityLimit         int
+	distinctOrigins                map[string]struct{}
+
+	// whole-key cardinality limit: caps total distinct BucketsAggregationKeys per bucket
+	wholeKeyCardinalityLimit int
+	distinctWholeKeys        map[BucketsAggregationKey]struct{}
+
+	// warnedThisBucket is set the first time any collapse fires in this bucket
+	// so that at most one debug log is emitted per flush window.
+	warnedThisBucket bool
 
 	containerTagsByID map[string][]string // a map from container ID to container tags
 	processTagsByHash map[uint64]string   // a map from process hash to process tags
 }
 
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly
-func NewRawBucket(ts, d uint64, additionalTagsCardinalityLimit int) *RawBucket {
-	// The only non-initialized value is the Duration which should be set by whoever closes that bucket
-	return &RawBucket{
+func NewRawBucket(ts, d uint64, limits BucketCardinalityLimits) *RawBucket {
+	rb := &RawBucket{
 		start:                                 ts,
 		duration:                              d,
 		data:                                  make(map[Aggregation]*groupedStats),
 		additionalMetricTagValueBlockSentinel: blockedByTracerSentinel,
-		additionalTagsCardinalityLimit:        additionalTagsCardinalityLimit,
+		additionalTagsCardinalityLimit:        limits.AdditionalTags,
+		resourceCardinalityLimit:              limits.Resource,
+		httpEndpointCardinalityLimit:          limits.HTTPEndpoint,
+		peerTagsCardinalityLimit:              limits.PeerTags,
+		originCardinalityLimit:                limits.Origin,
+		wholeKeyCardinalityLimit:              limits.WholeKey,
 		containerTagsByID:                     make(map[string][]string),
 		processTagsByHash:                     make(map[uint64]string),
 	}
+	if limits.Resource > 0 {
+		rb.distinctResources = make(map[string]struct{})
+	}
+	if limits.HTTPEndpoint > 0 {
+		rb.distinctHTTPEndpoints = make(map[string]struct{})
+	}
+	if limits.PeerTags > 0 {
+		rb.distinctPeerTagHashes = make(map[uint64]struct{})
+	}
+	if limits.Origin > 0 {
+		rb.distinctOrigins = make(map[string]struct{})
+	}
+	if limits.WholeKey > 0 {
+		rb.distinctWholeKeys = make(map[BucketsAggregationKey]struct{})
+	}
+	return rb
 }
 
 // Export transforms a RawBucket into a ClientStatsBucket, typically used
@@ -173,19 +232,131 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators.
-// It returns the number of additional metric tag cardinality block events applied to this span.
-func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggKey PayloadAggregationKey) int {
+// It returns a SpanCollapseResult indicating which cardinality collapses were applied.
+func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggKey PayloadAggregationKey) SpanCollapseResult {
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
+	var result SpanCollapseResult
 	aggr := NewAggregationFromSpan(s, origin, aggKey)
-	capBlocked := 0
+
+	// --- Whole-key cardinality check (backstop) ---
+	// Runs before per-field checks: if the full key would exceed the whole-key limit,
+	// collapse every field to the sentinel at once.
+	if sb.wholeKeyCardinalityLimit > 0 {
+		if _, exists := sb.distinctWholeKeys[aggr.BucketsAggregationKey]; !exists {
+			if len(sb.distinctWholeKeys) >= sb.wholeKeyCardinalityLimit {
+				if !sb.warnedThisBucket {
+					log.Debugf("stats cardinality whole-key limit (%d) reached for this bucket; collapsing span to sentinel", sb.wholeKeyCardinalityLimit)
+					sb.warnedThisBucket = true
+				}
+				sentinel := sb.getAdditionalMetricTagValueBlockSentinel()
+				s.resource = sentinel
+				s.name = sentinel
+				s.typ = sentinel
+				s.spanKind = sentinel
+				s.httpMethod = sentinel
+				s.httpEndpoint = sentinel
+				s.service = sentinel
+				s.serviceSource = sentinel
+				s.matchingPeerTags = []string{sentinel}
+				s.matchingAdditionalMetricTags = []string{sentinel}
+				s.statusCode = 0
+				s.grpcStatusCode = ""
+				// isTraceRoot becomes NOT_SET (0) via parentID trick: use a special collapsed aggregation
+				aggr = wholeKeyCollapsedAggregation(aggKey, sentinel)
+				result.WholeKeyCollapsed = true
+				sb.add(s, weight, aggr)
+				return result
+			}
+			sb.distinctWholeKeys[aggr.BucketsAggregationKey] = struct{}{}
+		}
+	}
+
+	// --- Per-field cardinality checks ---
+	// Each field is checked independently; collapsed fields use the sentinel value.
+	// After any per-field collapse, aggr is recomputed.
+	recomputeAggr := false
+	sentinel := sb.getAdditionalMetricTagValueBlockSentinel()
+
+	if sb.resourceCardinalityLimit > 0 && s.resource != "" {
+		if _, exists := sb.distinctResources[s.resource]; !exists {
+			if len(sb.distinctResources) >= sb.resourceCardinalityLimit {
+				if !sb.warnedThisBucket {
+					log.Debugf("stats cardinality resource limit (%d) reached for this bucket; collapsing resource to sentinel", sb.resourceCardinalityLimit)
+					sb.warnedThisBucket = true
+				}
+				s.resource = sentinel
+				result.ResourceCollapsed = true
+				recomputeAggr = true
+			} else {
+				sb.distinctResources[s.resource] = struct{}{}
+			}
+		}
+	}
+
+	if sb.httpEndpointCardinalityLimit > 0 && s.httpEndpoint != "" {
+		if _, exists := sb.distinctHTTPEndpoints[s.httpEndpoint]; !exists {
+			if len(sb.distinctHTTPEndpoints) >= sb.httpEndpointCardinalityLimit {
+				if !sb.warnedThisBucket {
+					log.Debugf("stats cardinality http_endpoint limit (%d) reached for this bucket; collapsing http_endpoint to sentinel", sb.httpEndpointCardinalityLimit)
+					sb.warnedThisBucket = true
+				}
+				s.httpEndpoint = sentinel
+				result.HTTPEndpointCollapsed = true
+				recomputeAggr = true
+			} else {
+				sb.distinctHTTPEndpoints[s.httpEndpoint] = struct{}{}
+			}
+		}
+	}
+
+	if sb.peerTagsCardinalityLimit > 0 && len(s.matchingPeerTags) > 0 {
+		h := tagsFnvHash(s.matchingPeerTags)
+		if _, exists := sb.distinctPeerTagHashes[h]; !exists {
+			if len(sb.distinctPeerTagHashes) >= sb.peerTagsCardinalityLimit {
+				if !sb.warnedThisBucket {
+					log.Debugf("stats cardinality peer_tags limit (%d) reached for this bucket; collapsing peer_tags to sentinel", sb.peerTagsCardinalityLimit)
+					sb.warnedThisBucket = true
+				}
+				s.matchingPeerTags = []string{sentinel}
+				result.PeerTagsCollapsed = true
+				recomputeAggr = true
+			} else {
+				sb.distinctPeerTagHashes[h] = struct{}{}
+			}
+		}
+	}
+
+	if sb.originCardinalityLimit > 0 && origin != "" {
+		if _, exists := sb.distinctOrigins[origin]; !exists {
+			if len(sb.distinctOrigins) >= sb.originCardinalityLimit {
+				if !sb.warnedThisBucket {
+					log.Debugf("stats cardinality origin limit (%d) reached for this bucket; collapsing origin to empty", sb.originCardinalityLimit)
+					sb.warnedThisBucket = true
+				}
+				// Origin is not a field on StatSpan — it controls the Synthetics flag in the aggregation.
+				// We collapse by clearing the origin so Synthetics=false in the overflow aggregation.
+				origin = ""
+				result.OriginCollapsed = true
+				recomputeAggr = true
+			} else {
+				sb.distinctOrigins[origin] = struct{}{}
+			}
+		}
+	}
+
+	if recomputeAggr {
+		aggr = NewAggregationFromSpan(s, origin, aggKey)
+	}
+
+	// --- additional_metric_tags per-bucket cardinality cap (pre-existing logic) ---
 	if len(s.matchingAdditionalMetricTags) > 0 && sb.additionalTagsCardinalityLimit > 0 {
 		// Only new tag-bearing aggregations are counted, before they are added below.
 		if _, exists := sb.data[aggr]; !exists {
 			if sb.additionalTagsEntries >= sb.additionalTagsCardinalityLimit {
 				if !sb.warnedThisBucket {
-					log.Warnf("additional_metric_tags cardinality limit (%d) reached for this bucket; masking %d tag value(s)", sb.additionalTagsCardinalityLimit, len(s.matchingAdditionalMetricTags))
+					log.Debugf("stats cardinality additional_metric_tags limit (%d) reached for this bucket; masking %d tag value(s)", sb.additionalTagsCardinalityLimit, len(s.matchingAdditionalMetricTags))
 					sb.warnedThisBucket = true
 				}
 				// Cap reached: collapse this span's tag values onto the shared masked
@@ -194,14 +365,40 @@ func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggK
 				// bucket rather than consuming a slot.
 				s.matchingAdditionalMetricTags = maskAdditionalMetricTagValues(s.matchingAdditionalMetricTags, sb.getAdditionalMetricTagValueBlockSentinel())
 				aggr = NewAggregationFromSpan(s, origin, aggKey)
-				capBlocked = 1
+				result.AdditionalTagsCapBlock = true
 			} else {
 				sb.additionalTagsEntries++
 			}
 		}
 	}
+
 	sb.add(s, weight, aggr)
-	return capBlocked
+	return result
+}
+
+// wholeKeyCollapsedAggregation returns an Aggregation where every operational field
+// is set to the sentinel value, preserving only the deployment-level (payload) key.
+// is_trace_root is NOT_SET (0) and synthetics is false as required by the RFC.
+func wholeKeyCollapsedAggregation(aggKey PayloadAggregationKey, sentinel string) Aggregation {
+	return Aggregation{
+		PayloadAggregationKey: aggKey,
+		BucketsAggregationKey: BucketsAggregationKey{
+			Service:                  sentinel,
+			Name:                     sentinel,
+			Resource:                 sentinel,
+			Type:                     sentinel,
+			SpanKind:                 sentinel,
+			StatusCode:               0,
+			Synthetics:               false,
+			PeerTagsHash:             tagsFnvHash([]string{sentinel}),
+			AdditionalMetricTagsHash: tagsFnvHash([]string{sentinel}),
+			ServiceSource:            sentinel,
+			IsTraceRoot:              0, // NOT_SET
+			GRPCStatusCode:           "",
+			HTTPMethod:               sentinel,
+			HTTPEndpoint:             sentinel,
+		},
+	}
 }
 
 func (sb *RawBucket) getAdditionalMetricTagValueBlockSentinel() string {

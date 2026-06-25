@@ -274,20 +274,20 @@ func newAdditionalMetricTagStatSpan(value string) *StatSpan {
 
 func TestRawBucketAdditionalMetricTagsCardinalityLimit(t *testing.T) {
 	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
-	sb := NewRawBucket(0, 1e9, 2)
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{AdditionalTags: 2})
 	spanA := newAdditionalMetricTagStatSpan("a")
 	spanB := newAdditionalMetricTagStatSpan("b")
 	spanC := newAdditionalMetricTagStatSpan("c")
 	spanD := newAdditionalMetricTagStatSpan("d")
 	spanAAgain := newAdditionalMetricTagStatSpan("a")
 
-	assert.Zero(t, sb.HandleSpan(spanA, 1, "", aggKey))
-	assert.Zero(t, sb.HandleSpan(spanB, 1, "", aggKey))
-	assert.Equal(t, 1, sb.HandleSpan(spanC, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanA, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanB, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{AdditionalTagsCapBlock: true}, sb.HandleSpan(spanC, 1, "", aggKey))
 	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, spanC.matchingAdditionalMetricTags)
-	assert.Equal(t, 1, sb.HandleSpan(spanD, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{AdditionalTagsCapBlock: true}, sb.HandleSpan(spanD, 1, "", aggKey))
 	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, spanD.matchingAdditionalMetricTags)
-	assert.Zero(t, sb.HandleSpan(spanAAgain, 1, "", aggKey))
+	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanAAgain, 1, "", aggKey))
 	assert.Equal(t, []string{"customer_id:a"}, spanAAgain.matchingAdditionalMetricTags)
 
 	require.Len(t, sb.data, 3)
@@ -314,7 +314,7 @@ func TestRawBucketAdditionalMetricTagsCardinalityLimit(t *testing.T) {
 
 func TestRawBucketAdditionalMetricTagsCardinalityLimitDefaultNoop(t *testing.T) {
 	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
-	sb := NewRawBucket(0, 1e9, 0)
+	sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{})
 	spans := []*StatSpan{
 		newAdditionalMetricTagStatSpan("a"),
 		newAdditionalMetricTagStatSpan("b"),
@@ -322,7 +322,7 @@ func TestRawBucketAdditionalMetricTagsCardinalityLimitDefaultNoop(t *testing.T) 
 	}
 
 	for _, span := range spans {
-		assert.Zero(t, sb.HandleSpan(span, 1, "", aggKey))
+		assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(span, 1, "", aggKey))
 	}
 
 	require.Len(t, sb.data, 3)
@@ -375,7 +375,7 @@ func TestSpanConcentratorAdditionalMetricTagsCardinalityLimitResetsPerBucket(t *
 func BenchmarkHandleSpanRandom(b *testing.B) {
 	sc := NewSpanConcentrator(&SpanConcentratorConfig{}, time.Now())
 	b.Run("no_peer_tags", func(b *testing.B) {
-		sb := NewRawBucket(0, 1e9, 0)
+		sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{})
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
 			statSpan, ok := sc.NewStatSpanFromPB(s, nil, nil)
@@ -433,7 +433,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		"topicname",
 	}
 	b.Run("peer_tags", func(b *testing.B) {
-		sb := NewRawBucket(0, 1e9, 0)
+		sb := NewRawBucket(0, 1e9, BucketCardinalityLimits{})
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
 			statSpan, ok := sc.NewStatSpanFromPB(s, peerTags, nil)

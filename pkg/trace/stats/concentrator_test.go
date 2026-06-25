@@ -169,7 +169,7 @@ func TestNewConcentratorAdditionalMetricTagsCardinalityLimitUsesAgentSentinel(t 
 		Hostname:       "hostname",
 	}
 	c := NewConcentrator(&cfg, noopStatsWriter{}, time.Unix(0, 0), &statsd.NoOpClient{})
-	c.spanConcentrator.additionalTagsCardinalityLimit = 1
+	c.spanConcentrator.cardinalityLimits.AdditionalTags = 1
 	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
 
 	admitted := newAdditionalMetricTagStatSpan("admitted")
