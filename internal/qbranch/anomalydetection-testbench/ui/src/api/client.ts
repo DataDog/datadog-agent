@@ -263,6 +263,47 @@ export interface ReplayStats {
   input_anomalies_count: number;
 }
 
+// ---- Scoring pipeline telemetry (matches observer/def ScoreState in Go) ----
+
+/** Tunable parameters for the anomaly scoring pipeline. */
+export interface ScorerConfig {
+  alpha: number;
+  saturation_k: number;
+  low_threshold: number;
+  high_threshold: number;
+  margin_pct: number;
+  /**
+   * cooldown_secs is NOT part of Go's ScorerConfig (it lives on AnomalyScorerConfiguration).
+   * The replay endpoint accepts it alongside ScorerConfig fields in a flat JSON object.
+   */
+  cooldown_secs: number;
+  /** Per-detector score-to-level thresholds: [low, medium, high, xhigh]. */
+  detector_thresholds?: Record<string, [number, number, number, number]>;
+}
+
+/** Per-second telemetry bucket from the Go scorer. */
+export interface ScoreBucket {
+  second: number;
+  bins: [number, number, number, number, number]; // [VeryLow, Low, Medium, High, XHigh]
+  count: number;
+  weight_sum: number;
+  ewma: number;
+}
+
+/** A severity state-machine transition. */
+export interface SeverityEvent {
+  timestamp: number;
+  from_level: number;
+  to_level: number;
+}
+
+/** Full snapshot of the scorer's state — what /api/scores returns. */
+export interface ScoreState {
+  buckets: ScoreBucket[];
+  events: SeverityEvent[];
+  config: ScorerConfig;
+}
+
 class ApiClient {
   private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE}${path}`, options);
@@ -384,6 +425,22 @@ class ApiClient {
 
   async getBenchmarkStats(): Promise<ReplayStats> {
     return this.fetch('/benchmark');
+  }
+
+  async getScores(): Promise<ScoreState> {
+    return this.fetch('/scores');
+  }
+
+  async getScoresConfig(): Promise<ScorerConfig> {
+    return this.fetch('/scores/config');
+  }
+
+  async replayScores(config: ScorerConfig): Promise<ScoreState> {
+    return this.fetch('/scores/replay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
   }
 
 }
