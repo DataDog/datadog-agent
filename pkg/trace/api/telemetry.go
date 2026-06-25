@@ -228,6 +228,7 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 }
 
 func writeEmptyJSON(w http.ResponseWriter, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	w.Write([]byte("{}"))
 }
