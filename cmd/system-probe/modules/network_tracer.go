@@ -30,6 +30,12 @@ import (
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
 var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
+// Sentinel errors that categorize probe-init failures for targeted remediation in health issues.
+var (
+	errNetworkProbeKernelUnsupported = errors.New("kernel version not supported by network probe")
+	errNetworkProbeUSMUnsupported    = errors.New("USM not supported on this kernel")
+)
+
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
 const maxConntrackDumpSize = 3000
@@ -39,11 +45,15 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	// Checking whether the current OS + kernel version is supported by the tracer
 	if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
-		return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
+		initErr := fmt.Errorf("%w: %w: %s", ErrSysprobeUnsupported, errNetworkProbeKernelUnsupported, err)
+		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
+		return nil, initErr
 	}
+	// Kernel is supported: resolve only the kernel issue before attempting tracer init.
+	resolveNetworkProbeKernelIssue(deps)
 
 	if ncfg.NPMEnabled {
-		log.Info("enabling network performance monitoring (NPM)")
+		log.Info("enabling cloud network monitoring (CNM)")
 	}
 	if ncfg.ServiceMonitoringEnabled {
 		log.Info("enabling universal service monitoring (USM)")
@@ -51,8 +61,12 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
 	if err != nil {
-		return nil, err
+		initErr := categorizeTracerError(err)
+		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
+		return nil, initErr
 	}
+	// Tracer initialized successfully: resolve any stale USM issue.
+	resolveNetworkProbeUSMIssue(deps)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var connsSender sender.Sender
@@ -95,7 +109,10 @@ type networkTracer struct {
 }
 
 func (nt *networkTracer) GetStats() map[string]any {
-	stats, _ := nt.tracer.GetStats()
+	stats, err := nt.tracer.GetStats()
+	if err != nil {
+		log.Debugf("network tracer: error getting stats: %v", err)
+	}
 	return stats
 }
 

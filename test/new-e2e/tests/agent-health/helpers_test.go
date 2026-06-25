@@ -21,6 +21,8 @@ const (
 	defaultIssueTimeout = 2 * time.Minute
 	// defaultIssuePollInterval is the poll cadence for EventuallyWithT.
 	defaultIssuePollInterval = 10 * time.Second
+	// defaultIssueAbsenceWindow is the duration over which require.Never verifies an issue stays absent.
+	defaultIssueAbsenceWindow = 30 * time.Second
 )
 
 // findIssuesByID returns all issues with the given exact ID from a fakeintake payload.
