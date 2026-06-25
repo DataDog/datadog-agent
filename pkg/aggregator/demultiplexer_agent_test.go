@@ -44,8 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-//nolint:revive // TODO(AML) Fix revive linter
-func testDemuxSamples(t *testing.T) metrics.MetricSampleBatch {
+func testDemuxSamples(_ *testing.T) metrics.MetricSampleBatch {
 	batch := metrics.MetricSampleBatch{
 		metrics.MetricSample{
 			Name:      "first",

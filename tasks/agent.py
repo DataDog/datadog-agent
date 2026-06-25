@@ -83,11 +83,14 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
-    enable_bazel=False,
+    enable_bazel=True,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
+
+    Bazel-backed build steps are enabled by default.
+    Use `--no-enable-bazel` to keep the legacy build paths.
 
     Example invokation:
         dda inv agent.build --build-exclude=systemd
@@ -295,6 +298,7 @@ def run(
     flavor=AgentFlavor.base.name,
     skip_build=False,
     config_path=None,
+    enable_bazel=True,
 ):
     """
     Execute the agent binary.
@@ -303,7 +307,7 @@ def run(
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, flavor)
+        build(ctx, rebuild, race, build_include, build_exclude, flavor, enable_bazel=enable_bazel)
 
     agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
     config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
@@ -449,6 +453,7 @@ def hacky_dev_image_build(
             development=development,
             build_exclude=build_exclude,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
+            enable_bazel=False,
         )
         ctx.run(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
