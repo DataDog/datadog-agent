@@ -82,11 +82,11 @@ func (s *completeTestSuite) TestOTLPTraces() {
 }
 
 func (s *completeTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s, minimalParams)
+	utils.TestMetrics(s, completeParams)
 }
 
 func (s *completeTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s, minimalParams)
+	utils.TestLogs(s, completeParams)
 }
 
 func (s *completeTestSuite) TestHosts() {
