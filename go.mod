@@ -20,6 +20,7 @@ replace (
 	// Use a patched version of go-cmp to avoid disabling dead code elimination
 	// Commit from https://github.com/DataDog/go-cmp/tree/dce-patch/v0.7.0
 	github.com/google/go-cmp => github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor => github.com/mackjmr/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260625150400-2c6345cd98e3
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 	// spf13/viper v1.21.0 requires cast v1.10.0 functions (ToUintSlice, ToFloat64Slice) that
 	// do not exist in the DataDog/cast v1.8.0 fork. Pin viper to v1.20.1 which uses cast v1.7.1.
@@ -28,7 +29,6 @@ replace (
 	// replace go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog
 	// and run `go mod tidy` then `dda inv tidy`
 	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260615120033-4edb1d33d277
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor => github.com/mackjmr/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260625150400-2c6345cd98e3
 )
 
 require (

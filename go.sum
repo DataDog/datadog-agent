@@ -4157,6 +4157,8 @@ github.com/lyft/protoc-gen-star v0.6.1/go.mod h1:TGAoBVkt8w7MPG72TrKIu85MIdXwDuz
 github.com/lyft/protoc-gen-star/v2 v2.0.1/go.mod h1:RcCdONR2ScXaYnQC5tUzxzlpA3WVYF7/opLeUgcQs/o=
 github.com/lyft/protoc-gen-star/v2 v2.0.3/go.mod h1:amey7yeodaJhXSbf/TlLvWiqQfLOSpEk//mLlc+axEk=
 github.com/lyft/protoc-gen-star/v2 v2.0.4-0.20230330145011-496ad1ac90a4/go.mod h1:amey7yeodaJhXSbf/TlLvWiqQfLOSpEk//mLlc+axEk=
+github.com/mackjmr/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260625150400-2c6345cd98e3 h1:xyqah8+hEIYy2Yv1xLf6BRPcaocYkZ5btzOSFTIELxA=
+github.com/mackjmr/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260625150400-2c6345cd98e3/go.mod h1:mDSMCOAHirTCgnz6n576wSNyIEnWMCpZc2xZl9LArSs=
 github.com/magefile/mage v1.15.0 h1:BvGheCMAsG3bWUDbZ8AyXXpCNwU9u5CB6sM+HNb9HYg=
 github.com/magefile/mage v1.15.0/go.mod h1:z5UZb/iS3GoOSn0JgWuiw7dxlurVYTu+/jHXqQg881A=
 github.com/magiconair/properties v1.8.10 h1:s31yESBquKXCV9a/ScB3ESkOjUYYv+X0rg8SYxI99mE=
@@ -4478,8 +4480,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterproces
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.154.0/go.mod h1:ZO8mWLDtZ0A+njy0ocGJD2MiBLQjs2J1Ta/IpNr5YeM=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor v0.154.0 h1:dWceLalxMY2SHJX6TZyueAgWoj5QsH+JyDvM7h9iRCQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor v0.154.0/go.mod h1:Vo4z5ecABw3/p7K1lIfmgvo1u3Vdqrv9qU3FHvn04gI=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.154.0 h1:UDKdt1AUKzJ9FCyDRacemsSNNJk9msn9deNJTCQoAmk=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.154.0/go.mod h1:xvWq02TdCpJ66+V0KvF8JBKnRKxZ50GHZLIHSLdEInw=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.154.0 h1:5b0cgoarv0uOe9KdbVbtc+qALe5tBsrTq58h5i2gicE=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.154.0/go.mod h1:3P+4+05nXfOPmryd1yg+zaOc51UT5TDeNHmwROzkLbo=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.154.0 h1:R5bx4Lx/xLj45sKsPQpX8gG4Lb4HL06B6gYrAx0H9LM=
