@@ -95,7 +95,7 @@ properties:
     default: true
   sp_process_metrics_request_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 3s
     format: duration
     tags:
