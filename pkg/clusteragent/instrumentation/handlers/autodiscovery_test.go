@@ -159,12 +159,23 @@ func TestValidate(t *testing.T) {
 			expectErrCount: 0,
 		},
 		{
-			name: "valid check",
+			name: "valid check with container image fallback",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
 					Integration:    "redisdb",
 					ContainerImage: []string{"redis"},
 					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+				},
+			}),
+			expectErrCount: 0,
+		},
+		{
+			name: "valid check with container name",
+			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
+				{
+					Integration:   "redisdb",
+					ContainerName: "redis",
+					Instances:     []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
 			expectErrCount: 0,
@@ -211,13 +222,13 @@ func TestValidate(t *testing.T) {
 				{
 					Integration:    "custom",
 					ContainerImage: []string{"app"},
-					Logs:           []datadoghq.DatadogInstrumentationLogConfig{{Type: "tcp"}},
+					Logs:           []datadoghq.DatadogInstrumentationLogFields{{Type: "tcp"}},
 				},
 			}),
 			expectErrCount: 0,
 		},
 		{
-			name: "no container image for workload",
+			name: "no container name for workload",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
 					Integration: "redisdb",
@@ -225,7 +236,7 @@ func TestValidate(t *testing.T) {
 				},
 			}),
 			expectErrCount: 1,
-			expectField:    "spec.config.checks[0].containerImage",
+			expectField:    "spec.config.checks[0]",
 		},
 		{
 			name: "all validations fail for workload",
@@ -420,6 +431,7 @@ func TestTranslateCheck(t *testing.T) {
 		expectedInit     string
 		expectedInstLen  int
 		expectedADIDs    []string
+		expectedCEL      []string
 		instanceContains []string
 		logsNil          bool
 		logsContains     string
@@ -427,33 +439,33 @@ func TestTranslateCheck(t *testing.T) {
 		{
 			name: "empty init config defaults to {}",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration:    "http_check",
-				ContainerImage: []string{"container-image"},
-				Instances:      []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
+				Integration:   "http_check",
+				ContainerName: "app",
+				Instances:     []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
 			},
 			expectedInit:    "{}",
 			expectedInstLen: 1,
-			expectedADIDs:   []string{"container-image"},
+			expectedCEL:     []string{`container.name == "app"`},
 			logsNil:         true,
 		},
 		{
 			name: "provided init config is preserved",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration:    "http_check",
-				ContainerImage: []string{"container-image"},
-				InitConfig:     runtime.RawExtension{Raw: []byte(`{"service":"myservice"}`)},
-				Instances:      []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
+				Integration:   "http_check",
+				ContainerName: "app",
+				InitConfig:    runtime.RawExtension{Raw: []byte(`{"service":"myservice"}`)},
+				Instances:     []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
 			},
 			expectedInit:    `{"service":"myservice"}`,
 			expectedInstLen: 1,
-			expectedADIDs:   []string{"container-image"},
+			expectedCEL:     []string{`container.name == "app"`},
 			logsNil:         true,
 		},
 		{
-			name: "multiple instances are translated",
+			name: "container image fallback uses AD identifiers",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
 				Integration:    "http_check",
-				ContainerImage: []string{"container-image", "other-container"},
+				ContainerImage: []string{"app-image", "sidecar-image"},
 				Instances: []runtime.RawExtension{
 					{Raw: []byte(`{"url":"http://host1"}`)},
 					{Raw: []byte(`{"url":"http://host2"}`)},
@@ -461,16 +473,29 @@ func TestTranslateCheck(t *testing.T) {
 			},
 			expectedInit:     "{}",
 			expectedInstLen:  2,
-			expectedADIDs:    []string{"container-image", "other-container"},
+			expectedADIDs:    []string{"app-image", "sidecar-image"},
 			instanceContains: []string{"host1", "host2"},
 			logsNil:          true,
+		},
+		{
+			name: "container name takes precedence over container image",
+			check: datadoghq.DatadogInstrumentationCheckConfig{
+				Integration:    "http_check",
+				ContainerName:  "app",
+				ContainerImage: []string{"app-image"},
+				Instances:      []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
+			},
+			expectedInit:    "{}",
+			expectedInstLen: 1,
+			expectedCEL:     []string{`container.name == "app"`},
+			logsNil:         true,
 		},
 		{
 			name: "logs config is translated",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
 				Integration: "custom",
 				Instances:   []runtime.RawExtension{{Raw: []byte(`{"key":"val"}`)}},
-				Logs:        []datadoghq.DatadogInstrumentationLogConfig{{Type: "tcp", Port: &port}},
+				Logs:        []datadoghq.DatadogInstrumentationLogFields{{Type: "tcp", Port: &port}},
 			},
 			expectedInit:    "{}",
 			expectedInstLen: 1,
@@ -498,9 +523,13 @@ func TestTranslateCheck(t *testing.T) {
 			require.Len(t, configs, 1)
 			assert.Equal(t, tt.expectedInit, string(configs[0].InitConfig))
 			require.Len(t, configs[0].Instances, tt.expectedInstLen)
+			require.ElementsMatch(t, tt.expectedADIDs, configs[0].ADIdentifiers)
 
-			if tt.expectedADIDs != nil {
-				require.ElementsMatch(t, tt.expectedADIDs, configs[0].ADIdentifiers)
+			if len(tt.expectedCEL) > 0 {
+				require.Len(t, configs[0].CELSelector.Containers, 1)
+				for _, expr := range tt.expectedCEL {
+					assert.Contains(t, configs[0].CELSelector.Containers[0], expr)
+				}
 			}
 
 			for i, substr := range tt.instanceContains {
@@ -521,10 +550,11 @@ func TestBuildCELSelector(t *testing.T) {
 		kind      string
 		target    string
 		namespace string
+		container string
 		contains  []string
 	}{
 		{
-			name:      "basic selector without images",
+			name:      "basic selector without container names",
 			kind:      "Deployment",
 			target:    "my-app",
 			namespace: "default",
@@ -532,32 +562,37 @@ func TestBuildCELSelector(t *testing.T) {
 				`container.pod.rootowner.kind == "Deployment"`,
 				`container.pod.rootowner.name == "my-app"`,
 				`container.pod.namespace == "default"`,
+				`container.image.reference != ""`,
 			},
 		},
 		{
-			name:      "selector with single image",
+			name:      "selector with single container name",
 			kind:      "StatefulSet",
 			target:    "redis",
 			namespace: "data",
+			container: "redis",
 			contains: []string{
 				`container.pod.rootowner.kind == "StatefulSet"`,
+				`container.name == "redis"`,
 			},
 		},
 		{
-			name:      "selector with multiple images",
+			name:      "selector with different container name",
 			kind:      "Deployment",
 			target:    "multi",
 			namespace: "default",
+			container: "sidecar",
 			contains: []string{
 				`container.pod.rootowner.kind == "Deployment"`,
 				`container.pod.rootowner.name == "multi"`,
+				`container.name == "sidecar"`,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ref := autoscalingv2.CrossVersionObjectReference{Kind: tt.kind, Name: tt.target}
-			rules := buildCELSelector(ref, tt.namespace)
+			rules := buildCELSelector(ref, tt.namespace, tt.container)
 			require.Len(t, rules.Containers, 1)
 			for _, substr := range tt.contains {
 				assert.Contains(t, rules.Containers[0], substr)

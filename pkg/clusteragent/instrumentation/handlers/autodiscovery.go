@@ -97,12 +97,12 @@ func (h *AutodiscoveryHandler) Validate(cr *datadoghq.DatadogInstrumentation) []
 			})
 		}
 
-		if len(check.ContainerImage) == 0 && !isService(cr) {
+		if !hasContainerTarget(check) && !isService(cr) {
 			errs = append(errs, instrumentation.ValidationError{
 				Type:        checksReadyConditionType,
-				Reason:      "InvalidContainerImage",
-				Message:     "at least one container image is required",
-				Field:       fmt.Sprintf("spec.config.checks[%d].containerImage", i),
+				Reason:      "InvalidContainerTarget",
+				Message:     "at least one container image or container name is required",
+				Field:       fmt.Sprintf("spec.config.checks[%d]", i),
 				HandlerName: h.Name(),
 			})
 		}
@@ -181,11 +181,11 @@ func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadogh
 	}
 	return integration.Config{
 		Name:          check.Integration,
-		ADIdentifiers: check.ContainerImage,
+		ADIdentifiers: adIdentifiers(check),
 		InitConfig:    initConfig,
 		Instances:     instances,
 		LogsConfig:    logsConfig,
-		CELSelector:   buildCELSelector(cr.Spec.TargetRef, cr.Namespace),
+		CELSelector:   buildCELSelector(cr.Spec.TargetRef, cr.Namespace, strings.TrimSpace(check.ContainerName)),
 		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
@@ -243,7 +243,7 @@ func rawExtensionToData(raw runtime.RawExtension) (integration.Data, error) {
 	return b, nil
 }
 
-func marshalLogs(logs []datadoghq.DatadogInstrumentationLogConfig) (integration.Data, error) {
+func marshalLogs(logs []datadoghq.DatadogInstrumentationLogFields) (integration.Data, error) {
 	if len(logs) == 0 {
 		return nil, nil
 	}
@@ -254,12 +254,26 @@ func marshalLogs(logs []datadoghq.DatadogInstrumentationLogConfig) (integration.
 	return b, nil
 }
 
-func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace string) workloadfilter.Rules {
+func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace string, containerName string) workloadfilter.Rules {
 	expr := fmt.Sprintf(
-		`container.pod.rootowner.kind == %q && container.pod.rootowner.name == %q && container.pod.namespace == %q`,
+		`container.pod.rootowner.kind == %q && container.pod.rootowner.name == %q && container.pod.namespace == %q && container.image.reference != ""`,
 		ref.Kind, ref.Name, namespace,
 	)
+	if containerName != "" {
+		expr = fmt.Sprintf("%s && container.name == %q", expr, containerName)
+	}
 	return workloadfilter.Rules{
 		Containers: []string{expr},
 	}
+}
+
+func hasContainerTarget(check datadoghq.DatadogInstrumentationCheckConfig) bool {
+	return strings.TrimSpace(check.ContainerName) != "" || len(check.ContainerImage) > 0
+}
+
+func adIdentifiers(check datadoghq.DatadogInstrumentationCheckConfig) []string {
+	if strings.TrimSpace(check.ContainerName) != "" {
+		return nil
+	}
+	return check.ContainerImage
 }
