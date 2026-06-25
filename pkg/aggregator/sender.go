@@ -30,6 +30,7 @@ type RawSender interface {
 // checkSender implements Sender
 type checkSender struct {
 	id                      checkid.ID
+	metricSource            metrics.MetricSource
 	defaultHostname         string
 	defaultHostnameDisabled bool
 	metricStats             stats.SenderStats
@@ -105,6 +106,7 @@ func newCheckSender(
 ) *checkSender {
 	return &checkSender{
 		id:                      id,
+		metricSource:            metrics.CheckNameToMetricSource(checkid.IDToCheckName(id)),
 		defaultHostname:         defaultHostname,
 		itemsOut:                itemsOut,
 		serviceCheckOut:         serviceCheckOut,
@@ -203,7 +205,7 @@ func (s *checkSender) sendMetricSample(
 		Timestamp:       timestamp,
 		FlushFirstValue: flushFirstValue,
 		NoIndex:         s.noIndex || noIndex,
-		Source:          metrics.CheckNameToMetricSource(checkid.IDToCheckName(s.id)),
+		Source:          s.metricSource,
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
