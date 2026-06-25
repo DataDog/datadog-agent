@@ -91,13 +91,6 @@ lint_releasenotes_unique_ids:
   extends: .lint
   rules:
     - !reference [.on_mergequeue]
-    - changes:
-        paths:
-          - releasenotes/notes/**/*.yaml
-          - releasenotes-dca/notes/**/*.yaml
-          - releasenotes-installscript/notes/**/*.yaml
-        compare_to: $COMPARE_TO_BRANCH
-    - when: manual
-      allow_failure: true
+    - !reference [.on_releasenotes_changes]
   script:
     - dda inv -- -e linter.releasenote-unique-ids
