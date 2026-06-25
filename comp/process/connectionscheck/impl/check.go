@@ -43,8 +43,8 @@ type Provides struct {
 	Component connectionscheck.Component
 }
 
-// NewCheck creates a new connectionscheck component.
-func NewCheck(deps dependencies) Provides {
+// NewComponent creates a new connectionscheck component.
+func NewComponent(deps dependencies) Provides {
 	c := &check{
 		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta, deps.NpCollector, deps.Tagger),
 	}
