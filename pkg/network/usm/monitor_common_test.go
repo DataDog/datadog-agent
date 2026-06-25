@@ -326,8 +326,11 @@ func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params commonTe
 			serverAddr := fmt.Sprintf("127.0.0.1:%d", params.serverPort)
 
 			monitor := params.setupMonitor(t)
+			// Generous timeouts so large (10mb) body transfers complete on slow hosts (e.g. Windows CI).
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
+				ReadTimeout:     30 * time.Second,
+				WriteTimeout:    30 * time.Second,
 			})
 			t.Cleanup(srvDoneFn)
 

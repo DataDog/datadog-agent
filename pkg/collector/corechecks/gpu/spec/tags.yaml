@@ -59,6 +59,9 @@ tagsets:
       - gpu_type
       - gpu_parent_uuid
       - gpu_host
+  nvlink:
+    tags:
+      - nvlink_port
   process:
     workload_only: true
     tags:

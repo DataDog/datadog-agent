@@ -26,8 +26,9 @@ import (
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -48,8 +49,6 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -64,10 +63,10 @@ type service struct {
 
 var (
 	defaultSecurityAgentConfigFilePaths = []string{
-		path.Join(defaultpaths.ConfPath, "datadog.yaml"),
-		path.Join(defaultpaths.ConfPath, "security-agent.yaml"),
+		path.Join(defaultpaths.GetDefaultConfPath(), "datadog.yaml"),
+		path.Join(defaultpaths.GetDefaultConfPath(), "security-agent.yaml"),
 	}
-	defaultSysProbeConfPath = path.Join(defaultpaths.ConfPath, "system-probe.yaml")
+	defaultSysProbeConfPath = path.Join(defaultpaths.GetDefaultConfPath(), "system-probe.yaml")
 )
 
 // Name returns the service name
@@ -113,7 +112,7 @@ func (s *service) Run(svcctx context.Context) error {
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
-			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
+			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", defaultpaths.GetDefaultSecurityAgentLogFile()),
 		}),
 		core.Bundle(core.WithSecrets()),
 		remotehostnameimpl.Module(),
@@ -158,14 +157,12 @@ func (s *service) Run(svcctx context.Context) error {
 
 		statusimpl.Module(),
 
-		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		configsyncfx.Module(configsync.NewDefaultParams()),
 		autoexitfx.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
-				Settings: map[string]settings.RuntimeSetting{
-					"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-				},
-				Config: c,
+				Settings: start.RuntimeSettings(),
+				Config:   c,
 			}
 		}),
 		settingsfx.Module(),

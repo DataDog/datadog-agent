@@ -1,31 +1,20 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
-load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
 
 # ============================================================================
 # Protobuf / gRPC
 # ============================================================================
-
-proto_library(
-    name = "process_manager_proto",
-    srcs = ["proto/process_manager.proto"],
-)
+#
+# Rust prost codegen lives next to the canonical .proto in
+# //pkg/proto/datadog/procmgr (same package as go_proto_library).
 
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
     "@platforms//os:windows": [],
     "//conditions:default": ["@platforms//:incompatible"],
 })
-
-rust_prost_library(
-    name = "process_manager_rust_proto",
-    proto = ":process_manager_proto",
-    target_compatible_with = _LINUX_OR_WINDOWS,
-    visibility = ["//visibility:public"],
-)
 
 # rust_prost_library propagates CcInfo from proto_library, which transitively
 # includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
@@ -50,7 +39,7 @@ _LIB_SRCS = glob(
 
 _LIB_DEPS = [
     ":cpp_stdlib",
-    ":process_manager_rust_proto",
+    "//pkg/proto/datadog/procmgr:procmgr_rust_proto",
     "@crates//:anyhow",
     "@crates//:hyper-util",
     "@crates//:log",
@@ -70,6 +59,7 @@ _LIB_DEPS = [
     ],
     "@platforms//os:windows": [
         "//comp/core/log/rust:dd-agent-log",
+        "@crates//:windows-registry",
         "@crates//:windows-sys",
     ],
     "//conditions:default": [],

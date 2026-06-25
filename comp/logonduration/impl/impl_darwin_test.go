@@ -21,12 +21,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
@@ -37,7 +37,7 @@ import (
 func TestBuildTimelineMilestones(t *testing.T) {
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
 
-	t.Run("returns four milestones", func(t *testing.T) {
+	t.Run("returns three milestones", func(t *testing.T) {
 		ts := logonduration.LoginTimestamps{
 			LoginWindowTime:  boot.Add(10 * time.Second),
 			LoginTime:        boot.Add(30 * time.Second),
@@ -46,11 +46,10 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(boot, ts)
 
-		require.Len(t, milestones, 4)
-		assert.Equal(t, "Boot Start", milestones[0].Name)
+		require.Len(t, milestones, 3)
+		assert.Equal(t, "Boot Duration", milestones[0].Name)
 		assert.Equal(t, "Login Window Ready", milestones[1].Name)
-		assert.Equal(t, "User Login", milestones[2].Name)
-		assert.Equal(t, "Desktop Ready", milestones[3].Name)
+		assert.Equal(t, "Logon Duration", milestones[2].Name)
 	})
 
 	t.Run("computes correct offsets from boot start", func(t *testing.T) {
@@ -62,10 +61,12 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(boot, ts)
 
+		// The 20s idle gap (LoginWindowTime -> LoginTime) is collapsed out of the
+		// post-login offsets, so logon_duration starts where the
+		// login window appeared.
 		assert.InDelta(t, 0.0, milestones[0].OffsetMs, 0.001)
 		assert.InDelta(t, 10000.0, milestones[1].OffsetMs, 0.001)
-		assert.InDelta(t, 30000.0, milestones[2].OffsetMs, 0.001)
-		assert.InDelta(t, 90000.0, milestones[3].OffsetMs, 0.001)
+		assert.InDelta(t, 10000.0, milestones[2].OffsetMs, 0.001)
 	})
 
 	t.Run("computes correct durations between milestones", func(t *testing.T) {
@@ -80,7 +81,6 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		assert.InDelta(t, 10000.0, milestones[0].DurationMs, 0.001)
 		assert.InDelta(t, 0.0, milestones[1].DurationMs, 0.001)
 		assert.InDelta(t, 60000.0, milestones[2].DurationMs, 0.001)
-		assert.InDelta(t, 0.0, milestones[3].DurationMs, 0.001)
 	})
 
 	t.Run("formats timestamps correctly", func(t *testing.T) {
@@ -95,7 +95,6 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		assert.Equal(t, "2026-01-15T08:00:00.000Z", milestones[0].Timestamp)
 		assert.Equal(t, "2026-01-15T08:00:10.000Z", milestones[1].Timestamp)
 		assert.Equal(t, "2026-01-15T08:00:30.000Z", milestones[2].Timestamp)
-		assert.Equal(t, "2026-01-15T08:01:30.000Z", milestones[3].Timestamp)
 	})
 
 	t.Run("handles millisecond precision", func(t *testing.T) {
@@ -107,12 +106,12 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(boot, ts)
 
+		// gap = 30.25s - 10.5s = 19.75s; collapsed offsets all land at 10500ms.
 		assert.InDelta(t, 10500.0, milestones[1].OffsetMs, 0.001)
-		assert.InDelta(t, 30250.0, milestones[2].OffsetMs, 0.001)
-		assert.InDelta(t, 90750.0, milestones[3].OffsetMs, 0.001)
+		assert.InDelta(t, 10500.0, milestones[2].OffsetMs, 0.001)
 	})
 
-	t.Run("zero LoginWindowTime yields 0 durations and empty timestamp for dependent milestones", func(t *testing.T) {
+	t.Run("zero LoginWindowTime omits the login_window_ready milestone", func(t *testing.T) {
 		ts := logonduration.LoginTimestamps{
 			LoginTime:        boot.Add(30 * time.Second),
 			DesktopReadyTime: boot.Add(90 * time.Second),
@@ -120,18 +119,20 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(boot, ts)
 
-		// Boot Start duration depends on LoginWindowTime
+		// Milestones with a zero timestamp are skipped: login_window_ready drops out.
+		require.Len(t, milestones, 2)
+		assert.Equal(t, "boot_duration", milestones[0].ID)
+		assert.Equal(t, "logon_duration", milestones[1].ID)
+
+		// Boot Duration depends on LoginWindowTime, so its duration is 0.
 		assert.InDelta(t, 0.0, milestones[0].DurationMs, 0.001)
-		// Login Window Ready: offset, duration, and timestamp all zero/empty
-		assert.InDelta(t, 0.0, milestones[1].OffsetMs, 0.001)
-		assert.InDelta(t, 0.0, milestones[1].DurationMs, 0.001)
-		assert.Equal(t, "", milestones[1].Timestamp)
-		// User Login: offset and duration still computed from their own timestamps
-		assert.InDelta(t, 30000.0, milestones[2].OffsetMs, 0.001)
-		assert.InDelta(t, 60000.0, milestones[2].DurationMs, 0.001)
+		// No gap can be computed without LoginWindowTime, so logon_duration keeps its
+		// wall-clock offset.
+		assert.InDelta(t, 30000.0, milestones[1].OffsetMs, 0.001)
+		assert.InDelta(t, 60000.0, milestones[1].DurationMs, 0.001)
 	})
 
-	t.Run("zero LoginTime yields 0 durations and empty timestamp for dependent milestones", func(t *testing.T) {
+	t.Run("zero LoginTime omits the logon_duration milestone", func(t *testing.T) {
 		ts := logonduration.LoginTimestamps{
 			LoginWindowTime:  boot.Add(10 * time.Second),
 			DesktopReadyTime: boot.Add(90 * time.Second),
@@ -139,15 +140,15 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(boot, ts)
 
-		// Login Window Ready duration depends on LoginTime
+		require.Len(t, milestones, 2)
+		assert.Equal(t, "boot_duration", milestones[0].ID)
+		assert.Equal(t, "login_window_ready", milestones[1].ID)
+		assert.InDelta(t, 10000.0, milestones[0].DurationMs, 0.001)
+		assert.InDelta(t, 10000.0, milestones[1].OffsetMs, 0.001)
 		assert.InDelta(t, 0.0, milestones[1].DurationMs, 0.001)
-		// User Login: offset, duration, and timestamp all zero/empty
-		assert.InDelta(t, 0.0, milestones[2].OffsetMs, 0.001)
-		assert.InDelta(t, 0.0, milestones[2].DurationMs, 0.001)
-		assert.Equal(t, "", milestones[2].Timestamp)
 	})
 
-	t.Run("zero DesktopReadyTime yields 0 duration and empty timestamp for dependent milestones", func(t *testing.T) {
+	t.Run("zero DesktopReadyTime yields 0 logon durations", func(t *testing.T) {
 		ts := logonduration.LoginTimestamps{
 			LoginWindowTime: boot.Add(10 * time.Second),
 			LoginTime:       boot.Add(30 * time.Second),
@@ -155,11 +156,12 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(boot, ts)
 
-		// User Login duration depends on DesktopReadyTime
+		require.Len(t, milestones, 3)
+		// logon_duration's duration depends on DesktopReadyTime.
+		assert.Equal(t, "logon_duration", milestones[2].ID)
 		assert.InDelta(t, 0.0, milestones[2].DurationMs, 0.001)
-		// Desktop Ready: offset and timestamp zero/empty
-		assert.InDelta(t, 0.0, milestones[3].OffsetMs, 0.001)
-		assert.Equal(t, "", milestones[3].Timestamp)
+		// The idle gap (LoginWindowTime -> LoginTime) is still collapsed.
+		assert.InDelta(t, 10000.0, milestones[2].OffsetMs, 0.001)
 	})
 }
 
@@ -245,7 +247,7 @@ func TestBuildCustomPayload(t *testing.T) {
 
 		timeline, ok := custom["boot_timeline"].([]Milestone)
 		require.True(t, ok)
-		assert.Len(t, timeline, 4)
+		assert.Len(t, timeline, 3)
 	})
 
 	t.Run("zero LoginWindowTime yields 0 boot_duration_ms", func(t *testing.T) {
@@ -309,7 +311,7 @@ func TestSubmitEvent_PayloadFormat(t *testing.T) {
 
 	attrs, ok := data["attributes"].(map[string]interface{})
 	require.True(t, ok)
-	assert.Equal(t, "Logon duration", attrs["title"])
+	assert.Equal(t, "Device booted up: Boot & login took 70000 ms", attrs["title"])
 	assert.Equal(t, "alert", attrs["category"])
 	assert.Equal(t, "system-notable-events", attrs["integration_id"])
 
@@ -362,6 +364,69 @@ func TestSubmitEvent_MessageIncludesLogonDuration(t *testing.T) {
 	data := payload["data"].(map[string]interface{})
 	attrs := data["attributes"].(map[string]interface{})
 	assert.Equal(t, "Total boot duration took 70000 ms.", attrs["message"])
+}
+
+func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		name     string
+		ts       logonduration.LoginTimestamps
+		expected string
+	}{
+		{
+			name: "complete",
+			ts: logonduration.LoginTimestamps{
+				LoginWindowTime:  boot.Add(10 * time.Second),
+				LoginTime:        boot.Add(30 * time.Second),
+				DesktopReadyTime: boot.Add(90 * time.Second),
+			},
+			expected: "Device booted up: Boot & login took 70000 ms",
+		},
+		{
+			name:     "boot only",
+			ts:       logonduration.LoginTimestamps{LoginWindowTime: boot.Add(10 * time.Second)},
+			expected: "Device booted up: Boot timeline incomplete",
+		},
+		{
+			name: "logon only",
+			ts: logonduration.LoginTimestamps{
+				LoginTime:        boot.Add(30 * time.Second),
+				DesktopReadyTime: boot.Add(90 * time.Second),
+			},
+			expected: "Device booted up: Boot timeline incomplete",
+		},
+		{
+			name:     "neither",
+			ts:       logonduration.LoginTimestamps{},
+			expected: "Device booted up: Boot timeline incomplete",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+			compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
+			forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
+
+			comp := &logonDurationComponent{
+				hostname:               hostname,
+				eventPlatformForwarder: forwarder,
+			}
+
+			err := comp.submitEvent(boot, tc.ts)
+			require.NoError(t, err)
+
+			sent := forwarder.Purge()
+			msgs := sent[eventplatform.EventTypeEventManagement]
+			require.Len(t, msgs, 1)
+
+			var payload map[string]interface{}
+			require.NoError(t, json.Unmarshal(msgs[0].GetContent(), &payload))
+			attrs := payload["data"].(map[string]interface{})["attributes"].(map[string]interface{})
+			assert.Equal(t, tc.expected, attrs["title"])
+		})
+	}
 }
 
 func TestSubmitEvent_IncludesSystemNotableEventsMetadata(t *testing.T) {
@@ -522,7 +587,7 @@ func newFixture(t *testing.T, enabled bool) *testFixture {
 	logComp := logmock.New(t)
 
 	configComp := config.NewMock(t)
-	configComp.SetWithoutSource("logon_duration.enabled", enabled)
+	configComp.SetInTest("logon_duration.enabled", enabled)
 
 	sysprobeConfigComp := sysprobeconfigmock.NewMock(t)
 

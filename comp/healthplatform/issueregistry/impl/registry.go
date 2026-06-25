@@ -7,10 +7,10 @@
 package issueregistryimpl
 
 import (
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 // Requires defines the dependencies for the registry component.
@@ -31,19 +31,14 @@ func New(reqs Requires) registrydef.Component {
 	return &registryImpl{inner: r}
 }
 
-func (r *registryImpl) BuildIssue(issueType string, context map[string]string) (*healthplatformpayload.Issue, error) {
-	return r.inner.BuildIssue(issueType, context)
+func (r *registryImpl) GetTemplate(issueName string) (issuesmod.Template, bool) {
+	return r.inner.GetTemplate(issueName)
 }
 
-func (r *registryImpl) HasTemplate(issueType string) bool {
-	_, ok := r.inner.GetTemplate(issueType)
-	return ok
-}
-
-func (r *registryImpl) GetBuiltInPeriodicHealthChecks() []*issuesmod.BuiltInPeriodicHealthCheck {
+func (r *registryImpl) GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck {
 	return r.inner.GetBuiltInPeriodicHealthChecks()
 }
 
-func (r *registryImpl) GetBuiltInStartupHealthChecks() []*issuesmod.BuiltInStartupHealthCheck {
+func (r *registryImpl) GetBuiltInStartupHealthChecks() []*runnerdef.BuiltInHealthCheck {
 	return r.inner.GetBuiltInStartupHealthChecks()
 }

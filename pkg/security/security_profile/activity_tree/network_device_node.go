@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -21,6 +22,14 @@ type NetworkDeviceNode struct {
 	Context        model.NetworkDeviceContext
 	// FlowNodes are indexed by source IPPortContexts
 	FlowNodes map[model.FiveTuple]*FlowNode
+}
+
+// size approximates this node's own heap footprint
+func (netdevice *NetworkDeviceNode) size() int64 {
+	s := int64(unsafe.Sizeof(*netdevice))
+	s += fixedKeyMapBytes(netdevice.FlowNodes)
+	s += sliceBackingBytes(cap(netdevice.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+	return s
 }
 
 // NewNetworkDeviceNode returns a new NetworkDeviceNode instance
@@ -39,14 +48,15 @@ func (netdevice *NetworkDeviceNode) appendImageTag(imageTagID uint64, timestamp 
 	}
 }
 
-func (netdevice *NetworkDeviceNode) evictImageTag(imageTagID uint64) bool {
+func (netdevice *NetworkDeviceNode) evictImageTag(imageTagID uint64) (bool, int64) {
+	var removed int64
 	for key, flow := range netdevice.FlowNodes {
 		if flow.EvictImageTag(imageTagID) {
+			removed += flow.size()
 			delete(netdevice.FlowNodes, key)
 		}
 	}
-
-	return len(netdevice.FlowNodes) == 0
+	return len(netdevice.FlowNodes) == 0, removed
 }
 
 func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.NetworkFlowMonitorEvent, evt *model.Event, dryRun bool, rules []*model.MatchedRule, generationType NodeGenerationType, imageTagID uint64, stats *Stats) bool {
@@ -68,8 +78,10 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 				return newFlow
 			}
 			// create new entry
-			netdevice.FlowNodes[flow.GetFiveTuple()] = NewFlowNode(flow, evt, generationType, imageTagID)
+			flowNode := NewFlowNode(flow, evt, generationType, imageTagID)
+			netdevice.FlowNodes[flow.GetFiveTuple()] = flowNode
 			stats.FlowNodes++
+			stats.SizeBytes += flowNode.size()
 		}
 	}
 

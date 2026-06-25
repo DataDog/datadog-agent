@@ -26,14 +26,17 @@ import (
 // produces StateStructured messages; a NoopLineHandler is used to prevent
 // truncation logic from corrupting them.
 //
-// For unstructured format, it uses UTF-8 newline framing with a noop parser.
+// For unstructured format, it uses UTF-8 newline framing (with end-of-stream
+// flush) and a noop parser. The end-of-stream flush is required for
+// forwarders that use connection close as the message boundary — sending a
+// single message per TCP connection without a trailing newline.
 func NewStreamDecoder(source *sources.ReplaceableSource, tailerInfo *status.InfoRegistry) Decoder {
 	format := source.Config().Format
 	switch format {
 	case config.SyslogFormat:
 		return newSyslogStreamDecoder(source, tailerInfo)
 	default:
-		return InitializeDecoder(source, noop.New(), tailerInfo)
+		return NewDecoderWithFraming(source, noop.New(), framer.UTF8NewlineStream, nil, tailerInfo)
 	}
 }
 

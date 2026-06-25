@@ -6,7 +6,6 @@ Notes about Agent6:
     the task will be run in the agent6 branch.
 """
 
-import json
 import os
 import sys
 import tempfile
@@ -774,15 +773,6 @@ def get_active_release_branch(ctx, release_branch):
             print(f"{release_branch.name}")
         else:
             print(get_default_branch())
-
-
-@task
-def get_unreleased_release_branches(_):
-    """
-    Determine what are the current active release branches for the Agent.
-    """
-    gh = GithubAPI()
-    print(json.dumps([branch.name for branch in gh.latest_unreleased_release_branches()]))
 
 
 def get_next_version(gh, latest_release=None):

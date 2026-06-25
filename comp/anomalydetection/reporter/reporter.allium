@@ -16,8 +16,8 @@
 --     resources, change_metadata)
 --   - Sub-category classification (spike, drop, new_pattern) recorded in
 --     change_metadata.sub_category
---   - Routing identity for edge-intelligence (integration_id,
---     source_type_id, changed_resource.type), locked by invariant
+--   - Routing identity for edge-intelligence (integration_id and
+--     changed_resource.type), locked by invariant
 --   - Payload size caps imposed by the v2 Events API
 --
 -- Excludes:
@@ -104,7 +104,7 @@ external entity ChangeEvent {
     message: String
     category: EventCategory
     integration_id: String
-    source_type_id: Integer
+    host: String?
     tags: Set<String>
     timestamp: Timestamp
     aggregation_key: String
@@ -139,6 +139,7 @@ value AnomalyDebugInfo {
     baseline_mean: Decimal
     baseline_median: Decimal
     baseline_stddev: Decimal
+    baseline_mad: Decimal
     threshold: Decimal
     current_value: Decimal
     deviation_sigma: Decimal
@@ -253,18 +254,21 @@ config {
 -- Routing Identity
 ------------------------------------------------------------
 
--- The Event Management intake routes a change event by the publisher's
--- (integration_id, source_type_id) pair. These values are constants of
--- the `edge-intelligence` integration; they are not configurable and are
+-- The Event Management intake routes a change event by integration_id.
+-- source_type_id is derived intake-side from that integration and is not
+-- emitted by the reporter payload.
+--
+-- integration_id and changed_resource.type are constants of the
+-- `edge-intelligence` integration; they are not configurable and are
 -- enforced on every emitted ChangeEvent by the RoutingIdentityLocked
 -- invariant.
 --
 -- changed_resource.type is `anomaly`. The intake rejects the
 -- previously-emitted `configuration` value.
 --
---   integration_id        = "edge-intelligence"
---   source_type_id        = 78252213
---   changed_resource_type = "anomaly"
+--   integration_id         = "edge-intelligence"
+--   derived source_type_id = 78252213 (from integration_id)
+--   changed_resource_type  = "anomaly"
 --   author_name           = "datadog-agent-observer"
 --   author_type           = "automation"
 --   category              = change
@@ -314,10 +318,10 @@ rule ReportCorrelationsToStdout {
         )
 
     @guidance
-        -- StdoutReporter never publishes externally and never deduplicates;
-        -- it is a tracing aid for local development and replay. The
-        -- StdoutTraceWritten event is the observable boundary; its textual
-        -- form is unspecified.
+        -- StdoutReporter never publishes externally but deduplicates patterns
+        -- at info level (mirrors EventReporter semantics): first-seen patterns
+        -- log at info, ongoing patterns at debug. The StdoutTraceWritten event
+        -- is the observable boundary; its textual form is unspecified.
 }
 
 -- A correlation that the EventReporter has not yet published is published
@@ -340,7 +344,7 @@ rule PublishNewCorrelation {
                     message: render_change_message(c),
                     category: change,
                     integration_id: "edge-intelligence",
-                    source_type_id: 78252213,
+                    host: derive_host(c),
                     tags: derive_event_tags(c),
                     timestamp: c.first_seen,
                     aggregation_key: "observer:" + c.pattern,
@@ -419,6 +423,12 @@ rule DropExpiredSeenPatterns {
 --      current_value <= baseline_mean, classify as `drop`.
 --   3. Otherwise classify as `spike`.
 --   A Correlation with no anomalies classifies as `spike`.
+
+-- derive_host(c: Correlation) -> String
+--
+-- The agent hostname from the hostname component, attached to the change
+-- event for intake-side host association. Omitted from the wire payload
+-- when the hostname component is unavailable or returns an empty value.
 
 -- derive_event_tags(c: Correlation) -> Set<String>
 --
@@ -504,11 +514,12 @@ invariant SubCategoryCoversAll {
 
 invariant RoutingIdentityLocked {
     -- Every emitted ChangeEvent uses the locked routing identity.
+    -- source_type_id is not emitted; Event Management derives it from
+    -- integration_id for the registered publisher.
     -- changed_resource.type is `anomaly`; the previously-emitted
     -- `configuration` value is rejected by the intake.
     for e in ChangeEvents:
         e.integration_id = "edge-intelligence"
-        and e.source_type_id = 78252213
         and e.changed_resource_type = "anomaly"
         and e.author_name = "datadog-agent-observer"
         and e.author_type = "automation"

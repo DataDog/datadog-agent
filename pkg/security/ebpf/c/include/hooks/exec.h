@@ -83,7 +83,8 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     // This overwrites the resolver fields on this syscall, but that's ok because the executed file has already been written to the map/pathnames ebpf map.
     syscall->resolver.key = syscall->exec.linux_binprm.interpreter;
     syscall->resolver.dentry = get_file_dentry(file);
-    syscall->resolver.discarder_event_type = 0;
+    syscall->resolver.event_type = syscall->type;
+    syscall->resolver.flags = get_resolver_flags(syscall, 0);
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -225,12 +226,10 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         return 0;
     }
 
-    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value.
-    // Override ppid: fill_process_context set it to the grandparent (parent's real_parent), but for
-    // the child the ppid is the parent PID.
+    event->pid_entry.ppid = ppid;
+    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value
     event->process.pid = pid;
     event->process.tid = pid;
-    event->process.ppid = ppid;
 
     event->pid_entry.fork_flags = syscall->fork.flags;
 

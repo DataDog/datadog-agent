@@ -43,7 +43,7 @@ func (f *privilegedLogsModule) GetStats() map[string]interface{} {
 
 // Register registers endpoints for the module to expose data
 func (f *privilegedLogsModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/open", f.openFileHandler).Methods("POST")
+	httpMux.HandleFunc("POST /open", f.openFileHandler)
 	return nil
 }
 

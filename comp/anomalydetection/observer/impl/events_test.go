@@ -295,20 +295,20 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
 
-	_, _ = e.IngestLog("source-a", &logObs{
+	_ = e.IngestLog("source-a", &logObs{
 		content:     "GET /users/123 returned 500",
 		status:      "warn",
 		tags:        []string{"service:api"},
 		timestampMs: 1_000,
 	})
 	// Second log in the same sub-clusterer so patterns merge and produce a wildcard.
-	_, _ = e.IngestLog("source-a", &logObs{
+	_ = e.IngestLog("source-a", &logObs{
 		content:     "GET /users/456 returned 500",
 		status:      "warn",
 		tags:        []string{"service:api"},
 		timestampMs: 1_500,
 	})
-	_, _ = e.IngestLog("source-b", &logObs{
+	_ = e.IngestLog("source-b", &logObs{
 		content:     "GET /users/456 returned 500",
 		status:      "warn",
 		tags:        []string{"service:worker"},
@@ -608,8 +608,11 @@ type countingReporter struct {
 	count *int
 }
 
-func (r *countingReporter) Name() string                      { return "counting" }
-func (r *countingReporter) Report(_ reporterdef.ReportOutput) { *r.count++ }
+func (r *countingReporter) Name() string { return "counting" }
+func (r *countingReporter) Report(_ reporterdef.ReportOutput) bool {
+	*r.count++
+	return true
+}
 
 func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
@@ -912,7 +915,7 @@ func TestFindingM12_LogOnlyTimestampsSkippedInReplay(t *testing.T) {
 	}
 
 	// Ingest log at 103 (no virtual metrics produced)
-	logRequests, _ := e.IngestLog("ns", &logObs{
+	logRequests := e.IngestLog("ns", &logObs{
 		content:     "error happened",
 		status:      "error",
 		timestampMs: 103000, // 103 seconds in millis
@@ -978,7 +981,7 @@ func TestIngestLogCopiesMetricTagsBeforeInjectingObserverSource(t *testing.T) {
 		extractors: []observerdef.LogMetricsExtractor{&sharedTagsExtractor{}},
 	})
 
-	_, _ = e.IngestLog("source-a", &logObs{
+	_ = e.IngestLog("source-a", &logObs{
 		content:     "hello",
 		tags:        []string{"env:test"},
 		timestampMs: 1000,

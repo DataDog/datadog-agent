@@ -108,3 +108,23 @@ func (r *EmbeddedRegistry) GetAllEquivalences() map[Concept][]TagInfo {
 func (r *EmbeddedRegistry) Version() string {
 	return r.version
 }
+
+// RegistryEqual reports whether two registries are equal by comparing their
+// Version() strings. Callers use this to decide whether to skip an
+// UpdateRegistry call (and any downstream cache invalidation) when the
+// publisher has pushed a payload that matches what is already live.
+//
+// TODO: this relies on the semantic-core publisher stamping a content-bound
+// version (or a content hash) so that two registries with the same Version()
+// truly have the same concept maps. Today the publisher uses a CI artifact
+// version that is bumped on every build regardless of content changes, which
+// makes this check pessimistic (we may swap even when concepts are unchanged).
+// Coordinate with the semantic-core team to either make `version` content-
+// bound or add a separate `content_hash` field to the payload; then switch
+// this comparison to that field.
+func RegistryEqual(a, b Registry) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Version() == b.Version()
+}

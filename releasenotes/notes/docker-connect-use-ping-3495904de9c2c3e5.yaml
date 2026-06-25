@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Use the Docker daemon's ``/ping`` endpoint instead of ``/info`` to verify
+    connectivity during ``DockerUtil`` initialization. Some daemons emit
+    ``DefaultAddressPools[].Base`` values in ``/info`` that are not valid CIDRs,
+    which fail the strict ``netip.Prefix`` decoding introduced by the moby v29
+    client and previously caused ``DockerUtil`` to fail to initialize. This
+    cascaded into the Docker workloadmeta collector and the Docker core check
+    being unavailable, leading to missing container/image tags on metrics and
+    traces from Docker containers.

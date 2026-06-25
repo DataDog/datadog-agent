@@ -7,6 +7,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,7 +28,7 @@ import (
 var checkName = "network_config_management"
 var defaultCheckInterval = 15 * time.Minute
 var defaultSSHTimeout = 30 * time.Second
-var defaultInventoryReportMinInterval = 1 * time.Hour
+var defaultInventoryReportMaxInterval = 1 * time.Hour
 
 // AuthCredentials holds the authentication credentials to connect to a network device.
 type AuthCredentials struct { // auth_credentials
@@ -49,15 +49,21 @@ type AuthCredentials struct { // auth_credentials
 // DeviceInstance holds the initial config to connect to a network device, including its IP address and authentication credentials.
 type DeviceInstance struct {
 	IPAddress string          `yaml:"ip_address"` // ip address of the network device, e.g., "10.0.0.1"
+	Namespace string          `yaml:"namespace"`  // namespace for the device; if empty, defaults to value from initconfig
 	Profile   string          `yaml:"profile"`    // device profile name, e.g., "cisco-ios"
 	Auth      AuthCredentials `yaml:"auth"`
+}
+
+// DeviceID returns the formatted ID for this DeviceInstance.
+func (di *DeviceInstance) DeviceID() string {
+	return fmt.Sprintf("%s:%s", di.Namespace, di.IPAddress)
 }
 
 // InitConfig holds the initial configuration for the NCM component, including the namespace and check interval.
 type InitConfig struct {
 	Namespace                  string        `yaml:"namespace"`                     // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
 	MinCollectionInterval      time.Duration `yaml:"min_collection_interval"`       // Interval in seconds to check for config changes
-	InventoryReportMinInterval time.Duration `yaml:"inventory_report_min_interval"` // Slowest cadence (in seconds) for sending an inventory report; a report is also sent any time a new config is captured
+	InventoryReportMaxInterval time.Duration `yaml:"inventory_report_max_interval"` // Slowest cadence (in seconds) for sending an inventory report; a report is also sent any time a new config is captured
 	SSH                        *SSHConfig    `yaml:"ssh"`                           // SSH holds global connection configurations that can apply to all devices if pertinent
 }
 
@@ -80,18 +86,9 @@ type SSHConfig struct {
 
 // NcmCheckContext holds the processed config needed for an integration instance to run
 type NcmCheckContext struct {
-	Namespace                  string
 	Device                     *DeviceInstance
 	MinCollectionInterval      time.Duration
-	InventoryReportMinInterval time.Duration
-	ProfileMap                 profile.Map
-	ProfileCache               *profile.Cache
-}
-
-// NcmComponentContext is the processed config structure for Network Config Management (NCM) to be used by the component
-type NcmComponentContext struct {
-	Namespace string
-	Devices   map[string]DeviceInstance // map of device IP addresses to DeviceInstance
+	InventoryReportMaxInterval time.Duration
 }
 
 // NewNcmCheckContext creates a new NcmCheckContext from raw instance and init config data
@@ -104,64 +101,34 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal init config: %s", err)
 	}
+	// Apply defaults if missing optional values
+	initConfig.applyDefaults()
+	if err = initConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid init config: %w", err)
+	}
+
 	var deviceInstance DeviceInstance
 	err = yaml.Unmarshal(rawInstance, &deviceInstance)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal device config: %s", err)
 	}
-
-	// Apply defaults if missing optional values
-	initConfig.applyDefaults()
-	deviceInstance.applyDefaults()
-
-	// Device-specific SSH config takes precedence, if not set, use init_config's SSH config as a "global"
-	if deviceInstance.Auth.SSH == nil {
-		deviceInstance.Auth.SSH = initConfig.SSH
-	}
-
-	// If still empty (init_config also has no SSH configs), error for needed configuration
-	if deviceInstance.Auth.SSH == nil {
-		return nil, fmt.Errorf("no SSH configuration found in device instance or init_config or device %s", deviceInstance.IPAddress)
-	}
-
-	// Validate configs after all of that
-	if err = initConfig.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid init config: %w", err)
-	}
+	deviceInstance.applyDefaults(&initConfig)
 	if err = deviceInstance.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid device config for %s: %w", deviceInstance.IPAddress, err)
 	}
 
-	// Populate the profiles map (from defaults/OOTB)
-	profMap, err := profile.GetProfileMap("default_profiles")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get profile map: %w", err)
-	}
-
-	profileCache := &profile.Cache{}
-	if deviceInstance.Profile != "" {
-		profile, ok := profMap[deviceInstance.Profile]
-		if !ok {
-			return nil, fmt.Errorf("unknown profile for %s: %s", deviceInstance.IPAddress, deviceInstance.Profile)
-		}
-		profileCache.ProfileName = profile.Name
-		profileCache.Profile = profile
-	}
 	// Build the final context to send out
 	ncc := &NcmCheckContext{
-		Namespace:                  initConfig.Namespace,
 		MinCollectionInterval:      time.Duration(initConfig.MinCollectionInterval) * time.Second,
-		InventoryReportMinInterval: time.Duration(initConfig.InventoryReportMinInterval) * time.Second,
+		InventoryReportMaxInterval: time.Duration(initConfig.InventoryReportMaxInterval) * time.Second,
 		Device:                     &deviceInstance,
-		ProfileMap:                 profMap,
-		ProfileCache:               profileCache,
 	}
 	return ncc, nil
 }
 
 // GetNCMContextFromCoreCheck retrieves the NCM configurations from the agent's config for the integration
 // TODO: tests for this to come when the component is refactored / we're working on the trigger-based approach for config changes
-func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, error) {
+func GetNCMContextFromCoreCheck(ctx context.Context, client ipc.HTTPClient, ipAddr string) (*NcmCheckContext, error) {
 	// Call the agent's config check endpoint to retrieve the NCM configs (from core check)
 	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
 	if err != nil {
@@ -169,7 +136,7 @@ func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, er
 	}
 	urlValues := url.Values{}
 	urlValues.Set("raw", "true")
-	res, err := endpoint.DoGet(ipchttp.WithValues(urlValues))
+	res, err := endpoint.DoGet(ipchttp.WithContext(ctx), ipchttp.WithValues(urlValues))
 	if err != nil {
 		return nil, err
 	}
@@ -178,57 +145,24 @@ func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, er
 	if err != nil {
 		return nil, err
 	}
-	var ncc NcmComponentContext
 
 	// Iterate through the instances (devices) and parse the device configs
-	var deviceInstances []DeviceInstance
 	for _, c := range cr.Configs {
-		if c.Config.Name == checkName { // Check name for NCM
-			// Parse each instance / device
-			for _, instance := range c.Config.Instances {
+		if c.Config.Name == checkName { // config is for NCM
+			for _, instance := range c.Config.Instances { // find the instance for this IP
 				var deviceInstance DeviceInstance
 				err := yaml.Unmarshal(instance, &deviceInstance)
 				if err != nil {
-					return nil, fmt.Errorf("failed to unmarshal NCM device config: %s", err)
+					return nil, fmt.Errorf("unable to parse NCM config: %v", err)
 				}
-				err = deviceInstance.Validate()
-				if err != nil {
-					return nil, fmt.Errorf("invalid device config for device %s: %w", deviceInstance.IPAddress, err)
+				if deviceInstance.IPAddress != ipAddr {
+					continue
 				}
-				deviceInstances = append(deviceInstances, deviceInstance)
-			}
-			// Parse init config if exists
-			if c.Config.InitConfig != nil {
-				var initConfig InitConfig
-				err := yaml.Unmarshal(c.Config.InitConfig, &initConfig)
-				if err != nil {
-					return nil, fmt.Errorf("failed to unmarshal init config: %s", err)
-				}
-				err = initConfig.Validate()
-				if err != nil {
-					return nil, err
-				}
-				ncc.Namespace = initConfig.Namespace
+				return NewNcmCheckContext(instance, c.Config.InitConfig)
 			}
 		}
 	}
-	// Make device map to easily reference from component when retrieving configs upon event of config change
-	deviceMap := make(map[string]DeviceInstance)
-	for _, d := range deviceInstances {
-		_, exists := deviceMap[d.IPAddress]
-		if exists {
-			log.Warnf("Duplicate device IP address found in config: %s, skipping duplicate", d.IPAddress)
-			continue
-		}
-		if d.IPAddress != "" {
-			deviceMap[d.IPAddress] = d
-		} else {
-			log.Warnf("Device config missing IP address, skipping: %+v", d)
-		}
-	}
-	ncc.Devices = deviceMap
-
-	return &ncc, nil
+	return nil, errors.New("no NCM configuration found")
 }
 
 func (ic *InitConfig) applyDefaults() {
@@ -240,9 +174,9 @@ func (ic *InitConfig) applyDefaults() {
 		log.Debugf("No or invalid min_collection_interval specified in init config, applying default: %d", defaultCheckInterval)
 		ic.MinCollectionInterval = defaultCheckInterval // Default to 15 minutes
 	}
-	if ic.InventoryReportMinInterval <= 0 {
-		log.Debugf("No or invalid inventory_report_min_interval specified in init config, applying default: %s", defaultInventoryReportMinInterval)
-		ic.InventoryReportMinInterval = defaultInventoryReportMinInterval
+	if ic.InventoryReportMaxInterval <= 0 {
+		log.Debugf("No or invalid inventory_report_max_interval specified in init config, applying default: %s", defaultInventoryReportMaxInterval)
+		ic.InventoryReportMaxInterval = defaultInventoryReportMaxInterval
 	}
 }
 
@@ -258,8 +192,8 @@ func (ic *InitConfig) Validate() error {
 		return errors.New("min_collection_interval must be greater than zero")
 	}
 
-	if ic.InventoryReportMinInterval <= 0 {
-		return errors.New("inventory_report_min_interval must be greater than 0")
+	if ic.InventoryReportMaxInterval <= 0 {
+		return errors.New("inventory_report_max_interval must be greater than 0")
 	}
 
 	// if SSH configs exist, ensure they're valid
@@ -304,7 +238,7 @@ func (di *DeviceInstance) Validate() error {
 }
 
 // applyDefaults set default values for any optional fields that are not set + not required
-func (di *DeviceInstance) applyDefaults() {
+func (di *DeviceInstance) applyDefaults(initConfig *InitConfig) {
 	if di.Auth.Port == "" {
 		log.Debugf("Applying default port for device %s: %s", di.IPAddress, "22")
 		di.Auth.Port = "22"
@@ -313,6 +247,14 @@ func (di *DeviceInstance) applyDefaults() {
 		log.Debugf("Applying default protocol for device %s: %s", di.IPAddress, "tcp")
 		di.Auth.Protocol = "tcp"
 	}
+	// Device-specific SSH config takes precedence, if not set, use init_config's SSH config as a "global"
+	if di.Auth.SSH == nil && initConfig != nil {
+		di.Auth.SSH = initConfig.SSH
+	}
+	if di.Namespace == "" && initConfig != nil {
+		di.Namespace = initConfig.Namespace
+	}
+
 }
 
 func (di *DeviceInstance) hasRequiredFields() error {
@@ -327,6 +269,9 @@ func (di *DeviceInstance) hasRequiredFields() error {
 	// must have at least 1 auth method: password or private key
 	if di.Auth.Password == "" && di.Auth.PrivateKeyFile == "" {
 		return fmt.Errorf(authBaseString, "auth method (either password or private key)", di.IPAddress)
+	}
+	if di.Auth.SSH == nil {
+		return fmt.Errorf(authBaseString, "SSH configuration", di.IPAddress)
 	}
 
 	return nil

@@ -164,7 +164,11 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                new Property("DD_LOGON_DURATION_AUTOLOGGER")
+                // When set to a truthy value (1/true/yes), the installer skips re-applying the
+                // ddagentuser SeDeny*LogonRight assignments so customers can preserve custom
+                // user-rights changes across upgrades. SeServiceLogonRight is always granted
+                // because the Agent service cannot start without it.
+                new Property("DDAGENTUSER_KEEP_RIGHTS")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
@@ -700,7 +704,8 @@ namespace WixSetup.Datadog_Agent
                 Constants.ProcmgrServiceName,
                 "Datadog Process Manager",
                 "Manage Datadog agent processes",
-                "LocalSystem");
+                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                "[DDAGENTUSER_PROCESSED_PASSWORD]");
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
             agentBinDir.Add(new EventSource
             {

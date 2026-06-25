@@ -25,11 +25,12 @@ type effect interface {
 // Effect implementations
 
 type effectSpawnBpfLoading struct {
-	processID       ProcessID
-	programID       ir.ProgramID
-	executable      Executable
-	probes          []ir.ProbeDefinition
-	additionalTypes []string
+	processID                ProcessID
+	programID                ir.ProgramID
+	executable               Executable
+	probes                   []ir.ProbeDefinition
+	additionalTypes          []string
+	skipRuntimeRecoveryProbe bool
 }
 
 func (e effectSpawnBpfLoading) yamlTag() string {
@@ -50,6 +51,9 @@ func (e effectSpawnBpfLoading) yamlData() map[string]any {
 	}
 	if len(e.additionalTypes) > 0 {
 		data["additional_types"] = e.additionalTypes
+	}
+	if e.skipRuntimeRecoveryProbe {
+		data["skip_runtime_recovery_probe"] = true
 	}
 	return data
 }
@@ -167,11 +171,12 @@ func (er *effectRecorder) loadProgram(
 	opts LoadOptions,
 ) {
 	er.recordEffect(effectSpawnBpfLoading{
-		processID:       processID,
-		programID:       programID,
-		executable:      executable,
-		probes:          probes,
-		additionalTypes: opts.AdditionalTypes,
+		processID:                processID,
+		programID:                programID,
+		executable:               executable,
+		probes:                   probes,
+		additionalTypes:          opts.AdditionalTypes,
+		skipRuntimeRecoveryProbe: opts.SkipRuntimeRecoveryProbe,
 	})
 }
 

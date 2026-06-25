@@ -1,1 +1,28 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "remote-config",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/remote-config/rcclient/fx",
+        "//comp/remote-config/rcstatus/fx",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "remote-config_test",
+    srcs = ["bundle_test.go"],
+    embed = [":remote-config"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/settings/mock",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

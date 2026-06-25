@@ -17,6 +17,7 @@ go_library(
         "//cmd/secret-generic-connector/backend/gcp",
         "//cmd/secret-generic-connector/backend/hashicorp",
         "//cmd/secret-generic-connector/backend/kubernetes",
+        "//cmd/secret-generic-connector/backend/windows",
         "//cmd/secret-generic-connector/secret",
     ],
 )

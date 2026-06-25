@@ -3,7 +3,7 @@ service:
     profiles:
       receivers: [profiling]
       processors: [batch]
-      exporters: [otlphttp]
+      exporters: [otlp_http]
   extensions:
     - ddprofiling
     - hpflare
@@ -33,7 +33,7 @@ receivers:
       enabled: false
 
 exporters:
-  otlphttp:
+  otlp_http:
     endpoint: http://localhost:4318
     headers:
       dd-api-key: test-key

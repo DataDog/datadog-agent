@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -389,7 +390,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
-		seclog.Warnf("The capabilities monitoring feature of CWS requires a more recent kernel (at least 5.17), setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		seclog.Warnf("The capabilities monitoring feature of CWS requires a kernel version between 5.17 and 6.13, setting event_monitoring_config.capabilities_monitoring.enabled to false")
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
@@ -575,7 +576,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.opts.FilterStore)
 		if err != nil {
 			return err
 		}
@@ -798,16 +799,23 @@ func (p *EBPFProbe) applyRawPacketActionFilters(applyFromRuleset bool) error {
 		return err
 	}
 
+	var errs *multierror.Error
+
 	var progSpecs []*lib.ProgramSpec
 	if len(p.rawPacketActionFilters) > 0 {
 		progSpecs, err = rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), p.rawPacketActionFilters, opts)
+		// if there is an error, keep it but we still want to load the valid programs
 		if err != nil {
-			return err
+			errs = multierror.Append(errs, err)
 		}
 	}
 
 	// add or close if none
-	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketActionCollection, applyFromRuleset)
+	if err := p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketActionCollection, applyFromRuleset); err != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	return errs.ErrorOrNil()
 }
 
 func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) error {
@@ -890,6 +898,9 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	p.Walk(entryToEvent)
 
+	// replay synthetic load_module events for every entry in /proc/modules.
+	events = append(events, p.snapshotLoadedModules()...)
+
 	// order events so that they're dispatched in creation time order
 	sort.Slice(events, func(i, j int) bool {
 		eventA := events[i]
@@ -910,6 +921,36 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	}
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()
+}
+
+// newSyntheticUnknownLoaderEntry returns a transient PCE used as the anchor for
+// synthetic load_module events whose real loader cannot be determined.
+func newSyntheticUnknownLoaderEntry() *model.ProcessCacheEntry {
+	entry := model.NewPlaceholderProcessCacheEntry(0, 0, false)
+	entry.Source = model.ProcessCacheEntryFromUnknownLoader
+	return entry
+}
+
+// snapshotLoadedModules synthesises a load_module event for every entry in
+// /proc/modules, all anchored on a shared synthetic unknown-loader PCE.
+func (p *EBPFProbe) snapshotLoadedModules() []*model.Event {
+	modules, err := utils.FetchLoadedModules()
+	if err != nil {
+		seclog.Debugf("loaded-module snapshot skipped: %v", err)
+		return nil
+	}
+	if len(modules) == 0 {
+		return nil
+	}
+
+	modulePaths := utils.ScanKernelModulePaths()
+	anchor := newSyntheticUnknownLoaderEntry()
+
+	events := make([]*model.Event, 0, len(modules))
+	for _, mod := range modules {
+		events = append(events, p.newLoadModuleEventFromProcFSSnapshot(mod, modulePaths[mod.Name], anchor))
+	}
+	return events
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
@@ -1138,8 +1179,6 @@ func (p *EBPFProbe) newRelatedProcessEvent(pce *model.ProcessCacheEntry, err err
 		relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
 	}
 
-	p.Resolvers.ProcessResolver.TryReparentFromProcfsLocked(pce, metrics.ReparentCallpathRelatedEvent, nil)
-
 	return relatedEvent
 }
 
@@ -1181,23 +1220,11 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 				event.Error = model.ErrNoProcessContext
 			}
 		} else {
-			// If the kernel reports a different ppid than the one in our
-			// cache, the process was reparented (e.g. subreaper). Update
-			// the cache tree immediately using the authoritative kernel value.
-			if event.PIDContext.PPid != 0 {
-				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, p.onNewPCE)
-			}
-
 			// If the kernel reports a different SID than the one in our
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
 				entry.SID = event.PIDContext.SID
 			}
-
-			// Attempt to repair the lineage of processes that were orphaned
-			// during subreaper reparenting (the exit tracepoint may fire
-			// before the kernel has completed forget_original_parent).
-			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, p.onNewPCE)
 
 			if _, err := entry.HasValidLineage(); err != nil {
 				event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -1662,12 +1689,14 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 					Payload: trimRightZeros(data[offset:]),
 				}
 			} else {
-				p.addToDNSResolver(p.dnsLayer)
+				ips, cnames := p.addToDNSResolver(p.dnsLayer)
 				event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
 				event.DNS = model.DNSEvent{
 					ID: p.dnsLayer.ID,
 					Response: &model.DNSResponse{
 						ResponseCode: uint8(p.dnsLayer.ResponseCode),
+						IPs:          ips,
+						CNames:       cnames,
 					},
 				}
 				if len(p.dnsLayer.Questions) != 0 {
@@ -1765,6 +1794,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if event.SetSockOpt.IsFilterTruncated {
 			p.BPFFilterTruncated.Add(1)
 		}
+
+	case model.SocketEventType:
+		if !p.regularUnmarshalEvent(&event.Socket, eventType, offset, dataLen, data) {
+			return false
+		}
+
 	case model.SetrlimitEventType:
 		if !p.regularUnmarshalEvent(&event.Setrlimit, eventType, offset, dataLen, data) {
 			return false
@@ -2584,8 +2619,14 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 		return nil, false, err
 	}
 
-	if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
-		seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
+	if p.config.Probe.EnableDiscarders {
+		if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
+			seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
+		}
+	} else {
+		if err := setDNSDiscarderMask(p.Manager, 0); err != nil {
+			seclog.Warnf("failed to disable DNS default-drop mask: %v", err)
+		}
 	}
 
 	fpb := newFilterPolicyBlock()
@@ -2691,6 +2732,13 @@ func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.variableStoreMu.Lock()
 	p.variableStore = rs.GetVariableStore()
 	p.variableStoreMu.Unlock()
+
+	// Snapshot inherited SECL variables onto an entry before its parent link
+	// is changed, so the values resolved through inheritance survive the
+	// reparenting.
+	p.Resolvers.ProcessResolver.SetPreReparentCb(func(entry *model.ProcessCacheEntry) {
+		rs.CopyInheritedVariables(entry)
+	})
 
 	p.HandleRemediationStatus(rs)
 }
@@ -3489,8 +3537,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
@@ -3561,6 +3607,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	// inode
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeIno, "struct inode", "i_ino")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeMode, "struct inode", "i_mode")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeUID, "struct inode", "i_uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeGid, "struct inode", "i_gid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeNlink, "struct inode", "i_nlink")
 	constantFetcher.AppendOffsetofRequestWithFallbacks(
@@ -3731,6 +3779,54 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	return event
 }
 
+// newLoadModuleEventFromProcFSSnapshot builds a synthetic load_module event for
+// a module discovered via /proc/modules. modulePath is "" when no on-disk file
+// was located under /lib/modules/$(uname -r)/, in which case the event carries
+// an empty file path. LoadedFromMemory is always false on snapshot events: the
+// real syscall (init_module vs finit_module) was not observed, so the field is
+// reserved for runtime events where the kernel told us which one was used.
+func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule, modulePath string, anchor *model.ProcessCacheEntry) *model.Event {
+	event := p.getPoolEvent()
+	event.Timestamp = time.Now()
+	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
+	event.Type = uint32(model.LoadModuleEventType)
+	event.ProcessCacheEntry = anchor
+	event.ProcessContext = &anchor.ProcessContext
+	event.Source = model.EventSourceReplay
+	event.AddToFlags(model.EventFlagsFromReplay)
+
+	event.LoadModule.SyscallEvent.Retval = 0
+	event.LoadModule.Name = mod.Name
+	event.LoadModule.LoadedFromMemory = false
+
+	if modulePath == "" {
+		event.LoadModule.File.SetPathnameStr("")
+		event.LoadModule.File.SetBasenameStr("")
+		return event
+	}
+
+	event.LoadModule.File.SetPathnameStr(modulePath)
+	event.LoadModule.File.SetBasenameStr(filepath.Base(modulePath))
+
+	// Best-effort file metadata (mirrors newOpenEventFromReplay).
+	var fileStats unix.Statx_t
+	if err := unix.Statx(unix.AT_FDCWD, modulePath, 0, unix.STATX_ALL, &fileStats); err == nil {
+		event.LoadModule.File.FileFields.Mode = uint16(fileStats.Mode)
+		event.LoadModule.File.FileFields.Inode = fileStats.Ino
+		event.LoadModule.File.FileFields.UID = fileStats.Uid
+		event.LoadModule.File.FileFields.GID = fileStats.Gid
+		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
+		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+		event.LoadModule.File.Mode = fileStats.Mode
+		event.LoadModule.File.Inode = fileStats.Ino
+		event.LoadModule.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
+		event.LoadModule.File.NLink = fileStats.Nlink
+		event.LoadModule.File.MountID = uint32(fileStats.Mnt_id)
+	}
+
+	return event
+}
+
 // newOpenEventFromReplay returns a new open event for a memory-mapped file with a process context
 func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile model.SnapshottedMmapedFile) *model.Event {
 	event := p.getPoolEvent()
@@ -3768,19 +3864,51 @@ func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snaps
 	return event
 }
 
-func (p *EBPFProbe) addToDNSResolver(dnsLayer *layers.DNS) {
+func (p *EBPFProbe) addToDNSResolver(dnsLayer *layers.DNS) ([]net.IPNet, []string) {
+	var ips []net.IPNet
+	var cnames []string
+
 	for _, answer := range dnsLayer.Answers {
-		if answer.Type == layers.DNSTypeCNAME {
-			p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
-		} else if answer.Type == layers.DNSTypeA || answer.Type == layers.DNSTypeAAAA {
+		switch answer.Type {
+		case layers.DNSTypeCNAME:
+			cname := string(answer.CNAME)
+			cnames = append(cnames, cname)
+			p.Resolvers.DNSResolver.AddNewCname(cname, string(answer.Name))
+		case layers.DNSTypeA, layers.DNSTypeAAAA:
 			ip, ok := netip.AddrFromSlice(answer.IP)
 			if ok {
 				p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
 			} else {
-				seclog.Errorf("DNS response with an invalid IP received: %v", ip)
+				seclog.Errorf("DNS response with an invalid IP received: %v", answer.IP)
+				continue
+			}
+
+			if ipNet, ok := dnsAnswerIPNet(answer); ok {
+				ips = append(ips, ipNet)
 			}
 		}
 	}
+
+	return ips, cnames
+}
+
+func dnsAnswerIPNet(answer layers.DNSResourceRecord) (net.IPNet, bool) {
+	switch answer.Type {
+	case layers.DNSTypeA:
+		ip := answer.IP.To4()
+		if ip == nil {
+			return net.IPNet{}, false
+		}
+		return net.IPNet{IP: append(net.IP(nil), ip...), Mask: net.CIDRMask(32, 32)}, true
+	case layers.DNSTypeAAAA:
+		ip := answer.IP.To16()
+		if ip == nil {
+			return net.IPNet{}, false
+		}
+		return net.IPNet{IP: append(net.IP(nil), ip...), Mask: net.CIDRMask(128, 128)}, true
+	}
+
+	return net.IPNet{}, false
 }
 
 func trimRightZeros(b []byte) []byte {

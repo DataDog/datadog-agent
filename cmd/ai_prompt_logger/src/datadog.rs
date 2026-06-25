@@ -8,7 +8,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 const CONFIG_BASENAME: &str = "ai_usage_native_host.yaml";
-const AI_USAGE_EVP_SUBDOMAIN: &str = "event-platform-intake";
+const AI_USAGE_EVP_SUBDOMAIN: &str = "softinv-intake";
 const AI_USAGE_EVP_PATH: &str = "/api/v2/aiusage";
 
 /// Cap for connect + full request so the native host thread cannot block indefinitely
@@ -49,7 +49,7 @@ impl DatadogClient {
     /// - `trace_agent_url` (default `http://127.0.0.1:8126`; use **http** only — the local trace
     ///   receiver is plain HTTP and this binary has no TLS client)
     /// - `evp_proxy_api_version` (default `2`)
-    /// - `ai_usage_evp_subdomain` (default `event-platform-intake`)
+    /// - `ai_usage_evp_subdomain` (default `softinv-intake`)
     ///
     /// No `DD_API_KEY` is required here; the Agent injects the key when forwarding.
     pub fn load(config_path: Option<PathBuf>) -> Self {
@@ -205,9 +205,11 @@ impl DatadogClient {
         };
 
         match ureq::post(&self.intake_url)
-            .timeout(AGENT_REQUEST_TIMEOUT)
-            .set("Content-Type", "application/json")
-            .set("X-Datadog-EVP-Subdomain", &self.evp_subdomain)
+            .config()
+            .timeout_global(Some(AGENT_REQUEST_TIMEOUT))
+            .build()
+            .header("Content-Type", "application/json")
+            .header("X-Datadog-EVP-Subdomain", &self.evp_subdomain)
             .send_json(&body)
         {
             Ok(resp) => {

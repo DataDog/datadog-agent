@@ -73,7 +73,7 @@ func (s *linuxRunSuite) TestRunAgentCtrlC() {
 	// run command with timeout it
 	_, _, stdout, err := host.Start(cmd)
 	if err != nil {
-		s.FailNow("failed to start agent run command", err)
+		s.FailNow("failed to start agent run command: %v", err)
 	}
 
 	s.T().Log("Agent run command started")

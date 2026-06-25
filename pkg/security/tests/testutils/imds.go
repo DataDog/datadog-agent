@@ -41,7 +41,7 @@ const (
 // CreateIMDSServer creates a fake IMDS server
 func CreateIMDSServer(addr string) *http.Server {
 	mux := http.NewServeMux()
-	mux.HandleFunc(IMDSSecurityCredentialsURL, func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc(IMDSSecurityCredentialsURL, func(w http.ResponseWriter, r *http.Request) {
 		// Define your custom JSON data
 		data := map[string]interface{}{
 			"AccessKeyId":     AWSSecurityCredentialsAccessKeyIDTestValue,
@@ -63,6 +63,11 @@ func CreateIMDSServer(addr string) *http.Server {
 		// Set Content-Type header to application/json
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Server", AWSIMDSServerTestValue)
+
+		// Echo an IMDSv2 marker header when the request used an IMDSv2 token
+		if r.Header.Get("X-aws-ec2-metadata-token") != "" {
+			w.Header().Set("X-aws-ec2-metadata-token-ttl-seconds", "21600")
+		}
 
 		// Write JSON response
 		w.Write(response)

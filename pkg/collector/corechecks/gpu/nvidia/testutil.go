@@ -58,3 +58,9 @@ func (c *DeviceEventsGatherer) InjectEventsForTest(deviceUUID string, events []d
 
 	return nil
 }
+
+// NumCollectors returns the number of collectors that are present. Useful only in testing
+// for asserting that the collector creation process is correct.
+func NumCollectors() int {
+	return len(factory)
+}

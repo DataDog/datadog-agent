@@ -991,6 +991,7 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Process.FileEvent)
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Process.FileEvent.FileFields)
 		}
+	case "socket":
 	case "splice":
 		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Splice.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Splice.File)

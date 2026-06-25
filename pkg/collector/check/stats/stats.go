@@ -53,6 +53,7 @@ var EventPlatformNameTranslations = map[string]string{
 	"dbm-activity":               "Database Monitoring Activity Samples",
 	"dbm-metadata":               "Database Monitoring Metadata Samples",
 	"dbm-health":                 "Database Monitoring Health Events",
+	"genresources":               "Generic Resources",
 	"network-devices-metadata":   "Network Devices Metadata",
 	"network-devices-netflow":    "Network Devices NetFlow",
 	"network-devices-snmp-traps": "SNMP Traps",
@@ -322,7 +323,8 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
-			IssueName: "check-execution-failure",
+			IssueName: checkfailure.IssueName,
+			Title:     "Check Execution Failure",
 			Source:    cs.CheckName,
 		}
 	} else {

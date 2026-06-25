@@ -16,7 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
 	traceroutelib "github.com/DataDog/datadog-traceroute/traceroute"
@@ -123,15 +122,16 @@ func handleTracerouteReqError(w http.ResponseWriter, statusCode int, errString s
 // with synthetics-worker so the UI shows the same text regardless of the
 // source. Messages may contain a %s placeholder for the destination hostname.
 var userFacingMessages = map[traceroutelib.ErrorCode]string{
-	traceroutelib.ErrCodeDNS:            "Failed to resolve the host name %s.",
-	traceroutelib.ErrCodeTimeout:        "The request timed out.",
-	traceroutelib.ErrCodeConnRefused:    "The connection to %s was refused by the remote host.",
-	traceroutelib.ErrCodeHostUnreach:    "The remote host %s is unreachable.",
-	traceroutelib.ErrCodeNetUnreach:     "The remote network for %s is unreachable.",
-	traceroutelib.ErrCodeDenied:         "Permission denied.",
-	traceroutelib.ErrCodeInvalidRequest: "Invalid request parameters.",
-	traceroutelib.ErrCodeFailedEncoding: "Failed to encode the response.",
-	traceroutelib.ErrCodeUnknown:        "An unknown error occurred.",
+	traceroutelib.ErrCodeDNS:                      "Failed to resolve the host name %s.",
+	traceroutelib.ErrCodeTimeout:                  "The request timed out.",
+	traceroutelib.ErrCodeConnRefused:              "The connection to %s was refused by the remote host.",
+	traceroutelib.ErrCodeHostUnreach:              "The remote host %s is unreachable.",
+	traceroutelib.ErrCodeNetUnreach:               "The remote network for %s is unreachable.",
+	traceroutelib.ErrCodeDenied:                   "Permission denied.",
+	traceroutelib.ErrCodeInvalidRequest:           "Invalid request parameters.",
+	traceroutelib.ErrCodeFailedEncoding:           "Failed to encode the response.",
+	traceroutelib.ErrCodeUnknown:                  "An unknown error occurred.",
+	traceroutelib.ErrorCode("SACK_NOT_SUPPORTED"): "SACK is not supported for this target/source.",
 }
 
 func userFacingMessage(code traceroutelib.ErrorCode, host string, fallback string) string {
@@ -162,8 +162,7 @@ func logTracerouteRequests(url *url.URL, runCount uint64, start time.Time) {
 }
 
 func parseParams(req *http.Request) (tracerouteutil.Config, error) {
-	vars := mux.Vars(req)
-	host := vars["host"]
+	host := req.PathValue("host")
 
 	query := req.URL.Query()
 

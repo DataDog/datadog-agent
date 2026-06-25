@@ -14,6 +14,7 @@ import (
 
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -88,7 +89,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
-	config.BindEnv("process_config.process_dd_url", //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("process_config.process_dd_url", "",
 		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
 		"DD_PROCESS_AGENT_PROCESS_DD_URL",
 		"DD_PROCESS_AGENT_URL",
@@ -112,7 +113,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.intervals.container_realtime", 2)
 	procBindEnvAndSetDefault(config, "process_config.intervals.connections", 30)
 
-	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", DefaultDDAgentBin)
+	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", defaultpaths.GetDefaultDDAgentBin())
 	config.BindEnvAndSetDefault("process_config.custom_sensitive_words", []string{},
 		"DD_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",
@@ -123,7 +124,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_SCRUB_ARGS",
 		"DD_PROCESS_CONFIG_SCRUB_ARGS",
 		"DD_PROCESS_AGENT_SCRUB_ARGS")
-	config.BindEnv("process_config.strip_proc_arguments", //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("process_config.strip_proc_arguments", false,
 		"DD_STRIP_PROCESS_ARGS",
 		"DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
 		"DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS")
@@ -135,7 +136,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
 	)
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
-	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
+	procBindEnvAndSetDefault(config, "process_config.log_file", defaultpaths.GetDefaultProcessAgentLogFile())
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)
