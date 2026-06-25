@@ -482,6 +482,10 @@ type RawAnomalyState interface {
 // metrics (e.g. testbench UI charts). Detectors must not treat it as workload data.
 const TelemetryNamespace = "telemetry"
 
+// AgentNamespace is the storage namespace used for internal agent telemetry
+// while normalizing datadog.* metrics before they are dropped.
+const AgentNamespace = "agent"
+
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {
 	Namespace   string            // exact match (empty = any)
