@@ -26,6 +26,7 @@
 /.claude/skills/create-component/                @DataDog/agent-runtimes
 /.claude/skills/create-config-field/             @DataDog/agent-configuration
 /.claude/skills/create-core-check/               @DataDog/agent-runtimes
+/.claude/skills/create-epic-recap/               @DataDog/opentelemetry-agent
 /.claude/skills/create-go-module/                @DataDog/agent-runtimes
 /.claude/skills/create-invoke-task/              @DataDog/agent-devx
 /.claude/skills/create-pr/                       @DataDog/agent-devx
