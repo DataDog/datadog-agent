@@ -33,6 +33,7 @@ import (
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
+	parexecutor "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -227,9 +228,20 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	taskHandler := runners.NewTaskHandler(cfg, keysManager, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient())
-	executor := runners.NewInProcessExecutor(taskHandler)
-	p.orchestrator = runners.NewOrchestrator(cfg, opmsClient, executor)
+	taskHandler := parexecutor.NewTaskHandler(cfg, keysManager, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+	exec, err := parexecutor.NewExecutor(parexecutor.Params{
+		Mode:           cfg.ExecutorMode,
+		Handler:        taskHandler,
+		SocketPath:     cfg.ExecutorSocketPath,
+		AuthToken:      p.ipc.GetAuthToken(),
+		DrainTimeout:   cfg.ExecutorDrainTimeout,
+		ConfPath:       cfg.ConfPath,
+		ExtraConfFiles: cfg.ExtraConfFiles,
+	})
+	if err != nil {
+		return err
+	}
+	p.orchestrator = runners.NewOrchestrator(cfg, opmsClient, exec)
 	p.commonRunner = runners.NewCommonRunner(p.coreConfig, cfg)
 	if err := p.orchestrator.Start(ctx); err != nil {
 		return err

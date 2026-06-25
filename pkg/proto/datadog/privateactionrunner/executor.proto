@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package datadog.privateactionrunner.executor;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor";
+
+// ExecuteRequest carries a dequeued task as opaque JSON. The executor
+// verifies the embedded signature, resolves credentials and runs the
+// action; the orchestrator owns OPMS dequeue / heartbeat / publish.
+message ExecuteRequest {
+  bytes task_json = 1;
+}
+
+// ExecuteResponse returns the action's output, or — if execution failed —
+// the error fields the orchestrator needs to publish a failure to OPMS.
+// On success `error` is unset.
+message ExecuteResponse {
+  bytes output_json = 1;
+  ExecuteError error = 2;
+}
+
+// ExecuteError is the executor-side error shape: a PAR error code (from
+// pkg/proto/datadog/privateactionrunner/error_code.proto), an internal
+// message for logs, and an optional external message surfaced to users.
+message ExecuteError {
+  int32 code = 1;
+  string message = 2;
+  string external_message = 3;
+}
+
+// Executor is the local RPC contract between the orchestrator (parent
+// process) and the executor (child process when running in binary mode).
+service Executor {
+  // Execute runs the dequeued task in the executor process: verify,
+  // resolve credentials, run the action, return the result. The
+  // orchestrator does the heartbeating and the publishing.
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+}

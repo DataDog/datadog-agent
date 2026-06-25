@@ -63,6 +63,11 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		httpTimeout = time.Duration(v) * time.Second
 	}
 
+	drainTimeout := 30 * time.Second
+	if v := config.GetInt32(setup.PARExecutorDrainTimeout); v > 0 {
+		drainTimeout = time.Duration(v) * time.Second
+	}
+
 	return &Config{
 		MaxBackoff:                maxBackoff,
 		MinBackoff:                minBackoff,
@@ -98,6 +103,9 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		RunnerId:                  runnerID,
 		Urn:                       urn,
 		DatadogSite:               ddSite,
+		ExecutorMode:              config.GetString(setup.PARExecutorMode),
+		ExecutorSocketPath:        config.GetString(setup.PARExecutorSocketPath),
+		ExecutorDrainTimeout:      drainTimeout,
 	}, nil
 }
 

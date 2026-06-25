@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -25,7 +26,7 @@ import (
 type Orchestrator struct {
 	opmsClient      opms.Client
 	config          *config.Config
-	executor        Executor
+	executor        executor.Executor
 	sem             chan struct{}
 	shutdownChannel chan struct{}
 	wg              sync.WaitGroup
@@ -34,7 +35,7 @@ type Orchestrator struct {
 
 // NewOrchestrator builds an Orchestrator wired to an OPMS client and an
 // Executor.
-func NewOrchestrator(cfg *config.Config, opmsClient opms.Client, exec Executor) *Orchestrator {
+func NewOrchestrator(cfg *config.Config, opmsClient opms.Client, exec executor.Executor) *Orchestrator {
 	return &Orchestrator{
 		opmsClient:      opmsClient,
 		config:          cfg,
@@ -65,8 +66,9 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop signals the polling loop to exit, waits (bounded by ctx) for
-// in-flight per-task goroutines to drain, then stops the executor.
+// Stop signals the polling loop to exit, waits for in-flight per-task
+// goroutines to drain (bounded by the configured ExecutorDrainTimeout
+// and by ctx), then stops the executor.
 func (o *Orchestrator) Stop(ctx context.Context) error {
 	logger := log.FromContext(ctx)
 	logger.Info("Stopping Workflow runner")
@@ -74,6 +76,13 @@ func (o *Orchestrator) Stop(ctx context.Context) error {
 		return nil
 	}
 	close(o.shutdownChannel)
+
+	drainCtx := ctx
+	if o.config.ExecutorDrainTimeout > 0 {
+		var cancel context.CancelFunc
+		drainCtx, cancel = context.WithTimeout(ctx, o.config.ExecutorDrainTimeout)
+		defer cancel()
+	}
 
 	done := make(chan struct{})
 	go func() {
@@ -83,8 +92,8 @@ func (o *Orchestrator) Stop(ctx context.Context) error {
 	select {
 	case <-done:
 		logger.Info("Worker stopped gracefully.")
-	case <-ctx.Done():
-		logger.Warn("Workflow loop timeout reached. Forcing shutdown.")
+	case <-drainCtx.Done():
+		logger.Warn("Workflow loop drain timeout reached; in-flight tasks will be cancelled.")
 	}
 	return o.executor.Stop(ctx)
 }

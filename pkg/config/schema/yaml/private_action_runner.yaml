@@ -163,3 +163,37 @@ properties:
     node_type: setting
     type: string
     default: ''
+  executor_mode:
+    node_type: setting
+    type: string
+    default: in-process
+    visibility: public
+    description: |-
+      Process model the runner uses to execute actions.
+        - in-process (default): tasks are executed by goroutines in the
+          orchestrator process.
+        - binary: tasks are executed in a separate child process that
+          re-execs the agent binary, isolating the action surface from
+          the orchestrator. Binary mode requires executor_socket_path.
+    tags:
+    - template_section:PrivateActionRunner
+  executor_socket_path:
+    node_type: setting
+    type: string
+    default: ''
+    visibility: public
+    description: Local socket (Unix) or named pipe (Windows) used by the
+      orchestrator and executor when executor_mode=binary. Empty defers
+      to the platform-aware default.
+    tags:
+    - template_section:PrivateActionRunner
+  executor_drain_timeout_seconds:
+    node_type: setting
+    type: integer
+    default: 30
+    visibility: public
+    description: Maximum time in seconds the orchestrator waits for in-flight
+      tasks to finish (and the binary-mode child to drain) during shutdown
+      before forcing teardown.
+    tags:
+    - template_section:PrivateActionRunner
