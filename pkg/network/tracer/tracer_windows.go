@@ -76,7 +76,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 	if err := driver.Start(); err != nil {
 		return nil, fmt.Errorf("error starting driver: %s", err)
 	}
-	di, err := network.NewDriverInterface(config, driver.NewHandle, telemetry)
+	di, err := driver.NewDriverInterface(config, driver.NewHandle, telemetry)
 
 	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
 		log.Debugf("could not create driver interface: %v", err)
