@@ -19,10 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// eventChanCapacity bounds how many events may queue between drains. A full
-// channel drops new events rather than blocking the informer's delivery
-// goroutine; see enqueue.
-const eventChanCapacity = 1000
+// defaultEventChanCapacity is a defensive floor used when the caller passes a
+// non-positive buffer size. The kubernetes_apiserver check normally supplies
+// event_collection_buffer_size. The buffer bounds how many events may queue
+// between drains: a full channel drops new events rather than blocking the
+// informer's delivery goroutine (see enqueue), so the size divided by the
+// check interval is the sustainable event rate.
+const defaultEventChanCapacity = 1000
 
 // EventCollector watches Kubernetes events through a shared informer and
 // buffers them for a periodic consumer to drain. The informer's reflector owns
@@ -46,13 +49,18 @@ type EventCollector struct {
 // NewEventCollector returns an EventCollector whose informer lists/watches
 // events matching filter (a field selector, e.g. the value built from
 // filtered_event_types).
-func (c *APIClient) NewEventCollector(filter string) *EventCollector {
+// bufferSize bounds how many events may queue between drains; a non-positive
+// value falls back to defaultEventChanCapacity.
+func (c *APIClient) NewEventCollector(filter string, bufferSize int) *EventCollector {
+	if bufferSize <= 0 {
+		bufferSize = defaultEventChanCapacity
+	}
 	factory := c.GetInformerWithOptions(nil, informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 		opts.FieldSelector = filter
 	}))
 	return &EventCollector{
 		factory: factory,
-		events:  make(chan *v1.Event, eventChanCapacity),
+		events:  make(chan *v1.Event, bufferSize),
 	}
 }
 

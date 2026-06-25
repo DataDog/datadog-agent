@@ -50,7 +50,12 @@ const (
 	defaultResyncPeriodInSecond        = 300
 	defaultTimeoutEventCollection      = 2000
 	defaultMaxEstimatedEventTextLength = 3750
-	maximumWaitForAPIServer            = 10 * time.Second
+	// defaultEventCollectionBufferSize bounds the informer event buffer between
+	// check runs. At a 15s interval this sustains ~666 events/s, comfortably
+	// above the highest observed cluster churn; raise event_collection_buffer_size
+	// for clusters that exceed it.
+	defaultEventCollectionBufferSize = 10000
+	maximumWaitForAPIServer          = 10 * time.Second
 )
 
 var (
@@ -88,6 +93,11 @@ type KubeASConfig struct {
 	BundleUnspecifiedEvents  bool `yaml:"bundle_unspecified_events"`
 	UseNewEventCollection    bool `yaml:"use_new_event_collection"`
 
+	// EventCollectionBufferSize bounds how many events the informer-based
+	// collector buffers between check runs. Only used when UseNewEventCollection
+	// is true. Size it to at least the event rate times the check interval.
+	EventCollectionBufferSize int `yaml:"event_collection_buffer_size"`
+
 	// FilteredEventTypes is a slice of kubernetes field selectors that
 	// works as a deny list of events to filter out.
 	FilteredEventTypes []string `yaml:"filtered_event_types"`
@@ -115,10 +125,10 @@ func (noopEventTransformer) Transform(_ []*v1.Event) ([]event.Event, []error) {
 }
 
 type eventCollection struct {
-	LastResVer      string
-	LastTime        time.Time
-	Filter          string
-	Transformer     eventTransformer
+	LastResVer     string
+	LastTime       time.Time
+	Filter         string
+	Transformer    eventTransformer
 	EventCollector *apiserver.EventCollector
 }
 
@@ -188,6 +198,10 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 
 	if k.instance.MaxEventCollection == 0 {
 		k.instance.MaxEventCollection = maxEventCardinality
+	}
+
+	if k.instance.EventCollectionBufferSize == 0 {
+		k.instance.EventCollectionBufferSize = defaultEventCollectionBufferSize
 	}
 
 	hostnameDetected, _ := hostname.Get(context.TODO())
@@ -304,7 +318,7 @@ func (k *KubeASCheck) Run() error {
 		var events []event.Event
 		var err error
 		if k.instance.UseNewEventCollection {
-			events, err = k.newEventCollectionCheck()
+			events, err = k.newEventCollectionCheck(sender)
 		} else {
 			events, err = k.legacyEventCollectionCheck()
 		}
@@ -312,7 +326,6 @@ func (k *KubeASCheck) Run() error {
 		if err != nil {
 			return err
 		}
-
 
 		for _, event := range events {
 			sender.Event(event)
@@ -330,20 +343,20 @@ func (k *KubeASCheck) Run() error {
 }
 
 // startEventCollection builds a fresh informer factory and starts the event
-// informers. It is idempotent. 
+// informers. It is idempotent.
 func (k *KubeASCheck) startEventCollection() error {
 	if k.eventCollectorRunning {
 		return nil
 	}
 
 	k.informersStopCh = make(chan struct{})
-	k.eventCollection.EventCollector = k.ac.NewEventCollector(k.eventCollection.Filter)
+	k.eventCollection.EventCollector = k.ac.NewEventCollector(k.eventCollection.Filter, k.instance.EventCollectionBufferSize)
 	k.eventCollectorRunning = true
 	return k.eventCollection.EventCollector.Start(k.informersStopCh)
 }
 
 // stopEventCollection stops the running event informers by closing their stop
-// channel. It is idempotent. 
+// channel. It is idempotent.
 func (k *KubeASCheck) stopEventCollection() {
 	if !k.eventCollectorRunning {
 		return
@@ -359,8 +372,14 @@ func (k *KubeASCheck) Cancel() {
 	k.stopEventCollection()
 }
 
-func (k *KubeASCheck) newEventCollectionCheck() ([]event.Event, error) {
+func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Event, error) {
 	events := k.eventCollection.EventCollector.Drain()
+
+	// Surface events shed because the buffer was full, so churn-induced loss is
+	// visible rather than silent. Cumulative across the collector's lifetime; it
+	// resets to zero when the informer is restarted on a leadership change.
+	sender.MonotonicCount("kubernetes_apiserver.events_dropped", float64(k.eventCollection.EventCollector.Dropped()), "", nil)
+
 	ddevents, errs := k.eventCollection.Transformer.Transform(events)
 
 	for _, err := range errs {
@@ -369,7 +388,6 @@ func (k *KubeASCheck) newEventCollectionCheck() ([]event.Event, error) {
 
 	return ddevents, nil
 }
-
 
 func (k *KubeASCheck) legacyEventCollectionCheck() ([]event.Event, error) {
 	resVer, lastTime, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
