@@ -136,6 +136,71 @@ func TestBuildServiceDiscoveryPIDBatchesDisabledSendsSingleBatch(t *testing.T) {
 	assert.Equal(t, heartbeatPids, batches[0].heartbeatPids)
 }
 
+func TestBuildServiceDiscoveryPIDBatchesNonPositiveSizeSendsSingleBatch(t *testing.T) {
+	newPids := []int32{101, 102, 103}
+	heartbeatPids := []int32{201, 202}
+	batches := buildServiceDiscoveryPIDBatches(newPids, heartbeatPids, -1)
+
+	require.Len(t, batches, 1)
+	assert.Equal(t, newPids, batches[0].newPids)
+	assert.Equal(t, heartbeatPids, batches[0].heartbeatPids)
+}
+
+func TestBuildServiceDiscoveryPIDBatchesEdgeCases(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		newPids       []int32
+		heartbeatPids []int32
+		batchSize     int
+		want          []serviceDiscoveryPIDBatch
+	}{
+		{
+			name:      "empty inputs",
+			batchSize: 500,
+		},
+		{
+			name:      "single new pid",
+			newPids:   []int32{101},
+			batchSize: 500,
+			want: []serviceDiscoveryPIDBatch{
+				{newPids: []int32{101}, heartbeatPids: []int32{}},
+			},
+		},
+		{
+			name:          "single heartbeat pid",
+			heartbeatPids: []int32{201},
+			batchSize:     500,
+			want: []serviceDiscoveryPIDBatch{
+				{newPids: []int32{}, heartbeatPids: []int32{201}},
+			},
+		},
+		{
+			name:          "batch size one",
+			newPids:       []int32{101, 102},
+			heartbeatPids: []int32{201},
+			batchSize:     1,
+			want: []serviceDiscoveryPIDBatch{
+				{newPids: []int32{101}, heartbeatPids: []int32{}},
+				{newPids: []int32{102}, heartbeatPids: []int32{}},
+				{newPids: []int32{}, heartbeatPids: []int32{201}},
+			},
+		},
+		{
+			name:          "exact boundary",
+			newPids:       []int32{101, 102},
+			heartbeatPids: []int32{201},
+			batchSize:     3,
+			want: []serviceDiscoveryPIDBatch{
+				{newPids: []int32{101, 102}, heartbeatPids: []int32{201}},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, buildServiceDiscoveryPIDBatches(tc.newPids, tc.heartbeatPids, tc.batchSize))
+		})
+	}
+}
+
 func TestBuildServiceDiscoveryPIDBatchesPreservesPIDCategories(t *testing.T) {
 	newPids := []int32{101, 102, 103}
 	heartbeatPids := []int32{201, 202, 203, 204}
@@ -191,7 +256,7 @@ func TestServiceDiscoveryBatchingSuccessfulRequestsMergeResponses(t *testing.T) 
 	})
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
-	resp, successfulNewPids, successfulHeartbeatPids := c.collector.getDiscoveryServicesBatched([]int32{101, 102}, nil)
+	resp, successfulNewPids, successfulHeartbeatPids := c.collector.getDiscoveryServicesBatched(context.Background(), []int32{101, 102}, nil)
 
 	require.Equal(t, []int32{101, 102}, successfulNewPids)
 	require.Empty(t, successfulHeartbeatPids)
@@ -202,6 +267,38 @@ func TestServiceDiscoveryBatchingSuccessfulRequestsMergeResponses(t *testing.T) 
 	assert.Equal(t, []int{101, 102}, resp.InjectedPIDs)
 	assert.Equal(t, []int{101, 102}, resp.GPUPIDs)
 	assert.Equal(t, 2, requests())
+}
+
+func TestServiceDiscoveryBatchingStopsWhenContextCanceled(t *testing.T) {
+	sysConfigOverrides := map[string]interface{}{
+		serviceCollectionBatchSizeConfigKey: 1,
+	}
+	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	socketPath, requests := startScriptedServiceDiscoveryServer(t, func(call int, _ core.Params) serviceDiscoveryTestResponse {
+		if call == 0 {
+			cancel()
+			return serviceDiscoveryTestResponse{response: &model.ServicesResponse{
+				Services: []model.Service{makeModelService(101, "first-service")},
+			}}
+		}
+
+		return serviceDiscoveryTestResponse{response: &model.ServicesResponse{
+			Services: []model.Service{makeModelService(102, "second-service")},
+		}}
+	})
+	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
+
+	resp, successfulNewPids, successfulHeartbeatPids := c.collector.getDiscoveryServicesBatched(ctx, []int32{101, 102, 103}, nil)
+
+	require.Equal(t, []int32{101}, successfulNewPids)
+	require.Empty(t, successfulHeartbeatPids)
+	require.NotNil(t, resp)
+	require.Len(t, resp.Services, 1)
+	assert.Equal(t, 101, resp.Services[0].PID)
+	assert.Equal(t, 1, requests())
 }
 
 func TestServiceDiscoveryPartialBatchFailurePreservesRetries(t *testing.T) {
@@ -236,7 +333,7 @@ func TestServiceDiscoveryPartialBatchFailurePreservesRetries(t *testing.T) {
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101, 102, 103, 104, 105})
-	entities, _ := c.collector.updateServices(alivePids, procs)
+	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
 
 	assert.Equal(t, 2, requests())
 	requestMux.Lock()
@@ -282,7 +379,7 @@ func TestServiceDiscoverySuccessfulNoServiceIncrementsRetries(t *testing.T) {
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101})
-	entities, _ := c.collector.updateServices(alivePids, procs)
+	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
 
 	require.Len(t, entities, 1)
 	assert.Equal(t, int32(101), entities[0].Pid)
