@@ -339,7 +339,7 @@ func NewComponent(deps Requires) Provides {
 
 	go obs.run()
 
-	// Wire agent-internal logs into the observer via the pkg/util/log tap.
+	// Wire agent_logs into the observer via the pkg/util/log tap.
 	// anomaly_detection.logs.enabled is the parent gate; without it,
 	// internal logs are also disabled. anomaly_detection.logs.internal.enabled
 	// defaults to true when unset (explicit false disables it).
@@ -350,7 +350,7 @@ func NewComponent(deps Requires) Provides {
 		maxRateHigh := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_high_priority")
 		maxRateMedium := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_medium_priority")
 		maxRateLow := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_low_priority")
-		agentLogsHandle := obs.GetHandle("agent-internal-logs")
+		agentLogsHandle := obs.GetHandle("agent_logs")
 		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
 			obsTelemetry.recordSamplerDropped("internal", priority)
 		})
@@ -819,12 +819,20 @@ func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView
 	o.replayMu.Unlock()
 }
 
+func normalizeMetricSource(name, source string) string {
+	if strings.HasPrefix(name, "datadog.") {
+		return observerdef.AgentNamespace
+	}
+	return source
+}
+
 // IngestMetricSync feeds a metric directly into the engine, bypassing the
 // dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
 // the non-blocking channel send. Implements DebugView.
 func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
 	name := sample.GetName()
-	if strings.HasPrefix(name, "datadog.") {
+	source = normalizeMetricSource(name, source)
+	if source == observerdef.AgentNamespace {
 		return
 	}
 	timestamp := sample.GetTimestampUnix()
@@ -871,14 +879,13 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 	}
 
 	name := sample.GetName()
-
-	// filter internal Datadog Agent telemetry
-	if strings.HasPrefix(name, "datadog.") {
+	source := normalizeMetricSource(name, h.source)
+	if source == observerdef.AgentNamespace {
 		return false
 	}
 
 	obs := observation{
-		source: h.source,
+		source: source,
 		metric: &metricObs{
 			name:      name,
 			value:     sample.GetValue(),
