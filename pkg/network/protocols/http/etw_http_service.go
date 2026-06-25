@@ -126,7 +126,7 @@
 //		HTTPCacheTraceTaskFlushedCache      27     [uri, statusCode, verb, headerLength, contentLength]
 //
 
-//go:build windows && npm
+//go:build windows
 
 package http
 

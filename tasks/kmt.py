@@ -72,7 +72,6 @@ from tasks.security_agent import build_functional_tests
 from tasks.system_probe import (
     BPF_TAG,
     EMBEDDED_SHARE_DIR,
-    NPM_TAG,
     TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
     bazel_build_ebpf,
@@ -1397,7 +1396,7 @@ def test(
     if packages is not None:
         pkgs = [
             os.path.relpath(os.path.realpath(p))
-            for p in go_package_dirs(packages.split(","), ["linux", NPM_TAG, BPF_TAG])
+            for p in go_package_dirs(packages.split(","), ["linux", BPF_TAG])
         ]
 
     paths = KMTPaths(stack, Arch.local())  # Arch is not relevant to the test result paths, which is what we want now

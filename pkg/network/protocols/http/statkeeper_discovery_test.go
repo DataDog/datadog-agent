@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build (windows && npm) || linux_bpf
+//go:build windows || linux_bpf
 
 package http
 

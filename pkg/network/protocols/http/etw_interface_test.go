@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && npm
+//go:build windows
 
 package http
 
 import (
 	"flag"
 	"fmt"
+	nethttp "net/http"
 	"net/netip"
 	"sync"
 	"testing"
@@ -17,12 +18,11 @@ import (
 
 	//"unsafe"
 
-	nethttp "net/http"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"golang.org/x/sys/windows"
 )
