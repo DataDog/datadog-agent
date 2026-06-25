@@ -9,6 +9,7 @@
 - [What does the Datadog Host Profiler distribution add?](#what-does-the-datadog-host-profiler-distribution-add)
 - [Do I need debug symbols?](#do-i-need-debug-symbols)
 - [What security privileges does the Host Profiler require?](#what-security-privileges-does-the-host-profiler-require)
+- [How do I configure resource requests and limits?](#how-do-i-configure-resource-requests-and-limits)
 
 ## How does the Host Profiler name services?
 
@@ -79,6 +80,20 @@ export DD_SITE=<DATADOG_SITE>
 ```shell
 DD_BETA_COMMANDS_ENABLED=1 datadog-ci elf-symbols upload /path/to/build/symbols/
 ```
+
+## How do I configure resource requests and limits?
+
+| QoS class | Requests | Limits | Trade-off |
+|---|---|---|---|
+| Best-effort | none | none | No reservation, no cap; first to be evicted under node memory pressure |
+| Burstable (default) | set | set | No reservation; usage capped to protect the node |
+| Guaranteed | = limits | set | Reserves capacity on every node; best eviction stability and resource visibility |
+
+The provided manifests set requests to zero and limits of 500m CPU and 1 GiB memory, which fit most deployments. Explicit zero requests prevent LimitRanger admission controllers from defaulting requests to match limits, which would otherwise silently result in Guaranteed QoS. These values can be tuned:
+
+- **Large clusters or dense nodes**: consider adjusting limits based on observed usage, as overhead scales with the number of running processes.
+- **Large native binaries**: increase the memory limit when running workloads with large debug symbols, as symbol processing requires additional working memory.
+- **Guaranteed QoS**: set requests equal to limits if your cluster's observability tools assume they are equal, or if you need predictable eviction behavior.
 
 ## What security privileges does the Host Profiler require?
 

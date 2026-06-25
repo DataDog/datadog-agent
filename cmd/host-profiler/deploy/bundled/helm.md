@@ -25,14 +25,17 @@ agents:
   containers:
     hostProfiler:
       resources:
+        requests:
+          cpu: "0"
+          memory: "0"
         limits:
-          cpu: "1"
+          cpu: "500m"
           memory: "1Gi"
 ```
 
 The preview image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
 
-For more details on resource configuration, including Guaranteed QoS and when to increase memory, see [Resource requests and limits](../resources.md).
+For more details on resource configuration, including Guaranteed QoS and when to increase memory, see [Resource requests and limits](../faq.md).
 
 2. Upgrade your existing Datadog Agent Helm release with the updated values. Adapt this command to your Helm or GitOps workflow, and include any existing values files you already use for the release:
 
