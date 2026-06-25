@@ -52,11 +52,11 @@ func (sl *SketchSeries) WriteTo(w DistributionWriter) error {
 }
 
 // GetDDSketchPoint returns the sketch point at index i.
-func (sl *SketchSeries) GetDDSketchPoint(i int) DDSketchPoint {
+func (sl *SketchSeries) GetDDSketchPoint(i int) (ts, cnt int64, min, max, sum, avg float64, k []int32, n []uint32) {
 	p := sl.Points[i]
-	cnt, min, max, sum, avg := p.Sketch.BasicStats()
-	k, n := p.Sketch.Cols()
-	return DDSketchPoint{Ts: p.Ts, Cnt: cnt, Min: min, Max: max, Sum: sum, Avg: avg, K: k, N: n}
+	cnt, min, max, sum, avg = p.Sketch.BasicStats()
+	k, n = p.Sketch.Cols()
+	return p.Ts, cnt, min, max, sum, avg, k, n
 }
 
 // A SketchPoint represents a quantile sketch at a specific time

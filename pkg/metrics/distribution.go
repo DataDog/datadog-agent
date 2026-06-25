@@ -33,19 +33,7 @@ type DistributionWriter interface {
 // DDSketchPoints provides random access to a distribution's sketch points.
 type DDSketchPoints interface {
 	// GetDDSketchPoint returns the sketch point at index i.
-	// Implementers may return K and N backed by the same storage.
-	// Callers must not retain K and N across calls.
-	GetDDSketchPoint(i int) DDSketchPoint
-}
-
-// DDSketchPoint is a single sketch point returned by DDSketchPoints.
-type DDSketchPoint struct {
-	Ts  int64
-	Cnt int64
-	Min float64
-	Max float64
-	Sum float64
-	Avg float64
-	K   []int32
-	N   []uint32
+	// Implementers may return k and n backed by the same storage.
+	// Callers must not retain k and n across calls.
+	GetDDSketchPoint(i int) (ts int64, cnt int64, min, max, sum, avg float64, k []int32, n []uint32)
 }

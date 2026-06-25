@@ -539,18 +539,18 @@ func (pb *payloadsBuilderV3) WriteDDSketch(meta metrics.DistributionMetadata, nu
 
 	pb.sketchStats = pb.sketchStats[:0]
 	for i := 0; i < numPoints; i++ {
-		// Must not hold K and N across loop iterations.
-		p := points.GetDDSketchPoint(i)
-		pb.sketchStats = append(pb.sketchStats, v3SketchStat{cnt: p.Cnt, min: p.Min, max: p.Max, sum: p.Sum})
+		// Must not hold k and n across loop iterations.
+		ts, cnt, min, max, sum, _, k, n := points.GetDDSketchPoint(i)
+		pb.sketchStats = append(pb.sketchStats, v3SketchStat{cnt: cnt, min: min, max: max, sum: sum})
 
-		pb.writePointCommon(p.Ts)
+		pb.writePointCommon(ts)
 
 		kDelta := deltaEncoder{}
-		for j := range p.K {
-			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(p.K[j])))
-			pb.txn.Uint64(columnSketchBinCnts, uint64(p.N[j]))
+		for j := range k {
+			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[j])))
+			pb.txn.Uint64(columnSketchBinCnts, uint64(n[j]))
 		}
-		pb.txn.Uint64(columnSketchNumBins, uint64(len(p.K)))
+		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
 	}
 
 	// find a single smallest type that can fit all summary values
