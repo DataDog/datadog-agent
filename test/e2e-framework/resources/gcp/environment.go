@@ -11,11 +11,12 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pulumiConfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 )
 
 const (
@@ -33,6 +34,7 @@ const (
 	DDInfraDefaultZoneNameParamName        = "gcp/defaultZone"
 	DDInfraDefautVMServiceAccountParamName = "gcp/defaultVMServiceAccount"
 	DDInfraGKEEnableAutopilot              = "gcp/gke/enableAutopilot"
+	DDInfraGKENodeCountParamName           = "gcp/gke/nodeCount"
 	DDInfraOpenShiftPullSecretPath         = "gcp/openshift/pullSecretPath"
 	DDInfraEnableNestedVirtualization      = "gcp/enableNestedVirtualization"
 )
@@ -170,8 +172,13 @@ func (e *Environment) DefaultSubnet() string {
 func (e *Environment) GetCommonEnvironment() *config.CommonEnvironment {
 	return e.CommonEnvironment
 }
+
 func (e *Environment) DefaultInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInstanceTypeParamName, e.envDefault.ddInfra.defaultInstanceType)
+}
+
+func (e *Environment) DefaultGKENodeCount() int {
+	return e.GetIntWithDefault(e.InfraConfig, DDInfraGKENodeCountParamName, e.envDefault.ddInfra.defaultGKENodeCount)
 }
 
 func (e *Environment) DefaultVMServiceAccount() string {
