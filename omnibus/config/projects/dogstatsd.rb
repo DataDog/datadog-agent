@@ -216,6 +216,9 @@ end
 if linux_target?
   extra_package_file '/etc/init/datadog-dogstatsd.conf'
   extra_package_file '/lib/systemd/system/datadog-dogstatsd.service'
+  # Opt-in Agent Data Plane service files
+  extra_package_file '/etc/init/datadog-dogstatsd-data-plane.conf'
+  extra_package_file '/lib/systemd/system/datadog-dogstatsd-data-plane.service'
   extra_package_file '/etc/datadog-dogstatsd/'
   extra_package_file '/var/log/datadog/'
 end

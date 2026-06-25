@@ -32,6 +32,13 @@ build do
         move "#{install_dir}/scripts/datadog-dogstatsd.conf", "/etc/init"
         mkdir "/lib/systemd/system"
         move "#{install_dir}/scripts/datadog-dogstatsd.service", "/lib/systemd/system"
+
+        # Move the (opt-in) Agent Data Plane service files (Linux only)
+        if linux_target?
+            move "#{install_dir}/scripts/datadog-dogstatsd-data-plane.conf", "/etc/init"
+            move "#{install_dir}/scripts/datadog-dogstatsd-data-plane.service", "/lib/systemd/system"
+        end
+
         mkdir "/var/log/datadog"
 
         # cleanup clutter

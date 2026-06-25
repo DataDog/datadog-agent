@@ -65,5 +65,24 @@ build do
         dest: "#{install_dir}/scripts/datadog-dogstatsd.service",
         mode: 0644,
         vars: { install_dir: install_dir }
+
+    # Agent Data Plane service files, shipped alongside dogstatsd so the data
+    # plane can optionally be run as the metrics pipeline. These are installed
+    # but not enabled: the operator opts in by enabling the service.
+    if debian_target?
+      erb source: "upstart_debian-data-plane.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-dogstatsd-data-plane.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir }
+    elsif redhat_target? || suse_target?
+      erb source: "upstart_redhat-data-plane.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-dogstatsd-data-plane.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir }
+    end
+    erb source: "systemd-data-plane.service.erb",
+        dest: "#{install_dir}/scripts/datadog-dogstatsd-data-plane.service",
+        mode: 0644,
+        vars: { install_dir: install_dir }
   end
 end

@@ -9,6 +9,7 @@
 INSTALL_DIR=/opt/datadog-dogstatsd
 CONFIG_DIR=/etc/datadog-dogstatsd
 SERVICE_NAME=datadog-dogstatsd
+DATA_PLANE_SERVICE_NAME=datadog-dogstatsd-data-plane
 
 # Create a symlink to the agent's binary
 ln -sf $INSTALL_DIR/bin/dogstatsd /usr/bin/datadog-dogstatsd
@@ -38,6 +39,16 @@ else
     # No dogstatsd.yaml file is present. This is probably a clean install made with the
     # step-by-step instructions/an automation tool, and the config file will be added next.
     echo "No dogstatsd.yaml file detected, not starting dogstatsd"
+fi
+
+# The Agent Data Plane service is opt-in: we never enable it automatically. If
+# the operator has already enabled it, (re)start it after this upgrade so it
+# keeps running alongside dogstatsd.
+if command -v systemctl >/dev/null 2>&1; then
+    if systemctl is-enabled $DATA_PLANE_SERVICE_NAME >/dev/null 2>&1; then
+        echo "(Re)starting $DATA_PLANE_SERVICE_NAME now..."
+        systemctl restart $DATA_PLANE_SERVICE_NAME || true
+    fi
 fi
 
 exit 0
