@@ -2190,4 +2190,10 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.5)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention_secs", 120)
+
+	// Baseline analysis window.
+	config.BindEnvAndSetDefault("anomaly_detection.baseline_analysis.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.baseline_analysis.mute_noisy_metrics", true)
+	config.BindEnvAndSetDefault("anomaly_detection.baseline_analysis.duration", "10m")
+	config.BindEnvAndSetDefault("anomaly_detection.baseline_analysis.verbose", false)
 }

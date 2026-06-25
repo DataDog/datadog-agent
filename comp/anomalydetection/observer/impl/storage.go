@@ -789,6 +789,21 @@ func (s *timeSeriesStorage) resolveByID(ref observer.SeriesRef) *seriesStats {
 	return s.seriesIDStats[ref]
 }
 
+// FindRefsByHashes returns the SeriesRef for each hash present in storage.
+// Uses the existing s.series hash map for O(1) per lookup; hashes with no
+// matching series are silently skipped.
+func (s *timeSeriesStorage) FindRefsByHashes(hashes map[uint64]struct{}) []observer.SeriesRef {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	refs := make([]observer.SeriesRef, 0, len(hashes))
+	for h := range hashes {
+		if stats := s.series[h]; stats != nil {
+			refs = append(refs, stats.ref)
+		}
+	}
+	return refs
+}
+
 // GetSeriesMeta returns the metadata for a series by its numeric ref.
 // Returns nil if the ref is out of range.
 func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.SeriesMeta {
