@@ -54,6 +54,7 @@ ENV_PASSHTROUGH = {
     'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_version': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'AGENT_DATA_PLANE_VERSION': 'Agent Data Plane Version',
+    'AGENT_DATA_PLANE_SOURCE_URL_BASE': 'Override URL base for Agent Data Plane tarball downloads',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
@@ -69,6 +70,8 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'PROGRAMFILES(X86)': 'Standard Windows installation location',
         'PROGRAMFILESW6432': 'Standard Windows installation location',
         'SIGN_WINDOWS_DD_WCS': 'Determines whether to sign Windows artifacts',
+        'WINDOWS_SIGNING_CERT': 'S3 URL of the signing certificate to use with dd-wcs',
+        'WINDOWS_SIGNING_CONFIG': 'S3 URL of the signing config to use with dd-wcs',
         'SSL_CERT_FILE': 'Used to point Ruby at the certificate for OpenSSL',
         'SYSTEMDRIVE': "goes with SYSTEMROOT",
         'SYSTEMROOT': 'Solves git: fatal: getaddrinfo() thread failed to start',
@@ -107,6 +110,8 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'TEAM_ID': 'Apple developer team ID used for notarization',
         'KEYCHAIN_NAME': 'Name of the ephemeral keychain holding signing certificates',
         'KEYCHAIN_PWD': 'Password for the ephemeral signing keychain',
+        'AGENT_DATA_PLANE_HASH_DARWIN_AMD64': 'Agent Data Plane Hash for Darwin AMD64',
+        'AGENT_DATA_PLANE_HASH_DARWIN_ARM64': 'Agent Data Plane Hash for Darwin ARM64',
     },
 }
 
@@ -149,6 +154,8 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'RPM_SIGNING_PASSPHRASE',
         'S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS',
         'SIGN_WINDOWS_DD_WCS',
+        'WINDOWS_SIGNING_CERT',
+        'WINDOWS_SIGNING_CONFIG',
         'SSH_AUTH_SOCK',
         'SSL_CERT_FILE',
         'SYSTEMDRIVE',

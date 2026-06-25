@@ -189,8 +189,10 @@ func FuzzNormalizeTrace(f *testing.F) {
 		if err != nil {
 			t.Fatalf("Couldn't decode trace after normalization: %v", err)
 		}
-		if !reflect.DeepEqual(decPostNorm, pbTrace) {
-			t.Fatalf("Inconsistent encoding/decoding after normalization: (%#v) is different from (%#v)", decPostNorm, pbTrace)
+		// reflect.DeepEqual(NaN, NaN) == false; use cmp with EquateNaNs so that
+		// spans carrying NaN Metrics values don't produce spurious failures.
+		if diff := cmp.Diff(pbTrace, decPostNorm, cmpopts.EquateNaNs(), cmpopts.EquateEmpty(), cmpopts.IgnoreUnexported(pb.Span{}, pb.SpanLink{}, pb.SpanEvent{})); diff != "" {
+			t.Fatalf("Inconsistent encoding/decoding after normalization (-want +got):\n%s", diff)
 		}
 	})
 }

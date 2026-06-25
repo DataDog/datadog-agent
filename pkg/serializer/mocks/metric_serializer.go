@@ -5,6 +5,8 @@
 package mocks
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -128,6 +130,63 @@ func (_c *MetricSerializer_AreSketchesEnabled_Call) RunAndReturn(run func() bool
 	return _c
 }
 
+// SendAgentShutdownEvent provides a mock function for the type MetricSerializer
+func (_mock *MetricSerializer) SendAgentShutdownEvent(ctx context.Context, e *event.Event) error {
+	ret := _mock.Called(ctx, e)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SendAgentShutdownEvent")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *event.Event) error); ok {
+		r0 = returnFunc(ctx, e)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MetricSerializer_SendAgentShutdownEvent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SendAgentShutdownEvent'
+type MetricSerializer_SendAgentShutdownEvent_Call struct {
+	*mock.Call
+}
+
+// SendAgentShutdownEvent is a helper method to define mock.On call
+//   - ctx context.Context
+//   - e *event.Event
+func (_e *MetricSerializer_Expecter) SendAgentShutdownEvent(ctx any, e any) *MetricSerializer_SendAgentShutdownEvent_Call {
+	return &MetricSerializer_SendAgentShutdownEvent_Call{Call: _e.mock.On("SendAgentShutdownEvent", ctx, e)}
+}
+
+func (_c *MetricSerializer_SendAgentShutdownEvent_Call) Run(run func(ctx context.Context, e *event.Event)) *MetricSerializer_SendAgentShutdownEvent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *event.Event
+		if args[1] != nil {
+			arg1 = args[1].(*event.Event)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MetricSerializer_SendAgentShutdownEvent_Call) Return(err error) *MetricSerializer_SendAgentShutdownEvent_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MetricSerializer_SendAgentShutdownEvent_Call) RunAndReturn(run func(ctx context.Context, e *event.Event) error) *MetricSerializer_SendAgentShutdownEvent_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SendAgentchecksMetadata provides a mock function for the type MetricSerializer
 func (_mock *MetricSerializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 	ret := _mock.Called(m)
@@ -152,7 +211,7 @@ type MetricSerializer_SendAgentchecksMetadata_Call struct {
 
 // SendAgentchecksMetadata is a helper method to define mock.On call
 //   - m marshaler.JSONMarshaler
-func (_e *MetricSerializer_Expecter) SendAgentchecksMetadata(m interface{}) *MetricSerializer_SendAgentchecksMetadata_Call {
+func (_e *MetricSerializer_Expecter) SendAgentchecksMetadata(m any) *MetricSerializer_SendAgentchecksMetadata_Call {
 	return &MetricSerializer_SendAgentchecksMetadata_Call{Call: _e.mock.On("SendAgentchecksMetadata", m)}
 }
 
@@ -203,7 +262,7 @@ type MetricSerializer_SendEvents_Call struct {
 
 // SendEvents is a helper method to define mock.On call
 //   - e event.Events
-func (_e *MetricSerializer_Expecter) SendEvents(e interface{}) *MetricSerializer_SendEvents_Call {
+func (_e *MetricSerializer_Expecter) SendEvents(e any) *MetricSerializer_SendEvents_Call {
 	return &MetricSerializer_SendEvents_Call{Call: _e.mock.On("SendEvents", e)}
 }
 
@@ -254,7 +313,7 @@ type MetricSerializer_SendHostMetadata_Call struct {
 
 // SendHostMetadata is a helper method to define mock.On call
 //   - m marshaler.JSONMarshaler
-func (_e *MetricSerializer_Expecter) SendHostMetadata(m interface{}) *MetricSerializer_SendHostMetadata_Call {
+func (_e *MetricSerializer_Expecter) SendHostMetadata(m any) *MetricSerializer_SendHostMetadata_Call {
 	return &MetricSerializer_SendHostMetadata_Call{Call: _e.mock.On("SendHostMetadata", m)}
 }
 
@@ -305,7 +364,7 @@ type MetricSerializer_SendIterableSeries_Call struct {
 
 // SendIterableSeries is a helper method to define mock.On call
 //   - serieSource metrics.SerieSource
-func (_e *MetricSerializer_Expecter) SendIterableSeries(serieSource interface{}) *MetricSerializer_SendIterableSeries_Call {
+func (_e *MetricSerializer_Expecter) SendIterableSeries(serieSource any) *MetricSerializer_SendIterableSeries_Call {
 	return &MetricSerializer_SendIterableSeries_Call{Call: _e.mock.On("SendIterableSeries", serieSource)}
 }
 
@@ -356,7 +415,7 @@ type MetricSerializer_SendMetadata_Call struct {
 
 // SendMetadata is a helper method to define mock.On call
 //   - m marshaler.JSONMarshaler
-func (_e *MetricSerializer_Expecter) SendMetadata(m interface{}) *MetricSerializer_SendMetadata_Call {
+func (_e *MetricSerializer_Expecter) SendMetadata(m any) *MetricSerializer_SendMetadata_Call {
 	return &MetricSerializer_SendMetadata_Call{Call: _e.mock.On("SendMetadata", m)}
 }
 
@@ -409,7 +468,7 @@ type MetricSerializer_SendOrchestratorManifests_Call struct {
 //   - msgs []types.ProcessMessageBody
 //   - hostName string
 //   - clusterID string
-func (_e *MetricSerializer_Expecter) SendOrchestratorManifests(msgs interface{}, hostName interface{}, clusterID interface{}) *MetricSerializer_SendOrchestratorManifests_Call {
+func (_e *MetricSerializer_Expecter) SendOrchestratorManifests(msgs any, hostName any, clusterID any) *MetricSerializer_SendOrchestratorManifests_Call {
 	return &MetricSerializer_SendOrchestratorManifests_Call{Call: _e.mock.On("SendOrchestratorManifests", msgs, hostName, clusterID)}
 }
 
@@ -473,7 +532,7 @@ type MetricSerializer_SendOrchestratorMetadata_Call struct {
 //   - hostName string
 //   - clusterID string
 //   - payloadType int
-func (_e *MetricSerializer_Expecter) SendOrchestratorMetadata(msgs interface{}, hostName interface{}, clusterID interface{}, payloadType interface{}) *MetricSerializer_SendOrchestratorMetadata_Call {
+func (_e *MetricSerializer_Expecter) SendOrchestratorMetadata(msgs any, hostName any, clusterID any, payloadType any) *MetricSerializer_SendOrchestratorMetadata_Call {
 	return &MetricSerializer_SendOrchestratorMetadata_Call{Call: _e.mock.On("SendOrchestratorMetadata", msgs, hostName, clusterID, payloadType)}
 }
 
@@ -539,7 +598,7 @@ type MetricSerializer_SendProcessesMetadata_Call struct {
 
 // SendProcessesMetadata is a helper method to define mock.On call
 //   - data interface{}
-func (_e *MetricSerializer_Expecter) SendProcessesMetadata(data interface{}) *MetricSerializer_SendProcessesMetadata_Call {
+func (_e *MetricSerializer_Expecter) SendProcessesMetadata(data any) *MetricSerializer_SendProcessesMetadata_Call {
 	return &MetricSerializer_SendProcessesMetadata_Call{Call: _e.mock.On("SendProcessesMetadata", data)}
 }
 
@@ -590,7 +649,7 @@ type MetricSerializer_SendServiceChecks_Call struct {
 
 // SendServiceChecks is a helper method to define mock.On call
 //   - serviceChecks servicecheck.ServiceChecks
-func (_e *MetricSerializer_Expecter) SendServiceChecks(serviceChecks interface{}) *MetricSerializer_SendServiceChecks_Call {
+func (_e *MetricSerializer_Expecter) SendServiceChecks(serviceChecks any) *MetricSerializer_SendServiceChecks_Call {
 	return &MetricSerializer_SendServiceChecks_Call{Call: _e.mock.On("SendServiceChecks", serviceChecks)}
 }
 
@@ -641,7 +700,7 @@ type MetricSerializer_SendSketch_Call struct {
 
 // SendSketch is a helper method to define mock.On call
 //   - sketches metrics.SketchesSource
-func (_e *MetricSerializer_Expecter) SendSketch(sketches interface{}) *MetricSerializer_SendSketch_Call {
+func (_e *MetricSerializer_Expecter) SendSketch(sketches any) *MetricSerializer_SendSketch_Call {
 	return &MetricSerializer_SendSketch_Call{Call: _e.mock.On("SendSketch", sketches)}
 }
 

@@ -9,15 +9,14 @@ import (
 	"fmt"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
-	issueName  = "ad_misconfiguration"
+	issueName  = "Autodiscovery Misconfiguration"
 	category   = "autodiscovery"
 	location   = "autodiscovery"
-	severity   = "medium"
+	severity   = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
 	source     = "autodiscovery"
 	unknownVal = "unknown"
 	failedMsg  = "Autodiscovery misconfiguration error detected"
@@ -27,8 +26,10 @@ const (
 // These constants match the string values of types.ErrorSource to avoid a
 // cross-package import. The values are passed as strings in the issue context.
 const (
-	containerLabelSource     = "container_label"
-	templateResolutionSource = "template_resolution"
+	containerLabelSource         = "container_label"
+	templateResolutionSource     = "template_resolution"
+	kubeServiceAnnotationSource  = "kube_service_annotation"
+	kubeEndpointAnnotationSource = "kube_endpoint_annotation"
 )
 
 type issueContent struct {
@@ -60,7 +61,7 @@ func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*health
 
 	errorSource := context["errorSource"]
 
-	content := buildSourceSpecificContent(entityName, errorMessage, errorSource)
+	content := buildSourceSpecificContent(errorMessage, errorSource)
 
 	extra, err := structpb.NewStruct(map[string]any{
 		"entity_name":   entityName,
@@ -73,9 +74,8 @@ func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*health
 	}
 
 	return &healthplatform.Issue{
-		Id:          healthplatformdef.ADMisconfigurationIssueID,
 		IssueName:   issueName,
-		Title:       content.title,
+		Title:       fmt.Sprintf("Autodiscovery Misconfiguration on '%s'", entityName),
 		Description: content.description,
 		Category:    category,
 		Location:    location,
@@ -93,12 +93,11 @@ func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*health
 
 // buildSourceSpecificContent returns title, description, remediation summary, and steps
 // tailored to the error source (container labels vs pod annotations).
-func buildSourceSpecificContent(entityName, errorMessage, errorSource string) issueContent {
-	title := fmt.Sprintf("AD Misconfiguration on '%s'", entityName)
+func buildSourceSpecificContent(errorMessage, errorSource string) issueContent {
 	switch errorSource {
 	case templateResolutionSource:
 		return issueContent{
-			title:       title,
+			title:       "Autodiscovery Template Resolution Error",
 			description: "Autodiscovery template resolution error: " + errorMessage,
 			summary:     "Verify that all template variables in the integration configuration are supported for this service",
 			steps: []*healthplatform.RemediationStep{
@@ -108,7 +107,7 @@ func buildSourceSpecificContent(entityName, errorMessage, errorSource string) is
 		}
 	case containerLabelSource:
 		return issueContent{
-			title:       title,
+			title:       "Autodiscovery Container Label Misconfiguration",
 			description: "Autodiscovery container label error: " + errorMessage,
 			summary:     "Review and fix autodiscovery container labels on the affected container",
 			steps: []*healthplatform.RemediationStep{
@@ -117,9 +116,31 @@ func buildSourceSpecificContent(entityName, errorMessage, errorSource string) is
 				{Order: 3, Text: "Verify the container label values match the expected Autodiscovery format"},
 			},
 		}
+	case kubeServiceAnnotationSource:
+		return issueContent{
+			title:       "Autodiscovery Service Annotation Misconfiguration",
+			description: "Autodiscovery service annotation error: " + errorMessage,
+			summary:     "Review and fix autodiscovery annotations on the affected Kubernetes service",
+			steps: []*healthplatform.RemediationStep{
+				{Order: 1, Text: "Validate JSON syntax in all ad.datadoghq.com/service.* annotations on the service"},
+				{Order: 2, Text: "Ensure check_names, init_configs, and instances arrays have matching lengths"},
+				{Order: 3, Text: "Verify the annotation values match the expected Autodiscovery format for cluster checks"},
+			},
+		}
+	case kubeEndpointAnnotationSource:
+		return issueContent{
+			title:       "Autodiscovery Endpoint Annotation Misconfiguration",
+			description: "Autodiscovery endpoint annotation error: " + errorMessage,
+			summary:     "Review and fix autodiscovery annotations on the affected Kubernetes service",
+			steps: []*healthplatform.RemediationStep{
+				{Order: 1, Text: "Validate JSON syntax in all ad.datadoghq.com/endpoints.* annotations on the service"},
+				{Order: 2, Text: "Ensure check_names, init_configs, and instances arrays have matching lengths"},
+				{Order: 3, Text: "Verify the annotation values match the expected Autodiscovery format for endpoint checks"},
+			},
+		}
 	default:
 		return issueContent{
-			title:       title,
+			title:       "Autodiscovery Pod Annotation Misconfiguration",
 			description: "Autodiscovery pod annotation error: " + errorMessage,
 			summary:     "Review and fix autodiscovery annotations on the affected pod",
 			steps: []*healthplatform.RemediationStep{

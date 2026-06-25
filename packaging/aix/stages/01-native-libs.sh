@@ -64,18 +64,19 @@ mkdir -p "$EMBEDDED_DESTDIR/share"
 #
 ZLIB_VERSION="1.3.1"
 BZIP2_VERSION="1.0.8"
-OPENSSL_VERSION="3.5.6"
+OPENSSL_VERSION="3.5.7"
 XZ_VERSION="5.8.1"
-LIBXML2_VERSION="2.14.5"    # built from source (AIX Toolbox also available but we build)
+LIBXML2_VERSION="2.15.3"    # built from source (AIX Toolbox also available but we build)
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
 
 # These are sourced from AIX Toolbox (build from source fails on AIX)
 LIBFFI_VERSION="3.4.4"     # yum install libffi-devel
 NCURSES_VERSION="6.5"      # yum install ncurses-devel
 READLINE_VERSION="8.2"     # yum install readline-devel
-SQLITE_VERSION="3.53.0"    # built from source (amalgamation)
+SQLITE_VERSION="3.53.2"    # built from source (amalgamation)
 GDBM_VERSION="1.23"        # yum install gdbm-devel
 LIBICONV_VERSION="1.17"    # yum install libiconv
+LIBUNWIND_VERSION="1.0"    # derived from /opt/freeware/lib/libgcc_s.a (GCC runtime)
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -263,9 +264,6 @@ else
     rm -rf "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
-    # Apply OpenSSL 3.5.6 regression fix (matches deps/repos.MODULE.bazel).
-    # Upstream issue: openssl/openssl#30728 — OSSL_PARAM_BLD_push_octet_*() with buf=NULL, bsize=0 fails.
-    patch -p1 < "$SCRIPT_DIR/../../../deps/openssl/0002-OSSL_PARAM_BLD_push_octet_allow_NULL_buffer.patch"
     ./Configure aix64-gcc \
         --prefix="$EMBEDDED" \
         --openssldir="$EMBEDDED/ssl" \
@@ -425,7 +423,7 @@ else
     # Build as a shared library wrapped in a .a archive (AIX convention).
     # Python's configure link tests require a shared member to detect sqlite3.
     $CC "$CFLAGS" -DSQLITE_ENABLE_MATH_FUNCTIONS -shared -Wl,-brtl -Wl,-bexpall \
-        sqlite3.c -lpthreads -o libsqlite3.so.0
+        sqlite3.c -lpthreads -lm -o libsqlite3.so.0
     ar -X64 -rcs "$EMBEDDED_DESTDIR/lib/libsqlite3.a" libsqlite3.so.0
     cp sqlite3.h sqlite3ext.h "$EMBEDDED_DESTDIR/include/"
     lib_cache_save sqlite "$SQLITE_VERSION" "$_pre"
@@ -520,6 +518,35 @@ done
 # to suppress the libintl link entirely, since the agent does not use Python i18n.
 stage_toolbox_lib libiconv "$LIBICONV_VERSION" \
     /opt/freeware/lib/libiconv.a
+
+# ── libunwind (derived from GCC runtime libgcc_s.a) ──────────────────────────
+#
+# pydantic_core links against libunwind.a(libunwind.so.1). We build this
+# archive by extracting the shared object from the GCC runtime libgcc_s.a
+# (which contains all _Unwind_* symbols) and re-packaging it under the
+# libunwind.so.1 member name that pydantic_core expects.
+#
+# This avoids the IBM XL C++ Runtime version (/usr/lib/libunwind.a) which
+# needs __xlcxx_personality_v0 from libc++abi.a — absent on AIX 7.2 TL2-TL4.
+# The GCC-derived version only depends on libc.a, making it fully portable.
+if lib_done libunwind "$LIBUNWIND_VERSION"; then
+    log "libunwind ${LIBUNWIND_VERSION} already staged — skipping"
+else
+    log "Staging libunwind ${LIBUNWIND_VERSION} (from libgcc_s.a)"
+    GCC_LIBGCC_S=/opt/freeware/lib/libgcc_s.a
+    if [ ! -f "$GCC_LIBGCC_S" ]; then
+        log "ERROR: $GCC_LIBGCC_S not found — install GCC from the AIX Toolbox"
+        exit 1
+    fi
+    _tmpdir="$BUILD_DIR/build/libunwind-tmp"
+    rm -rf "$_tmpdir" && mkdir -p "$_tmpdir"
+    (cd "$_tmpdir" && ar -X64 -x "$GCC_LIBGCC_S" shr.o)
+    cp "$_tmpdir/shr.o" "$_tmpdir/libunwind.so.1"
+    ar -X64 -rcs "$EMBEDDED_DESTDIR/lib/libunwind.a" "$_tmpdir/libunwind.so.1"
+    rm -rf "$_tmpdir"
+    lib_mark libunwind "$LIBUNWIND_VERSION"
+    log "libunwind ${LIBUNWIND_VERSION} staged"
+fi
 
 # ─── Ensure standard directories exist ────────────────────────────────────────
 

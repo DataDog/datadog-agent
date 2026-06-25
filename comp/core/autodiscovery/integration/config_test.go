@@ -112,12 +112,11 @@ func TestMergeAdditionalTags(t *testing.T) {
 
 	config.Instances[0].MergeAdditionalTags([]string{"foo", "bar"})
 
-	rawConfig := RawMap{}
-	err := yaml.Unmarshal(config.Instances[0], &rawConfig)
+	parsedConfig := CommonInstanceConfig{}
+	err := yaml.Unmarshal(config.Instances[0], &parsedConfig)
 	assert.Nil(t, err)
-	assert.Contains(t, rawConfig["tags"], "foo")
-	assert.Contains(t, rawConfig["tags"], "bar")
-	assert.Contains(t, rawConfig["tags"], "foo:bar")
+	expectedTags := []string{"bar", "foo", "foo:bar"} // Should be sorted so digest stays stable for identical configs
+	assert.Equal(t, expectedTags, parsedConfig.Tags)
 
 	config.Name = "foo"
 	config.InitConfig = Data("fooBarBaz")
@@ -125,11 +124,11 @@ func TestMergeAdditionalTags(t *testing.T) {
 
 	config.Instances[0].MergeAdditionalTags([]string{"foo", "bar"})
 
-	rawConfig = RawMap{}
-	err = yaml.Unmarshal(config.Instances[0], &rawConfig)
+	parsedConfig = CommonInstanceConfig{}
+	err = yaml.Unmarshal(config.Instances[0], &parsedConfig)
 	assert.Nil(t, err)
-	assert.Contains(t, rawConfig["tags"], "foo")
-	assert.Contains(t, rawConfig["tags"], "bar")
+	expectedTags = []string{"bar", "foo"} // Should be sorted so digest stays stable for identical configs
+	assert.Equal(t, expectedTags, parsedConfig.Tags)
 }
 
 func TestSetField(t *testing.T) {
@@ -245,6 +244,29 @@ func TestDigest(t *testing.T) {
 
 	// assert the ClusterCheck field is not taken into account
 	assert.NotEqual(t, simpleConfig.Digest(), simpleIngoreADTagsConfig.Digest())
+}
+
+func TestIsDiscovery(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.IsDiscovery())
+	config.Discovery = &DiscoveryConfig{}
+	assert.True(t, config.IsDiscovery())
+}
+
+func TestDigestIncludesDiscovery(t *testing.T) {
+	withoutDiscovery := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+	}
+	withDiscovery := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Discovery:  &DiscoveryConfig{},
+	}
+	assert.NotEqual(t, withoutDiscovery.Digest(), withDiscovery.Digest(),
+		"Discovery field must change the config digest so a discovery template and its non-discovery counterpart are distinct")
+	assert.NotEqual(t, withoutDiscovery.FastDigest(), withDiscovery.FastDigest(),
+		"Discovery field must change FastDigest as well")
 }
 
 func TestGetNameForInstance(t *testing.T) {

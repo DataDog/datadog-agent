@@ -71,8 +71,23 @@ if [ ! -x /opt/freeware/bin/gcc-8 ]; then
     printf 'ERROR: gcc-8 not found. Install it with: yum install -y gcc8 gcc8-c++\n' >&2
     exit 1
 fi
-CC=/opt/freeware/bin/gcc-8
-CXX=/opt/freeware/bin/g++-8
+
+# Create private gcc/g++ symlinks pointing to gcc-8 in $BUILD_DIR/bin and
+# prepend that directory to PATH. This lets us set CC=gcc (the generic name)
+# so Python records 'gcc' in _sysconfigdata_, not '/opt/freeware/bin/gcc-8'.
+# Customers can then build C extensions (e.g. ibm_db) with any gcc version in
+# their PATH, not just gcc-8 specifically.
+# /opt/freeware/bin/gcc already exists on the build host but points to gcc-13;
+# using a private directory avoids clobbering that symlink.
+mkdir -p "$BUILD_DIR/bin"
+ln -sf /opt/freeware/bin/gcc-8 "$BUILD_DIR/bin/gcc"
+ln -sf /opt/freeware/bin/g++-8 "$BUILD_DIR/bin/g++"
+# $BUILD_DIR/bin is prepended to PATH in the Go toolchain section below,
+# after that section establishes /opt/go/bin and /opt/freeware/bin, so our
+# directory wins the gcc/g++ name lookup.
+
+CC=gcc
+CXX=g++
 NM="/usr/bin/nm -X64"
 ARFLAGS="-X64 -cru"
 OBJECT_MODE=64
@@ -97,7 +112,7 @@ export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
 
 # ── PATH and Go toolchain ─────────────────────────────────────────────────────
 
-PATH=/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
+PATH=$BUILD_DIR/bin:/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
 GOPATH=/home/gopath
 GOROOT=/opt/go
 CGO_ENABLED=1
@@ -108,16 +123,23 @@ GOPROXY=https://proxy.golang.org,direct
 # toolchain version (go.mod may require a newer patch than is installed).
 # Auto-download spawns extra processes and consumes significant memory on AIX.
 GOTOOLCHAIN=local
-# -p=1: one package compiled at a time; prevents multiple 3-4 GB Go compiler
-# processes from competing for RAM on the 4 GB AIX build host and causing
-# thrashing or OOM kills.
-GOFLAGS="-p=1"
+# On hosts with less than 6 GiB of RAM, restrict Go compilation to one package
+# at a time and cap the heap to prevent swap thrash. Each compile process can
+# use 3-4 GiB; without -p=1 multiple would compete for the same RAM.
+# On larger hosts, the default parallelism is fine.
+_mem_kb=$(lsattr -El sys0 -a realmem 2>/dev/null | awk '{print $2}')
+if [ -n "$_mem_kb" ] && [ "$_mem_kb" -lt 6291456 ]; then
+    GOFLAGS="-p=1"
+    GOMEMLIMIT=2GiB
+    export GOFLAGS GOMEMLIMIT
+fi
+unset _mem_kb
 # Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
 # build volume so that large packages like datadogV2 don't exhaust /tmp.
 GOCACHE=/opt/dd-build/gocache
 mkdir -p "$GOCACHE"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOFLAGS GOCACHE
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 

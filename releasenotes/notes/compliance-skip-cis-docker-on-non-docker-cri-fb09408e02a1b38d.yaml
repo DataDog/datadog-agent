@@ -1,0 +1,9 @@
+enhancements:
+  - |
+    Compliance: CIS Docker rules (``scope: docker``) are no longer evaluated
+    on Kubernetes nodes where the kubelet's CRI runtime is not Docker (e.g.
+    containerd, CRI-O), avoiding false positives on GKE Container-Optimized
+    OS which ships dockerd alongside containerd. The runtime is read from
+    the kubelet's ``--container-runtime-endpoint`` flag or the
+    ``containerRuntimeEndpoint`` field of its ``--config`` YAML; if it
+    cannot be determined the rules continue to evaluate.

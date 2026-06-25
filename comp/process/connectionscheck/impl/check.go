@@ -10,7 +10,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
@@ -43,8 +43,8 @@ type Provides struct {
 	Component connectionscheck.Component
 }
 
-// NewCheck creates a new connectionscheck component.
-func NewCheck(deps dependencies) Provides {
+// NewComponent creates a new connectionscheck component.
+func NewComponent(deps dependencies) Provides {
 	c := &check{
 		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta, deps.NpCollector, deps.Tagger),
 	}

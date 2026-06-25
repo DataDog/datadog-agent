@@ -11,6 +11,8 @@ package {{.Name}}
 
 import (
 	{{if has "go:build unix" .BuildTags}}
+	"net"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/google/gopacket"
 	{{end}}
@@ -168,7 +170,13 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- $elemTypePrefix := ""}}
 			{{- if $isPtr}}{{$elemTypePrefix = "*"}}{{end}}
 	copied := make([]{{$elemTypePrefix}}{{$node.Field.OrigType}}, len(fieldToCopy))
-			{{- if $node.Field.IsBasic}}
+			{{- if and $node.Field.IsBasic (eq $node.Field.OrigType "net.IPNet")}}
+	for i := range fieldToCopy {
+		copied[i] = fieldToCopy[i]
+		copied[i].IP = append(net.IP(nil), fieldToCopy[i].IP...)
+		copied[i].Mask = append(net.IPMask(nil), fieldToCopy[i].Mask...)
+	}
+			{{- else if $node.Field.IsBasic}}
 	for i := range fieldToCopy {
 		copied[i] = fieldToCopy[i]
 	}
@@ -206,6 +214,14 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 	return copied
 
 		{{- else if eq $strategy "struct"}}
+		{{- if eq (len $node.Children) 0}}
+	{{- /* No children means the type's source wasn't loaded; shallow-copy
+	      is correct for value-only structs (e.g. external types from
+	      packages whose Bazel-side sources aren't passed via -extra-srcs).
+	      For non-value-only externals, add their .go files to the macro's
+	      srcs attribute. */}}
+	return fieldToCopy
+		{{- else}}
 	copied := {{$node.Field.OrigType}}{}
 			{{- range $node.Children}}
 			{{- $childBaseName := BaseName .Field.OrigType}}
@@ -238,6 +254,7 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- end}}
 			{{- end}}
 	return copied
+		{{- end}}
 
 		{{- else}}
 	return fieldToCopy

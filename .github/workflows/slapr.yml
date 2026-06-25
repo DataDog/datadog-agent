@@ -18,12 +18,12 @@ jobs:
       with:
         scope: DataDog/datadog-agent
         policy: self.slapr.read-members
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         token: ${{ steps.octo-sts.outputs.token }}
         sparse-checkout: tasks/libs/pipeline/github_slack_map.yaml
         sparse-checkout-cone-mode: false
-    - uses: DataDog/slapr@3c19d2a0971acfc3f5a3524b508ed233f8ce0e23
+    - uses: DataDog/slapr@95312d6b8528460243ba27c7f8167bfe20a68bec # 1.1.0
       with:
         review-map: tasks/libs/pipeline/github_slack_map.yaml
         github-token: ${{ steps.octo-sts.outputs.token }}

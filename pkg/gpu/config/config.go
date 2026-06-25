@@ -24,6 +24,10 @@ type Config struct {
 	ebpf.Config
 	// Enabled indicates whether the GPU monitoring probe is enabled.
 	Enabled bool
+	// EnableEBPFProbes indicates whether the GPU monitoring eBPF probes should be loaded.
+	EnableEBPFProbes bool
+	// PRMEndpointEnabled indicates whether the privileged PRM endpoint should be exposed.
+	PRMEndpointEnabled bool
 	// ScanProcessesInterval is the interval at which the probe scans for new or terminated processes.
 	ScanProcessesInterval time.Duration
 	// InitialProcessSync indicates whether the probe should sync the process list on startup.
@@ -78,6 +82,8 @@ func New() *Config {
 		ScanProcessesInterval:        time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
 		InitialProcessSync:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
 		Enabled:                      spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),
+		EnableEBPFProbes:             spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_ebpf_probes")),
+		PRMEndpointEnabled:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "prm_endpoint_enabled")),
 		ConfigureCgroupPerms:         spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
 		EnableFatbinParsing:          spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
 		KernelCacheQueueSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),

@@ -10,17 +10,25 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/jsonapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 // newTestKey generates a throwaway ECDSA key for unit tests.
 func newTestKey(t *testing.T) *ecdsa.PrivateKey {
@@ -44,6 +52,7 @@ func newTestClient(t *testing.T, srv *httptest.Server) *client {
 			RunnerId:           "test-runner",
 			PrivateKey:         newTestKey(t),
 		},
+		runnerStartedAt: time.Now().UTC(),
 	}
 }
 
@@ -120,6 +129,73 @@ func TestDequeueTask_RetryAfterMs_AbsentHeader(t *testing.T) {
 	assert.Equal(t, time.Duration(0), retryAfter)
 }
 
+// ---------- dequeue request body ----------
+
+// TestDequeueTask_RequestBody walks the runner through a scripted sequence of
+// server responses and asserts what each request body contains:
+//   - runner_started_at is on every request and stable
+//   - last_task_received_at is omitted until a non-empty dequeue succeeds, then
+//     populated, and not updated by empty or error responses.
+func TestDequeueTask_RequestBody(t *testing.T) {
+	empty := func(w http.ResponseWriter) { w.WriteHeader(http.StatusOK) }
+	fail := func(w http.ResponseWriter) { w.WriteHeader(http.StatusServiceUnavailable) }
+	task := func(w http.ResponseWriter) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":{"id":"task-1"}}`))
+	}
+
+	steps := []struct {
+		name                   string
+		respond                func(w http.ResponseWriter)
+		wantErr                bool
+		wantLastTaskReceivedAt bool
+	}{
+		{"first call, no prior task", empty, false, false},
+		{"error response does not record a timestamp", fail, true, false},
+		{"empty response does not record a timestamp", empty, false, false},
+		{"successful task: body sent before timestamp is recorded", task, false, false},
+		{"after a successful task, body carries the timestamp", empty, false, true},
+	}
+
+	bodies := make(chan DequeueJSONRequest, len(steps))
+	var i int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		var body DequeueJSONRequest
+		require.NoError(t, jsonapi.Unmarshal(raw, &body))
+		bodies <- body
+		steps[i].respond(w)
+		i++
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	runnerStartedAt := c.runnerStartedAt.Format(time.RFC3339)
+
+	for _, s := range steps {
+		_, _, err := c.DequeueTask(context.Background())
+		if s.wantErr {
+			require.Error(t, err, s.name)
+		} else {
+			require.NoError(t, err, s.name)
+		}
+
+		body := <-bodies
+		assert.Equal(t, runnerStartedAt, body.RunnerStartedAt, "%s: runner_started_at", s.name)
+
+		if s.wantLastTaskReceivedAt {
+			require.NotEmpty(t, body.LastTaskReceivedAt, "%s: last_task_received_at must be set", s.name)
+			_, err := time.Parse(time.RFC3339, body.LastTaskReceivedAt)
+			require.NoError(t, err, "%s: last_task_received_at must be RFC3339", s.name)
+		} else {
+			assert.Empty(t, body.LastTaskReceivedAt, "%s: last_task_received_at must be empty", s.name)
+		}
+	}
+}
+
+// ---------- DequeueTask error handling ----------
+
 func TestDequeueTask_RetryAfterMs_OnErrorResponse(t *testing.T) {
 	// Server returns a 429 with a retry-after hint.
 	// The error is surfaced, but the duration is still parsed from headers.
@@ -183,4 +259,59 @@ func TestHealthCheck_RetryAfterMs_PopulatedOnError(t *testing.T) {
 	require.Error(t, err)
 	require.NotNil(t, data)
 	assert.Equal(t, 3000*time.Millisecond, data.RetryAfter)
+}
+
+// ---------- proxy transport wiring ----------
+
+func TestNewClientHonorsProxyConfig(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
+	parCfg := &config.Config{OpmsRequestTimeout: 5000}
+
+	c := NewClient(cfg, parCfg).(*client)
+
+	transport, ok := c.httpClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.NotNil(t, transport.Proxy)
+
+	req, _ := http.NewRequest(http.MethodPost, "https://api.datadoghq.com/api/v2/on-prem-management-service/workflow-tasks/dequeue", nil)
+	proxyURL, err := transport.Proxy(req)
+	require.NoError(t, err)
+	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
+}
+
+func TestNewPublicClientHonorsProxyConfig(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
+
+	pc := NewPublicClient(cfg, "https://api.datadoghq.com", nil).(*publicClient)
+
+	transport, ok := pc.httpClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.NotNil(t, transport.Proxy)
+
+	req, _ := http.NewRequest(http.MethodPost, "https://api.datadoghq.com/api/unstable/on_prem_runners", nil)
+	proxyURL, err := transport.Proxy(req)
+	require.NoError(t, err)
+	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
+}
+
+func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
+	var transportCalled bool
+	p := &publicClient{
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+				transportCalled = true
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader("{}")),
+				}, nil
+			}),
+		},
+	}
+
+	_, _, err := p.doEnrollRequest(context.Background(), "https://app.datadoghq.com/enroll", []byte("{}"), "apikey", "")
+
+	require.NoError(t, err)
+	assert.True(t, transportCalled, "doEnrollRequest must use p.httpClient, not http.DefaultClient")
 }

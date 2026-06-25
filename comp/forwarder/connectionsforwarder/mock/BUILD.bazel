@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/forwarder/connectionsforwarder/def",
-        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/impl",
     ],
 )

@@ -13,7 +13,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,7 +26,6 @@ const (
 // scheduler schedules eligible pods onto spot instances.
 type scheduler struct {
 	config      Config
-	clock       clock.WithTicker
 	wlm         workloadmeta.Component
 	evictor     podEvictor
 	patcher     workloadPatcher
@@ -38,10 +36,9 @@ type scheduler struct {
 	synced      chan struct{}
 }
 
-func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, dynamicClient dynamic.Interface, lister podLister, isLeader func() bool) *scheduler {
+func newScheduler(cfg Config, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, dynamicClient dynamic.Interface, lister podLister, isLeader func() bool) *scheduler {
 	s := &scheduler{
 		config:   cfg,
-		clock:    clk,
 		wlm:      wlm,
 		evictor:  evictor,
 		patcher:  patcher,
@@ -49,7 +46,7 @@ func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, 
 		synced:   make(chan struct{}),
 	}
 	defaultConfig := workloadSpotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}
-	s.tracker = newPodTracker(clk, defaultConfig, s.getSpotConfig)
+	s.tracker = newPodTracker(defaultConfig, s.getSpotConfig)
 	store := newSpotConfigStore()
 	s.configStore = store
 	s.controller = newWorkloadController(dynamicClient, defaultConfig, store, lister, s.tracker)
@@ -107,14 +104,14 @@ func (s *scheduler) trackPodUpdates(ctx context.Context) {
 
 // checkOnDemandFallback periodically checks for pending spot pods and triggers on-demand fallback if needed.
 func (s *scheduler) checkOnDemandFallback(ctx context.Context) {
-	ticker := s.clock.NewTicker(checkOnDemandFallbackInterval)
+	ticker := time.NewTicker(checkOnDemandFallbackInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case now := <-ticker.C():
+		case now := <-ticker.C:
 			if s.isLeader() {
 				s.checkOnDemandFallbackOnce(ctx, now)
 			}
@@ -125,14 +122,14 @@ func (s *scheduler) checkOnDemandFallback(ctx context.Context) {
 // rebalance periodically evicts pods that are over the desired spot/on-demand ratio,
 // allowing the owning controller to recreate them with the correct scheduling.
 func (s *scheduler) rebalance(ctx context.Context) {
-	ticker := s.clock.NewTicker(rebalanceInterval)
+	ticker := time.NewTicker(rebalanceInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C():
+		case <-ticker.C:
 			if !s.isLeader() {
 				continue
 			}
@@ -141,10 +138,10 @@ func (s *scheduler) rebalance(ctx context.Context) {
 				continue
 			}
 			if err := s.evictor.evictPod(ctx, namespace, name, ""); err != nil {
-				log.Errorf("Failed to evict pod %s/%s for rebalancing: %v", namespace, name, err)
+				log.Errorf("Failed to evict pod %s/%s (%s) for rebalancing: %v", namespace, name, uid, err)
 				continue
 			}
-			log.Infof("Evicted pod %s/%s for spot rebalancing", namespace, name)
+			log.Infof("Evicted pod %s/%s (%s) for rebalancing", namespace, name, uid)
 		}
 	}
 }
@@ -170,7 +167,7 @@ func (s *scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
 
 	log.Debugf("Pod created via webhook for owner %s", o.directOwner)
 
-	if cfg.isDisabled(s.clock.Now()) {
+	if cfg.isDisabled(time.Now()) {
 		log.Debugf("Spot scheduling disabled until %v, skipping pod for %s", cfg.disabledUntil, o.directOwner)
 		s.tracker.admitNewOnDemandPod(o)
 		return unchanged()
@@ -252,10 +249,10 @@ func (s *scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time
 		}
 		for uid, pod := range pods {
 			if err := s.evictor.evictPod(ctx, pod.topLevelOwner.Namespace, pod.name, corev1.PodPending); err != nil {
-				log.Errorf("Failed to evict timed-out pending spot pod %s of %s: %v", pod.name, pod.topLevelOwner, err)
+				log.Errorf("Failed to evict timed-out pending spot pod %s (%s) of %s: %v", pod.name, uid, pod.topLevelOwner, err)
 				continue
 			}
-			log.Infof("Evicted timed-out pending spot pod %s of %s for on-demand fallback", pod.name, pod.topLevelOwner)
+			log.Infof("Evicted timed-out pending spot pod %s (%s) of %s for on-demand fallback", pod.name, uid, pod.topLevelOwner)
 			s.tracker.deletePendingSpotPod(uid)
 		}
 	}

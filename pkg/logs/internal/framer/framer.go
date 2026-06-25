@@ -44,12 +44,26 @@ const (
 	// consulted.  The result does not include the trailing newlines.
 	DockerStream
 
+	// SyslogFraming handles syslog TCP streams per RFC 6587. It auto-detects
+	// between octet counting (MSG-LEN SP SYSLOG-MSG) and non-transparent
+	// framing (LF or NUL delimited) on a per-message basis.
+	SyslogFraming
+
 	// UTF8NewlineDatagram splits on newlines like UTF8Newline, but also
 	// flushes any remaining data at the end of each Process() call. This is
 	// appropriate for datagram transports (UDP, unixgram) where each
 	// Process() call represents a complete, discrete message — there is no
 	// subsequent data that could complete a partial frame.
 	UTF8NewlineDatagram
+
+	// UTF8NewlineStream splits on newlines like UTF8Newline, but emits any
+	// buffered remainder when the framer is flushed (Flush()). Used by
+	// stream-oriented transports where the end-of-stream (e.g. peer-driven
+	// TCP close) is a legitimate frame boundary for the final message —
+	// some forwarders send one message per connection without a trailing
+	// newline. Unlike UTF8NewlineDatagram, partial frames are only emitted
+	// at end-of-stream, not after every Process() call.
+	UTF8NewlineStream
 )
 
 // Framer gets chunks of bytes (via Process(..)) and uses an
@@ -106,7 +120,7 @@ func NewFramer(
 	var matcher FrameMatcher
 	switch framing {
 	case UTF8Newline:
-		matcher = &oneByteNewLineMatcher{contentLenLimit}
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit}
 	case UTF16BENewline:
 		contentLenLimit = contentLenLimit & ^0x1 // align to 2-byte character boundary for UTF-16
 		if contentLenLimit < 2 {
@@ -122,13 +136,17 @@ func NewFramer(
 	case SHIFTJISNewline:
 		// No special handling required for the newline matcher since Shift JIS does not use
 		// newline characters (0x0a) as the second byte of a multibyte sequence.
-		matcher = &oneByteNewLineMatcher{contentLenLimit}
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit}
 	case DockerStream:
 		matcher = &dockerStreamMatcher{contentLenLimit}
+	case SyslogFraming:
+		matcher = &syslogFrameMatcher{contentLenLimit}
 	case NoFraming:
 		matcher = &noFramingMatcher{}
 	case UTF8NewlineDatagram:
-		matcher = &oneByteNewLineMatcher{contentLenLimit}
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit}
+	case UTF8NewlineStream:
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit, flushPartial: true}
 	default:
 		panic(fmt.Sprintf("unknown framing %d", framing))
 	}
@@ -236,22 +254,25 @@ func (fr *Framer) normalizeBuffer() {
 }
 
 // Flush emits any unframed remainder left in the buffer by delegating to the
-// matcher's FlushFrame. Called by the decoder at end-of-stream (e.g. when a
-// TCP connection closes). The matcher decides whether the remainder is a valid
-// frame worth emitting.
+// matcher's FlushFrame in a loop. Called by the decoder at end-of-stream
+// (e.g. when a TCP connection closes). The loop allows matchers to emit
+// oversized remainders in bounded chunks.
 func (fr *Framer) Flush() {
-	framed := fr.bytesFramed
-	end := fr.buffer.Len()
-	if framed >= end || fr.lastInput == nil {
-		return
+	for {
+		framed := fr.bytesFramed
+		end := fr.buffer.Len()
+		if framed >= end || fr.lastInput == nil {
+			break
+		}
+		buf := fr.buffer.Bytes()[framed:]
+		content, rawDataLen := fr.matcher.FlushFrame(buf)
+		if content == nil {
+			break
+		}
+		isTruncated := rawDataLen < len(buf)
+		fr.emitFrame(fr.lastInput, content, rawDataLen, isTruncated)
+		fr.bytesFramed += rawDataLen
 	}
-	buf := fr.buffer.Bytes()[framed:]
-	content, rawDataLen := fr.matcher.FlushFrame(buf)
-	if content == nil {
-		return
-	}
-	fr.emitFrame(fr.lastInput, content, rawDataLen, false)
-	fr.bytesFramed += rawDataLen
 	fr.normalizeBuffer()
 }
 

@@ -24,6 +24,24 @@ WORKDIR /workspace
 # Copy from the CI build context, no-op when doing a stand alone build
 COPY otel-* /workspace
 
+# NOTE about APT mirrorlists:
+# It seems that this feature could use some improvement. If you just get mirrorlist
+# from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
+# cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
+# indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
+# should be reliable enough in combination and also well maintained.
+RUN if [ "$CI" = "true" ]; then \
+  echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
+  echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do \
+    if [ -f "$f" ]; then \
+      sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; \
+    fi; \
+  done; \
+  fi
+
 # Update and install necessary packages
 # TODO: For now we have to clone the whole repository and checkout to a specific commit / ref / branch then recompile the otel-agent
 # Cloning the whole repo is necessary because `get_version` in the build script runs git describe --tags --candidates=50...
@@ -74,5 +92,7 @@ COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yam
 # Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
-ENTRYPOINT ["/bin/bash"]
-CMD ["/opt/datadog-agent/embedded/bin/otel-agent", "run"]
+ENV DD_OTELCOLLECTOR_ENABLED=true
+
+ENTRYPOINT ["otel-agent"]
+CMD ["run", "--config", "file:/etc/datadog-agent/otel-config.yaml"]

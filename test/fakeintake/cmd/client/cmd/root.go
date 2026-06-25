@@ -33,6 +33,8 @@ func NewCommand() (cmd *cobra.Command) {
 		NewFilterCommand(&cl),
 		NewFlushServerAndResetAggregatorsCommand(&cl),
 		NewGetCommand(&cl),
+		NewOverrideCommand(&cl),
+		NewRCCommand(&cl),
 		NewRouteStatsCommand(&cl),
 	)
 

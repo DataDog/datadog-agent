@@ -476,7 +476,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		a.TracerPayloadModifier.Modify(p.TracerPayload)
 	}
 
-	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
+	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
 	a.discardSpans(p)
 
@@ -541,7 +541,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			traceutil.ComputeTopLevelV1(chunk)
 		}
 
-		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha)
+		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha, appVersion)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone()) // TODO: remove the clone here
 		}
@@ -612,16 +612,16 @@ func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err erro
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
-func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, imageTag string, gitCommitSha string) *traceutil.ProcessedTraceV1 {
+func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, imageTag string, gitCommitSha string, appVersion string) *traceutil.ProcessedTraceV1 {
 	pt := &traceutil.ProcessedTraceV1{
 		TraceChunk:             chunk,
 		Root:                   root,
 		AppVersion:             p.TracerPayload.AppVersion(),
 		TracerEnv:              p.TracerPayload.Env(),
 		TracerHostname:         p.TracerPayload.Hostname(),
+		Lang:                   p.TracerPayload.LanguageName(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
 		GitCommitSha:           gitCommitSha,
-		Lang:                   p.TracerPayload.LanguageName(),
 	}
 	pt.ImageTag = imageTag
 	// Prefer payload-level _dd.git.commit.sha when present so we skip scanning spans (common after
@@ -647,6 +647,10 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 				break
 			}
 		}
+	}
+	// Only override AppVersion if it was not set in the tracer payload.
+	if pt.AppVersion == "" {
+		pt.AppVersion = appVersion
 	}
 	return pt
 }

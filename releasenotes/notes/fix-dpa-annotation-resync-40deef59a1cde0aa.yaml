@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix a bug in the workload autoscaling controller where annotation-only edits
+    (e.g. ``autoscaling.datadoghq.com/preview``) on a locally-owned
+    ``DatadogPodAutoscaler`` were not picked up until the next ``.spec`` change or
+    cluster-agent restart, because the controller gated re-sync on
+    ``.metadata.generation`` (which annotations do not bump). Toggling burstable
+    mode via the preview annotation now takes effect on the next reconcile.

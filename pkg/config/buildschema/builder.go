@@ -12,7 +12,27 @@ import (
 	"time"
 )
 
-func (b *builder) addToSchema(name string, val interface{}, envVars []string, noEnv bool, noDefault bool) {
+func (b *builder) setEnvParser(name string, parser string) {
+	b.Lock()
+	defer b.Unlock()
+
+	parts := strings.Split(name, ".")
+	curr := b.Schema
+	for i := 0; i < len(parts)-1; i++ {
+		section, ok := curr["properties"].(map[string]interface{})[parts[i]]
+		if !ok {
+			panic(fmt.Sprintf("buildschema: setEnvParser: section %q not found for key %q", parts[i], name))
+		}
+		curr = section.(map[string]interface{})
+	}
+	leaf, ok := curr["properties"].(map[string]interface{})[parts[len(parts)-1]]
+	if !ok {
+		panic(fmt.Sprintf("buildschema: setEnvParser: key %q not found in schema", name))
+	}
+	leaf.(map[string]interface{})["env_parser"] = parser
+}
+
+func (b *builder) addToSchema(name string, val interface{}, envVars []string, noEnv bool) {
 	b.Lock()
 	defer b.Unlock()
 
@@ -38,144 +58,104 @@ func (b *builder) addToSchema(name string, val interface{}, envVars []string, no
 
 	var node map[string]interface{}
 
-	if noDefault {
-		// Settings registered without a default also have no derivable type.
-		// Both markers are added so the schema linter can identify them as known issues.
+	switch v := val.(type) {
+	case bool:
 		node = map[string]interface{}{
-			"tags": []string{"TODO:fix-no-default", "TODO:fix-missing-type"},
+			"type":    "boolean",
+			"default": v,
 		}
-	} else {
-		switch v := val.(type) {
-		case bool:
-			node = map[string]interface{}{
-				"type":    "boolean",
-				"default": v,
-			}
-		case int:
-			node = map[string]interface{}{
-				"type": "number",
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case int64:
-			node = map[string]interface{}{
-				"type": "number",
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case time.Duration:
-			node = map[string]interface{}{
-				"type":   "number",
-				"format": "duration",
-				"tags":   []string{"golang_type:duration"},
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case float64:
-			node = map[string]interface{}{
-				"type": "number",
-				"tags": []string{"golang_type:float64"},
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case string:
-			node = map[string]interface{}{
-				"type": "string",
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case []string:
-			node = map[string]interface{}{
-				"type":  "array",
-				"items": map[string]string{"type": "string"},
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case []int:
-			node = map[string]interface{}{
-				"type":  "array",
-				"items": map[string]string{"type": "number"},
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case []interface{}:
-			node = map[string]interface{}{
-				"type": "array",
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case map[string]string:
-			node = map[string]interface{}{
+	case int:
+		node = map[string]interface{}{
+			"type": "integer",
+		}
+		node["default"] = v
+	case int64:
+		node = map[string]interface{}{
+			"type": "integer",
+			"tags": []string{"golang_type:int64"},
+		}
+		node["default"] = v
+	case time.Duration:
+		node = map[string]interface{}{
+			"type":   "string",
+			"format": "duration",
+			"tags":   []string{"golang_type:duration"},
+		}
+		node["default"] = v.String()
+	case float64:
+		node = map[string]interface{}{
+			"type": "number",
+			"tags": []string{"golang_type:float64"},
+		}
+		node["default"] = v
+	case string:
+		node = map[string]interface{}{
+			"type": "string",
+		}
+		node["default"] = v
+	case []string:
+		node = map[string]interface{}{
+			"type":  "array",
+			"items": map[string]string{"type": "string"},
+		}
+		node["default"] = v
+	case []int:
+		node = map[string]interface{}{
+			"type":  "array",
+			"tags":  []string{"golang_type:[]int"},
+			"items": map[string]string{"type": "number"},
+		}
+		node["default"] = v
+	case []interface{}:
+		node = map[string]interface{}{
+			"type": "array",
+		}
+		node["default"] = v
+	case map[string]string:
+		node = map[string]interface{}{
+			"type":                 "object",
+			"additionalProperties": map[string]string{"type": "string"},
+		}
+		node["default"] = v
+	case map[string][]string:
+		node = map[string]interface{}{
+			"type":                 "object",
+			"additionalProperties": map[string]interface{}{"type": "array", "items": map[string]string{"type": "string"}},
+		}
+		node["default"] = v
+	case map[string]float64:
+		node = map[string]interface{}{
+			"type":                 "object",
+			"additionalProperties": map[string]string{"type": "number"},
+			"tags":                 []string{"golang_type:map[string]float64"},
+		}
+		node["default"] = v
+	case map[string]interface{}:
+		node = map[string]interface{}{
+			"type": "object",
+			"tags": []string{"golang_type:map[string]interface{}"},
+		}
+		node["default"] = v
+	case []map[string]interface{}:
+		node = map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type": "object",
+			},
+		}
+		node["default"] = v
+	case []map[string]string:
+		node = map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
 				"type":                 "object",
 				"additionalProperties": map[string]string{"type": "string"},
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case map[string][]string:
-			node = map[string]interface{}{
-				"type":                 "object",
-				"additionalProperties": map[string]interface{}{"type": "array", "items": map[string]string{"type": "string"}},
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case map[string]float64:
-			node = map[string]interface{}{
-				"type":                 "object",
-				"additionalProperties": map[string]string{"type": "number"},
-				"tags":                 []string{"golang_type:map[string]float64"},
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case map[string]interface{}:
-			node = map[string]interface{}{
-				"type": "object",
-				"tags": []string{"golang_type:map[string]interface{}"},
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case []map[string]interface{}:
-			node = map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-				},
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case []map[string]string:
-			node = map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type":                 "object",
-					"additionalProperties": map[string]string{"type": "string"},
-				},
-			}
-			if !noDefault {
-				node["default"] = v
-			}
-		case nil:
-			// nil values have neither a usable type nor a meaningful default.
-			// Both markers are added so the schema linter can identify them as known issues.
-			node = map[string]interface{}{
-				"tags": []string{"golang_type:nil", "TODO:fix-missing-type", "TODO:fix-no-default"},
-			}
-		default:
-			fmt.Printf("Error: unknown type for %s: %v\n", name, reflect.TypeOf(val))
-			return
+			},
 		}
+		node["default"] = v
+	default:
+		fmt.Printf("Error: unknown type for %s: %v\n", name, reflect.TypeOf(val))
+		return
 	}
 
 	if noEnv || envVars != nil {

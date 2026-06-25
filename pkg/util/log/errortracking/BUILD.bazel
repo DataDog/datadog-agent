@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "errortracking",
+    srcs = [
+        "bouncer.go",
+        "doc.go",
+        "handler.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/log/errortracking",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "errortracking_test",
+    srcs = [
+        "bouncer_test.go",
+        "handler_test.go",
+    ],
+    embed = [":errortracking"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -23,11 +23,17 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
+
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -42,16 +48,10 @@ func TestBundleDependencies(t *testing.T) {
 	)
 }
 
-// TestBundleStartLifecycle exercises the full bundle (core + checkrunner + forwarder)
-// through fx start/stop and locks in the start-order invariant: a check registered
-// via the core component must (a) actually fire, (b) reach the in-memory store
-// (proves the reporter is wired before the first tick), and (c) be POSTed to the
-// intake (proves the provider is wired before the forwarder ticks). If a future
-// refactor flips SetReporter / SetProvider with RegisterCheck — or moves built-in
-// check registration back into New — the first tick is silently dropped and this
-// test fails.
+// TestBundleStartLifecycle exercises the full bundle through fx start/stop and
+// verifies: (a) a scheduled check fires, (b) its issue reaches the in-memory
+// store, and (c) the issue is forwarded to the intake via the forwarder.
 func TestBundleStartLifecycle(t *testing.T) {
-	// Mock intake server to capture forwarded reports.
 	var receivedRequests atomic.Int32
 	var (
 		mu              sync.Mutex
@@ -71,17 +71,15 @@ func TestBundleStartLifecycle(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	// Force the persistence selector off the Kubernetes branch so the test is
-	// not sensitive to the CI runner's environment.
 	t.Setenv("KUBERNETES_SERVICE_PORT", "")
 	t.Setenv("KUBERNETES", "")
 
 	type appDeps struct {
 		fx.In
-		HP healthplatformdef.Component
+		HP        storedef.Component
+		Scheduler schedulerdef.Component
 	}
 
-	// Intervals well below the test timeout so the lifecycle work completes quickly.
 	const tickInterval = 50 * time.Millisecond
 
 	deps := fxutil.Test[appDeps](t,
@@ -89,62 +87,203 @@ func TestBundleStartLifecycle(t *testing.T) {
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
 			cfg := config.NewMock(t)
-			cfg.SetWithoutSource("api_key", "test-api-key")
-			cfg.SetWithoutSource("dd_url", server.URL)
-			cfg.SetWithoutSource("health_platform.enabled", true)
-			cfg.SetWithoutSource("health_platform.persist_on_kubernetes", true)
-			cfg.SetWithoutSource("health_platform.forwarder.interval", tickInterval)
-			cfg.SetWithoutSource("run_path", t.TempDir())
+			cfg.SetInTest("api_key", "test-api-key")
+			cfg.SetInTest("dd_url", server.URL)
+			cfg.SetInTest("health_platform.enabled", true)
+			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
+			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
+			cfg.SetInTest("run_path", t.TempDir())
 			return cfg
 		}),
 		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
 	)
 
-	// Register a custom check after fx.Start has returned. We use a unique
-	// checkID so platform-specific built-in checks (docker / rofs) do not
-	// confuse the assertions.
 	var checkRunCount atomic.Int32
 	const (
-		testCheckID   = "test-bundle-lifecycle-check"
-		testCheckName = "Test Bundle Lifecycle Check"
-		// Reuse a real issue ID registered by the bundle's side-effect imports
+		testSource  = "test-bundle-lifecycle"
+		testIssueID = "test-bundle-lifecycle-issue"
+		// Reuse a real issue name registered by the bundle's side-effect imports
 		// so the registry's BuildIssue lookup succeeds.
-		testIssueID = "docker-file-tailing-disabled"
+		testIssueName = "Docker File Tailing Disabled"
 	)
-	require.NoError(t, deps.HP.RegisterCheck(testCheckID, testCheckName, func() (*healthplatformpayload.IssueReport, error) {
+	require.NoError(t, deps.Scheduler.Schedule(testSource, func() ([]runnerdef.IssueReport, error) {
 		checkRunCount.Add(1)
-		return &healthplatformpayload.IssueReport{
-			IssueId: testIssueID,
-			Context: map[string]string{
-				"dockerDir": "/var/lib/docker",
-				"os":        "linux",
+		return []runnerdef.IssueReport{
+			{
+				IssueID:   testIssueID,
+				IssueName: testIssueName,
+				Source:    testSource,
+				Context: map[string]string{
+					"dockerDir": "/var/lib/docker",
+					"os":        "linux",
+				},
 			},
 		}, nil
-	}, tickInterval))
+	}, tickInterval, nil))
 
 	require.Eventually(t, func() bool { return checkRunCount.Load() > 0 },
 		2*time.Second, 10*time.Millisecond,
-		"check function never fired — checkrunner did not spawn its goroutine")
+		"check function never fired")
 
 	require.Eventually(t, func() bool {
-		return deps.HP.GetIssueForCheck(testCheckID) != nil
+		return deps.HP.GetIssue(testIssueID) != nil
 	}, 2*time.Second, 10*time.Millisecond,
-		"core never recorded the issue — reporter not wired before first check fired")
+		"store never recorded the issue")
 
 	require.Eventually(t, func() bool { return receivedRequests.Load() > 0 },
 		2*time.Second, 10*time.Millisecond,
-		"forwarder never POSTed — provider not wired before forwarder ticked")
+		"forwarder never POSTed")
 
 	mu.Lock()
 	defer mu.Unlock()
 	require.NotEmpty(t, receivedReports, "expected at least one health report payload")
 	found := false
 	for _, rep := range receivedReports {
-		if _, ok := rep.Issues[testCheckID]; ok {
+		if _, ok := rep.Issues[testIssueID]; ok {
 			found = true
 			break
 		}
 	}
-	assert.True(t, found, "no received report contained the test check's issue (checkID=%s)", testCheckID)
+	assert.True(t, found, "no received report contained the test issue (id=%s)", testIssueID)
+}
+
+// TestIssueStateLifecycleForwarded exercises the full issue state machine end-to-end.
+func TestIssueStateLifecycleForwarded(t *testing.T) {
+	ready := make(chan bool, 1)
+	fi := fakeintakeserver.NewServer(
+		fakeintakeserver.WithAddress("127.0.0.1:0"),
+		fakeintakeserver.WithReadyChannel(ready),
+	)
+	fi.Start()
+	require.True(t, <-ready, "fakeintake server did not become ready")
+	t.Cleanup(func() { _ = fi.Stop() })
+
+	fiClient := fakeintakeclient.NewClient(fi.URL())
+
+	type appDeps struct {
+		fx.In
+		HP storedef.Component
+	}
+
+	const tickInterval = 50 * time.Millisecond
+
+	deps := fxutil.Test[appDeps](t,
+		Bundle(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("api_key", "test-api-key")
+			cfg.SetInTest("dd_url", fi.URL())
+			cfg.SetInTest("health_platform.enabled", true)
+			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
+			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
+			cfg.SetInTest("run_path", t.TempDir())
+			return cfg
+		}),
+		telemetrymock.Module(),
+		hostnameinterface.MockModule(),
+	)
+
+	const (
+		issueAID      = "test-lifecycle-A"
+		issueBID      = "test-lifecycle-B"
+		testIssueName = "docker_file_tailing_disabled"
+		testSource    = "test-lifecycle"
+	)
+
+	const (
+		waitTimeout  = 2 * time.Second
+		waitInterval = 10 * time.Millisecond
+	)
+
+	// latestHasIssueState uses collectedTime (ns precision) rather than EmittedAt (RFC3339, s precision).
+	latestHasIssueState := func(issueID string, state healthplatformpayload.IssueState) bool {
+		payloads, err := fiClient.GetAgentHealth()
+		if err != nil || len(payloads) == 0 {
+			return false
+		}
+		latest := payloads[0]
+		for _, p := range payloads[1:] {
+			if p.GetCollectedTime().After(latest.GetCollectedTime()) {
+				latest = p
+			}
+		}
+		iss, ok := latest.Issues[issueID]
+		return ok && iss != nil && iss.PersistedIssue != nil && iss.PersistedIssue.State == state
+	}
+
+	issueA := &healthplatformpayload.Issue{
+		Id:        issueAID,
+		IssueName: testIssueName,
+		Source:    testSource,
+	}
+
+	issueB := &healthplatformpayload.Issue{
+		Id:        issueBID,
+		IssueName: testIssueName,
+		Source:    testSource,
+	}
+
+	deps.HP.ReportIssue(issueA)
+	deps.HP.ReportIssue(issueB)
+	require.Eventually(t, func() bool {
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW) &&
+			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_NEW)
+	}, waitTimeout, waitInterval, "issueA and issueB never appeared as NEW in forwarded reports")
+
+	deps.HP.ReportIssue(issueA)
+	require.Eventually(t, func() bool {
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ONGOING)
+	}, waitTimeout, waitInterval, "issueA never transitioned to ONGOING in forwarded reports")
+
+	deps.HP.ResolveIssue(issueAID)
+	deps.HP.ResolveIssue(issueBID)
+
+	require.Eventually(t, func() bool {
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) &&
+			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED)
+	}, waitTimeout, waitInterval, "expected a forwarded payload with issueA=RESOLVED and issueB=RESOLVED")
+
+	deps.HP.ReportIssue(issueA)
+	require.Eventually(t, func() bool {
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW)
+	}, waitTimeout, waitInterval, "issueA never appeared as NEW in the latest forwarded payload")
+
+	// RESOLVED must appear exactly once: tombstones are removed after a successful send.
+	allPayloads, err := fiClient.GetAgentHealth()
+	require.NoError(t, err)
+	resolvedCountA, resolvedCountB := 0, 0
+	for _, p := range allPayloads {
+		if p == nil || p.HealthReport == nil {
+			continue
+		}
+		if iss, ok := p.Issues[issueAID]; ok && iss != nil && iss.PersistedIssue != nil &&
+			iss.PersistedIssue.State == healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED {
+			resolvedCountA++
+		}
+		if iss, ok := p.Issues[issueBID]; ok && iss != nil && iss.PersistedIssue != nil &&
+			iss.PersistedIssue.State == healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED {
+			resolvedCountB++
+		}
+	}
+	require.Equal(t, 1, resolvedCountA, "issueA RESOLVED forwarded more than once")
+	require.Equal(t, 1, resolvedCountB, "issueB RESOLVED forwarded more than once")
+}
+
+// TestAllModulesIssueNameMatchesBuiltIssueName guards the invariant that
+// store.storeIssue keys issuesByName by issue.IssueName, while
+// GetActiveIssueIDsByIssueName is called with module.IssueName(). They must
+// match or restart-based issue resolution silently breaks.
+func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
+	cfg := config.NewMock(t)
+	mods := issues.GetAllModules(cfg)
+	require.NotEmpty(t, mods, "no modules registered")
+	for _, mod := range mods {
+		issue, err := mod.BuildIssue(map[string]string{})
+		require.NoError(t, err, "module %s: BuildIssue failed", mod.IssueName())
+		assert.Equal(t, mod.IssueName(), issue.IssueName,
+			"module IssueName() %q must equal BuildIssue().IssueName %q",
+			mod.IssueName(), issue.IssueName)
+	}
 }

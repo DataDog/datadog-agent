@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="09-strip-bytecode"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -15,12 +14,6 @@ mkdir -p "$BUILD_DIR/logs"
 exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
-
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
 
 # --- Input validation ---
 : "${STAGING:?STAGING must be set}"
@@ -38,33 +31,64 @@ trap cleanup EXIT
 
 # ─── Step 1: Strip debug info from shared libraries ───────────────────────────
 #
-# /opt/freeware/bin/strip supports -X64 (required for XCOFF64 binaries on AIX).
-# The system /usr/bin/strip is 32-bit only and will refuse or silently corrupt
-# 64-bit XCOFF objects. Use while-read rather than for-f-in-$(find) to avoid
-# command substitution size limits and to handle filenames with spaces safely.
+# strip -X64 selects 64-bit XCOFF object mode; the system /usr/bin/strip
+# handles XCOFF64 correctly on AIX 7.x.
+# -type f skips symlinks so each physical file is processed exactly once
+# (the lib directory contains versioned symlinks like libxml2.so -> libxml2.so.16.0.5).
+# Use while-read rather than for-f-in-$(find) to avoid command substitution
+# size limits and to handle filenames with spaces safely.
 
 log "Stripping debug info from .so files under $EMBEDDED_DESTDIR/lib"
-find "$EMBEDDED_DESTDIR/lib" -name "*.so*" | while IFS= read -r f; do
-    /opt/freeware/bin/strip -X64 "$f" 2>/dev/null || true
+find "$EMBEDDED_DESTDIR/lib" -type f -name "*.so*" | while IFS= read -r f; do
+    # AIX strip exits 255 with "0654-420 already stripped" for files distributed
+    # without debug symbols (e.g. toolbox libs like liblzma, libxml2); ignore it.
+    strip -X64 "$f" 2>/dev/null || true
 done
 log "Strip pass complete"
 
 # ─── Step 2: Remove build artefacts not needed at runtime ─────────────────────
 #
-# Headers, pkg-config metadata, and man pages are only needed during compilation.
+# pkg-config metadata and man pages are only needed during compilation.
 # Source files (.c/.h) inside the Python stdlib tree are not needed at runtime.
+# Note: embedded/include (Python.h etc.) is intentionally kept so users can
+# build C extension packages (e.g. ibm_db) against the embedded Python.
 # __pycache__ directories may contain stale .pyc files from an earlier compileall
 # run or a pip install; delete them before the fresh compileall in Step 4 so
 # there are no stale bytecode files with incorrect magic numbers.
 
-log "Removing build-time artefacts (headers, pkgconfig, man pages, .c/.h files)"
-rm -rf "$EMBEDDED_DESTDIR/include"
+log "Removing build-time artefacts (pkgconfig, man pages, .c/.h files)"
+# Keep embedded/include (Python headers) — users need Python.h to build C
+# extensions such as ibm_db. Linux/macOS omnibus packages also ship these
+# headers; we match that behaviour here.
 rm -rf "$EMBEDDED_DESTDIR/lib/pkgconfig"
 rm -rf "$EMBEDDED_DESTDIR/share/man"
 find "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}" -name "*.c" -exec rm -f {} \;
 find "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}" -name "*.h" -exec rm -f {} \;
 find "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}" -name "*.pyc" -exec rm -f {} \; 2>/dev/null || true
 log "Build artefacts removed"
+
+# ─── Step 2b: Fix Python entry-point script shebangs ─────────────────────────
+#
+# pip and other Python packages install wrapper scripts (pip3.13, easy_install,
+# etc.) whose shebang is set to sys.executable at install time. Because Python
+# runs from the staging tree ($EMBEDDED_DESTDIR) during the build, sys.executable
+# resolves via realpath() to the staging path, not the final install path
+# ($EMBEDDED). The resulting shebang is therefore wrong on the target host and
+# causes "No such file or directory" when any of these scripts are invoked.
+#
+# Fix: rewrite every non-symlink script in embedded/bin/ whose first line
+# contains the staging path, replacing it with the final install path.
+
+log "Fixing Python entry-point script shebangs ($EMBEDDED_DESTDIR -> $EMBEDDED)"
+find "$EMBEDDED_DESTDIR/bin" -type f | while IFS= read -r f; do
+    case $(head -1 "$f" 2>/dev/null) in
+        "#!${EMBEDDED_DESTDIR}/bin/python"*)
+            cp -p "$f" "${f}.tmp" && sed "1s|#!${EMBEDDED_DESTDIR}/bin/|#!${EMBEDDED}/bin/|" "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+            log "Fixed shebang: $(basename "$f")"
+            ;;
+    esac
+done
+log "Shebang fix complete"
 
 # ─── Step 3: Compile .py to .pyc for faster agent startup ─────────────────────
 #
@@ -94,7 +118,4 @@ find "$EMBEDDED_DESTDIR" \( -name "*.pyc" -o -name "*.pyo" \) -print \
     > "$EMBEDDED_DESTDIR/.pyc_compiled_files.txt"
 log "Recorded $(wc -l < "$EMBEDDED_DESTDIR/.pyc_compiled_files.txt") .pyc files"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

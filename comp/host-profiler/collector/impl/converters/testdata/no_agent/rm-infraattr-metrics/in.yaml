@@ -1,0 +1,27 @@
+processors:
+  infraattributes:
+    allow_hostname_override: false
+  infraattributes/custom:
+    some_config: value
+  batch:
+    timeout: 10s
+
+exporters:
+  otlp_http:
+    headers:
+      dd-api-key: test-key
+
+service:
+  pipelines:
+    profiles:
+      processors:
+        - batch
+      exporters:
+        - otlp_http
+    metrics:
+      processors:
+        - infraattributes
+        - infraattributes/custom
+        - batch
+      exporters:
+        - otlp_http

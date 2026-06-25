@@ -27,47 +27,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // ContainerIDLen is the length of a container ID is the length of the hex representation of a sha256 hash
 const ContainerIDLen = sha256.Size * 2
-
-// ControlGroup describes the cgroup membership of a process
-type ControlGroup struct {
-	// ID unique hierarchy ID
-	ID int
-
-	// Controllers are the list of cgroup controllers bound to the hierarchy
-	Controllers []string
-
-	// Path is the pathname of the control group to which the process
-	// belongs. It is relative to the mountpoint of the hierarchy.
-	Path string
-}
-
-// GetContainerContext returns the container ID
-func (cg ControlGroup) GetContainerContext() containerutils.ContainerID {
-	return containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
-}
-
-func parseCgroupLine(line string) (string, string, string, error) {
-	id, rest, ok := strings.Cut(line, ":")
-	if !ok {
-		return "", "", "", fmt.Errorf("invalid cgroup line: %s", line)
-	}
-
-	ctrl, path, ok := strings.Cut(rest, ":")
-	if !ok {
-		return "", "", "", fmt.Errorf("invalid cgroup line: %s", line)
-	}
-
-	if rest == "/" {
-		return "", "", "", fmt.Errorf("invalid cgroup line: %s", line)
-	}
-
-	return id, ctrl, path, nil
-}
 
 func parseProcControlGroupsData(data []byte, validateCgroupEntry func(string, string, string) (bool, error)) error {
 	data = bytes.TrimSpace(data)
@@ -86,7 +51,7 @@ func parseProcControlGroupsData(data []byte, validateCgroupEntry func(string, st
 		}
 		line := data[:eol]
 
-		id, ctrl, path, err = parseCgroupLine(string(line))
+		id, ctrl, path, err = cgroup.ParseCgroupLine(string(line))
 		if err != nil {
 			return err
 		}
@@ -114,42 +79,13 @@ func parseProcControlGroups(tgid, pid uint32, validateCgroupEntry func(string, s
 	return parseProcControlGroupsData(data, validateCgroupEntry)
 }
 
-func makeControlGroup(id, ctrl, path string) (ControlGroup, error) {
-	idInt, err := strconv.Atoi(id)
-	if err != nil {
-		return ControlGroup{}, err
-	}
-
-	return ControlGroup{
-		ID:          idInt,
-		Controllers: strings.Split(ctrl, ","),
-		Path:        path,
-	}, nil
-}
-
 // GetProcControlGroups returns the cgroup membership of the specified task.
-func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
+func GetProcControlGroups(tgid, pid uint32) ([]cgroup.ControlGroup, error) {
 	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
 	if err != nil {
 		return nil, err
 	}
-	var cgroups []ControlGroup
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		t := scanner.Text()
-		id, ctrl, path, err := parseCgroupLine(t)
-		if err != nil {
-			return nil, err
-		}
-
-		cgroup, err := makeControlGroup(id, ctrl, path)
-		if err != nil {
-			return nil, err
-		}
-
-		cgroups = append(cgroups, cgroup)
-	}
-	return cgroups, nil
+	return cgroup.ParseProcCgroupDataStrict(data)
 }
 
 // CGroupContext holds the cgroup context of a process
@@ -426,4 +362,11 @@ func (cfs *CGroupFS) detectCurrentCgroupPath(currentPid, currentNSPid uint32) {
 // GetRootCGroupPath returns the root cgroup path
 func (cfs *CGroupFS) GetRootCGroupPath() string {
 	return cfs.rootCGroupPath
+}
+
+// IsPureCGroupV2Available returns whether the host is running on a pure
+// (non-hybrid) cgroup v2 hierarchy.
+func IsPureCGroupV2Available() bool {
+	_, err := os.Stat(kernel.HostSys("/fs/cgroup/cgroup.controllers"))
+	return err == nil
 }

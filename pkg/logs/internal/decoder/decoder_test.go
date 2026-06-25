@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
@@ -26,6 +27,7 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func InitializeDecoderForTest(source *sources.LogSource, parser parsers.Parser) Decoder {
@@ -348,8 +350,10 @@ func TestResolveTokenizerAndLabelerMaxInputBytes(t *testing.T) {
 	tests := []struct {
 		name                  string
 		globalSamplerEnabled  bool
+		globalNoisyDetection  bool
 		sourceAutoMLSettings  *config.SourceAutoMultiLineOptions
 		sourceSamplerSettings *config.SourceAdaptiveSamplingOptions
+		sourceNoisyDetection  *bool
 		wantTokenizerMax      int
 		wantLabelerMax        int
 	}{
@@ -421,12 +425,38 @@ func TestResolveTokenizerAndLabelerMaxInputBytes(t *testing.T) {
 			wantTokenizerMax: 128,
 			wantLabelerMax:   60,
 		},
+		{
+			name:                 "global noisy detection widens tokenizer when sampler disabled",
+			globalNoisyDetection: true,
+			wantTokenizerMax:     256,
+			wantLabelerMax:       60,
+		},
+		{
+			name:                 "source noisy detection enable widens tokenizer when sampler disabled",
+			sourceNoisyDetection: &enabledTrue,
+			wantTokenizerMax:     256,
+			wantLabelerMax:       60,
+		},
+		{
+			name:                 "source noisy detection disable does not widen tokenizer",
+			sourceNoisyDetection: &enabledFalse,
+			wantTokenizerMax:     60,
+			wantLabelerMax:       60,
+		},
+		{
+			name:                 "source noisy detection disable overrides global noisy detection",
+			globalNoisyDetection: true,
+			sourceNoisyDetection: &enabledFalse,
+			wantTokenizerMax:     60,
+			wantLabelerMax:       60,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig.Set("logs_config.experimental_adaptive_sampling.enabled", tt.globalSamplerEnabled, pkgconfigmodel.SourceAgentRuntime)
-			gotTokenizerMax, gotLabelerMax := resolveTokenizerAndLabelerMaxInputBytes(tt.sourceAutoMLSettings, tt.sourceSamplerSettings)
+			mockConfig.Set("logs_config.experimental_noisy_log_detection", tt.globalNoisyDetection, pkgconfigmodel.SourceAgentRuntime)
+			gotTokenizerMax, gotLabelerMax := resolveTokenizerAndLabelerMaxInputBytes(tt.sourceAutoMLSettings, tt.sourceSamplerSettings, tt.sourceNoisyDetection)
 			assert.Equal(t, tt.wantTokenizerMax, gotTokenizerMax)
 			assert.Equal(t, tt.wantLabelerMax, gotLabelerMax)
 		})
@@ -483,6 +513,107 @@ func TestResolveAdaptiveSamplerEnabled(t *testing.T) {
 	}
 }
 
+func TestResolveNoisyLogDetectionEnabled(t *testing.T) {
+	mockConfig := configmock.New(t)
+	enabledTrue := true
+	enabledFalse := false
+
+	tests := []struct {
+		name          string
+		globalEnabled bool
+		sourceCfg     *bool
+		want          bool
+	}{
+		{
+			name:          "falls back to global when source unset",
+			globalEnabled: true,
+			sourceCfg:     nil,
+			want:          true,
+		},
+		{
+			name:          "source disable overrides global enable",
+			globalEnabled: true,
+			sourceCfg:     &enabledFalse,
+			want:          false,
+		},
+		{
+			name:          "source enable overrides global disable",
+			globalEnabled: false,
+			sourceCfg:     &enabledTrue,
+			want:          true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig.Set("logs_config.experimental_noisy_log_detection", tt.globalEnabled, pkgconfigmodel.SourceAgentRuntime)
+			got := resolveNoisyLogDetectionEnabled(tt.sourceCfg)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestResolveSamplerMode(t *testing.T) {
+	mockConfig := configmock.New(t)
+	enabledTrue := true
+	enabledFalse := false
+
+	tests := []struct {
+		name                  string
+		globalSamplerEnabled  bool
+		globalNoisyDetection  bool
+		sourceSamplerSettings *config.SourceAdaptiveSamplingOptions
+		sourceNoisyDetection  *bool
+		want                  samplerMode
+	}{
+		{
+			name:                 "disabled when both features disabled",
+			globalSamplerEnabled: false,
+			globalNoisyDetection: false,
+			want:                 samplerDisabled,
+		},
+		{
+			name:                 "adaptive sampling wins when both globals enabled",
+			globalSamplerEnabled: true,
+			globalNoisyDetection: true,
+			want:                 samplerAdaptiveSampling,
+		},
+		{
+			name:                 "noisy detection runs when sampler disabled",
+			globalSamplerEnabled: false,
+			globalNoisyDetection: true,
+			want:                 samplerNoisyLogDetection,
+		},
+		{
+			name:                 "source adaptive sampling wins over source noisy detection",
+			globalSamplerEnabled: false,
+			sourceSamplerSettings: &config.SourceAdaptiveSamplingOptions{
+				Enabled: &enabledTrue,
+			},
+			sourceNoisyDetection: &enabledTrue,
+			want:                 samplerAdaptiveSampling,
+		},
+		{
+			name:                 "source adaptive disable allows source noisy detection",
+			globalSamplerEnabled: true,
+			sourceSamplerSettings: &config.SourceAdaptiveSamplingOptions{
+				Enabled: &enabledFalse,
+			},
+			sourceNoisyDetection: &enabledTrue,
+			want:                 samplerNoisyLogDetection,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.enabled", tt.globalSamplerEnabled, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_noisy_log_detection", tt.globalNoisyDetection, pkgconfigmodel.SourceAgentRuntime)
+			got := resolveSamplerMode(tt.sourceSamplerSettings, tt.sourceNoisyDetection)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.max_patterns", 100, pkgconfigmodel.SourceAgentRuntime)
@@ -490,14 +621,17 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.burst_size", 50.0, pkgconfigmodel.SourceAgentRuntime)
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.match_threshold", 0.8, pkgconfigmodel.SourceAgentRuntime)
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.protect_important_logs", true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.experimental_adaptive_sampling.tag_pattern_hash", false, pkgconfigmodel.SourceAgentRuntime)
 
 	t.Run("falls back to global config", func(t *testing.T) {
-		got := resolveAdaptiveSamplerConfig(nil)
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
 		assert.Equal(t, 100, got.MaxPatterns)
 		assert.Equal(t, 2.5, got.RateLimit)
 		assert.Equal(t, 50.0, got.BurstSize)
 		assert.Equal(t, 0.8, got.MatchThreshold)
 		assert.True(t, got.ProtectImportantLogs)
+		assert.False(t, got.DetectionOnly)
+		assert.False(t, got.TagPatternHash)
 	})
 
 	t.Run("source overrides global config", func(t *testing.T) {
@@ -506,6 +640,7 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 		burstSize := 75.0
 		matchThreshold := 0.65
 		protectImportantLogs := false
+		tagPatternHash := true
 
 		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
 			MaxPatterns:          &maxPatterns,
@@ -513,13 +648,16 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 			BurstSize:            &burstSize,
 			MatchThreshold:       &matchThreshold,
 			ProtectImportantLogs: &protectImportantLogs,
-		})
+			TagPatternHash:       &tagPatternHash,
+		}, preprocessor.NewTokenizer(0))
 
 		assert.Equal(t, 200, got.MaxPatterns)
 		assert.Equal(t, 3.5, got.RateLimit)
 		assert.Equal(t, 75.0, got.BurstSize)
 		assert.Equal(t, 0.65, got.MatchThreshold)
 		assert.False(t, got.ProtectImportantLogs)
+		assert.False(t, got.DetectionOnly)
+		assert.True(t, got.TagPatternHash)
 	})
 
 	t.Run("source partial override preserves global values", func(t *testing.T) {
@@ -527,13 +665,81 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 
 		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
 			RateLimit: &rateLimit,
-		})
+		}, preprocessor.NewTokenizer(0))
 
 		assert.Equal(t, 100, got.MaxPatterns)
 		assert.Equal(t, 9.5, got.RateLimit)
 		assert.Equal(t, 50.0, got.BurstSize)
 		assert.Equal(t, 0.8, got.MatchThreshold)
 		assert.True(t, got.ProtectImportantLogs)
+		assert.False(t, got.DetectionOnly)
+		assert.False(t, got.TagPatternHash)
+	})
+
+	t.Run("source filters are resolved", func(t *testing.T) {
+		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
+			Include: []*config.AdaptiveSamplingRule{
+				{Regex: "foo.*bar"},
+				{Sample: "my 123 fun log sample"},
+			},
+			Exclude: []*config.AdaptiveSamplingRule{
+				{Regex: "baz.*qux"},
+				{Sample: "my 456 bad log sample"},
+			},
+		}, preprocessor.NewTokenizer(0))
+
+		assert.True(t, got.IncludeConfigured)
+		require.Len(t, got.Include, 2)
+		require.NotNil(t, got.Include[0].Regex)
+		assert.Equal(t, "foo.*bar", got.Include[0].Regex.String())
+		assert.NotEmpty(t, got.Include[1].SampleTokens)
+		require.Len(t, got.Exclude, 2)
+		require.NotNil(t, got.Exclude[0].Regex)
+		assert.Equal(t, "baz.*qux", got.Exclude[0].Regex.String())
+		assert.NotEmpty(t, got.Exclude[1].SampleTokens)
+	})
+
+	t.Run("global filters are resolved", func(t *testing.T) {
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.include", []map[string]interface{}{
+			{"regex": "foo.*bar"},
+		}, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.exclude", []map[string]interface{}{
+			{"sample": "my 456 bad log sample"},
+		}, pkgconfigmodel.SourceAgentRuntime)
+
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
+
+		assert.True(t, got.IncludeConfigured)
+		require.Len(t, got.Include, 1)
+		require.NotNil(t, got.Include[0].Regex)
+		assert.Equal(t, "foo.*bar", got.Include[0].Regex.String())
+		require.Len(t, got.Exclude, 1)
+		assert.NotEmpty(t, got.Exclude[0].SampleTokens)
+	})
+
+	t.Run("source filters override global filters", func(t *testing.T) {
+		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
+			Include: []*config.AdaptiveSamplingRule{
+				{Regex: "source.*only"},
+			},
+			Exclude: []*config.AdaptiveSamplingRule{},
+		}, preprocessor.NewTokenizer(0))
+
+		assert.True(t, got.IncludeConfigured)
+		require.Len(t, got.Include, 1)
+		require.NotNil(t, got.Include[0].Regex)
+		assert.Equal(t, "source.*only", got.Include[0].Regex.String())
+		assert.Empty(t, got.Exclude)
+	})
+
+	t.Run("noisy log detection config forces detection-only mode", func(t *testing.T) {
+		got := resolveNoisyLogDetectionConfig(nil, preprocessor.NewTokenizer(0))
+
+		assert.Equal(t, 100, got.MaxPatterns)
+		assert.Equal(t, 2.5, got.RateLimit)
+		assert.Equal(t, 50.0, got.BurstSize)
+		assert.Equal(t, 0.8, got.MatchThreshold)
+		assert.True(t, got.DetectionOnly)
 	})
 }
 

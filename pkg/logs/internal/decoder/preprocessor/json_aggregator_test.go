@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 func newTestMessage(content string) *message.Message {
@@ -352,6 +352,62 @@ func TestJSONAggregatorFastPathWithTrailingWhitespace(t *testing.T) {
 
 	assert.Equal(t, 1, len(result), "Expected one message to be returned")
 	assert.True(t, aggregator.IsEmpty(), "Aggregator buffer should be empty after fast path")
+}
+
+// TestJSONAggregator_TopLevelArraySplitNotAggregated anchors the
+// "TopLevelArrayNotAggregated" behavioural limitation captured in
+// json_aggregator.allium: when a top-level JSON array spans more
+// than one Process call, the aggregator does NOT combine the parts
+// into a single emitted message. The IncrementalJSONValidator is
+// object-only, so the opening "[" trips is_invalid_object on the
+// first Process call (FlushOnInvalid in the spec) and each part is
+// emitted unmodified.
+//
+// If this test ever starts failing, the matching limitation note
+// in json_aggregator.allium must be updated to match the new
+// behaviour.
+func TestJSONAggregator_TopLevelArraySplitNotAggregated(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	// Top-level array split across three messages: opening bracket,
+	// two element objects, closing bracket.
+	parts := []string{
+		`[`,
+		`{"a":1},`,
+		`{"b":2}`,
+		`]`,
+	}
+
+	var emitted []*message.Message
+	for _, p := range parts {
+		emitted = append(emitted, aggregator.Process(newTestMessage(p))...)
+	}
+	emitted = append(emitted, aggregator.Flush()...)
+
+	// Behavioural assertion: the four parts are NOT collapsed into a
+	// single aggregated emission. We do not assert an exact emission
+	// count (the implementation is free to flush at any point along
+	// the way) — we assert that combination did not happen.
+	combined := `[{"a":1},{"b":2}]`
+	for _, m := range emitted {
+		assert.NotEqual(t, combined, string(m.GetContent()),
+			"top-level array split across messages must not be aggregated; "+
+				"see TopLevelArrayNotAggregated in json_aggregator.allium")
+		assert.NotContains(t, m.ParsingExtra.Tags, message.AggregatedJSONTag,
+			"no emission from a split top-level array should carry the aggregated JSON tag")
+	}
+
+	// The original part bytes must all appear somewhere in the
+	// emitted stream — nothing is silently dropped.
+	var emittedJoined strings.Builder
+	for _, m := range emitted {
+		emittedJoined.Write(m.GetContent())
+	}
+	joined := emittedJoined.String()
+	for _, p := range parts {
+		assert.Contains(t, joined, p,
+			"every input part must survive somewhere in the emitted output")
+	}
 }
 
 func TestJSONAggregatorMultilineStillWorks(t *testing.T) {

@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "eventdatafilter",
+    srcs = [
+        "config.go",
+        "filter.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check/eventdatafilter",
+    target_compatible_with = ["@platforms//os:windows"],  # keep
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil/eventlog/api",
+            "@com_github_masterminds_semver_v3//:semver",
+            "@in_yaml_go_yaml_v3//:yaml",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "eventdatafilter_test",
+    srcs = [
+        "config_test.go",
+        "filter_test.go",
+    ],
+    embed = [":eventdatafilter"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

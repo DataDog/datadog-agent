@@ -20,19 +20,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
@@ -54,7 +52,7 @@ type HostArtifactClient interface {
 type sshExecutor struct {
 	client     *ssh.Client
 	privileged *ssh.Client
-	context    common.Context
+	context    Context
 
 	username             string
 	privilegedUsername   string
@@ -78,7 +76,7 @@ type Host struct {
 
 // NewHost creates a new ssh client to connect to a remote host with
 // reconnect retry logic
-func NewHost(context common.Context, hostOutput remote.HostOutput) (*Host, error) {
+func NewHost(context Context, hostOutput remote.HostOutput) (*Host, error) {
 	var privateSSHKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StoreKey(hostOutput.CloudProvider+parameters.PrivateKeyPathSuffix), "")
@@ -132,7 +130,7 @@ func NewHost(context common.Context, hostOutput remote.HostOutput) (*Host, error
 
 // Reconnect closes the current ssh client and creates a new one, with retries.
 func (h *sshExecutor) Reconnect() error {
-	utils.Logf(h.context.T(), "Reconnecting to host")
+	h.context.Logf("Reconnecting to host")
 	if h.client != nil {
 		_ = h.client.Close()
 	}
@@ -148,7 +146,7 @@ func (h *sshExecutor) Reconnect() error {
 
 		privileged, err := getSSHClient(h.privilegedUsername, h.host, h.privateKey, h.privateKeyPassphrase)
 		if err != nil {
-			utils.Logf(h.context.T(), "Unable to create privileged SSH connection: %v", err)
+			h.context.Logf("Unable to create privileged SSH connection: %v", err)
 			// Ignore this error for now, since SSH connection as root are not enable on some providers
 		}
 		h.privileged = privileged
@@ -169,7 +167,7 @@ func (h *sshExecutor) Execute(command string, options ...ExecuteOption) (string,
 
 func (h *sshExecutor) executeAndReconnectOnError(command string) (string, error) {
 	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
-	utils.Logf(h.context.T(), "Executing command `%s`", scrubbedCommand)
+	h.context.Logf("Executing command `%s`", scrubbedCommand)
 	stdout, err := execute(h.client, command)
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
 		err = h.Reconnect()
@@ -196,7 +194,7 @@ func (h *sshExecutor) Start(command string, options ...ExecuteOption) (*ssh.Sess
 
 func (h *sshExecutor) startAndReconnectOnError(command string) (*ssh.Session, io.WriteCloser, io.Reader, error) {
 	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
-	utils.Logf(h.context.T(), "Executing command `%s`", scrubbedCommand)
+	h.context.Logf("Executing command `%s`", scrubbedCommand)
 	session, stdin, stdout, err := start(h.client, command)
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
 		err = h.Reconnect()
@@ -211,36 +209,58 @@ func (h *sshExecutor) startAndReconnectOnError(command string) (*ssh.Session, io
 // MustExecute executes a command and requires no error.
 func (h *sshExecutor) MustExecute(command string, options ...ExecuteOption) string {
 	stdout, err := h.Execute(command, options...)
-	require.NoError(h.context.T(), err)
+	if err != nil {
+		h.context.FailNow("%v", err)
+	}
+	return stdout
+}
+
+// MustExecuteOn runs Execute and requires no error on tb.
+//
+// Use this instead of [sshExecutor.MustExecute] inside require.EventuallyWithT (or similar) when the
+// closure receives a *assert.CollectT: [MustExecute] fails via the suite context and aborts the
+// whole test on the first error instead of letting the poll retry.
+//
+// tb must satisfy [require.TestingT] (e.g. *testing.T or *assert.CollectT).
+func (h *sshExecutor) MustExecuteOn(tb require.TestingT, command string, options ...ExecuteOption) string {
+	if hh, ok := tb.(interface{ Helper() }); ok {
+		hh.Helper()
+	}
+	stdout, err := h.Execute(command, options...)
+	require.NoError(tb, err)
 	return stdout
 }
 
 // CopyFileFromFS creates a sftp session and copy a single embedded file to the remote host through SSH
 func (h *Host) CopyFileFromFS(fs fs.FS, src, dst string) {
-	utils.Logf(h.context.T(), "Copying file from local %s to remote %s", src, dst)
+	h.context.Logf("Copying file from local %s to remote %s", src, dst)
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
 	file, err := fs.Open(src)
-	require.NoError(h.context.T(), err)
+	if err != nil {
+		h.context.FailNow("%v", err)
+	}
 	defer file.Close()
-	err = copyFileFromIoReader(sftpClient, file, dst)
-	require.NoError(h.context.T(), err)
+	if err = copyFileFromIoReader(sftpClient, file, dst); err != nil {
+		h.context.FailNow("%v", err)
+	}
 }
 
 // CopyFile creates a sftp session and copy a single file to the remote host through SSH
 func (h *Host) CopyFile(src string, dst string) {
-	utils.Logf(h.context.T(), "Copying file from local %s to remote %s", src, dst)
+	h.context.Logf("Copying file from local %s to remote %s", src, dst)
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
-	err := copyFile(sftpClient, src, dst)
-	require.NoError(h.context.T(), err)
+	if err := copyFile(sftpClient, src, dst); err != nil {
+		h.context.FailNow("%v", err)
+	}
 }
 
 // CopyFolder create a sftp session and copy a folder to remote host through SSH
 func (h *Host) CopyFolder(srcFolder string, dstFolder string) error {
-	utils.Logf(h.context.T(), "Copying folder from local %s to remote %s", srcFolder, dstFolder)
+	h.context.Logf("Copying folder from local %s to remote %s", srcFolder, dstFolder)
 	dstFolder = h.convertPathSeparator(dstFolder)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -249,7 +269,7 @@ func (h *Host) CopyFolder(srcFolder string, dstFolder string) error {
 
 // FileExists create a sftp session to and returns true if the file exists and is a regular file
 func (h *Host) FileExists(path string) (bool, error) {
-	utils.Logf(h.context.T(), "Checking if file exists: %s", path)
+	h.context.Logf("Checking if file exists: %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -279,7 +299,7 @@ func (h *Host) EnsureFileIsReadable(path string) error {
 
 // GetFile create a sftp session and copy a single file from the remote host through SSH
 func (h *Host) GetFile(src string, dst string) error {
-	utils.Logf(h.context.T(), "Copying file from remote %s to local %s", src, dst)
+	h.context.Logf("Copying file from remote %s to local %s", src, dst)
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -288,7 +308,7 @@ func (h *Host) GetFile(src string, dst string) error {
 
 // GetFolder create a sftp session and copy a folder from the remote host through SSH
 func (h *Host) GetFolder(srcFolder string, dstFolder string) error {
-	utils.Logf(h.context.T(), "Copying folder from remote %s to local %s", srcFolder, dstFolder)
+	h.context.Logf("Copying folder from remote %s to local %s", srcFolder, dstFolder)
 	srcFolder = h.convertPathSeparator(srcFolder)
 	dstFolder = h.convertPathSeparator(dstFolder)
 	sftpClient := h.getSFTPClient()
@@ -297,7 +317,7 @@ func (h *Host) GetFolder(srcFolder string, dstFolder string) error {
 }
 
 func (h *Host) readFileWithClient(sftpClient *sftp.Client, path string) ([]byte, error) {
-	utils.Logf(h.context.T(), "Reading file with client at %s", path)
+	h.context.Logf("Reading file with client at %s", path)
 	path = h.convertPathSeparator(path)
 	defer sftpClient.Close()
 
@@ -317,19 +337,19 @@ func (h *Host) readFileWithClient(sftpClient *sftp.Client, path string) ([]byte,
 
 // ReadFile reads the content of the file, return bytes read and error if any
 func (h *Host) ReadFile(path string) ([]byte, error) {
-	utils.Logf(h.context.T(), "Reading file at %s", path)
+	h.context.Logf("Reading file at %s", path)
 	return h.readFileWithClient(h.getSFTPClient(), path)
 }
 
 // ReadFilePrivileged reads the content of the file with a privileged user, return bytes read and error if any
 func (h *Host) ReadFilePrivileged(path string) ([]byte, error) {
-	utils.Logf(h.context.T(), "Reading file with privileges at %s", path)
+	h.context.Logf("Reading file with privileges at %s", path)
 	return h.readFileWithClient(h.getSFTPPrivilegedClient(), path)
 }
 
 // WriteFile write content to the file and returns the number of bytes written and error if any
 func (h *Host) WriteFile(path string, content []byte) (int64, error) {
-	utils.Logf(h.context.T(), "Writing to file at %s", path)
+	h.context.Logf("Writing to file at %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -346,7 +366,7 @@ func (h *Host) WriteFile(path string, content []byte) (int64, error) {
 
 // AppendFile append content to the file and returns the number of bytes appened and error if any
 func (h *Host) AppendFile(os, path string, content []byte) (int64, error) {
-	utils.Logf(h.context.T(), "Appending to file at %s", path)
+	h.context.Logf("Appending to file at %s", path)
 	path = h.convertPathSeparator(path)
 	if os == "linux" {
 		return h.appendWithSudo(path, content)
@@ -356,7 +376,7 @@ func (h *Host) AppendFile(os, path string, content []byte) (int64, error) {
 
 // ReadDir returns list of directory entries in path
 func (h *Host) ReadDir(path string) ([]fs.DirEntry, error) {
-	utils.Logf(h.context.T(), "Reading filesystem at %s", path)
+	h.context.Logf("Reading filesystem at %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 
@@ -378,7 +398,7 @@ func (h *Host) ReadDir(path string) ([]fs.DirEntry, error) {
 
 // FindFiles returns a list of files with a given name
 func (h *Host) FindFiles(name string) ([]string, error) {
-	h.context.T().Logf("Finding files with name %s", name)
+	h.context.Logf("Finding files with name %s", name)
 	switch h.osFamily {
 	case oscomp.WindowsFamily:
 		out, err := h.Execute("Get-ChildItem -Path C:\\ -Filter " + name)
@@ -400,7 +420,7 @@ func (h *Host) FindFiles(name string) ([]string, error) {
 // Lstat returns a FileInfo structure describing path.
 // if path is a symbolic link, the FileInfo structure describes the symbolic link.
 func (h *Host) Lstat(path string) (fs.FileInfo, error) {
-	utils.Logf(h.context.T(), "Reading file info of %s", path)
+	h.context.Logf("Reading file info of %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -412,7 +432,7 @@ func (h *Host) Lstat(path string) (fs.FileInfo, error) {
 // If the path is already a directory, does nothing and returns nil.
 // Otherwise returns an error if any.
 func (h *Host) MkdirAll(path string) error {
-	utils.Logf(h.context.T(), "Creating directory %s", path)
+	h.context.Logf("Creating directory %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -423,7 +443,7 @@ func (h *Host) MkdirAll(path string) error {
 // Remove removes the specified file or directory.
 // Returns an error if file or directory does not exist, or if the directory is not empty.
 func (h *Host) Remove(path string) error {
-	utils.Logf(h.context.T(), "Removing %s", path)
+	h.context.Logf("Removing %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -434,7 +454,7 @@ func (h *Host) Remove(path string) error {
 // RemoveAll recursively removes all files/folders in the specified directory.
 // Returns an error if the directory does not exist.
 func (h *Host) RemoveAll(path string) error {
-	utils.Logf(h.context.T(), "Removing all under %s", path)
+	h.context.Logf("Removing all under %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -444,7 +464,7 @@ func (h *Host) RemoveAll(path string) error {
 
 // DialPort creates a connection from the remote host to its `port`.
 func (h *Host) DialPort(port uint16) (net.Conn, error) {
-	utils.Logf(h.context.T(), "Creating connection to host port %d", port)
+	h.context.Logf("Creating connection to host port %d", port)
 	address := fmt.Sprintf("127.0.0.1:%d", port)
 	protocol := "tcp"
 	// TODO add context to host
@@ -552,10 +572,15 @@ func (h *Host) appendWithSftp(path string, content []byte) (int64, error) {
 func (h *Host) getSFTPClient() *sftp.Client {
 	sftpClient, err := sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
 	if err != nil {
-		err = h.Reconnect()
-		require.NoError(h.context.T(), err)
+		if err = h.Reconnect(); err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 		sftpClient, err = sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
-		require.NoError(h.context.T(), err)
+		if err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 	}
 	return sftpClient
 }
@@ -563,16 +588,20 @@ func (h *Host) getSFTPClient() *sftp.Client {
 func (h *Host) getSFTPPrivilegedClient() *sftp.Client {
 	if h.privileged == nil {
 		// Some cloud provider don't provide SSH connection as root (GCP) required for these file operations
-		utils.Logf(h.context.T(), "Can't SFTP files without a privileged SSH connection")
-		h.context.T().Fail()
+		h.context.FailNow("can't SFTP files without a privileged SSH connection")
 		return nil
 	}
 	sftpClient, err := sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
 	if err != nil {
-		err = h.Reconnect()
-		require.NoError(h.context.T(), err)
+		if err = h.Reconnect(); err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 		sftpClient, err = sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
-		require.NoError(h.context.T(), err)
+		if err != nil {
+			h.context.FailNow("%v", err)
+			return nil
+		}
 	}
 	return sftpClient
 }

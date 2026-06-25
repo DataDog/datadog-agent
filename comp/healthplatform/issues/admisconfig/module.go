@@ -9,9 +9,11 @@
 package admisconfig
 
 import (
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 func init() {
@@ -30,17 +32,20 @@ func NewModule(config.Component) issues.Module {
 	}
 }
 
-// IssueID returns the unique identifier for this issue type
-func (m *adMisconfigurationModule) IssueID() string {
-	return healthplatform.ADMisconfigurationIssueID
+func (m *adMisconfigurationModule) IssueName() string {
+	return storedef.ADMisconfigurationIssueName
 }
 
-// IssueTemplate returns the template for building complete issues
-func (m *adMisconfigurationModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
+func (m *adMisconfigurationModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return m.template.BuildIssue(context)
 }
 
-// BuiltInCheck returns nil - annotation errors are reported by the container config provider
-func (m *adMisconfigurationModule) BuiltInCheck() *issues.BuiltInCheck {
+// BuiltInPeriodicHealthCheck returns nil - annotation errors are reported by the container config provider
+func (m *adMisconfigurationModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return nil
+}
+
+// BuiltInStartupHealthCheck returns nil - no startup-time check for this module
+func (m *adMisconfigurationModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return nil
 }

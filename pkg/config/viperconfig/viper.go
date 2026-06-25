@@ -8,6 +8,7 @@ package viperconfig
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -141,11 +142,11 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 }
 
-// SetWithoutSource sets the given value using source Unknown, may only be called from tests
-func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
-	c.assertIsTest("SetWithoutSource")
+// SetInTest sets the given value using source Unknown, may only be called from tests
+func (c *safeConfig) SetInTest(key string, value interface{}) {
+	c.assertIsTest("SetInTest")
 	if !basic.ValidateBasicTypes(value) {
-		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
+		panic(fmt.Errorf("SetInTest can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
 }
@@ -288,22 +289,36 @@ func (c *safeConfig) ParseEnvAsMapStringInterface(key string, fn func(string) ma
 	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
-func (c *safeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
-	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
+// ParseEnvSplitComma registers a transformer function to parse an environment variable as a comma-separated list of strings.
+func (c *safeConfig) ParseEnvSplitComma(key string) {
+	c.setEnvTransformer(key, func(data string) interface{} {
+		if data == "" {
+			return []string(nil)
+		}
+		return strings.Split(data, ",")
+	})
 }
 
-// ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
-// []interface{}.
-func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
-	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
+// ParseEnvSplitSpace registers a transformer function to parse an environment variable as a space-separated list of strings.
+func (c *safeConfig) ParseEnvSplitSpace(key string) {
+	c.setEnvTransformer(key, func(data string) interface{} {
+		if data == "" {
+			return []string(nil)
+		}
+		return strings.Split(data, " ")
+	})
 }
 
-// IsSet wraps Viper for concurrent access
-func (c *safeConfig) IsSet(key string) bool {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.IsSet(key)
+// ParseEnvJSON registers a transformer function to parse an environment variable as a JSON payload into varType.
+func (c *safeConfig) ParseEnvJSON(key string, varType any) {
+	t := reflect.TypeOf(varType)
+	c.setEnvTransformer(key, func(data string) interface{} {
+		res := reflect.New(t).Interface()
+		if err := json.Unmarshal([]byte(data), res); err != nil {
+			log.Errorf(`"%s" can not be parsed: %v`, key, err)
+		}
+		return reflect.ValueOf(res).Elem().Interface()
+	})
 }
 
 // IsConfigured returns true if a settings was configured by the user (ie: the value doesn't come from defaults)
@@ -665,8 +680,8 @@ func (c *safeConfig) mergeWithEnvPrefix(key string) string {
 	return strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
 }
 
-// BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *safeConfig) BindEnv(key string, envvars ...string) {
+// bindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
+func (c *safeConfig) bindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 	var envKeys []string
@@ -701,8 +716,8 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 	}
 
 	newKeys := append([]string{key}, envvars...)
-	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	_ = c.Viper.BindEnv(newKeys...)                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...)
+	_ = c.Viper.BindEnv(newKeys...)
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -997,7 +1012,7 @@ func (c *safeConfig) GetEnvVars() []string {
 // BindEnvAndSetDefault implements the Config interface
 func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.SetDefault(key, val)
-	c.BindEnv(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
+	c.bindEnv(key, envvars...)
 }
 
 func (c *safeConfig) Warnings() *model.Warnings {

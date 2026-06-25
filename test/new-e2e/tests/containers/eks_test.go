@@ -249,6 +249,7 @@ func (suite *eksSuite) TestNginxFargate() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^cluster_name:`,
+				`^http_status_code:200$`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
 				"^kube_distribution:eks$",

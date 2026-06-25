@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed an issue where the Cluster Agent could fail to schedule Prometheus
+    checks for Kubernetes Services newly annotated with ``prometheus.io/scrape``
+    until the Cluster Agent was restarted or the backing workload was scaled.

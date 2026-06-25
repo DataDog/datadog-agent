@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && test
+//go:build linux && systemprobechecks && test
 
 package process
 
@@ -380,8 +380,8 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.NewMock(t)
-			cfg.SetWithoutSource("process_config.process_collection.enabled", false)
-			cfg.SetWithoutSource("language_detection.enabled", false)
+			cfg.SetInTest("process_config.process_collection.enabled", false)
+			cfg.SetInTest("language_detection.enabled", false)
 
 			c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
 
@@ -444,6 +444,33 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			// since they only get created when services are successfully discovered
 		})
 	}
+}
+
+// syncProcessCollection runs a single synchronous process collection and
+// notifies the store, bypassing the async collectProcesses goroutine.
+// This ensures lastCollectedProcesses is populated before Start() launches
+// the service collection goroutine that depends on it.
+func syncProcessCollection(c collectorTest) {
+	event := c.collector.collectProcessesOnce()
+	if event == nil {
+		return
+	}
+	events := make([]workloadmeta.CollectorEvent, 0, len(event.Created)+len(event.Deleted))
+	for _, proc := range event.Deleted {
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: proc,
+			Source: workloadmeta.SourceProcessCollector,
+		})
+	}
+	for _, proc := range event.Created {
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: proc,
+			Source: workloadmeta.SourceProcessCollector,
+		})
+	}
+	c.mockStore.Notify(events)
 }
 
 func TestServiceStoreLifetime(t *testing.T) {
@@ -581,11 +608,11 @@ func TestServiceStoreLifetime(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.NewMock(t)
-			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-			cfg.SetWithoutSource("language_detection.enabled", true)
+			cfg.SetInTest("process_config.process_collection.enabled", true)
+			cfg.SetInTest("language_detection.enabled", true)
 			// setting process collection interval to the same as the service collection interval
 			// because it makes the test simpler until the service collection interval is configurable
-			cfg.SetWithoutSource("process_config.intervals.process", collectionIntervalSeconds)
+			cfg.SetInTest("process_config.intervals.process", collectionIntervalSeconds)
 
 			// Collector setup
 			c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
@@ -651,6 +678,11 @@ func TestServiceStoreLifetime(t *testing.T) {
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Maybe()
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
 
+			// Synchronously populate lastCollectedProcesses and store before
+			// Start() so the service collection goroutine sees process data
+			// on its first tick, eliminating the race between goroutines.
+			syncProcessCollection(c)
+
 			err := c.collector.Start(ctx, c.mockStore)
 			assert.NoError(t, err)
 
@@ -684,11 +716,11 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 	}
 
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-	cfg.SetWithoutSource("language_detection.enabled", true)
+	cfg.SetInTest("process_config.process_collection.enabled", true)
+	cfg.SetInTest("language_detection.enabled", true)
 	// setting process collection interval to the same as the service collection interval
 	// because it makes the test simpler until the service collection interval is configurable
-	cfg.SetWithoutSource("process_config.intervals.process", collectionIntervalSeconds)
+	cfg.SetInTest("process_config.intervals.process", collectionIntervalSeconds)
 
 	c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
 
@@ -713,8 +745,12 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 
 	c.collector.store = c.mockStore
 
-	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(nil, nil).Times(2)
-	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(2)
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(nil, nil).Times(3)
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(3)
+
+	// Synchronously populate lastCollectedProcesses before Start() to
+	// avoid the race between process and service collection goroutines.
+	syncProcessCollection(c)
 
 	err := c.collector.Start(ctx, c.mockStore)
 	assert.NoError(t, err)

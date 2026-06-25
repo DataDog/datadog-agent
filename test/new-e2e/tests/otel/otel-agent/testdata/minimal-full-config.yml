@@ -86,7 +86,7 @@ extensions:
     gateway_destination: ""
     gateway_service: ""
     hostname: ""
-    installation_method: "" # TODO: change to "helm" after helm chart version bump
+    installation_method: kubernetes
     http:
       cors: null
       endpoint: localhost:9875
@@ -145,7 +145,7 @@ processors:
     allow_hostname_override: false
     cardinality: 0
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
-    error_mode: propagate
+    error_mode: ignore
     log_conditions: []
     logs:
       exclude: null
@@ -324,3 +324,5 @@ service:
                 without_scope_info: true
                 without_type_suffix: true
                 without_units: true
+    resource:
+      schema_url: https://opentelemetry.io/schemas/1.40.0

@@ -14,7 +14,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -31,6 +31,10 @@ const (
 	PodAnnotationSource ErrorSource = "pod_annotation"
 	// TemplateResolutionSource indicates errors from template variable resolution failures
 	TemplateResolutionSource ErrorSource = "template_resolution"
+	// KubeServiceAnnotationSource indicates errors from Kubernetes service annotations (ad.datadoghq.com/service.*)
+	KubeServiceAnnotationSource ErrorSource = "kube_service_annotation"
+	// KubeEndpointAnnotationSource indicates errors from Kubernetes endpoint annotations (ad.datadoghq.com/endpoints.*)
+	KubeEndpointAnnotationSource ErrorSource = "kube_endpoint_annotation"
 )
 
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance

@@ -248,14 +248,28 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			}},
 
 			// Mount probes
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
+			// The following functions may be inlined, partially inlined, or rewritten as ISRA clones.
+			// A OneOf selector is insufficient here, as some symbols may still be present even when the
+			// corresponding code has effectively been inlined, making the hook point ineffective.
+			// Therefore, we use a best-effort selector to ensure that mount operations
+			// are captured regardless of which hook point is used.
+			// Event deduplication is handled in the C code to prevent the same mount operation from being
+			// processed multiple times.
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_attach_recursive_mnt"),
 				hookFunc("hook_propagate_mnt"),
+				hookFunc("hook_attach_mnt"),
+				hookFunc("hook___attach_mnt"),
+				hookFunc("hook_make_visible"),
+				hookFunc("hook_mnt_set_mountpoint"),
+			}},
+			// The previous considerations do not apply to this mount hook point.
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_sb_umount"),
 				hookFunc("hook_clone_mnt"),
-				hookFunc("rethook_clone_mnt"),
 				hookFunc("hook_mnt_change_mountpoint"),
 				hookFunc("hook_cleanup_mnt"),
+				hookFunc("rethook_clone_mnt"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				hookFunc("rethook_alloc_vfsmnt"),
@@ -267,12 +281,6 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "umount", hasFentry, Exit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", hasFentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "pivot_root", hasFentry, EntryAndExit)},
-			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_attach_mnt"),
-				hookFunc("hook___attach_mnt"),
-				hookFunc("hook_make_visible"),
-				hookFunc("hook_mnt_set_mountpoint"),
-			}},
 
 			// Rename probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -556,6 +564,10 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("rethook_io_connect"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "connect", hasFentry, EntryAndExit)},
+		},
+		// List of probes required to capture socket events
+		"socket": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "socket", hasFentry, EntryAndExit)},
 		},
 
 		// List of probes required to capture chdir events

@@ -11,7 +11,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 
 	"go.uber.org/fx"
 
@@ -68,8 +70,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdStatsCmd}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+func requestDogstatsdStats(_ log.Component, _ config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string
@@ -77,7 +78,7 @@ func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%s/agent/dogstatsd-stats", net.JoinHostPort(ipcAddress, strconv.Itoa(pkgconfigsetup.Datadog().GetInt("cmd_port"))))
 
 	r, e := client.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
 	if e != nil {

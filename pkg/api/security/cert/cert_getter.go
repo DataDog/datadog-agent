@@ -40,6 +40,20 @@ func getCertFilepath(config configModel.Reader) string {
 	return filepath.Join(filepath.Dir(config.ConfigFileUsed()), defaultCertFileName)
 }
 
+// PersistCertFilepath stores the resolved ipc_cert_file_path back into the config when the
+// setting was left at its empty default, so the configstream snapshot carries a concrete
+// absolute path that remote agents can resolve regardless of their own cwd.
+func PersistCertFilepath(config configModel.ReaderWriter) {
+	if config.GetString("ipc_cert_file_path") != "" {
+		return
+	}
+	resolved := getCertFilepath(config)
+	if abs, err := filepath.Abs(resolved); err == nil {
+		resolved = abs
+	}
+	config.Set("ipc_cert_file_path", resolved, configModel.SourceConfigPostInit)
+}
+
 type certificateFactory struct {
 	caCert             *x509.Certificate
 	caPrivKey          any // x509.ParsePKCS8PrivateKey returns as the private key any, and x509.CreateCertificate takes any as the private key argument
@@ -128,6 +142,20 @@ func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader) (*tls.
 		return nil, nil, nil, fmt.Errorf("error while setting TLS configs: %w", err)
 	}
 	return clientConfig, serverConfig, clusterClientConfig, err
+}
+
+// LoadClientTLSConfigFromPath reads the PEM at certPath and returns a client TLS config.
+// No config component, no cluster CA handling — for callers that already know the path.
+func LoadClientTLSConfigFromPath(certPath string) (*tls.Config, error) {
+	cert, err := filesystem.TryFetchArtifact(certPath, &certificateFactory{})
+	if err != nil {
+		return nil, fmt.Errorf("read IPC cert at %s: %w", certPath, err)
+	}
+	clientConfig, _, err := GetTLSConfigFromCert(cert.cert, cert.key)
+	if err != nil {
+		return nil, fmt.Errorf("build client TLS config: %w", err)
+	}
+	return clientConfig, nil
 }
 
 // GetTLSConfigFromCert returns the TLS configs for the client and server using the provided IPC certificate and key.

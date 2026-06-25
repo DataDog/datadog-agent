@@ -7,7 +7,6 @@ package structure
 
 import (
 	"bytes"
-	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -45,7 +44,7 @@ type trapsConfig struct {
 // we can't use pkg/config/mock here because that package depends upon this one, so
 // this avoids a circular dependency
 func newEmptyMockConf(_ *testing.T) model.BuildableConfig {
-	cfg := create.NewConfig("test", "")
+	cfg := create.NewConfig("test")
 	cfg.SetTestOnlyDynamicSchema(true)
 	return cfg
 }
@@ -1502,13 +1501,7 @@ func TestUnmarshalKeyOnSliceOfMap(t *testing.T) {
 	mockConfig := newEmptyMockConf(t)
 
 	mockConfig.BindEnvAndSetDefault("test_value", []map[string]int{})
-	mockConfig.ParseEnvAsSliceMapString("test_value", func(in string) []map[string]string {
-		var out []map[string]string
-		if err := json.Unmarshal([]byte(in), &out); err != nil {
-			require.FailNow(t, "can not parse JSON")
-		}
-		return out
-	})
+	mockConfig.ParseEnvJSON("test_value", []map[string]string{})
 
 	mockConfig.BuildSchema()
 
@@ -1537,4 +1530,34 @@ some_config:
 	err := UnmarshalKey(mockConfig, "some_config", &res)
 	assert.NoError(t, err)
 	assert.Equal(t, map[ResourceType]string{"memory": "5g"}, res.Resources)
+}
+
+func TestUnmarshalKeyIntSliceFromEnv(t *testing.T) {
+	const key = "my_feature.ports"
+	const envVar = "DD_MY_FEATURE_PORTS"
+
+	build := func(t *testing.T, env string) model.Config {
+		t.Setenv(envVar, env)
+		return constructNtmConfig("", false, func(cfg model.Setup) {
+			cfg.BindEnvAndSetDefault(key, []int{53})
+		})
+	}
+
+	for _, tc := range []struct {
+		name string
+		env  string
+		want []int
+	}{
+		{"space-separated", "53 5353", []int{53, 5353}},
+		{"single", "5353", []int{5353}},
+		{"json", "[53,5353]", []int{53, 5353}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := build(t, tc.env)
+			var got []int
+			err := UnmarshalKey(cfg, key, &got)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }

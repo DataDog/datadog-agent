@@ -42,59 +42,60 @@ func TestExtractPath(t *testing.T) {
 }
 
 func TestWrapWithRouteTemplate(t *testing.T) {
-	testCases := []struct {
-		prefix   string
-		template string
-		expected string
-	}{
-		{"", "/test", "/test"},
-		{"", "/test/", "/test/"},
-		{"", "/test/{id}", "/test/{id}"},
-		{"/agent", "/{component}/status", "/agent/{component}/status"},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.expected, func(t *testing.T) {
+	for _, template := range []string{"/test", "/test/", "/test/{id}"} {
+		t.Run(template, func(t *testing.T) {
 			var capturedTemplate string
-			handler := WrapWithRouteTemplate(tc.prefix, tc.template, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			mux := http.NewServeMux()
+			WrapWithRouteTemplate(mux, "GET", template, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok {
 					capturedTemplate = capture.template
 				}
 			}))
 
-			r, capture := withRouteCapture(httptest.NewRequest("GET", "http://agent.host/test", nil))
-			handler.ServeHTTP(httptest.NewRecorder(), r)
+			r, capture := withRouteCapture(httptest.NewRequest("GET", "http://agent.host"+template, nil))
+			mux.ServeHTTP(httptest.NewRecorder(), r)
 
-			assert.Equal(t, tc.expected, capture.template)
-			assert.Equal(t, tc.expected, capturedTemplate)
+			assert.Equal(t, template, capture.template)
+			assert.Equal(t, template, capturedTemplate)
 		})
 	}
 
 	t.Run("no capture in context is a no-op", func(t *testing.T) {
 		called := false
-		handler := WrapWithRouteTemplate("", "/test", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mux := http.NewServeMux()
+		WrapWithRouteTemplate(mux, "GET", "/test", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			called = true
 			w.WriteHeader(http.StatusOK)
 		}))
 		req := httptest.NewRequest("GET", "http://agent.host/test", nil)
 		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
+		mux.ServeHTTP(rr, req)
 		assert.True(t, called)
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 }
 
-func TestSetRouteTemplate(t *testing.T) {
-	t.Run("fills capture when present", func(t *testing.T) {
-		r, capture := withRouteCapture(httptest.NewRequest("GET", "/", nil))
-		SetRouteTemplate(r, "/foo/{id}")
-		assert.Equal(t, "/foo/{id}", capture.template)
+func TestMountWithPrefix(t *testing.T) {
+	t.Run("prepends prefix to template set by inner handler", func(t *testing.T) {
+		inner := http.NewServeMux()
+		WrapWithRouteTemplate(inner, "GET", "/{path}", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		r, capture := withRouteCapture(httptest.NewRequest("GET", "http://host/config/v1/log_level", nil))
+		MountWithPrefix("/config/v1", inner).ServeHTTP(httptest.NewRecorder(), r)
+
+		assert.Equal(t, "/config/v1/{path}", capture.template)
 	})
 
-	t.Run("no-op when no capture in context", func(_ *testing.T) {
-		r := httptest.NewRequest("GET", "/", nil)
-		// must not panic
-		SetRouteTemplate(r, "/foo/{id}")
+	t.Run("no-op when inner sets no template", func(t *testing.T) {
+		inner := http.NewServeMux()
+		inner.HandleFunc("GET /plain", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+		r, capture := withRouteCapture(httptest.NewRequest("GET", "http://host/prefix/plain", nil))
+		MountWithPrefix("/prefix", inner).ServeHTTP(httptest.NewRecorder(), r)
+
+		assert.Equal(t, "", capture.template)
 	})
 }
 

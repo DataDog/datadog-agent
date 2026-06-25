@@ -1,0 +1,42 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "v1_proto",
+    srcs = ["api.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/datadog/autodiscovery:autodiscovery_proto",
+        "//pkg/proto/datadog/kubemetadata:kubemetadata_proto",
+        "//pkg/proto/datadog/model/v1:v1_proto",
+        "//pkg/proto/datadog/remoteagent:remoteagent_proto",
+        "//pkg/proto/datadog/remoteconfig:config_proto",
+        "//pkg/proto/datadog/workloadfilter:workloadfilter_proto",
+        "//pkg/proto/datadog/workloadmeta:workloadmeta_proto",
+        "@com_github_datadog_agent_payload_v5//proto/healthplatform:healthplatform_proto",
+        "@protobuf//:empty_proto",
+    ],
+)
+
+go_proto_library(
+    name = "v1_go_proto",
+    compilers = [
+        "@rules_go//proto:go_proto",
+        "//bazel/rules/go_proto_compiler:go_grpc_futureproof",
+    ],
+    importpath = "pkg/proto/pbgo/core",
+    proto = ":v1_proto",
+    tags = ["manual"],  # only for .pb.go files (target wouldn't compile due to sibling deps in the same Go package)
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/datadog/autodiscovery:autodiscovery_go_proto",
+        "//pkg/proto/datadog/kubemetadata:kubemetadata_go_proto",
+        "//pkg/proto/datadog/model/v1:v1_go_proto",
+        "//pkg/proto/datadog/remoteagent:core_go_proto",
+        "//pkg/proto/datadog/remoteconfig:config_go_proto",
+        "//pkg/proto/datadog/workloadfilter:workloadfilter_go_proto",
+        "//pkg/proto/datadog/workloadmeta:workloadmeta_go_proto",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+    ],
+)

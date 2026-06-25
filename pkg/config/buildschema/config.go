@@ -36,23 +36,15 @@ type SchemaBuilder interface {
 	GetSchema() map[string]interface{}
 }
 
-func (b *builder) GetLibType() string {
-	return "builder"
-}
-
 func (b *builder) GetSchema() map[string]interface{} {
 	return b.Schema
 }
 
 func (b *builder) SetDefault(key string, value interface{}) {
-	b.addToSchema(key, value, nil, true, false)
+	b.addToSchema(key, value, nil, true)
 }
 
 func (b *builder) SetEnvPrefix(_ string) {
-}
-
-func (b *builder) BindEnv(key string, envvars ...string) {
-	b.addToSchema(key, nil, envvars, false, true)
 }
 
 func (b *builder) ParseEnvAsStringSlice(_ string, _ func(string) []string) {
@@ -63,20 +55,27 @@ func (b *builder) ParseEnvAsMapStringInterface(_ string, _ func(string) map[stri
 	// pass
 }
 
-func (b *builder) ParseEnvAsSliceMapString(_ string, _ func(string) []map[string]string) {
-	// pass
+// ParseEnvSplitComma sets env_parser: comma_separated on the schema node for key.
+func (b *builder) ParseEnvSplitComma(key string) {
+	b.setEnvParser(key, "comma_separated")
 }
 
-func (b *builder) ParseEnvAsSlice(_ string, _ func(string) []interface{}) {
-	// pass
+// ParseEnvSplitSpace sets env_parser: space_separated on the schema node for key.
+func (b *builder) ParseEnvSplitSpace(key string) {
+	b.setEnvParser(key, "space_separated")
+}
+
+// ParseEnvJSON sets env_parser: json on the schema node for key.
+func (b *builder) ParseEnvJSON(key string, _ any) {
+	b.setEnvParser(key, "json")
 }
 
 func (b *builder) SetKnown(key string) {
-	b.addToSchema(key, nil, nil, true, true)
+	b.addToSchema(key, nil, nil, true)
 }
 
 func (b *builder) BindEnvAndSetDefault(key string, val interface{}, env ...string) {
-	b.addToSchema(key, val, env, false, false)
+	b.addToSchema(key, val, env, false)
 }
 
 func (b *builder) BuildSchema() {
@@ -237,11 +236,6 @@ func (b *builder) SetTestOnlyDynamicSchema(_ bool) {
 	b.notImplemented()
 }
 
-func (b *builder) IsSet(_ string) bool {
-	b.notImplemented()
-	return false
-}
-
 func (b *builder) IsConfigured(_ string) bool {
 	b.notImplemented()
 	return false
@@ -297,10 +291,10 @@ func (b *builder) Stringify(_ model.Source, _ ...model.StringifyOption) string {
 }
 
 func (b *builder) Set(_ string, _ interface{}, _ model.Source) {
-	b.notImplemented()
+	// pass
 }
 
-func (b *builder) SetWithoutSource(_ string, _ interface{}) {
+func (b *builder) SetInTest(_ string, _ interface{}) {
 	b.notImplemented()
 }
 

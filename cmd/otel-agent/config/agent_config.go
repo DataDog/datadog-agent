@@ -72,6 +72,16 @@ var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
 var ErrNoDDExporter = errors.New("no datadog exporter found")
 
+// otelAgentEnvVars lists DD_* environment variables that are consumed by the
+// otel-agent binary via CLI flags (envflag) rather than through the Datadog
+// config system. They are passed to LoadDatadog so findUnknownEnvVars does not
+// emit spurious "Unknown environment variable" warnings for them.
+var otelAgentEnvVars = []string{
+	"DD_SYNC_DELAY",
+	"DD_SYNC_TO",
+	"DD_CORE_CONFIG",
+}
+
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
 	if len(uris) == 0 {
@@ -83,7 +93,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	//
 	// TODO: should be migrated to a dedicated comp or flavor of the config comp
 	//
-	pkgconfigsetup.InitConfigObjects(ddCfg, "")
+	pkgconfigsetup.InitConfigObjects()
 
 	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
 	pkgconfig.SetConfigName("OTel")
@@ -103,7 +113,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, nil)
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, otelAgentEnvVars)
 		if err != nil {
 			return nil, err
 		}
@@ -183,6 +193,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if ddc.ClientConfig.TLS.InsecureSkipVerify {
 		pkgconfig.Set("skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	}
+
+	// The otel-agent forces zlib compression, which is incompatible with the v3
+	// metrics intake.
+	pkgconfig.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
+	pkgconfig.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)

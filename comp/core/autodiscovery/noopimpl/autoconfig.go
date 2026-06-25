@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
@@ -36,10 +36,6 @@ type noopAutoConfig struct{}
 func (n *noopAutoConfig) AddConfigProvider(types.ConfigProvider, bool, time.Duration) {}
 
 func (n *noopAutoConfig) LoadAndRun(context.Context) {}
-
-func (n *noopAutoConfig) GetAllConfigs() []integration.Config {
-	return []integration.Config{}
-}
 
 func (n *noopAutoConfig) GetUnresolvedConfigs() []integration.Config {
 	return []integration.Config{}

@@ -11,30 +11,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
 func TestReportIssueReturnsNilError(t *testing.T) {
 	provides := NewComponent()
-	report := &healthplatformpayload.IssueReport{IssueId: "test-issue"}
-	err := provides.Comp.ReportIssue("check-1", "mycheck", report)
-	require.NoError(t, err)
-}
-
-func TestReportIssueWithNilReportReturnsNilError(t *testing.T) {
-	provides := NewComponent()
-	err := provides.Comp.ReportIssue("check-1", "mycheck", nil)
-	require.NoError(t, err)
-}
-
-func TestRegisterCheckReturnsNilError(t *testing.T) {
-	provides := NewComponent()
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
-		return nil, nil
-	}
-	err := provides.Comp.RegisterCheck("check-1", "mycheck", checkFn, 0)
+	err := provides.Comp.ReportIssue(&healthplatformpayload.Issue{
+		Id:        "check-1:instance-1",
+		IssueName: "test-issue",
+		Source:    "mycheck",
+	})
 	require.NoError(t, err)
 }
 
@@ -46,9 +35,9 @@ func TestGetAllIssuesReturnsZeroCountAndEmptyMap(t *testing.T) {
 	assert.Empty(t, issues)
 }
 
-func TestGetIssueForCheckReturnsNil(t *testing.T) {
+func TestGetIssueReturnsNil(t *testing.T) {
 	provides := NewComponent()
-	issue := provides.Comp.GetIssueForCheck("any-check")
+	issue := provides.Comp.GetIssue("any-check")
 	assert.Nil(t, issue)
 }
 
@@ -84,9 +73,9 @@ func TestFlareProviderCallbackReturnsNil(t *testing.T) {
 func TestClearMethodsDoNotPanic(t *testing.T) {
 	provides := NewComponent()
 	assert.NotPanics(t, func() {
-		provides.Comp.ClearIssuesForCheck("check-1")
+		provides.Comp.ResolveIssue("check-1")
 	})
 	assert.NotPanics(t, func() {
-		provides.Comp.ClearAllIssues()
+		provides.Comp.ResolveAllIssues()
 	})
 }
