@@ -201,7 +201,7 @@ func (pb *payloadsBuilder) WriteDDSketch(meta metrics.DistributionMetadata, numP
 	const sketchHost = 2
 	// const sketchDistributions = 3
 	const sketchTags = 4
-	// const sketchDogsketches = 7
+	const sketchDogsketches = 7
 	const sketchMetadata = 8
 	// const distributionTs = 1
 	// const distributionCnt = 2
@@ -213,6 +213,14 @@ func (pb *payloadsBuilder) WriteDDSketch(meta metrics.DistributionMetadata, numP
 	// const distributionG = 8
 	// const distributionDelta = 9
 	// const distributionBuf = 10
+	const dogsketchTs = 1
+	const dogsketchCnt = 2
+	const dogsketchMin = 3
+	const dogsketchMax = 4
+	const dogsketchAvg = 5
+	const dogsketchSum = 6
+	const dogsketchK = 7
+	const dogsketchN = 8
 
 	const sketchMetadataOrigin = 1
 	//         |------| 'Metadata' message
@@ -236,15 +244,6 @@ func (pb *payloadsBuilder) WriteDDSketch(meta metrics.DistributionMetadata, numP
 
 	// protobuf field numbers for the dogsketch entries, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
-	const dogsketchTs = 1
-	const dogsketchCnt = 2
-	const dogsketchMin = 3
-	const dogsketchMax = 4
-	const dogsketchAvg = 5
-	const dogsketchSum = 6
-	const dogsketchK = 7
-	const dogsketchN = 8
-	const sketchDogsketches = 7
 
 	pb.sketchBuf.Reset()
 	pb.sketchPS.Reset(pb.sketchBuf)
