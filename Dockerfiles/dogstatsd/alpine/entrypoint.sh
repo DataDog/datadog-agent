@@ -18,4 +18,7 @@ fi
 
 ##### Starting up dogstatsd #####
 
-exec "$@"
+# Hand off to the s6-overlay init, which supervises dogstatsd and the (optional)
+# Agent Data Plane. Variables exported above are inherited by the supervised
+# services. `exec` replaces this shell so /init runs as PID 1.
+exec /init

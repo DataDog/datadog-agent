@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The standalone ``dogstatsd`` Docker image now bundles the Agent Data Plane
+    and supervises both processes with s6-overlay. The data plane runs alongside
+    ``dogstatsd`` and is a no-op until enabled: it exits immediately (and is
+    disabled by the supervisor) when ``data_plane.enabled`` is false (the
+    default). Set ``DD_DATA_PLANE_ENABLED=true`` (or ``data_plane.enabled: true``
+    in the config) to use it.
