@@ -23,7 +23,6 @@ go_library(
     srcs = [
         "ddnpmapi.h",
         "doc.go",
-        "driver_interface.go",
         "driver_windows.go",
         "flow_windows.go",
         "handle.go",
@@ -37,7 +36,6 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/impl",
-            "//pkg/network/config",
             "//pkg/util/log",
             "//pkg/util/winutil",
             "@org_golang_x_sys//windows",
@@ -49,19 +47,12 @@ go_library(
 
 go_test(
     name = "driver_test",
-    srcs = [
-        "driver_interface_fail_test.go",
-        "driver_interface_test.go",
-        "driver_test.go",
-    ],
+    srcs = ["driver_test.go"],
     embed = [":driver"],
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//comp/core/telemetry/def",
-            "//pkg/network/config",
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
