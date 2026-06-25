@@ -28,6 +28,7 @@ replace (
 	// replace go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog
 	// and run `go mod tidy` then `dda inv tidy`
 	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260615120033-4edb1d33d277
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor => github.com/mackjmr/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260625150400-2c6345cd98e3
 )
 
 require (

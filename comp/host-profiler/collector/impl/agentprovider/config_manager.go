@@ -28,6 +28,12 @@ type hpFlareConfig struct {
 	Port int
 }
 
+// k8sAttributesConfig holds configuration for the k8sattributes processor.
+type k8sAttributesConfig struct {
+	// KubeletMode uses the kubelet pod source instead of api_server with node filter (K8S_NODE_NAME).
+	KubeletMode bool
+}
+
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
 	DebugVerbosity        string
@@ -35,6 +41,7 @@ type hostProfilerConfig struct {
 	DDProfiling           ddProfilingConfig
 	HealthMetrics         healthMetricsConfig
 	HPFlare               hpFlareConfig
+	K8sAttributes         k8sAttributesConfig
 }
 
 type endpoint struct {
@@ -106,6 +113,9 @@ func newConfigManager(config config.Component) configManager {
 		},
 		HPFlare: hpFlareConfig{
 			Port: config.GetInt("hostprofiler.hpflare.port"),
+		},
+		K8sAttributes: k8sAttributesConfig{
+			KubeletMode: config.GetBool("hostprofiler.k8sattributes.kubelet_mode"),
 		},
 	}
 

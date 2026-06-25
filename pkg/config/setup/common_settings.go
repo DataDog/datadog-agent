@@ -1134,6 +1134,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
+	// kubelet_mode: use kubelet pod source instead of api_server with node filter (K8S_NODE_NAME env var)
+	config.BindEnvAndSetDefault("hostprofiler.k8sattributes.kubelet_mode", false)
 }
 
 func agent(config pkgconfigmodel.Setup) {
