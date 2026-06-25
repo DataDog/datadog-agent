@@ -26,7 +26,7 @@ go_library(
             "//pkg/util/winutil/eventlog/api/windows",
             "//pkg/util/winutil/eventlog/bookmark",
             "//pkg/util/winutil/eventlog/subscription",
-            "@com_github_cenkalti_backoff_v5//:backoff",
+            "@com_github_cenkalti_backoff_v6//:backoff",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

@@ -314,10 +314,9 @@ properties:
       When true (see `enabled` below), the Datadog process manager daemon (dd-procmgrd) is enabled for this host install.
       On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
       On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
-      this setting is ignored on Linux and does not enable or disable the systemd unit.
+      This setting is ignored on Linux and does not enable or disable the systemd unit.
     tags:
     - template_section:Common
-    - full-agent-only:true
     properties:
       enabled:
         node_type: setting
@@ -329,7 +328,9 @@ properties:
           On Linux, the process manager daemon is started by systemd; this option is ignored.
         tags:
         - template_section:Common
-        comment: Process manager
+        comment: |-
+          Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
+          On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
   tag_value_split_separator:
     node_type: setting
     type: object
@@ -473,6 +474,51 @@ properties:
     description: Forwarder timeout in seconds
     tags:
     - template_section:Common
+  use_v3_api:
+    node_type: section
+    type: object
+    visibility: public
+    description: Controls the use of the v3 metrics intake.
+    tags:
+    - template_section:Common
+    properties:
+      series:
+        node_type: section
+        type: object
+        visibility: public
+        description: Controls the use of the v3 metrics intake for non-distribution
+          metrics (series).
+        tags:
+        - template_section:Common
+        properties:
+          enabled:
+            node_type: setting
+            type: string
+            default: 'true'
+            visibility: public
+            description: |-
+              Global default for the non-distribution metrics intake version. Accepted values:
+                - true: v3 for every destination except Observability Pipelines Worker.
+                - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+                - false: v2 everywhere.
+            tags:
+            - template_section:Common
+          endpoints:
+            node_type: setting
+            type: object
+            default: {}
+            additionalProperties:
+              type: string
+            visibility: public
+            description: |-
+              Per-URL override map for non-distribution metrics intake version. The URL
+              must match exactly what was configured under `dd_url` or `additional_endpoints`.
+              Accepted values:
+                - true: v3 for every destination except Observability Pipelines Worker.
+                - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+                - false: v2 everywhere.
+            tags:
+            - template_section:Common
   forwarder_retry_queue_payloads_max_size:
     node_type: setting
     type: integer
@@ -1101,6 +1147,14 @@ properties:
             example: '"http://127.0.0.1:8080"'
             tags:
             - template_section:Common
+          use_v3_api:
+            node_type: section
+            type: object
+            properties:
+              series:
+                node_type: setting
+                type: boolean
+                default: false
       logs:
         node_type: section
         type: object
@@ -1712,24 +1766,6 @@ properties:
             tags:
             - template_section:CoreAgent
             comment: Network Path
-      netflow_monitoring:
-        node_type: section
-        type: object
-        description: '[experimental] Configurations for Network Path Dynamic Test for
-          monitoring NetFlow destinations via Network Path.'
-        tags:
-        - template_section:CoreAgent
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-            description: |-
-              [experimental] Enables Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
-              NetFlow destinations are monitored by IP. Enable `network_path.collector.monitor_ip_without_domain` to allow direct IP targets.
-            example: 'true'
-            tags:
-            - template_section:CoreAgent
       collector:
         node_type: section
         type: object
@@ -2040,6 +2076,14 @@ properties:
             node_type: setting
             type: integer
             default: 1
+      netflow_monitoring:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
@@ -2468,6 +2512,16 @@ properties:
     - template_section:Dogstatsd
     comment: How many metrics maximum in payloads sent by the no-aggregation pipeline
       to the intake.
+  dogstatsd_no_aggregation_pipeline_workers_count:
+    node_type: setting
+    type: integer
+    default: 1
+    visibility: public
+    description: How many workers are used by the no-aggregation pipeline.
+    tags:
+    - template_section:Dogstatsd
+    comment: How many workers are used by the no-aggregation pipeline. Default of
+      1 applies when the pipeline is enabled via dogstatsd_no_aggregation_pipeline.
   statsd_forward_host:
     node_type: setting
     type: string
@@ -2586,7 +2640,6 @@ properties:
     default: ${log_path}/jmxfetch.log
     visibility: public
     description: Path of the log file where JMXFetch logs are written.
-    example: <JMXFETCH_LOG_FILE_PATH>
     tags:
     - template_section:CoreAgent
   jmx_max_restarts:
@@ -2715,7 +2768,6 @@ properties:
     description: |-
       Path of the log file for the Datadog Agent.
       See https://docs.datadoghq.com/agent/guide/agent-log-files/
-    example: <AGENT_LOG_FILE_PATH>
     tags:
     - template_section:Logging
   log_format_json:
@@ -4262,7 +4314,7 @@ properties:
                     visibility: public
                     description: |-
                       Send pings in a privileged fashion using a raw socket.
-                      This may be required if your system doesn't support  sending pings in an unprivileged fashion (using a UDP
+                      This may be required if your system doesn't support sending pings in an unprivileged fashion (using a UDP
                       socket).
                       If `use_raw_socket` is set to true, you MUST also enable system-probe which has elevated privileges. To
                       enable it, see system-probe.yaml.example.
@@ -4495,7 +4547,7 @@ properties:
                   #         - "tagKey2:tagValue2"
                   #       disabled: true         # (optional) disables monitoring for matched interfaces, default value is false
 
-                  interface_config:
+                  interface_configs:
                     "10.0.0.1":
                       - match_field: name
                         match_value: eth0
@@ -4622,6 +4674,16 @@ properties:
               Binds to 0.0.0.0 by default (accepting all packets).
             tags:
             - template_section:CoreAgent
+          stop_timeout:
+            node_type: setting
+            type: integer
+            default: 5
+            visibility: public
+            description: The maximum number of seconds to wait for the trap server
+              to stop when the Agent shuts down.
+            tags:
+            - template_section:CoreAgent
+            comment: in seconds
           tags:
             node_type: setting
             type: array
@@ -4629,24 +4691,15 @@ properties:
             items:
               type: string
             visibility: public
-            description: A list of low-cardinality tags (e.g. application, team, environment) attached to every trap forwarded to Datadog and to every SNMP traps telemetry metric emitted by the Agent.
+            description: A list of low-cardinality tags (e.g. application, team, environment)
+              attached to every trap forwarded to Datadog and to every SNMP traps
+              telemetry metric emitted by the Agent.
             example: |2-
 
-                - "application:my-app"
-                - "team:netops"
+                - "application:<APPLICATION_ID>"
+                - "team:<TEAM_NAME>"
             tags:
             - template_section:CoreAgent
-          stop_timeout:
-            node_type: setting
-            type: integer
-            default: 5
-            visibility: public
-            description: |-
-              stop_timeout - float - optional - default: 5.0
-              The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
-            tags:
-            - template_section:CoreAgent
-            comment: in seconds
           forwarder:
             node_type: section
             type: object
@@ -4780,7 +4833,7 @@ properties:
                                          Default port differ by flow type: netflow5(2055), netflow9(2055), ipfix(4739), sflow5(6343)
                * bind_host    - string - (Optional) The hostname to listen on for incoming netflow packets.
                                          Binds to 0.0.0.0 by default (accepting all packets).
-               * workers      - string - (Optional) Number of workers to use for this listener.
+               * workers      - integer - (Optional) Number of workers to use for this listener.
                                          Defaults to 1.
                * mapping      - (Optional) List of NetflowV9/IPFIX fields to additionally collect.
                                            Defaults to None.
@@ -5215,7 +5268,7 @@ properties:
             - template_section:CoreAgent
           entry_ttl:
             node_type: setting
-            type: number
+            type: string
             default: 24h0m0s
             format: duration
             visibility: public
@@ -5227,7 +5280,7 @@ properties:
             - template_section:CoreAgent
           clean_interval:
             node_type: setting
-            type: number
+            type: string
             default: 2h0m0s
             format: duration
             visibility: public
@@ -5239,7 +5292,7 @@ properties:
             - template_section:CoreAgent
           persist_interval:
             node_type: setting
-            type: number
+            type: string
             default: 2h0m0s
             format: duration
             visibility: public
@@ -5324,7 +5377,7 @@ properties:
             - template_section:CoreAgent
           recovery_interval:
             node_type: setting
-            type: number
+            type: string
             default: 5s
             format: duration
             visibility: public
@@ -6006,114 +6059,6 @@ properties:
     node_type: section
     type: object
     properties:
-      logs:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: true
-            comment: Master switch for all log ingestion (internal, kubelet, containers).
-          internal:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: true
-                comment: Forward agent-internal log lines to the anomaly-detection observer.
-              min_severity:
-                node_type: setting
-                type: string
-                default: warn
-                comment: Minimum log level to forward (trace/debug/info/warn/error/critical). Logs below this level are dropped before rate-limiting.
-              max_rate_high_priority:
-                node_type: setting
-                type: number
-                default: -1
-                comment: Max logs/s for warn/error/critical. -1 = unlimited, 0 = drop all.
-                tags:
-                - golang_type:float64
-              max_rate_medium_priority:
-                node_type: setting
-                type: number
-                default: 100
-                comment: Max logs/s for info. -1 = unlimited, 0 = drop all.
-                tags:
-                - golang_type:float64
-              max_rate_low_priority:
-                node_type: setting
-                type: number
-                default: 1
-                comment: Max logs/s for trace/debug. -1 = unlimited, 0 = drop all.
-                tags:
-                - golang_type:float64
-          kubelet:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: true
-                comment: Forward kubelet journald logs to the anomaly-detection observer.
-              min_severity:
-                node_type: setting
-                type: string
-                default: warn
-                comment: Minimum log level to forward.
-              max_rate_high_priority:
-                node_type: setting
-                type: number
-                default: -1
-                tags:
-                - golang_type:float64
-              max_rate_medium_priority:
-                node_type: setting
-                type: number
-                default: 100
-                tags:
-                - golang_type:float64
-              max_rate_low_priority:
-                node_type: setting
-                type: number
-                default: 1
-                tags:
-                - golang_type:float64
-          containers:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: true
-                comment: Forward container logs to the anomaly-detection observer.
-              min_severity:
-                node_type: setting
-                type: string
-                default: warn
-                comment: Minimum log level to forward.
-              max_rate_high_priority:
-                node_type: setting
-                type: number
-                default: -1
-                tags:
-                - golang_type:float64
-              max_rate_medium_priority:
-                node_type: setting
-                type: number
-                default: 100
-                tags:
-                - golang_type:float64
-              max_rate_low_priority:
-                node_type: setting
-                type: number
-                default: 1
-                tags:
-                - golang_type:float64
       debug:
         node_type: section
         type: object
@@ -6139,31 +6084,60 @@ properties:
             node_type: section
             type: object
             properties:
+              alpha:
+                node_type: setting
+                type: number
+                default: 0.014
+                tags:
+                - golang_type:float64
               enabled:
                 node_type: setting
                 type: boolean
                 default: false
-              alpha:
-                node_type: setting
-                type: number
-                golang_type: float64
-                default: 0.014
-                comment: EWMA smoothing factor (0 < alpha < 1). Smaller values produce
-                  a slower-moving, more stable signal.
               saturation_k:
                 node_type: setting
                 type: number
-                golang_type: float64
-                default: 5.0
-                comment: Saturation cap in anomaly-count units. Limits the maximum
-                  contribution of a single second to the EWMA to avoid spikes dominating
-                  the signal.
+                default: 5
+                tags:
+                - golang_type:float64
               window_secs:
                 node_type: setting
                 type: integer
                 default: 15
                 comment: Sliding deduplication window in seconds. An anomaly series
                   is counted at most once per window.
+              low_threshold:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.040
+              high_threshold:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.060
+              margin_pct:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.20
+              cooldown_secs:
+                node_type: setting
+                type: integer
+                default: 300
+                comment: "Minimum seconds before the built-in helper subscription can de-escalate. Only used when helper.enabled is true."
+              helper:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+                  report_events:
+                    node_type: setting
+                    type: boolean
+                    default: false
           bocpd:
             node_type: section
             type: object
@@ -6279,6 +6253,119 @@ properties:
         default: false
         comment: Master switch. When false the entire anomaly detection subsystem
           is a no-op.
+      logs:
+        node_type: section
+        type: object
+        properties:
+          containers:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+                comment: unlimited
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Container log rate limits (enabled flag already set above).
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Log ingestion gate. When false, all log sources (container, kubelet, internal)
+              are not routed into the anomaly detection pipeline (recording is unaffected).
+          internal:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: |-
+                  Internal agent log tap.
+                  min_severity is the minimum level forwarded (logs below it are dropped before sampling).
+                  max_rate_* are in logs/second measured over a 10-second fixed window and apply
+                  after the min_severity gate. -1 means unlimited (no cap); 0 drops all logs of that priority.
+                  high_priority = warn/error/critical, medium_priority = info, low_priority = debug.
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+                comment: unlimited
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+          kubelet:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+                comment: unlimited
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Kubelet journald log rate limits (enabled flag already set
+                  above).
       metrics:
         node_type: section
         type: object
@@ -6325,7 +6412,8 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-                comment: Forward anomaly correlations as Datadog change events. Keep false during evaluation / shadow mode.
+                comment: Datadog event reporting. Keep false during evaluation / shadow
+                  mode.
           stdout:
             node_type: section
             type: object
@@ -6334,12 +6422,15 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-                comment: Set to false to silence all [observer] stdout log lines.
+                comment: |-
+                  Stdout reporting verbosity.
+                  stdout.enabled: set to false to silence all [observer] stdout log lines.
+                  stdout.verbose: set to true to print individual anomaly series after the title line.
+                  Default: title-only (stdout.enabled=true, stdout.verbose=false).
               verbose:
                 node_type: setting
                 type: boolean
                 default: false
-                comment: Set to true to print individual anomaly series lines after the title (one line per anomaly).
       storage:
         node_type: section
         type: object
@@ -6398,7 +6489,7 @@ properties:
     - full-agent-only:true
   auth_init_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 30s
     format: duration
     tags:
@@ -6508,6 +6599,10 @@ properties:
             node_type: section
             type: object
             properties:
+              disruption_tolerance_percent:
+                node_type: setting
+                type: integer
+                default: 15
               enabled:
                 node_type: setting
                 type: boolean
@@ -6552,14 +6647,14 @@ properties:
     default: false
   check_cancel_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 500ms
     format: duration
     tags:
     - golang_type:duration
   check_runner_utilization_monitor_interval:
     node_type: setting
-    type: number
+    type: string
     default: 1m0s
     format: duration
     tags:
@@ -6572,7 +6667,7 @@ properties:
     - golang_type:float64
   check_runner_utilization_warning_cooldown:
     node_type: setting
-    type: number
+    type: string
     default: 10m0s
     format: duration
     tags:
@@ -6606,7 +6701,7 @@ properties:
     - full-agent-only:true
   check_sampler_stateful_metric_expiration_time:
     node_type: setting
-    type: number
+    type: string
     default: 25h0m0s
     format: duration
     tags:
@@ -6618,21 +6713,21 @@ properties:
       only occasionally.
   check_system_probe_startup_time:
     node_type: setting
-    type: number
+    type: string
     default: 5m0s
     format: duration
     tags:
     - golang_type:duration
   check_system_probe_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 1m0s
     format: duration
     tags:
     - golang_type:duration
   check_watchdog_warning_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 0s
     format: duration
     tags:
@@ -6789,7 +6884,7 @@ properties:
   conf_path:
     node_type: setting
     type: string
-    default: .
+    default: /etc/datadog-agent
   config_files_discovery:
     node_type: section
     type: object
@@ -7083,6 +7178,22 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5101
+      stop_timeout:
+        node_type: setting
+        type: integer
+        default: 4
+        comment: |-
+          4 matches aggregator_stop_timeout + forwarder_stop_timeout (each defaults to 2 in seconds).
+          ComputeDataPlaneStopTimeout (post-load override) recomputes this at runtime so it tracks
+          any user-set values for aggregator_stop_timeout / forwarder_stop_timeout.
+      telemetry_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      telemetry_listen_addr:
+        node_type: setting
+        type: string
+        default: tcp://0.0.0.0:5102
       use_new_config_stream_endpoint:
         node_type: setting
         type: boolean
@@ -7689,7 +7800,7 @@ properties:
   dogstatsd_log_file:
     node_type: setting
     type: string
-    default: ''
+    default: /var/log/datadog/dogstatsd_info/dogstatsd-stats.log
     comment: Control how dogstatsd-stats logs can be generated
   dogstatsd_log_file_max_rolls:
     node_type: setting
@@ -7773,7 +7884,7 @@ properties:
     default: true
   dogstatsd_packet_buffer_flush_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 100ms
     format: duration
     tags:
@@ -7866,7 +7977,7 @@ properties:
     comment: EC2
   ecs_metadata_retry_initial_interval:
     node_type: setting
-    type: number
+    type: string
     default: 100ms
     format: duration
     tags:
@@ -7874,7 +7985,7 @@ properties:
     - full-agent-only:true
   ecs_metadata_retry_max_elapsed_time:
     node_type: setting
-    type: number
+    type: string
     default: 3s
     format: duration
     tags:
@@ -7888,7 +7999,7 @@ properties:
     - full-agent-only:true
   ecs_task_cache_ttl:
     node_type: setting
-    type: number
+    type: string
     default: 3m0s
     format: duration
     tags:
@@ -8135,7 +8246,7 @@ properties:
         default: 0
   expected_tags_duration:
     node_type: setting
-    type: number
+    type: string
     default: 0s
     format: duration
     tags:
@@ -8160,7 +8271,7 @@ properties:
     properties:
       profile_overhead_runtime:
         node_type: setting
-        type: number
+        type: string
         default: 10s
         format: duration
         tags:
@@ -8179,7 +8290,7 @@ properties:
             default: 0
           profile_duration:
             node_type: setting
-            type: number
+            type: string
             default: 30s
             format: duration
             tags:
@@ -8190,7 +8301,7 @@ properties:
         properties:
           duration:
             node_type: setting
-            type: number
+            type: string
             default: 1m0s
             format: duration
             tags:
@@ -8199,7 +8310,7 @@ properties:
     - full-agent-only:true
   flare_provider_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 10s
     format: duration
     tags:
@@ -8268,7 +8379,7 @@ properties:
   forwarder_storage_path:
     node_type: setting
     type: string
-    default: ''
+    default: /opt/datadog-agent/run/transactions_to_retry
     comment: Forwarder storage on disk
   genresources:
     node_type: section
@@ -8388,15 +8499,11 @@ properties:
         properties:
           interval:
             node_type: setting
-            type: number
-            default: 0s
+            type: string
+            default: 15m0s
             format: duration
             tags:
             - golang_type:duration
-      persist_on_kubernetes:
-        node_type: setting
-        type: boolean
-        default: false
       invalidconfig_check:
         node_type: section
         type: object
@@ -8404,9 +8511,17 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            # Disabled by default: loading the compiled core_schema.yaml retains ~8 MiB of heap
-            # permanently (sync.Once global). Enable only if startup schema validation is needed.
-            default: false
+            default: true
+            comment: |-
+              health_platform.invalidconfig_check.enabled is off by default because the check calls
+              schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
+              (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
+              This adds ~8 MiB of permanent heap even when the agent config is valid.
+              Enable it deliberately if you need schema validation at startup.
+      persist_on_kubernetes:
+        node_type: setting
+        type: boolean
+        default: false
   heroku_dyno:
     node_type: setting
     type: boolean
@@ -8416,7 +8531,7 @@ properties:
     comment: overridden in Heroku buildpack
   hostname_drift_initial_delay:
     node_type: setting
-    type: number
+    type: string
     default: 20m0s
     format: duration
     tags:
@@ -8427,7 +8542,7 @@ properties:
       These options are not exposed to customers and are used for testing purposes
   hostname_drift_recurring_interval:
     node_type: setting
-    type: number
+    type: string
     default: 6h0m0s
     format: duration
     tags:
@@ -8516,7 +8631,7 @@ properties:
     - full-agent-only:true
   http_dial_fallback_delay:
     node_type: setting
-    type: number
+    type: string
     default: -1ns
     format: duration
     tags:
@@ -8551,7 +8666,7 @@ properties:
     properties:
       gc_interval:
         node_type: setting
-        type: number
+        type: string
         default: 1h0m0s
         format: duration
         tags:
@@ -8562,7 +8677,7 @@ properties:
         default: ''
       refresh_interval:
         node_type: setting
-        type: number
+        type: string
         default: 30s
         format: duration
         tags:
@@ -8979,6 +9094,14 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  kubernetes_apiserver_client_burst:
+    node_type: setting
+    type: integer
+    default: 200
+  kubernetes_apiserver_client_qps:
+    node_type: setting
+    type: integer
+    default: 40
   kubernetes_apiserver_informer_client_timeout:
     node_type: setting
     type: integer
@@ -9004,7 +9127,7 @@ properties:
     default: false
   kubernetes_kubelet_deviceplugins_cache_duration:
     node_type: setting
-    type: number
+    type: string
     default: 5s
     format: duration
     tags:
@@ -9171,7 +9294,7 @@ properties:
       Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
   metadata_provider_stop_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 30s
     format: duration
     tags:
@@ -9392,7 +9515,7 @@ properties:
                 default: false
           sleep_interval:
             node_type: setting
-            type: number
+            type: string
             default: 10s
             format: duration
             tags:
@@ -9408,21 +9531,21 @@ properties:
             comment: Remote agents
           idle_timeout:
             node_type: setting
-            type: number
+            type: string
             default: 30s
             format: duration
             tags:
             - golang_type:duration
           query_timeout:
             node_type: setting
-            type: number
+            type: string
             default: 3s
             format: duration
             tags:
             - golang_type:duration
           recommended_refresh_interval:
             node_type: setting
-            type: number
+            type: string
             default: 10s
             format: duration
             tags:
@@ -9507,7 +9630,7 @@ properties:
             default: 0
           cpu_duration:
             node_type: setting
-            type: number
+            type: string
             default: 1m0s
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_CPU_DURATION
@@ -9557,7 +9680,7 @@ properties:
             default: 0
           period:
             node_type: setting
-            type: number
+            type: string
             default: 5m0s
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_PERIOD
@@ -9619,7 +9742,7 @@ properties:
           shadow_sample_rate:
             node_type: setting
             type: number
-            default: 0.001
+            default: 0
             tags:
             - golang_type:float64
           shadow_sites:
@@ -10062,7 +10185,7 @@ properties:
         default: true
   tls_handshake_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 10s
     format: duration
     tags:
@@ -10155,6 +10278,14 @@ properties:
             node_type: setting
             type: string
             default: ''
+          use_v3_api:
+            node_type: section
+            type: object
+            properties:
+              series:
+                node_type: setting
+                type: boolean
+                default: false
       traces:
         node_type: section
         type: object
@@ -10224,7 +10355,7 @@ properties:
         properties:
           collection_interval:
             node_type: setting
-            type: number
+            type: string
             default: 1m0s
             format: duration
             tags:

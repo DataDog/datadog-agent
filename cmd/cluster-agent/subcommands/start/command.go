@@ -75,7 +75,6 @@ import (
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
 	adproviders "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -298,7 +297,7 @@ func start(log log.Component,
 	_ metadatarunner.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
-	healthPlatform option.Option[healthplatformdef.Component],
+	healthPlatform healthplatformdef.Component,
 	autoscalingGate *autoscalinggate.Gate,
 	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
 ) error {
@@ -477,6 +476,9 @@ func start(log log.Component,
 	rcserv, isSet := rcService.Get()
 	rcEnabled := configUtils.IsRemoteConfigEnabled(config)
 	if rcEnabled && isSet {
+		// We explicitly don't add the `ProductActionPlatformRunnerKeys` here as it will be added automatically from the subscribe call.
+		// Adding it here will create a race condition where the notification can be fired before the subscription
+		// preventing the PAR component to finish its startup.
 		var products []string
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			products = append(products, state.ProductAPMTracing)
@@ -492,9 +494,6 @@ func start(log log.Component,
 		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
-		}
-		if config.GetBool("private_action_runner.enabled") {
-			products = append(products, state.ProductActionPlatformRunnerKeys)
 		}
 
 		var err error
@@ -516,7 +515,7 @@ func start(log log.Component,
 	// create and setup the autoconfig instance
 	// The autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(ac, config.GetString("confd_path"))
+	common.LoadComponents(ac, config)
 
 	// Set up check collector
 	registerChecks(wmeta, taggerComp, config)
@@ -586,7 +585,7 @@ func start(log log.Component,
 
 	var sh clusterspot.PodHandler
 	if config.GetBool("autoscaling.cluster.spot.enabled") {
-		if scheduler, err := clusterspot.StartSpotScheduling(mainCtx, wmeta, apiCl, le.IsLeader); err == nil {
+		if scheduler, err := clusterspot.StartSpotScheduling(mainCtx, clusterID, wmeta, apiCl, le.IsLeader, demultiplexer, taggerComp); err == nil {
 			sh = scheduler
 		} else {
 			return fmt.Errorf("Error while starting spot scheduling: %w", err)
@@ -715,17 +714,6 @@ func start(log log.Component,
 		}
 	} else {
 		pkglog.Info("Admission controller is disabled")
-	}
-
-	if config.GetBool("cluster_agent.mcp.enabled") {
-		// Get MCP configured endpoint
-		mcpEndpoint := config.GetString("cluster_agent.mcp.endpoint")
-		// Register MCP handler on the HTTP metrics server via HTTP
-		mcpHandler := mcp.CreateMCPHandler()
-		http.Handle(mcpEndpoint, mcpHandler)
-		pkglog.Infof("MCP endpoint registered with HTTP metrics server on port %d: %s", metricsPort, mcpEndpoint)
-	} else {
-		pkglog.Debug("MCP server is disabled")
 	}
 
 	pkglog.Infof("All components started. Cluster Agent now running.")

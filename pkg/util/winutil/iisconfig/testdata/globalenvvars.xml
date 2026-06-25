@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <system.applicationHost>
+    <applicationPools>
+      <add name="poolA">
+        <environmentVariables>
+          <add name="DD_SERVICE" value="poolA-service" />
+          <add name="DD_VERSION" value="1.0.0" />
+        </environmentVariables>
+      </add>
+    </applicationPools>
+    <sites>
+      <site name="globalsite" id="20">
+        <application path="/" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+        <application path="/override" applicationPool="poolA">
+          <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\nope" />
+        </application>
+      </site>
+    </sites>
+  </system.applicationHost>
+  <!-- Root <system.webServer><aspNetCore> applies globally, the same way a
+       pathless <location> would. Both contribute to the "" overlay key. -->
+  <system.webServer>
+    <aspNetCore>
+      <environmentVariables>
+        <add name="DD_SERVICE" value="root-global-service" />
+      </environmentVariables>
+    </aspNetCore>
+  </system.webServer>
+  <location>
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <add name="DD_ENV" value="pathless-global-env" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+  <location path="globalsite/override">
+    <system.webServer>
+      <aspNetCore>
+        <environmentVariables>
+          <add name="DD_SERVICE" value="override-service" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+</configuration>

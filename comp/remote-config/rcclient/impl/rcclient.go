@@ -71,11 +71,11 @@ type Dependencies struct {
 	IPC               ipc.Component
 }
 
-// NewRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
+// NewComponent must not populate any Fx groups or return any types that would be consumed as dependencies by
 // other components. To avoid dependency cycles between our components we need to have "pure leaf" components (i.e.
 // components that are instantiated last).  Remote configuration client is a good candidate for this since it must be
 // able to interact with any other components (i.e. be at the end of the dependency graph).
-func NewRemoteConfigClient(deps Dependencies) (rcclient.Component, error) {
+func NewComponent(deps Dependencies) (rcclient.Component, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err

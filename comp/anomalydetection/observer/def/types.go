@@ -321,10 +321,22 @@ type ScorerConfig struct {
 	// function is applied to the number of unique series in the window, not to the
 	// per-second event count.
 	WindowSecs int64 `json:"window_secs"`
+	// LowThreshold is the EWMA level defining the Low/Medium severity boundary.
+	LowThreshold float64 `json:"low_threshold"`
+	// HighThreshold is the EWMA level defining the Medium/High severity boundary.
+	HighThreshold float64 `json:"high_threshold"`
+	// MarginPct is the hysteresis margin as a fraction of HighThreshold.
+	// effectiveMargin = HighThreshold × MarginPct.
+	MarginPct float64 `json:"margin_pct"`
 	// DetectorThresholds overrides the default score-to-level boundaries for
 	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds.
 	// Detectors not in this map default to level 2 (Medium) regardless of their score.
 	DetectorThresholds map[string][4]float64 `json:"detector_thresholds,omitempty"`
+	// MaxBuckets overrides the number of ScoreBucket entries retained in
+	// ScoreState(). 0 (default) means "cap at WindowSecs", which is the
+	// correct behaviour for the live agent. Set to a large positive value
+	// (e.g. math.MaxInt64) to keep an unlimited history for offline replay.
+	MaxBuckets int64 `json:"max_buckets,omitempty"`
 }
 
 // ScoreBucket is the per-second telemetry unit emitted by the scorer.
@@ -342,6 +354,74 @@ type ScoreBucket struct {
 	Ewma float64 `json:"ewma"`
 }
 
+// SeverityLevel represents one of three severity states: Low, Medium, High.
+type SeverityLevel int
+
+const (
+	SeverityLow    SeverityLevel = 0
+	SeverityMedium SeverityLevel = 1
+	SeverityHigh   SeverityLevel = 2
+)
+
+// ScorerEventDirection describes whether a severity transition is an
+// escalation or de-escalation.
+type ScorerEventDirection int
+
+const (
+	// ScorerEventBoth delivers transitions in either direction (default zero value).
+	ScorerEventBoth ScorerEventDirection = 0
+	// ScorerEventEscalation delivers only transitions where ToLevel > FromLevel.
+	ScorerEventEscalation ScorerEventDirection = 1
+	// ScorerEventDeescalation delivers only transitions where ToLevel < FromLevel.
+	ScorerEventDeescalation ScorerEventDirection = 2
+)
+
+// SeverityEvent records a severity state-machine transition.
+type SeverityEvent struct {
+	// Timestamp is the data time (unix seconds) when the transition occurred.
+	Timestamp int64 `json:"timestamp"`
+	// FromLevel is the state before the transition.
+	FromLevel SeverityLevel `json:"from_level"`
+	// ToLevel is the state after the transition.
+	ToLevel SeverityLevel `json:"to_level"`
+	// Direction is ScorerEventEscalation when ToLevel > FromLevel, and
+	// ScorerEventDeescalation when ToLevel < FromLevel.
+	Direction ScorerEventDirection `json:"direction"`
+}
+
+// ScorerListener receives severity state-machine transitions from the scorer.
+type ScorerListener interface {
+	OnSeverityTransition(event SeverityEvent)
+}
+
+// ScorerEventFilter selects which SeverityEvents are delivered to a listener.
+// All conditions are ANDed; a nil or empty slice means "any value".
+// The zero value ScorerEventFilter{} matches every transition.
+type ScorerEventFilter struct {
+	// FromLevels restricts to events whose FromLevel is in the set.
+	FromLevels []SeverityLevel
+	// ToLevels restricts to events whose ToLevel is in the set.
+	ToLevels []SeverityLevel
+	// Direction restricts by escalation or de-escalation.
+	Direction ScorerEventDirection
+}
+
+// AnomalyScorerConfiguration is the single object passed to SubscribeScorer
+// when registering a listener. It bundles who to call (Listener), which
+// transitions to deliver (Filter), and per-subscription state-machine tuning.
+type AnomalyScorerConfiguration struct {
+	// Listener is called for each matching severity transition. Required.
+	Listener ScorerListener
+	// Filter controls which transitions are delivered.
+	// Zero value ScorerEventFilter{} delivers all transitions.
+	Filter ScorerEventFilter
+	// CooldownSecs is the minimum number of seconds that must elapse after a
+	// delivered transition before a downward (de-escalation) transition can be
+	// delivered again.
+	// Zero means no cooldown (every matching transition is delivered).
+	CooldownSecs int64
+}
+
 // ScoreState is the accumulated telemetry snapshot from the scorer.
 type ScoreState struct {
 	Buckets []ScoreBucket `json:"buckets"`
@@ -357,16 +437,19 @@ type AnomalyScorer interface {
 	// ProcessAnomaly feeds a raw anomaly into the scorer's current-second buffer.
 	ProcessAnomaly(a Anomaly)
 	// Advance finalises the bucket at dataTime (unix seconds) and runs the
-	// EWMA update for that second. Callers must invoke this after each
-	// 1-second detection cycle.
+	// EWMA + state-machine update for that second. Callers must invoke this
+	// after each 1-second detection cycle.
 	Advance(dataTime int64)
 	// LastScore returns the most recently computed EWMA score. Returns 0
 	// before the first Advance call.
 	LastScore() float64
-	// ScoreState returns the accumulated telemetry (all buckets so far).
+	// ScoreState returns the accumulated telemetry (all buckets + events so far).
 	ScoreState() ScoreState
 	// Reset clears all internal state for reanalysis.
 	Reset()
+	// Subscribe registers a listener to receive severity transitions matching
+	// cfg.Filter. Returns an unsubscribe function. Safe to call concurrently.
+	Subscribe(cfg AnomalyScorerConfiguration) func()
 }
 
 // Reporter receives reports and displays or delivers them.
@@ -398,6 +481,10 @@ type RawAnomalyState interface {
 // TelemetryNamespace is the storage namespace used for observer-internal debug
 // metrics (e.g. testbench UI charts). Detectors must not treat it as workload data.
 const TelemetryNamespace = "telemetry"
+
+// AgentNamespace is the storage namespace used for internal agent telemetry
+// while normalizing datadog.* metrics before they are dropped.
+const AgentNamespace = "agent"
 
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {

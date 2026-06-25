@@ -1262,6 +1262,171 @@ func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
 	}
 }
 
+func Test_npCollectorImpl_ScheduleNetflowPathTests_SkipsLocalAgentSource(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.netflow_monitoring.enabled":          true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+	localAgentSource := netip.MustParseAddrPort("10.0.0.5:30000")
+	nonAgentSource := netip.MustParseAddrPort("10.0.0.6:30000")
+	dest := netip.MustParseAddrPort("10.0.0.20:443")
+
+	t.Run("netflow local agent source is skipped", func(t *testing.T) {
+		stats := &teststatsd.Client{}
+		_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
+		setTestLocalIPs(npCollector, localAgentSource.Addr().String())
+
+		npCollector.ScheduleNetflowPathTests(slices.Values([]npmodel.NetworkPathConnection{{
+			Source:    localAgentSource,
+			Dest:      dest,
+			Direction: model.ConnectionDirection_outgoing,
+			Family:    model.ConnectionFamily_v4,
+			Type:      model.ConnectionType_tcp,
+		}}))
+
+		assert.Contains(t, stats.CountCalls, netflowAgentSourceSkippedStat)
+		select {
+		case pathtest := <-npCollector.pathtestInputChan:
+			require.Failf(t, "unexpected pathtest", "%#v", pathtest)
+		default:
+		}
+	})
+
+	t.Run("network traffic with same local source still schedules", func(t *testing.T) {
+		stats := &teststatsd.Client{}
+		_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
+		setTestLocalIPs(npCollector, localAgentSource.Addr().String())
+
+		npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{{
+			Source:    localAgentSource,
+			Dest:      dest,
+			Direction: model.ConnectionDirection_outgoing,
+			Family:    model.ConnectionFamily_v4,
+			Type:      model.ConnectionType_tcp,
+		}}))
+
+		require.NotContains(t, stats.CountCalls, netflowAgentSourceSkippedStat)
+		select {
+		case pathtest := <-npCollector.pathtestInputChan:
+			assert.Equal(t, &common.Pathtest{
+				Hostname: "10.0.0.20",
+				Port:     uint16(443),
+				Protocol: payload.ProtocolTCP,
+				Origin:   payload.PathOriginNetworkTraffic,
+			}, pathtest)
+		default:
+			require.Fail(t, "expected pathtest")
+		}
+	})
+
+	t.Run("non-agent source to same target still schedules", func(t *testing.T) {
+		stats := &teststatsd.Client{}
+		_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
+		setTestLocalIPs(npCollector, localAgentSource.Addr().String())
+
+		npCollector.ScheduleNetflowPathTests(slices.Values([]npmodel.NetworkPathConnection{{
+			Source:    nonAgentSource,
+			Dest:      dest,
+			Direction: model.ConnectionDirection_outgoing,
+			Family:    model.ConnectionFamily_v4,
+			Type:      model.ConnectionType_tcp,
+		}}))
+
+		require.NotContains(t, stats.CountCalls, netflowAgentSourceSkippedStat)
+		select {
+		case pathtest := <-npCollector.pathtestInputChan:
+			assert.Equal(t, &common.Pathtest{
+				Hostname: "10.0.0.20",
+				Port:     uint16(443),
+				Protocol: payload.ProtocolTCP,
+				Origin:   payload.PathOriginNetflow,
+			}, pathtest)
+		default:
+			require.Fail(t, "expected pathtest")
+		}
+	})
+}
+
+func Test_npCollectorImpl_ScheduleNetflowPathTests_LocalIPDiscoveryFailureFailsOpen(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.netflow_monitoring.enabled":          true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+	stats := &teststatsd.Client{}
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
+	setFailingTestLocalIPs(npCollector, errors.New("boom"))
+
+	npCollector.ScheduleNetflowPathTests(slices.Values([]npmodel.NetworkPathConnection{{
+		Source:    netip.MustParseAddrPort("10.0.0.5:30000"),
+		Dest:      netip.MustParseAddrPort("10.0.0.20:443"),
+		Direction: model.ConnectionDirection_outgoing,
+		Family:    model.ConnectionFamily_v4,
+		Type:      model.ConnectionType_tcp,
+	}}))
+
+	assert.NotContains(t, stats.CountCalls, netflowAgentSourceSkippedStat)
+	select {
+	case pathtest := <-npCollector.pathtestInputChan:
+		assert.Equal(t, &common.Pathtest{
+			Hostname: "10.0.0.20",
+			Port:     uint16(443),
+			Protocol: payload.ProtocolTCP,
+			Origin:   payload.PathOriginNetflow,
+		}, pathtest)
+	default:
+		require.Fail(t, "expected pathtest")
+	}
+}
+
+func Test_npCollectorImpl_ScheduleNetflowPathTests_SelfSourceDoesNotRefreshPathtestTTL(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.netflow_monitoring.enabled":          true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+		"network_path.collector.pathtest_ttl":              time.Minute,
+	}
+	stats := &teststatsd.Client{}
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
+	setTestLocalIPs(npCollector, "10.0.0.5")
+
+	now := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
+	npCollector.pathtestStore = pathteststore.NewPathtestStore(npCollector.collectorConfigs.storeConfig, npCollector.logger, stats, func() time.Time {
+		return now
+	})
+
+	npCollector.pathtestStore.Add(&common.Pathtest{
+		Hostname: "10.0.0.20",
+		Port:     uint16(443),
+		Protocol: payload.ProtocolTCP,
+		Origin:   payload.PathOriginNetflow,
+	})
+	require.Equal(t, 1, npCollector.pathtestStore.GetContextsCount())
+
+	now = now.Add(npCollector.collectorConfigs.storeConfig.TTL + time.Second)
+
+	npCollector.ScheduleNetflowPathTests(slices.Values([]npmodel.NetworkPathConnection{{
+		Source:    netip.MustParseAddrPort("10.0.0.5:30000"),
+		Dest:      netip.MustParseAddrPort("10.0.0.20:443"),
+		Direction: model.ConnectionDirection_outgoing,
+		Family:    model.ConnectionFamily_v4,
+		Type:      model.ConnectionType_tcp,
+	}}))
+
+	select {
+	case pathtest := <-npCollector.pathtestInputChan:
+		npCollector.pathtestStore.Add(pathtest)
+	default:
+	}
+
+	npCollector.flush()
+
+	assert.Contains(t, stats.CountCalls, netflowAgentSourceSkippedStat)
+	assert.Equal(t, 0, npCollector.pathtestStore.GetContextsCount())
+}
+
 func Test_npCollectorImpl_ScheduleMethods_VPCSubnetsOnlyFilterNetworkTraffic(t *testing.T) {
 	originalGetVPCSubnetsForHost := getVPCSubnetsForHost
 	t.Cleanup(func() {
@@ -1768,6 +1933,7 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 
 var subnetSkippedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_intra_vpc"}, Rate: 1}
 var cidrExcludedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_cidr_excluded"}, Rate: 1}
+var netflowAgentSourceSkippedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_netflow_agent_source"}, Rate: 1}
 
 func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 	tests := []struct {
@@ -1990,6 +2156,20 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: true,
 		},
 		{
+			name: "exclusion: block netflow source with wildcard port",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_udp,
+			},
+			sourceExcludes: map[string][]string{
+				"10.0.0.1": {"*"},
+			},
+			shouldSchedule:     false,
+			connectionExcluded: true,
+		},
+		{
 			name: "exclusion: block dest subnet",
 			conn: npmodel.NetworkPathConnection{
 				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
@@ -2130,7 +2310,7 @@ network_path:
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
-			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets))
+			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, tt.vpcSubnets))
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)
@@ -2196,7 +2376,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
-			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil))
+			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, nil))
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)

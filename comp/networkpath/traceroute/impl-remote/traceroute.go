@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -86,7 +87,12 @@ var getSysProbeClient = funcs.MemoizeArgNoError(func(socket string) *http.Client
 	}
 })
 
-func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, disableWindowsDriver bool, reverseDNS bool, disableSourcePublicIPCollection bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
+func isSACKNotSupportedMessage(message string) bool {
+	return strings.Contains(message, "SACK not supported for this target/source") ||
+		strings.Contains(message, "found no SACK options")
+}
+
+func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, disableWindowsDriver bool, reverseDNS bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
 	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
 	t.log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
@@ -120,6 +126,16 @@ func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, client
 		// Try to parse structured error response
 		var errResp payload.TracerouteErrorResponse
 		if json.Unmarshal(body, &errResp) == nil && errResp.Code != "" {
+			// Remap SACK_NOT_SUPPORTED directly, and detect SACK patterns in UNKNOWN.
+			// Compatibility: datadog-traceroute versions without a dedicated SACK_NOT_SUPPORTED
+			// code classify sack.NotSupportedError as UNKNOWN; detect it by message content.
+			if errResp.Code == payload.TracerouteErrCodeSACKNotSupported ||
+				(errResp.Code == payload.TracerouteErrCodeUnknown && isSACKNotSupportedMessage(errResp.Message)) {
+				return nil, &payload.TracerouteError{
+					Code:    payload.TracerouteErrCodeSACKNotSupported,
+					Message: "SACK is not supported for this target/source.",
+				}
+			}
 			return nil, &payload.TracerouteError{
 				Code:    errResp.Code,
 				Message: errResp.Message,

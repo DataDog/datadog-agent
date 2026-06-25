@@ -3,6 +3,7 @@ name: create-runtime-setting
 description: Create a new RuntimeSetting that can be changed at runtime via `agent config set/get` and the config API
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[setting-name]"
+model: sonnet
 ---
 
 Create a new RuntimeSetting implementation for the Datadog Agent. RuntimeSettings are settings that can be read and changed at runtime via:

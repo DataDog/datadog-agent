@@ -112,6 +112,54 @@ func (s *testInstallExeSuite) TestInstallAgentPackage() {
 	s.Assert().Contains(string(systemProbeContent), "## System Probe Configuration ##", "system-probe.yaml should contain template section banners from system-probe.yaml.example")
 }
 
+// TestSetupHandoffToStableVersion verifies the current installer hands off
+// to a different version when one is requested: it downloads the matching
+// datadog-installer.exe from the OCI registry and re-execs setup from it.
+// Version + registry come from s.StableAgentVersion().OCIPackage().
+func (s *testInstallExeSuite) TestSetupHandoffToStableVersion() {
+	// Arrange — read framework-configured stable package + version.
+	stable := s.StableAgentVersion().OCIPackage()
+
+	// Act
+	output, err := s.InstallScript().Run(WithExtraEnvVars(map[string]string{
+		// Allow the parent installer.exe to perform the version handoff.
+		"DD_INSTALLER_FROM_VERSION_HANDOFF": "",
+		// Pin the version to the framework's configured stable. The override
+		// is passed verbatim to the OCI tag by requestedAgentVersion.
+		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": stable.Version,
+		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        stable.Registry,
+	}))
+
+	// Assert
+	if s.NoError(err) {
+		fmt.Printf("%s\n", output)
+	}
+	s.Require().NoErrorf(err, "setup handoff failed: %s", output)
+
+	// The handoff is what we're actually testing: the downloaded child
+	// installer.exe prints `Datadog Installer <AgentVersion> - https://www.datadoghq.com`
+	// from common.NewSetup before doing any work. If that header is in the
+	// output with the expected version, we know the handoff fired and the
+	// child binary (not the local current-pipeline one) executed setup.
+	expectedHeader := fmt.Sprintf("Datadog Installer %s - https://www.datadoghq.com", s.StableAgentVersion().Version())
+	s.Require().Containsf(output, expectedHeader,
+		"setup output should include the downloaded installer's header line — proves handoff occurred (looking for %q)", expectedHeader)
+
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogInstallerService().
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, s.StableAgentVersion().Version(),
+				"agent should be the stable version after handoff")
+		}).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, s.StableAgentVersion().Version(),
+				"installer should be the stable version after handoff")
+		})
+}
+
 // TestInstallAgentFails asserts various system state when the installer fails to install the Agent package (it's not available)
 func (s *testInstallExeSuite) TestInstallAgentFails() {
 	// Act

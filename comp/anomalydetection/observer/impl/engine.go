@@ -75,6 +75,9 @@ type engine struct {
 	// existing entries when the correlator reports a newer version.
 	accumulatedCorrelations map[string]observerdef.ActiveCorrelation
 	correlationMu           sync.RWMutex
+	// maxCorrelations caps accumulatedCorrelations. 0 = built-in default (500),
+	// -1 = unlimited (testbench replay).
+	maxCorrelations int
 
 	// Optional callbacks for direct telemetry emission.
 	onStorageSeriesEvicted func(reason string, count int)
@@ -254,11 +257,14 @@ func (e *engine) registerHandle(h *handle) {
 // The bounded-source assumption: every production caller of obs.GetHandle()
 // passes a statically-defined string constant. As of this writing the full
 // set is:
-//   - "all-metrics"          (pkg/aggregator/demultiplexer_agent.go)
-//   - "dogstatsd"            (comp/dogstatsd/server/server.go)
-//   - "logs"                 (comp/observer/logssource/impl/component.go)
-//   - "agent-internal-logs"  (comp/observer/impl/observer.go)
-//   - "profile-agent"        (comp/observer/impl/observer.go)
+//   - "dogstatsd"                  (pkg/aggregator/demultiplexer_agent.go, DogStatsD workers)
+//   - "check"                      (pkg/aggregator/demultiplexer_agent.go, core check aggregator)
+//   - "log_metrics_extractor"      (virtual metrics from logs)
+//   - "connection_error_extractor" (connection error extractor)
+//   - "log_pattern_extractor"      (log pattern extractor)
+//   - "logs"                       (comp/anomalydetection/logssource/impl/logssource.go)
+//   - "agent_logs"                 (comp/anomalydetection/observer/impl/observer.go)
+//   - "telemetry"                  (observer-internal debug metrics)
 //
 // If a future caller ever passes a user-controlled or per-container source
 // string, the COW map becomes unbounded and this memoisation strategy is
@@ -368,13 +374,13 @@ func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []stri
 // SeriesRemover interface that the listed SeriesRefs have been freed by
 // storage. This keeps detector-side per-series state (BOCPD posterior maps,
 // ScanMW/ScanWelch segment trackers, seriesDetectorAdapter visible-count
-// maps) symmetric with storage so the LRU caps placed on extractorsâ
+// maps) symmetric with storage so the LRU caps placed on extractors'
 // contexts actually translate into bounded heap usage end-to-end.
 //
-// The caller (removeContextRefsForEvictedKeys / Reset / future GC paths)
-// is responsible for invoking this with whatever refs storage actually
-// freed. Detectors are expected to ignore unknown refs, so itâs safe to
-// broadcast the same ref list to all of them.
+// The caller (removeEvictedMetricSeries / Reset / future GC paths) is
+// responsible for invoking this with whatever refs storage actually freed.
+// Detectors are expected to ignore unknown refs, so it's safe to broadcast
+// the same ref list to all of them.
 //
 // Concurrency invariant: this method, like every method on engine and
 // every detector RemoveSeries / Detect callback, runs only on the single
@@ -735,8 +741,12 @@ func (e *engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) 
 		}
 	}
 
-	// Evict oldest entries if over cap.
-	for len(e.accumulatedCorrelations) > maxAccumulatedCorrelations {
+	// Evict oldest entries if over cap. cap=-1 means unlimited (testbench).
+	cap := e.maxCorrelations
+	if cap == 0 {
+		cap = maxAccumulatedCorrelations
+	}
+	for cap > 0 && len(e.accumulatedCorrelations) > cap {
 		var oldestKey string
 		var oldestTime int64 = math.MaxInt64
 		for k, ac := range e.accumulatedCorrelations {
@@ -907,6 +917,7 @@ func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []
 	e.resetFull()
 	e.mu.Lock()
 	e.storage = newTimeSeriesStorageWith(storageCfg)
+	e.maxCorrelations = storageCfg.MaxCorrelations
 	e.mu.Unlock()
 }
 

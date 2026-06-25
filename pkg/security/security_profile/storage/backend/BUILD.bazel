@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "backend",
+    srcs = [
+        "forwarder.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config/setup",
+        "//pkg/security/metrics",
+        "//pkg/security/seclog",
+        "//pkg/security/utils",
+        "//pkg/util/http",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
