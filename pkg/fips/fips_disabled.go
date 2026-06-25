@@ -17,3 +17,13 @@ func Status() string {
 func Enabled() (bool, error) {
 	return false, nil
 }
+
+// BuiltForFIPS reports whether the binary was built as the FIPS flavor. Unlike
+// Enabled, this is a compile-time fact and does not depend on whether the FIPS
+// crypto backend is active in the current process. Use it for FIPS-flavor
+// decisions (such as selecting the FIPS package variant) that must hold even
+// when Enabled would momentarily report false. It is always false for the
+// non-FIPS flavor.
+func BuiltForFIPS() bool {
+	return false
+}

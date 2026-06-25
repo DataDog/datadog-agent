@@ -344,8 +344,7 @@ func TestToEnv(t *testing.T) {
 }
 
 func TestFromEnvFIPSMode(t *testing.T) {
-	thisBinaryIsFips, _ := pkgfips.Enabled()
-	if thisBinaryIsFips {
+	if pkgfips.BuiltForFIPS() {
 		t.Skip("DD_FIPS_MODE env var is irrelevant when the binary itself is FIPS-compiled")
 	}
 	tests := []struct {
@@ -363,6 +362,25 @@ func TestFromEnvFIPSMode(t *testing.T) {
 		t.Run(tt.value, func(t *testing.T) {
 			t.Setenv("DD_FIPS_MODE", tt.value)
 			assert.Equal(t, tt.expected, FromEnv().FIPSMode)
+		})
+	}
+}
+
+func TestResolveFIPSMode(t *testing.T) {
+	tests := []struct {
+		name          string
+		fipsRequested bool
+		builtForFIPS  bool
+		expected      bool
+	}{
+		{"neither", false, false, false},
+		{"requested only", true, false, true},
+		{"built only", false, true, true},
+		{"both", true, true, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, resolveFIPSMode(tt.fipsRequested, tt.builtForFIPS))
 		})
 	}
 }

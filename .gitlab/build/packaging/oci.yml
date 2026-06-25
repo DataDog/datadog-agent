@@ -122,7 +122,11 @@
           mkdir -p ${FIPS_INPUT_DIR}
           echo "Extracting FIPS agent ${FIPS_INPUT_FILE} -> ${FIPS_INPUT_DIR}"
           tar xJf ${FIPS_INPUT_FILE} -C ${FIPS_INPUT_DIR}
-          FIPS_EXTRA_FLAGS="--configs ${FIPS_INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer --extension ddot=${DDOT_FIPS_EXTENSION_DIR}"
+          # Use the FIPS-built installer shipped inside the FIPS agent tarball (omnibus builds it with
+          # --fips-mode and places it at embedded/bin/installer), not the non-FIPS datadog-installer
+          # package. Otherwise the FIPS index would embed a non-FIPS installer and bootstrap would not
+          # self-detect FIPS mode.
+          FIPS_EXTRA_FLAGS="--configs ${FIPS_INPUT_DIR}/etc/datadog-agent --installer ${FIPS_INPUT_DIR}/${INSTALL_DIR}/embedded/bin/installer --extension ddot=${DDOT_FIPS_EXTENSION_DIR}"
           echo "Creating FIPS OCI layer -> ${OUTPUT_DIR}/${FIPS_OUTPUT_FILE}"
           datadog-package create \
             --version ${PACKAGE_VERSION} \
