@@ -71,6 +71,8 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	kubeactionsbundle "github.com/DataDog/datadog-agent/comp/kubeactions"
+	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
@@ -100,7 +102,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/helmactions"
 	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
@@ -265,6 +266,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				clusterchecksmetadatafx.Module(),
 				ipcfx.ModuleReadWrite(),
 				remotetraceroutefx.Module(),
+				kubeactionsbundle.Bundle(),
 			)
 		},
 	}
@@ -295,7 +297,6 @@ func start(log log.Component,
 	diagnoseComp diagnose.Component,
 	dcametadataComp dcametadata.Component,
 	hostnameGetter hostnameinterface.Component,
-
 	clusterChecksMetadataComp clusterchecksmetadata.Component,
 	_ metadatarunner.Component,
 	tracerouteComp traceroute.Component,
@@ -303,6 +304,7 @@ func start(log log.Component,
 	healthPlatform healthplatformdef.Component,
 	autoscalingGate *autoscalinggate.Gate,
 	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
+	helmactions helmactions.Component,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -610,21 +612,6 @@ func start(log log.Component,
 		log.Info("Kubernetes actions subsystem started successfully")
 	}
 
-	// Helm Actions. Job status puller !!!
-	var helmactionsRetriever *helmactions.ConfigRetriever
-	if config.GetBool("helmactions.enabled") {
-		if rcClient == nil {
-			return errors.New("remote config is disabled or failed to initialize, remote config is a required dependency for helmactions")
-		}
-		log.Infof("[HelmActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
-
-		if helmactionsRetriever, err = helmactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient); err != nil {
-			return fmt.Errorf("error while starting helm actions: %v", err)
-		}
-		log.Info("Helm actions subsystem started successfully")
-	}
-	_ = helmactionsRetriever
-
 	// Compliance
 	if config.GetBool("compliance_config.enabled") {
 		wg.Add(1)
@@ -653,7 +640,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -822,6 +809,7 @@ func startPrivateActionRunner(
 	eventPlatform eventplatform.Component,
 	ipc ipc.Component,
 	demux demultiplexer.Component,
+    ha helmactions.Component,
 ) (func(), error) {
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
@@ -839,7 +827,7 @@ func startPrivateActionRunner(
 		metricsClient = &ddgostatsd.NoOpClient{}
 	}
 
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient)
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient, ha)
 	if err != nil {
 		return nil, err
 	}

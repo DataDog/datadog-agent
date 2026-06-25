@@ -6,5 +6,6 @@
 package helmactions
 
 // Params defines the configuration parameters for the helmactions component.
-type Params struct {
-}
+// todo(dp): uncler why it could be needed, but keep it for now. It will be removed
+// before going to actual prod
+type Params struct{}

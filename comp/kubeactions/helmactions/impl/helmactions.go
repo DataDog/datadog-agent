@@ -48,8 +48,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: comp}, nil
 }
 
-func (h *helmactionsImpl) start(_ context.Context) error {
+func (h *helmactionsImpl) start(ctx context.Context) error {
 	h.log.Info("Starting helmactions component")
+
+	// store := NewActionStore(ctx)
+	// reporter := NewResultReporter(clusterName, clusterID, store)
+	// processor := NewActionProcessor(ctx, registry, store, reporter)
+
 	return nil
 }
 
