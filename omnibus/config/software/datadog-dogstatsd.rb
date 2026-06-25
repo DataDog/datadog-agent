@@ -48,10 +48,10 @@ build do
     end
     # Bazel places the yaml example, init scripts, service file, and creates
     # /etc/datadog-dogstatsd/ and /var/log/datadog/.
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- #{install_target} --destdir=/",
+    command_on_repo_root "bazel run --//:install_dir=#{install_dir} -- #{install_target} --destdir=/",
       :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/run"
-
+    mkdir "#{install_dir}/scripts"
     project.extra_package_file '/etc/init/datadog-dogstatsd.conf'
     project.extra_package_file '/lib/systemd/system/datadog-dogstatsd.service'
   elsif windows_target?
