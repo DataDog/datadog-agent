@@ -2,7 +2,19 @@
     "id": "datadog-agent",
     "version": "0.0.1",
     "name": "Datadog Agent Development Environment",
-    "description": "Configures the Datadog Agent development environment for the bits user, cleaning the base image for it to work in workspaces.",
+    "description": "Configures the Datadog Agent development environment for the bits user.",
+    "options": {
+        "ddaVersion": {
+            "type": "string",
+            "default": "0.35.0",
+            "description": "Version of the dda CLI tool to install"
+        },
+        "devEnvImage": {
+            "type": "string",
+            "default": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:v110159745-8628883e",
+            "description": "Developer environment Docker image to pre-pull"
+        }
+    },
     "installsAfter": ["registry.ddbuild.io/workspaces/features/base"],
     "postCreateCommand": {
         "datadog-agent": "/opt/doghome/devcontainer/features/datadog-agent/lifecycle/postCreate.sh"
