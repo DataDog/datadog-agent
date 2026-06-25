@@ -151,7 +151,15 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     if (is_tls_classification_done(protocol_stack)) {
         // All cleartext TLS metadata has been captured and the rest of the flow is encrypted, so there's nothing
         // more we can classify here. USM's uprobes classify the inner protocol on decrypted data in a separate program.
-        return;
+        //
+        // Exception: a closed connection's connection_protocol entry can leak (cleanup relies on a TTL cleaner, see
+        // shared-tracer-maps.h), so a new connection reusing the same normalized tuple would inherit a stale
+        // FLAG_TLS_CLASSIFICATION_DONE. To avoid skipping the new flow's handshake, only early-exit on non-handshake
+        // records; let a TLS handshake record (ClientHello/ServerHello) fall through to be re-parsed below.
+        tls_record_header_t early_hdr = {0};
+        if (!is_tls(skb, skb_info.data_off, skb_info.data_end, &early_hdr) || early_hdr.content_type != TLS_HANDSHAKE) {
+            return;
+        }
     }
 
     classification_context_t *classification_ctx = classification_context_init(skb, &skb_tup, &skb_info);
