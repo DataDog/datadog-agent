@@ -117,22 +117,20 @@ func TestIsTaggableMode(t *testing.T) {
 func TestAppendJMXDogstatsdInfraTags(t *testing.T) {
 	t.Run("nil cfg is no-op", func(t *testing.T) {
 		tags := []string{"a:1"}
-		raw := []string{"dd.internal.jmx_check_name:kafka"}
-		assert.Equal(t, tags, AppendJMXDogstatsdInfraTags(tags, raw, nil))
+		assert.Equal(t, tags, AppendJMXDogstatsdInfraTags(tags, "kafka", nil))
 	})
-	t.Run("no jmx tag is no-op", func(t *testing.T) {
+	t.Run("empty jmxCheckName is no-op", func(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
 		tags := []string{"env:prod"}
-		assert.Equal(t, tags, AppendJMXDogstatsdInfraTags(tags, []string{"env:prod"}, cfg))
+		assert.Equal(t, tags, AppendJMXDogstatsdInfraTags(tags, "", cfg))
 	})
 	t.Run("eligible JMX check gets tag", func(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
 		cfg.Set("integration.cloud_cost_only.tagged", []string{"kafka"}, pkgconfigmodel.SourceFile)
 		tags := []string{"env:prod"}
-		raw := []string{"env:prod", "dd.internal.jmx_check_name:kafka"}
-		got := AppendJMXDogstatsdInfraTags(tags, raw, cfg)
+		got := AppendJMXDogstatsdInfraTags(tags, "kafka", cfg)
 		tag, ok := tagForMode(cfg.GetString("infrastructure_mode"))
 		assert.True(t, ok)
 		assert.Contains(t, got, tag)
@@ -142,8 +140,7 @@ func TestAppendJMXDogstatsdInfraTags(t *testing.T) {
 		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
 		cfg.Set("integration.cloud_cost_only.tagged", []string{"kafka"}, pkgconfigmodel.SourceFile)
 		tags := []string{"env:prod"}
-		raw := []string{"dd.internal.jmx_check_name:tomcat"}
-		got := AppendJMXDogstatsdInfraTags(tags, raw, cfg)
+		got := AppendJMXDogstatsdInfraTags(tags, "tomcat", cfg)
 		tag, ok := tagForMode(cfg.GetString("infrastructure_mode"))
 		assert.True(t, ok)
 		assert.NotContains(t, got, tag)
@@ -153,8 +150,7 @@ func TestAppendJMXDogstatsdInfraTags(t *testing.T) {
 		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
 		cfg.Set("integration.cloud_cost_only.tagged", []string{}, pkgconfigmodel.SourceFile)
 		tags := []string{"env:prod"}
-		raw := []string{"dd.internal.jmx_check_name:custom_jmx"}
-		got := AppendJMXDogstatsdInfraTags(tags, raw, cfg)
+		got := AppendJMXDogstatsdInfraTags(tags, "custom_jmx", cfg)
 		tag, ok := tagForMode(cfg.GetString("infrastructure_mode"))
 		assert.True(t, ok)
 		assert.NotContains(t, got, tag)
@@ -163,8 +159,7 @@ func TestAppendJMXDogstatsdInfraTags(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
 		tags := []string{"env:prod"}
-		raw := []string{"dd.internal.jmx_check_name:kafka"}
-		got := AppendJMXDogstatsdInfraTags(tags, raw, cfg)
+		got := AppendJMXDogstatsdInfraTags(tags, "kafka", cfg)
 		assert.Equal(t, tags, got)
 	})
 }

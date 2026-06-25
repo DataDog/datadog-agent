@@ -45,19 +45,14 @@ type enrichConfig struct {
 	infraCfg                  model.Reader // optional: infra mode JMX DogStatsD tagging; nil skips
 }
 
-func tagsHaveJMXDogstatsdCheckName(tags []string) bool {
-	for _, t := range tags {
-		if strings.HasPrefix(t, jmxCheckNamePrefix) {
-			return true
-		}
-	}
-	return false
-}
-
-// extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
-func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, localData origindetection.LocalData, externalData origindetection.ExternalData, cardinality string, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
+// extractTagsMetadata returns tags (client tags + host tag), information needed to query the tagger
+// (origins, cardinality), and the JMX check name extracted from dd.internal.jmx_check_name (empty
+// string if absent). The JMX check name is returned so callers can pass it directly to
+// AppendJMXDogstatsdInfraTags without re-scanning the tag slice.
+func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, localData origindetection.LocalData, externalData origindetection.ExternalData, cardinality string, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource, string) {
 	host := conf.defaultHostname
 	metricSource := GetDefaultMetricSource()
+	jmxCheckName := ""
 
 	// Add Origin Detection metadata
 	origin := taggertypes.OriginInfo{
@@ -81,8 +76,8 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 			origin.Cardinality = tag[len(CardinalityTagPrefix):]
 			continue
 		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
-			checkName := tag[len(jmxCheckNamePrefix):]
-			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
+			jmxCheckName = tag[len(jmxCheckNamePrefix):]
+			metricSource = metrics.JMXCheckNameToMetricSource(jmxCheckName)
 			continue
 		}
 		tags[n] = tag
@@ -91,7 +86,7 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 
 	tags = tags[:n]
 
-	return tags, host, origin, metricSource
+	return tags, host, origin, metricSource, jmxCheckName
 }
 
 // serverlessSourceCustomToRuntime converts Serverless custom metric source to its corresponding runtime metric source
@@ -156,14 +151,8 @@ func tsToFloatForSamples(ts time.Time) float64 {
 
 func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
 	metricName := ddSample.name
-	// extractTagsMetadata compacts tags in-place and strips dd.internal.jmx_check_name.
-	// When infra mode tags JMX samples, pass a copy so ddSample.tags stays intact for AppendJMXDogstatsdInfraTags.
-	tagsInput := ddSample.tags
-	if conf.infraCfg != nil && tagsHaveJMXDogstatsdCheckName(ddSample.tags) {
-		tagsInput = append([]string(nil), ddSample.tags...)
-	}
-	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(tagsInput, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
-	tags = infratags.AppendJMXDogstatsdInfraTags(tags, ddSample.tags, conf.infraCfg)
+	tags, hostnameFromTags, extractedOrigin, metricSource, jmxCheckName := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
+	tags = infratags.AppendJMXDogstatsdInfraTags(tags, jmxCheckName, conf.infraCfg)
 
 	if !isExcluded(metricName, conf.metricPrefix, conf.metricPrefixBlacklist) {
 		metricName = conf.metricPrefix + metricName
@@ -248,7 +237,7 @@ func enrichEventAlertType(dogstatsdAlertType alertType) metricsevent.AlertType {
 }
 
 func enrichEvent(event dogstatsdEvent, origin string, processID uint32, conf enrichConfig) *metricsevent.Event {
-	tags, hostnameFromTags, extractedOrigin, _ := extractTagsMetadata(event.tags, origin, processID, event.localData, event.externalData, event.cardinality, conf)
+	tags, hostnameFromTags, extractedOrigin, _, _ := extractTagsMetadata(event.tags, origin, processID, event.localData, event.externalData, event.cardinality, conf)
 
 	enrichedEvent := &metricsevent.Event{
 		Title:          event.title,
@@ -285,7 +274,7 @@ func enrichServiceCheckStatus(status serviceCheckStatus) servicecheck.ServiceChe
 }
 
 func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, processID uint32, conf enrichConfig) *servicecheck.ServiceCheck {
-	tags, hostnameFromTags, extractedOrigin, _ := extractTagsMetadata(serviceCheck.tags, origin, processID, serviceCheck.localData, serviceCheck.externalData, serviceCheck.cardinality, conf)
+	tags, hostnameFromTags, extractedOrigin, _, _ := extractTagsMetadata(serviceCheck.tags, origin, processID, serviceCheck.localData, serviceCheck.externalData, serviceCheck.cardinality, conf)
 
 	enrichedServiceCheck := &servicecheck.ServiceCheck{
 		CheckName:  serviceCheck.name,

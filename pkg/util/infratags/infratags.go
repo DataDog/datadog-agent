@@ -44,23 +44,15 @@ func IsTaggableMode(cfg pkgconfigmodel.Reader) bool {
 	return ok
 }
 
-const jmxDogstatsdCheckNameTagPrefix = "dd.internal.jmx_check_name:"
-
 // AppendJMXDogstatsdInfraTags appends the infra_mode tag for the active infrastructure mode when
-// rawTags include dd.internal.jmx_check_name and the JMX integration is eligible per IsTagged.
-// cfg may be nil (no-op). Plain DogStatsD metrics (no JMX check tag) are unchanged.
-func AppendJMXDogstatsdInfraTags(tags []string, rawTags []string, cfg pkgconfigmodel.Reader) []string {
-	if cfg == nil {
+// jmxCheckName is non-empty and the JMX integration is eligible per IsTagged.
+// jmxCheckName is the value already extracted from the dd.internal.jmx_check_name tag by
+// extractTagsMetadata. cfg may be nil (no-op).
+func AppendJMXDogstatsdInfraTags(tags []string, jmxCheckName string, cfg pkgconfigmodel.Reader) []string {
+	if cfg == nil || jmxCheckName == "" {
 		return tags
 	}
-	jmxCheckName := ""
-	for _, t := range rawTags {
-		if strings.HasPrefix(t, jmxDogstatsdCheckNameTagPrefix) {
-			jmxCheckName = t[len(jmxDogstatsdCheckNameTagPrefix):]
-			break
-		}
-	}
-	if jmxCheckName == "" || !IsTagged(jmxCheckName, cfg) {
+	if !IsTagged(jmxCheckName, cfg) {
 		return tags
 	}
 	infraMode := cfg.GetString("infrastructure_mode")
