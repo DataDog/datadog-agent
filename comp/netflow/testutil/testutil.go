@@ -69,6 +69,9 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwardermock.MockComp
     "packets": 1,
     "ether_type": "IPv4",
     "ip_protocol": "TCP",
+    "tos": 0,
+    "dscp": 0,
+    "dscp_name": "CS0",
     "device": {
         "namespace": "default"
     },
@@ -116,6 +119,9 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwardermock.MockComp
     "packets": 1,
     "ether_type": "IPv4",
     "ip_protocol": "TCP",
+    "tos": 0,
+    "dscp": 0,
+    "dscp_name": "CS0",
     "device": {
         "namespace": "default"
     },
@@ -203,6 +209,9 @@ func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwardermo
     }
   },
   "ip_protocol": "ICMP",
+  "tos": 233,
+  "dscp": 58,
+  "dscp_name": "DSCP-58",
   "next_hop": {
     "ip": ""
   },
@@ -292,6 +301,9 @@ func ExpectBiflowPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwa
   "packets": 10,
   "ether_type": "IPv4",
   "ip_protocol": "TCP",
+  "tos": 0,
+  "dscp": 0,
+  "dscp_name": "CS0",
   "device": {"namespace": "default"},
   "exporter": {"ip": "127.0.0.1"},
   "source": {
@@ -324,6 +336,9 @@ func ExpectBiflowPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwa
   "packets": 5,
   "ether_type": "IPv4",
   "ip_protocol": "TCP",
+  "tos": 0,
+  "dscp": 0,
+  "dscp_name": "CS0",
   "device": {"namespace": "default"},
   "exporter": {"ip": "127.0.0.1"},
   "source": {

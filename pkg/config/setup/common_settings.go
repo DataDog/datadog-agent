@@ -482,6 +482,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
 	config.BindEnvAndSetDefault("gpu.nvlink.fec_light_error_threshold", 3)
 	config.BindEnvAndSetDefault("gpu.parallel_collectors", true)
+	// gpu.collection_interval_override (seconds) overrides the gpu check scheduling
+	// cadence when > 0, taking precedence over the instance's min_collection_interval.
+	// Binds DD_GPU_COLLECTION_INTERVAL_OVERRIDE.
+	config.BindEnvAndSetDefault("gpu.collection_interval_override", 0)
 
 	// NCCL
 	config.BindEnvAndSetDefault("gpu.nccl.enabled", false)

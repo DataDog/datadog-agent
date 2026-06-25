@@ -41,6 +41,7 @@
 /.claude/skills/update-3rd-party-libs            @DataDog/agent-build
 /.claude/skills/update-otel-deps/                @DataDog/opentelemetry-agent
 /.claude/skills/write-e2e/                       @DataDog/agent-devx
+/.claude/skills/locate-config-setting/SKILL.md   @DataDog/agent-configuration
 # changing the config of mockery will regenerate the mocks, so owners will have to review anyway
 /.mockery.yaml                          # do not notify anyone
 /.go-version                            @DataDog/agent-runtimes @DataDog/agent-build

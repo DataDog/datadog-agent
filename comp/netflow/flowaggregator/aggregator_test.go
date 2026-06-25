@@ -334,6 +334,8 @@ func TestAggregator(t *testing.T) {
     "namespace": "my-ns"
   },
   "direction": "ingress",
+  "dscp": 0,
+  "dscp_name": "CS0",
   "egress": {
     "interface": {
       "index": 0
@@ -370,6 +372,7 @@ func TestAggregator(t *testing.T) {
     "SYN",
     "ACK"
   ],
+  "tos": 0,
   "type": "netflow9"
 }
 `)
