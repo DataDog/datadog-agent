@@ -1,6 +1,6 @@
-# gazelle:ignore
-
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 exports_files([
     "c_types_linux.go",
@@ -12,4 +12,80 @@ cgo_godefs(
     src = "c_types.go",
     hdrs = ["//pkg/collector/corechecks/ebpf/c/runtime:corecheck_ebpf_headers"],
     visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "ebpfcheck",
+    srcs = [
+        "c_types_linux.go",
+        "dedup.go",
+        "map.go",
+        "map_prog_helper.go",
+        "probe.go",
+        "prog.go",
+        "utils.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/ebpfcheck/model",
+        "//pkg/config/setup",
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/maps",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_cilium_ebpf//btf",
+        "@com_github_cilium_ebpf//features",
+        "@com_github_cilium_ebpf//link",
+        "@com_github_cilium_ebpf//rlimit",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@org_golang_x_exp//constraints",
+        "@org_golang_x_sys//unix",
+    ],
+)
+
+# c_types_linux_test.go and probe_test.go must be in separate rules because
+# c_types_linux_test.go needs //pkg/ebpf/ebpftest:cgo_align (for TestCgoAlignment)
+# while probe_test.go needs //pkg/ebpf/ebpftest (for TestBuildMode/CORE).
+# Both targets share importpath "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+# and cannot coexist in the same rule's deps.
+
+dd_agent_go_test(
+    name = "ebpfcheck_types_test",
+    # keep: split from ebpfcheck_test; see comment above.
+    srcs = ["c_types_linux_test.go"],
+    embed = [":ebpfcheck"],
+    # keep: cgo_align has the same importpath as ebpftest; see pkg/ebpf/ebpftest/BUILD.bazel.
+    deps = select({
+        "@rules_go//go/platform:linux": ["//pkg/ebpf/ebpftest:cgo_align"],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "ebpfcheck_test",
+    # keep: split from ebpfcheck_types_test; see comment above.
+    srcs = ["probe_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":ebpfcheck"],
+    target_compatible_with = ["@platforms//os:linux"],
+    # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/ebpfcheck/model",
+        "//pkg/ebpf",
+        "//pkg/ebpf/ebpftest",
+        "//pkg/ebpf/maps",
+        "//pkg/util/kernel",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//btf",
+        "@com_github_cilium_ebpf//perf",
+        "@com_github_cilium_ebpf//rlimit",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_sys//unix",
+    ],
 )

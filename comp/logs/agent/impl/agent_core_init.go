@@ -40,7 +40,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	destinationsCtx := client.NewDestinationsContext()
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname, a.config)
 
-	// setup the pipeline provider that provides pairs of processor and sender
+	// setup the pipeline provider that Provides pairs of processor and sender
 	pipelineProvider := buildPipelineProvider(a, processingRules, diagnosticMessageReceiver, destinationsCtx)
 
 	// setup the launchers
