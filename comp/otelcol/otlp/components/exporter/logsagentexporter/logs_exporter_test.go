@@ -457,4 +457,43 @@ func TestSplitLogsByScope(t *testing.T) {
 		assert.Equal(t, 1, k8s.ResourceLogs().Len())
 		assert.Equal(t, 0, regular.ResourceLogs().Len())
 	})
+
+	t.Run("all-regular fast path returns ld unchanged", func(t *testing.T) {
+		ld := plog.NewLogs()
+		ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName("filelog")
+		ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName("otherreceiver")
+
+		k8s, regular := splitLogsByScope(ld)
+		assert.Equal(t, 0, k8s.ResourceLogs().Len())
+		assert.Equal(t, 2, regular.ResourceLogs().Len())
+		// fast path returns the same backing plog.Logs (no copy)
+		assert.Equal(t, ld, regular)
+	})
+
+	t.Run("scopeless ResourceLogs routed to regular side", func(t *testing.T) {
+		ld := plog.NewLogs()
+		scopeless := ld.ResourceLogs().AppendEmpty()
+		scopeless.SetSchemaUrl("https://example.com/schema")
+		scopeless.Resource().Attributes().PutStr("host.name", "host-a")
+		ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName(string(K8sObjectsReceiver))
+
+		k8s, regular := splitLogsByScope(ld)
+		assert.Equal(t, 1, k8s.ResourceLogs().Len())
+		assert.Equal(t, 1, regular.ResourceLogs().Len())
+		assert.Equal(t, 0, regular.ResourceLogs().At(0).ScopeLogs().Len())
+		assert.Equal(t, "https://example.com/schema", regular.ResourceLogs().At(0).SchemaUrl())
+		hostName, ok := regular.ResourceLogs().At(0).Resource().Attributes().Get("host.name")
+		assert.True(t, ok)
+		assert.Equal(t, "host-a", hostName.AsString())
+	})
+
+	t.Run("scopeless ResourceLogs only takes fast path as regular", func(t *testing.T) {
+		ld := plog.NewLogs()
+		ld.ResourceLogs().AppendEmpty().Resource().Attributes().PutStr("host.name", "host-a")
+
+		k8s, regular := splitLogsByScope(ld)
+		assert.Equal(t, 0, k8s.ResourceLogs().Len())
+		assert.Equal(t, 1, regular.ResourceLogs().Len())
+		assert.Equal(t, ld, regular)
+	})
 }
