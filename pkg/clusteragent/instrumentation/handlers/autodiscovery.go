@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
@@ -186,7 +187,7 @@ func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadogh
 		InitConfig:    initConfig,
 		Instances:     instances,
 		LogsConfig:    logsConfig,
-		CELSelector:   buildCELSelector(cr.Spec.TargetRef, cr.Namespace, strings.TrimSpace(check.ContainerName)),
+		CELSelector:   buildCELSelector(cr.Spec.TargetRef, cr.Namespace),
 		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
@@ -255,14 +256,11 @@ func marshalLogs(logs []datadoghq.DatadogInstrumentationLogFields) (integration.
 	return b, nil
 }
 
-func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace string, containerName string) workloadfilter.Rules {
+func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace string) workloadfilter.Rules {
 	expr := fmt.Sprintf(
 		`container.pod.rootowner.kind == %q && container.pod.rootowner.name == %q && container.pod.namespace == %q && container.image.reference != ""`,
 		ref.Kind, ref.Name, namespace,
 	)
-	if containerName != "" {
-		expr = fmt.Sprintf("%s && container.name == %q", expr, containerName)
-	}
 	return workloadfilter.Rules{
 		Containers: []string{expr},
 	}
@@ -282,7 +280,7 @@ func hasContainerImage(check datadoghq.DatadogInstrumentationCheckConfig) bool {
 
 func adIdentifiers(check datadoghq.DatadogInstrumentationCheckConfig) []string {
 	if hasContainerName(check) {
-		return nil
+		return []string{adtypes.KubeContainerNameIdentifier(strings.TrimSpace(check.ContainerName))}
 	}
 	return check.ContainerImage
 }

@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 )
@@ -445,6 +446,7 @@ func TestTranslateCheck(t *testing.T) {
 		expectedInstLen  int
 		expectedADIDs    []string
 		expectedCEL      []string
+		unexpectedCEL    []string
 		instanceContains []string
 		logsNil          bool
 		logsContains     string
@@ -458,7 +460,9 @@ func TestTranslateCheck(t *testing.T) {
 			},
 			expectedInit:    "{}",
 			expectedInstLen: 1,
-			expectedCEL:     []string{`container.name == "app"`},
+			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
+			expectedCEL:     []string{`container.pod.rootowner.name == "app"`},
+			unexpectedCEL:   []string{`container.name == "app"`},
 			logsNil:         true,
 		},
 		{
@@ -471,7 +475,9 @@ func TestTranslateCheck(t *testing.T) {
 			},
 			expectedInit:    `{"service":"myservice"}`,
 			expectedInstLen: 1,
-			expectedCEL:     []string{`container.name == "app"`},
+			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
+			expectedCEL:     []string{`container.pod.rootowner.name == "app"`},
+			unexpectedCEL:   []string{`container.name == "app"`},
 			logsNil:         true,
 		},
 		{
@@ -500,7 +506,9 @@ func TestTranslateCheck(t *testing.T) {
 			},
 			expectedInit:    "{}",
 			expectedInstLen: 1,
-			expectedCEL:     []string{`container.name == "app"`},
+			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
+			expectedCEL:     []string{`container.pod.rootowner.name == "app"`},
+			unexpectedCEL:   []string{`container.name == "app"`},
 			logsNil:         true,
 		},
 		{
@@ -544,6 +552,10 @@ func TestTranslateCheck(t *testing.T) {
 					assert.Contains(t, configs[0].CELSelector.Containers[0], expr)
 				}
 			}
+			for _, expr := range tt.unexpectedCEL {
+				require.Len(t, configs[0].CELSelector.Containers, 1)
+				assert.NotContains(t, configs[0].CELSelector.Containers[0], expr)
+			}
 
 			for i, substr := range tt.instanceContains {
 				assert.Contains(t, string(configs[0].Instances[i]), substr)
@@ -563,11 +575,10 @@ func TestBuildCELSelector(t *testing.T) {
 		kind      string
 		target    string
 		namespace string
-		container string
 		contains  []string
 	}{
 		{
-			name:      "basic selector without container names",
+			name:      "basic selector",
 			kind:      "Deployment",
 			target:    "my-app",
 			namespace: "default",
@@ -579,37 +590,35 @@ func TestBuildCELSelector(t *testing.T) {
 			},
 		},
 		{
-			name:      "selector with single container name",
+			name:      "selector with statefulset target",
 			kind:      "StatefulSet",
 			target:    "redis",
 			namespace: "data",
-			container: "redis",
 			contains: []string{
 				`container.pod.rootowner.kind == "StatefulSet"`,
-				`container.name == "redis"`,
+				`container.pod.rootowner.name == "redis"`,
 			},
 		},
 		{
-			name:      "selector with different container name",
+			name:      "selector with deployment target",
 			kind:      "Deployment",
 			target:    "multi",
 			namespace: "default",
-			container: "sidecar",
 			contains: []string{
 				`container.pod.rootowner.kind == "Deployment"`,
 				`container.pod.rootowner.name == "multi"`,
-				`container.name == "sidecar"`,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ref := autoscalingv2.CrossVersionObjectReference{Kind: tt.kind, Name: tt.target}
-			rules := buildCELSelector(ref, tt.namespace, tt.container)
+			rules := buildCELSelector(ref, tt.namespace)
 			require.Len(t, rules.Containers, 1)
 			for _, substr := range tt.contains {
 				assert.Contains(t, rules.Containers[0], substr)
 			}
+			assert.NotContains(t, rules.Containers[0], `container.name ==`)
 		})
 	}
 }
