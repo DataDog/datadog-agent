@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	apiimpl "github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
@@ -289,17 +290,31 @@ func handleSignals(stopCh chan struct{}) {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
 
-	// Block here until we receive the interrupt signal
-	for signo := range signalCh {
-		switch signo {
-		case syscall.SIGPIPE:
-			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
-			// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
-			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
-		default:
-			pkglog.Infof("Received signal '%s', shutting down...", signo)
+	// Block here until we receive a stop signal, either from the OS or from the
+	// API server. The API server's POST /agent/stop endpoint (registered by
+	// commonendpoints) sends on signals.Stopper, so we must drain it here or
+	// the request would block forever without stopping the process.
+	for {
+		select {
+		case <-signals.Stopper:
+			pkglog.Info("Received stop command, shutting down...")
 			stopCh <- struct{}{}
 			return
+		case <-signals.ErrorStopper:
+			_ = pkglog.Critical("Dogstatsd has encountered an error, shutting down...")
+			stopCh <- struct{}{}
+			return
+		case signo := <-signalCh:
+			switch signo {
+			case syscall.SIGPIPE:
+				// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
+				// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
+				// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
+			default:
+				pkglog.Infof("Received signal '%s', shutting down...", signo)
+				stopCh <- struct{}{}
+				return
+			}
 		}
 	}
 }
