@@ -28,13 +28,6 @@ end
 
 default_version adp_version
 
-# We don't want to build any dependencies in "repackaging mode" so all usual dependencies
-# need to go under this guard.
-unless do_repackage?
-  # creates required build directories
-  dependency 'datadog-agent-prepare'
-end
-
 # Dynamically build the source URL/SHA256 hash based on the platform/architecture we're building for.
 source_url_base = ENV['AGENT_DATA_PLANE_SOURCE_URL_BASE']
 source_url_base = 'https://binaries.ddbuild.io/saluki' if source_url_base.nil? || source_url_base.empty?
