@@ -21,14 +21,8 @@ import (
 var b64 = base64.StdEncoding
 var magicGzip = []byte{0x1f, 0x8b, 0x08}
 
-// ParseRelease decodes the "release" data of a Helm-managed ConfigMap or Secret
-// into a Release. The data must be a base64-encoded, gzipped string of a valid
-// release, otherwise an error is returned.
-//
-// For backwards-compatibility with releases stored before Helm introduced
-// compression, decompression is skipped when the gzip magic header is absent.
+// ParseRelease decodes Helm's stored "release" data.
 func ParseRelease(data string) (*Release, error) {
-	// base64 decode string
 	b, err := b64.DecodeString(data)
 	if err != nil {
 		return nil, err
@@ -38,9 +32,6 @@ func ParseRelease(data string) (*Release, error) {
 		return nil, fmt.Errorf("the byte array is too short (expected at least 4 bytes, got %d instead): it cannot contain a Helm release", len(b))
 	}
 
-	// For backwards compatibility with releases that were stored before
-	// compression was introduced we skip decompression if the gzip magic header
-	// is not found.
 	if bytes.Equal(b[0:3], magicGzip) {
 		r, err := gzip.NewReader(bytes.NewReader(b))
 		if err != nil {
@@ -55,7 +46,6 @@ func ParseRelease(data string) (*Release, error) {
 	}
 
 	var rls Release
-	// unmarshal release object bytes
 	if err := json.Unmarshal(b, &rls); err != nil {
 		return nil, err
 	}

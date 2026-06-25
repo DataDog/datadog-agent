@@ -9,17 +9,10 @@
 // objects so the orchestrator can collect Helm release and chart information.
 package helm
 
-// The Release struct and the related ones below are a simplified version of the
-// ones found in the Helm library. Ref:
-// https://github.com/helm/helm/blob/v3.8.0/pkg/release/release.go#L22
-//
-// Defining the structs here lets us avoid importing Helm as a dependency. Unlike
-// the existing customer-facing Helm check (pkg/collector/corechecks/cluster/helm),
-// we intentionally keep the chart values, user-supplied config, templates and
-// rendered manifest, because the orchestrator surfaces them in the UI.
+// These structs mirror the Helm release payload without importing Helm.
+// Ref: https://github.com/helm/helm/blob/v3.8.0/pkg/release/release.go#L22
 
-// Release represents a single Helm release revision, as stored in the
-// "release" data key of a Helm-managed ConfigMap or Secret.
+// Release represents a single Helm release revision.
 type Release struct {
 	Name      string `json:"name,omitempty"`
 	Namespace string `json:"namespace,omitempty"`

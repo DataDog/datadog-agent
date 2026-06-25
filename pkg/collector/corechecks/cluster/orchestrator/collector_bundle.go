@@ -474,6 +474,11 @@ func (cb *CollectorBundle) importBuiltinCollectors() {
 		builtinCollectors = append(builtinCollectors, terminatedPodCollector)
 	}
 
+	// add Helm release and chart collectors when their synthetic CRDs can be shipped.
+	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.helm_releases.enabled") && cb.hasCRDCollector() {
+		builtinCollectors = append(builtinCollectors, k8s.NewHelmReleaseCollector(), k8s.NewHelmChartCollector())
+	}
+
 	// add builtin collectors and check if they are already activated
 	for _, collector := range builtinCollectors {
 		if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {

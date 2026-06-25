@@ -12,8 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
-	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -21,12 +19,9 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
 	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
-	corev1listers "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -97,8 +92,6 @@ type OrchestratorCheck struct {
 	apiClient                   *apiserver.APIClient
 	orchestratorInformerFactory *collectors.OrchestratorInformerFactory
 	agentVersion                *model.AgentVersion
-	helmConfigMapLister         corev1listers.ConfigMapLister
-	helmInformerOnce            sync.Once
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg configcomp.Component, wlmStore workloadmeta.Component, tagger tagger.Component) *OrchestratorCheck {
@@ -240,63 +233,7 @@ func (o *OrchestratorCheck) Run() error {
 	// Run all collectors.
 	o.collectorBundle.Run(sender)
 
-	// Helm release collection (proof-of-concept, env-gated and log-only).
-	o.collectAndLogHelmReleases()
-
 	return nil
-}
-
-// collectAndLogHelmReleases is a temporary, env-gated proof-of-concept that
-// collects every Helm release stored as a ConfigMap and logs a summary of each.
-// It is a no-op unless DD_ORCHESTRATOR_EXPLORER_HELM_RELEASES_ENABLED is "true",
-// and is intended to be replaced by a proper collector that ships the data
-// through the orchestrator pipeline.
-func (o *OrchestratorCheck) collectAndLogHelmReleases() {
-	if os.Getenv("DD_ORCHESTRATOR_EXPLORER_HELM_RELEASES_ENABLED") != "true" {
-		return
-	}
-
-	o.helmInformerOnce.Do(func() {
-		cmInformer := o.orchestratorInformerFactory.HelmConfigMapInformerFactory.Core().V1().ConfigMaps()
-		go cmInformer.Informer().Run(o.stopCh)
-
-		informerName := apiserver.InformerName("helm-configmaps")
-		syncErrors := apiserver.SyncInformersReturnErrors(
-			map[apiserver.InformerName]cache.SharedInformer{informerName: cmInformer.Informer()},
-			o.collectorBundle.extraSyncTimeout,
-		)
-		if err := syncErrors[informerName]; err != nil {
-			_ = log.Warnc(fmt.Sprintf("helm: %v", err), orchestrator.ExtraLogContext...)
-			return
-		}
-		o.helmConfigMapLister = cmInformer.Lister()
-	})
-
-	// Skip Helm collection if the informer never synced.
-	if o.helmConfigMapLister == nil {
-		return
-	}
-
-	configMaps, err := o.helmConfigMapLister.List(labels.Everything())
-	if err != nil {
-		_ = log.Warnc(fmt.Sprintf("helm: failed to list releases: %v", err), orchestrator.ExtraLogContext...)
-		return
-	}
-
-	releases := helmcollector.ReleasesFromConfigMaps(configMaps)
-	log.Debugc(fmt.Sprintf("helm: collected %d release(s)", len(releases)), orchestrator.ExtraLogContext...)
-	for _, r := range releases {
-		var chart string
-		var templates int
-		if r.Chart != nil {
-			templates = len(r.Chart.Templates)
-			if r.Chart.Metadata != nil {
-				chart = fmt.Sprintf("%s-%s", r.Chart.Metadata.Name, r.Chart.Metadata.Version)
-			}
-		}
-		log.Debugc(fmt.Sprintf("helm: release=%s/%s revision=%d chart=%s templates=%d manifestBytes=%d",
-			r.Namespace, r.Name, r.Version, chart, templates, len(r.Manifest)), orchestrator.ExtraLogContext...)
-	}
 }
 
 // Cancel cancels the orchestrator check
