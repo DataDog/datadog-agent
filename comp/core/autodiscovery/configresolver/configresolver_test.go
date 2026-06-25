@@ -1013,3 +1013,136 @@ func BenchmarkResolve(b *testing.B) {
 		})
 	}
 }
+
+func TestRewriteFileSourcePrefix(t *testing.T) {
+	const filePath = "/etc/datadog-agent/conf.d/redis.d/auto_conf.yaml"
+
+	tests := []struct {
+		name        string
+		source      string
+		isProcess   bool
+		isDiscovery bool
+		want        string
+	}{
+		{
+			name:        "file + process + no discovery → ad-process+file",
+			source:      names.File + ":" + filePath,
+			isProcess:   true,
+			isDiscovery: false,
+			want:        names.ADProcess + ":" + filePath,
+		},
+		{
+			name:        "file + container + no discovery → unchanged",
+			source:      names.File + ":" + filePath,
+			isProcess:   false,
+			isDiscovery: false,
+			want:        names.File + ":" + filePath,
+		},
+		{
+			name:        "file + process + discovery → ad-process-discovery+file",
+			source:      names.File + ":" + filePath,
+			isProcess:   true,
+			isDiscovery: true,
+			want:        names.ADProcessDiscovery + ":" + filePath,
+		},
+		{
+			name:        "file + container + discovery → ad-container-discovery+file",
+			source:      names.File + ":" + filePath,
+			isProcess:   false,
+			isDiscovery: true,
+			want:        names.ADContainerDiscovery + ":" + filePath,
+		},
+		{
+			name:        "non-file provider + process → unchanged",
+			source:      "container:docker://abc123",
+			isProcess:   true,
+			isDiscovery: false,
+			want:        "container:docker://abc123",
+		},
+		{
+			name:        "non-file provider + discovery → unchanged",
+			source:      names.Kubernetes + ":" + filePath,
+			isProcess:   false,
+			isDiscovery: true,
+			want:        names.Kubernetes + ":" + filePath,
+		},
+		{
+			name:        "empty source → unchanged",
+			source:      "",
+			isProcess:   true,
+			isDiscovery: true,
+			want:        "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := rewriteFileSourcePrefix(tc.source, tc.isProcess, tc.isDiscovery)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestResolveSourceRewrite(t *testing.T) {
+	const fileSource = "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml"
+
+	tests := []struct {
+		testName     string
+		svcID        string
+		discovery    *integration.DiscoveryConfig
+		wantSource   string
+		wantProvider string
+	}{
+		{
+			testName:     "process service + no discovery → ad-process+file source",
+			svcID:        "process://1234",
+			discovery:    nil,
+			wantSource:   names.ADProcess + ":/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+			wantProvider: names.File,
+		},
+		{
+			testName:     "container service + no discovery → file source (unchanged)",
+			svcID:        "a5901276aed1",
+			discovery:    nil,
+			wantSource:   fileSource,
+			wantProvider: names.File,
+		},
+		{
+			testName:     "process service + discovery → ad-process-discovery+file source",
+			svcID:        "process://1234",
+			discovery:    &integration.DiscoveryConfig{},
+			wantSource:   names.ADProcessDiscovery + ":/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+			wantProvider: names.File,
+		},
+		{
+			testName:     "container service + discovery → ad-container-discovery+file source",
+			svcID:        "a5901276aed1",
+			discovery:    &integration.DiscoveryConfig{},
+			wantSource:   names.ADContainerDiscovery + ":/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+			wantProvider: names.File,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.testName, func(t *testing.T) {
+			svc := &dummyService{
+				ID:            tc.svcID,
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			}
+			tpl := integration.Config{
+				Name:          "redisdb",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%")},
+				Source:        fileSource,
+				Provider:      names.File,
+				Discovery:     tc.discovery,
+			}
+
+			resolved, err := Resolve(tpl, svc)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantSource, resolved.Source, "Source should reflect how the template was applied")
+			assert.Equal(t, tc.wantProvider, resolved.Provider, "Provider must not be modified by Resolve")
+		})
+	}
+}
