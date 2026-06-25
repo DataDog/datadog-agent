@@ -565,7 +565,7 @@ docker_build_secret_generic_connector_arm64:
     - ADP_HASH=$(python3 -c "import json;print(json.load(open('release.json'))['dependencies']['AGENT_DATA_PLANE_HASH_LINUX_'+'$ARCH'.upper()])")
     - curl -fsSL "https://binaries.ddbuild.io/saluki/agent-data-plane-${ADP_VERSION}-linux-${ARCH}.tar.gz" -o /tmp/adp.tar.gz
     - echo "${ADP_HASH}  /tmp/adp.tar.gz" | sha256sum -c -
-    - tar -xzf /tmp/adp.tar.gz -C /tmp opt/datadog-agent/embedded/bin/agent-data-plane
+    - tar -xzf /tmp/adp.tar.gz -C /tmp ./opt/datadog-agent/embedded/bin/agent-data-plane
     - cp /tmp/opt/datadog-agent/embedded/bin/agent-data-plane ${ARTIFACTS_BUILD_CONTEXT}/agent-data-plane.${ARCH}
 
 docker_build_dogstatsd_amd64:
