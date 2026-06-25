@@ -168,9 +168,20 @@ func TestFilterAllowedPathsUsesBackendPayload(t *testing.T) {
 			want:    []string{},
 		},
 		{
-			name:    "backend paths are normalized in order",
+			name:    "backend paths are normalized",
 			backend: []string{"/var/log", "/etc/"},
 			want:    []string{"/var/log/", "/etc/"},
+		},
+		{
+			name: "backend paths from multiple policies are reduced",
+			backend: []string{
+				"/etc/datadog-agent",
+				"/etc",
+				"/host/var/log",
+				"/host/var/log",
+				"/host/var/log",
+			},
+			want: []string{"/etc/", "/host/var/log/"},
 		},
 		{
 			name:    "backend access overlays are preserved",
