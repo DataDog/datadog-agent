@@ -84,7 +84,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/otel-agent/subcommands/run
 # gazelle:exclude cmd/privateactionrunner/subcommands/*.go
 # gazelle:exclude cmd/privateactionrunner/subcommands/run
-# gazelle:exclude cmd/process-agent/api
 # gazelle:exclude cmd/process-agent/command
 # gazelle:exclude cmd/process-agent/subcommands
 # gazelle:exclude cmd/security-agent/*.go
@@ -170,7 +169,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/otelcol/otlp/integrationtest
 # gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/privateactionrunner/impl
-# gazelle:exclude comp/process/apiserver/impl
 # gazelle:exclude comp/process/agent/*.go
 # gazelle:exclude comp/process/agent/fx
 # gazelle:exclude comp/process/agent/impl
@@ -341,13 +339,10 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/privateactionrunner/runners
 # gazelle:exclude pkg/privileged-logs/module
 # gazelle:exclude pkg/privileged-logs/test
-# gazelle:exclude pkg/process/checks
-# gazelle:exclude pkg/process/metadata/parser/*.go
+# gazelle:exclude pkg/process/checks/mocks
 # gazelle:exclude pkg/process/metadata/workloadmeta/collector
 # gazelle:exclude pkg/process/monitor
-# gazelle:exclude pkg/process/net
 # gazelle:exclude pkg/process/runner/mocks
-# gazelle:exclude pkg/process/util/containers/mocks
 # gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
 # gazelle:exclude pkg/sbom/collectors/host

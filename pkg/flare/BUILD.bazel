@@ -82,7 +82,6 @@ dd_agent_go_test(
         "service_windows_test.go",
     ],
     embed = [":flare"],
-    tags = ["manual"],  # keep
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",

@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/process/apiserver/fx",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/process/apiserver/impl",
         "//pkg/util/fxutil",
-        "@//comp/process/apiserver/impl",
     ],
 )
