@@ -29,6 +29,7 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 		pulumiResourceOptions := append(params.PulumiResourceOptions, pulumi.Parent(comp))
 
 		helmComponent, err := agent.NewHelmInstallation(e, agent.HelmInstallationArgs{
+			BaseName:                       params.BaseName,
 			KubeProvider:                   kubeProvider,
 			DeployWindows:                  params.DeployWindows,
 			Namespace:                      params.Namespace,
@@ -38,6 +39,8 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 			Fakeintake:                     params.FakeIntake,
 			AgentFullImagePath:             params.AgentFullImagePath,
 			ClusterAgentFullImagePath:      params.ClusterAgentFullImagePath,
+			AgentImageTag:                  params.AgentImageTag,
+			ClusterAgentImageTag:           params.ClusterAgentImageTag,
 			DualShipping:                   params.DualShipping,
 			DisableLogsContainerCollectAll: params.DisableLogsContainerCollectAll,
 			OTelAgent:                      params.OTelAgent,
@@ -61,7 +64,7 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 		appVersion := helmComponent.LinuxHelmReleaseStatus.AppVersion().Elem()
 		version := helmComponent.LinuxHelmReleaseStatus.Version().Elem()
 
-		baseName := "dda-" + platform
+		baseName := params.BaseName + "-" + platform
 
 		comp.LinuxNodeAgent, err = componentskube.NewKubernetesObjRef(e, baseName+"-nodeAgent", params.Namespace, "Pod", appVersion, version, map[string]string{
 			"app": baseName + "-datadog",
@@ -88,7 +91,7 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 			appVersion = helmComponent.WindowsHelmReleaseStatus.AppVersion().Elem()
 			version = helmComponent.WindowsHelmReleaseStatus.Version().Elem()
 
-			baseName = "dda-" + platform
+			baseName = params.BaseName + "-" + platform
 
 			comp.WindowsNodeAgent, err = componentskube.NewKubernetesObjRef(e, baseName+"-nodeAgent", params.Namespace, "Pod", appVersion, version, map[string]string{
 				"app": baseName + "-datadog",

@@ -391,6 +391,7 @@ exports_files(["go.mod"])
 # gazelle:exclude test/e2e-framework/registry
 # gazelle:exclude test/e2e-framework/resources
 # gazelle:exclude test/e2e-framework/run
+# gazelle:exclude test/e2e-framework/scenarios/aws/benchmarkeks
 # gazelle:exclude test/e2e-framework/scenarios/aws/ec2
 # gazelle:exclude test/e2e-framework/scenarios/aws/ec2docker
 # gazelle:exclude test/e2e-framework/scenarios/aws/ecs
