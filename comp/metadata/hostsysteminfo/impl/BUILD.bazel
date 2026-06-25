@@ -30,6 +30,7 @@ go_test(
         "hostsysteminfo_supported_test.go",
     ],
     embed = [":impl"],
+    env_inherit = ["PATH"],  # test invokes system utilities (e.g. ioreg on macOS) requiring the host PATH
     gotags = ["test"],
     deps = [
         "//comp/core/config",
