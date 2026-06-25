@@ -196,17 +196,33 @@ type ScopeName string
 // K8sObjectsReceiver is the scope name for the k8sobjectsreceiver
 var K8sObjectsReceiver ScopeName = "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver"
 
-// splitLogsByScope partitions ld into k8sobjects-receiver logs and everything else
+// splitLogsByScope partitions ld by ScopeLogs into k8sobjects logs and everything else.
 func splitLogsByScope(ld plog.Logs) (plog.Logs, plog.Logs) {
 	k8sLogs := plog.NewLogs()
 	regularLogs := plog.NewLogs()
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
-		rl := ld.ResourceLogs().At(i)
-		dst := regularLogs
-		if rl.ScopeLogs().Len() > 0 && ScopeName(rl.ScopeLogs().At(0).Scope().Name()) == K8sObjectsReceiver {
-			dst = k8sLogs
-		}
-		rl.CopyTo(dst.ResourceLogs().AppendEmpty())
+		srcRL := ld.ResourceLogs().At(i)
+		copyMatchingScopes(srcRL, k8sLogs, func(name string) bool { return ScopeName(name) == K8sObjectsReceiver })
+		copyMatchingScopes(srcRL, regularLogs, func(name string) bool { return ScopeName(name) != K8sObjectsReceiver })
 	}
 	return k8sLogs, regularLogs
+}
+
+// copyMatchingScopes copies ScopeLogs from src to dst whose scope name passes match.
+func copyMatchingScopes(src plog.ResourceLogs, dst plog.Logs, match func(scopeName string) bool) {
+	var rl plog.ResourceLogs
+	initialized := false
+	for j := 0; j < src.ScopeLogs().Len(); j++ {
+		sl := src.ScopeLogs().At(j)
+		if !match(sl.Scope().Name()) {
+			continue
+		}
+		if !initialized {
+			rl = dst.ResourceLogs().AppendEmpty()
+			src.Resource().CopyTo(rl.Resource())
+			rl.SetSchemaUrl(src.SchemaUrl())
+			initialized = true
+		}
+		sl.CopyTo(rl.ScopeLogs().AppendEmpty())
+	}
 }
