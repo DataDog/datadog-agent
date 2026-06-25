@@ -39,12 +39,21 @@ type ActionRecord struct {
 	ClaimedAt       int64
 }
 
+// ActionStoreInterface defines the store methods used by ActionProcessor.
+type ActionStoreInterface interface {
+	Claim(key ActionKey) bool
+	MarkExecuted(key ActionKey, status, message string, executedAt, receivedAt, actionCreatedAt int64)
+	GetRecord(key ActionKey) (ActionRecord, bool)
+}
+
 // ActionStore tracks processed actions in-memory to prevent duplicate execution.
 type ActionStore struct {
 	executed map[string]ActionRecord
 	mu       sync.RWMutex
 	stopCh   chan struct{}
 }
+
+var _ ActionStoreInterface = (*ActionStore)(nil)
 
 // NewActionStore creates a new ActionStore and starts the background cleanup goroutine.
 func NewActionStore(ctx context.Context) *ActionStore {

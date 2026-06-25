@@ -7,9 +7,13 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/def",
         "//comp/kubeactions/helmactions/def",
-        "//comp/kubeactions/kubeactions/def",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/clustername",
+        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
     ],
 )
