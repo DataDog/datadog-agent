@@ -159,7 +159,7 @@ func TestValidate(t *testing.T) {
 			expectErrCount: 0,
 		},
 		{
-			name: "valid check with container image fallback",
+			name: "valid check with container image",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
 					Integration:    "redisdb",
