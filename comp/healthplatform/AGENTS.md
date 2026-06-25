@@ -12,16 +12,18 @@ Path A — built-in checks (runner-mediated)
 HealthCheckFunc (detect)
         │
         ▼
-  IssueReport  ──►  Runner  ──►  Registry.BuildIssue  ──►  Store
-                                                              │
-Path B — external reporters (direct)                         │
-                                                              │
-  component calls store.ReportIssue(issue) ─────────────────►┘
-                                                              │
-                                                           Egress  ──►  Forwarder
-                                                                            │
-                                          POST /api/v2/agenthealth  ▼
-                                                         agenthealth-intake.<site>
+  IssueReport  ──►  Runner  ──►  Registry.BuildIssue (optional)  ──►  Store
+                                        │ fallback if no template              │
+                                   minimal proto ────────────────────────────►┘
+                                                                               │
+Path B — external reporters (direct)                                           │
+                                                                               │
+  component calls store.ReportIssue(issue) ───────────────────────────────────┘
+                                                                               │
+                                                                            Egress  ──►  Forwarder
+                                                                                            │
+                                                          POST /api/v2/agenthealth  ▼
+                                                                         agenthealth-intake.<site>
 ```
 
 Use **Path A** when you want to delegate detection logic and evaluation scheduling to the health platform component. Use **Path B** when an existing component (the collector, autodiscovery) already detects the condition and should call `store.ReportIssue` directly with a fully-built proto `Issue`, or when reporting from another process (system-probe).
@@ -32,11 +34,14 @@ Sub-package roles:
 |---|---|
 | `issues/<module>/` | Detection + remediation bundled per issue type |
 | `issueregistry/` | Wires module factories into a `Registry` at startup |
-| `runner/` | Executes `HealthCheckFunc`, translates `IssueReport` → proto `Issue` via the registry |
+| `runner/` | Executes `HealthCheckFunc`, translates `IssueReport` → proto `Issue` via the registry (falls back to a minimal proto when no template is registered) |
 | `scheduler/` | Drives periodic checks on a timer |
 | `store/` | Persists the current issue set across agent restarts |
 | `egress/` | Periodically fetches issues from the store and sends them |
 | `forwarder/` | Stateless HTTP client; POSTs a `HealthReport` to the Datadog intake |
+
+> **`HealthCheckFunc` returns `IssueReport`, not `*Issue`.** The function signature is `func() ([]IssueReport, error)` — a check cannot return a fully-formed proto issue. If you need full control over all proto fields, use Path B and call `store.ReportIssue` directly.
+> `BuildIssue` is optional on Path A: when no template is registered for an `IssueName`, the runner builds a minimal proto from the `IssueReport` fields directly.
 
 ### Consuming healthplatform components from other code
 
@@ -70,7 +75,9 @@ The `def` packages (`runner/def`, `store/def`, etc.) contain only interfaces and
 
 ## Module file layout
 
-Every issue lives in its own sub-package under `comp/healthplatform/issues/<pkgname>/`.
+> This section applies when you want to use **Path A** (runner-mediated checks with `HealthCheckFunc`) or when you want a reusable `BuildIssue` template. **Path B direct reporters** that build proto `Issue` values inline and call `store.ReportIssue` directly have no mandatory file layout — no issue module is required.
+
+Every issue module lives in its own sub-package under `comp/healthplatform/issues/<pkgname>/`.
 
 | File | Purpose | Required? |
 |---|---|---|
@@ -147,7 +154,9 @@ Declare every context key your module reads as a package-private `const` at the 
 | `Tags` | Lowercase slugs; always include the subsystem and any relevant entity name |
 | `Extra` | `structpb.Struct` — include all context keys so the UI can render them |
 
-**Never set `issue.Id`** — it is populated by `ReportIssue` (the caller), not by the template. Tests assert `assert.Empty(t, issue.Id)`.
+**Never set `issue.Id`** inside `BuildIssue` — the runner sets it on the returned issue (from `IssueReport.IssueID`) before forwarding to the store. Tests assert `assert.Empty(t, issue.Id)`.
+
+> **Path B callers** who build and report issues directly (not via a `HealthCheckFunc`) must set `issue.Id` themselves — `store.ReportIssue` rejects an empty id.
 
 ### Remediation steps
 
