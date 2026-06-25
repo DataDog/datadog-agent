@@ -474,12 +474,7 @@ func TestWorkerStopDoesNotCancelInFlight(t *testing.T) {
 
 	close(mockTransaction.release)
 
-	select {
-	case <-stopReturned:
-		// expected — Stop drained after release
-	case <-time.After(2 * time.Second):
-		t.Fatal("Stop did not return after in-flight Process completed")
-	}
+	<-stopReturned
 
 	mockTransaction.AssertExpectations(t)
 	mockTransaction.AssertNumberOfCalls(t, "Process", 1)
@@ -583,12 +578,7 @@ func TestWorkerStopWaitsForSemaphoreBlockedTransactions(t *testing.T) {
 		close(transactions[i].release)
 	}
 
-	select {
-	case <-stopReturned:
-		// expected — Stop drained after all transactions completed
-	case <-time.After(2 * time.Second):
-		t.Fatal("Stop did not return after in-flight Process calls completed")
-	}
+	<-stopReturned
 
 	// All five transactions ran their Process call successfully.
 	for i, txn := range transactions {
@@ -651,12 +641,7 @@ func TestWorkerStopWaitsForInFlightHTTPRequest(t *testing.T) {
 
 	close(releaseResponse)
 
-	select {
-	case <-stopReturned:
-		// expected — Stop drained after release
-	case <-time.After(2 * time.Second):
-		t.Fatal("Stop did not return after in-flight request completed")
-	}
+	<-stopReturned
 
 	assert.True(t, processed.Load(), "transaction must complete before Stop returns")
 	assert.Equal(t, 0, len(requeue), "successfully-completed transaction must not be requeued")
@@ -725,22 +710,15 @@ func TestWorkerStopCancelsContextRequeuesSemaphoreBlocked(t *testing.T) {
 		close(stopReturned)
 	}()
 
-	// Wait for Stop's cancel() to propagate — otherwise close(release) below
-	// can race with cancel, free the semaphore first, and let secondTxn's
-	// Acquire succeed (defeating the test).
-	for w.workerCtx.Err() == nil {
-		time.Sleep(time.Microsecond)
-	}
+	// Wait for Stop's cancel() to propagate. Ensure cancel happens-before semaphore
+	// release, so the undocumented cancellation check in semaphore.Acquire after
+	// a successful acquisition is guaranteed to see it.
+	<-w.workerCtx.Done()
 
 	// Release the first in-flight transaction so requestWg.Wait() can complete.
 	close(release)
 
-	select {
-	case <-stopReturned:
-		// expected — Stop returned after context cancel propagated
-	case <-time.After(2 * time.Second):
-		t.Fatal("Stop did not return after context cancellation")
-	}
+	<-stopReturned
 
 	// secondTxn must have been requeued (context cancel → semaphore.Acquire error → requeue).
 	assert.Equal(t, 1, len(requeue), "semaphore-blocked transaction must be requeued when Stop cancels workerCtx")

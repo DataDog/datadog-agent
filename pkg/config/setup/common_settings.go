@@ -1601,10 +1601,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
 	// forwarder_stop_wait_for_inflight controls whether Worker.Stop waits for
 	// in-flight HTTP transactions to finish before returning (true) or cancels
-	// them immediately (false). Only safe when the process is about to exit: on
-	// forwarder_stop_timeout overrun the in-flight HTTP goroutines are
-	// leaked (workerCtx has no independent cancellation), so a long-running
-	// process that flips this flag will accumulate goroutines on every Stop.
+	// them immediately (false).
 	config.BindEnvAndSetDefault("forwarder_stop_wait_for_inflight", false)
 	config.BindEnvAndSetDefault("forwarder_max_concurrent_requests", 10)
 	// Forwarder retry settings
