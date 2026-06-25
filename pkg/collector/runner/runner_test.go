@@ -236,6 +236,34 @@ func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 	}
 }
 
+// TestRunnerDynamicUpdateNumWorkersWhenUnconfigured verifies that the worker
+// pool scales dynamically when check_runners is left at its default value
+// (i.e. the operator did not explicitly configure it). Prior to the fix for
+// the `check_runners` BindEnvAndSetDefault footgun, the runner would treat
+// the default value of 4 as if the user had explicitly configured a fixed
+// pool, leaving dynamic scaling unreachable in default installs.
+func TestRunnerDynamicUpdateNumWorkersWhenUnconfigured(t *testing.T) {
+	testSetUp(t)
+	// Note: deliberately no SetWithoutSource call for check_runners so the
+	// only source for the key is the BindEnvAndSetDefault default of 4.
+	require.False(t, pkgconfigsetup.Datadog().IsConfigured("check_runners"))
+
+	assertAsyncWorkerCount(t, 0)
+
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	// With 30 scheduled checks we expect dynamic scaling to ramp up to
+	// MaxNumWorkers; if the runner were locked at the static default of 4
+	// this call would be a no-op.
+	for checks := 0; checks <= 30; checks++ {
+		r.UpdateNumWorkers(int64(checks))
+	}
+
+	assertAsyncWorkerCount(t, pkgconfigsetup.MaxNumWorkers)
+}
+
 func TestRunner(t *testing.T) {
 	testSetUp(t)
 	numChecks := 10
