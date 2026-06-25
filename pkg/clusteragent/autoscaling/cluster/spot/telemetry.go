@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,13 +39,13 @@ type workloadSnapshot struct {
 
 // telemetry emits the spot scheduler's metrics.
 type telemetry struct {
-	sender          metricsstore.MetricsSender
+	sender          sender.Sender
 	workloadMetrics *metricsstore.MetricsStore[workloadSnapshot]
 	globalTagsFunc  func() []string
 	isLeader        func() bool
 }
 
-func newTelemetry(s metricsstore.MetricsSender, isLeader func() bool, globalTagsFunc func() []string) *telemetry {
+func newTelemetry(s sender.Sender, isLeader func() bool, globalTagsFunc func() []string) *telemetry {
 	t := &telemetry{
 		sender:         s,
 		globalTagsFunc: globalTagsFunc,
