@@ -118,7 +118,8 @@ func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []str
 // filterAllowedPaths returns the effective path allowlist passed to rshell:
 //
 //  1. Normalize the signed backend paths.
-//  2. If no operator allowlist is configured, use the backend paths directly.
+//  2. If no operator allowlist is configured, reduce the backend paths to
+//     remove duplicates and redundant descendants, then use that reduced list.
 //  3. If an operator allowlist is configured, intersect operator and backend
 //     paths by access group and containment, keeping the narrower matching path.
 //  4. Remove same-path read-only entries when a read-write entry exists. For example,
@@ -126,9 +127,9 @@ func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []str
 func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 	backendPaths := cleanPathList(backend)
 	if !h.operatorAllowedPathsConfigured {
-		return dedupeSamePathPreferReadWrite(backendPaths)
+		return reducePathListToBroadest(backendPaths)
 	}
-	return intersectAllowedPathsByAccess(h.operatorAllowedPaths, cleanPathList(backendPaths))
+	return intersectAllowedPathsByAccess(h.operatorAllowedPaths, backendPaths)
 }
 
 // RunCommandInputs defines the user-supplied inputs for the runCommand action.
