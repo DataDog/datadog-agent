@@ -1,0 +1,279 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package lifecycle
+
+import (
+	"bytes"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func newTestForwarder(target string) *Forwarder {
+	return &Forwarder{
+		target:         target,
+		client:         &http.Client{},
+		forwardTimeout: 200 * time.Millisecond,
+		readyTimeout:   200 * time.Millisecond,
+	}
+}
+
+func TestForwarder_PassThrough_MirrorsStatusAndBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(503)
+		_, _ = w.Write([]byte(`{"ready":false}`))
+	}))
+	defer srv.Close()
+
+	f := newTestForwarder(srv.URL)
+	resp := f.PassThrough("/x", http.Header{"Content-Type": []string{"application/json"}}, bytes.NewReader([]byte("{}")))
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+	assert.Equal(t, 503, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, `{"ready":false}`, string(body))
+}
+
+func TestForwarder_PassThrough_TimeoutMapsTo504(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(500 * time.Millisecond)
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	f := newTestForwarder(srv.URL)
+	resp := f.PassThrough("/x", nil, nil)
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusGatewayTimeout, resp.StatusCode)
+}
+
+func TestForwarder_PassThrough_ConnRefusedMapsTo503(t *testing.T) {
+	f := newTestForwarder("http://127.0.0.1:1") // unbound port
+	resp := f.PassThrough("/x", nil, nil)
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+}
+
+// User-app responses that exceed the configured body cap must be truncated
+// at the cap; a misbehaving or malicious user app cannot OOM the agent or
+// wedge the handler with an unbounded body. Status code is preserved.
+func TestForwarder_PassThrough_TruncatesBodyAtCap(t *testing.T) {
+	const cap = 256
+	payload := bytes.Repeat([]byte("A"), cap*4) // 4x the cap
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write(payload)
+	}))
+	defer srv.Close()
+
+	f := newTestForwarder(srv.URL)
+	f.maxResponseBodyBytes = cap
+	resp := f.PassThrough("/x", nil, nil)
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, cap, len(body), "body must be truncated at maxResponseBodyBytes")
+}
+
+// TestNewForwarder_DisableKeepAlives_OpensNewConnectionPerRequest is the
+// behavioral counterpart to TestNewForwarder_Defaults. It verifies that
+// DisableKeepAlives actually prevents TCP connection reuse by counting the
+// number of new connections the test server accepts: with keep-alives disabled
+// each request must open a fresh connection, so the connection count must equal
+// the request count. A keep-alives-enabled client would reuse one connection
+// for all three requests and the counter would stay at 1.
+//
+// This matters for MicroVM snapshot/restore: any connection pooled inside a
+// Firecracker snapshot is stale on resume, and Go's HTTP transport does not
+// auto-retry POST on a stale connection. Forcing a fresh dial per call
+// eliminates the class of "first /launch hook fails with 503/504" failures.
+func TestNewForwarder_DisableKeepAlives_OpensNewConnectionPerRequest(t *testing.T) {
+	var newConns atomic.Int32
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+	}))
+	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			newConns.Add(1)
+		}
+	}
+	srv.Start()
+	defer srv.Close()
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	port, err := strconv.Atoi(u.Port())
+	require.NoError(t, err)
+
+	f := NewForwarder(port)
+	const requests = 3
+	for i := 0; i < requests; i++ {
+		resp := f.PassThrough("/x", nil, nil)
+		require.NotNil(t, resp)
+		resp.Body.Close()
+	}
+	assert.Equal(t, int32(requests), newConns.Load(),
+		"DisableKeepAlives must open a fresh TCP connection per request; with keep-alives enabled only 1 connection would be accepted")
+}
+
+// NewForwarder defaults must match the AWS Lambda MicroVM platform-bound
+// analysis: 30s for the four lifecycle hooks (well under /terminate's 60s
+// platform bound) and 2s for the readiness loop. Bumping these defaults is
+// a behavior change worth a deliberate test failure.
+func TestNewForwarder_Defaults(t *testing.T) {
+	f := NewForwarder(8080)
+	assert.Equal(t, 30*time.Second, f.forwardTimeout, "forwardTimeout default must be 30s")
+	assert.Equal(t, 2*time.Second, f.readyTimeout, "readyTimeout default must be 2s")
+	assert.Equal(t, defaultMaxResponseBodyBytes, f.maxResponseBodyBytes, "maxResponseBodyBytes default must be 1 MiB")
+	tr, ok := f.client.Transport.(*http.Transport)
+	require.True(t, ok, "transport must be *http.Transport")
+	assert.True(t, tr.DisableKeepAlives, "DisableKeepAlives must be true: MicroVM instances resume from a Firecracker snapshot, so pooled connections are stale on resume and POST is not auto-retried")
+}
+
+// On the error path (dial error, deadline) PassThrough returns a non-nil
+// response with an empty body whose Close is a no-op. Deferred Close in
+// callers MUST be safe regardless of which path produced the response.
+func TestForwarder_PassThrough_ErrorStubBodyCloseIsNoop(t *testing.T) {
+	f := newTestForwarder("http://127.0.0.1:1") // dial-error path
+	resp := f.PassThrough("/x", nil, nil)
+	require.NotNil(t, resp)
+	require.NotNil(t, resp.Body)
+	// Two consecutive closes must not error or panic — pin no-op semantics.
+	assert.NoError(t, resp.Body.Close())
+	assert.NoError(t, resp.Body.Close())
+}
+
+// PassThrough must propagate the incoming Content-Type to the user app.
+// Header forwarding is the only caller-visible piece of the request shape
+// (path is fixed, body is opaque), so it gets a dedicated pin.
+func TestForwarder_PassThrough_ForwardsContentType(t *testing.T) {
+	got := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got <- r.Header.Get("Content-Type")
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	f := newTestForwarder(srv.URL)
+	resp := f.PassThrough("/h", http.Header{"Content-Type": []string{"application/x-test"}}, nil)
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+	select {
+	case ct := <-got:
+		assert.Equal(t, "application/x-test", ct)
+	case <-time.After(time.Second):
+		t.Fatal("user app handler never invoked")
+	}
+}
+
+// PassThroughReady mirrors the user-app's status, Content-Type, and body
+// just like PassThrough. /ready is a separate code path (different timeout),
+// so its mirror semantics need a dedicated pin — the platform expects the
+// user-app's actual readiness signal, not an agent-synthesized response.
+func TestForwarder_PassThroughReady_MirrorsStatusAndBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/x-ready")
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"ready":true}`))
+	}))
+	defer srv.Close()
+
+	f := newTestForwarder(srv.URL)
+	resp := f.PassThroughReady("/ready", nil, nil)
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, "application/x-ready", resp.Header.Get("Content-Type"))
+	body, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, `{"ready":true}`, string(body))
+}
+
+// /ready uses a tighter timeout than the four lifecycle hooks because the
+// platform's readiness loop is hot. PassThroughReady MUST honor readyTimeout,
+// not forwardTimeout. A buggy implementation that called PassThrough's path
+// would let /ready block for the full 30s forward budget, hanging the
+// platform's retry loop. This test sets readyTimeout=50ms and
+// forwardTimeout=5s with a 200ms upstream delay: only the readyTimeout path
+// times out (504); a leak to forwardTimeout would return 200 instead.
+func TestForwarder_PassThroughReady_HonorsReadyTimeoutNotForwardTimeout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	f := &Forwarder{
+		target:         srv.URL,
+		client:         &http.Client{},
+		forwardTimeout: 5 * time.Second,       // would NOT trip
+		readyTimeout:   50 * time.Millisecond, // MUST trip
+	}
+	resp := f.PassThroughReady("/ready", nil, nil)
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusGatewayTimeout, resp.StatusCode,
+		"PassThroughReady must time out on readyTimeout, not forwardTimeout")
+}
+
+// On the happy path the response body is wrapped by cancelOnCloseReader.
+// Closing the body MUST cancel the per-call context — without this, the
+// timeout goroutine and any associated transport state leaks for the
+// remainder of the timeout window. This pins the cleanup contract that the
+// passThroughWith / wrapResponseBody layering relies on.
+func TestForwarder_PassThrough_BodyCloseCancelsContext(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	f := newTestForwarder(srv.URL)
+	resp := f.PassThrough("/x", nil, nil)
+	require.NotNil(t, resp)
+
+	cor, ok := resp.Body.(*cancelOnCloseReader)
+	require.True(t, ok, "happy-path body must be wrapped by cancelOnCloseReader")
+
+	called := atomic.Int32{}
+	original := cor.cancel
+	cor.cancel = func() {
+		called.Add(1)
+		original()
+	}
+	require.NoError(t, resp.Body.Close())
+	assert.Equal(t, int32(1), called.Load(), "Close must invoke the per-call cancel exactly once")
+}
+
+// wrapResponseBody with cap <= 0 must skip the LimitReader layer and return
+// the body unmodified through cancelOnCloseReader. Production callers always
+// pass a positive cap, but the disable-cap branch is reachable from any test
+// that constructs a Forwarder without setting maxResponseBodyBytes — pinning
+// it here prevents accidental panic / wrong-layering regressions.
+func TestWrapResponseBody_CapZero_DisablesCap(t *testing.T) {
+	const payload = "long-enough-to-have-been-truncated-if-cap-applied"
+	body := io.NopCloser(bytes.NewReader([]byte(payload)))
+	wrapped := wrapResponseBody(body, 0, func() {})
+	defer wrapped.Close()
+
+	got, err := io.ReadAll(wrapped)
+	require.NoError(t, err)
+	assert.Equal(t, payload, string(got),
+		"cap=0 must read the full body — LimitReader must NOT be applied")
+}

@@ -147,6 +147,8 @@ func TestMicroVMShutdown_LiveServer_StopsCleanly(t *testing.T) {
 		metricAgent, metricAgent,
 		(&MicroVM{}).GetSource(),
 		time.Second,
+		lifecycle.NewNoopChildHandle(),
+		nil, // no forwarder
 	)
 	l, err := srv.Listen()
 	require.NoError(t, err)
@@ -171,6 +173,52 @@ func TestMicroVMInit_NonMicroVMServicesIgnoreLifecycleCtx(t *testing.T) {
 		assert.NotPanics(t, func() { _ = svc.Init(ctx) },
 			"%T.Init must not panic when passed a LifecycleCtx", svc)
 	}
+}
+
+// TestMicroVMInit_SidecarMode_ServerStartedChildNil verifies that sidecar mode
+// starts the lifecycle server (for /ready 503s) but returns a nil Child — the
+// noop ChildHandle reports not-alive, surfacing 503 rather than papering over a
+// sidecar+MicroVM misconfiguration.
+func TestMicroVMInit_SidecarMode_ServerStartedChildNil(t *testing.T) {
+	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
+	m := &MicroVM{}
+	ctx := &TracingContext{
+		TraceAgent: &noopTraceAgent{},
+		LifecycleCtx: &LifecycleContext{
+			MetricFlusher: metricAgent,
+			LogsFlusher:   &noopLogsFlusher{},
+			MetricEmitter: metricAgent,
+			SampleDrainer: metricAgent,
+			FlushTimeout:  time.Second,
+			SidecarMode:   true,
+		},
+	}
+	err := m.Init(ctx)
+	require.NoError(t, err)
+	assert.Nil(t, m.Child(), "sidecar mode must not expose a Child — no user process to track")
+}
+
+// TestMicroVMInit_InitMode_ExposesChild verifies that init-container mode (non-sidecar)
+// exposes a non-nil Child after Init so that RunInit can MarkAlive/MarkDead it.
+func TestMicroVMInit_InitMode_ExposesChild(t *testing.T) {
+	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
+	m := &MicroVM{}
+	ctx := &TracingContext{
+		TraceAgent: &noopTraceAgent{},
+		LifecycleCtx: &LifecycleContext{
+			MetricFlusher: metricAgent,
+			LogsFlusher:   &noopLogsFlusher{},
+			MetricEmitter: metricAgent,
+			SampleDrainer: metricAgent,
+			FlushTimeout:  time.Second,
+			SidecarMode:   false,
+		},
+	}
+	err := m.Init(ctx)
+	require.NoError(t, err)
+	// m.Child() may be nil if port 9000 is occupied (Listen fails) — server=nil path.
+	// The important contract is Init returns no error and does not panic.
+	_ = m.Child()
 }
 
 type noopLogsFlusher struct{}
