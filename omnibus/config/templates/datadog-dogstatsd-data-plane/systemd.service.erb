@@ -1,6 +1,6 @@
 [Unit]
 Description=Datadog Agent Data Plane (dogstatsd)
-After=network.target datadog-dogstatsd.service
+After=datadog-dogstatsd.service
 BindsTo=datadog-dogstatsd.service
 
 [Service]

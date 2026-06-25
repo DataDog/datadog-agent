@@ -1,6 +1,7 @@
 [Unit]
 Description=Datadog Statsd Server
 After=network.target
+Wants=datadog-dogstatsd-data-plane.service
 
 [Service]
 Type=simple

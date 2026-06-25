@@ -75,8 +75,7 @@ build do
 
   # Service files used to run the data plane alongside dogstatsd. They are
   # rendered into scripts/ here and moved to their final system locations by
-  # datadog-dogstatsd-finalize. The service is enabled by default; the
-  # agent-data-plane process exits immediately when data_plane.enabled is false.
+  # datadog-dogstatsd-finalize.
   if linux_target?
     if debian_target?
       erb source: "upstart_debian.conf.erb",
