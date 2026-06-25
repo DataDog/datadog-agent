@@ -23,6 +23,7 @@ dd_agent_go_test(
         "common_test.go",
         "envvars_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":common"],
     deps = [
         "//comp/core/flare/helpers",

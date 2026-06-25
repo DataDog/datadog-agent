@@ -33,6 +33,7 @@ go_library(
 dd_agent_go_test(
     name = "securityagent_test",
     srcs = ["archive_security_test.go"],
+    data = glob(["testdata/**"]),
     embed = [":securityagent"],
     deps = select({
         "@rules_go//go/platform:aix": [
