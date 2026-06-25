@@ -27,14 +27,13 @@ type Distribution interface {
 // allow implementing the whole set of write interfaces by the same type.
 type DistributionWriter interface {
 	// Write Datadog Sketch series.
-	WriteDDSketch(DistributionMetadata) (DDSketchWriter, error)
+	WriteDDSketch(meta DistributionMetadata, numPoints int, points DDSketchPoints) error
 }
 
-// DDSketchWriter consumes the points of a DDSketch-backed Distribution.
-type DDSketchWriter interface {
-	// WriteDDSketchPoint emits one Datadog sketch point. Returning a non-nil error
-	// aborts the current WriteTo.
-	//
-	// k and n slices are borrowed, implementations must not refer to them outside of scope of the call.
-	WriteDDSketchPoint(ts int64, cnt int64, min, max, sum, avg float64, k []int32, n []uint32) error
+// DDSketchPoints provides random access to a distribution's sketch points.
+type DDSketchPoints interface {
+	// GetDDSketchPoint returns the sketch point at index i.
+	// Implementers may return k and n backed by the same storage.
+	// Callers must not retain k and n across calls.
+	GetDDSketchPoint(i int) (ts int64, cnt int64, min, max, sum, avg float64, k []int32, n []uint32)
 }

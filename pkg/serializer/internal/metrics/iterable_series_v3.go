@@ -149,8 +149,7 @@ type payloadsBuilderV3 struct {
 
 	resourcesBuf []metrics.Resource
 
-	sketchStats   []v3SketchStat
-	sketchNoIndex bool
+	sketchStats []v3SketchStat
 
 	scratchBuf []byte
 
@@ -416,6 +415,7 @@ func (pb *payloadsBuilderV3) writeMetricCommon(
 	interval int64,
 	sourceTypeName string,
 	source metrics.MetricSource,
+	numPoints int,
 ) {
 	pb.txn.Sint64(columnNameRef, pb.deltaNameRef.encode(pb.dict.internName(name)))
 	pb.txn.Sint64(columnTagsRef, pb.deltaTagsRef.encode(pb.dict.internTags(tags)))
@@ -433,6 +433,8 @@ func (pb *payloadsBuilderV3) writeMetricCommon(
 			category: metricSourceToOriginCategory(source),
 			service:  metricSourceToOriginService(source),
 		})))
+
+	pb.txn.Int64(columnNumPoints, int64(numPoints))
 }
 
 func (pb *payloadsBuilderV3) writePointCommon(timestamp int64) {
@@ -450,8 +452,8 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 		serie.Interval,
 		serie.SourceTypeName,
 		serie.Source,
+		len(serie.Points),
 	)
-	pb.txn.Int64(columnNumPoints, int64(len(serie.Points)))
 
 	pointKind := pointKindZero
 	for _, pnt := range serie.Points {
@@ -492,10 +494,7 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	}
 }
 
-var (
-	_ metrics.DistributionWriter = (*payloadsBuilderV3)(nil)
-	_ metrics.DDSketchWriter     = (*payloadsBuilderV3)(nil)
-)
+var _ metrics.DistributionWriter = (*payloadsBuilderV3)(nil)
 
 // v3SketchStat holds the per-point summary values that cannot be streamed directly:
 // the value-type narrowing pass must see every point before choosing the column for
@@ -511,21 +510,7 @@ func (pb *payloadsBuilderV3) writeSketch(dist metrics.Distribution) error {
 	}
 
 	for {
-		pb.txn.Reset()
-
-		// WriteTo streams metadata, timestamps and bins into the txn and fills pb.sketchStats.
-		// WriteDDSketch resets pb.sketchStats; the Distribution contract guarantees it is called.
-		if err := dist.WriteTo(pb); err != nil {
-			return err
-		}
-
-		// The point count is only known once the points have streamed through.
-		if ok, err := pb.checkPointsLimit(len(pb.sketchStats)); !ok {
-			return err
-		}
-
-		pb.finishSketchTxn()
-		err := pb.finishTxn(len(pb.sketchStats))
+		err := dist.WriteTo(pb)
 		if err == errRetry {
 			continue
 		}
@@ -533,12 +518,13 @@ func (pb *payloadsBuilderV3) writeSketch(dist metrics.Distribution) error {
 	}
 }
 
-// WriteDDSketch implements metrics.DistributionWriter. It writes the per-series metadata
-// columns immediately; columnType and columnNumPoints are deferred to finishSketchTxn
-// because the narrowed value type and the point count are not yet known.
-func (pb *payloadsBuilderV3) WriteDDSketch(meta metrics.DistributionMetadata) (metrics.DDSketchWriter, error) {
-	pb.sketchStats = pb.sketchStats[:0]
-	pb.sketchNoIndex = meta.NoIndex
+// WriteDDSketch implements metrics.DistributionWriter.
+func (pb *payloadsBuilderV3) WriteDDSketch(meta metrics.DistributionMetadata, numPoints int, points metrics.DDSketchPoints) error {
+	if ok, err := pb.checkPointsLimit(numPoints); !ok {
+		return err
+	}
+
+	pb.txn.Reset()
 
 	pb.resourcesBuf = pb.resourcesBuf[:0]
 	if meta.Host != "" {
@@ -549,31 +535,24 @@ func (pb *payloadsBuilderV3) WriteDDSketch(meta metrics.DistributionMetadata) (m
 	}
 
 	// interval 0 preserves the current wire behavior for sketches.
-	pb.writeMetricCommon(meta.Name, meta.Tags, 0, "", meta.Source)
-	return pb, nil
-}
+	pb.writeMetricCommon(meta.Name, meta.Tags, 0, "", meta.Source, numPoints)
 
-// WriteDDSketchPoint implements metrics.DDSketchWriter. It streams the timestamp and bins
-// straight into their (value-type-independent) columns and buffers only the summary values.
-func (pb *payloadsBuilderV3) WriteDDSketchPoint(ts, cnt int64, min, max, sum, _ float64, k []int32, n []uint32) error {
-	pb.sketchStats = append(pb.sketchStats, v3SketchStat{cnt: cnt, min: min, max: max, sum: sum})
+	pb.sketchStats = pb.sketchStats[:0]
+	for i := 0; i < numPoints; i++ {
+		// Must not hold k and n across loop iterations.
+		ts, cnt, min, max, sum, _, k, n := points.GetDDSketchPoint(i)
+		pb.sketchStats = append(pb.sketchStats, v3SketchStat{cnt: cnt, min: min, max: max, sum: sum})
 
-	pb.writePointCommon(ts)
+		pb.writePointCommon(ts)
 
-	kDelta := deltaEncoder{}
-	for i := range k {
-		pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))
-		pb.txn.Uint64(columnSketchBinCnts, uint64(n[i]))
+		kDelta := deltaEncoder{}
+		for j := range k {
+			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[j])))
+			pb.txn.Uint64(columnSketchBinCnts, uint64(n[j]))
+		}
+		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
 	}
-	pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
-	return nil
-}
 
-// finishSketchTxn writes the per-series and per-point columns that depend on having seen
-// every point: the narrowed value type and the summary values. The txn already holds the
-// metadata, timestamps and bins streamed by WriteDDSketch/WriteDDSketchPoint, so it must
-// not be reset here.
-func (pb *payloadsBuilderV3) finishSketchTxn() {
 	// find a single smallest type that can fit all summary values
 	// without loss of precision
 	pointKind := pointKindZero
@@ -585,12 +564,11 @@ func (pb *payloadsBuilderV3) finishSketchTxn() {
 	valueType := pointKind.toValueType()
 
 	typeValue := valueType | metricSketch
-	if pb.sketchNoIndex {
+	if meta.NoIndex {
 		typeValue |= flagNoIndex
 	}
 
 	pb.txn.Int64(columnType, typeValue)
-	pb.txn.Int64(columnNumPoints, int64(len(pb.sketchStats)))
 
 	for _, s := range pb.sketchStats {
 		switch valueType {
@@ -617,6 +595,8 @@ func (pb *payloadsBuilderV3) finishSketchTxn() {
 		pb.txn.Sint64(columnValueSint64, s.cnt)
 		pb.stats.valuesSint64++
 	}
+
+	return pb.finishTxn(numPoints)
 }
 
 func (pb *payloadsBuilderV3) updateValuesStats() {

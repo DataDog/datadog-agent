@@ -144,8 +144,8 @@ type payloadsBuilder struct {
 	logger              log.Component
 
 	// Scratch state for serializing a single Distribution. sketchPS streams the
-	// inner sketch body into sketchBuf as the DDSketchWriter methods are called;
-	// sketchPointCount tracks the points written during the current WriteTo.
+	// inner sketch body into sketchBuf during WriteDDSketch; sketchPointCount
+	// tracks the points written during the current WriteTo.
 	sketchBuf        *bytes.Buffer
 	sketchPS         *molecule.ProtoStream
 	sketchPointCount int
@@ -191,7 +191,7 @@ func (pb *payloadsBuilder) startPayload() error {
 }
 
 // WriteDDSketch implements metrics.DistributionWriter.
-func (pb *payloadsBuilder) WriteDDSketch(meta metrics.DistributionMetadata) (metrics.DDSketchWriter, error) {
+func (pb *payloadsBuilder) WriteDDSketch(meta metrics.DistributionMetadata, numPoints int, points metrics.DDSketchPoints) error {
 	// protobuf field numbers for the data we serialize, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
 	// Unused fields are commented out
@@ -234,21 +234,33 @@ func (pb *payloadsBuilder) WriteDDSketch(meta metrics.DistributionMetadata) (met
 	//                 |----|  'Origin' message
 	//                       |-----------| 'origin_service' field index
 
+	// protobuf field numbers for the dogsketch entries, taken from
+	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
+	const dogsketchTs = 1
+	const dogsketchCnt = 2
+	const dogsketchMin = 3
+	const dogsketchMax = 4
+	const dogsketchAvg = 5
+	const dogsketchSum = 6
+	const dogsketchK = 7
+	const dogsketchN = 8
+	const sketchDogsketches = 7
+
 	pb.sketchBuf.Reset()
 	pb.sketchPS.Reset(pb.sketchBuf)
-	pb.sketchPointCount = 0
+	pb.sketchPointCount = numPoints
 
 	ps := pb.sketchPS
 	if err := ps.String(sketchMetric, meta.Name); err != nil {
-		return nil, err
+		return err
 	}
 	if err := ps.String(sketchHost, meta.Host); err != nil {
-		return nil, err
+		return err
 	}
 	if err := meta.Tags.ForEachErr(func(tag string) error {
 		return ps.String(sketchTags, tag)
 	}); err != nil {
-		return nil, err
+		return err
 	}
 	err := ps.Embedded(sketchMetadata, func(ps *molecule.ProtoStream) error {
 		return ps.Embedded(sketchMetadataOrigin, func(ps *molecule.ProtoStream) error {
@@ -267,50 +279,40 @@ func (pb *payloadsBuilder) WriteDDSketch(meta metrics.DistributionMetadata) (met
 		})
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return pb, nil
-}
 
-// WriteDDSketchPoint implements metrics.DDSketchWriter, streaming one dogsketches
-// entry into the sketch body.
-func (pb *payloadsBuilder) WriteDDSketchPoint(ts, cnt int64, min, max, sum, avg float64, k []int32, n []uint32) error {
-	// protobuf field numbers for the data we serialize, taken from
-	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
-	const dogsketchTs = 1
-	const dogsketchCnt = 2
-	const dogsketchMin = 3
-	const dogsketchMax = 4
-	const dogsketchAvg = 5
-	const dogsketchSum = 6
-	const dogsketchK = 7
-	const dogsketchN = 8
-	const sketchDogsketches = 7
-	pb.sketchPointCount++
-	return pb.sketchPS.Embedded(sketchDogsketches, func(ps *molecule.ProtoStream) error {
-		if err := ps.Int64(dogsketchTs, ts); err != nil {
+	for i := 0; i < numPoints; i++ {
+		ts, cnt, min, max, sum, avg, k, n := points.GetDDSketchPoint(i)
+		err := ps.Embedded(sketchDogsketches, func(ps *molecule.ProtoStream) error {
+			if err := ps.Int64(dogsketchTs, ts); err != nil {
+				return err
+			}
+			if err := ps.Int64(dogsketchCnt, cnt); err != nil {
+				return err
+			}
+			if err := ps.Double(dogsketchMin, min); err != nil {
+				return err
+			}
+			if err := ps.Double(dogsketchMax, max); err != nil {
+				return err
+			}
+			if err := ps.Double(dogsketchAvg, avg); err != nil {
+				return err
+			}
+			if err := ps.Double(dogsketchSum, sum); err != nil {
+				return err
+			}
+			if err := ps.Sint32Packed(dogsketchK, k); err != nil {
+				return err
+			}
+			return ps.Uint32Packed(dogsketchN, n)
+		})
+		if err != nil {
 			return err
 		}
-		if err := ps.Int64(dogsketchCnt, cnt); err != nil {
-			return err
-		}
-		if err := ps.Double(dogsketchMin, min); err != nil {
-			return err
-		}
-		if err := ps.Double(dogsketchMax, max); err != nil {
-			return err
-		}
-		if err := ps.Double(dogsketchAvg, avg); err != nil {
-			return err
-		}
-		if err := ps.Double(dogsketchSum, sum); err != nil {
-			return err
-		}
-		if err := ps.Sint32Packed(dogsketchK, k); err != nil {
-			return err
-		}
-		return ps.Uint32Packed(dogsketchN, n)
-	})
+	}
+	return nil
 }
 
 func (pb *payloadsBuilder) writeSketch(dist metrics.Distribution) error {

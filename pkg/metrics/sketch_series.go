@@ -48,18 +48,15 @@ func (sl SketchSeries) String() string {
 // calls it again on a fresh DistributionWriter after a payload split; iterating
 // over Points from the start is safe and idempotent.
 func (sl *SketchSeries) WriteTo(w DistributionWriter) error {
-	dd, err := w.WriteDDSketch(sl.DistributionMetadata)
-	if err != nil {
-		return err
-	}
-	for _, p := range sl.Points {
-		cnt, min, max, sum, avg := p.Sketch.BasicStats()
-		k, n := p.Sketch.Cols()
-		if err := dd.WriteDDSketchPoint(p.Ts, cnt, min, max, sum, avg, k, n); err != nil {
-			return err
-		}
-	}
-	return nil
+	return w.WriteDDSketch(sl.DistributionMetadata, len(sl.Points), sl)
+}
+
+// GetDDSketchPoint returns the sketch point at index i.
+func (sl *SketchSeries) GetDDSketchPoint(i int) (ts, cnt int64, min, max, sum, avg float64, k []int32, n []uint32) {
+	p := sl.Points[i]
+	cnt, min, max, sum, avg = p.Sketch.BasicStats()
+	k, n = p.Sketch.Cols()
+	return p.Ts, cnt, min, max, sum, avg, k, n
 }
 
 // A SketchPoint represents a quantile sketch at a specific time

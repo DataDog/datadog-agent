@@ -13,7 +13,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 )
 
-// sketchData implements metrics.SketchData from reader-provided sketch columns and summary.
+// sketchData holds one sketch point's reader-provided columns and summary.
 type sketchData struct {
 	ts                 int64
 	k                  []int32
@@ -35,16 +35,13 @@ func (s *dogstatsdSketchSeries) GetName() string {
 // WriteTo emits the buffered points to the writer's DDSketch flavor. May be
 // called multiple times on the same value; iteration always starts over.
 func (s *dogstatsdSketchSeries) WriteTo(w metrics.DistributionWriter) error {
-	dd, err := w.WriteDDSketch(s.DistributionMetadata)
-	if err != nil {
-		return err
-	}
-	for _, p := range s.Points {
-		if err := dd.WriteDDSketchPoint(p.ts, p.cnt, p.min, p.max, p.sum, p.avg, p.k, p.n); err != nil {
-			return err
-		}
-	}
-	return nil
+	return w.WriteDDSketch(s.DistributionMetadata, len(s.Points), s)
+}
+
+// GetDDSketchPoint returns the buffered sketch point at index i.
+func (s *dogstatsdSketchSeries) GetDDSketchPoint(i int) (ts, cnt int64, min, max, sum, avg float64, k []int32, n []uint32) {
+	p := s.Points[i]
+	return p.ts, p.cnt, p.min, p.max, p.sum, p.avg, p.k, p.n
 }
 
 type sketchIterator struct {
