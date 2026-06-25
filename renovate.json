@@ -56,6 +56,27 @@
         "prPriority": 10
       },
       {
+        "matchManagers": ["custom.regex"],
+        "matchDepNames": ["xz", "zlib", "openssl", "libffi", "pcre2", "util-linux", "libseccomp", "patchelf", "nghttp2", "popt", "libyaml", "zstd", "lua", "xmlsec"],
+        "groupName": "bazel-native",
+        "labels": ["dependencies", "dependencies-bazel-native", "changelog/no-changelog", "qa/no-code-change"]
+      },
+      {
+        "matchManagers": ["custom.regex"],
+        "matchDepNames": ["openssl"],
+        "allowedVersions": "/^3\\./"
+      },
+      {
+        "matchManagers": ["custom.regex"],
+        "matchDepNames": ["libyaml", "xmlsec"],
+        "allowedVersions": "/^\\d+\\.\\d+\\.\\d+$/"
+      },
+      {
+        "matchManagers": ["custom.regex"],
+        "matchDepNames": ["lua"],
+        "allowedVersions": "/^5\\.4\\./"
+      },
+      {
         "matchManagers": ["github-actions"],
         "labels": ["dependencies", "dependencies-github-actions", "changelog/no-changelog", "qa/no-code-change"],
         "groupName": "github-actions",
@@ -262,6 +283,281 @@
         "packageNameTemplate": "https://github.com/DataDog/integrations-core",
         "datasourceTemplate": "git-refs",
         "registryUrlTemplate": ""
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"xz\"[\\s\\S]*?strip_prefix = \"xz-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "xz",
+        "packageNameTemplate": "tukaani-project/xz",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"zlib\"[\\s\\S]*?strip_prefix = \"zlib-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "zlib",
+        "packageNameTemplate": "madler/zlib",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"openssl\"[\\s\\S]*?strip_prefix = \"openssl-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "openssl",
+        "packageNameTemplate": "openssl/openssl",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^openssl-(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"libffi\"[\\s\\S]*?strip_prefix = \"libffi-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "libffi",
+        "packageNameTemplate": "libffi/libffi",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"pcre2\"[\\s\\S]*?strip_prefix = \"pcre2-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "pcre2",
+        "packageNameTemplate": "PCRE2Project/pcre2",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^pcre2-(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "strip_prefix = \"util-linux-(?<currentValue>[^\"]+)\",\\s+urls = \\[\\s+\"https://mirrors\\.edge\\.kernel\\.org/pub/linux/utils/util-linux/v\\d+\\.\\d+/util-linux-[^\"]+\\.tar\\.gz\",\\s+\\]"
+        ],
+        "depNameTemplate": "util-linux",
+        "packageNameTemplate": "util-linux/util-linux",
+        "datasourceTemplate": "github-tags",
+        "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+(?:\\.\\d+)?)$",
+        "autoReplaceStringTemplate": "strip_prefix = \"util-linux-{{{newValue}}}\",\n    urls = [\n        \"https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v{{{newMajor}}}.{{{newMinor}}}/util-linux-{{{newValue}}}.tar.gz\",\n    ]"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"libseccomp\"[\\s\\S]*?strip_prefix = \"libseccomp-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "libseccomp",
+        "packageNameTemplate": "seccomp/libseccomp",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"patchelf\"[\\s\\S]*?strip_prefix = \"patchelf-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "patchelf",
+        "packageNameTemplate": "NixOS/patchelf",
+        "datasourceTemplate": "github-tags"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"nghttp2\"[\\s\\S]*?strip_prefix = \"nghttp2-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "nghttp2",
+        "packageNameTemplate": "nghttp2/nghttp2",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"popt\"[\\s\\S]*?strip_prefix = \"popt-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "popt",
+        "packageNameTemplate": "rpm-software-management/popt",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^popt-(?<version>.*)-release$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"libyaml\"[\\s\\S]*?strip_prefix = \"yaml-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "libyaml",
+        "packageNameTemplate": "yaml/libyaml",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"zstd\"[\\s\\S]*?strip_prefix = \"zstd-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "zstd",
+        "packageNameTemplate": "facebook/zstd",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"lua\"[\\s\\S]*?strip_prefix = \"lua-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "lua",
+        "packageNameTemplate": "lua/lua",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "http_archive\\(\\s+name = \"xmlsec\"[\\s\\S]*?strip_prefix = \"xmlsec1-(?<currentValue>[^\"]+)\"[\\s\\S]*?\\n\\)"
+        ],
+        "depNameTemplate": "xmlsec",
+        "packageNameTemplate": "lsh123/xmlsec",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/xz.BUILD.bazel"],
+        "matchStrings": [
+          "VERSION = \"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "xz",
+        "packageNameTemplate": "tukaani-project/xz",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/zlib.BUILD.bazel"],
+        "matchStrings": [
+          "version = \"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "zlib",
+        "packageNameTemplate": "madler/zlib",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/openssl/version.bzl"],
+        "matchStrings": [
+          "OPENSSL_VERSION = \"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "openssl",
+        "packageNameTemplate": "openssl/openssl",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^openssl-(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/libffi.BUILD.bazel"],
+        "matchStrings": [
+          "VERSION = \"(?<currentValue>[^\"]+)\"",
+          "PACKAGE_STRING[^\\n]+libffi (?<currentValue>\\d+\\.\\d+\\.\\d+)",
+          "PACKAGE_VERSION[^\\n]+(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+          "#undef VERSION[^\\n]+(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+        ],
+        "depNameTemplate": "libffi",
+        "packageNameTemplate": "libffi/libffi",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/pcre2.BUILD.bazel"],
+        "matchStrings": [
+          "VERSION = \"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "pcre2",
+        "packageNameTemplate": "PCRE2Project/pcre2",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^pcre2-(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/util-linux.BUILD.bazel"],
+        "matchStrings": [
+          "_VERSION = \"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "util-linux",
+        "packageNameTemplate": "util-linux/util-linux",
+        "datasourceTemplate": "github-tags",
+        "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+(?:\\.\\d+)?)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/nghttp2/nghttp2.BUILD.bazel"],
+        "matchStrings": [
+          "VERSION = \"(?<currentValue>\\d+\\.\\d+)\""
+        ],
+        "depNameTemplate": "nghttp2",
+        "packageNameTemplate": "nghttp2/nghttp2",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$",
+        "autoReplaceStringTemplate": "VERSION = \"{{{newMajor}}}.{{{newMinor}}}\""
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/libyaml.BUILD.bazel"],
+        "matchStrings": [
+          "VERSION = \"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "libyaml",
+        "packageNameTemplate": "yaml/libyaml",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/libyaml.BUILD.bazel"],
+        "matchStrings": [
+          "        \"YAML_VERSION_MAJOR=\\d+\",\\s+\"YAML_VERSION_MINOR=\\d+\",\\s+\"YAML_VERSION_PATCH=\\d+\",\\s+'YAML_VERSION_STRING=[^0-9]+(?<currentValue>\\d+\\.\\d+\\.\\d+)[^\\n]+'"
+        ],
+        "depNameTemplate": "libyaml",
+        "packageNameTemplate": "yaml/libyaml",
+        "datasourceTemplate": "github-releases",
+        "autoReplaceStringTemplate": "        \"YAML_VERSION_MAJOR={{{newMajor}}}\",\n        \"YAML_VERSION_MINOR={{{newMinor}}}\",\n        \"YAML_VERSION_PATCH={{{newPatch}}}\",\n        'YAML_VERSION_STRING=\\\"{{{newValue}}}\\\"',"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/zstd.BUILD.bazel"],
+        "matchStrings": [
+          "_VERSION = \"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "zstd",
+        "packageNameTemplate": "facebook/zstd",
+        "datasourceTemplate": "github-releases",
+        "extractVersionTemplate": "^v(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/xmlsec/xmlsec.BUILD.bazel"],
+        "matchStrings": [
+          "VERSION = \"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "xmlsec",
+        "packageNameTemplate": "lsh123/xmlsec",
+        "datasourceTemplate": "github-releases"
       }
     ],
     "customDatasources": {
