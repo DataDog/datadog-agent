@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "inproc",
+    srcs = ["inproc.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor/inproc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/executor",
+        "//pkg/privateactionrunner/shared/types",
+    ],
+)

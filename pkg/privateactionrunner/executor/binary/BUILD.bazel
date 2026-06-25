@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "binary",
+    srcs = ["binary.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor/binary",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/executor",
+        "//pkg/privateactionrunner/shared/adapters/logging",
+        "//pkg/privateactionrunner/shared/types",
+        "//pkg/privateactionrunner/shared/util",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)

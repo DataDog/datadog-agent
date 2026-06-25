@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "server",
+    srcs = ["server.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/executor",
+        "//pkg/privateactionrunner/shared/adapters/logging",
+        "//pkg/privateactionrunner/shared/types",
+        "//pkg/privateactionrunner/shared/util",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+go_test(
+    name = "server_test",
+    srcs = ["server_test.go"],
+    embed = [":server"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/privateactionrunner/shared/types",
+        "//pkg/privateactionrunner/shared/util",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)

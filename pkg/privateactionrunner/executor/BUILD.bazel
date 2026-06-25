@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "executor",
+    srcs = [
+        "executor.go",
+        "ipc.go",
+        "task_handler.go",
+        "transport_unix.go",
+        "transport_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/networkpath/traceroute/def",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner/executor/credentials/resolver",
+        "//pkg/privateactionrunner/executor/task-verifier",
+        "//pkg/privateactionrunner/shared/adapters/actions",
+        "//pkg/privateactionrunner/shared/adapters/config",
+        "//pkg/privateactionrunner/shared/adapters/logging",
+        "//pkg/privateactionrunner/shared/observability",
+        "//pkg/privateactionrunner/shared/types",
+        "//pkg/privateactionrunner/shared/util",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "@//pkg/privateactionrunner/executor/bundles",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_grpc//status",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_microsoft_go_winio//:go-winio",
+        ],
+        "//conditions:default": [],
+    }),
+)
