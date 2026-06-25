@@ -809,9 +809,10 @@ type metricIngestDecision struct {
 func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.GetName()
 	normalizedSource := normalizeMetricSource(name, source)
-	tags := sample.GetRawTags()
-	allowed := filter.isAllowed(name, normalizedSource, tags)
-	if !allowed {
+	// Canonicalize once so the mute hash in isAllowed matches seriesKeyHash in
+	// storage, and downstream Add calls hit the tagsSorted fast path.
+	tags := canonicalizeTags(sample.GetRawTags())
+	if !filter.isAllowed(name, normalizedSource, tags) {
 		return metricIngestDecision{source: normalizedSource}
 	}
 
@@ -824,7 +825,7 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 		metric: &metricObs{
 			name:      name,
 			value:     sample.GetValue(),
-			tags:      copyTags(tags),
+			tags:      tags,
 			timestamp: timestamp,
 		},
 	}
