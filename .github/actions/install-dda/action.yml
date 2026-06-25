@@ -52,7 +52,9 @@ runs:
         ${{ runner.tool_cache }}/.dda
 
   - name: Install dda from cache
+    id: install-from-cache
     if: steps.dda-cache.outputs.cache-hit == 'true'
+    continue-on-error: true
     uses: DataDog/datadog-agent-dev@00e4a423088309efce1d5ba6b8c5366eef648710 # install
     env:
       UV_OFFLINE: "1"
@@ -61,7 +63,7 @@ runs:
       features: ${{ inputs.features }}
 
   - name: Install dda
-    if: steps.dda-cache.outputs.cache-hit != 'true'
+    if: steps.dda-cache.outputs.cache-hit != 'true' || steps.install-from-cache.outcome != 'success'
     uses: DataDog/datadog-agent-dev@00e4a423088309efce1d5ba6b8c5366eef648710 # install
     with:
       version: ${{ steps.cache-key.outputs.version }}
