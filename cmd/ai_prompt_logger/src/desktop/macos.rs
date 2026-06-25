@@ -337,7 +337,7 @@ fn dictionary_value(dictionary: CFDictionaryRef, key: &CFStringKey) -> Option<*c
 }
 
 fn cf_string_to_string(value: CFStringRef) -> Option<String> {
-    let mut buffer = vec![0 as c_char; 1024];
+    let mut buffer = vec![0 as c_char; 4096];
     let ok = unsafe {
         CFStringGetCString(
             value,

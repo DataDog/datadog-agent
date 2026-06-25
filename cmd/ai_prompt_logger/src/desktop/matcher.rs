@@ -364,7 +364,7 @@ fn normalize_process_name(name: &str) -> String {
 }
 
 /// Index PID edges by parent PID for descendant traversal.
-fn children_by_parent(edges: &[ProcessEdge]) -> HashMap<u32, Vec<u32>> {
+pub(super) fn children_by_parent(edges: &[ProcessEdge]) -> HashMap<u32, Vec<u32>> {
     let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
     for edge in edges {
         children.entry(edge.parent_pid).or_default().push(edge.pid);

@@ -13,7 +13,7 @@ use crate::datadog::{
 };
 use crate::desktop::logger::DesktopLogger;
 use crate::desktop::matcher::{
-    ProcessActivity, ProcessActivityDelta, ProcessEdge, ProcessInfo, ProcessSnapshot,
+    ProcessActivity, ProcessActivityDelta, ProcessInfo, ProcessSnapshot, children_by_parent,
     detect_ai_usages, find_hosted_ai_process, matches_process_name,
 };
 
@@ -554,15 +554,6 @@ fn format_optional_u64(value: Option<u64>) -> String {
     value
         .map(|value| value.to_string())
         .unwrap_or_else(|| "none".to_string())
-}
-
-/// Index PID edges by parent PID for descendant traversal.
-fn children_by_parent(edges: &[ProcessEdge]) -> HashMap<u32, Vec<u32>> {
-    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
-    for edge in edges {
-        children.entry(edge.parent_pid).or_default().push(edge.pid);
-    }
-    children
 }
 
 /// Return all descendant PIDs reachable from a root PID in the edge graph.
