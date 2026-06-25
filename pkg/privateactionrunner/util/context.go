@@ -26,7 +26,6 @@ func CreateTimeoutContext(ctx context.Context, timeoutSeconds *int32) (context.C
 
 // HandleTimeoutError checks if an error occurred due to context deadline exceeded,
 // logs a warning if so, and returns whether a timeout occurred along with a formatted error message.
-// This is used by both AppBuilderRunner and WorkflowRunner to handle task timeouts consistently.
 func HandleTimeoutError(ctx context.Context, err error, timeoutSeconds *int32, logger log.Logger) (bool, error) {
 	if err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		logger.Warn("task execution timed out due to global timeout",

@@ -78,8 +78,8 @@ type PrivateActionRunner struct {
 	eventPlatform  eventplatform.Component
 	ipc            ipc.Component
 
-	workflowRunner *runners.WorkflowRunner
-	commonRunner   *runners.CommonRunner
+	orchestrator *runners.Orchestrator
+	commonRunner *runners.CommonRunner
 
 	telemetry *telemetry.Telemetry
 
@@ -227,13 +227,11 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
-	if err != nil {
-		return err
-	}
+	taskHandler := runners.NewTaskHandler(cfg, keysManager, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+	executor := runners.NewInProcessExecutor(taskHandler)
+	p.orchestrator = runners.NewOrchestrator(cfg, opmsClient, executor)
 	p.commonRunner = runners.NewCommonRunner(p.coreConfig, cfg)
-	err = p.workflowRunner.Start(ctx)
-	if err != nil {
+	if err := p.orchestrator.Start(ctx); err != nil {
 		return err
 	}
 	return p.commonRunner.Start(ctx)
@@ -253,8 +251,8 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		// Don't return - continue to cleanup what we can
 	}
 
-	if p.workflowRunner != nil {
-		err := p.workflowRunner.Stop(ctx)
+	if p.orchestrator != nil {
+		err := p.orchestrator.Stop(ctx)
 		if err != nil {
 			return err
 		}
