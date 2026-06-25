@@ -89,13 +89,13 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
 	k8sLogs, regularLogs := splitLogsByScope(ld)
 
 	var errs []error
-	if k8sLogs.ResourceLogs().Len() > 0 {
-		if err := e.consumeK8sObjects(ctx, k8sLogs); err != nil {
+	if regularLogs.ResourceLogs().Len() > 0 {
+		if err := e.consumeRegularLogs(ctx, regularLogs); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	if regularLogs.ResourceLogs().Len() > 0 {
-		if err := e.consumeRegularLogs(ctx, regularLogs); err != nil {
+	if k8sLogs.ResourceLogs().Len() > 0 {
+		if err := e.consumeK8sObjects(ctx, k8sLogs); err != nil {
 			errs = append(errs, err)
 		}
 	}

@@ -410,14 +410,51 @@ func traceIDToHexOrEmptyString(id pcommon.TraceID) string {
 }
 
 func TestSplitLogsByScope(t *testing.T) {
-	ld := plog.NewLogs()
-	for _, scope := range []string{"filelog", string(K8sObjectsReceiver), "filelog", string(K8sObjectsReceiver)} {
-		ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName(scope)
-	}
+	t.Run("single-scope ResourceLogs", func(t *testing.T) {
+		ld := plog.NewLogs()
+		for _, scope := range []string{"filelog", string(K8sObjectsReceiver), "filelog", string(K8sObjectsReceiver)} {
+			ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName(scope)
+		}
 
-	k8s, regular := splitLogsByScope(ld)
-	assert.Equal(t, 2, k8s.ResourceLogs().Len())
-	assert.Equal(t, 2, regular.ResourceLogs().Len())
-	assert.Equal(t, string(K8sObjectsReceiver), k8s.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
-	assert.Equal(t, "filelog", regular.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
+		k8s, regular := splitLogsByScope(ld)
+		assert.Equal(t, 2, k8s.ResourceLogs().Len())
+		assert.Equal(t, 2, regular.ResourceLogs().Len())
+		assert.Equal(t, string(K8sObjectsReceiver), k8s.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
+		assert.Equal(t, "filelog", regular.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
+	})
+
+	t.Run("mixed-scope ResourceLogs", func(t *testing.T) {
+		ld := plog.NewLogs()
+		rl := ld.ResourceLogs().AppendEmpty()
+		rl.SetSchemaUrl("https://example.com/schema")
+		rl.Resource().Attributes().PutStr("k8s.cluster.name", "test-cluster")
+		rl.ScopeLogs().AppendEmpty().Scope().SetName("filelog")
+		rl.ScopeLogs().AppendEmpty().Scope().SetName(string(K8sObjectsReceiver))
+		rl.ScopeLogs().AppendEmpty().Scope().SetName("filelog")
+
+		k8s, regular := splitLogsByScope(ld)
+
+		assert.Equal(t, 1, k8s.ResourceLogs().Len())
+		assert.Equal(t, 1, k8s.ResourceLogs().At(0).ScopeLogs().Len())
+		assert.Equal(t, string(K8sObjectsReceiver), k8s.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
+		assert.Equal(t, "https://example.com/schema", k8s.ResourceLogs().At(0).SchemaUrl())
+		clusterName, ok := k8s.ResourceLogs().At(0).Resource().Attributes().Get("k8s.cluster.name")
+		assert.True(t, ok)
+		assert.Equal(t, "test-cluster", clusterName.AsString())
+
+		assert.Equal(t, 1, regular.ResourceLogs().Len())
+		assert.Equal(t, 2, regular.ResourceLogs().At(0).ScopeLogs().Len())
+		assert.Equal(t, "filelog", regular.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
+		assert.Equal(t, "filelog", regular.ResourceLogs().At(0).ScopeLogs().At(1).Scope().Name())
+		assert.Equal(t, "https://example.com/schema", regular.ResourceLogs().At(0).SchemaUrl())
+	})
+
+	t.Run("only k8sobjects scope", func(t *testing.T) {
+		ld := plog.NewLogs()
+		ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName(string(K8sObjectsReceiver))
+
+		k8s, regular := splitLogsByScope(ld)
+		assert.Equal(t, 1, k8s.ResourceLogs().Len())
+		assert.Equal(t, 0, regular.ResourceLogs().Len())
+	})
 }
