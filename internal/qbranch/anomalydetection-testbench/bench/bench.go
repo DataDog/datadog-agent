@@ -516,6 +516,7 @@ func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
 func unboundedStorageCfg() observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.PointRetentionSecs = 0
+	cfg.MaxCorrelations = -1 // unlimited — testbench must show all patterns
 	return cfg
 }
 

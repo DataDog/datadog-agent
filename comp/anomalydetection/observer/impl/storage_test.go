@@ -654,6 +654,7 @@ func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {
 	require.Empty(t, s.RemoveSeriesByRefs([]observer.SeriesRef{-1, 999}))
 	require.Equal(t, genBefore, s.SeriesGeneration(), "no removal → no gen bump")
 }
+
 func TestTimeSeriesStorage_AddReturnsRef(t *testing.T) {
 	// Add returns a valid Ref (>= 0) for accepted points, and the same Ref
 	// on subsequent writes. Each distinct series gets a unique Ref.

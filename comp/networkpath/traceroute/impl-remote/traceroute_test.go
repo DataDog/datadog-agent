@@ -204,6 +204,85 @@ func TestGetTracerouteStructuredError(t *testing.T) {
 	}
 }
 
+func TestGetTracerouteSACKNotSupported(t *testing.T) {
+	const sackMessage = "sack traceroute failed: ReceiveProbe() failed: SACK not supported for this target/source: endpoint returned SACK-permitted but found no SACK options: sackDriver found no SACK options"
+	const standardMessage = "SACK is not supported for this target/source."
+
+	tests := []struct {
+		name         string
+		errorCode    payload.TracerouteErrorCode
+		errorMessage string
+		expectedCode payload.TracerouteErrorCode
+		expectedMsg  string
+	}{
+		{
+			name:         "SACK_NOT_SUPPORTED code is remapped with standard message",
+			errorCode:    payload.TracerouteErrCodeSACKNotSupported,
+			errorMessage: sackMessage,
+			expectedCode: payload.TracerouteErrCodeSACKNotSupported,
+			expectedMsg:  standardMessage,
+		},
+		{
+			name:         "UNKNOWN code with SACK not supported message is remapped",
+			errorCode:    payload.TracerouteErrCodeUnknown,
+			errorMessage: sackMessage,
+			expectedCode: payload.TracerouteErrCodeSACKNotSupported,
+			expectedMsg:  standardMessage,
+		},
+		{
+			name:         "UNKNOWN code with found no SACK options message is remapped",
+			errorCode:    payload.TracerouteErrCodeUnknown,
+			errorMessage: "endpoint returned SACK-permitted but found no SACK options",
+			expectedCode: payload.TracerouteErrCodeSACKNotSupported,
+			expectedMsg:  standardMessage,
+		},
+		{
+			name:         "UNKNOWN code with unrelated message is not remapped",
+			errorCode:    payload.TracerouteErrCodeUnknown,
+			errorMessage: "some other unknown error",
+			expectedCode: payload.TracerouteErrCodeUnknown,
+			expectedMsg:  "some other unknown error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+
+			errResp := payload.TracerouteErrorResponse{Code: tt.errorCode, Message: tt.errorMessage}
+			jsonBytes, err := json.Marshal(errResp)
+			require.NoError(t, err)
+
+			client := &http.Client{
+				Transport: &mockTransport{
+					RoundTripFunc: func(_ *http.Request) (*http.Response, error) {
+						return &http.Response{
+							StatusCode: http.StatusInternalServerError,
+							Body:       io.NopCloser(bytes.NewReader(jsonBytes)),
+							Header:     make(http.Header),
+						}, nil
+					},
+				},
+			}
+
+			cfg := config.Config{
+				DestHostname: "example.com",
+				DestPort:     80,
+				Protocol:     payload.ProtocolTCP,
+			}
+
+			rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
+			_, err = rt.Run(context.Background(), cfg)
+			require.Error(t, err)
+
+			var trErr *payload.TracerouteError
+			require.ErrorAs(t, err, &trErr)
+			assert.Equal(t, tt.expectedCode, trErr.Code)
+			assert.Equal(t, tt.expectedMsg, trErr.Message)
+		})
+	}
+}
+
 func TestGetTraceroutePlainTextErrorFallback(t *testing.T) {
 	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
 

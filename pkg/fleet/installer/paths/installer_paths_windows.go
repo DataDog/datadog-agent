@@ -567,6 +567,66 @@ func SetRepositoryPermissions(path string) error {
 	return treeResetNamedSecurityInfoWithSDDL(path, sddl)
 }
 
+// SetFileReadableByEveryone grants the Everyone group (S-1-1-0) read access on a file while
+// preserving the owner/group and the rest of the DACL (SYSTEM, Administrators, and ddagentuser
+// keep their access). This is the Windows equivalent of a world-readable (0644) file on Linux
+// and lets non-admin identities (e.g. an IIS App Pool identity) read fleet config such as
+// application_monitoring.yaml.
+func SetFileReadableByEveryone(path string) error {
+	everyone, err := windows.CreateWellKnownSid(windows.WinWorldSid)
+	if err != nil {
+		return fmt.Errorf("failed to create Everyone SID: %w", err)
+	}
+
+	sd, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		return fmt.Errorf("failed to get security info: %w", err)
+	}
+
+	control, _, err := sd.Control()
+	if err != nil {
+		return fmt.Errorf("failed to get security descriptor control flags: %w", err)
+	}
+	var flags windows.SECURITY_INFORMATION = windows.DACL_SECURITY_INFORMATION
+	if control&windows.SE_DACL_PROTECTED != 0 {
+		flags |= windows.PROTECTED_DACL_SECURITY_INFORMATION
+	} else {
+		flags |= windows.UNPROTECTED_DACL_SECURITY_INFORMATION
+	}
+
+	dacl, _, err := sd.DACL()
+	if err != nil {
+		return fmt.Errorf("failed to get DACL: %w", err)
+	}
+
+	// Merge a Generic Read grant for Everyone into the existing DACL, preserving all other ACEs.
+	newDACL, err := windows.ACLFromEntries([]windows.EXPLICIT_ACCESS{
+		{
+			AccessPermissions: windows.ACCESS_MASK(windows.GENERIC_READ),
+			AccessMode:        windows.GRANT_ACCESS,
+			Inheritance:       windows.NO_INHERITANCE,
+			Trustee: windows.TRUSTEE{
+				TrusteeForm:  windows.TRUSTEE_IS_SID,
+				TrusteeType:  windows.TRUSTEE_IS_GROUP,
+				TrusteeValue: windows.TrusteeValueFromSID(everyone),
+			},
+		},
+	}, dacl)
+	if err != nil {
+		return fmt.Errorf("failed to update DACL: %w", err)
+	}
+
+	return windows.SetNamedSecurityInfo(
+		path,
+		windows.SE_FILE_OBJECT,
+		flags,
+		nil,     // owner - leave unchanged
+		nil,     // group - leave unchanged
+		newDACL, // DACL - set this
+		nil,     // SACL - leave unchanged
+	)
+}
+
 // GetAdminInstallerBinaryPath returns the path to the datadog-installer executable
 // inside an MSI administrative install extracted directory tree.
 //

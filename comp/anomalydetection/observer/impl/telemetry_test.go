@@ -30,7 +30,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 }
 
 func TestClassifyLogSource(t *testing.T) {
-	require.Equal(t, "internal", classifyLogSource("agent-internal-logs", nil))
+	require.Equal(t, "internal", classifyLogSource("agent_logs", nil))
 	require.Equal(t, "kubelet", classifyLogSource("logs", []string{"source:kubelet", "service:kubelet"}))
 	require.Equal(t, "containers", classifyLogSource("logs", []string{"source:docker"}))
 }

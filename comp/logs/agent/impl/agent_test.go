@@ -364,9 +364,9 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 
 			deps := suite.createDeps()
 
-			provides := newLogsAgent(deps)
+			Provides := NewComponent(deps)
 
-			assert.IsType(suite.T(), test.expected, provides.StatusProvider.Provider)
+			assert.IsType(suite.T(), test.expected, Provides.StatusProvider.Provider)
 		})
 	}
 }
@@ -404,9 +404,9 @@ func (suite *AgentTestSuite) TestStatusOut() {
 
 	deps := suite.createDeps()
 
-	provides := newLogsAgent(deps)
+	Provides := NewComponent(deps)
 
-	headerProvider := provides.StatusProvider.Provider
+	headerProvider := Provides.StatusProvider.Provider
 
 	tests := []struct {
 		name       string
@@ -491,19 +491,19 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 
 			deps := suite.createDeps()
 
-			provides := newLogsAgent(deps)
+			Provides := NewComponent(deps)
 
-			assert.IsType(suite.T(), test.expected, provides.FlareProvider)
+			assert.IsType(suite.T(), test.expected, Provides.FlareProvider)
 			if test.enabled {
-				assert.NotNil(suite.T(), provides.FlareProvider.FlareFiller.Callback)
+				assert.NotNil(suite.T(), Provides.FlareProvider.FlareFiller.Callback)
 			} else {
-				assert.Nil(suite.T(), provides.FlareProvider.FlareFiller)
+				assert.Nil(suite.T(), Provides.FlareProvider.FlareFiller)
 			}
 		})
 	}
 }
 
-// testAgentDeps mirrors dependencies but with fx.In for use with fxutil.Test[T],
+// testAgentDeps mirrors Requires but with fx.In for use with fxutil.Test[T],
 // which uses fx.Invoke internally and requires fx.In (not compdef.In).
 type testAgentDeps struct {
 	fx.In
@@ -521,7 +521,7 @@ type testAgentDeps struct {
 	Secrets            secrets.Component
 }
 
-func (suite *AgentTestSuite) createDeps() dependencies {
+func (suite *AgentTestSuite) createDeps() Requires {
 	d := fxutil.Test[testAgentDeps](suite.T(),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		fx.Provide(func() configComponent.Component {
@@ -538,7 +538,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		auditorfx.Module(),
 		fxutil.ProvideComponentConstructor(kubehealthmock.NewProvides),
 	)
-	return dependencies{
+	return Requires{
 		Lc:                 d.Lc,
 		Log:                d.Log,
 		Config:             d.Config,

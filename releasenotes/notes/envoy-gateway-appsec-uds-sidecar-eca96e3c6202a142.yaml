@@ -1,0 +1,17 @@
+---
+features:
+  - |
+    Envoy Gateway AppSec protection can now run in ``sidecar`` mode over a
+    Unix domain socket. Datadog injects the ``serviceextensions`` ext_proc
+    container into Envoy Gateway data-plane pods, and Envoy Gateway
+    communicates with it through an Envoy Gateway ``Backend``.
+
+    This behavior is selected by ``cluster_agent.appsec.injector.mode``, which
+    now defaults to ``sidecar``. Envoy Gateway must have the Backend extension
+    API enabled with ``extensionApis.enableBackend: true``; if it is disabled,
+    the cluster agent warns and does not change Envoy Gateway configuration.
+
+    This is a behavior change for AppSec-enabled Envoy Gateway deployments:
+    they now default to sidecar injection instead of external Service mode. To
+    keep the previous behavior, set ``cluster_agent.appsec.injector.mode`` to
+    ``external``.

@@ -240,6 +240,8 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigAltDir$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUser$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUserAndAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestApplicationMonitoringGlobalRead$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestApplicationMonitoringGlobalReadAfterRollback$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentFails$"

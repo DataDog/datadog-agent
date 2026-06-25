@@ -45,6 +45,17 @@ func (sv *stateView) Anomalies() []observerdef.Anomaly {
 	return sv.engine.RawAnomalies()
 }
 
+// ScoreState returns a snapshot of the scorer's accumulated state.
+// Returns an empty ScoreState if no scorers are configured.
+func (sv *stateView) ScoreState() observerdef.ScoreState {
+	sv.engine.mu.RLock()
+	defer sv.engine.mu.RUnlock()
+	if len(sv.engine.scorers) == 0 {
+		return observerdef.ScoreState{}
+	}
+	return sv.engine.scorers[0].ScoreState()
+}
+
 // TotalAnomalyCount returns the total number of anomalies ever detected.
 func (sv *stateView) TotalAnomalyCount() int {
 	return sv.engine.TotalAnomalyCount()

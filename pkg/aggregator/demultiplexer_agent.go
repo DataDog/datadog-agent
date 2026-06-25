@@ -280,18 +280,18 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 		return
 	}
 
-	metricsHandle := obs.GetHandle("all-metrics")
+	dogstatsdHandle := obs.GetHandle("dogstatsd")
 
 	// DogStatsD paths
 	for _, worker := range d.statsd.workers {
-		worker.sampler.observerHandle = metricsHandle
+		worker.sampler.observerHandle = dogstatsdHandle
 	}
 	for _, worker := range d.statsd.noAggStreamWorkers {
-		worker.observerHandle = metricsHandle
+		worker.observerHandle = dogstatsdHandle
 	}
 
 	// Go core check path (BufferedAggregator → CheckSampler)
-	d.aggregator.SetObserverHandle(metricsHandle)
+	d.aggregator.SetObserverHandle(obs.GetHandle("check"))
 }
 
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)

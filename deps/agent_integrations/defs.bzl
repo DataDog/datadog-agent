@@ -85,7 +85,7 @@ pyproject_wheel = rule(
             doc = "Executable target for the wheel build frontend.",
         ),
     },
-    doc = "Builds a wheel from a pyproject.toml-based Python source package.",
+    doc = "Builds a wheel from a pyproject.toml-based, hatchling-built Python source package.",
 )
 
 install_wheels = rule(

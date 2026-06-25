@@ -60,6 +60,9 @@ func (api *BenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/benchmark", api.cors(api.handleBenchmark))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
+	mux.HandleFunc("/api/scores", api.cors(api.handleScores))
+	mux.HandleFunc("/api/scores/config", api.cors(api.handleScoresConfig))
+	mux.HandleFunc("/api/scores/replay", api.cors(api.handleScoresReplay))
 
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -1194,6 +1197,154 @@ func (api *BenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	api.writeJSON(w, stats)
+}
+
+// handleScores returns the current ScoreState from the live scorer.
+// GET /api/scores
+func (api *BenchAPI) handleScores(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		api.writeError(w, http.StatusMethodNotAllowed, "use GET")
+		return
+	}
+	sv := api.tb.getStateView()
+	if sv == nil {
+		api.writeJSON(w, observerdef.ScoreState{})
+		return
+	}
+	api.writeJSON(w, sv.ScoreState())
+}
+
+// handleScoresConfig returns the server-side default ScorerConfig so the UI
+// never needs to hardcode threshold values. The response also includes
+// cooldown_secs so the Scorer tab can initialise its replay form correctly
+// (cooldown lives on AnomalyScorerConfiguration, not ScorerConfig).
+// GET /api/scores/config
+func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		api.writeError(w, http.StatusMethodNotAllowed, "use GET")
+		return
+	}
+	type configResponse struct {
+		observerdef.ScorerConfig
+		CooldownSecs int64 `json:"cooldown_secs"`
+	}
+	const defaultCooldownSecs = 300 // mirrors anomaly_scorer.cooldown_secs schema default
+	api.writeJSON(w, configResponse{
+		ScorerConfig: observerimpl.DefaultScorerConfig(),
+		CooldownSecs: defaultCooldownSecs,
+	})
+}
+
+// handleScoresReplay re-runs the scorer over the full retained raw-anomaly set
+// using a config provided in the POST body. This lets the UI inspect scorer
+// output without re-running detectors.
+//
+// The testbench simulates the live agent's 1-second timer: anomalies are sorted
+// by timestamp and fed second-by-second, with Advance called once per unique
+// second (and for any empty seconds in between).
+//
+// POST /api/scores/replay   body: { ScorerConfig fields... , "cooldown_secs": N }
+func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	// replayRequest embeds ScorerConfig and adds CooldownSecs at the same JSON
+	// level, so the frontend can POST a flat object with all scorer parameters.
+	// CooldownSecs is no longer part of ScorerConfig (it lives on the per-subscription
+	// AnomalyScorerConfiguration), but the UI still sends it alongside the other fields.
+	type replayRequest struct {
+		observerdef.ScorerConfig
+		CooldownSecs int64 `json:"cooldown_secs"`
+	}
+	req := replayRequest{ScorerConfig: observerimpl.DefaultScorerConfig()}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.writeError(w, http.StatusBadRequest, "invalid config: "+err.Error())
+		return
+	}
+	cfg := req.ScorerConfig
+	// Replay always keeps all buckets so the UI can render the full time range.
+	// math.MaxInt64 signals "unlimited" to the trim logic (which defaults to WindowSecs when 0).
+	cfg.MaxBuckets = math.MaxInt64
+
+	sv := api.tb.getStateView()
+	if sv == nil {
+		api.writeJSON(w, observerdef.ScoreState{})
+		return
+	}
+
+	// Include all anomalies with a valid timestamp, matching live-agent behaviour.
+	// Log anomalies have no entry in DetectorThresholds and fall through to the
+	// default level (Medium) — the same as any metric detector without explicit
+	// thresholds. Filtering them out would diverge from production.
+	raw := sv.Anomalies()
+	anomalies := make([]observerdef.Anomaly, 0, len(raw))
+	for _, a := range raw {
+		if a.Timestamp == 0 {
+			continue
+		}
+		anomalies = append(anomalies, a)
+	}
+	if len(anomalies) == 0 {
+		api.writeJSON(w, observerdef.ScoreState{Config: cfg})
+		return
+	}
+
+	// Sort anomalies by timestamp so the scorer processes time monotonically.
+	//
+	// Known limitation: scan detectors (scanmw, scanwelch) emit changepoint timestamps
+	// that are historically earlier than the engine tick at which the anomaly was
+	// produced. In the live agent, ProcessAnomaly clamps such anomalies to
+	// lastAdvancedSec+1 via the engine detection tick. Faithfully replicating that
+	// requires storing the engine arrival time alongside the anomaly timestamp, which
+	// Anomaly.Timestamp does not currently encode. Sorting by Timestamp places scan
+	// anomalies at their changepoint second rather than their detection second; this
+	// is a known approximation in the Scorer tab for scan-detector scenarios.
+	sorted := make([]observerdef.Anomaly, len(anomalies))
+	copy(sorted, anomalies)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Timestamp < sorted[j].Timestamp
+	})
+
+	scorer := observerimpl.NewScorer(cfg)
+
+	first := sorted[0].Timestamp
+	last := sorted[len(sorted)-1].Timestamp
+
+	collector := &scorerEventCollector{}
+	unsubscribe := scorer.Subscribe(observerdef.AnomalyScorerConfiguration{
+		Listener:     collector,
+		CooldownSecs: req.CooldownSecs,
+	})
+	defer unsubscribe()
+
+	ai := 0
+	for sec := first; sec <= last; sec++ {
+		for ai < len(sorted) && sorted[ai].Timestamp == sec {
+			scorer.ProcessAnomaly(sorted[ai])
+			ai++
+		}
+		scorer.Advance(sec)
+	}
+
+	// ScoreState no longer carries Events (transitions are subscription-only).
+	// Return a wrapper that adds the collected events alongside the state snapshot.
+	state := scorer.ScoreState()
+	api.writeJSON(w, struct {
+		observerdef.ScoreState
+		Events []observerdef.SeverityEvent `json:"events"`
+	}{ScoreState: state, Events: collector.events})
+}
+
+// scorerEventCollector implements observerdef.ScorerListener, accumulating every
+// severity transition fired by the scorer's per-subscription state machine.
+type scorerEventCollector struct {
+	events []observerdef.SeverityEvent
+}
+
+func (c *scorerEventCollector) OnSeverityTransition(evt observerdef.SeverityEvent) {
+	c.events = append(c.events, evt)
 }
 
 // writeJSON writes a JSON response.

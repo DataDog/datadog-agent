@@ -40,8 +40,8 @@ type Provides struct {
 	Component containercheck.Component
 }
 
-// NewCheck creates a new containercheck component.
-func NewCheck(deps dependencies) Provides {
+// NewComponent creates a new containercheck component.
+func NewComponent(deps dependencies) Provides {
 	c := &check{
 		containerCheck: checks.NewContainerCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.Statsd),
 	}

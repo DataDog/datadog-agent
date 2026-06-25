@@ -148,6 +148,12 @@ func (e *UnknownAttachmentError) Unwrap() error {
 	return e.Err
 }
 
+// IsUnknownAttachmentError returns true if the error is an UnknownAttachmentError
+func IsUnknownAttachmentError(err error) bool {
+	var unknownErr *UnknownAttachmentError
+	return errors.As(err, &unknownErr)
+}
+
 // NewUnknownAttachmentError creates a new `UnknownAttachmentError` instance wrapping
 // the given error.
 func NewUnknownAttachmentError(err error) *UnknownAttachmentError {
@@ -233,8 +239,8 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 			return err
 		}
 
-		// short living process would be hard to catch and will failed when we try to open the library
-		// so let's failed silently
+		// short living process would be hard to catch and will fail when we try to open the library
+		// so let's fail silently
 		if errors.Is(err, os.ErrNotExist) {
 			return err
 		}
