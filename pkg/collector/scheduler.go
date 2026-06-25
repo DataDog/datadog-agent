@@ -25,9 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/infratags"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )

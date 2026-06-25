@@ -219,7 +219,7 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/clusteragent/metricsstore
 # gazelle:exclude pkg/clusteragent/orchestrator
 # gazelle:exclude pkg/collector/aggregator
-# gazelle:exclude pkg/collector/infratags
+# gazelle:exclude pkg/util/infratags
 # gazelle:exclude pkg/collector/corechecks/agentprofiling
 # gazelle:exclude pkg/collector/corechecks/cluster
 # gazelle:exclude pkg/collector/corechecks/containers/containerd

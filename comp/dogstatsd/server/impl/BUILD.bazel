@@ -72,7 +72,7 @@ go_library(
         "//pkg/util/stat",
         "//pkg/util/strings",
         "//pkg/util/tags",
-        "@//pkg/collector/infratags",
+        "@//pkg/util/infratags",
     ],
 )
 

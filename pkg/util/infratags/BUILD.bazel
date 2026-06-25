@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "infratags",
     srcs = ["infratags.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/collector/infratags",
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/infratags",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/check/id",

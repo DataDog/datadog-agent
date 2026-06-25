@@ -48,7 +48,7 @@ import (
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/infratags"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 )
 
 var (

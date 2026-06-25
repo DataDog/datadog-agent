@@ -15,13 +15,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/collector/infratags"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
