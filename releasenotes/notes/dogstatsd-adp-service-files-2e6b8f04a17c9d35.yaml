@@ -8,9 +8,10 @@
 ---
 enhancements:
   - |
-    The standalone ``dogstatsd`` Linux (deb/rpm) packages now ship an opt-in
+    The standalone ``dogstatsd`` Linux (deb/rpm) packages now ship a
     ``datadog-dogstatsd-data-plane`` service (systemd and upstart) that runs the
-    bundled Agent Data Plane alongside ``dogstatsd``. The service is installed
-    but not enabled; enable it with ``systemctl enable --now
-    datadog-dogstatsd-data-plane`` after setting ``data_plane.enabled: true`` in
-    ``/etc/datadog-dogstatsd/dogstatsd.yaml``.
+    bundled Agent Data Plane alongside ``dogstatsd``. The service is enabled by
+    default but is a no-op until the data plane is turned on: the
+    ``agent-data-plane`` process exits immediately when ``data_plane.enabled`` is
+    false (the default). Set ``data_plane.enabled: true`` in
+    ``/etc/datadog-dogstatsd/dogstatsd.yaml`` to use it.

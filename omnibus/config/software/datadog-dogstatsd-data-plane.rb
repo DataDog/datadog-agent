@@ -72,4 +72,26 @@ build do
   command "chmod 0755 #{install_dir}/embedded/bin/agent-data-plane"
   copy 'opt/datadog/agent-data-plane/LICENSES', "#{install_dir}/LICENSES"
   copy 'opt/datadog/agent-data-plane/LICENSE-3rdparty.csv', "#{install_dir}/LICENSES/LICENSE-agent-data-plane-3rdparty.csv"
+
+  # Service files used to run the data plane alongside dogstatsd. They are
+  # rendered into scripts/ here and moved to their final system locations by
+  # datadog-dogstatsd-finalize. The service is enabled by default; the
+  # agent-data-plane process exits immediately when data_plane.enabled is false.
+  if linux_target?
+    if debian_target?
+      erb source: "upstart_debian.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-dogstatsd-data-plane.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir }
+    elsif redhat_target? || suse_target?
+      erb source: "upstart_redhat.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-dogstatsd-data-plane.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir }
+    end
+    erb source: "systemd.service.erb",
+        dest: "#{install_dir}/scripts/datadog-dogstatsd-data-plane.service",
+        mode: 0644,
+        vars: { install_dir: install_dir }
+  end
 end
