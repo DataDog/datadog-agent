@@ -304,7 +304,7 @@ log "pymqi==$PYMQI_VERSION installed successfully"
 # (Python struct uses native byte order) → MQRCCF_CFH_LENGTH_ERROR (reason 3002).
 # Reference: ibm-messaging/mq-mqi-python _CMQC_aix.py vs _CMQC_linux_x64.py —
 # MQENC_NATIVE is the only constant that differs between the two platforms.
-PYMQI_CMQC=$($PYTHON -c "import pymqi.CMQC as m; print(m.__file__.replace('.pyc', '.py'))")
+PYMQI_CMQC=$($PYTHON_BIN -c "import pymqi.CMQC as m; print(m.__file__.replace('.pyc', '.py'))")
 sed 's/MQENC_NATIVE = 0x00000222/MQENC_NATIVE = 0x00000111/' "$PYMQI_CMQC" > "${PYMQI_CMQC}.tmp" \
     && mv "${PYMQI_CMQC}.tmp" "$PYMQI_CMQC"
 find "$(dirname "$PYMQI_CMQC")/__pycache__" -name "CMQC.cpython-*.pyc" -delete 2>/dev/null || true
