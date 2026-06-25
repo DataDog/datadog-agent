@@ -9,7 +9,15 @@ package configstreamconsumerimpl_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"net"
 	"os"
 	"path/filepath"
@@ -31,15 +39,14 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
-	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// mockCoreAgent implements the subset of AgentSecure the consumer calls:
-// RegisterRemoteAgent and StreamConfigEvents. Test feeds events via the channel.
+// mockCoreAgent is a minimal AgentSecure stub that serves RegisterRemoteAgent and
+// StreamConfigEvents. Events are fed through the channel.
 type mockCoreAgent struct {
 	pb.UnimplementedAgentSecureServer
 	sessionID string
@@ -71,22 +78,47 @@ func (m *mockCoreAgent) close() {
 	m.closeOnce.Do(func() { close(m.events) })
 }
 
-// setupFakeCoreAgent generates real IPC cert + auth_token files (so the consumer's
-// micro-resolution and mTLS dial succeed) and starts a gRPC server using the same
-// TLS config. Returns the listener address (host:port) and a cleanup func.
+// generateTestIPCCert writes a self-signed cert+key PEM (valid for 127.0.0.1) to
+// certPath and returns the server TLS config derived from it.
+func generateTestIPCCert(t *testing.T, certPath string) *tls.Config {
+	t.Helper()
+
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "test-ipc"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privKey.PublicKey, privKey)
+	require.NoError(t, err)
+
+	keyDER, err := x509.MarshalECPrivateKey(privKey)
+	require.NoError(t, err)
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+	require.NoError(t, os.WriteFile(certPath, append(certPEM, keyPEM...), 0600))
+
+	_, serverTLS, err := cert.GetTLSConfigFromCert(certPEM, keyPEM)
+	require.NoError(t, err)
+	return serverTLS
+}
+
+// setupFakeCoreAgent writes auth_token and ipc_cert.pem to dir and starts a gRPC
+// server backed by that cert. Returns the listener address and a cleanup func.
 func setupFakeCoreAgent(t *testing.T, dir string) (addr string, mock *mockCoreAgent, cleanup func()) {
 	t.Helper()
 
-	// Seed the global config so cert/auth helpers know where to put their files.
-	// GlobalConfigBuilder needed here: it's the only accessor that exposes SetConfigFile (Setup interface).
-	pkgconfigsetup.InitConfigObjects()
-	cfg := pkgconfigsetup.GlobalConfigBuilder()
-	cfg.SetConfigFile(filepath.Join(dir, "datadog.yaml"))
-
-	_, err := pkgtoken.FetchOrCreateAuthToken(context.Background(), cfg)
-	require.NoError(t, err)
-	_, serverTLS, _, err := cert.FetchOrCreateIPCCert(context.Background(), cfg)
-	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "auth_token"), []byte("test-auth-token"), 0600))
+	serverTLS := generateTestIPCCert(t, filepath.Join(dir, "ipc_cert.pem"))
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -114,13 +146,15 @@ func mustNewValue(t *testing.T, v interface{}) *structpb.Value {
 	return val
 }
 
-// TestRunBlocksUntilConfigStreamSnapshot verifies end-to-end wiring for each agent:
-// the consumer dials the (fake) core, registers with the RAR, opens the stream, and
-// blocks fxutil.OneShot until the first snapshot is applied.
+// TestRunBlocksUntilConfigStreamSnapshot verifies that for each agent the consumer
+// blocks fxutil.OneShot until the first snapshot arrives from the mock core.
 func TestRunBlocksUntilConfigStreamSnapshot(t *testing.T) {
 	agents := []string{"trace-agent", "process-agent", "security-agent", "system-probe"}
 	for _, agentName := range agents {
 		t.Run(agentName, func(t *testing.T) {
+			// Rebuild the env var layer on each lookup so a stale schema from other
+			// tests doesn't shadow SourceFile values written by SeedGlobalBuilder.
+			configstreambootstrap.UseDynamicSchema(t)
 			dir := t.TempDir()
 			addr, mock, cleanup := setupFakeCoreAgent(t, dir)
 			defer cleanup()
@@ -183,9 +217,10 @@ remote_agent:
 	}
 }
 
-// TestRunNoopWhenConfigstreamDisabled verifies that when configstream is disabled,
-// NewComponent returns a no-op and FX startup does NOT block on the consumer.
+// TestRunNoopWhenConfigstreamDisabled verifies that a disabled consumer lets
+// fxutil.OneShot complete immediately without blocking.
 func TestRunNoopWhenConfigstreamDisabled(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
 	dir := t.TempDir()
 	datadogPath := filepath.Join(dir, "datadog.yaml")
 	require.NoError(t, os.WriteFile(datadogPath, []byte(""), 0600))
