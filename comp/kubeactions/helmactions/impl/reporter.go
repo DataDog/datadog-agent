@@ -19,7 +19,7 @@ type ResultReporter struct {
 }
 
 // NewResultReporter creates a new stub ResultReporter.
-func NewResultReporter(clusterName, clusterID string) *ResultReporter {
+func NewResultReporter(clusterName, clusterID string, store *ActionStore) *ResultReporter {
 	return &ResultReporter{
 		clusterName: clusterName,
 		clusterID:   clusterID,

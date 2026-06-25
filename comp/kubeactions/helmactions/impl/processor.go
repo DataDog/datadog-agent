@@ -20,25 +20,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ActionStoreInterface defines the store methods used by ActionProcessor.
-type ActionStoreInterface interface {
-	Claim(key ActionKey) bool
-	MarkExecuted(key ActionKey, status, message string, executedAt, receivedAt, actionCreatedAt int64)
-	GetRecord(key ActionKey) (ActionRecord, bool)
-}
-
 // ActionProcessor processes helm actions received from remote config.
 type ActionProcessor struct {
-	registry *ExecutorRegistry
 	store    ActionStoreInterface
 	reporter *ResultReporter
 	ctx      context.Context
 }
 
 // NewActionProcessor creates a new ActionProcessor.
-func NewActionProcessor(ctx context.Context, registry *ExecutorRegistry, store ActionStoreInterface, reporter *ResultReporter) *ActionProcessor {
+func NewActionProcessor(ctx context.Context, store ActionStoreInterface, reporter *ResultReporter) *ActionProcessor {
 	return &ActionProcessor{
-		registry: registry,
 		store:    store,
 		reporter: reporter,
 		ctx:      ctx,
@@ -116,7 +107,7 @@ func (p *ActionProcessor) processAction(action *HelmAction, actionKey ActionKey,
 	}
 
 	// Execute
-	result := p.registry.Execute(p.ctx, action)
+	result := ExecutionResult{} // TODO // p.registry.Execute(p.ctx, action)
 	executedAt := time.Now().Unix()
 	p.store.MarkExecuted(actionKey, result.Status, result.Message, executedAt, receivedAt, actionCreatedAt)
 	p.reporter.ReportResult(actionKey, action, result)

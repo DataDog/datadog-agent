@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build kubeapiserver
+
 // Package kubeactions implements the "kubeactions" bundle, providing components
 // for executing Kubernetes and Helm actions on behalf of the cluster agent.
 package kubeactions
