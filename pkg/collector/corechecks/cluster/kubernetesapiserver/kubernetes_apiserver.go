@@ -50,6 +50,7 @@ const (
 	defaultResyncPeriodInSecond        = 300
 	defaultTimeoutEventCollection      = 2000
 	defaultMaxEstimatedEventTextLength = 3750
+	maximumWaitForAPIServer            = 10 * time.Second
 )
 
 var (
@@ -113,10 +114,11 @@ func (noopEventTransformer) Transform(_ []*v1.Event) ([]event.Event, []error) {
 }
 
 type eventCollection struct {
-	LastResVer  string
-	LastTime    time.Time
-	Filter      string
-	Transformer eventTransformer
+	LastResVer      string
+	LastTime        time.Time
+	Filter          string
+	Transformer     eventTransformer
+	EventCollector *apiserver.EventCollector
 }
 
 // KubeASCheck grabs metrics and events from the API server.
@@ -127,6 +129,12 @@ type KubeASCheck struct {
 	ac              *apiserver.APIClient
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
 	tagger          tagger.Component
+	useNewEventCollection bool
+
+	// eventCollectorRunning tracks whether the event informers are currently
+	// running, so they are started and stopped only on leadership transitions.
+	eventCollectorRunning bool
+	informersStopCh       chan struct{}
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -210,6 +218,23 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		k.eventCollection.Transformer = newBundledTransformer(clusterName, k.tagger, k.instance.CollectedEventTypes, k.instance.FilteringEnabled)
 	}
 
+	// Initialize the API Server client once at configuration time
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
+	defer apiCancel()
+	k.ac, err = apiserver.WaitForAPIClient(apiCtx)
+	if err != nil {
+		return err
+	}
+
+	if err := apiserver.InitializeGlobalResourceTypeCache(k.ac.Cl.Discovery()); err != nil {
+		log.Errorf("Could not initialize the global resource type cache: %s", err)
+	}
+
+	// We detect OpenShift presence for quota collection
+	if k.instance.CollectOShiftQuotas {
+		k.oshiftAPILevel = k.ac.DetectOpenShiftAPILevel()
+	}
+
 	return nil
 }
 
@@ -225,45 +250,39 @@ func (k *KubeASCheck) Run() error {
 		log.Debug("Cluster agent is enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
-	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
-	// The Cluster Agent will passed in the `skip_leader_election` bool.
+
+	// Determine current leadership (unless the check is configured as a cluster check)
+	isCurrentLeader := k.instance.LeaderSkip
 	if !k.instance.LeaderSkip {
-		// Only run if Leader Election is enabled.
 		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		}
 		leader, errLeader := cluster.RunLeaderElection()
 		if errLeader != nil {
-			if errLeader == apiserver.ErrNotLeader {
-				// Only the leader can instantiate the apiserver client.
-				log.Debugf("Not leader (leader is %q). Skipping the Kubernetes API Server check", leader)
-				return nil
+			if errLeader != apiserver.ErrNotLeader {
+				_ = k.Warn("Leader Election error. Not running the Kubernetes API Server check.")
+				return errLeader
 			}
-
-			_ = k.Warn("Leader Election error. Not running the Kubernetes API Server check.")
-			return err
+			log.Debugf("Not leader (leader is %q). Skipping the Kubernetes API Server check", leader)
+			isCurrentLeader = false
+		} else {
+			log.Tracef("Current leader: %q, running the Kubernetes API Server check", leader)
+			isCurrentLeader = true
 		}
-
-		log.Tracef("Current leader: %q, running the Kubernetes API Server check", leader)
 	}
-	// API Server client initialisation on first run
-	if k.ac == nil {
-		// Using GetAPIClient (no wait) as check we'll naturally retry with each check run
-		k.ac, err = apiserver.GetAPIClient()
-		if err != nil {
-			k.Warnf("Could not connect to apiserver: %s", err) //nolint:errcheck
+
+	if k.useNewEventCollection {
+		// If we are not the current leader, we might need to stop the event collection.
+		if !isCurrentLeader {
+			k.stopEventCollection()
+			return nil
+		}
+		// ... or start it if we are the current leader
+		if err := k.startEventCollection(); err != nil {
 			return err
 		}
-
-		err = apiserver.InitializeGlobalResourceTypeCache(k.ac.Cl.Discovery())
-		if err != nil {
-			log.Errorf("Could not initialize the global resource type cache: %s", err)
-		}
-
-		// We detect OpenShift presence for quota collection
-		if k.instance.CollectOShiftQuotas {
-			k.oshiftAPILevel = k.ac.DetectOpenShiftAPILevel()
-		}
+	} else if !isCurrentLeader {
+		return nil
 	}
 
 	// Running the Control Plane status check.
@@ -282,10 +301,18 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	if k.instance.CollectEvent {
-		events, err := k.eventCollectionCheck()
+		var events []event.Event
+		var err error
+		if k.useNewEventCollection {
+			events, err = k.newEventCollectionCheck()
+		} else {
+			events, err = k.legacyEventCollectionCheck()
+		}
+
 		if err != nil {
 			return err
 		}
+
 
 		for _, event := range events {
 			sender.Event(event)
@@ -302,7 +329,49 @@ func (k *KubeASCheck) Run() error {
 	return nil
 }
 
-func (k *KubeASCheck) eventCollectionCheck() ([]event.Event, error) {
+// startEventCollection builds a fresh informer factory and starts the event
+// informers. It is idempotent. 
+func (k *KubeASCheck) startEventCollection() error {
+	if k.eventCollectorRunning {
+		return nil
+	}
+
+	k.informersStopCh = make(chan struct{})
+	k.eventCollection.EventCollector = k.ac.NewEventCollector(k.eventCollection.Filter)
+	k.eventCollectorRunning = true
+	return k.eventCollection.EventCollector.Start(k.informersStopCh)
+}
+
+// stopEventCollection stops the running event informers by closing their stop
+// channel. It is idempotent. 
+func (k *KubeASCheck) stopEventCollection() {
+	if !k.eventCollectorRunning {
+		return
+	}
+
+	close(k.informersStopCh)
+	k.eventCollection.EventCollector = nil
+	k.eventCollectorRunning = false
+}
+
+// Cancel stops the event informers when the check is unscheduled.
+func (k *KubeASCheck) Cancel() {
+	k.stopEventCollection()
+}
+
+func (k *KubeASCheck) newEventCollectionCheck() ([]event.Event, error) {
+	events := k.eventCollection.EventCollector.Drain()
+	ddevents, errs := k.eventCollection.Transformer.Transform(events)
+
+	for _, err := range errs {
+		k.Warnf("Error transforming events: %s", err.Error())
+	}
+
+	return ddevents, nil
+}
+
+
+func (k *KubeASCheck) legacyEventCollectionCheck() ([]event.Event, error) {
 	resVer, lastTime, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
 	if err != nil {
 		return nil, err
