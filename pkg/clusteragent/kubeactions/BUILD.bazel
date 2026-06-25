@@ -10,6 +10,7 @@ go_library(
         "processor.go",
         "reporter.go",
         "setup.go",
+        "telemetry.go",
         "types.go",
         "validator.go",
     ],
@@ -17,6 +18,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/forwarder/eventplatform/def",
+        "//pkg/aggregator/sender",
         "//pkg/clusteragent/kubeactions/executors",
         "//pkg/logs/message",
         "//pkg/remoteconfig/state",
