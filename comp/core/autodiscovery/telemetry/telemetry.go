@@ -41,11 +41,12 @@ type Store struct {
 	// a check configuration.
 	TagCompletenessDelay telemetry.Histogram
 	// DiscoveryQueueDepth tracks the number of configs currently pending
-	// discovery (queued or actively being processed) by integration name.
+	// discovery (queued or actively being processed) by integration name and
+	// entity kind (e.g. "process", "docker", "containerd").
 	DiscoveryQueueDepth telemetry.Gauge
-	// DiscoveryResults counts terminal discovery outcomes by integration name
-	// and result type. Result values: "success", "permanent_failure",
-	// "max_attempts_exceeded", "service_not_found".
+	// DiscoveryResults counts terminal discovery outcomes by integration name,
+	// result type, and entity kind. Result values: "success",
+	// "permanent_failure", "max_attempts_exceeded", "service_not_found".
 	DiscoveryResults telemetry.Counter
 }
 
@@ -93,15 +94,15 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 		DiscoveryQueueDepth: telemetryComp.NewGaugeWithOpts(
 			subsystem,
 			"discovery_queue_depth",
-			[]string{"integration_name"},
-			"Number of configs currently pending discovery by integration name.",
+			[]string{"integration_name", "entity_kind"},
+			"Number of configs currently pending discovery by integration name and entity kind.",
 			commonOpts,
 		),
 		DiscoveryResults: telemetryComp.NewCounterWithOpts(
 			subsystem,
 			"discovery_results",
-			[]string{"integration_name", "result"},
-			"Terminal discovery outcomes by integration name and result type.",
+			[]string{"integration_name", "result", "entity_kind"},
+			"Terminal discovery outcomes by integration name, result type, and entity kind.",
 			commonOpts,
 		),
 	}

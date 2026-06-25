@@ -8,6 +8,7 @@ package discoverer
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -96,7 +97,7 @@ func (w *Worker) Enqueue(svcID, tplDigest, integrationName string) {
 	if _, alreadyPending := w.attempts[k]; !alreadyPending {
 		w.attempts[k] = 0
 		if w.telStore != nil {
-			w.telStore.DiscoveryQueueDepth.Inc(integrationName)
+			w.telStore.DiscoveryQueueDepth.Inc(integrationName, entityKindFromSvcID(svcID))
 		}
 	}
 	w.m.Unlock()
@@ -149,7 +150,7 @@ func (w *Worker) processNext() bool {
 	// If service is not found, drop the attempt permanently.
 	svc, ok := w.services.LookupService(key.svcID)
 	if !ok {
-		w.recordResult(key.integrationName, "service_not_found")
+		w.recordResult(key.integrationName, "service_not_found", key.svcID)
 		w.dropAttempts(key)
 		return true
 	}
@@ -171,7 +172,7 @@ func (w *Worker) processNext() bool {
 	if err != nil {
 		if _, ok := errors.AsType[PermFail](err); ok {
 			log.Debugf("DiscoveryConfig for integration %s on service %s failed permanently: %v", key.integrationName, key.svcID, err)
-			w.recordResult(key.integrationName, "permanent_failure")
+			w.recordResult(key.integrationName, "permanent_failure", key.svcID)
 			w.dropAttempts(key)
 			return true
 		}
@@ -197,7 +198,7 @@ func (w *Worker) processNext() bool {
 		return true
 	}
 
-	w.recordResult(key.integrationName, "success")
+	w.recordResult(key.integrationName, "success", key.svcID)
 	w.dropAttempts(key)
 	w.onResult(key.svcID, key.tplDigest, configs)
 	return true
@@ -205,20 +206,15 @@ func (w *Worker) processNext() bool {
 
 func (w *Worker) requeueOrDrop(key jobKey) {
 	w.m.Lock()
-	_, alreadyTracked := w.attempts[key]
-	w.attempts[key]++
-	attempt := w.attempts[key]
-	if !alreadyTracked && w.telStore != nil {
-		// Key entered via the workqueue's dirty re-queue path (Add() while
-		// the item was processing), bypassing Enqueue. Increment the gauge
-		// to match the eventual dropAttempts decrement.
-		w.telStore.DiscoveryQueueDepth.Inc(key.integrationName)
+	if _, tracked := w.attempts[key]; tracked {
+		w.attempts[key]++
 	}
+	attempt := w.attempts[key]
 	w.m.Unlock()
 	if attempt >= w.maxAttempts {
 		log.Debugf("Giving up on DiscoveryConfig for integration %s for service %s after %d attempts",
 			key.svcID, key.integrationName, attempt)
-		w.recordResult(key.integrationName, "max_attempts_exceeded")
+		w.recordResult(key.integrationName, "max_attempts_exceeded", key.svcID)
 		w.dropAttempts(key)
 		return
 	}
@@ -231,18 +227,28 @@ func (w *Worker) dropAttempts(key jobKey) {
 	if _, wasPending := w.attempts[key]; wasPending {
 		delete(w.attempts, key)
 		if w.telStore != nil {
-			w.telStore.DiscoveryQueueDepth.Dec(key.integrationName)
+			w.telStore.DiscoveryQueueDepth.Dec(key.integrationName, entityKindFromSvcID(key.svcID))
 		}
 	}
 	w.m.Unlock()
 }
 
 // recordResult increments the discovery results counter for the given
-// integration name and result type. It is a no-op when telemetry is not wired.
-func (w *Worker) recordResult(integrationName, result string) {
+// integration name, result type, and entity kind derived from svcID.
+// It is a no-op when telemetry is not wired.
+func (w *Worker) recordResult(integrationName, result, svcID string) {
 	if w.telStore != nil {
-		w.telStore.DiscoveryResults.Inc(integrationName, result)
+		w.telStore.DiscoveryResults.Inc(integrationName, result, entityKindFromSvcID(svcID))
 	}
+}
+
+// entityKindFromSvcID extracts the scheme prefix from a service ID of the form
+// "<kind>://<id>" (e.g. "process", "docker", "containerd")
+func entityKindFromSvcID(svcID string) string {
+	if idx := strings.Index(svcID, "://"); idx != -1 {
+		return svcID[:idx]
+	}
+	return "unknown"
 }
 
 // runOnce is exported for tests so they can drive the worker synchronously.
