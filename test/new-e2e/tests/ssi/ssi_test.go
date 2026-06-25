@@ -433,6 +433,10 @@ func (v *ssiSuite) TestWorkloadSelection() {
 }
 
 func (v *ssiSuite) TestRegistryAllowList() {
+	if isGKEAutopilot() {
+		v.T().Skip("registry allow-list is cluster-agent logic already covered by other provisioners; " +
+			"on GKE Autopilot the Helm chart forces images to gcr.io/datadoghq, which is unrelated to SSI behavior")
+	}
 	// All three apps run in the same cluster with allow list = registry.datadoghq.com.
 	// The default container registry for injector and library images is registry.datadoghq.com.
 	// - "allowed": default injector and library, both from registry.datadoghq.com — injection proceeds.
@@ -550,6 +554,10 @@ func isOpenShift() bool {
 	default:
 		return false
 	}
+}
+
+func isGKEAutopilot() bool {
+	return getProvisionerType() == ProvisionerGKEAutopilot
 }
 
 func openShiftInjectionModeNamespaceLabels() map[string]string {

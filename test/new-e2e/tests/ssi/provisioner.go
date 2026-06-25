@@ -169,9 +169,12 @@ func eksProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[envir
 
 // autopilotHelmValues adapts the agent install to GKE Autopilot's constraints, following
 // https://docs.datadoghq.com/containers/kubernetes/distributions/#autopilot:
-//   - admissionController.configMode "service": Autopilot forbids both hostPort/hostNetwork
-//     (default "hostip" mode) and hostPath volumes ("socket" mode), so traces injected by SSI
-//     can only reach the trace-agent through cluster networking.
+//   - admissionController.configMode "service": the default "hostip" mode points workloads at
+//     the node IP, which requires the agent DaemonSet to expose the trace-agent on a fixed
+//     hostPort, and the "socket" mode mounts the UDS through a writable hostPath volume.
+//     Autopilot disallows both (fixed hostPorts and write-mode hostPath volumes, on top of
+//     hostNetwork), so traces injected by SSI can only reach the trace-agent through cluster
+//     networking via the agent's service DNS name.
 //   - apm.portEnabled: expose the trace-agent TCP port (8126) on the agent's local service so
 //     that the service DNS name injected in "service" mode actually resolves to an open port.
 //     This uses a container port (no hostPort), so it stays Autopilot-compatible.
