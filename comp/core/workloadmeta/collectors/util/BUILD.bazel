@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "util",
@@ -29,7 +30,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "util_test",
     srcs = [
         "ecs_util_test.go",
@@ -38,7 +39,6 @@ go_test(
         "kubelet_test.go",
     ],
     embed = [":util"],
-    gotags = ["test"],
     deps = [
         "//comp/core",
         "//comp/core/workloadmeta/def",

@@ -53,7 +53,8 @@ type Requires struct {
 	FilterStore option.Option[workloadfilter.Component]
 
 	// Autodiscovery is optional: when absent the AD scheduler is simply not started
-	// and the observer falls back to generic container log collection only.
+	// and the observer falls back to generic container and kubelet log collection
+	// without AD-scheduled config overlays.
 	Autodiscovery autodiscovery.Component `fx:"optional"`
 }
 
@@ -68,13 +69,12 @@ type logssourceComponent struct{}
 // NewComponent creates the logssource component.
 //
 // anomaly_detection.logs.enabled is the main toggle for all log ingestion:
-// setting it to false disables container, kubelet, and agent-internal logs
-// (observer's agent_logs tap).
+// setting it to false disables container and kubelet sources wired here.
 // anomaly_detection.logs.containers.enabled controls workloadmeta generic
 // container sources and AD-scheduled container log configs.
 // anomaly_detection.logs.kubelet.enabled controls the kubelet journald source.
-// anomaly_detection.agent_logs.enabled additionally controls the agent-internal
-// log tap and defaults to true when logs.enabled is true.
+// Agent-internal logs are wired separately by the observer via
+// anomaly_detection.logs.internal.enabled (see observer/impl/observer.go).
 //
 // The component is a no-op when any of these are true:
 //   - the observer is unavailable
@@ -117,7 +117,12 @@ func NewComponent(deps Requires) (Provides, error) {
 		pauseFilter = fs.GetContainerPausedFilters()
 	}
 
-	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle)
+	var samplerOnDropped func(source, priority string)
+	if obsOk {
+		samplerOnDropped = obs.RecordSamplerDropped
+	}
+	sampler := newLogSamplerFromConfig(deps.Config, samplerOnDropped)
+	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle, sampler)
 	logSources := sources.NewLogSources()
 	tracker := tailers.NewTailerTracker()
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)

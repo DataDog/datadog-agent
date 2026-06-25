@@ -56,6 +56,7 @@ ENV_PASSHTROUGH = {
     'AGENT_DATA_PLANE_VERSION': 'Agent Data Plane Version',
     'CI_JOB_ID': 'CI Job ID',
     'CI_PROJECT_NAME': 'CI Project Name',
+    'AGENT_DATA_PLANE_SOURCE_URL_BASE': 'Override URL base for Agent Data Plane tarball downloads',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
@@ -111,6 +112,8 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'TEAM_ID': 'Apple developer team ID used for notarization',
         'KEYCHAIN_NAME': 'Name of the ephemeral keychain holding signing certificates',
         'KEYCHAIN_PWD': 'Password for the ephemeral signing keychain',
+        'AGENT_DATA_PLANE_HASH_DARWIN_AMD64': 'Agent Data Plane Hash for Darwin AMD64',
+        'AGENT_DATA_PLANE_HASH_DARWIN_ARM64': 'Agent Data Plane Hash for Darwin ARM64',
     },
 }
 

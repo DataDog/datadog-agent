@@ -6,11 +6,20 @@
 package com_datadoghq_remoteaction_networkconfigmanagement
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/benbjohnson/clock"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -18,11 +27,15 @@ import (
 // RollbackConfigHandler handles the rollbackConfig action for network config management
 type RollbackConfigHandler struct {
 	ipcClient ipc.HTTPClient
+	clock     clock.Clock
 }
 
 // NewRollbackConfigHandler creates a new RollbackConfigHandler
 func NewRollbackConfigHandler(client ipc.HTTPClient) *RollbackConfigHandler {
-	return &RollbackConfigHandler{ipcClient: client}
+	return &RollbackConfigHandler{
+		ipcClient: client,
+		clock:     clock.New(),
+	}
 }
 
 // RollbackConfigInputs defines the inputs for the rollbackConfig action
@@ -38,8 +51,9 @@ type RollbackConfigInputs struct {
 
 // RollbackConfigOutputs is the output of a rollbackConfig action.
 type RollbackConfigOutputs struct {
-	Success bool   `json:"success,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Success    bool       `json:"success,omitempty"`
+	Error      string     `json:"error,omitempty"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
 }
 
 // Run executes the rollbackConfig action
@@ -60,17 +74,31 @@ func (h *RollbackConfigHandler) Run(
 		return nil, errors.New("rollbackConfig: ConfigVersion input is required")
 	}
 
-	if err := executeRollback(inputs.DeviceID, inputs.ConfigHash, inputs.ConfigVersion); err != nil {
-		return nil, fmt.Errorf("rollback failed: %w", err)
+	body, err := json.Marshal(map[string]string{
+		"device_id":      inputs.DeviceID,
+		"config_version": inputs.ConfigVersion,
+		"hash":           inputs.ConfigHash,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("rollbackConfig: failed to marshal request: %w", err)
 	}
 
-	return RollbackConfigOutputs{
-		Success: false,
-		Error:   "not implemented",
-	}, nil
-}
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, fmt.Errorf("rollbackConfig: failed to get IPC address: %w", err)
+	}
+	port := pkgconfigsetup.Datadog().GetInt("cmd_port")
+	url := fmt.Sprintf("https://%s/agent/ncm/rollback", net.JoinHostPort(ipcAddress, strconv.Itoa(port)))
 
-func executeRollback(deviceID string, configHash string, configVersion string) error {
-	_, _, _ = deviceID, configHash, configVersion
-	return errors.ErrUnsupported
+	resp, err := h.ipcClient.Post(url, "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		errMsg := strings.TrimSpace(string(resp))
+		if errMsg == "" {
+			errMsg = err.Error()
+		}
+		return RollbackConfigOutputs{Error: errMsg}, err
+	}
+
+	t := h.clock.Now()
+	return RollbackConfigOutputs{Success: true, FinishedAt: &t}, nil
 }

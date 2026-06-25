@@ -2,7 +2,6 @@
 Agent namespaced tasks
 """
 
-import ast
 import glob
 import os
 import platform
@@ -84,11 +83,14 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
-    enable_bazel=False,
+    enable_bazel=True,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
+
+    Bazel-backed build steps are enabled by default.
+    Use `--no-enable-bazel` to keep the legacy build paths.
 
     Example invokation:
         dda inv agent.build --build-exclude=systemd
@@ -296,6 +298,7 @@ def run(
     flavor=AgentFlavor.base.name,
     skip_build=False,
     config_path=None,
+    enable_bazel=True,
 ):
     """
     Execute the agent binary.
@@ -304,7 +307,7 @@ def run(
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, flavor)
+        build(ctx, rebuild, race, build_include, build_exclude, flavor, enable_bazel=enable_bazel)
 
     agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
     config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
@@ -404,6 +407,7 @@ def hacky_dev_image_build(
     signed_pull=False,
     arch=None,
     development=True,
+    build_exclude=None,
 ):
     """
     Builds the agent or cluster-agent Docker image.
@@ -447,7 +451,9 @@ def hacky_dev_image_build(
             ctx,
             race=race,
             development=development,
+            build_exclude=build_exclude,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
+            enable_bazel=False,
         )
         ctx.run(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
@@ -602,57 +608,6 @@ def integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
         )
 
 
-def check_supports_python_version(check_dir, python):
-    """
-    Check if a Python project states support for a given major Python version.
-    """
-    import toml
-    from packaging.specifiers import SpecifierSet
-
-    if python not in ['2', '3']:
-        raise Exit("invalid Python version", code=2)
-
-    project_file = os.path.join(check_dir, 'pyproject.toml')
-    setup_file = os.path.join(check_dir, 'setup.py')
-    if os.path.isfile(project_file):
-        with open(project_file) as f:
-            data = toml.loads(f.read())
-
-        project_metadata = data['project']
-        if 'requires-python' not in project_metadata:
-            return True
-
-        requires_python = project_metadata['requires-python']
-        # Handle malformed requires-python values (e.g., just ">=" without version)
-        if not requires_python or requires_python.strip() in ['>=', '>', '<=', '<', '==', '!=', '~=', '===']:
-            return True
-
-        try:
-            specifier = SpecifierSet(requires_python)
-        except Exception:
-            # If the specifier is malformed, assume it supports the Python version
-            return True
-        # It might be e.g. `>=3.8` which would not immediatelly contain `3`
-        for minor_version in range(100):
-            if specifier.contains(f'{python}.{minor_version}'):
-                return True
-        else:
-            return False
-    elif os.path.isfile(setup_file):
-        with open(setup_file) as f:
-            tree = ast.parse(f.read(), filename=setup_file)
-
-        prefix = f'Programming Language :: Python :: {python}'
-        for node in ast.walk(tree):
-            if isinstance(node, ast.keyword) and node.arg == 'classifiers':
-                classifiers = ast.literal_eval(node.value)
-                return any(cls.startswith(prefix) for cls in classifiers)
-        else:
-            return False
-    else:
-        return False
-
-
 def _load_manifest_platform_overrides(integrations_dir):
     """
     Read [overrides.manifest.platforms] from <integrations_dir>/.ddev/config.toml.
@@ -672,7 +627,7 @@ def _load_manifest_platform_overrides(integrations_dir):
 
 
 @task
-def collect_integrations(_, integrations_dir, python_version, target_os, excluded):
+def collect_integrations(_, integrations_dir, target_os, excluded):
     """
     Collect and print the list of integrations to install.
 
@@ -710,7 +665,8 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
             # No manifest file and no override -> assume the folder is not a working check
             continue
 
-        if not check_supports_python_version(int_path, python_version):
+        # Skip folders that are not Python packages
+        if not os.path.isfile(os.path.join(int_path, 'pyproject.toml')):
             continue
 
         integrations.append(entry)

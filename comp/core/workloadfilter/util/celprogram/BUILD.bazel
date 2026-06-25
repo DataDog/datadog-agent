@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadfilter/def",
+        "//pkg/util/cache",
         "@com_github_google_cel_go//cel:go_default_library",
     ],
 )

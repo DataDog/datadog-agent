@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -22,6 +23,9 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 const (
@@ -35,6 +39,7 @@ var protectedResourceKinds = []string{"secret", "secrets"}
 
 type GetResourceExecutor struct {
 	dynamicClient dynamic.Interface
+	scrubber      *scrubber.Scrubber
 }
 
 // Ensure interface compliance at compile time
@@ -47,8 +52,23 @@ var (
 
 // NewGetResourceExecutor creates a new GetResourceExecutor
 func NewGetResourceExecutor(dynamicClient dynamic.Interface) *GetResourceExecutor {
+	scrb := scrubber.NewWithDefaults()
+
+	// if the user has set a custom list of sensitive words, add a replacer for them
+	// this is originally added for the orchestrator explorer to scrub sensitive words from the resource output
+	// see pkg/orchestrator/config/config.go.OrchestratorConfig.Load() for more details.
+	if pkgconfigsetup.Datadog().IsConfigured("orchestrator_explorer.custom_sensitive_words") {
+		sensitiveWords := pkgconfigsetup.Datadog().GetStringSlice("orchestrator_explorer.custom_sensitive_words")
+		regex := regexp.MustCompile(strings.Join(sensitiveWords, "|"))
+		scrb.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
+			Regex: regex,
+			Repl:  []byte("********"),
+		})
+	}
+
 	return &GetResourceExecutor{
 		dynamicClient: dynamicClient,
+		scrubber:      scrb,
 	}
 }
 
@@ -111,16 +131,23 @@ func (e *GetResourceExecutor) Execute(ctx context.Context, action *kubeactions.K
 		}
 	}
 
-	buff := bytes.Buffer{}
-
-	// try to compact the JSON data
-	if json.Compact(&buff, data) != nil {
-		// if the JSON data is not compactable, we will use the original data
-		buff.Reset()
-		buff.Write(data)
+	// scrub the output to prevent security leaks
+	output, err := e.scrubber.ScrubJSON(data)
+	if err != nil {
+		return ExecutionResult{
+			Status:  StatusFailed,
+			Message: fmt.Sprintf("failed to scrub resource %s: %v", resourceName, err),
+		}
 	}
 
-	output := bytes.TrimSpace(buff.Bytes())
+	// try to compact the JSON data
+	buff := &bytes.Buffer{}
+	if json.Compact(buff, output) == nil {
+		// we successfully compacted the JSON data
+		output = buff.Bytes()
+	}
+
+	output = bytes.TrimSpace(output)
 	if len(output) > maxResourceOutputSize {
 		return ExecutionResult{
 			Status:  StatusFailed,

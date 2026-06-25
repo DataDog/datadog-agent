@@ -109,8 +109,9 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 
 	// Defaulting timeout
 	if timeout == 0 {
-		httpClient.Timeout = 30 * time.Second
+		timeout = 30 * time.Second
 	}
+	httpClient.Timeout = timeout
 
 	return &kubeletClient{
 		client:     httpClient,

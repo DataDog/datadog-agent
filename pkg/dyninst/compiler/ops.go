@@ -529,4 +529,99 @@ type PanicUnwindEvictSlotsOp struct {
 	baseOp
 }
 
+// EmitFilterSliceMarkerOp is the inline-pass op for a top-level
+// filter(slice, pred) expression; see ir.EmitFilterSliceMarkerOp.
+type EmitFilterSliceMarkerOp struct {
+	baseOp
+	FilterDataTypeID ir.TypeID
+	ElemByteSize     uint32
+}
+
+// EmitFilterMapMarkerOp is the inline-pass op for a top-level
+// filter(map, pred) expression; see ir.EmitFilterMapMarkerOp.
+type EmitFilterMapMarkerOp struct {
+	baseOp
+	FilterDataTypeID ir.TypeID
+	SwissHeaderSize  uint32
+	UsedFieldOffset  uint32
+}
+
+// InitFilterSliceLoopOp is the first op inside a filter slice data
+// type's enqueue_pc; see ir.InitFilterSliceLoopOp.
+type InitFilterSliceLoopOp struct {
+	baseOp
+	ElemByteSize      uint32
+	IterScratchBudget uint32
+	EndLabel          ir.LabelID
+}
+
+// EmitFilterSliceElementOp emits a per-passing-element data item for a
+// slice filter. It runs after the body has written a 1 byte at
+// sm->offset and a preceding CondJumpIfFalse has skipped past this op
+// when the predicate was false. On a true predicate the op reads the
+// current source element from filter_loop_state.data_ptr into a fresh
+// data-item payload at the buffer tail (header type =
+// filter_data_type_id, length = ElemByteSize, address = output_index),
+// then sets sm->offset to the just-emitted payload start so the
+// trailing CallOp{ElementHandler} can chase nested pointers. Increments
+// output_index. Handles flush-and-retry on buffer-full and emits a
+// failure sentinel on read fault.
+type EmitFilterSliceElementOp struct {
+	baseOp
+	ElemByteSize uint32
+}
+
+// FilterSliceAdvanceOp closes the slice filter loop body. Advances
+// data_ptr / remaining; if remaining > 0 it reserves room for the next
+// iteration's @it (flush if needed), reads the next element into @it
+// scratch, and jumps to BodyLabel. Otherwise falls through.
+type FilterSliceAdvanceOp struct {
+	baseOp
+	ElemByteSize uint32
+	BodyLabel    ir.LabelID
+}
+
+// InitFilterMapLoopOp is the first op inside a filter map data type's
+// enqueue_pc; see ir.InitFilterMapLoopOp.
+type InitFilterMapLoopOp struct {
+	baseOp
+	KeyByteSize       uint32
+	ValByteSize       uint32
+	ValOffsetInPair   uint32
+	IterScratchBudget uint32
+	EndLabel          ir.LabelID
+
+	DirPtrOffset             uint8
+	DirLenOffset             uint8
+	CtrlOffset               uint8
+	SlotsOffset              uint8
+	KeyInSlotOffset          uint8
+	ValInSlotOffset          uint16
+	SlotSize                 uint16
+	GroupByteSize            uint16
+	TableGroupsFieldOffset   uint8
+	GroupsDataFieldOffset    uint8
+	GroupsLenMaskFieldOffset uint8
+}
+
+// EmitFilterMapElementOp emits a per-passing-(k,v) data item for a map
+// filter; analogous to EmitFilterSliceElementOp but reads key and value
+// separately from the swiss-map slot's distinct field offsets and lays
+// them out as [key][padding to 8-byte-align][value].
+type EmitFilterMapElementOp struct {
+	baseOp
+	KeyByteSize     uint32
+	ValByteSize     uint32
+	ValOffsetInPair uint32
+}
+
+// FilterMapAdvanceOp closes the map filter loop body. Advances the
+// swiss-map slot cursor (consume after a successful step), checks
+// for end of iteration, reads the next (k, v) pair if available, and
+// jumps to BodyLabel.
+type FilterMapAdvanceOp struct {
+	baseOp
+	BodyLabel ir.LabelID
+}
+
 //revive:enable:exported

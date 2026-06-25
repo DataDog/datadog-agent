@@ -5,5 +5,8 @@ go_library(
     srcs = ["component.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/networkconfigmanagement/store"],
+    deps = [
+        "//pkg/aggregator/sender",
+        "//pkg/networkconfigmanagement/config",
+    ],
 )

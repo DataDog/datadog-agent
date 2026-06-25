@@ -12,7 +12,7 @@ Probes:
         - subprogram: {subprogram: 97}
           events:
             - Kind: Entry
-              Type: 846 EventRootType Probe[main.PointerChainArg]
+              Type: 863 EventRootType Probe[main.PointerChainArg]
               InjectionPoints: [{PC: "0xb6064", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -35,14 +35,14 @@ Probes:
         - subprogram: {subprogram: 98}
           events:
             - Kind: Entry
-              Type: 847 EventRootType Probe[main.PointerSmallChainArg]
+              Type: 864 EventRootType Probe[main.PointerSmallChainArg]
               InjectionPoints: [{PC: "0xb60ac", Frameless: false}]
               Condition: null
     - instances:
         - subprogram: {subprogram: 95}
           events:
             - Kind: Entry
-              Type: 849 EventRootType Probe[runtime.recovery]
+              Type: 866 EventRootType Probe[runtime.recovery]
               InjectionPoints: [{PC: "0x41dd0", Frameless: false}]
               Condition: null
     - id: allIntArray_positive
@@ -60,7 +60,7 @@ Probes:
         - subprogram: {subprogram: 79}
           events:
             - Kind: Entry
-              Type: 814 EventRootType Probe[main.anyAllIntArray]
+              Type: 827 EventRootType Probe[main.anyAllIntArray]
               InjectionPoints: [{PC: "0xbdd68", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -96,7 +96,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 815 EventRootType Probe[main.anyAllIntArray]Return
+              Type: 828 EventRootType Probe[main.anyAllIntArray]Return
               InjectionPoints: [{PC: "0xbddf0", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -186,8 +186,8 @@ Probes:
         - subprogram: {subprogram: 83}
           events:
             - Kind: Entry
-              Type: 824 EventRootType Probe[main.anyAllPtrIntSlice]
-              InjectionPoints: [{PC: "0xbe0d8", Frameless: false}]
+              Type: 837 EventRootType Probe[main.anyAllPtrIntSlice]
+              InjectionPoints: [{PC: "0xbe1b8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -221,8 +221,8 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 825 EventRootType Probe[main.anyAllPtrIntSlice]Return
-              InjectionPoints: [{PC: "0xbe15c", Frameless: false}]
+              Type: 838 EventRootType Probe[main.anyAllPtrIntSlice]Return
+              InjectionPoints: [{PC: "0xbe23c", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: allptrint_nonnull tag={tag}
@@ -252,7 +252,7 @@ Probes:
         - subprogram: {subprogram: 78}
           events:
             - Kind: Entry
-              Type: 808 EventRootType Probe[main.anyAllPtrSlice]
+              Type: 821 EventRootType Probe[main.anyAllPtrSlice]
               InjectionPoints: [{PC: "0xbdc88", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -308,7 +308,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 809 EventRootType Probe[main.anyAllPtrSlice]Return
+              Type: 822 EventRootType Probe[main.anyAllPtrSlice]Return
               InjectionPoints: [{PC: "0xbdd0c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -337,7 +337,7 @@ Probes:
         - subprogram: {subprogram: 77}
           events:
             - Kind: Entry
-              Type: 796 EventRootType Probe[main.anyAllStructSlice]
+              Type: 805 EventRootType Probe[main.anyAllStructSlice]
               InjectionPoints: [{PC: "0xbdba8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -372,7 +372,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 797 EventRootType Probe[main.anyAllStructSlice]Return
+              Type: 806 EventRootType Probe[main.anyAllStructSlice]Return
               InjectionPoints: [{PC: "0xbdc2c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -403,7 +403,7 @@ Probes:
         - subprogram: {subprogram: 77}
           events:
             - Kind: Entry
-              Type: 798 EventRootType Probe[main.anyAllStructSlice]
+              Type: 807 EventRootType Probe[main.anyAllStructSlice]
               InjectionPoints: [{PC: "0xbdba8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -455,7 +455,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 799 EventRootType Probe[main.anyAllStructSlice]Return
+              Type: 808 EventRootType Probe[main.anyAllStructSlice]Return
               InjectionPoints: [{PC: "0xbdc2c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -481,7 +481,7 @@ Probes:
         - subprogram: {subprogram: 79}
           events:
             - Kind: Entry
-              Type: 816 EventRootType Probe[main.anyAllIntArray]
+              Type: 829 EventRootType Probe[main.anyAllIntArray]
               InjectionPoints: [{PC: "0xbdd68", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -517,7 +517,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 817 EventRootType Probe[main.anyAllIntArray]Return
+              Type: 830 EventRootType Probe[main.anyAllIntArray]Return
               InjectionPoints: [{PC: "0xbddf0", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -851,7 +851,7 @@ Probes:
         - subprogram: {subprogram: 78}
           events:
             - Kind: Entry
-              Type: 810 EventRootType Probe[main.anyAllPtrSlice]
+              Type: 823 EventRootType Probe[main.anyAllPtrSlice]
               InjectionPoints: [{PC: "0xbdc88", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -905,7 +905,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 811 EventRootType Probe[main.anyAllPtrSlice]Return
+              Type: 824 EventRootType Probe[main.anyAllPtrSlice]Return
               InjectionPoints: [{PC: "0xbdd0c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -937,7 +937,7 @@ Probes:
         - subprogram: {subprogram: 78}
           events:
             - Kind: Entry
-              Type: 812 EventRootType Probe[main.anyAllPtrSlice]
+              Type: 825 EventRootType Probe[main.anyAllPtrSlice]
               InjectionPoints: [{PC: "0xbdc88", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -974,7 +974,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 813 EventRootType Probe[main.anyAllPtrSlice]Return
+              Type: 826 EventRootType Probe[main.anyAllPtrSlice]Return
               InjectionPoints: [{PC: "0xbdd0c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1003,8 +1003,8 @@ Probes:
         - subprogram: {subprogram: 82}
           events:
             - Kind: Entry
-              Type: 822 EventRootType Probe[main.anyAllPtrStrSlice]
-              InjectionPoints: [{PC: "0xbdff8", Frameless: false}]
+              Type: 835 EventRootType Probe[main.anyAllPtrStrSlice]
+              InjectionPoints: [{PC: "0xbe0d8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -1038,8 +1038,8 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 823 EventRootType Probe[main.anyAllPtrStrSlice]Return
-              InjectionPoints: [{PC: "0xbe07c", Frameless: false}]
+              Type: 836 EventRootType Probe[main.anyAllPtrStrSlice]Return
+              InjectionPoints: [{PC: "0xbe15c", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: anyptrstr_nonnull tag={tag}
@@ -1064,8 +1064,8 @@ Probes:
         - subprogram: {subprogram: 90}
           events:
             - Kind: Entry
-              Type: 836 EventRootType Probe[main.anyAllStringArray]
-              InjectionPoints: [{PC: "0xbe6f8", Frameless: false}]
+              Type: 853 EventRootType Probe[main.anyAllStringArray]
+              InjectionPoints: [{PC: "0xbe7d8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -1098,8 +1098,8 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 837 EventRootType Probe[main.anyAllStringArray]Return
-              InjectionPoints: [{PC: "0xbe780", Frameless: false}]
+              Type: 854 EventRootType Probe[main.anyAllStringArray]Return
+              InjectionPoints: [{PC: "0xbe860", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: anyStrArrMatch tag={tag}
@@ -1124,8 +1124,8 @@ Probes:
         - subprogram: {subprogram: 89}
           events:
             - Kind: Entry
-              Type: 828 EventRootType Probe[main.anyAllStringSlice]
-              InjectionPoints: [{PC: "0xbe618", Frameless: false}]
+              Type: 841 EventRootType Probe[main.anyAllStringSlice]
+              InjectionPoints: [{PC: "0xbe6f8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -1157,8 +1157,8 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 829 EventRootType Probe[main.anyAllStringSlice]Return
-              InjectionPoints: [{PC: "0xbe69c", Frameless: false}]
+              Type: 842 EventRootType Probe[main.anyAllStringSlice]Return
+              InjectionPoints: [{PC: "0xbe77c", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: anyStrMatch tag={tag}
@@ -1186,7 +1186,7 @@ Probes:
         - subprogram: {subprogram: 77}
           events:
             - Kind: Entry
-              Type: 800 EventRootType Probe[main.anyAllStructSlice]
+              Type: 809 EventRootType Probe[main.anyAllStructSlice]
               InjectionPoints: [{PC: "0xbdba8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -1221,7 +1221,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 801 EventRootType Probe[main.anyAllStructSlice]Return
+              Type: 810 EventRootType Probe[main.anyAllStructSlice]Return
               InjectionPoints: [{PC: "0xbdc2c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1252,7 +1252,7 @@ Probes:
         - subprogram: {subprogram: 77}
           events:
             - Kind: Entry
-              Type: 802 EventRootType Probe[main.anyAllStructSlice]
+              Type: 811 EventRootType Probe[main.anyAllStructSlice]
               InjectionPoints: [{PC: "0xbdba8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -1304,7 +1304,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 803 EventRootType Probe[main.anyAllStructSlice]Return
+              Type: 812 EventRootType Probe[main.anyAllStructSlice]Return
               InjectionPoints: [{PC: "0xbdc2c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -1406,12 +1406,12 @@ Probes:
         - subprogram: {subprogram: 83}
           events:
             - Kind: Entry
-              Type: 826 EventRootType Probe[main.anyAllPtrIntSlice]
-              InjectionPoints: [{PC: "0xbe0d8", Frameless: false}]
+              Type: 839 EventRootType Probe[main.anyAllPtrIntSlice]
+              InjectionPoints: [{PC: "0xbe1b8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 827 EventRootType Probe[main.anyAllPtrIntSlice]Return
-              InjectionPoints: [{PC: "0xbe15c", Frameless: false}]
+              Type: 840 EventRootType Probe[main.anyAllPtrIntSlice]Return
+              InjectionPoints: [{PC: "0xbe23c", Frameless: false}]
               Condition: null
     - id: captureAnyStructSlice_I32eq300
       version: 0
@@ -1433,11 +1433,11 @@ Probes:
         - subprogram: {subprogram: 77}
           events:
             - Kind: Entry
-              Type: 804 EventRootType Probe[main.anyAllStructSlice]
+              Type: 813 EventRootType Probe[main.anyAllStructSlice]
               InjectionPoints: [{PC: "0xbdba8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 805 EventRootType Probe[main.anyAllStructSlice]Return
+              Type: 814 EventRootType Probe[main.anyAllStructSlice]Return
               InjectionPoints: [{PC: "0xbdc2c", Frameless: false}]
               Condition: null
     - id: captureAny_nested_err
@@ -1532,12 +1532,12 @@ Probes:
         - subprogram: {subprogram: 89}
           events:
             - Kind: Entry
-              Type: 830 EventRootType Probe[main.anyAllStringSlice]
-              InjectionPoints: [{PC: "0xbe618", Frameless: false}]
+              Type: 843 EventRootType Probe[main.anyAllStringSlice]
+              InjectionPoints: [{PC: "0xbe6f8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 831 EventRootType Probe[main.anyAllStringSlice]Return
-              InjectionPoints: [{PC: "0xbe69c", Frameless: false}]
+              Type: 844 EventRootType Probe[main.anyAllStringSlice]Return
+              InjectionPoints: [{PC: "0xbe77c", Frameless: false}]
               Condition: null
     - id: captureDuration_return
       version: 0
@@ -1560,6 +1560,113 @@ Probes:
             - Kind: Return
               Type: 755 EventRootType Probe[main.condMultiReturn]Return
               InjectionPoints: [{PC: "0xbd734", Frameless: false}]
+              Condition: null
+    - id: captureFilterIntSlice_eq42
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.anyAllIntSlice}
+      sampling: {snapshotsPerSecond: 10}
+      template: ""
+      segments: []
+      captureSnapshot: false
+      captureExpressions:
+        - name: matches
+          expr:
+            dsl: filter(xs, {@it == 42})
+            json: {filter: [{ref: xs}, {eq: [{ref: '@it'}, 42]}]}
+        - name: tag
+          expr: {dsl: tag, json: {ref: tag}}
+      instances:
+        - subprogram: {subprogram: 76}
+          events:
+            - Kind: Entry
+              Type: 784 EventRootType Probe[main.anyAllIntSlice]
+              InjectionPoints: [{PC: "0xbdac8", Frameless: false}]
+              Condition: null
+            - Kind: Return
+              Type: 787 EventRootType Probe[main.anyAllIntSlice]Return
+              InjectionPoints: [{PC: "0xbdb48", Frameless: false}]
+              Condition: null
+    - id: captureFilterIntSlice_positive
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.anyAllIntSlice}
+      sampling: {snapshotsPerSecond: 10}
+      template: ""
+      segments: []
+      captureSnapshot: false
+      captureExpressions:
+        - name: gt41
+          expr:
+            dsl: filter(xs, {@it > 41})
+            json: {filter: [{ref: xs}, {gt: [{ref: '@it'}, 41]}]}
+      instances:
+        - subprogram: {subprogram: 76}
+          events:
+            - Kind: Entry
+              Type: 788 EventRootType Probe[main.anyAllIntSlice]
+              InjectionPoints: [{PC: "0xbdac8", Frameless: false}]
+              Condition: null
+            - Kind: Return
+              Type: 791 EventRootType Probe[main.anyAllIntSlice]Return
+              InjectionPoints: [{PC: "0xbdb48", Frameless: false}]
+              Condition: null
+    - id: captureFilterStringSlice_match
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.anyAllStringSlice}
+      capture: {maxReferenceDepth: 20}
+      sampling: {snapshotsPerSecond: 10}
+      template: ""
+      segments: []
+      captureSnapshot: false
+      captureExpressions:
+        - name: matches
+          expr:
+            dsl: filter(xs, {@it == "alpha"})
+            json: {filter: [{ref: xs}, {eq: [{ref: '@it'}, alpha]}]}
+        - name: tag
+          expr: {dsl: tag, json: {ref: tag}}
+      instances:
+        - subprogram: {subprogram: 89}
+          events:
+            - Kind: Entry
+              Type: 845 EventRootType Probe[main.anyAllStringSlice]
+              InjectionPoints: [{PC: "0xbe6f8", Frameless: false}]
+              Condition: null
+            - Kind: Return
+              Type: 848 EventRootType Probe[main.anyAllStringSlice]Return
+              InjectionPoints: [{PC: "0xbe77c", Frameless: false}]
+              Condition: null
+    - id: captureFilterStructSlice_I32gt0
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.anyAllStructSlice}
+      capture: {maxReferenceDepth: 20}
+      sampling: {snapshotsPerSecond: 10}
+      template: ""
+      segments: []
+      captureSnapshot: false
+      captureExpressions:
+        - name: matches
+          expr:
+            dsl: filter(xs, {@it.I32 > 0})
+            json:
+                filter:
+                    - ref: xs
+                    - gt: [{getmember: [{ref: '@it'}, I32]}, 0]
+        - name: tag
+          expr: {dsl: tag, json: {ref: tag}}
+      instances:
+        - subprogram: {subprogram: 77}
+          events:
+            - Kind: Entry
+              Type: 815 EventRootType Probe[main.anyAllStructSlice]
+              InjectionPoints: [{PC: "0xbdba8", Frameless: false}]
+              Condition: null
+            - Kind: Return
+              Type: 818 EventRootType Probe[main.anyAllStructSlice]Return
+              InjectionPoints: [{PC: "0xbdc2c", Frameless: false}]
               Condition: null
     - id: condBool_cond_false
       version: 0
@@ -7556,7 +7663,7 @@ Probes:
         - subprogram: {subprogram: 79}
           events:
             - Kind: Entry
-              Type: 818 EventRootType Probe[main.anyAllIntArray]
+              Type: 831 EventRootType Probe[main.anyAllIntArray]
               InjectionPoints: [{PC: "0xbdd68", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -7592,7 +7699,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 819 EventRootType Probe[main.anyAllIntArray]Return
+              Type: 832 EventRootType Probe[main.anyAllIntArray]Return
               InjectionPoints: [{PC: "0xbddf0", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -7618,7 +7725,7 @@ Probes:
         - subprogram: {subprogram: 76}
           events:
             - Kind: Entry
-              Type: 784 EventRootType Probe[main.anyAllIntSlice]
+              Type: 793 EventRootType Probe[main.anyAllIntSlice]
               InjectionPoints: [{PC: "0xbdac8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -7653,7 +7760,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 785 EventRootType Probe[main.anyAllIntSlice]Return
+              Type: 794 EventRootType Probe[main.anyAllIntSlice]Return
               InjectionPoints: [{PC: "0xbdb48", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -7682,8 +7789,8 @@ Probes:
         - subprogram: {subprogram: 90}
           events:
             - Kind: Entry
-              Type: 838 EventRootType Probe[main.anyAllStringArray]
-              InjectionPoints: [{PC: "0xbe6f8", Frameless: false}]
+              Type: 855 EventRootType Probe[main.anyAllStringArray]
+              InjectionPoints: [{PC: "0xbe7d8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -7716,8 +7823,8 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 839 EventRootType Probe[main.anyAllStringArray]Return
-              InjectionPoints: [{PC: "0xbe780", Frameless: false}]
+              Type: 856 EventRootType Probe[main.anyAllStringArray]Return
+              InjectionPoints: [{PC: "0xbe860", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: containsStrArrMatch tag={tag}
@@ -7745,8 +7852,8 @@ Probes:
         - subprogram: {subprogram: 89}
           events:
             - Kind: Entry
-              Type: 832 EventRootType Probe[main.anyAllStringSlice]
-              InjectionPoints: [{PC: "0xbe618", Frameless: false}]
+              Type: 849 EventRootType Probe[main.anyAllStringSlice]
+              InjectionPoints: [{PC: "0xbe6f8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
                 Operations:
@@ -7778,8 +7885,8 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 833 EventRootType Probe[main.anyAllStringSlice]Return
-              InjectionPoints: [{PC: "0xbe69c", Frameless: false}]
+              Type: 850 EventRootType Probe[main.anyAllStringSlice]Return
+              InjectionPoints: [{PC: "0xbe77c", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: containsStrMatch tag={tag}
@@ -7800,22 +7907,22 @@ Probes:
         - subprogram: {subprogram: 93}
           events:
             - Kind: Entry
-              Type: 840 EventRootType Probe[main.genericIdentity[go.shape.string]]
-              InjectionPoints: [{PC: "0xbe988", Frameless: false}]
+              Type: 857 EventRootType Probe[main.genericIdentity[go.shape.string]]
+              InjectionPoints: [{PC: "0xbea68", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 841 EventRootType Probe[main.genericIdentity[go.shape.string]]Return
-              InjectionPoints: [{PC: "0xbe9dc", Frameless: false}]
+              Type: 858 EventRootType Probe[main.genericIdentity[go.shape.string]]Return
+              InjectionPoints: [{PC: "0xbeabc", Frameless: false}]
               Condition: null
         - subprogram: {subprogram: 94}
           events:
             - Kind: Entry
-              Type: 842 EventRootType Probe[main.genericIdentity[go.shape.int]]
-              InjectionPoints: [{PC: "0xbea28", Frameless: false}]
+              Type: 859 EventRootType Probe[main.genericIdentity[go.shape.int]]
+              InjectionPoints: [{PC: "0xbeb08", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 843 EventRootType Probe[main.genericIdentity[go.shape.int]]Return
-              InjectionPoints: [{PC: "0xbea70", Frameless: false}]
+              Type: 860 EventRootType Probe[main.genericIdentity[go.shape.int]]Return
+              InjectionPoints: [{PC: "0xbeb50", Frameless: false}]
               Condition: null
     - id: indexBigArrayStruct_last
       version: 0
@@ -8780,7 +8887,7 @@ Probes:
         - subprogram: {subprogram: 96}
           events:
             - Kind: Entry
-              Type: 844 EventRootType Probe[main.inlined]
+              Type: 861 EventRootType Probe[main.inlined]
               InjectionPoints:
                 - PC: "0xb5e04"
                   Frameless: false
@@ -8788,7 +8895,7 @@ Probes:
                   Frameless: false
               Condition: null
             - Kind: Return
-              Type: 845 EventRootType Probe[main.inlined]Return
+              Type: 862 EventRootType Probe[main.inlined]Return
               InjectionPoints: [{PC: "0xba150", Frameless: false}]
               Condition: null
     - id: inlinedMethod
@@ -8802,8 +8909,8 @@ Probes:
         - subprogram: {subprogram: 99}
           events:
             - Kind: Entry
-              Type: 848 EventRootType Probe[main.(*methodValueReceiver).inlinedMethod]
-              InjectionPoints: [{PC: "0xbeaa4", Frameless: true}]
+              Type: 865 EventRootType Probe[main.(*methodValueReceiver).inlinedMethod]
+              InjectionPoints: [{PC: "0xbeb84", Frameless: true}]
               Condition: null
     - id: intArg
       version: 0
@@ -10798,7 +10905,7 @@ Probes:
         - subprogram: {subprogram: 76}
           events:
             - Kind: Entry
-              Type: 786 EventRootType Probe[main.anyAllIntSlice]
+              Type: 795 EventRootType Probe[main.anyAllIntSlice]
               InjectionPoints: [{PC: "0xbdac8", Frameless: false}]
               Condition:
                 Type: 6 BaseType bool
@@ -10817,7 +10924,7 @@ Probes:
                 LeafBodies: []
                 IsSplit: false
             - Kind: Return
-              Type: 787 EventRootType Probe[main.anyAllIntSlice]Return
+              Type: 796 EventRootType Probe[main.anyAllIntSlice]Return
               InjectionPoints: [{PC: "0xbdb48", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -10915,11 +11022,11 @@ Probes:
         - subprogram: {subprogram: 76}
           events:
             - Kind: Entry
-              Type: 788 EventRootType Probe[main.anyAllIntSlice]
+              Type: 797 EventRootType Probe[main.anyAllIntSlice]
               InjectionPoints: [{PC: "0xbdac8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 789 EventRootType Probe[main.anyAllIntSlice]Return
+              Type: 798 EventRootType Probe[main.anyAllIntSlice]Return
               InjectionPoints: [{PC: "0xbdb48", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -10955,11 +11062,11 @@ Probes:
         - subprogram: {subprogram: 76}
           events:
             - Kind: Entry
-              Type: 790 EventRootType Probe[main.anyAllIntSlice]
+              Type: 799 EventRootType Probe[main.anyAllIntSlice]
               InjectionPoints: [{PC: "0xbdac8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 791 EventRootType Probe[main.anyAllIntSlice]Return
+              Type: 800 EventRootType Probe[main.anyAllIntSlice]Return
               InjectionPoints: [{PC: "0xbdb48", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -10995,11 +11102,11 @@ Probes:
         - subprogram: {subprogram: 76}
           events:
             - Kind: Entry
-              Type: 792 EventRootType Probe[main.anyAllIntSlice]
+              Type: 801 EventRootType Probe[main.anyAllIntSlice]
               InjectionPoints: [{PC: "0xbdac8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 793 EventRootType Probe[main.anyAllIntSlice]Return
+              Type: 802 EventRootType Probe[main.anyAllIntSlice]Return
               InjectionPoints: [{PC: "0xbdb48", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -11035,11 +11142,11 @@ Probes:
         - subprogram: {subprogram: 79}
           events:
             - Kind: Entry
-              Type: 820 EventRootType Probe[main.anyAllIntArray]
+              Type: 833 EventRootType Probe[main.anyAllIntArray]
               InjectionPoints: [{PC: "0xbdd68", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 821 EventRootType Probe[main.anyAllIntArray]Return
+              Type: 834 EventRootType Probe[main.anyAllIntArray]Return
               InjectionPoints: [{PC: "0xbddf0", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -11073,11 +11180,11 @@ Probes:
         - subprogram: {subprogram: 76}
           events:
             - Kind: Entry
-              Type: 794 EventRootType Probe[main.anyAllIntSlice]
+              Type: 803 EventRootType Probe[main.anyAllIntSlice]
               InjectionPoints: [{PC: "0xbdac8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 795 EventRootType Probe[main.anyAllIntSlice]Return
+              Type: 804 EventRootType Probe[main.anyAllIntSlice]Return
               InjectionPoints: [{PC: "0xbdb48", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -11111,12 +11218,12 @@ Probes:
         - subprogram: {subprogram: 89}
           events:
             - Kind: Entry
-              Type: 834 EventRootType Probe[main.anyAllStringSlice]
-              InjectionPoints: [{PC: "0xbe618", Frameless: false}]
+              Type: 851 EventRootType Probe[main.anyAllStringSlice]
+              InjectionPoints: [{PC: "0xbe6f8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 835 EventRootType Probe[main.anyAllStringSlice]Return
-              InjectionPoints: [{PC: "0xbe69c", Frameless: false}]
+              Type: 852 EventRootType Probe[main.anyAllStringSlice]Return
+              InjectionPoints: [{PC: "0xbe77c", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: containsStrMatch={contains(xs, "match")} tag={tag}
@@ -11149,11 +11256,11 @@ Probes:
         - subprogram: {subprogram: 77}
           events:
             - Kind: Entry
-              Type: 806 EventRootType Probe[main.anyAllStructSlice]
+              Type: 819 EventRootType Probe[main.anyAllStructSlice]
               InjectionPoints: [{PC: "0xbdba8", Frameless: false}]
               Condition: null
             - Kind: Return
-              Type: 807 EventRootType Probe[main.anyAllStructSlice]Return
+              Type: 820 EventRootType Probe[main.anyAllStructSlice]Return
               InjectionPoints: [{PC: "0xbdc2c", Frameless: false}]
               Condition: null
           probeTemplate:
@@ -13709,13 +13816,13 @@ Subprograms:
       DictRegister: null
     - ID: 81
       Name: main.anyAllPtrMap
-      OutOfLinePCRanges: [0xbdf00..0xbdfe0]
+      OutOfLinePCRanges: [0xbdfe0..0xbe0c0]
       InlinePCRanges: []
       Variables:
         - Name: m
           Type: 181 GoMapType map[string]*main.condFields
           Locations:
-            - Range: 0xbdf00..0xbdf58
+            - Range: 0xbdfe0..0xbe038
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
@@ -13723,19 +13830,19 @@ Subprograms:
         - Name: tag
           Type: 12 GoStringHeaderType string
           Locations:
-            - Range: 0xbdf00..0xbdf44
+            - Range: 0xbdfe0..0xbe024
               Pieces:
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-            - Range: 0xbdf44..0xbdf50
+            - Range: 0xbe024..0xbe030
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 16}
                 - Size: 8
                   Op: {CfaOffset: 24}
-            - Range: 0xbdf50..0xbdfe0
+            - Range: 0xbe030..0xbe0c0
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 16}
@@ -13747,65 +13854,11 @@ Subprograms:
       DictRegister: null
     - ID: 82
       Name: main.anyAllPtrStrSlice
-      OutOfLinePCRanges: [0xbdfe0..0xbe0c0]
-      InlinePCRanges: []
-      Variables:
-        - Name: xs
-          Type: 186 GoSliceHeaderType []*string
-          Locations:
-            - Range: 0xbdfe0..0xbe018
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 1, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-            - Range: 0xbe018..0xbe02c
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 1, Shift: 0}
-                - Size: 8
-                  Op: null
-            - Range: 0xbe02c..0xbe030
-              Pieces:
-                - Size: 8
-                  Op: null
-                - Size: 8
-                  Op: {RegNo: 1, Shift: 0}
-                - Size: 8
-                  Op: null
-          Role: Parameter
-          DictIndex: -1
-          LoopBaseOffset: 0
-        - Name: tag
-          Type: 12 GoStringHeaderType string
-          Locations:
-            - Range: 0xbdfe0..0xbe030
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 4, Shift: 0}
-            - Range: 0xbe030..0xbe0c0
-              Pieces:
-                - Size: 8
-                  Op: {CfaOffset: 32}
-                - Size: 8
-                  Op: {CfaOffset: 40}
-          Role: Parameter
-          DictIndex: -1
-          LoopBaseOffset: 0
-      DictRegister: null
-    - ID: 83
-      Name: main.anyAllPtrIntSlice
       OutOfLinePCRanges: [0xbe0c0..0xbe1a0]
       InlinePCRanges: []
       Variables:
         - Name: xs
-          Type: 188 GoSliceHeaderType []*int
+          Type: 186 GoSliceHeaderType []*string
           Locations:
             - Range: 0xbe0c0..0xbe0f8
               Pieces:
@@ -13853,13 +13906,13 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
-    - ID: 84
-      Name: main.anyAllOversizedSlice
+    - ID: 83
+      Name: main.anyAllPtrIntSlice
       OutOfLinePCRanges: [0xbe1a0..0xbe280]
       InlinePCRanges: []
       Variables:
         - Name: xs
-          Type: 190 GoSliceHeaderType []main.oversizedElem
+          Type: 188 GoSliceHeaderType []*int
           Locations:
             - Range: 0xbe1a0..0xbe1d8
               Pieces:
@@ -13907,51 +13960,67 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
-    - ID: 85
-      Name: main.anyAllStructKeyMap
+    - ID: 84
+      Name: main.anyAllOversizedSlice
       OutOfLinePCRanges: [0xbe280..0xbe360]
       InlinePCRanges: []
       Variables:
-        - Name: m
-          Type: 193 GoMapType map[main.condFields]int
+        - Name: xs
+          Type: 190 GoSliceHeaderType []main.oversizedElem
           Locations:
-            - Range: 0xbe280..0xbe2d8
-              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xbe280..0xbe2b8
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+            - Range: 0xbe2b8..0xbe2cc
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+                - Size: 8
+                  Op: null
+            - Range: 0xbe2cc..0xbe2d0
+              Pieces:
+                - Size: 8
+                  Op: null
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+                - Size: 8
+                  Op: null
           Role: Parameter
           DictIndex: -1
           LoopBaseOffset: 0
         - Name: tag
           Type: 12 GoStringHeaderType string
           Locations:
-            - Range: 0xbe280..0xbe2c4
+            - Range: 0xbe280..0xbe2d0
               Pieces:
                 - Size: 8
-                  Op: {RegNo: 1, Shift: 0}
+                  Op: {RegNo: 3, Shift: 0}
                 - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-            - Range: 0xbe2c4..0xbe2d0
-              Pieces:
-                - Size: 8
-                  Op: {CfaOffset: 16}
-                - Size: 8
-                  Op: {CfaOffset: 24}
+                  Op: {RegNo: 4, Shift: 0}
             - Range: 0xbe2d0..0xbe360
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16}
+                  Op: {CfaOffset: 32}
                 - Size: 8
-                  Op: {CfaOffset: 24}
+                  Op: {CfaOffset: 40}
           Role: Parameter
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
-    - ID: 86
-      Name: main.anyAllPtrStructKeyMap
+    - ID: 85
+      Name: main.anyAllStructKeyMap
       OutOfLinePCRanges: [0xbe360..0xbe440]
       InlinePCRanges: []
       Variables:
         - Name: m
-          Type: 198 GoMapType map[*main.condFields]int
+          Type: 193 GoMapType map[main.condFields]int
           Locations:
             - Range: 0xbe360..0xbe3b8
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -13983,13 +14052,13 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
-    - ID: 87
-      Name: main.anyAllBigValMap
+    - ID: 86
+      Name: main.anyAllPtrStructKeyMap
       OutOfLinePCRanges: [0xbe440..0xbe520]
       InlinePCRanges: []
       Variables:
         - Name: m
-          Type: 114 GoMapType map[string]main.bigStruct
+          Type: 198 GoMapType map[*main.condFields]int
           Locations:
             - Range: 0xbe440..0xbe498
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -14021,13 +14090,13 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
-    - ID: 88
-      Name: main.anyAllBigKeyMap
+    - ID: 87
+      Name: main.anyAllBigValMap
       OutOfLinePCRanges: [0xbe520..0xbe600]
       InlinePCRanges: []
       Variables:
         - Name: m
-          Type: 203 GoMapType map[main.bigStruct]int
+          Type: 114 GoMapType map[string]main.bigStruct
           Locations:
             - Range: 0xbe520..0xbe578
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -14059,15 +14128,53 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
+    - ID: 88
+      Name: main.anyAllBigKeyMap
+      OutOfLinePCRanges: [0xbe600..0xbe6e0]
+      InlinePCRanges: []
+      Variables:
+        - Name: m
+          Type: 203 GoMapType map[main.bigStruct]int
+          Locations:
+            - Range: 0xbe600..0xbe658
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          Role: Parameter
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: tag
+          Type: 12 GoStringHeaderType string
+          Locations:
+            - Range: 0xbe600..0xbe644
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+            - Range: 0xbe644..0xbe650
+              Pieces:
+                - Size: 8
+                  Op: {CfaOffset: 16}
+                - Size: 8
+                  Op: {CfaOffset: 24}
+            - Range: 0xbe650..0xbe6e0
+              Pieces:
+                - Size: 8
+                  Op: {CfaOffset: 16}
+                - Size: 8
+                  Op: {CfaOffset: 24}
+          Role: Parameter
+          DictIndex: -1
+          LoopBaseOffset: 0
+      DictRegister: null
     - ID: 89
       Name: main.anyAllStringSlice
-      OutOfLinePCRanges: [0xbe600..0xbe6e0]
+      OutOfLinePCRanges: [0xbe6e0..0xbe7c0]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 105 GoSliceHeaderType []string
           Locations:
-            - Range: 0xbe600..0xbe638
+            - Range: 0xbe6e0..0xbe718
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -14075,7 +14182,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-            - Range: 0xbe638..0xbe64c
+            - Range: 0xbe718..0xbe72c
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -14083,7 +14190,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: null
-            - Range: 0xbe64c..0xbe650
+            - Range: 0xbe72c..0xbe730
               Pieces:
                 - Size: 8
                   Op: null
@@ -14097,13 +14204,13 @@ Subprograms:
         - Name: tag
           Type: 12 GoStringHeaderType string
           Locations:
-            - Range: 0xbe600..0xbe650
+            - Range: 0xbe6e0..0xbe730
               Pieces:
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 4, Shift: 0}
-            - Range: 0xbe650..0xbe6e0
+            - Range: 0xbe730..0xbe7c0
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 32}
@@ -14115,13 +14222,13 @@ Subprograms:
       DictRegister: null
     - ID: 90
       Name: main.anyAllStringArray
-      OutOfLinePCRanges: [0xbe6e0..0xbe7b0]
+      OutOfLinePCRanges: [0xbe7c0..0xbe890]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 106 ArrayType [3]string
           Locations:
-            - Range: 0xbe6e0..0xbe7b0
+            - Range: 0xbe7c0..0xbe890
               Pieces: [{Size: 48, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
@@ -14129,19 +14236,19 @@ Subprograms:
         - Name: tag
           Type: 12 GoStringHeaderType string
           Locations:
-            - Range: 0xbe6e0..0xbe72c
+            - Range: 0xbe7c0..0xbe80c
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-            - Range: 0xbe72c..0xbe730
+            - Range: 0xbe80c..0xbe810
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 56}
                 - Size: 8
                   Op: {CfaOffset: 64}
-            - Range: 0xbe730..0xbe7b0
+            - Range: 0xbe810..0xbe890
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 56}
@@ -14153,65 +14260,11 @@ Subprograms:
       DictRegister: null
     - ID: 91
       Name: main.anyAllIntSliceOfSlice
-      OutOfLinePCRanges: [0xbe7b0..0xbe890]
-      InlinePCRanges: []
-      Variables:
-        - Name: xs
-          Type: 208 GoSliceHeaderType [][]int
-          Locations:
-            - Range: 0xbe7b0..0xbe7e8
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 1, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-            - Range: 0xbe7e8..0xbe7fc
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 1, Shift: 0}
-                - Size: 8
-                  Op: null
-            - Range: 0xbe7fc..0xbe800
-              Pieces:
-                - Size: 8
-                  Op: null
-                - Size: 8
-                  Op: {RegNo: 1, Shift: 0}
-                - Size: 8
-                  Op: null
-          Role: Parameter
-          DictIndex: -1
-          LoopBaseOffset: 0
-        - Name: tag
-          Type: 12 GoStringHeaderType string
-          Locations:
-            - Range: 0xbe7b0..0xbe800
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 4, Shift: 0}
-            - Range: 0xbe800..0xbe890
-              Pieces:
-                - Size: 8
-                  Op: {CfaOffset: 32}
-                - Size: 8
-                  Op: {CfaOffset: 40}
-          Role: Parameter
-          DictIndex: -1
-          LoopBaseOffset: 0
-      DictRegister: null
-    - ID: 92
-      Name: main.anyAllIntSliceOfMap
       OutOfLinePCRanges: [0xbe890..0xbe970]
       InlinePCRanges: []
       Variables:
         - Name: xs
-          Type: 209 GoSliceHeaderType []map[string]int
+          Type: 208 GoSliceHeaderType [][]int
           Locations:
             - Range: 0xbe890..0xbe8c8
               Pieces:
@@ -14259,27 +14312,81 @@ Subprograms:
           DictIndex: -1
           LoopBaseOffset: 0
       DictRegister: null
+    - ID: 92
+      Name: main.anyAllIntSliceOfMap
+      OutOfLinePCRanges: [0xbe970..0xbea50]
+      InlinePCRanges: []
+      Variables:
+        - Name: xs
+          Type: 209 GoSliceHeaderType []map[string]int
+          Locations:
+            - Range: 0xbe970..0xbe9a8
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+            - Range: 0xbe9a8..0xbe9bc
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+                - Size: 8
+                  Op: null
+            - Range: 0xbe9bc..0xbe9c0
+              Pieces:
+                - Size: 8
+                  Op: null
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+                - Size: 8
+                  Op: null
+          Role: Parameter
+          DictIndex: -1
+          LoopBaseOffset: 0
+        - Name: tag
+          Type: 12 GoStringHeaderType string
+          Locations:
+            - Range: 0xbe970..0xbe9c0
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 4, Shift: 0}
+            - Range: 0xbe9c0..0xbea50
+              Pieces:
+                - Size: 8
+                  Op: {CfaOffset: 32}
+                - Size: 8
+                  Op: {CfaOffset: 40}
+          Role: Parameter
+          DictIndex: -1
+          LoopBaseOffset: 0
+      DictRegister: null
     - ID: 93
       Name: main.genericIdentity[go.shape.string]
-      OutOfLinePCRanges: [0xbe970..0xbea10]
+      OutOfLinePCRanges: [0xbea50..0xbeaf0]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 211 GoStringHeaderType go.shape.string
           Locations:
-            - Range: 0xbe970..0xbe9a0
+            - Range: 0xbea50..0xbea80
               Pieces:
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
-            - Range: 0xbe9a0..0xbe9a4
+            - Range: 0xbea80..0xbea84
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 16}
                 - Size: 8
                   Op: {CfaOffset: 24}
-            - Range: 0xbe9a4..0xbea10
+            - Range: 0xbea84..0xbeaf0
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 16}
@@ -14291,15 +14398,15 @@ Subprograms:
         - Name: ~r0
           Type: 211 GoStringHeaderType go.shape.string
           Locations:
-            - Range: 0xbe970..0xbe9dc
+            - Range: 0xbea50..0xbeabc
               Pieces: []
-            - Range: 0xbe9dc..0xbe9dd
+            - Range: 0xbeabc..0xbeabd
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-            - Range: 0xbe9dd..0xbea10
+            - Range: 0xbeabd..0xbeaf0
               Pieces: []
           Role: Return
           DictIndex: 0
@@ -14307,15 +14414,15 @@ Subprograms:
       DictRegister: 0
     - ID: 94
       Name: main.genericIdentity[go.shape.int]
-      OutOfLinePCRanges: [0xbea10..0xbeaa0]
+      OutOfLinePCRanges: [0xbeaf0..0xbeb80]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 212 BaseType go.shape.int
           Locations:
-            - Range: 0xbea10..0xbea3c
+            - Range: 0xbeaf0..0xbeb1c
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
-            - Range: 0xbea3c..0xbeaa0
+            - Range: 0xbeb1c..0xbeb80
               Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
           Role: Parameter
           DictIndex: 0
@@ -14323,11 +14430,11 @@ Subprograms:
         - Name: ~r0
           Type: 212 BaseType go.shape.int
           Locations:
-            - Range: 0xbea10..0xbea70
+            - Range: 0xbeaf0..0xbeb50
               Pieces: []
-            - Range: 0xbea70..0xbea71
+            - Range: 0xbeb50..0xbeb51
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-            - Range: 0xbea71..0xbeaa0
+            - Range: 0xbeb51..0xbeb80
               Pieces: []
           Role: Return
           DictIndex: 0
@@ -14463,13 +14570,13 @@ Subprograms:
       Name: main.(*methodValueReceiver).inlinedMethod
       OutOfLinePCRanges: []
       InlinePCRanges:
-        - Ranges: [0xbeaa4..0xbeaa8]
-          RootRanges: [0xbeaa0..0xbeab0]
+        - Ranges: [0xbeb84..0xbeb88]
+          RootRanges: [0xbeb80..0xbeb90]
       Variables:
         - Name: m
           Type: 215 PointerType *main.methodValueReceiver
           Locations:
-            - Range: 0xbeaa4..0xbeab0
+            - Range: 0xbeb84..0xbeb90
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
@@ -15133,12 +15240,138 @@ Types:
       ID: 1
       Name: '@duration'
       ByteSize: 8
+    - __kind: GoFilteredSliceDataType
+      ID: 785
+      Name: '@filter []int.data'
+      DynamicSizeClass: filter_deferred
+      ByteSize: 8
+      Element: 11 BaseType int
+      ElemByteSize: 8
+      EnqueueOps:
+        - __kind: InitFilterSliceLoopOp
+          ElemByteSize: 8
+          IterScratchBudget: 95
+          EndLabel: 1
+        - __kind: CondLabelOp
+          ID: 2
+        - __kind: LocationOp
+          Variable: {name: '@it', role: LoopIt}
+          Offset: 0
+          ByteSize: 8
+        - __kind: ExprPushOffsetOp
+          ByteSize: 8
+        - __kind: ExprLoadLiteralOp
+          Data: KgAAAAAAAAA=
+        - __kind: ExprCmpBaseOp
+          Op: Eq
+          Kind: Int
+          ByteSize: 8
+        - __kind: FilterSliceLoopStepOp
+          ElemByteSize: 8
+          ElementTypeID: 11
+          BodyLabel: 2
+        - __kind: CondLabelOp
+          ID: 1
+    - __kind: GoFilteredSliceDataType
+      ID: 789
+      Name: '@filter []int.data'
+      DynamicSizeClass: filter_deferred
+      ByteSize: 8
+      Element: 11 BaseType int
+      ElemByteSize: 8
+      EnqueueOps:
+        - __kind: InitFilterSliceLoopOp
+          ElemByteSize: 8
+          IterScratchBudget: 95
+          EndLabel: 1
+        - __kind: CondLabelOp
+          ID: 2
+        - __kind: LocationOp
+          Variable: {name: '@it', role: LoopIt}
+          Offset: 0
+          ByteSize: 8
+        - __kind: ExprPushOffsetOp
+          ByteSize: 8
+        - __kind: ExprLoadLiteralOp
+          Data: KQAAAAAAAAA=
+        - __kind: ExprCmpBaseOp
+          Op: Gt
+          Kind: Int
+          ByteSize: 8
+        - __kind: FilterSliceLoopStepOp
+          ElemByteSize: 8
+          ElementTypeID: 11
+          BodyLabel: 2
+        - __kind: CondLabelOp
+          ID: 1
+    - __kind: GoFilteredSliceDataType
+      ID: 816
+      Name: '@filter []main.condFields.data'
+      DynamicSizeClass: filter_deferred
+      ByteSize: 80
+      Element: 119 StructureType main.condFields
+      ElemByteSize: 80
+      EnqueueOps:
+        - __kind: InitFilterSliceLoopOp
+          ElemByteSize: 80
+          IterScratchBudget: 227
+          EndLabel: 1
+        - __kind: CondLabelOp
+          ID: 2
+        - __kind: LocationOp
+          Variable: {name: '@it', role: LoopIt}
+          Offset: 4
+          ByteSize: 4
+        - __kind: ExprPushOffsetOp
+          ByteSize: 4
+        - __kind: ExprLoadLiteralOp
+          Data: AAAAAA==
+        - __kind: ExprCmpBaseOp
+          Op: Gt
+          Kind: Int
+          ByteSize: 4
+        - __kind: FilterSliceLoopStepOp
+          ElemByteSize: 80
+          ElementTypeID: 119
+          BodyLabel: 2
+        - __kind: CondLabelOp
+          ID: 1
+    - __kind: GoFilteredSliceDataType
+      ID: 846
+      Name: '@filter []string.data'
+      DynamicSizeClass: filter_deferred
+      ByteSize: 16
+      Element: 12 GoStringHeaderType string
+      ElemByteSize: 16
+      EnqueueOps:
+        - __kind: InitFilterSliceLoopOp
+          ElemByteSize: 16
+          IterScratchBudget: 356
+          EndLabel: 1
+        - __kind: CondLabelOp
+          ID: 2
+        - __kind: LocationOp
+          Variable: {name: '@it', role: LoopIt}
+          Offset: 0
+          ByteSize: 16
+        - __kind: ExprReadStringOp
+          MaxLen: 255
+        - __kind: ExprLoadLiteralOp
+          Data: BQAAAGFscGhh
+        - __kind: ExprCmpStringOp
+          Op: Eq
+        - __kind: FilterSliceLoopStepOp
+          ElemByteSize: 16
+          ElementTypeID: 12
+          BodyLabel: 2
+        - __kind: CondLabelOp
+          ID: 1
     - __kind: TraceContextType
       ID: 2
       Name: '@trace_context'
       ByteSize: 40
     - __kind: EventRootType
-      ID: 848
+      ID: 865
       Name: Probe[main.(*methodValueReceiver).inlinedMethod]
       ByteSize: 9
       ExprStatusArraySize: 1
@@ -15157,7 +15390,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 846
+      ID: 863
       Name: Probe[main.PointerChainArg]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -15189,7 +15422,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 847
+      ID: 864
       Name: Probe[main.PointerSmallChainArg]
       ByteSize: 9
       ExprStatusArraySize: 1
@@ -15208,7 +15441,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 814
+      ID: 827
       Name: Probe[main.anyAllIntArray]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -15227,7 +15460,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 816
+      ID: 829
       Name: Probe[main.anyAllIntArray]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -15246,7 +15479,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 818
+      ID: 831
       Name: Probe[main.anyAllIntArray]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -15265,7 +15498,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 820
+      ID: 833
       Name: Probe[main.anyAllIntArray]
       ByteSize: 18
       ExprStatusArraySize: 1
@@ -15320,16 +15553,16 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 815
+      ID: 828
       Name: Probe[main.anyAllIntArray]Return
     - __kind: EventRootType
-      ID: 817
+      ID: 830
       Name: Probe[main.anyAllIntArray]Return
     - __kind: EventRootType
-      ID: 819
+      ID: 832
       Name: Probe[main.anyAllIntArray]Return
     - __kind: EventRootType
-      ID: 821
+      ID: 834
       Name: Probe[main.anyAllIntArray]Return
     - __kind: EventRootType
       ID: 764
@@ -15558,6 +15791,63 @@ Types:
     - __kind: EventRootType
       ID: 784
       Name: Probe[main.anyAllIntSlice]
+      ByteSize: 25
+      ExprStatusArraySize: 1
+      Expressions:
+        - Name: matches
+          Offset: 1
+          Kind: capture_expression
+          Expression:
+            Type: 786 GoFilteredSliceType []int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 76, index: 0, name: xs}
+                  Offset: 0
+                  ByteSize: 24
+                - __kind: EmitFilterSliceMarkerOp
+                  FilterDataTypeID: 785
+                  ElemByteSize: 8
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+        - Name: tag
+          Offset: 9
+          Kind: capture_expression
+          Expression:
+            Type: 12 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 76, index: 1, name: tag}
+                  Offset: 0
+                  ByteSize: 16
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+    - __kind: EventRootType
+      ID: 788
+      Name: Probe[main.anyAllIntSlice]
+      ByteSize: 9
+      ExprStatusArraySize: 1
+      Expressions:
+        - Name: gt41
+          Offset: 1
+          Kind: capture_expression
+          Expression:
+            Type: 790 GoFilteredSliceType []int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 76, index: 0, name: xs}
+                  Offset: 0
+                  ByteSize: 24
+                - __kind: EmitFilterSliceMarkerOp
+                  FilterDataTypeID: 789
+                  ElemByteSize: 8
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+    - __kind: EventRootType
+      ID: 793
+      Name: Probe[main.anyAllIntSlice]
       ByteSize: 17
       ExprStatusArraySize: 1
       Expressions:
@@ -15575,7 +15865,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 786
+      ID: 795
       Name: Probe[main.anyAllIntSlice]
       ByteSize: 18
       ExprStatusArraySize: 1
@@ -15629,7 +15919,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 788
+      ID: 797
       Name: Probe[main.anyAllIntSlice]
       ByteSize: 18
       ExprStatusArraySize: 1
@@ -15683,7 +15973,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 790
+      ID: 799
       Name: Probe[main.anyAllIntSlice]
       ByteSize: 18
       ExprStatusArraySize: 1
@@ -15737,7 +16027,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 792
+      ID: 801
       Name: Probe[main.anyAllIntSlice]
       ByteSize: 18
       ExprStatusArraySize: 1
@@ -15791,7 +16081,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 794
+      ID: 803
       Name: Probe[main.anyAllIntSlice]
       ByteSize: 18
       ExprStatusArraySize: 1
@@ -15875,25 +16165,31 @@ Types:
       ID: 783
       Name: Probe[main.anyAllIntSlice]Return
     - __kind: EventRootType
-      ID: 785
-      Name: Probe[main.anyAllIntSlice]Return
-    - __kind: EventRootType
       ID: 787
-      Name: Probe[main.anyAllIntSlice]Return
-    - __kind: EventRootType
-      ID: 789
       Name: Probe[main.anyAllIntSlice]Return
     - __kind: EventRootType
       ID: 791
       Name: Probe[main.anyAllIntSlice]Return
     - __kind: EventRootType
-      ID: 793
+      ID: 794
       Name: Probe[main.anyAllIntSlice]Return
     - __kind: EventRootType
-      ID: 795
+      ID: 796
       Name: Probe[main.anyAllIntSlice]Return
     - __kind: EventRootType
-      ID: 824
+      ID: 798
+      Name: Probe[main.anyAllIntSlice]Return
+    - __kind: EventRootType
+      ID: 800
+      Name: Probe[main.anyAllIntSlice]Return
+    - __kind: EventRootType
+      ID: 802
+      Name: Probe[main.anyAllIntSlice]Return
+    - __kind: EventRootType
+      ID: 804
+      Name: Probe[main.anyAllIntSlice]Return
+    - __kind: EventRootType
+      ID: 837
       Name: Probe[main.anyAllPtrIntSlice]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -15912,16 +16208,54 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 826
+      ID: 839
       Name: Probe[main.anyAllPtrIntSlice]
     - __kind: EventRootType
+      ID: 838
+      Name: Probe[main.anyAllPtrIntSlice]Return
+    - __kind: EventRootType
+      ID: 840
+      Name: Probe[main.anyAllPtrIntSlice]Return
+    - __kind: EventRootType
+      ID: 821
+      Name: Probe[main.anyAllPtrSlice]
+      ByteSize: 17
+      ExprStatusArraySize: 1
+      Expressions:
+        - Name: tag
+          Offset: 1
+          Kind: template_segment
+          Expression:
+            Type: 12 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 78, index: 1, name: tag}
+                  Offset: 0
+                  ByteSize: 16
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+    - __kind: EventRootType
+      ID: 823
+      Name: Probe[main.anyAllPtrSlice]
+      ByteSize: 17
+      ExprStatusArraySize: 1
+      Expressions:
+        - Name: tag
+          Offset: 1
+          Kind: template_segment
+          Expression:
+            Type: 12 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 78, index: 1, name: tag}
+                  Offset: 0
+                  ByteSize: 16
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+    - __kind: EventRootType
       ID: 825
-      Name: Probe[main.anyAllPtrIntSlice]Return
-    - __kind: EventRootType
-      ID: 827
-      Name: Probe[main.anyAllPtrIntSlice]Return
-    - __kind: EventRootType
-      ID: 808
       Name: Probe[main.anyAllPtrSlice]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -15939,55 +16273,17 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
-    - __kind: EventRootType
-      ID: 810
-      Name: Probe[main.anyAllPtrSlice]
-      ByteSize: 17
-      ExprStatusArraySize: 1
-      Expressions:
-        - Name: tag
-          Offset: 1
-          Kind: template_segment
-          Expression:
-            Type: 12 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 78, index: 1, name: tag}
-                  Offset: 0
-                  ByteSize: 16
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-    - __kind: EventRootType
-      ID: 812
-      Name: Probe[main.anyAllPtrSlice]
-      ByteSize: 17
-      ExprStatusArraySize: 1
-      Expressions:
-        - Name: tag
-          Offset: 1
-          Kind: template_segment
-          Expression:
-            Type: 12 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 78, index: 1, name: tag}
-                  Offset: 0
-                  ByteSize: 16
-            LeafBodies: []
-            IsSplit: false
-          DictIndex: -1
-    - __kind: EventRootType
-      ID: 809
-      Name: Probe[main.anyAllPtrSlice]Return
-    - __kind: EventRootType
-      ID: 811
-      Name: Probe[main.anyAllPtrSlice]Return
-    - __kind: EventRootType
-      ID: 813
-      Name: Probe[main.anyAllPtrSlice]Return
     - __kind: EventRootType
       ID: 822
+      Name: Probe[main.anyAllPtrSlice]Return
+    - __kind: EventRootType
+      ID: 824
+      Name: Probe[main.anyAllPtrSlice]Return
+    - __kind: EventRootType
+      ID: 826
+      Name: Probe[main.anyAllPtrSlice]Return
+    - __kind: EventRootType
+      ID: 835
       Name: Probe[main.anyAllPtrStrSlice]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -16006,10 +16302,10 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 823
+      ID: 836
       Name: Probe[main.anyAllPtrStrSlice]Return
     - __kind: EventRootType
-      ID: 836
+      ID: 853
       Name: Probe[main.anyAllStringArray]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -16028,7 +16324,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 838
+      ID: 855
       Name: Probe[main.anyAllStringArray]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -16047,13 +16343,13 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 837
+      ID: 854
       Name: Probe[main.anyAllStringArray]Return
     - __kind: EventRootType
-      ID: 839
+      ID: 856
       Name: Probe[main.anyAllStringArray]Return
     - __kind: EventRootType
-      ID: 828
+      ID: 841
       Name: Probe[main.anyAllStringSlice]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -16072,7 +16368,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 830
+      ID: 843
       Name: Probe[main.anyAllStringSlice]
       ByteSize: 2
       ExprStatusArraySize: 1
@@ -16111,7 +16407,42 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 832
+      ID: 845
+      Name: Probe[main.anyAllStringSlice]
+      ByteSize: 25
+      ExprStatusArraySize: 1
+      Expressions:
+        - Name: matches
+          Offset: 1
+          Kind: capture_expression
+          Expression:
+            Type: 847 GoFilteredSliceType []string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 89, index: 0, name: xs}
+                  Offset: 0
+                  ByteSize: 24
+                - __kind: EmitFilterSliceMarkerOp
+                  FilterDataTypeID: 846
+                  ElemByteSize: 16
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+        - Name: tag
+          Offset: 9
+          Kind: capture_expression
+          Expression:
+            Type: 12 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 89, index: 1, name: tag}
+                  Offset: 0
+                  ByteSize: 16
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+    - __kind: EventRootType
+      ID: 849
       Name: Probe[main.anyAllStringSlice]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -16130,7 +16461,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 834
+      ID: 851
       Name: Probe[main.anyAllStringSlice]
       ByteSize: 18
       ExprStatusArraySize: 1
@@ -16182,19 +16513,22 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 829
+      ID: 842
       Name: Probe[main.anyAllStringSlice]Return
     - __kind: EventRootType
-      ID: 831
+      ID: 844
       Name: Probe[main.anyAllStringSlice]Return
     - __kind: EventRootType
-      ID: 833
+      ID: 848
       Name: Probe[main.anyAllStringSlice]Return
     - __kind: EventRootType
-      ID: 835
+      ID: 850
       Name: Probe[main.anyAllStringSlice]Return
     - __kind: EventRootType
-      ID: 796
+      ID: 852
+      Name: Probe[main.anyAllStringSlice]Return
+    - __kind: EventRootType
+      ID: 805
       Name: Probe[main.anyAllStructSlice]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -16213,7 +16547,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 798
+      ID: 807
       Name: Probe[main.anyAllStructSlice]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -16232,7 +16566,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 800
+      ID: 809
       Name: Probe[main.anyAllStructSlice]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -16251,7 +16585,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 802
+      ID: 811
       Name: Probe[main.anyAllStructSlice]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -16270,7 +16604,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 804
+      ID: 813
       Name: Probe[main.anyAllStructSlice]
       ByteSize: 2
       ExprStatusArraySize: 1
@@ -16311,7 +16645,42 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 806
+      ID: 815
+      Name: Probe[main.anyAllStructSlice]
+      ByteSize: 25
+      ExprStatusArraySize: 1
+      Expressions:
+        - Name: matches
+          Offset: 1
+          Kind: capture_expression
+          Expression:
+            Type: 817 GoFilteredSliceType []main.condFields
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 77, index: 0, name: xs}
+                  Offset: 0
+                  ByteSize: 24
+                - __kind: EmitFilterSliceMarkerOp
+                  FilterDataTypeID: 816
+                  ElemByteSize: 80
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+        - Name: tag
+          Offset: 9
+          Kind: capture_expression
+          Expression:
+            Type: 12 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 77, index: 1, name: tag}
+                  Offset: 0
+                  ByteSize: 16
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+    - __kind: EventRootType
+      ID: 819
       Name: Probe[main.anyAllStructSlice]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -16330,22 +16699,25 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 797
+      ID: 806
       Name: Probe[main.anyAllStructSlice]Return
     - __kind: EventRootType
-      ID: 799
+      ID: 808
       Name: Probe[main.anyAllStructSlice]Return
     - __kind: EventRootType
-      ID: 801
+      ID: 810
       Name: Probe[main.anyAllStructSlice]Return
     - __kind: EventRootType
-      ID: 803
+      ID: 812
       Name: Probe[main.anyAllStructSlice]Return
     - __kind: EventRootType
-      ID: 805
+      ID: 814
       Name: Probe[main.anyAllStructSlice]Return
     - __kind: EventRootType
-      ID: 807
+      ID: 818
+      Name: Probe[main.anyAllStructSlice]Return
+    - __kind: EventRootType
+      ID: 820
       Name: Probe[main.anyAllStructSlice]Return
     - __kind: EventRootType
       ID: 676
@@ -18688,11 +19060,11 @@ Types:
     - __kind: EventRootType
       ID: 491
       Name: Probe[main.condStructArg]
-      ByteSize: 37
-      ExprStatusArraySize: 1
+      ByteSize: 38
+      ExprStatusArraySize: 2
       Expressions:
         - Name: x.I32
-          Offset: 1
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 15 BaseType int32
@@ -18705,7 +19077,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: x.S
-          Offset: 5
+          Offset: 6
           Kind: template_segment
           Expression:
             Type: 12 GoStringHeaderType string
@@ -18718,7 +19090,7 @@ Types:
             IsSplit: false
           DictIndex: -1
         - Name: tag
-          Offset: 21
+          Offset: 22
           Kind: template_segment
           Expression:
             Type: 12 GoStringHeaderType string
@@ -19308,7 +19680,7 @@ Types:
       ID: 422
       Name: Probe[main.condUint8]Return
     - __kind: EventRootType
-      ID: 842
+      ID: 859
       Name: Probe[main.genericIdentity[go.shape.int]]
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -19328,7 +19700,7 @@ Types:
             IsSplit: false
           DictIndex: 0
     - __kind: EventRootType
-      ID: 843
+      ID: 860
       Name: Probe[main.genericIdentity[go.shape.int]]Return
       ByteSize: 17
       ExprStatusArraySize: 1
@@ -19348,7 +19720,7 @@ Types:
             IsSplit: false
           DictIndex: 0
     - __kind: EventRootType
-      ID: 840
+      ID: 857
       Name: Probe[main.genericIdentity[go.shape.string]]
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -19368,7 +19740,7 @@ Types:
             IsSplit: false
           DictIndex: 0
     - __kind: EventRootType
-      ID: 841
+      ID: 858
       Name: Probe[main.genericIdentity[go.shape.string]]Return
       ByteSize: 25
       ExprStatusArraySize: 1
@@ -19602,7 +19974,7 @@ Types:
       ID: 673
       Name: Probe[main.indexNilPtrSlice]Return
     - __kind: EventRootType
-      ID: 844
+      ID: 861
       Name: Probe[main.inlined]
       ByteSize: 9
       ExprStatusArraySize: 1
@@ -19621,7 +19993,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 845
+      ID: 862
       Name: Probe[main.inlined]Return
     - __kind: EventRootType
       ID: 334
@@ -21630,7 +22002,7 @@ Types:
             IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
-      ID: 849
+      ID: 866
       Name: Probe[runtime.recovery]
       ByteSize: 17
       EventKind: Entry
@@ -22065,6 +22437,16 @@ Types:
           Offset: 16
           Type: 11 BaseType int
       Data: 223 GoSliceDataType []int.array
+    - __kind: GoFilteredSliceType
+      ID: 786
+      Name: '[]int'
+      ByteSize: 8
+      Data: 785 GoFilteredSliceDataType @filter []int.data
+    - __kind: GoFilteredSliceType
+      ID: 790
+      Name: '[]int'
+      ByteSize: 8
+      Data: 789 GoFilteredSliceDataType @filter []int.data
     - __kind: GoSliceDataType
       ID: 223
       Name: '[]int.array'
@@ -22137,6 +22519,11 @@ Types:
           Offset: 16
           Type: 11 BaseType int
       Data: 262 GoSliceDataType []main.condFields.array
+    - __kind: GoFilteredSliceType
+      ID: 817
+      Name: '[]main.condFields'
+      ByteSize: 8
+      Data: 816 GoFilteredSliceDataType @filter []main.condFields.data
     - __kind: GoSliceDataType
       ID: 262
       Name: '[]main.condFields.array'
@@ -22231,6 +22618,11 @@ Types:
           Offset: 16
           Type: 11 BaseType int
       Data: 225 GoSliceDataType []string.array
+    - __kind: GoFilteredSliceType
+      ID: 847
+      Name: '[]string'
+      ByteSize: 8
+      Data: 846 GoFilteredSliceDataType @filter []string.data
     - __kind: GoSliceDataType
       ID: 225
       Name: '[]string.array'
@@ -24622,7 +25014,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 41184
       GoKind: 26
-MaxTypeID: 849
+MaxTypeID: 866
 Issues:
     - probe_definition:
         id: allIntMap_valuePositive
@@ -24958,6 +25350,87 @@ Issues:
       issue:
         Kind: 8
         Message: 'failed to resolve condition: any/all over old-style hmap not supported; only swiss maps (Go 1.24+)'
+    - probe_definition:
+        id: captureFilterIntMap_valueEq42
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.anyAllIntMap}
+        tags:
+            - issue:UnsupportedFeature@arch=amd64,toolchain=go1.23.11
+            - issue:UnsupportedFeature@arch=arm64,toolchain=go1.23.11
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: false
+        captureExpressions:
+            - name: valueIs42
+              expr:
+                dsl: filter(m, {@value == 42})
+                json: {filter: [{ref: m}, {eq: [{ref: '@value'}, 42]}]}
+      issue:
+        Kind: 3
+        Message: any/all/filter over old-style hmap not supported; only swiss maps (Go 1.24+) are supported
+    - probe_definition:
+        id: captureFilterIntMap_valueGt0
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.anyAllIntMap}
+        tags:
+            - issue:UnsupportedFeature@arch=amd64,toolchain=go1.23.11
+            - issue:UnsupportedFeature@arch=arm64,toolchain=go1.23.11
+        capture: {maxReferenceDepth: 20}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: false
+        captureExpressions:
+            - name: matches
+              expr:
+                dsl: filter(m, {@value > 0})
+                json: {filter: [{ref: m}, {gt: [{ref: '@value'}, 0]}]}
+            - name: tag
+              expr: {dsl: tag, json: {ref: tag}}
+      issue:
+        Kind: 3
+        Message: any/all/filter over old-style hmap not supported; only swiss maps (Go 1.24+) are supported
+    - probe_definition:
+        id: captureFilter_condition_err
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.anyAllIntSlice}
+        tags: ['issue:UnsupportedFeature']
+        when:
+            dsl: filter(xs, {@it == 42})
+            json: {filter: [{ref: xs}, {eq: [{ref: '@it'}, 42]}]}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: should_never_render
+        segments: [should_never_render]
+        captureSnapshot: false
+      issue:
+        Kind: 3
+        Message: 'unsupported condition expression type: *exprlang.FilterExpr'
+    - probe_definition:
+        id: captureFilter_len_err
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.anyAllIntSlice}
+        tags: ['issue:UnsupportedFeature']
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: false
+        captureExpressions:
+            - name: lenOfFilter
+              expr:
+                dsl: len(filter(xs, {@it == 42}))
+                json:
+                    len: {filter: [{ref: xs}, {eq: [{ref: '@it'}, 42]}]}
+      issue:
+        Kind: 3
+        Message: 'filter is not composable: filter(...) is only allowed as the top-level expression of a capture or message template segment, not nested inside another operator'
     - probe_definition:
         id: condCompound_eq_of_eq
         version: 0

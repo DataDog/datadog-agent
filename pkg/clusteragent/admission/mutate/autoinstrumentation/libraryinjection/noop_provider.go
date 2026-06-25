@@ -29,6 +29,11 @@ func newNoopProvider(err error) *NoopProvider {
 // Err returns the skip reason that will be reported in MutationResult.Err.
 func (p *NoopProvider) Err() error { return p.err }
 
+// GetName returns "disabled" since this provider performs no injection.
+func (p *NoopProvider) GetName() string {
+	return "disabled"
+}
+
 func (p *NoopProvider) InjectInjector(_ *corev1.Pod, _ InjectorConfig) MutationResult {
 	return MutationResult{
 		Status: MutationStatusSkipped,

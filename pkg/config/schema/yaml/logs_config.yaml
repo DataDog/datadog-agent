@@ -314,9 +314,8 @@ properties:
       could happen while serializing large objects on log lines.
   api_key:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
     comment: specific logs-agent api-key
   atomic_registry_write:
     node_type: setting
@@ -355,6 +354,13 @@ properties:
         node_type: setting
         type: integer
         default: 20
+      stack_trace_parsers:
+        node_type: setting
+        type: array
+        default:
+        - go
+        items:
+          type: string
       tag_aggregated_json:
         node_type: setting
         type: boolean
@@ -527,7 +533,7 @@ properties:
       to preserve current behavior.
   expected_tags_duration:
     node_type: setting
-    type: number
+    type: string
     default: 0s
     format: duration
     tags:
