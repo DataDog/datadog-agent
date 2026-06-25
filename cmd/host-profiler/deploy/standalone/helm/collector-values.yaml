@@ -91,6 +91,15 @@ initContainers:
       - name: host-seccomp
         mountPath: /host/var/lib/kubelet/seccomp
 
+# Resource limits for the Host Profiler container. Setting only limits (no requests)
+# keeps the container in the Burstable QoS class: no capacity is reserved on the node,
+# but runaway usage is capped. Increase the memory limit if the Host Profiler uploads
+# debug symbols for large binaries. For more options, see resources.md.
+resources:
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
 extraVolumeMounts:
   # /tmp is required because the container uses a read-only root filesystem.
   - name: tmpdir

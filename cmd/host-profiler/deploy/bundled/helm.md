@@ -21,9 +21,18 @@ datadog:
   hostProfiler:
     enabled: true
     image: "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"
+agents:
+  containers:
+    hostProfiler:
+      resources:
+        limits:
+          cpu: "1"
+          memory: "1Gi"
 ```
 
 The preview image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
+
+For more details on resource configuration, including Guaranteed QoS and when to increase memory, see [Resource requests and limits](../resources.md).
 
 2. Upgrade your existing Datadog Agent Helm release with the updated values. Adapt this command to your Helm or GitOps workflow, and include any existing values files you already use for the release:
 
