@@ -79,35 +79,36 @@ func (h *AutodiscoveryHandler) Validate(cr *datadoghq.DatadogInstrumentation) []
 	var errs []instrumentation.ValidationError
 	for i, check := range cr.Spec.Config.Checks {
 		if strings.TrimSpace(check.Integration) == "" {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidIntegration",
-				Message:     "integration name must not be empty",
-				Field:       fmt.Sprintf("spec.config.checks[%d].integration", i),
-				HandlerName: h.Name(),
-			})
+			errs = append(errs, h.checkValidationError(i, "integration", "InvalidIntegration", "integration name must not be empty"))
 		}
 		if len(check.Instances) == 0 && len(check.Logs) == 0 {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidInstances",
-				Message:     "at least one instance or log config is required",
-				Field:       fmt.Sprintf("spec.config.checks[%d].instances", i),
-				HandlerName: h.Name(),
-			})
+			errs = append(errs, h.checkValidationError(i, "instances", "InvalidInstances", "at least one instance or log config is required"))
 		}
 
-		if !hasContainerTarget(check) && !isService(cr) {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidContainerTarget",
-				Message:     "at least one container image or container name is required",
-				Field:       fmt.Sprintf("spec.config.checks[%d]", i),
-				HandlerName: h.Name(),
-			})
+		if !isService(cr) {
+			if !hasContainerTarget(check) {
+				errs = append(errs, h.checkValidationError(i, "", "InvalidContainerTarget", "at least one container image or container name is required"))
+			}
+			if hasContainerName(check) && hasContainerImage(check) {
+				errs = append(errs, h.checkValidationError(i, "", "InvalidContainerTarget", "container image and container name cannot both be set"))
+			}
 		}
 	}
 	return errs
+}
+
+func (h *AutodiscoveryHandler) checkValidationError(index int, field, reason, message string) instrumentation.ValidationError {
+	fieldPath := fmt.Sprintf("spec.config.checks[%d]", index)
+	if field != "" {
+		fieldPath += "." + field
+	}
+	return instrumentation.ValidationError{
+		Type:        checksReadyConditionType,
+		Reason:      reason,
+		Message:     message,
+		Field:       fieldPath,
+		HandlerName: h.Name(),
+	}
 }
 
 // Handle translates check configs on Create/Update, removes them on Delete,
@@ -268,11 +269,19 @@ func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace s
 }
 
 func hasContainerTarget(check datadoghq.DatadogInstrumentationCheckConfig) bool {
-	return strings.TrimSpace(check.ContainerName) != "" || len(check.ContainerImage) > 0
+	return hasContainerName(check) || hasContainerImage(check)
+}
+
+func hasContainerName(check datadoghq.DatadogInstrumentationCheckConfig) bool {
+	return strings.TrimSpace(check.ContainerName) != ""
+}
+
+func hasContainerImage(check datadoghq.DatadogInstrumentationCheckConfig) bool {
+	return len(check.ContainerImage) > 0
 }
 
 func adIdentifiers(check datadoghq.DatadogInstrumentationCheckConfig) []string {
-	if strings.TrimSpace(check.ContainerName) != "" {
+	if hasContainerName(check) {
 		return nil
 	}
 	return check.ContainerImage

@@ -181,6 +181,19 @@ func TestValidate(t *testing.T) {
 			expectErrCount: 0,
 		},
 		{
+			name: "container image and container name are mutually exclusive",
+			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
+				{
+					Integration:    "redisdb",
+					ContainerImage: []string{"redis"},
+					ContainerName:  "redis",
+					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+				},
+			}),
+			expectErrCount: 1,
+			expectField:    "spec.config.checks[0]",
+		},
+		{
 			name: "empty integration name",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
