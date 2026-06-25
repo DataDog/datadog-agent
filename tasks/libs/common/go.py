@@ -236,14 +236,76 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
     return result
 
 
+def _fetch_api_key() -> str | None:
+    """
+    Fetch the Datadog API key from vault via fetch_secret.sh (Linux/Mac) or
+    fetch_secret.ps1 (Windows), using the vault path in AGENT_API_KEY_ORG2.
+    Returns None if AGENT_API_KEY_ORG2 is not set or the fetch fails.
+    """
+    import tempfile
+
+    secret_name = os.environ.get("AGENT_API_KEY_ORG2")
+    if not secret_name:
+        return None
+
+    project_dir = os.environ.get("CI_PROJECT_DIR", ".")
+
+    if sys.platform == "win32":
+        script = os.path.join(project_dir, "tools", "ci", "fetch_secret.ps1")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
+            tmp_path = tmp.name
+        try:
+            result = subprocess.run(
+                [
+                    "powershell",
+                    "-File",
+                    script,
+                    "-parameterName",
+                    secret_name,
+                    "-parameterField",
+                    "token",
+                    "-tempFile",
+                    tmp_path,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                with open(tmp_path) as f:
+                    return f.read().strip() or None
+            print(f"[WARN] fetch_secret.ps1 failed (exit {result.returncode}): {result.stderr}", file=sys.stderr)
+        except Exception as e:
+            print(f"[WARN] Failed to call fetch_secret.ps1: {e}", file=sys.stderr)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+    else:
+        script = os.path.join(project_dir, "tools", "ci", "fetch_secret.sh")
+        try:
+            result = subprocess.run(
+                [script, secret_name, "token"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip() or None
+            print(f"[WARN] fetch_secret.sh failed (exit {result.returncode}): {result.stderr}", file=sys.stderr)
+        except Exception as e:
+            print(f"[WARN] Failed to call fetch_secret.sh: {e}", file=sys.stderr)
+
+    return None
+
+
 def _emit_dce_metric(name: str, dce_enabled: bool, osname: str, arch: str) -> None:
     """Emit a gauge metric for dead code elimination status. Only runs in CI on the main branch."""
     from tasks.libs.common.utils import running_in_ci
 
     if not running_in_ci():
         return
-    if os.environ.get("CI_COMMIT_BRANCH") != "main":
-        return
+    # if os.environ.get("CI_COMMIT_BRANCH") != "main":
+    #     return
 
     import datetime
 
@@ -266,16 +328,25 @@ def _emit_dce_metric(name: str, dce_enabled: bool, osname: str, arch: str) -> No
 
     timestamp = int(datetime.datetime.utcnow().timestamp())
     metric = create_gauge(
-        "datadog.agent.go.dead_code_elimination.enabled",
+        "datadog.agent.go.dead_code_elimination.enabled_test",
         timestamp,
         1 if dce_enabled else 0,
         tags=tags,
     )
 
+    api_key_set = False
     try:
+        if not os.environ.get("DD_API_KEY"):
+            api_key = _fetch_api_key()
+            if api_key:
+                os.environ["DD_API_KEY"] = api_key
+                api_key_set = True
         send_metrics([metric])
     except Exception as e:
         print(f"[WARN] Failed to send DCE metric to Datadog: {e}", file=sys.stderr)
+    finally:
+        if api_key_set:
+            del os.environ["DD_API_KEY"]
 
 
 class CustomReader(io.StringIO):
