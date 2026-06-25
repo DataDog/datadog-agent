@@ -104,17 +104,22 @@ func (l *Loader) ResolveEffectiveLoader(config integration.Config, instance inte
 
 // ResolveEffectiveLoader resolves default-loader selection with metadata-only
 // probes. It returns an empty string when no metadata-capable loader claims the
-// instance or the result is ambiguous because a metadata-capable loader reports
-// unknown support.
+// instance or the result is ambiguous because an earlier loader cannot prove it
+// will not claim the instance.
 func ResolveEffectiveLoader(loaders []check.Loader, config integration.Config, instance integration.Data) string {
+	ambiguous := false
 	for _, loader := range loaders {
 		metadataLoader, ok := loader.(check.MetadataLoader)
 		if !ok {
+			ambiguous = true
 			continue
 		}
 
 		switch metadataLoader.SupportsConfig(config, instance) {
 		case check.LoaderSupportSupported:
+			if ambiguous {
+				return ""
+			}
 			return loader.Name()
 		case check.LoaderSupportUnsupported:
 			continue

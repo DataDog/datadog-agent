@@ -199,9 +199,9 @@ func TestResolveEffectiveLoaderUsesDefaultLoaderMetadataOrder(t *testing.T) {
 	assert.Empty(t, second.calls)
 }
 
-func TestResolveEffectiveLoaderSkipsLoadersWithoutMetadata(t *testing.T) {
-	first := &loadOnlyLoader{name: "python"}
-	second := &recordingLoader{name: "core", support: check.LoaderSupportSupported}
+func TestResolveEffectiveLoaderResolvesMetadataLoaderBeforeLoadOnlyLoader(t *testing.T) {
+	first := &recordingLoader{name: "core", support: check.LoaderSupportSupported}
+	second := &loadOnlyLoader{name: "python"}
 	loader := New([]check.Loader{first, second}, noopSenderManager{}, nil)
 	config := integration.Config{
 		Name:      "gpu",
@@ -213,6 +213,25 @@ func TestResolveEffectiveLoaderSkipsLoadersWithoutMetadata(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, resolved)
 	assert.Equal(t, "core", loaderName)
+	assert.Len(t, first.supportCalls, 1)
+	assert.Empty(t, first.calls)
+	assert.Empty(t, second.calls)
+}
+
+func TestResolveEffectiveLoaderTreatsLoadOnlyLoaderBeforeCoreAsAmbiguous(t *testing.T) {
+	first := &loadOnlyLoader{name: "python"}
+	second := &recordingLoader{name: "core", support: check.LoaderSupportSupported}
+	loader := New([]check.Loader{first, second}, noopSenderManager{}, nil)
+	config := integration.Config{
+		Name:      "gpu",
+		Instances: []integration.Data{integration.Data("{}")},
+	}
+
+	loaderName, resolved, err := loader.ResolveEffectiveLoader(config, config.Instances[0])
+
+	require.NoError(t, err)
+	assert.False(t, resolved)
+	assert.Empty(t, loaderName)
 	assert.Empty(t, first.calls)
 	assert.Len(t, second.supportCalls, 1)
 	assert.Empty(t, second.calls)
