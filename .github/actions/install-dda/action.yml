@@ -27,7 +27,7 @@ runs:
       version="${DDA_INPUT_VERSION:-${DDA_DEFAULT_VERSION}}"
       features="${DDA_FEATURES:-base}"
 
-      features_key="$(printf '%s' "$features" | tr -cs '[:alnum:]._-+' '-')"
+      features_key="$(printf '%s' "$features" | tr -cs '[:alnum:]._+-' '-')"
       features_key="${features_key#-}"
       features_key="${features_key%-}"
 
