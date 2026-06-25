@@ -47,8 +47,6 @@ build do
     # Installs: bin/ and run/ dirs, datadog.yaml.example, conf.d/, and the agent binary.
     command "bazel run --//packages/agent:flavor=iot --//:install_dir='#{install_dir}' -- " \
             "//packages/agent/iot:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
-    project.extra_package_file "#{install_dir}/etc/datadog-agent/datadog.yaml.example"
-    project.extra_package_file "#{install_dir}/etc/datadog-agent/conf.d/"
 
     # /var/log/datadog is a runtime directory; not managed by Bazel packaging.
     mkdir "/var/log/datadog"

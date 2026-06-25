@@ -156,6 +156,10 @@ end
 
 # Linux
 if linux_target?
+  # Config files installed by //packages/agent/iot:install under install_dir.
+  extra_package_file "#{install_dir}/etc/datadog-agent/datadog.yaml.example"
+  extra_package_file "#{install_dir}/etc/datadog-agent/conf.d/"
+
   # Logs directory (created by datadog-iot-agent.rb; not managed by Bazel).
   extra_package_file '/var/log/datadog/'
 end
