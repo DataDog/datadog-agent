@@ -172,6 +172,9 @@ func eksProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[envir
 //   - admissionController.configMode "service": Autopilot forbids both hostPort/hostNetwork
 //     (default "hostip" mode) and hostPath volumes ("socket" mode), so traces injected by SSI
 //     can only reach the trace-agent through cluster networking.
+//   - apm.portEnabled: expose the trace-agent TCP port (8126) on the agent's local service so
+//     that the service DNS name injected in "service" mode actually resolves to an open port.
+//     This uses a container port (no hostPort), so it stays Autopilot-compatible.
 //   - kubelet.useApiServer: query the pod list from the API server instead of the deprecated
 //     read-only kubelet port, which Datadog recommends on Autopilot.
 //   - container resources requests: Autopilot's low default limit (50m CPU, 100Mi memory) can
@@ -179,6 +182,8 @@ func eksProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[envir
 //   - priorityClassCreate: ensure the agent gets scheduled on Autopilot.
 const autopilotHelmValues = `
 datadog:
+  apm:
+    portEnabled: true
   kubelet:
     useApiServer: true
 clusterAgent:
