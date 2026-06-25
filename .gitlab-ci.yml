@@ -25,6 +25,7 @@
 .windows_path:
   &windows_path # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
+  - "**/*_windows_test.go"
 
   # Windows-specific packages in pkg/
   - pkg/util/winutil/**/*
@@ -115,6 +116,14 @@
   - test/new-e2e/tests/process/**/*
   - test/new-e2e/tests/agent-runtimes/**/*
 
+# Process manager
+.windows_path_4: &windows_path_4
+  - pkg/procmgr/**/*
+  - pkg/proto/datadog/procmgr/**/*
+  - pkg/proto/pbgo/procmgr/**/*
+  - Cargo.toml
+  - Cargo.lock
+
 include:
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
@@ -142,6 +151,9 @@ include:
           compare_to: main
       - changes:
           paths: *windows_path_3
+          compare_to: main
+      - changes:
+          paths: *windows_path_4
           compare_to: main
       - changes:
           paths: *bazel_paths
@@ -294,9 +306,9 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v120029388-43933fee
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v119961810-e18b0f68
+  CI_IMAGE_WIN_LTSC2022_X64: v120143276-cb5277fb
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v119961810-e18b0f68
+  CI_IMAGE_WIN_LTSC2025_X64: v120143276-cb5277fb
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -530,6 +542,11 @@ workflow:
         SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path_3
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *windows_path_4
         compare_to: main
       variables:
         SKIP_WINDOWS: "false"

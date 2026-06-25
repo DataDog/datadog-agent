@@ -1,3 +1,5 @@
+al.essio.dev/pkg/shellescape v1.6.0 h1:NxFcEqzFSEVCGN2yq7Huv/9hyCEGVa/TncnOOBBeXHA=
+al.essio.dev/pkg/shellescape v1.6.0/go.mod h1:6sIqp7X2P6mThCQ7twERpZTuigpr6KbZWtls1U8I890=
 cloud.google.com/go v0.123.0 h1:2NAUJwPR47q+E35uaJeYoNhuNEM9kM8SjgRgdeOJUSE=
 cloud.google.com/go v0.123.0/go.mod h1:xBoMV08QcqUGuPW65Qfm1o9Y4zKZBpGS+7bImXLTAZU=
 cloud.google.com/go/auth v0.20.0 h1:kXTssoVb4azsVDoUiF8KvxAqrsQcQtB53DcSgta74CA=
@@ -37,8 +39,6 @@ github.com/ProtonMail/go-crypto v1.4.1 h1:9RfcZHqEQUvP8RzecWEUafnZVtEvrBVL9BiF67
 github.com/ProtonMail/go-crypto v1.4.1/go.mod h1:e1OaTyu5SYVrO9gKOEhTc+5UcXtTUa+P3uLudwcgPqo=
 github.com/agext/levenshtein v1.2.3 h1:YB2fHEn0UJagG8T1rrWknE3ZQzWM06O8AMAatNn7lmo=
 github.com/agext/levenshtein v1.2.3/go.mod h1:JEDfjyjHDjOF/1e4FlBE/PkbqA9OfWu2ki2W0IB5558=
-github.com/alessio/shellescape v1.4.2 h1:MHPfaU+ddJ0/bYWpgIeUnQUqKrlJ1S7BfEYPM4uEoM0=
-github.com/alessio/shellescape v1.4.2/go.mod h1:PZAiSCk0LJaZkiCSkPv8qIobYglO3FPpyFjDCtHLS30=
 github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be h1:9AeTilPcZAjCFIImctFaOjnTIavg87rW78vTPkQqLI8=
 github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be/go.mod h1:ySMOLuWl6zY27l47sB3qLNK6tF2fkHG55UZxx8oIVo4=
 github.com/apparentlymart/go-textseg/v15 v15.0.0 h1:uYvfpb3DyLSCGWnctWKGj857c6ew1u1fNQOlOtuGxQY=
@@ -113,6 +113,8 @@ github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEe
 github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
+github.com/cenkalti/backoff/v6 v6.0.1 h1:sjqUu1q4wY0FfFEkBmM3bVIHfr1QGq4nATg9M5VWj1U=
+github.com/cenkalti/backoff/v6 v6.0.1/go.mod h1:5WCmPelT2zwAaNETjGJVKHDnZvjQdPsGeHHwm5lIPPI=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/chai2010/gettext-go v1.0.2 h1:1Lwwip6Q2QGsAdl/ZKPCwTe9fe0CjlUbqj5bFNSjIRk=
@@ -271,6 +273,8 @@ github.com/google/pprof v0.0.0-20260507013755-92041b743c96 h1:YDDnaZ9afWajDboPMt
 github.com/google/pprof v0.0.0-20260507013755-92041b743c96/go.mod h1:MxpfABSjhmINe3F1It9d+8exIHFvUqtLIRCdOGNXqiI=
 github.com/google/s2a-go v0.1.9 h1:LGD7gtMgezd8a/Xak7mEWL0PjoTQFvpRudN895yqKW0=
 github.com/google/s2a-go v0.1.9/go.mod h1:YA0Ei2ZQL3acow2O62kdp9UlnvMmU7kA6Eutn0dXayM=
+github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 h1:El6M4kTTCOh6aBiKaUGG7oYTSPP8MxqL4YI3kZKwcP4=
+github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510/go.mod h1:pupxD2MaaD3pAXIBCelhxNneeOaAeabZDe5s4K6zSpQ=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/googleapis/enterprise-certificate-proxy v0.3.15 h1:xolVQTEXusUcAA5UgtyRLjelpFFHWlPQ4XfWGc7MBas=
@@ -420,8 +424,8 @@ github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 h1:vkHw5I/plNdTr435
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231/go.mod h1:murToZ2N9hNJzewjHBgfFdXhZKjY3z5cYC1VXk+lbFE=
 github.com/pulumi/esc v0.24.0 h1:sCtiB0qbyrlU1ZNzJn4dTLYiChl8xeCBFbHWl1YoXJg=
 github.com/pulumi/esc v0.24.0/go.mod h1:eCOOkcDJS6eooGwdE4/E0+pOsvUWG254+KBmPCFwJpA=
-github.com/pulumi/pulumi-aws/sdk/v7 v7.32.0 h1:8Ve5Y/mbbUj0C+Ga6MFy7fyICcCZJSd1xYyFYjoZmeI=
-github.com/pulumi/pulumi-aws/sdk/v7 v7.32.0/go.mod h1:w/xDmxDjm97jz2DNCbKwuffBsmcR6ATq6l9NXYr7aL8=
+github.com/pulumi/pulumi-aws/sdk/v7 v7.33.0 h1:MPM995oYuxHwUQ1IJ9bgBNNJHSx43SKYJXYbzwzdjUY=
+github.com/pulumi/pulumi-aws/sdk/v7 v7.33.0/go.mod h1:Y44Y/5Va9yF9xKlaOsGSjAAILuylJG3L3oyHAt4uvgo=
 github.com/pulumi/pulumi-awsx/sdk/v3 v3.6.0 h1:HrO2LGephMNHBLOOZRCHUUZbc6lyo9oELDLlbzFhU3Y=
 github.com/pulumi/pulumi-awsx/sdk/v3 v3.6.0/go.mod h1:5IRij9mHJMZBjecVckf+xYMRMlyxBP4+OH0FpX3wUy0=
 github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 h1:CNyoETY53sPooJbyymlVnPhYG34yr0iK8OezkJZnydQ=
@@ -444,8 +448,8 @@ github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 h1:mc9IbrRi1pWSg9HWEFT6EcQ274WnZ9
 github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2/go.mod h1:gPNbbz+ywFqnRRQMDxQQbMp4nXJIk43QBUj0N+xWXbw=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0 h1:XcPRW3UTtepkS9hH0czw2pzuuYDgx0FePzvjGXFoLgg=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0/go.mod h1:dQCjEUDAsgGdgF4vaYgadAG96eCgJdJ4cZ21Wyca2tU=
-github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 h1:21oSj+TKlKTzQcxN9Hik7iSNNHPUQXN4s3itOnahy/w=
-github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0/go.mod h1:YaEZms1NgXFqGhObKVofcAeWXu2V+3t/BAXdHQZq7fU=
+github.com/pulumi/pulumi-gcp/sdk/v9 v9.27.0 h1:Hl5DsqxSQtmgfjQCt1BkmTKgg/ybTi54J5CibwXuCo0=
+github.com/pulumi/pulumi-gcp/sdk/v9 v9.27.0/go.mod h1:XtUsAPuM/v0+NnCpzWDKYqOemgdFtLLV1zshwhhGwho=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.23.0 h1:TZ/XhzF+3/jRiGsjlJHCWhXcU5E5tbXU8O0DKnPmFic=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.23.0/go.mod h1:jOdpeNeRvY4iN+W8aDP5+HyqrM7hXsxa9paPsmjQFfY=
 github.com/pulumi/pulumi-libvirt/sdk v0.5.4 h1:7nS8ATK0Iml+yid80BrkW8WDynzwWYevx0cLpbPOYdM=
@@ -454,8 +458,8 @@ github.com/pulumi/pulumi-random/sdk/v4 v4.21.0 h1:j6LtoXue77y16trYOR40iqCUxXxv8T
 github.com/pulumi/pulumi-random/sdk/v4 v4.21.0/go.mod h1:92+w+95clbBPdrYdi0uCajihmgol52w/pWgZJ9wT0To=
 github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 h1:S7M6vA3XES1oAmohZL/q8QWfNXRr9vtX7k8WA9Y2qfA=
 github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4/go.mod h1:UVLWiEodmuXpBYdm+XdrjBpoWaucl+evAj02dzJlhjo=
-github.com/pulumi/pulumi/sdk/v3 v3.244.0 h1:oyQ9bwDE58wrQOqS70JrojJSlNoLcVhVcQgK4yusgcg=
-github.com/pulumi/pulumi/sdk/v3 v3.244.0/go.mod h1:BPWWuYPXcPH5YbXGoyy9Rrfa+evrh6IdM51AjDhcDpM=
+github.com/pulumi/pulumi/sdk/v3 v3.246.0 h1:n7aigZmbyzVNz6mWpcA8f+0SMHRcBWZn/OlYWylRNvY=
+github.com/pulumi/pulumi/sdk/v3 v3.246.0/go.mod h1:BPWWuYPXcPH5YbXGoyy9Rrfa+evrh6IdM51AjDhcDpM=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0 h1:xfi9HKDgV+GgDxQ23oSv9KxC3DQqViGTcMrJICRgJv0=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0/go.mod h1:NUa1zA74DF002WrM6iF111A6UjX9knPpXufVRvBwNyg=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
@@ -464,8 +468,8 @@ github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0t
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
-github.com/samber/lo v1.52.0 h1:Rvi+3BFHES3A8meP33VPAxiBZX/Aws5RxrschYGjomw=
-github.com/samber/lo v1.52.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
+github.com/samber/lo v1.53.0 h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM=
+github.com/samber/lo v1.53.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
 github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 h1:lZUw3E0/J3roVtGQ+SCrUrg3ON6NgVqpn3+iol9aGu4=
 github.com/santhosh-tekuri/jsonschema/v5 v5.3.1/go.mod h1:uToXkOrWAZ6/Oc07xWQrPOhJotwFIyu2bBVN41fcDUY=
 github.com/sergi/go-diff v1.4.0 h1:n/SP9D5ad1fORl+llWyN+D6qoUETXNZARKjyY2/KVCw=

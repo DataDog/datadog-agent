@@ -171,7 +171,7 @@ require (
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.2
 	github.com/DataDog/sketches-go v1.4.8
-	github.com/DataDog/viper v1.15.1 // indirect
+	github.com/DataDog/viper v1.15.3 // indirect
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
@@ -190,7 +190,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.24
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.307.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.119.2
+	github.com/aws/aws-sdk-go-v2/service/rds v1.119.3
 	github.com/aws/karpenter-provider-aws v1.9.0
 	github.com/beevik/ntp v1.5.0
 	github.com/benbjohnson/clock v1.3.5
@@ -227,7 +227,6 @@ require (
 	github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344
 	github.com/glaslos/ssdeep v0.4.0
 	github.com/go-delve/delve v1.26.3
-	github.com/go-ini/ini v1.67.0
 	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8
 	github.com/go-ole/go-ole v1.3.0
 	github.com/go-sql-driver/mysql v1.10.0
@@ -296,15 +295,15 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.69.0
 	github.com/prometheus/procfs v0.20.1
-	github.com/redis/go-redis/v9 v9.17.3
+	github.com/redis/go-redis/v9 v9.20.1
 	github.com/rickar/props v1.0.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/safchain/baloum v0.0.0-20260120132056-b70fa9c29846
 	github.com/safchain/ethtool v0.7.0
-	github.com/samber/lo v1.52.0
+	github.com/samber/lo v1.53.0
 	github.com/shirou/gopsutil/v4 v4.26.5
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
-	github.com/sijms/go-ora/v2 v2.8.24
+	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/sirupsen/logrus v1.9.4
 	github.com/skydive-project/go-debouncer v1.0.1
 	github.com/smira/go-xz v0.1.0
@@ -334,9 +333,9 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/yusufpapurcu/wmi v1.2.4
-	go.etcd.io/bbolt v1.4.3
+	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v3 v3.6.11 // indirect
-	go.mongodb.org/mongo-driver/v2 v2.5.0
+	go.mongodb.org/mongo-driver/v2 v2.7.0
 	go.opentelemetry.io/collector/component v1.60.0
 	go.opentelemetry.io/collector/component/componenttest v0.154.0
 	go.opentelemetry.io/collector/config/configtelemetry v0.154.0
@@ -394,8 +393,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	istio.io/api v1.30.1
-	istio.io/client-go v1.30.1
+	istio.io/api v1.30.2
+	istio.io/client-go v1.30.2
 	k8s.io/api v0.35.5
 	k8s.io/apiextensions-apiserver v0.35.5
 	k8s.io/apimachinery v0.35.6
@@ -444,7 +443,7 @@ require (
 	github.com/AlekSi/pointer v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4 v4.3.0 // indirect
@@ -454,7 +453,7 @@ require (
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
@@ -913,6 +912,7 @@ require (
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.5.0
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.78.1
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock v0.0.0-00010101000000-000000000000
@@ -948,6 +948,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/bazelbuild/rules_go v0.61.1
+	github.com/cenkalti/backoff/v6 v6.0.1
 	github.com/creack/pty v1.1.24
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/hashicorp/consul/api v1.34.3
@@ -962,7 +963,7 @@ require (
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/qri-io/jsonpointer v0.1.1
-	github.com/rabbitmq/amqp091-go v1.9.0
+	github.com/rabbitmq/amqp091-go v1.12.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.etcd.io/etcd/client/v2 v2.305.31
@@ -1264,6 +1265,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ./comp/core/agenttelemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ./comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def => ./comp/core/configstreamconsumer/def
 	github.com/DataDog/datadog-agent/comp/core/configsync => ./comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ./comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ./comp/core/delegatedauth/api/cloudauth/aws

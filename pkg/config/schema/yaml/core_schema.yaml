@@ -2508,6 +2508,16 @@ properties:
     - template_section:Dogstatsd
     comment: How many metrics maximum in payloads sent by the no-aggregation pipeline
       to the intake.
+  dogstatsd_no_aggregation_pipeline_workers_count:
+    node_type: setting
+    type: integer
+    default: 1
+    visibility: public
+    description: How many workers are used by the no-aggregation pipeline.
+    tags:
+    - template_section:Dogstatsd
+    comment: How many workers are used by the no-aggregation pipeline. Default of
+      1 applies when the pipeline is enabled via dogstatsd_no_aggregation_pipeline.
   statsd_forward_host:
     node_type: setting
     type: string
@@ -4300,7 +4310,7 @@ properties:
                     visibility: public
                     description: |-
                       Send pings in a privileged fashion using a raw socket.
-                      This may be required if your system doesn't support  sending pings in an unprivileged fashion (using a UDP
+                      This may be required if your system doesn't support sending pings in an unprivileged fashion (using a UDP
                       socket).
                       If `use_raw_socket` is set to true, you MUST also enable system-probe which has elevated privileges. To
                       enable it, see system-probe.yaml.example.
@@ -4665,8 +4675,8 @@ properties:
             type: integer
             default: 5
             visibility: public
-            description: |-
-              The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
+            description: The maximum number of seconds to wait for the trap server
+              to stop when the Agent shuts down.
             tags:
             - template_section:CoreAgent
             comment: in seconds
@@ -5254,7 +5264,7 @@ properties:
             - template_section:CoreAgent
           entry_ttl:
             node_type: setting
-            type: number
+            type: string
             default: 24h0m0s
             format: duration
             visibility: public
@@ -5266,7 +5276,7 @@ properties:
             - template_section:CoreAgent
           clean_interval:
             node_type: setting
-            type: number
+            type: string
             default: 2h0m0s
             format: duration
             visibility: public
@@ -5278,7 +5288,7 @@ properties:
             - template_section:CoreAgent
           persist_interval:
             node_type: setting
-            type: number
+            type: string
             default: 2h0m0s
             format: duration
             visibility: public
@@ -5363,7 +5373,7 @@ properties:
             - template_section:CoreAgent
           recovery_interval:
             node_type: setting
-            type: number
+            type: string
             default: 5s
             format: duration
             visibility: public
@@ -6090,6 +6100,40 @@ properties:
                 node_type: setting
                 type: integer
                 default: 15
+                comment: Sliding deduplication window in seconds. An anomaly series
+                  is counted at most once per window.
+              low_threshold:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.040
+              high_threshold:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.060
+              margin_pct:
+                node_type: setting
+                type: number
+                golang_type: float64
+                default: 0.20
+              cooldown_secs:
+                node_type: setting
+                type: integer
+                default: 300
+                comment: "Minimum seconds before the built-in helper subscription can de-escalate. Only used when helper.enabled is true."
+              helper:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+                  report_events:
+                    node_type: setting
+                    type: boolean
+                    default: false
           bocpd:
             node_type: section
             type: object
@@ -6441,7 +6485,7 @@ properties:
     - full-agent-only:true
   auth_init_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 30s
     format: duration
     tags:
@@ -6599,14 +6643,14 @@ properties:
     default: false
   check_cancel_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 500ms
     format: duration
     tags:
     - golang_type:duration
   check_runner_utilization_monitor_interval:
     node_type: setting
-    type: number
+    type: string
     default: 1m0s
     format: duration
     tags:
@@ -6619,7 +6663,7 @@ properties:
     - golang_type:float64
   check_runner_utilization_warning_cooldown:
     node_type: setting
-    type: number
+    type: string
     default: 10m0s
     format: duration
     tags:
@@ -6653,7 +6697,7 @@ properties:
     - full-agent-only:true
   check_sampler_stateful_metric_expiration_time:
     node_type: setting
-    type: number
+    type: string
     default: 25h0m0s
     format: duration
     tags:
@@ -6665,21 +6709,21 @@ properties:
       only occasionally.
   check_system_probe_startup_time:
     node_type: setting
-    type: number
+    type: string
     default: 5m0s
     format: duration
     tags:
     - golang_type:duration
   check_system_probe_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 1m0s
     format: duration
     tags:
     - golang_type:duration
   check_watchdog_warning_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 0s
     format: duration
     tags:
@@ -7130,6 +7174,14 @@ properties:
         node_type: setting
         type: string
         default: tcp://0.0.0.0:5101
+      stop_timeout:
+        node_type: setting
+        type: integer
+        default: 4
+        comment: |-
+          4 matches aggregator_stop_timeout + forwarder_stop_timeout (each defaults to 2 in seconds).
+          ComputeDataPlaneStopTimeout (post-load override) recomputes this at runtime so it tracks
+          any user-set values for aggregator_stop_timeout / forwarder_stop_timeout.
       telemetry_enabled:
         node_type: setting
         type: boolean
@@ -7828,7 +7880,7 @@ properties:
     default: true
   dogstatsd_packet_buffer_flush_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 100ms
     format: duration
     tags:
@@ -7921,7 +7973,7 @@ properties:
     comment: EC2
   ecs_metadata_retry_initial_interval:
     node_type: setting
-    type: number
+    type: string
     default: 100ms
     format: duration
     tags:
@@ -7929,7 +7981,7 @@ properties:
     - full-agent-only:true
   ecs_metadata_retry_max_elapsed_time:
     node_type: setting
-    type: number
+    type: string
     default: 3s
     format: duration
     tags:
@@ -7943,7 +7995,7 @@ properties:
     - full-agent-only:true
   ecs_task_cache_ttl:
     node_type: setting
-    type: number
+    type: string
     default: 3m0s
     format: duration
     tags:
@@ -8190,7 +8242,7 @@ properties:
         default: 0
   expected_tags_duration:
     node_type: setting
-    type: number
+    type: string
     default: 0s
     format: duration
     tags:
@@ -8215,7 +8267,7 @@ properties:
     properties:
       profile_overhead_runtime:
         node_type: setting
-        type: number
+        type: string
         default: 10s
         format: duration
         tags:
@@ -8234,7 +8286,7 @@ properties:
             default: 0
           profile_duration:
             node_type: setting
-            type: number
+            type: string
             default: 30s
             format: duration
             tags:
@@ -8245,7 +8297,7 @@ properties:
         properties:
           duration:
             node_type: setting
-            type: number
+            type: string
             default: 1m0s
             format: duration
             tags:
@@ -8254,7 +8306,7 @@ properties:
     - full-agent-only:true
   flare_provider_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 10s
     format: duration
     tags:
@@ -8443,8 +8495,8 @@ properties:
         properties:
           interval:
             node_type: setting
-            type: number
-            default: 0s
+            type: string
+            default: 15m0s
             format: duration
             tags:
             - golang_type:duration
@@ -8455,7 +8507,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
             comment: |-
               health_platform.invalidconfig_check.enabled is off by default because the check calls
               schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
@@ -8475,7 +8527,7 @@ properties:
     comment: overridden in Heroku buildpack
   hostname_drift_initial_delay:
     node_type: setting
-    type: number
+    type: string
     default: 20m0s
     format: duration
     tags:
@@ -8486,7 +8538,7 @@ properties:
       These options are not exposed to customers and are used for testing purposes
   hostname_drift_recurring_interval:
     node_type: setting
-    type: number
+    type: string
     default: 6h0m0s
     format: duration
     tags:
@@ -8575,7 +8627,7 @@ properties:
     - full-agent-only:true
   http_dial_fallback_delay:
     node_type: setting
-    type: number
+    type: string
     default: -1ns
     format: duration
     tags:
@@ -8610,7 +8662,7 @@ properties:
     properties:
       gc_interval:
         node_type: setting
-        type: number
+        type: string
         default: 1h0m0s
         format: duration
         tags:
@@ -8621,7 +8673,7 @@ properties:
         default: ''
       refresh_interval:
         node_type: setting
-        type: number
+        type: string
         default: 30s
         format: duration
         tags:
@@ -9071,7 +9123,7 @@ properties:
     default: false
   kubernetes_kubelet_deviceplugins_cache_duration:
     node_type: setting
-    type: number
+    type: string
     default: 5s
     format: duration
     tags:
@@ -9238,7 +9290,7 @@ properties:
       Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
   metadata_provider_stop_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 30s
     format: duration
     tags:
@@ -9459,7 +9511,7 @@ properties:
                 default: false
           sleep_interval:
             node_type: setting
-            type: number
+            type: string
             default: 10s
             format: duration
             tags:
@@ -9475,21 +9527,21 @@ properties:
             comment: Remote agents
           idle_timeout:
             node_type: setting
-            type: number
+            type: string
             default: 30s
             format: duration
             tags:
             - golang_type:duration
           query_timeout:
             node_type: setting
-            type: number
+            type: string
             default: 3s
             format: duration
             tags:
             - golang_type:duration
           recommended_refresh_interval:
             node_type: setting
-            type: number
+            type: string
             default: 10s
             format: duration
             tags:
@@ -9574,7 +9626,7 @@ properties:
             default: 0
           cpu_duration:
             node_type: setting
-            type: number
+            type: string
             default: 1m0s
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_CPU_DURATION
@@ -9624,7 +9676,7 @@ properties:
             default: 0
           period:
             node_type: setting
-            type: number
+            type: string
             default: 5m0s
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_PERIOD
@@ -10129,7 +10181,7 @@ properties:
         default: true
   tls_handshake_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 10s
     format: duration
     tags:
@@ -10299,7 +10351,7 @@ properties:
         properties:
           collection_interval:
             node_type: setting
-            type: number
+            type: string
             default: 1m0s
             format: duration
             tags:

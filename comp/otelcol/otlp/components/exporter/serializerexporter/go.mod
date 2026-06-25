@@ -53,6 +53,7 @@ require (
 require github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000 // indirect
@@ -115,7 +116,7 @@ require (
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
-	github.com/DataDog/viper v1.15.1 // indirect
+	github.com/DataDog/viper v1.15.3 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -231,6 +232,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../../../../comp/core/agenttelemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def => ../../../../../../comp/core/configstreamconsumer/def
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../../../../../comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ../../../../../../comp/core/delegatedauth/api/cloudauth/aws

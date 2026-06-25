@@ -2,6 +2,7 @@
 """Install wheel files into the Agent embedded Python layout."""
 
 import argparse
+import shutil
 from pathlib import Path
 
 from installer import install
@@ -18,6 +19,11 @@ def parse_args() -> argparse.Namespace:
         "--interpreter",
         required=True,
         help="Interpreter path to write into generated console script shebangs.",
+    )
+    parser.add_argument(
+        "--entrypoints-dirname",
+        required=True,
+        help="Expected location of entrypoint scripts, relevant for filling RECORD correctly.",
     )
     parser.add_argument(
         "--platform",
@@ -42,7 +48,6 @@ def expand_wheels(paths: list[Path]) -> list[Path]:
 def main():
     args = parse_args()
     args.runtime_output.mkdir(parents=True, exist_ok=True)
-    args.bin_output.mkdir(parents=True, exist_ok=True)
 
     if args.platform == "posix":
         site_packages = args.runtime_output / "lib" / f"python{args.python_version}" / "site-packages"
@@ -53,11 +58,15 @@ def main():
         headers_path = args.runtime_output / "include"
         script_kind = "win-amd64"
 
+    # During the installation, set the bin path to the relative location where it would normally be.
+    # This is to ensure that the RECORD entries have the expected relative path - we'll move them afterwards.
+    bin_path = args.runtime_output / args.entrypoints_dirname
+
     scheme = {
         "purelib": str(site_packages),
         "platlib": str(site_packages),
         "headers": str(headers_path),
-        "scripts": str(args.bin_output),
+        "scripts": str(bin_path),
         "data": str(args.runtime_output),
     }
 
@@ -75,6 +84,13 @@ def main():
                 destination=destination,
                 additional_metadata={},
             )
+
+    # Move the scripts directory to the requested location
+    if bin_path.exists():
+        shutil.copytree(bin_path, args.bin_output, dirs_exist_ok=True)
+        shutil.rmtree(bin_path)
+    else:
+        args.bin_output.mkdir(parents=True)
 
 
 if __name__ == "__main__":

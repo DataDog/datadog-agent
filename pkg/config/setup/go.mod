@@ -24,7 +24,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
 	github.com/stretchr/testify v1.11.1
 	go.yaml.in/yaml/v2 v2.4.4
-	golang.org/x/sys v0.46.0
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -60,6 +59,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
 
@@ -73,6 +73,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def => ../../../comp/core/configstreamconsumer/def
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../../comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ../../../comp/core/delegatedauth/api/cloudauth/aws

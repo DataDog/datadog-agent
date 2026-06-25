@@ -19,7 +19,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/coreos/go-semver v0.3.1
 	github.com/stretchr/testify v1.11.1
-	go.etcd.io/bbolt v1.4.3
+	go.etcd.io/bbolt v1.5.0
 	go.uber.org/atomic v1.11.0
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 )
@@ -134,6 +134,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def => ../../../comp/core/configstreamconsumer/def
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../../comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ../../../comp/core/delegatedauth/api/cloudauth/aws
