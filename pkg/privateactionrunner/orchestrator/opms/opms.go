@@ -1,0 +1,456 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+package opms
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"runtime"
+	"slices"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/config"
+	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/constants"
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/modes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/types"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/util"
+	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
+	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/jsonapi"
+)
+
+const (
+	dequeuePath     = "/api/v2/on-prem-management-service/workflow-tasks/dequeue"
+	taskUpdatePath  = "/api/v2/on-prem-management-service/workflow-tasks/publish-task-update"
+	heartbeat       = "/api/v2/on-prem-management-service/workflow-tasks/heartbeat"
+	healthCheckPath = "/api/v2/on-prem-management-service/runner/health-check"
+
+	serverTimeHeader   = "X-Server-Time"
+	retryAfterMsHeader = "X-Retry-After-Ms"
+
+	// maxRetryAfter caps the X-Retry-After-Ms value the server can request, so
+	// a misconfigured or malicious server cannot push the runner into long
+	// idle stretches.
+	maxRetryAfter = 2 * time.Minute
+)
+
+type DequeueJSONRequest struct {
+	ID                 string `jsonapi:"primary,dequeue"`
+	RunnerStartedAt    string `json:"runner_started_at,omitempty" jsonapi:"attribute"`
+	LastTaskReceivedAt string `json:"last_task_received_at,omitempty" jsonapi:"attribute"`
+}
+
+type PublishTaskUpdateJSONRequestPayload struct {
+	Branch       string                            `json:"branch,omitempty"`
+	Outputs      interface{}                       `json:"outputs,omitempty"`
+	ErrorCode    aperrorpb.ActionPlatformErrorCode `json:"error_code,omitempty"`
+	ErrorDetails string                            `json:"error_details,omitempty"`
+	APIError     string                            `json:"api_error,omitempty"`
+}
+
+type PublishTaskUpdateJSONRequestAttributes struct {
+	TaskID    string                               `json:"task_id,omitempty"`
+	Client    actionsclientpb.Client               `json:"client,omitempty"`
+	ActionFQN string                               `json:"action_fqn,omitempty"`
+	JobId     string                               `json:"job_id,omitempty"`
+	Payload   *PublishTaskUpdateJSONRequestPayload `json:"payload,omitempty"`
+}
+
+type PublishTaskUpdateJSONData struct {
+	Type       string                                  `json:"type,omitempty"`
+	ID         string                                  `json:"id,omitempty"`
+	Attributes *PublishTaskUpdateJSONRequestAttributes `json:"attributes,omitempty"`
+}
+
+type PublishTaskUpdateJSONRequest struct {
+	Data *PublishTaskUpdateJSONData `json:"data,omitempty"`
+}
+
+type HeartbeatJSONRequestAttributes struct {
+	TaskID    string                 `json:"task_id,omitempty"`
+	Client    actionsclientpb.Client `json:"client,omitempty"`
+	ActionFQN string                 `json:"action_fqn,omitempty"`
+	JobId     string                 `json:"job_id,omitempty"`
+}
+
+type HeartbeatJSONData struct {
+	Type       string                          `json:"type,omitempty"`
+	ID         string                          `json:"id,omitempty"`
+	Attributes *HeartbeatJSONRequestAttributes `json:"attributes,omitempty"`
+}
+
+type HeartbeatJSONRequest struct {
+	Data *HeartbeatJSONData `json:"data,omitempty"`
+}
+
+type HealthCheckData struct {
+	ServerTime *time.Time    `json:"server_time,omitempty"`
+	RetryAfter time.Duration `json:"retry_after_ms,omitempty"`
+}
+
+// Client is the OPMS client interface
+// Enrollment is intentionally omitted from this OPMS interface as the client requires a config.
+// Ensure enrollment is completed before instantiating this client.
+type Client interface {
+	// DequeueTask fetches the next pending task. The returned duration is the
+	// server-requested retry delay from the X-Retry-After-Ms response header; a
+	// zero value means no hint was given and the caller should use its default
+	// interval.
+	DequeueTask(ctx context.Context) (*types.Task, time.Duration, error)
+	PublishSuccess(
+		ctx context.Context,
+		client actionsclientpb.Client,
+		taskID string,
+		jobID string,
+		actionFQN string,
+		output interface{},
+		branch string,
+	) error
+	PublishFailure(
+		ctx context.Context,
+		client actionsclientpb.Client,
+		taskID string,
+		jobID string,
+		actionFQN string,
+		errorCode aperrorpb.ActionPlatformErrorCode,
+		errorDetails string,
+		apiError string,
+	) error
+	HealthCheck(ctx context.Context) (*HealthCheckData, error)
+	Heartbeat(ctx context.Context, client actionsclientpb.Client, taskID, actionFQN, jobID string) error
+}
+
+type client struct {
+	config     *config.Config
+	httpClient *http.Client
+
+	runnerStartedAt    time.Time
+	lastTaskReceivedAt atomic.Pointer[time.Time]
+}
+
+func NewClient(coreCfg model.Reader, cfg *config.Config) Client {
+	return &client{
+		httpClient: &http.Client{
+			Timeout:   time.Duration(cfg.OpmsRequestTimeout) * time.Millisecond,
+			Transport: httputils.CreateHTTPTransport(coreCfg),
+		},
+		config:          cfg,
+		runnerStartedAt: time.Now().UTC(),
+	}
+}
+
+// endpointURL constructs a full URL for the given path.
+// Production always uses https://api.<site>. When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true
+// (e2e tests only) and DD_DD_URL points at an http:// server, use that host directly so PAR
+// can reach an in-cluster or ECS-hosted fake OPMS over plain HTTP.
+func (c *client) endpointURL(path string) string {
+	scheme := "https"
+	host := c.config.DDApiHost
+	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" && strings.HasPrefix(c.config.DDHost, "http://") {
+		scheme = "http"
+		host = strings.TrimPrefix(c.config.DDHost, "http://")
+	}
+	return (&url.URL{Scheme: scheme, Host: host, Path: path}).String()
+}
+
+func (c *client) DequeueTask(ctx context.Context) (*types.Task, time.Duration, error) {
+	reqBody, err := c.buildDequeueRequestBody()
+	if err != nil {
+		return nil, 0, fmt.Errorf("error building dequeue request body: %w", err)
+	}
+
+	body, headers, err := c.makeRequest(ctx, http.MethodPost, c.endpointURL(dequeuePath), bytes.NewReader(reqBody), nil, http.StatusOK)
+	retryAfter := parseRetryAfterMs(headers)
+	if err != nil {
+		return nil, retryAfter, fmt.Errorf("error making request to dequeue task: %w", err)
+	}
+
+	if len(body) == 0 {
+		return nil, retryAfter, nil
+	}
+
+	res := &types.Task{
+		Raw: body,
+	}
+	if err := json.Unmarshal(body, res); err != nil {
+		return nil, retryAfter, fmt.Errorf("error unmarshaling dequeue task response: %w", err)
+	}
+
+	now := time.Now().UTC()
+	c.lastTaskReceivedAt.Store(&now)
+
+	return res, retryAfter, nil
+}
+
+func (c *client) buildDequeueRequestBody() ([]byte, error) {
+	req := &DequeueJSONRequest{
+		RunnerStartedAt: c.runnerStartedAt.Format(time.RFC3339),
+	}
+	if t := c.lastTaskReceivedAt.Load(); t != nil {
+		req.LastTaskReceivedAt = t.Format(time.RFC3339)
+	}
+	return jsonapi.Marshal(req, jsonapi.MarshalClientMode())
+}
+
+func (c *client) PublishSuccess(
+	ctx context.Context,
+	client actionsclientpb.Client,
+	taskID string,
+	jobID string,
+	actionFQN string,
+	output interface{},
+	branch string,
+) error {
+	outputJson, err := json.Marshal(output)
+	if err != nil {
+		return fmt.Errorf("error marshaling output: %w", err)
+	}
+
+	var asMap interface{}
+	if err = json.Unmarshal(outputJson, &asMap); err != nil {
+		return fmt.Errorf("error converting output to map: %w", err)
+	}
+
+	if branch == "" {
+		branch = "main"
+	}
+
+	request := &PublishTaskUpdateJSONData{
+		Type: "taskUpdate",
+		ID:   "succeed_task",
+		Attributes: &PublishTaskUpdateJSONRequestAttributes{
+			TaskID:    taskID,
+			Client:    client,
+			ActionFQN: actionFQN,
+			Payload: &PublishTaskUpdateJSONRequestPayload{
+				Branch:  branch,
+				Outputs: asMap,
+			},
+			JobId: jobID,
+		},
+	}
+
+	if _, err = c.makeTaskUpdateRequest(ctx, http.MethodPost, c.endpointURL(taskUpdatePath), request); err != nil {
+		return fmt.Errorf("error updating success task status: %w", err)
+	}
+
+	return nil
+}
+
+func (c *client) PublishFailure(
+	ctx context.Context,
+	client actionsclientpb.Client,
+	taskID string,
+	jobID string,
+	actionFQN string,
+	errorCode aperrorpb.ActionPlatformErrorCode,
+	errorDetails string,
+	apiError string,
+) error {
+	request := &PublishTaskUpdateJSONData{
+		Type: "taskUpdate",
+		ID:   "fail_task",
+		Attributes: &PublishTaskUpdateJSONRequestAttributes{
+			TaskID:    taskID,
+			Client:    client,
+			ActionFQN: actionFQN,
+			Payload: &PublishTaskUpdateJSONRequestPayload{
+				ErrorCode:    errorCode,
+				ErrorDetails: errorDetails,
+			},
+			JobId: jobID,
+		},
+	}
+
+	if _, err := c.makeTaskUpdateRequest(ctx, http.MethodPost, c.endpointURL(taskUpdatePath), request); err != nil {
+		return fmt.Errorf("error updating success task status: %w", err)
+	}
+
+	return nil
+}
+
+func (c *client) makeTaskUpdateRequest(
+	ctx context.Context,
+	method string,
+	url string,
+	data *PublishTaskUpdateJSONData,
+) ([]byte, error) {
+	request := &PublishTaskUpdateJSONRequest{
+		Data: data,
+	}
+
+	body, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling body for JSON request: %w", err)
+	}
+
+	resBody, _, err := c.makeRequest(
+		ctx,
+		method,
+		url,
+		bytes.NewReader(body),
+		nil,
+	)
+	return resBody, err
+}
+
+// parseRetryAfterMs reads the X-Retry-After-Ms header and returns the
+// corresponding duration. Returns 0 if the header is absent, zero-valued, or
+// cannot be parsed — callers should treat 0 as "use default behaviour".
+func parseRetryAfterMs(headers http.Header) time.Duration {
+	if headers == nil {
+		return 0
+	}
+	val := headers.Get(retryAfterMsHeader)
+	if val == "" {
+		return 0
+	}
+	ms, err := strconv.ParseInt(val, 10, 64)
+	if err != nil || ms <= 0 {
+		return 0
+	}
+	return min(time.Duration(ms)*time.Millisecond, maxRetryAfter)
+}
+
+func createHealthCheckData(headers http.Header) *HealthCheckData {
+	response := &HealthCheckData{}
+
+	if headers != nil {
+		if serverTimeStr := headers.Get(serverTimeHeader); serverTimeStr != "" {
+			if serverTime, err := time.Parse(time.RFC3339, serverTimeStr); err == nil {
+				response.ServerTime = &serverTime
+			}
+		}
+		response.RetryAfter = parseRetryAfterMs(headers)
+	}
+
+	return response
+}
+
+func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
+	u, _ := url.Parse(c.endpointURL(healthCheckPath))
+
+	_, resHeaders, err := c.makeRequest(ctx, http.MethodGet, u.String(), nil, nil, http.StatusOK)
+	if err != nil {
+		response := createHealthCheckData(resHeaders)
+		return response, fmt.Errorf("error making request to health check endpoint: %w", err)
+	}
+
+	response := createHealthCheckData(resHeaders)
+	return response, nil
+}
+
+func (c *client) Heartbeat(ctx context.Context, client actionsclientpb.Client, taskID, actionFQN, jobID string) error {
+	request := &HeartbeatJSONData{
+		Type: "heartbeat",
+		ID:   taskID,
+		Attributes: &HeartbeatJSONRequestAttributes{
+			TaskID:    taskID,
+			Client:    client,
+			ActionFQN: actionFQN,
+			JobId:     jobID,
+		},
+	}
+
+	if _, err := c.makeHeartbeatRequest(ctx, http.MethodPost, c.endpointURL(heartbeat), request); err != nil {
+		return fmt.Errorf("error sending heartbeat: %w", err)
+	}
+
+	return nil
+}
+
+func (c *client) makeHeartbeatRequest(
+	ctx context.Context,
+	method string,
+	url string,
+	data *HeartbeatJSONData,
+) ([]byte, error) {
+	request := &HeartbeatJSONRequest{
+		Data: data,
+	}
+
+	body, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling body for heartbeat request: %w", err)
+	}
+
+	resBody, _, err := c.makeRequest(
+		ctx,
+		method,
+		url,
+		bytes.NewReader(body),
+		nil,
+		http.StatusOK,
+	)
+	return resBody, err
+}
+
+func (c *client) makeRequest(
+	ctx context.Context,
+	method string,
+	url string,
+	body io.Reader,
+	extraJwtClaims map[string]any,
+	expectedStatusCodes ...int,
+) ([]byte, http.Header, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating HTTP request: %w", err)
+	}
+
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	signedJWT, err := util.GeneratePARJWT(c.config.OrgId, c.config.RunnerId, c.config.PrivateKey, extraJwtClaims)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error signing JWT for request: %w", err)
+	}
+	req.Header.Set(app.JwtHeaderName, signedJWT)
+	req.Header.Set(app.VersionHeaderName, c.config.Version)
+	modesStr := modes.ToStrings(c.config.Modes)
+	req.Header.Set(app.ModeHeaderName, strings.Join(modesStr, ","))
+	req.Header.Set(app.PlatformHeaderName, runtime.GOOS)
+	req.Header.Set(app.ArchitectureHeaderName, runtime.GOARCH)
+	req.Header.Set(app.FlavorHeaderName, flavor.GetFlavor())
+	req.Header.Set(app.ContainerizedHeaderName, strconv.FormatBool(env.IsContainerized()))
+	for k, v := range c.config.OpmsExtraHeaders {
+		req.Header.Set(k, v)
+	}
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error making HTTP request: %w", err)
+	}
+	defer func() {
+		err = res.Body.Close()
+		if err != nil {
+			log.FromContext(ctx).Errorf("error closing request body: %v", err)
+		}
+	}()
+
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, res.Header, fmt.Errorf("error reading body of HTTP response: %w", err)
+	}
+
+	if len(expectedStatusCodes) != 0 && !slices.Contains(expectedStatusCodes, res.StatusCode) {
+		return nil, res.Header, fmt.Errorf("request failed with status code %d and body %s", res.StatusCode, resBody)
+	}
+
+	return resBody, res.Header, nil
+}

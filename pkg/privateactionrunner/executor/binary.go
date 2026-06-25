@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/types"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/util"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	executorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
 	"google.golang.org/grpc"

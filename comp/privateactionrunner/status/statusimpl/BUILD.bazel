@@ -13,7 +13,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/status",
         "//comp/privateactionrunner/def",
-        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/shared/adapters/config",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",

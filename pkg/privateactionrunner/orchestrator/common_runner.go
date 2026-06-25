@@ -1,0 +1,86 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+package orchestrator
+
+import (
+	"context"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/orchestrator/opms"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/config"
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/logging"
+	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+type CommonRunner struct {
+	opmsClient opms.Client
+	config     *config.Config
+	cancel     context.CancelFunc
+}
+
+func NewCommonRunner(
+	coreCfg model.Reader,
+	configuration *config.Config,
+) *CommonRunner {
+	return &CommonRunner{
+		opmsClient: opms.NewClient(coreCfg, configuration),
+		config:     configuration,
+	}
+}
+
+func (n *CommonRunner) Start(ctx context.Context) error {
+	log.FromContext(ctx).Info("Starting Common runner")
+	// Detach from the parent context's deadline so the health check loop
+	// isn't bounded by the startup timeout. Values (e.g. logger) are preserved.
+	loopCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	n.cancel = cancel
+	go n.healthCheckLoop(loopCtx)
+	return nil
+}
+
+func (n *CommonRunner) Stop(ctx context.Context) error {
+	log.FromContext(ctx).Info("Stopping Common runner")
+	if n.cancel != nil {
+		n.cancel()
+	}
+	return nil
+}
+
+func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
+	defaultInterval := time.Millisecond * time.Duration(n.config.HealthCheckInterval)
+	timer := time.NewTimer(defaultInterval)
+	defer timer.Stop()
+
+	healthCheckLogLimit := ddlog.NewLogLimit(1, 10*time.Minute)
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.FromContext(ctx).Info("Stopping health check loop")
+			return
+		case <-timer.C:
+			logger := log.FromContext(ctx)
+			healthResponse, err := n.opmsClient.HealthCheck(ctx)
+			if healthResponse != nil && healthResponse.ServerTime != nil {
+				logger = logger.With(log.String("server-time", healthResponse.ServerTime.UTC().Format(time.RFC3339)))
+			}
+			if err != nil {
+				logger.Error("health check failed", log.ErrorField(err))
+			} else if healthCheckLogLimit.ShouldLog() {
+				logger.Info("health check succeeded")
+			} else {
+				logger.Debug("health check succeeded")
+			}
+
+			nextInterval := defaultInterval
+			if healthResponse != nil && healthResponse.RetryAfter > 0 {
+				nextInterval = healthResponse.RetryAfter
+			}
+			timer.Reset(nextInterval)
+		}
+	}
+}

@@ -20,7 +20,7 @@ pkg_filegroup(
 pkg_filegroup(
     name = "etc",
     srcs = [
-        "//pkg/privateactionrunner/autoconnections/conf:all_files",
+        "//pkg/privateactionrunner/orchestrator/autoconnections/conf:all_files",
     ],
 )
 

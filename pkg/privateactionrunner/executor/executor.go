@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/types"
 )
 
 // Mode names the executor implementation NewExecutor builds.

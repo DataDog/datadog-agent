@@ -8,7 +8,7 @@ package executor
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/types"
 )
 
 // InProcessExecutor runs tasks in the same process by delegating directly

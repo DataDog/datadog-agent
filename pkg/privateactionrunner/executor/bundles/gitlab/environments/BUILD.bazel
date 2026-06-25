@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "environments",
+    srcs = [
+        "entrypoint.gen.go",
+        "list_environments.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor/bundles/gitlab/environments",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/executor/bundle-support/gitlab",
+        "//pkg/privateactionrunner/shared/libs/privateconnection",
+        "//pkg/privateactionrunner/shared/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

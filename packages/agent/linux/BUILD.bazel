@@ -216,7 +216,7 @@ pkg_filegroup(
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        "//pkg/privateactionrunner/autoconnections/conf:all_files",
+        "//pkg/privateactionrunner/orchestrator/autoconnections/conf:all_files",
     ] + select({
         "//:is_standard_install": [
             ":datadog_agent_installer_symlinks",

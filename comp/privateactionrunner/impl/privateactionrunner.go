@@ -28,17 +28,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
-	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	parexecutor "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
-	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor/task-verifier"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/orchestrator/autoconnections"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/orchestrator/enrollment"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/orchestrator/opms"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/parversion"
+	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/observability"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -79,8 +79,8 @@ type PrivateActionRunner struct {
 	eventPlatform  eventplatform.Component
 	ipc            ipc.Component
 
-	orchestrator *runners.Orchestrator
-	commonRunner *runners.CommonRunner
+	orchestrator *orchestrator.Orchestrator
+	commonRunner *orchestrator.CommonRunner
 
 	telemetry *telemetry.Telemetry
 
@@ -241,8 +241,8 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	p.orchestrator = runners.NewOrchestrator(cfg, opmsClient, exec)
-	p.commonRunner = runners.NewCommonRunner(p.coreConfig, cfg)
+	p.orchestrator = orchestrator.NewOrchestrator(cfg, opmsClient, exec)
+	p.commonRunner = orchestrator.NewCommonRunner(p.coreConfig, cfg)
 	if err := p.orchestrator.Start(ctx); err != nil {
 		return err
 	}

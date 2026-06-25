@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
-	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
