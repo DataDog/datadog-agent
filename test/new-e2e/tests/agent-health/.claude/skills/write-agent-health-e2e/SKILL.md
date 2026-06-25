@@ -199,7 +199,7 @@ Never re-declare `healthPlatformAgentConfig` — it is already a `const` in `che
 
 ## Step 5 — Rules (never break these)
 
-- **Flush order**: for issues resolved during a **periodic check** (e.g. check failures): `UpdateEnv` → wait for agent ready → `FlushServerAndResetAggregators()`. For issues resolved **at startup** (e.g. probe init failures): `FlushServerAndResetAggregators()` → `UpdateEnv`. The risk with startup-resolved issues is that the RESOLVED tombstone arrives before `UpdateEnv` returns, so a flush afterward clears it permanently.
+- **Flush order**: do NOT flush in the resolution step. Fakeintake accumulates all payloads; `GetAgentHealth()` returns everything since the last flush. The RESOLVED tombstone is emitted once and stays in fakeintake until flushed — so flushing in the resolution step deletes it. Only flush in the detection step to clear stale pre-condition data.
 - **No resilience phase**: `RestartResilience` is covered once in `TestResilienceSuite`. Do not add it here.
 - **No diagnose assertions**: assert only through fakeintake state (`ISSUE_STATE_NEW`, `ISSUE_STATE_RESOLVED`).
 - **No shared lifecycle driver**: phases (`IssueDetection`, `Resolution`) are always inline in the test method.
