@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "healthreporter",
+    srcs = ["reporter.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/system-probe/healthreporter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//pkg/config/setup",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
