@@ -91,6 +91,13 @@ func pinnedApmInjectVersion() string {
 	return "0.59.0-1"
 }
 
+func previousApmInjectVersion() string {
+	if version, ok := os.LookupEnv("E2E_APM_INJECT_PREVIOUS_PACKAGE_VERSION"); ok && version != "" {
+		return version
+	}
+	return "0.58.0-1"
+}
+
 func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architecture) {
 	env["DD_API_KEY"] = GetAPIKey()
 	env["DD_SITE"] = "datadoghq.com"
