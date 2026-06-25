@@ -96,6 +96,10 @@ else
   # Dogstatsd
   dependency 'datadog-dogstatsd'
 
+  # Agent Data Plane (ADP) binary, bundled so it can optionally run as the
+  # metrics pipeline alongside dogstatsd. Only published for Linux and macOS.
+  dependency 'datadog-dogstatsd-data-plane' if linux_target? || osx_target?
+
   # this dependency puts few files out of the omnibus install dir and move them
   # in the final destination. This way such files will be listed in the packages
   # manifest and owned by the package manager. This is the only point in the build
