@@ -16,23 +16,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// A "base config" is a postgres integration.Config emitted by another provider (typically the
-// file provider reading conf.d/postgres.d/conf.yaml) that a DO query action matched against via
-// findPostgresConfig — i.e. the config as it exists before DO touches it. A single base config
-// can bundle several postgres instances. Throughout this file, "base config" always refers to
-// this original, provider-emitted config, as distinct from the DO check config or remainder
-// config that this component derives from it.
+// A "base config" is a supported DB integration.Config emitted by another provider (typically the
+// file provider reading e.g. conf.d/postgres.d/conf.yaml or conf.d/sqlserver.d/conf.yaml) that a
+// DO query action matched against via findSupportedIntegrationConfig — i.e. the config as it
+// exists before DO touches it. A single base config can bundle several instances. Throughout this
+// file, "base config" always refers to this original, provider-emitted config, as distinct from
+// the DO check config or remainder config that this component derives from it.
 
-// activeConfigEntry stores the scheduled DO check config alongside the base postgres config it
-// was derived from and the host it targets, so reconcileBases can rebuild the set of postgres
+// activeConfigEntry stores the scheduled DO check config alongside the base integration config it
+// was derived from and the host it targets, so reconcileBases can rebuild the set of integration
 // instances that should keep running independently of any single DO config.
 type activeConfigEntry struct {
 	checkConfig integration.Config
-	baseCfg     *integration.Config // the original matched postgres config (full, all instances)
+	baseCfg     *integration.Config // the original matched integration config (full, all instances)
 	matchHost   string              // host this DO config targets (DBIdentifier.Host)
 }
 
-// managedBaseEntry tracks a base postgres config that has at least one instance targeted by a
+// managedBaseEntry tracks a base integration config that has at least one instance targeted by a
 // DO query action. A DO query action only injects data_observability.queries into the targeted
 // instance — every other field, and every other instance, is unchanged. But autodiscovery
 // schedules whole configs (by digest), not single instances, so we cannot patch one instance in
@@ -45,9 +45,8 @@ type managedBaseEntry struct {
 }
 
 // isSupportedIntegration reports whether name is a supported DB integration.
-// Currently only postgres is supported; mysql may be added in the future.
 func isSupportedIntegration(name string) bool {
-	return name == "postgres"
+	return name == "postgres" || name == "sqlserver"
 }
 
 // instanceHasDOEnabled checks whether a parsed instance map has data_observability.enabled: true.
@@ -94,7 +93,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		// Validate each query spec before paying the cost of finding the postgres config.
+		// Validate each query spec before paying the cost of finding the integration config.
 		// On the first invalid query, reject the entire config — no partial scheduling.
 		var validationErr error
 		for _, q := range payload.Queries {
@@ -109,9 +108,9 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		baseCfg, instance, err := c.findPostgresConfig(&payload.DBIdentifier)
+		baseCfg, instance, err := c.findSupportedIntegrationConfig(&payload.DBIdentifier)
 		if err != nil {
-			c.log.Warnf("No matching postgres config for %s: %v", configID, err)
+			c.log.Warnf("No matching integration config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			c.removeActiveConfig(configID, &changes)
 			continue
@@ -186,20 +185,19 @@ func (c *component) removeActiveConfig(configID string, changes *integration.Con
 	changes.Unschedule = append(changes.Unschedule, prev.checkConfig)
 }
 
-// reconcileBases keeps file-provider postgres instances that are NOT targeted by a DO query
+// reconcileBases keeps file-provider integration instances that are NOT targeted by a DO query
 // action scheduled, while preventing the targeted instances from running twice.
 //
 // Autodiscovery schedules whole integration.Configs (keyed by Digest), but a single
-// file-provider postgres config can bundle several instances. When a DO config targets one of
-// them, we cannot simply unschedule the whole base config — that would drop the untargeted
-// sibling instances. Instead, for each base config that currently has at least one active DO
-// config, we unschedule the original and schedule a "remainder" config holding only the
-// instances no DO config targets. Once no DO config targets a base config, the original is
-// restored.
+// file-provider config can bundle several instances. When a DO config targets one of them, we
+// cannot simply unschedule the whole base config — that would drop the untargeted sibling
+// instances. Instead, for each base config that currently has at least one active DO config, we
+// unschedule the original and schedule a "remainder" config holding only the instances no DO
+// config targets. Once no DO config targets a base config, the original is restored.
 //
 // The remainder is computed from the full set of active DO configs, so multiple DO configs
-// targeting different instances of the same base config never cause an instance to be both
-// kept in the remainder and run as a DO check (which would duplicate DBM collection).
+// targeting different instances of the same base config never cause an instance to be both kept
+// in the remainder and run as a DO check (which would duplicate DBM collection).
 func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 	c.activeConfigsMu.Lock()
 	defer c.activeConfigsMu.Unlock()
@@ -257,7 +255,7 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 		}
 		changes.Schedule = append(changes.Schedule, managed.original)
 		delete(c.managedBases, digest)
-		c.log.Infof("Restored original postgres config (digest %s); no Data Observability query actions target it", digest)
+		c.log.Infof("Restored original integration config (digest %s); no Data Observability query actions target it", digest)
 	}
 }
 
@@ -294,10 +292,10 @@ func sameConfig(a, b *integration.Config) bool {
 	return a.Digest() == b.Digest()
 }
 
-// findPostgresConfig finds a postgres config that matches the given identifier and has
-// data_observability.enabled: true. Returns the matching config and the already-parsed
-// instance map to avoid re-parsing YAML in callers.
-func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
+// findSupportedIntegrationConfig finds a supported DB integration config that matches the
+// given identifier and has data_observability.enabled: true. Returns the matching config
+// and the already-parsed instance map to avoid re-parsing YAML in callers.
+func (c *component) findSupportedIntegrationConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
 	cfgs := c.ac.GetUnresolvedConfigs()
 
 	var lastParseErr error
@@ -310,7 +308,7 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 		for _, instanceData := range cfg.Instances {
 			var instance map[string]any
 			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
-				c.log.Warnf("Failed to unmarshal postgres instance data for config %s, skipping: %v", cfg.Name, err)
+				c.log.Warnf("Failed to unmarshal %s instance data for config %s, skipping: %v", cfg.Name, cfg.Name, err)
 				lastParseErr = err
 				continue
 			}
@@ -322,23 +320,34 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 	}
 
 	if lastParseErr != nil {
-		// Surface the parse error so operators debug the postgres config YAML, not the RC identifier.
-		return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s; at least one postgres instance had a YAML parse error: %w",
+		// Surface the parse error so operators debug the integration config YAML, not the RC identifier.
+		return nil, nil, fmt.Errorf("no supported integration config found for identifier: type=%s, host=%s; at least one instance had a YAML parse error: %w",
 			dbID.Type, dbID.Host, lastParseErr)
 	}
-	return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s",
+	return nil, nil, fmt.Errorf("no supported integration config found for identifier: type=%s, host=%s",
 		dbID.Type, dbID.Host)
 }
 
 // matchesIdentifier checks if an instance matches the given DB identifier.
-// Matching is by host only — per-query dbname fields handle database routing.
+// For most deployment types, matching is by host only. Azure SQL Database requires an
+// additional database-equality check because multiple databases share the same server
+// hostname — without it, a payload for db_A could be injected into db_B.
 func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
 	host, _ := instance["host"].(string)
-	return host == dbID.Host
+	if host != dbID.Host {
+		return false
+	}
+	if azure, ok := instance["azure"].(map[string]any); ok {
+		if deploymentType, _ := azure["deployment_type"].(string); deploymentType == "sql_database" {
+			dbName, _ := azure["database"].(string)
+			return dbName == dbID.Database
+		}
+	}
+	return true
 }
 
-// buildCheckConfig creates a postgres check config with data_observability queries injected.
-// It clones the full matched postgres instance and adds the data_observability section.
+// buildCheckConfig creates a check config with data_observability queries injected.
+// It clones the full matched integration instance and adds the data_observability section.
 // Returns an error if YAML serialization fails; callers must report ApplyStateError to RC.
 func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integration.Config, instance map[string]any, remoteConfigID string) (integration.Config, error) {
 	queries := make([]map[string]any, 0, len(payload.Queries))
@@ -393,7 +402,7 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 	}
 
 	return integration.Config{
-		Name:      "postgres",
+		Name:      baseCfg.Name,
 		Source:    c.String(),
 		Provider:  baseCfg.Provider,
 		NodeName:  baseCfg.NodeName,
