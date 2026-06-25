@@ -132,6 +132,8 @@ func Run(ctx *pulumi.Context) error {
 		return nil
 	}
 
+	var agentDeps []pulumi.Resource
+
 	for _, param := range []struct {
 		variant               string
 		agentImagePath        string
@@ -157,7 +159,7 @@ func Run(ctx *pulumi.Context) error {
 			deployCRDs:            false,
 		},
 	} {
-		if _, err := helm.NewKubernetesAgent(&awsEnv, awsEnv.Namer.ResourceName("datadog-agent", param.variant), cluster.KubeProvider,
+		if kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, awsEnv.Namer.ResourceName("datadog-agent", param.variant), cluster.KubeProvider,
 			kubernetesagentparams.WithBaseName("dda-"+param.variant),
 			kubernetesagentparams.WithNamespace("datadog-"+param.variant),
 			kubernetesagentparams.WithClusterName(cluster.ClusterName),
@@ -259,10 +261,15 @@ func Run(ctx *pulumi.Context) error {
 			})),
 		); err != nil {
 			return err
+		} else {
+			agentDeps = append(agentDeps, kubernetesAgent)
 		}
 	}
 
-	if _, err := churn.K8sAppDefinition(&awsEnv, cluster.KubeProvider); err != nil {
+	// The churn pods are labeled for Fargate sidecar injection, so they must wait for
+	// the Agent admission controllers to be ready, otherwise they would be admitted
+	// without the Datadog sidecar.
+	if _, err := churn.K8sAppDefinition(&awsEnv, cluster.KubeProvider, utils.PulumiDependsOn(agentDeps...)); err != nil {
 		return err
 	}
 

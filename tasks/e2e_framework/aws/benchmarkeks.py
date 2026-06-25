@@ -19,7 +19,6 @@ scenario_name = "aws/benchmarkeks"
     help={
         "config_path": doc.config_path,
         "install_agent": doc.install_agent,
-        "install_workload": doc.install_workload,
         "install_argorollout": doc.install_argorollout,
         "agent_version": doc.container_agent_version,
         "stack_name": doc.stack_name,
@@ -47,7 +46,6 @@ def create_benchmarkeks(
     debug: bool | None = False,
     stack_name: str | None = None,
     install_agent: bool | None = True,
-    install_workload: bool | None = True,
     install_argorollout: bool | None = False,
     agent_version: str | None = None,
     instance_type: str | None = None,
@@ -116,7 +114,6 @@ def create_benchmarkeks(
         app_key_required=True,
         stack_name=stack_name,
         install_agent=install_agent,
-        install_workload=install_workload,
         agent_version=agent_version,
         extra_flags=extra_flags,
         full_image_path=full_image_path,
