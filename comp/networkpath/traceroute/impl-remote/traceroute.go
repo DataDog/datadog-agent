@@ -92,7 +92,7 @@ func isSACKNotSupportedMessage(message string) bool {
 		strings.Contains(message, "found no SACK options")
 }
 
-func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, disableWindowsDriver bool, reverseDNS bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
+func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, disableWindowsDriver bool, reverseDNS bool, disableSourcePublicIPCollection bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
 	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
 	t.log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
