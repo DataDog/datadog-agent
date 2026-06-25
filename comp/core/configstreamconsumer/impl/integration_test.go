@@ -231,7 +231,7 @@ func TestRunNoopWhenConfigstreamDisabled(t *testing.T) {
 	opts := fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		telemetryfx.Module(),
-		fx.Supply(configstreamconsumer.NewParams("trace-agent", datadogPath)),
+		fx.Supply(configstreamconsumer.NewParams("test-agent", datadogPath)),
 		configstreamconsumerfx.Module(),
 	)
 	testRun := func(_ configstreamconsumer.Component) error { return nil }
