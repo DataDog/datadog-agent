@@ -86,6 +86,7 @@ type KubeASConfig struct {
 	ResyncPeriodEvents       int  `yaml:"kubernetes_event_resync_period_s"`
 	UnbundleEvents           bool `yaml:"unbundle_events"`
 	BundleUnspecifiedEvents  bool `yaml:"bundle_unspecified_events"`
+	UseNewEventCollection    bool `yaml:"use_new_event_collection"`
 
 	// FilteredEventTypes is a slice of kubernetes field selectors that
 	// works as a deny list of events to filter out.
@@ -129,7 +130,6 @@ type KubeASCheck struct {
 	ac              *apiserver.APIClient
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
 	tagger          tagger.Component
-	useNewEventCollection bool
 
 	// eventCollectorRunning tracks whether the event informers are currently
 	// running, so they are started and stopped only on leadership transitions.
@@ -271,7 +271,7 @@ func (k *KubeASCheck) Run() error {
 		}
 	}
 
-	if k.useNewEventCollection {
+	if k.instance.UseNewEventCollection {
 		// If we are not the current leader, we might need to stop the event collection.
 		if !isCurrentLeader {
 			k.stopEventCollection()
@@ -303,7 +303,7 @@ func (k *KubeASCheck) Run() error {
 	if k.instance.CollectEvent {
 		var events []event.Event
 		var err error
-		if k.useNewEventCollection {
+		if k.instance.UseNewEventCollection {
 			events, err = k.newEventCollectionCheck()
 		} else {
 			events, err = k.legacyEventCollectionCheck()
