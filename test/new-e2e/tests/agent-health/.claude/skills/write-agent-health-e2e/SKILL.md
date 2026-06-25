@@ -174,7 +174,7 @@ func (suite *{module}Suite) Test{Module}IssueLifecycle() {
                 }
             }
             return false
-        }, defaultIssueAbsenceWindow, defaultIssuePollInterval,
+        }, 30*time.Second, defaultIssuePollInterval,
             "issue still reported as non-resolved after fix")
     })
 }
