@@ -5,7 +5,7 @@
 
 //go:build test
 
-package start
+package configstreamconsumerimpl_test
 
 import (
 	"context"
@@ -114,18 +114,21 @@ func mustNewValue(t *testing.T, v interface{}) *structpb.Value {
 	return val
 }
 
-// TestRunBlocksUntilConfigStreamSnapshot verifies the end-to-end wiring:
+// TestRunBlocksUntilConfigStreamSnapshot verifies end-to-end wiring for each agent:
 // the consumer dials the (fake) core, registers with the RAR, opens the stream, and
 // blocks fxutil.OneShot until the first snapshot is applied.
 func TestRunBlocksUntilConfigStreamSnapshot(t *testing.T) {
-	dir := t.TempDir()
-	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
-	defer cleanup()
+	agents := []string{"trace-agent", "process-agent", "security-agent", "system-probe"}
+	for _, agentName := range agents {
+		t.Run(agentName, func(t *testing.T) {
+			dir := t.TempDir()
+			addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+			defer cleanup()
 
-	host, port, err := net.SplitHostPort(addr)
-	require.NoError(t, err)
+			host, port, err := net.SplitHostPort(addr)
+			require.NoError(t, err)
 
-	datadogYaml := fmt.Sprintf(`
+			datadogYaml := fmt.Sprintf(`
 cmd_host: %s
 cmd_port: %s
 auth_token_file_path: %s
@@ -137,44 +140,46 @@ remote_agent:
     consumer:
       enabled: true
 `, host, port,
-		filepath.Join(dir, "auth_token"),
-		filepath.Join(dir, "ipc_cert.pem"),
-	)
-	datadogPath := filepath.Join(dir, "datadog.yaml")
-	require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
+				filepath.Join(dir, "auth_token"),
+				filepath.Join(dir, "ipc_cert.pem"),
+			)
+			datadogPath := filepath.Join(dir, "datadog.yaml")
+			require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
 
-	opts := fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		telemetryfx.Module(),
-		fx.Supply(configstreamconsumer.NewParams("security-agent", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
-		configstreamconsumerfx.Module(),
-	)
+			opts := fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				telemetryfx.Module(),
+				fx.Supply(configstreamconsumer.NewParams(agentName, datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+				configstreamconsumerfx.Module(),
+			)
 
-	testRun := func(_ configstreamconsumer.Component) error { return nil }
+			testRun := func(_ configstreamconsumer.Component) error { return nil }
 
-	done := make(chan error, 1)
-	go func() { done <- fxutil.OneShot(testRun, opts) }()
+			done := make(chan error, 1)
+			go func() { done <- fxutil.OneShot(testRun, opts) }()
 
-	select {
-	case err := <-done:
-		t.Fatalf("OneShot completed before snapshot was sent: %v", err)
-	case <-time.After(500 * time.Millisecond):
-	}
+			select {
+			case err := <-done:
+				t.Fatalf("OneShot completed before snapshot was sent: %v", err)
+			case <-time.After(500 * time.Millisecond):
+			}
 
-	mock.events <- &pb.ConfigEvent{
-		Event: &pb.ConfigEvent_Snapshot{
-			Snapshot: &pb.ConfigSnapshot{
-				SequenceId: 1,
-				Settings:   []*pb.ConfigSetting{{Key: "test.key", Value: mustNewValue(t, "ok"), Source: "file"}},
-			},
-		},
-	}
+			mock.events <- &pb.ConfigEvent{
+				Event: &pb.ConfigEvent_Snapshot{
+					Snapshot: &pb.ConfigSnapshot{
+						SequenceId: 1,
+						Settings:   []*pb.ConfigSetting{{Key: "test.key", Value: mustNewValue(t, "ok"), Source: "file"}},
+					},
+				},
+			}
 
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(15 * time.Second):
-		t.Fatal("OneShot did not complete after sending snapshot")
+			select {
+			case err := <-done:
+				require.NoError(t, err)
+			case <-time.After(15 * time.Second):
+				t.Fatal("OneShot did not complete after sending snapshot")
+			}
+		})
 	}
 }
 
@@ -191,7 +196,7 @@ func TestRunNoopWhenConfigstreamDisabled(t *testing.T) {
 	opts := fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		telemetryfx.Module(),
-		fx.Supply(configstreamconsumer.NewParams("security-agent", datadogPath)),
+		fx.Supply(configstreamconsumer.NewParams("trace-agent", datadogPath)),
 		configstreamconsumerfx.Module(),
 	)
 	testRun := func(_ configstreamconsumer.Component) error { return nil }
