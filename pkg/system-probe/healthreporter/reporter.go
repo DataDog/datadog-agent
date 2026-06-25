@@ -55,14 +55,25 @@ func New(ipc ipcdef.Component) *Reporter {
 	}
 }
 
-// ReportWithRetry sends issue to the core agent, blocking with exponential backoff
-// for up to ReportMaxWait. Blocking is intentional: callers are typically on a
-// module-init failure path where system-probe exits immediately after, so a background
-// goroutine would be killed before it could deliver the report.
+// ReportWithRetry sends issue to the core agent. It first blocks for ReportMaxWait (30s)
+// so the report survives if system-probe exits immediately after a module-init failure.
+// If undelivered after that window but system-probe is still running (other modules are
+// loaded), it continues retrying in a background goroutine for the remaining DefaultMaxWait.
 func (r *Reporter) ReportWithRetry(issue *healthplatformpayload.Issue) {
-	r.retryWithBackoff("report "+issue.GetId(), ReportMaxWait, func() error {
+	op := "report " + issue.GetId()
+	if r.retryWithBackoff(op, ReportMaxWait, func() error {
 		return r.Report(context.Background(), issue)
-	})
+	}) {
+		return
+	}
+	// Synchronous window exhausted without success — keep retrying in the background
+	// for the rest of DefaultMaxWait in case the process stays alive.
+	remaining := r.maxWait - ReportMaxWait
+	if remaining > 0 {
+		go r.retryWithBackoff(op, remaining, func() error {
+			return r.Report(context.Background(), issue)
+		})
+	}
 }
 
 // ResolveWithRetry clears issueID on the core agent in a background goroutine,
@@ -124,18 +135,20 @@ func StringStruct(fields map[string]string) *structpb.Struct {
 	return &structpb.Struct{Fields: pb}
 }
 
-func (r *Reporter) retryWithBackoff(op string, maxWait time.Duration, fn func() error) {
+// retryWithBackoff retries fn with exponential backoff until it succeeds or maxWait elapses.
+// Returns true if fn succeeded, false if the deadline was reached.
+func (r *Reporter) retryWithBackoff(op string, maxWait time.Duration, fn func() error) bool {
 	deadline := time.Now().Add(maxWait)
 	backoff := 2 * time.Second
 	for {
 		err := fn()
 		if err == nil {
-			return
+			return true
 		}
 		log.Warnf("health platform: %s failed (will retry in %s): %v", op, backoff, err)
 		if time.Now().After(deadline) {
 			log.Warnf("health platform: gave up on %s after %s", op, maxWait)
-			return
+			return false
 		}
 		time.Sleep(backoff)
 		if backoff < 30*time.Second {

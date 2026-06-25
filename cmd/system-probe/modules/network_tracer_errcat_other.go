@@ -7,8 +7,19 @@
 
 package modules
 
+import (
+	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+)
+
 // categorizeTracerError returns err unchanged on platforms where eBPF verifier and USM
 // failures cannot occur (Windows, Darwin).
 func categorizeTracerError(err error) error {
 	return err
+}
+
+// checkAndReportUSMState is a no-op on non-Linux platforms where the USM silent-skip
+// scenario (CNM starts, USM silently disabled on kernel < 4.14) cannot occur.
+func checkAndReportUSMState(deps module.FactoryDependencies, _ *networkconfig.Config) {
+	resolveNetworkProbeUSMIssue(deps)
 }
