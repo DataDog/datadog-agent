@@ -94,10 +94,13 @@ initContainers:
 # Resource limits for the Host Profiler container. Setting only limits (no requests)
 # keeps the container in the Burstable QoS class: no capacity is reserved on the node,
 # but runaway usage is capped. Increase the memory limit if the Host Profiler uploads
-# debug symbols for large binaries. For more options, see resources.md.
+# debug symbols for large binaries. For more options, see FAQ.
 resources:
+  requests:
+    cpu: "0"
+    memory: "0"
   limits:
-    cpu: "1"
+    cpu: "500m"
     memory: "1Gi"
 
 extraVolumeMounts:
