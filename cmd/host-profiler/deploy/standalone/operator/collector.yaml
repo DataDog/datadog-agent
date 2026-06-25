@@ -138,6 +138,15 @@ spec:
           processors: [resourcedetection, k8s_attributes]
           exporters: [otlp_http]
 
+  # Resource limits for the Host Profiler container. Setting only limits (no requests)
+  # keeps the container in the Burstable QoS class: no capacity is reserved on the node,
+  # but runaway usage is capped. Increase the memory limit if the Host Profiler uploads
+  # debug symbols for large binaries. For more options, see resources.md.
+  resources:
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
   # Required Linux capabilities for host-wide eBPF profiling.
   # The container is not privileged and drops all default capabilities.
   securityContext:
