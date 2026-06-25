@@ -720,7 +720,7 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	case service.UpstartType:
 		return nil // Nothing to do, files are embedded in the package
 	case service.SysvinitType:
-		return nil // Nothing to do, files are embedded in the package
+		return writeEmbeddedUnitsAndReload(ctx, s.SysvinitServices...)
 	}
 	return errors.New("unsupported service manager")
 }
@@ -736,7 +736,7 @@ func (s *datadogAgentService) RemoveStable(ctx HookContext) error {
 	case service.UpstartType:
 		return nil // Nothing to do, files are embedded in the package
 	case service.SysvinitType:
-		return nil // Nothing to do, files are embedded in the package
+		return removeUnits(ctx, s.SysvinitServices...)
 	}
 	return errors.New("unsupported service manager")
 }
