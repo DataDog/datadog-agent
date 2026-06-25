@@ -38,11 +38,13 @@ type LifecycleContext struct {
 	MetricEmitter lifecycle.MetricEmitter
 	SampleDrainer lifecycle.SampleDrainer
 	FlushTimeout  time.Duration
+	SidecarMode   bool
 }
 
 // MicroVM implements CloudService for AWS Lambda MicroVMs.
 type MicroVM struct {
 	server       *lifecycle.Server
+	child        *lifecycle.Child
 	flushTimeout time.Duration
 }
 
@@ -106,6 +108,14 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 	}
 	lc := ctx.LifecycleCtx
 	m.flushTimeout = lc.FlushTimeout
+
+	components, err := lifecycle.SetupFromEnv(lc.SidecarMode)
+	if err != nil {
+		log.Printf("Invalid lifecycle env-var config (%v); starting with defaults", err)
+		components = lifecycle.SetupFallback(lc.SidecarMode)
+	}
+	m.child = components.Child
+
 	m.server = lifecycle.NewServer(
 		lifecycle.DefaultPort,
 		lc.MetricFlusher,
@@ -115,6 +125,8 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 		lc.SampleDrainer,
 		m.GetSource(),
 		lc.FlushTimeout,
+		components.Handle,
+		components.Forwarder,
 	)
 	l, err := m.server.Listen()
 	if err != nil {
@@ -123,6 +135,10 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 	go m.server.Serve(l)
 	return nil
 }
+
+// Child returns the *lifecycle.Child that mode.RunInit uses for /ready
+// alive-checking. Nil in sidecar mode or when Init has not been called.
+func (m *MicroVM) Child() *lifecycle.Child { return m.child }
 
 // Shutdown stops the MicroVM lifecycle hook server so that any in-flight
 // /suspend or /terminate request can complete before the metric and trace

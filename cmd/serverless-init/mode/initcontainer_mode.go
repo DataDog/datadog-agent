@@ -16,13 +16,17 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/afero"
 )
 
-// Run is the entrypoint of the init process. It will spawn the customer process
-func RunInit(logConfig *serverlessLog.Config) error {
+// RunInit is the entrypoint of the init process. It spawns the customer
+// process and, when child is non-nil, marks it alive on cmd.Start success
+// and dead via deferred MarkDead so the lifecycle server's /ready
+// alive-check reflects the user app's actual state.
+func RunInit(logConfig *serverlessLog.Config, child *lifecycle.Child) error {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	}
@@ -30,15 +34,14 @@ func RunInit(logConfig *serverlessLog.Config) error {
 	args := os.Args[1:]
 
 	log.Debugf("Launching subprocess %v\n", args)
-	err := execute(logConfig, args)
-	if err != nil {
+	if err := execute(logConfig, args, child); err != nil {
 		log.Errorf("ERROR: Failed to execute command: %v\n", err)
 		return err
 	}
 	return nil
 }
 
-func execute(logConfig *serverlessLog.Config, args []string) error {
+func execute(logConfig *serverlessLog.Config, args []string, child *lifecycle.Child) error {
 	commandName, commandArgs := buildCommandParam(args)
 
 	// Add our tracer settings
@@ -55,15 +58,19 @@ func execute(logConfig *serverlessLog.Config, args []string) error {
 		cmd.Stderr = io.MultiWriter(os.Stderr, serverlessLog.NewChannelWriter(logConfig.Channel, true))
 	}
 
-	err := cmd.Start()
-	if err != nil {
+	if err := cmd.Start(); err != nil {
 		return err
+	}
+	if child != nil {
+		child.MarkAlive()
+		// Defer MarkDead so it fires even on panic / runtime.Goexit. The
+		// child process is no longer being supervised once we leave this frame.
+		defer child.MarkDead()
 	}
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs)
 	go forwardSignals(cmd.Process, sigs)
-	err = cmd.Wait()
-	return err
+	return cmd.Wait()
 }
 
 func buildCommandParam(cmdArg []string) (string, []string) {
