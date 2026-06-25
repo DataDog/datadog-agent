@@ -111,7 +111,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	if cfg.GetBool("use_networkv2_check") {
 		corecheckLoader.RegisterCheck(network.CheckName, networkv2.Factory(cfg))
 	} else {
-		corecheckLoader.RegisterCheck(network.CheckName, network.Factory())
+		corecheckLoader.RegisterCheckWithLoaderSupport(network.CheckName, network.Factory(), network.SupportsCoreLoader)
 	}
 	corecheckLoader.RegisterCheck(nvidia.CheckName, nvidia.Factory())
 	corecheckLoader.RegisterCheck(oracle.CheckName, oracle.Factory())
@@ -119,7 +119,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	if cfg.GetBool("use_diskv2_check") {
 		corecheckLoader.RegisterCheck(disk.CheckName, diskv2.Factory())
 	} else {
-		corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())
+		corecheckLoader.RegisterCheckWithLoaderSupport(disk.CheckName, disk.Factory(), disk.SupportsCoreLoader)
 	}
 	corecheckLoader.RegisterCheck(wincrashdetect.CheckName, wincrashdetect.Factory())
 	corecheckLoader.RegisterCheck(windowscertificate.CheckName, windowscertificate.Factory())

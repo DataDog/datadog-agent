@@ -24,16 +24,34 @@ import (
 // CheckFactory factory function type to instantiate checks
 type CheckFactory func() check.Check
 
+// LoaderSupportFunc reports whether a registered core check should handle a
+// config without constructing or configuring the check.
+type LoaderSupportFunc func(integration.Config, integration.Data) check.LoaderSupport
+
+type catalogEntry struct {
+	factory       CheckFactory
+	loaderSupport LoaderSupportFunc
+}
+
 // Catalog keeps track of Go checks by name
-var catalog = make(map[string]CheckFactory)
+var catalog = make(map[string]catalogEntry)
 
 // GoCheckLoaderName is the name of the Go loader
 const GoCheckLoaderName string = "core"
 
 // RegisterCheck adds a check to the catalog
 func RegisterCheck(name string, checkFactory option.Option[func() check.Check]) {
+	RegisterCheckWithLoaderSupport(name, checkFactory, nil)
+}
+
+// RegisterCheckWithLoaderSupport adds a check to the catalog with optional
+// metadata-only loader support logic for checks that can decline core loading.
+func RegisterCheckWithLoaderSupport(name string, checkFactory option.Option[func() check.Check], loaderSupport LoaderSupportFunc) {
 	if v, ok := checkFactory.Get(); ok {
-		catalog[name] = v
+		catalog[name] = catalogEntry{
+			factory:       v,
+			loaderSupport: loaderSupport,
+		}
 	}
 }
 
@@ -60,17 +78,30 @@ func (*GoCheckLoader) Name() string {
 	return GoCheckLoaderName
 }
 
+// SupportsConfig reports whether the Go/core catalog contains the configured
+// check without constructing or configuring the check.
+func (*GoCheckLoader) SupportsConfig(config integration.Config, instance integration.Data) check.LoaderSupport {
+	entry, found := catalog[config.Name]
+	if !found {
+		return check.LoaderSupportUnsupported
+	}
+	if entry.loaderSupport == nil {
+		return check.LoaderSupportSupported
+	}
+	return entry.loaderSupport(config, instance)
+}
+
 // Load returns a Go check
 func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
 	var c check.Check
 
-	factory, found := catalog[config.Name]
+	entry, found := catalog[config.Name]
 	if !found {
 		msg := fmt.Sprintf("Check %s not found in Catalog", config.Name)
 		return c, errors.New(msg)
 	}
 
-	c = factory()
+	c = entry.factory()
 
 	configSource := config.Source
 	if instanceIndex >= 0 {

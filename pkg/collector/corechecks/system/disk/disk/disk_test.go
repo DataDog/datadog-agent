@@ -152,6 +152,7 @@ func TestDiskCheckWithoutCoreLoader(t *testing.T) {
 	mock := mocksender.NewMockSender(diskCheck.ID())
 	err := diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	require.ErrorIs(t, err, check.ErrSkipCheckInstance)
+	require.Equal(t, check.LoaderSupportUnsupported, SupportsCoreLoader(integration.Config{Name: CheckName}, nil))
 }
 
 func TestDiskCheckNonDefaultFlavor(t *testing.T) {
@@ -166,6 +167,7 @@ func TestDiskCheckNonDefaultFlavor(t *testing.T) {
 			mock := mocksender.NewMockSender(diskCheck.ID())
 			err := diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 			require.NoError(t, err)
+			require.Equal(t, check.LoaderSupportSupported, SupportsCoreLoader(integration.Config{Name: CheckName}, nil))
 		})
 	}
 }

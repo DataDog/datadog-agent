@@ -239,7 +239,7 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 	// On Linux the Go network check coexists with the Python one; the flag
 	// selects which runs. On AIX there is no Python network check, so the
 	// Go check is unconditionally enabled.
-	if runtime.GOOS != "aix" && flavor.GetFlavor() == flavor.DefaultAgent && !pkgconfigsetup.Datadog().GetBool("network_check.use_core_loader") {
+	if !coreLoaderEnabled() {
 		return fmt.Errorf("%w: network core check is disabled", check.ErrSkipCheckInstance)
 	}
 
@@ -271,6 +271,22 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)
+}
+
+// SupportsCoreLoader reports whether the network core check should handle the
+// config without constructing the check.
+func SupportsCoreLoader(integration.Config, integration.Data) check.LoaderSupport {
+	if !coreLoaderEnabled() {
+		return check.LoaderSupportUnsupported
+	}
+	return check.LoaderSupportSupported
+}
+
+func coreLoaderEnabled() bool {
+	// On Linux the Go network check coexists with the Python one; the flag
+	// selects which runs. On AIX there is no Python network check, so the
+	// Go check is unconditionally enabled.
+	return runtime.GOOS == "aix" || flavor.GetFlavor() != flavor.DefaultAgent || pkgconfigsetup.Datadog().GetBool("network_check.use_core_loader")
 }
 
 func newCheck() check.Check {

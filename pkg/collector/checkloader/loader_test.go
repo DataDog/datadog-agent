@@ -158,11 +158,132 @@ func TestSelectedInstanceLoaderReturnsEmptyForDefaultLoaderOrder(t *testing.T) {
 	assert.Empty(t, loader)
 }
 
+func TestResolveEffectiveLoaderShortCircuitsExplicitLoaderWithoutProbing(t *testing.T) {
+	first := &recordingLoader{name: "python", support: check.LoaderSupportSupported}
+	second := &recordingLoader{name: "core", support: check.LoaderSupportSupported}
+	loader := New([]check.Loader{first, second}, noopSenderManager{}, nil)
+	config := integration.Config{
+		Name:       "cpu",
+		InitConfig: integration.Data("loader: core\n"),
+		Instances:  []integration.Data{integration.Data("{}")},
+	}
+
+	loaderName, resolved, err := loader.ResolveEffectiveLoader(config, config.Instances[0])
+
+	require.NoError(t, err)
+	assert.True(t, resolved)
+	assert.Equal(t, "core", loaderName)
+	assert.Empty(t, first.supportCalls)
+	assert.Empty(t, second.supportCalls)
+	assert.Empty(t, first.calls)
+	assert.Empty(t, second.calls)
+}
+
+func TestResolveEffectiveLoaderUsesDefaultLoaderMetadataOrder(t *testing.T) {
+	first := &recordingLoader{name: "python", support: check.LoaderSupportUnsupported}
+	second := &recordingLoader{name: "core", support: check.LoaderSupportSupported}
+	loader := New([]check.Loader{first, second}, noopSenderManager{}, nil)
+	config := integration.Config{
+		Name:      "gpu",
+		Instances: []integration.Data{integration.Data("{}")},
+	}
+
+	loaderName, resolved, err := loader.ResolveEffectiveLoader(config, config.Instances[0])
+
+	require.NoError(t, err)
+	assert.True(t, resolved)
+	assert.Equal(t, "core", loaderName)
+	assert.Len(t, first.supportCalls, 1)
+	assert.Len(t, second.supportCalls, 1)
+	assert.Empty(t, first.calls)
+	assert.Empty(t, second.calls)
+}
+
+func TestResolveEffectiveLoaderResolvesMetadataLoaderBeforeLoadOnlyLoader(t *testing.T) {
+	first := &recordingLoader{name: "core", support: check.LoaderSupportSupported}
+	second := &loadOnlyLoader{name: "python"}
+	loader := New([]check.Loader{first, second}, noopSenderManager{}, nil)
+	config := integration.Config{
+		Name:      "gpu",
+		Instances: []integration.Data{integration.Data("{}")},
+	}
+
+	loaderName, resolved, err := loader.ResolveEffectiveLoader(config, config.Instances[0])
+
+	require.NoError(t, err)
+	assert.True(t, resolved)
+	assert.Equal(t, "core", loaderName)
+	assert.Len(t, first.supportCalls, 1)
+	assert.Empty(t, first.calls)
+	assert.Empty(t, second.calls)
+}
+
+func TestResolveEffectiveLoaderTreatsLoadOnlyLoaderBeforeCoreAsAmbiguous(t *testing.T) {
+	first := &loadOnlyLoader{name: "python"}
+	second := &recordingLoader{name: "core", support: check.LoaderSupportSupported}
+	loader := New([]check.Loader{first, second}, noopSenderManager{}, nil)
+	config := integration.Config{
+		Name:      "gpu",
+		Instances: []integration.Data{integration.Data("{}")},
+	}
+
+	loaderName, resolved, err := loader.ResolveEffectiveLoader(config, config.Instances[0])
+
+	require.NoError(t, err)
+	assert.False(t, resolved)
+	assert.Empty(t, loaderName)
+	assert.Empty(t, first.calls)
+	assert.Len(t, second.supportCalls, 1)
+	assert.Empty(t, second.calls)
+}
+
+func TestResolveEffectiveLoaderTreatsUnknownBeforeCoreAsAmbiguous(t *testing.T) {
+	first := &recordingLoader{name: "python", support: check.LoaderSupportUnknown}
+	second := &recordingLoader{name: "core", support: check.LoaderSupportSupported}
+	loader := New([]check.Loader{first, second}, noopSenderManager{}, nil)
+	config := integration.Config{
+		Name:      "gpu",
+		Instances: []integration.Data{integration.Data("{}")},
+	}
+
+	loaderName, resolved, err := loader.ResolveEffectiveLoader(config, config.Instances[0])
+
+	require.NoError(t, err)
+	assert.False(t, resolved)
+	assert.Empty(t, loaderName)
+	assert.Len(t, first.supportCalls, 1)
+	assert.Empty(t, second.supportCalls)
+	assert.Empty(t, first.calls)
+	assert.Empty(t, second.calls)
+}
+
+func TestResolveEffectiveLoaderReturnsUnresolvedWhenNoMetadataLoaderClaimsConfig(t *testing.T) {
+	first := &recordingLoader{name: "python", support: check.LoaderSupportUnsupported}
+	second := &recordingLoader{name: "core", support: check.LoaderSupportUnsupported}
+	loader := New([]check.Loader{first, second}, noopSenderManager{}, nil)
+	config := integration.Config{
+		Name:      "unknown",
+		Instances: []integration.Data{integration.Data("{}")},
+	}
+
+	loaderName, resolved, err := loader.ResolveEffectiveLoader(config, config.Instances[0])
+
+	require.NoError(t, err)
+	assert.False(t, resolved)
+	assert.Empty(t, loaderName)
+	assert.Len(t, first.supportCalls, 1)
+	assert.Len(t, second.supportCalls, 1)
+	assert.Empty(t, first.calls)
+	assert.Empty(t, second.calls)
+}
+
 type recordingLoader struct {
-	name  string
-	check check.Check
-	err   error
-	calls []loadCall
+	name         string
+	check        check.Check
+	err          error
+	support      check.LoaderSupport
+	calls        []loadCall
+	supportCalls []supportCall
 }
 
 type loadCall struct {
@@ -171,10 +292,38 @@ type loadCall struct {
 	instanceIndex int
 }
 
+type supportCall struct {
+	config   integration.Config
+	instance integration.Data
+}
+
 func (l *recordingLoader) Name() string   { return l.name }
 func (l *recordingLoader) String() string { return l.name }
 
+func (l *recordingLoader) SupportsConfig(config integration.Config, instance integration.Data) check.LoaderSupport {
+	l.supportCalls = append(l.supportCalls, supportCall{config: config, instance: instance})
+	return l.support
+}
+
 func (l *recordingLoader) Load(_ sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
+	l.calls = append(l.calls, loadCall{config: config, instance: instance, instanceIndex: instanceIndex})
+	if l.err != nil {
+		return nil, l.err
+	}
+	return l.check, nil
+}
+
+type loadOnlyLoader struct {
+	name  string
+	check check.Check
+	err   error
+	calls []loadCall
+}
+
+func (l *loadOnlyLoader) Name() string   { return l.name }
+func (l *loadOnlyLoader) String() string { return l.name }
+
+func (l *loadOnlyLoader) Load(_ sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
 	l.calls = append(l.calls, loadCall{config: config, instance: instance, instanceIndex: instanceIndex})
 	if l.err != nil {
 		return nil, l.err

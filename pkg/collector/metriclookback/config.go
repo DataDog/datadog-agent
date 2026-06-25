@@ -28,7 +28,12 @@ const goCheckLoaderName = "core"
 type Options struct {
 	ShadowChecksEnabled bool
 	ChecksToShadow      []string
+	ResolveLoader       LoaderResolver
 }
+
+// LoaderResolver resolves the effective loader for one config instance without
+// constructing or configuring a check.
+type LoaderResolver func(integration.Config, integration.Data) (loaderName string, resolved bool)
 
 // ShadowConfig describes a source check instance selected for shadow execution.
 type ShadowConfig struct {
@@ -72,7 +77,7 @@ func DeriveShadowConfigs(configs []integration.Config, opts Options) []ShadowCon
 			if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
 				continue
 			}
-			if !isCoreLoaderSelected(initLoader, instance) {
+			if !isCoreLoaderResolved(config, initLoader, instance, opts.ResolveLoader) {
 				continue
 			}
 
@@ -101,16 +106,20 @@ func isSupportedCheckConfig(config integration.Config, opts Options) bool {
 	return true
 }
 
-func isCoreLoaderSelected(initLoader string, instance integration.Data) bool {
+func isCoreLoaderResolved(config integration.Config, initLoader string, instance integration.Data, resolveLoader LoaderResolver) bool {
 	selectedLoader, err := checkloader.SelectedInstanceLoader(initLoader, instance)
 	if err != nil {
 		return false
 	}
+	if selectedLoader != "" {
+		return selectedLoader == goCheckLoaderName
+	}
+	if resolveLoader == nil {
+		return false
+	}
 
-	// V1 only supports Go/core shadow checks. An empty loader means the normal
-	// scheduler tries default loaders in priority order, so do not infer core
-	// here; Python may win before core.
-	return selectedLoader == goCheckLoaderName
+	effectiveLoader, resolved := resolveLoader(config, instance)
+	return resolved && effectiveLoader == goCheckLoaderName
 }
 
 func instanceLookbackEnabled(instance integration.Data) (enabled bool, found bool) {

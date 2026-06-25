@@ -109,6 +109,7 @@ func TestNetworkCheckWithoutCoreLoader(t *testing.T) {
 	mock := mocksender.NewMockSender(networkCheck.ID())
 	err := networkCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	require.ErrorIs(t, err, check.ErrSkipCheckInstance)
+	assert.Equal(t, check.LoaderSupportUnsupported, SupportsCoreLoader(integration.Config{Name: CheckName}, nil))
 }
 
 func TestNetworkCheckNonDefaultFlavor(t *testing.T) {
@@ -123,6 +124,7 @@ func TestNetworkCheckNonDefaultFlavor(t *testing.T) {
 			mock := mocksender.NewMockSender(networkCheck.ID())
 			err := networkCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 			require.NoError(t, err)
+			assert.Equal(t, check.LoaderSupportSupported, SupportsCoreLoader(integration.Config{Name: CheckName}, nil))
 		})
 	}
 }

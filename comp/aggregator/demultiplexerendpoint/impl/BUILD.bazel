@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
@@ -12,5 +12,18 @@ go_library(
         "//comp/core/log/def",
         "//pkg/util/http",
         "@com_github_datadog_zstd//:zstd",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["endpoint_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/aggregator/demultiplexer/def",
+        "//comp/core/log/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

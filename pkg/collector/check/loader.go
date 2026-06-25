@@ -18,3 +18,23 @@ type Loader interface {
 	Name() string
 	Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (Check, error)
 }
+
+// LoaderSupport describes whether a loader can claim a config instance without
+// constructing or configuring a check.
+type LoaderSupport int
+
+const (
+	// LoaderSupportUnknown means the loader cannot answer without the normal
+	// Load path. Callers that need side-effect-free resolution should treat this
+	// as ambiguous when it appears before a supported loader.
+	LoaderSupportUnknown LoaderSupport = iota
+	// LoaderSupportUnsupported means the loader does not claim the instance.
+	LoaderSupportUnsupported
+	// LoaderSupportSupported means the loader claims the instance.
+	LoaderSupportSupported
+)
+
+// MetadataLoader can resolve loader support without constructing a check.
+type MetadataLoader interface {
+	SupportsConfig(integration.Config, integration.Data) LoaderSupport
+}

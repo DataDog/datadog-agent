@@ -147,7 +147,7 @@ func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter disk.IOCountersS
 
 // Configure the disk check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
-	if flavor.GetFlavor() == flavor.DefaultAgent && !pkgconfigsetup.Datadog().GetBool("disk_check.use_core_loader") {
+	if !coreLoaderEnabled() {
 		return fmt.Errorf("%w: disk core check is disabled", check.ErrSkipCheckInstance)
 	}
 
@@ -156,4 +156,17 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data int
 		return err
 	}
 	return c.instanceConfigure(data)
+}
+
+// SupportsCoreLoader reports whether the legacy disk core check should handle the
+// config without constructing the check.
+func SupportsCoreLoader(integration.Config, integration.Data) check.LoaderSupport {
+	if !coreLoaderEnabled() {
+		return check.LoaderSupportUnsupported
+	}
+	return check.LoaderSupportSupported
+}
+
+func coreLoaderEnabled() bool {
+	return flavor.GetFlavor() != flavor.DefaultAgent || pkgconfigsetup.Datadog().GetBool("disk_check.use_core_loader")
 }
