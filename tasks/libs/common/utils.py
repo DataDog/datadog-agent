@@ -418,11 +418,13 @@ def get_version_ldflags(ctx, install_path=None):
 
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
+    full_commit = get_commit_sha(ctx, short=False)
     version = get_version(ctx, include_git=True)
     version_url_safe = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
     package_version = os.getenv('PACKAGE_VERSION', version)
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.FullCommit={full_commit} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersion={version} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPayloadVersion={payload_v} "
     if install_path:
