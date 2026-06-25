@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 
+	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 )
 
 // categorizeTracerError wraps err with one of the sentinel errors defined in network_tracer.go
@@ -22,5 +24,20 @@ func categorizeTracerError(err error) error {
 		return fmt.Errorf("%w: %w", errNetworkProbeUSMUnsupported, err)
 	default:
 		return err
+	}
+}
+
+// checkAndReportUSMState detects when tracer.NewTracer succeeds but USM was silently
+// skipped because the kernel is < 4.14 (CNM can start on 4.4+, USM requires 4.14+).
+// Reports a USM issue if USM is enabled but unsupported; resolves any stale USM issue otherwise.
+func checkAndReportUSMState(deps module.FactoryDependencies, ncfg *networkconfig.Config) {
+	if !ncfg.ServiceMonitoringEnabled {
+		resolveNetworkProbeUSMIssue(deps)
+		return
+	}
+	if usmErr := usmconfig.CheckUSMSupported(ncfg); usmErr != nil {
+		reportNetworkProbeInitFailure(deps, fmt.Errorf("%w: %w", errNetworkProbeUSMUnsupported, usmErr), ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
+	} else {
+		resolveNetworkProbeUSMIssue(deps)
 	}
 }

@@ -65,8 +65,9 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
 		return nil, initErr
 	}
-	// Tracer initialized successfully: resolve any stale USM issue.
-	resolveNetworkProbeUSMIssue(deps)
+	// Tracer initialized: check if USM was silently skipped (CNM starts on 4.4+,
+	// USM requires 4.14+) and report/resolve accordingly.
+	checkAndReportUSMState(deps, ncfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var connsSender sender.Sender
