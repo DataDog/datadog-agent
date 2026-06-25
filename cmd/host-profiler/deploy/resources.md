@@ -1,11 +1,13 @@
 # Resource requests and limits
 
-| Requests | Limits | QoS class | Trade-off |
+| QoS class | Requests | Limits | Trade-off |
 |---|---|---|---|
-| none | none | Best-effort | No reservation, no cap; first to be evicted under node memory pressure |
-| none | CPU: `1`, Memory: `1Gi` | Burstable | No reservation; usage capped to protect the node |
-| CPU: `1`, Memory: `1Gi` | CPU: `1`, Memory: `1Gi` | Guaranteed | Reserves capacity on every node; best eviction stability and resource visibility |
+| Best-effort | none | none | No reservation, no cap; first to be evicted under node memory pressure |
+| Burstable (default) | none | set | No reservation; usage capped to protect the node |
+| Guaranteed | = limits | set | Reserves capacity on every node; best eviction stability and resource visibility |
 
-The provided manifests use the Burstable configuration. Increase the memory limit on nodes that run large native binaries, as debug symbol processing requires additional memory.
+The provided manifests set limits of 1 CPU and 1 GiB memory. These values fit most deployments but can be tuned:
 
-Use Guaranteed if your cluster's observability tools assume requests and limits are equal, or if you need predictable eviction behavior.
+- **Large clusters or dense nodes**: consider adjusting limits based on observed usage, as overhead scales with the number of running processes.
+- **Large native binaries**: increase the memory limit when running workloads with large debug symbols, as symbol processing requires additional working memory.
+- **Guaranteed QoS**: set requests equal to limits if your cluster's observability tools assume they are equal, or if you need predictable eviction behavior.
