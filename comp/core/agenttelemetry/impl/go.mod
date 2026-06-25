@@ -18,6 +18,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/pkg/util/http v0.75.4
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-20251027120702-0e91eee9852f
+	github.com/DataDog/datadog-agent/pkg/util/log v0.75.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.75.4
 	github.com/DataDog/datadog-agent/pkg/version v0.75.4
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
@@ -30,6 +31,7 @@ require (
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.72.0-rc.1 // indirect
@@ -54,7 +56,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.75.4 // indirect
@@ -115,6 +116,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../../comp/core/agenttelemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def => ../../../../comp/core/configstreamconsumer/def
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../../../comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ../../../../comp/core/delegatedauth/api/cloudauth/aws

@@ -149,6 +149,7 @@ kmt_run_secagent_tests_x64:
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"
@@ -192,6 +193,7 @@ kmt_run_secagent_tests_x64_peds:
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"
@@ -296,6 +298,7 @@ kmt_run_secagent_tests_x64_docker:
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"
@@ -332,6 +335,7 @@ kmt_run_secagent_tests_arm64:
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_11"
@@ -368,6 +372,7 @@ kmt_run_secagent_tests_arm64_peds:
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_11"
@@ -446,6 +451,7 @@ kmt_run_secagent_tests_arm64_docker:
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_11"
@@ -475,13 +481,18 @@ kmt_run_secagent_tests_arm64_docker:
   script:
     - echo "nothing to do here"
 
-kmt_secagent_tests_join_arm64:
+kmt_secagent_tests_join1_arm64:
   extends:
     - .kmt_secagent_tests_join
   needs:
     - kmt_run_secagent_tests_arm64
     - kmt_run_secagent_tests_arm64_peds
     - kmt_run_secagent_tests_arm64_ad
+
+kmt_secagent_tests_join2_arm64:
+  extends:
+    - .kmt_secagent_tests_join
+  needs:
     - kmt_run_secagent_tests_arm64_ebpfless
     - kmt_run_secagent_tests_arm64_docker
 
@@ -491,7 +502,8 @@ kmt_secagent_cleanup_arm64:
     - .kmt_secagent_cleanup
   needs:
     - kmt_setup_env_secagent_arm64
-    - kmt_secagent_tests_join_arm64
+    - kmt_secagent_tests_join1_arm64
+    - kmt_secagent_tests_join2_arm64
     - upload_secagent_tests_arm64
   variables:
     ARCH: arm64

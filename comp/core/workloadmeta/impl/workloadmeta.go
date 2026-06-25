@@ -83,8 +83,8 @@ type Provider struct {
 	Endpoint      api.AgentEndpointProvider
 }
 
-// NewWorkloadMeta creates a new workloadmeta component.
-func NewWorkloadMeta(deps Dependencies) Provider {
+// NewComponent creates a new workloadmeta component.
+func NewComponent(deps Dependencies) Provider {
 	candidates := make(map[string]wmdef.Collector)
 	for _, c := range fxutil.GetAndFilterGroup(deps.Catalog) {
 		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
