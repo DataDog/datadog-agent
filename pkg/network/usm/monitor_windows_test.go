@@ -17,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -38,7 +39,7 @@ func setupWindowsMonitor(t *testing.T, cfg *config.Config) Monitor {
 		t.Skipf("driver start failed: %v", err)
 	}
 
-	di, err := driver.NewDriverInterface(cfg, driver.NewHandle, nil)
+	di, err := network.NewDriverInterface(cfg, driver.NewHandle, nil)
 	if err != nil {
 		t.Skipf("driver interface creation failed: %v", err)
 	}

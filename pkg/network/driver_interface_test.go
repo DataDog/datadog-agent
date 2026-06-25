@@ -1,11 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2025-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 //go:build windows
 
-package driver
+package network
 
 import (
 	"testing"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 type TestDriverHandleInfiniteLoop struct {
@@ -76,7 +77,7 @@ func TestConnectionStatsInfiniteLoop(t *testing.T) {
 	activeBuf := NewConnectionBuffer(startSize, minSize)
 	closedBuf := NewConnectionBuffer(startSize, minSize)
 
-	di, err := NewDriverInterface(config.New(), func(_ uint32, _ HandleType, _ telemetry.Component) (Handle, error) {
+	di, err := NewDriverInterface(config.New(), func(_ uint32, _ driver.HandleType, _ telemetry.Component) (driver.Handle, error) {
 		return &TestDriverHandleInfiniteLoop{t: t}, nil
 	}, nil)
 	require.NoError(t, err, "Failed to create new driver interface")

@@ -1,11 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2025-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 //go:build windows
 
-package driver
+package network
 
 import (
 	"errors"
@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 type TestDriverHandleFail struct {
@@ -75,7 +77,7 @@ func (tdh *TestDriverHandleFail) Close() error {
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
-func NewFailHandle(flags uint32, handleType HandleType) (Handle, error) {
+func NewFailHandle(flags uint32, handleType driver.HandleType) (driver.Handle, error) {
 	return &TestDriverHandleFail{}, nil
 }
 
