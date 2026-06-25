@@ -86,10 +86,10 @@ DD_BETA_COMMANDS_ENABLED=1 datadog-ci elf-symbols upload /path/to/build/symbols/
 | QoS class | Requests | Limits | Trade-off |
 |---|---|---|---|
 | Best-effort | none | none | No reservation, no cap; first to be evicted under node memory pressure |
-| Burstable (default) | set | set | No reservation; usage capped to protect the node |
+| Burstable (default) | 0 | set | No reservation; usage capped to protect the node |
 | Guaranteed | = limits | set | Reserves capacity on every node; best eviction stability and resource visibility |
 
-The provided manifests set requests to zero and limits of 500m CPU and 1 GiB memory, which fit most deployments. Explicit zero requests prevent LimitRanger admission controllers from defaulting requests to match limits, which would otherwise silently result in Guaranteed QoS. These values can be tuned:
+The provided manifests set requests to zero and limits of 500m CPU and 1 GiB memory, which fit most deployments. These values can be tuned:
 
 - **Large clusters or dense nodes**: consider adjusting limits based on observed usage, as overhead scales with the number of running processes.
 - **Large native binaries**: increase the memory limit when running workloads with large debug symbols, as symbol processing requires additional working memory.
