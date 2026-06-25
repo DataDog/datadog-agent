@@ -39,7 +39,7 @@ func TestBuildPipelines(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -69,7 +69,7 @@ func TestBuildPipelinesWithAdditionalEndpoints(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -102,7 +102,7 @@ func TestBuildPipelinesWithAutoscalingFailover(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -145,7 +145,7 @@ func TestBuildPipelinesWithAutoscalingFailoverEmptyList(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -173,7 +173,7 @@ func TestBuildPipelinesWithMRFInactive(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -207,7 +207,7 @@ func TestBuildPipelinesWithMRFActive(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -245,7 +245,7 @@ func TestBuildPipelinesWithMRFActiveFilter(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -284,7 +284,7 @@ func TestBuildPipelinesSketches(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSketches)
@@ -318,7 +318,7 @@ func TestPipelinesWithV3AndAdditionalEndpoints(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -362,7 +362,7 @@ func TestPipelinesWithAdditionalEndpointsV3(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -403,7 +403,7 @@ func TestPipelinesWithV3Validate(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -468,7 +468,7 @@ func TestBuildPipelinesWithV3Beta(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -497,7 +497,7 @@ func TestBuildPipelinesWithV3BetaCustomRoute(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
@@ -530,7 +530,7 @@ func TestBuildPipelinesShadowSampleRateZero(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
@@ -556,7 +556,7 @@ func TestBuildPipelinesShadowFires(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0.4})
@@ -609,7 +609,7 @@ func TestBuildPipelinesShadowSkippedAboveRate(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0.6})
@@ -636,7 +636,7 @@ func TestBuildPipelinesShadowSkippedWhenV3Authoritative(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
@@ -662,7 +662,7 @@ func TestBuildPipelinesShadowSkippedForSketches(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 0})
@@ -691,7 +691,7 @@ func TestBuildPipelinesShadowSkippedForNonShadowSite(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
@@ -721,7 +721,7 @@ func TestBuildPipelinesShadowSitesKnobOptsInNonUS1(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
@@ -784,7 +784,7 @@ func TestBuildPipelinesShadowSkippedWhenVectorConfigured(t *testing.T) {
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
@@ -808,7 +808,7 @@ func newSeriesV3Serializer(t *testing.T, config model.BuildableConfig) *Serializ
 	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
 	return NewSerializer(f, nil, compressor, config, logger, "")
 }
 
