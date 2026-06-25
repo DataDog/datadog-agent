@@ -9,7 +9,6 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -27,12 +26,10 @@ import (
 const (
 	apmReadyConditionType = "APMReady"
 
-	reasonAPMConfigured        = "Configured"
-	reasonAPMDeleted           = "Deleted"
-	reasonAPMUnsupportedTarget = "UnsupportedTarget"
-	reasonAPMUnsupportedLang   = "UnsupportedLanguage"
-	reasonAPMInvalidConfig     = "InvalidTracerConfig"
-	reasonAPMStoreUnavailable  = "StoreUnavailable"
+	reasonAPMConfigured      = "Configured"
+	reasonAPMDeleted         = "Deleted"
+	reasonAPMUnsupportedLang = "UnsupportedLanguage"
+	reasonAPMInvalidConfig   = "InvalidTracerConfig"
 )
 
 var supportedAPMLanguages = map[string]struct{}{
@@ -123,33 +120,13 @@ func (h *APMHandler) Handle(_ context.Context, event instrumentation.EventType, 
 
 	crRef := types.NamespacedName{Namespace: cr.Namespace, Name: cr.Name}
 	if event == instrumentation.EventDelete {
-		if h.apmStore != nil {
-			h.apmStore.DeleteByCR(crRef)
-		}
+		h.apmStore.DeleteByCR(crRef)
 		return instrumentation.HandlerStatus{
 			Type:    apmReadyConditionType,
 			Status:  metav1.ConditionTrue,
 			Reason:  reasonAPMDeleted,
 			Message: fmt.Sprintf("APM settings removed for %s/%s", cr.Spec.TargetRef.Kind, cr.Spec.TargetRef.Name),
 		}, nil
-	}
-
-	if !h.SupportsTarget(cr.Spec.TargetRef) {
-		return instrumentation.HandlerStatus{
-			Type:    apmReadyConditionType,
-			Status:  metav1.ConditionFalse,
-			Reason:  reasonAPMUnsupportedTarget,
-			Message: fmt.Sprintf("APM does not support target kind %q", cr.Spec.TargetRef.Kind),
-		}, nil
-	}
-
-	if h.apmStore == nil {
-		return instrumentation.HandlerStatus{
-			Type:    apmReadyConditionType,
-			Status:  metav1.ConditionFalse,
-			Reason:  reasonAPMStoreUnavailable,
-			Message: "APM CR store is not configured",
-		}, errors.New("APM CR store is not configured")
 	}
 
 	target := crstore.WorkloadTarget{

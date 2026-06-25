@@ -199,13 +199,11 @@ func TestAPMHandlerValidate(t *testing.T) {
 
 func TestAPMHandlerHandle(t *testing.T) {
 	workload := crstore.WorkloadTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
-	unsupportedWorkload := crstore.WorkloadTarget{Kind: "Service", Namespace: "default", Name: "web"}
 	validCR := newAPMDDI("ddi-web", "default", "Deployment", "web", &datadoghq.DatadogInstrumentationAPMConfig{
 		Enabled:        true,
 		TracerVersions: map[string]string{"java": "v1"},
 		TracerConfigs:  []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
 	})
-	unsupportedCR := newAPMDDI("ddi-svc", "default", "Service", "web", &datadoghq.DatadogInstrumentationAPMConfig{Enabled: true})
 
 	tests := []struct {
 		name        string
@@ -215,7 +213,6 @@ func TestAPMHandlerHandle(t *testing.T) {
 		setup       func(t *testing.T, h *APMHandler)
 		wantStatus  metav1.ConditionStatus
 		wantReason  string
-		wantErr     bool
 		assertStore func(t *testing.T, store *crstore.Store)
 	}{
 		{
@@ -251,33 +248,12 @@ func TestAPMHandlerHandle(t *testing.T) {
 			},
 		},
 		{
-			name:       "unsupported target does not write store",
-			store:      crstore.New(),
-			event:      instrumentation.EventCreate,
-			cr:         unsupportedCR,
-			wantStatus: metav1.ConditionFalse,
-			wantReason: reasonAPMUnsupportedTarget,
-			assertStore: func(t *testing.T, store *crstore.Store) {
-				_, ok := store.GetAPM(unsupportedWorkload)
-				require.False(t, ok)
-			},
-		},
-		{
 			name:       "nil cr reports missing resource",
 			store:      crstore.New(),
 			event:      instrumentation.EventCreate,
 			cr:         nil,
 			wantStatus: metav1.ConditionUnknown,
 			wantReason: "MissingResource",
-		},
-		{
-			name:       "nil store returns error",
-			store:      nil,
-			event:      instrumentation.EventCreate,
-			cr:         validCR,
-			wantStatus: metav1.ConditionFalse,
-			wantReason: reasonAPMStoreUnavailable,
-			wantErr:    true,
 		},
 	}
 
@@ -289,11 +265,7 @@ func TestAPMHandlerHandle(t *testing.T) {
 			}
 
 			status, err := h.Handle(context.Background(), tt.event, tt.cr)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
 			require.Equal(t, apmReadyConditionType, status.Type)
 			require.Equal(t, tt.wantStatus, status.Status)
 			require.Equal(t, tt.wantReason, status.Reason)
