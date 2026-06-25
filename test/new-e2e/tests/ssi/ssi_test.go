@@ -170,7 +170,7 @@ func (v *ssiSuite) TestInjectionMode() {
 
 	for _, tc := range testCases {
 		v.Run(tc.name, func() {
-			pod := FindPodInNamespace(v.T(), k8s, "injection-mode", tc.name)
+			pod := WaitForMutatedPodInNamespace(v.T(), k8s, "injection-mode", tc.name)
 
 			// The cluster-agent's CSI driver watcher learns about the CSIDriver
 			// asynchronously from workloadmeta. The auto pod may have been admitted
@@ -254,7 +254,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 		k8s := v.Env().KubernetesCluster.Client()
 
 		// Ensure the pod was injected.
-		pod := FindPodInNamespace(v.T(), k8s, "application", "local-sdk-injection-app")
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "application", "local-sdk-injection-app")
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireInjection(v.T(), []string{"local-sdk-injection-app"})
 		podValidator.RequireLibraryVersions(v.T(), map[string]string{
@@ -327,7 +327,7 @@ func (v *ssiSuite) TestNamespaceSelection() {
 		k8s := v.Env().KubernetesCluster.Client()
 
 		// Ensure the pod was injected.
-		pod := FindPodInNamespace(v.T(), k8s, "expect-injection", "namespace-selection-inject")
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "expect-injection", "namespace-selection-inject")
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireInjection(v.T(), []string{"namespace-selection-inject"})
 		podValidator.RequireLibraryVersions(v.T(), map[string]string{
@@ -402,7 +402,7 @@ func (v *ssiSuite) TestWorkloadSelection() {
 		k8s := v.Env().KubernetesCluster.Client()
 
 		// Ensure the pod was injected.
-		pod := FindPodInNamespace(v.T(), k8s, "targeted-namespace", "workload-selection-inject")
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "targeted-namespace", "workload-selection-inject")
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireInjection(v.T(), []string{"workload-selection-inject"})
 		podValidator.RequireLibraryVersions(v.T(), map[string]string{
@@ -490,7 +490,7 @@ func (v *ssiSuite) TestRegistryAllowList() {
 		intake := v.Env().FakeIntake.Client()
 		k8s := v.Env().KubernetesCluster.Client()
 
-		pod := FindPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-allowed")
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-allowed")
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireInjection(v.T(), []string{"registry-allow-list-allowed"})
 		podValidator.RequireInjectorVersion(v.T(), "0.54.0")
@@ -508,7 +508,7 @@ func (v *ssiSuite) TestRegistryAllowList() {
 
 	v.Run("InjectorRegistryBlockedByAllowList", func() {
 		k8s := v.Env().KubernetesCluster.Client()
-		pod := FindPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-injector-blocked")
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-injector-blocked")
 
 		// The injector image is overridden to fake.registry.invalid via pod annotation,
 		// which is not in the allow list. No SSI artifacts should be injected, even if KPI
@@ -526,7 +526,7 @@ func (v *ssiSuite) TestRegistryAllowList() {
 
 	v.Run("LibraryRegistryBlockedByAllowList", func() {
 		k8s := v.Env().KubernetesCluster.Client()
-		pod := FindPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-library-blocked")
+		pod := WaitForMutatedPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-library-blocked")
 
 		// The injector is from the allowed registry, but the python library is overridden
 		// to fake.registry.invalid via annotation. No SSI artifacts should be injected, even
