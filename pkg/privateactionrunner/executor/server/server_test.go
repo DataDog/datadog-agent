@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package executor
+package server
 
 import (
 	"context"
@@ -183,18 +183,4 @@ func TestExecuteRPC_CtxCancelPropagatesToHandler(t *testing.T) {
 		t.Fatalf("Execute did not return after cancel")
 	}
 	close(released)
-}
-
-// TestNewExecutor_UnknownModeRejected verifies invalid modes are
-// rejected at construction time.
-func TestNewExecutor_UnknownModeRejected(t *testing.T) {
-	_, err := NewExecutor(Params{Mode: "stargate"})
-	assert.Error(t, err)
-}
-
-// TestNewExecutor_InProcessRequiresHandler verifies in-process mode
-// rejects a nil handler.
-func TestNewExecutor_InProcessRequiresHandler(t *testing.T) {
-	_, err := NewExecutor(Params{Mode: ModeInProcess})
-	assert.Error(t, err)
 }

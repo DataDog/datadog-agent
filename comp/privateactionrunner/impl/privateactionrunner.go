@@ -29,6 +29,8 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	parexecutor "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor/binary"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor/inproc"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/orchestrator/autoconnections"
@@ -229,17 +231,23 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
 	taskHandler := parexecutor.NewTaskHandler(cfg, keysManager, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient())
-	exec, err := parexecutor.NewExecutor(parexecutor.Params{
-		Mode:           cfg.ExecutorMode,
-		Handler:        taskHandler,
-		SocketPath:     cfg.ExecutorSocketPath,
-		AuthToken:      p.ipc.GetAuthToken(),
-		DrainTimeout:   cfg.ExecutorDrainTimeout,
-		ConfPath:       cfg.ConfPath,
-		ExtraConfFiles: cfg.ExtraConfFiles,
-	})
-	if err != nil {
-		return err
+	var exec parexecutor.Executor
+	switch cfg.ExecutorMode {
+	case parexecutor.ModeInProcess, "":
+		exec = inproc.New(taskHandler)
+	case parexecutor.ModeBinary:
+		exec, err = binary.New(binary.Params{
+			SocketPath:     cfg.ExecutorSocketPath,
+			AuthToken:      p.ipc.GetAuthToken(),
+			DrainTimeout:   cfg.ExecutorDrainTimeout,
+			ConfPath:       cfg.ConfPath,
+			ExtraConfFiles: cfg.ExtraConfFiles,
+		})
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown private_action_runner.executor_mode %q (want %q or %q)", cfg.ExecutorMode, parexecutor.ModeInProcess, parexecutor.ModeBinary)
 	}
 	p.orchestrator = orchestrator.NewOrchestrator(cfg, opmsClient, exec)
 	p.commonRunner = orchestrator.NewCommonRunner(p.coreConfig, cfg)

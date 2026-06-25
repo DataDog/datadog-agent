@@ -3,7 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package executor
+// Package server holds the gRPC Server that runs inside the executor
+// child process. It receives Execute RPCs from the binary-mode
+// orchestrator, runs each task through a TaskHandler, and returns the
+// result.
+package server
 
 import (
 	"context"
@@ -13,6 +17,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/util"
@@ -21,16 +26,17 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Server is the gRPC server that runs inside the executor child process.
-// It exposes a single Execute RPC: each incoming request runs the task
-// through a TaskHandler and returns the result. There is no active-task
-// bookkeeping or shutdown dance — the orchestrator owns drain coordination
-// (it waits for its own in-flight Execute calls to return before stopping
-// the supervisor) and gRPC's GracefulStop waits for in-flight handlers.
+// Server is the gRPC server that runs inside the executor child
+// process. It exposes a single Execute RPC: each incoming request runs
+// the task through a TaskHandler and returns the result. There is no
+// active-task bookkeeping or shutdown dance — the orchestrator owns
+// drain coordination (it waits for its own in-flight Execute calls to
+// return before tearing the child down) and gRPC's GracefulStop waits
+// for in-flight handlers.
 type Server struct {
 	executorpb.UnimplementedExecutorServer
 
-	handler   *TaskHandler
+	handler   *executor.TaskHandler
 	authToken string
 
 	mu      sync.Mutex
@@ -41,7 +47,7 @@ type Server struct {
 
 // NewServer builds an Executor gRPC server backed by the given handler.
 // An empty authToken disables auth (useful in tests).
-func NewServer(handler *TaskHandler, authToken string) *Server {
+func NewServer(handler *executor.TaskHandler, authToken string) *Server {
 	return &Server{handler: handler, authToken: authToken}
 }
 
@@ -69,8 +75,8 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	return nil
 }
 
-// Stop gracefully stops the gRPC server, which itself waits for in-flight
-// Execute handlers to finish before returning.
+// Stop gracefully stops the gRPC server, which itself waits for
+// in-flight Execute handlers to finish before returning.
 func (s *Server) Stop(_ context.Context) error {
 	s.mu.Lock()
 	s.stopped = true
@@ -82,11 +88,11 @@ func (s *Server) Stop(_ context.Context) error {
 	return nil
 }
 
-// Execute implements executor.Executor/Execute. It runs the dequeued task
-// to completion and returns the action output (or an error shape the
-// orchestrator can publish).
+// Execute implements executor.Executor/Execute. It runs the dequeued
+// task to completion and returns the action output (or an error shape
+// the orchestrator can publish).
 func (s *Server) Execute(ctx context.Context, req *executorpb.ExecuteRequest) (*executorpb.ExecuteResponse, error) {
-	if err := checkAuth(ctx, s.authToken); err != nil {
+	if err := executor.CheckAuth(ctx, s.authToken); err != nil {
 		return nil, err
 	}
 

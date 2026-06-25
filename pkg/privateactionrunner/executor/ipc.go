@@ -13,23 +13,23 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// authMetadataKey is the gRPC metadata key carrying the shared agent IPC
+// AuthMetadataKey is the gRPC metadata key carrying the shared agent IPC
 // session token. Both processes obtain the token from the IPC component
 // (`comp/core/ipc`); the token lives on disk and is loaded identically
 // on each side, so no token traverses the command line or environment.
-const authMetadataKey = "x-par-executor-token"
+const AuthMetadataKey = "x-par-executor-token"
 
-// withAuth attaches the executor auth token to outgoing gRPC requests.
-func withAuth(ctx context.Context, token string) context.Context {
+// WithAuth attaches the executor auth token to outgoing gRPC requests.
+func WithAuth(ctx context.Context, token string) context.Context {
 	if token == "" {
 		return ctx
 	}
-	return metadata.AppendToOutgoingContext(ctx, authMetadataKey, token)
+	return metadata.AppendToOutgoingContext(ctx, AuthMetadataKey, token)
 }
 
-// checkAuth rejects incoming requests that lack the expected token. An
+// CheckAuth rejects incoming requests that lack the expected token. An
 // empty expected token disables the check (useful in tests).
-func checkAuth(ctx context.Context, expected string) error {
+func CheckAuth(ctx context.Context, expected string) error {
 	if expected == "" {
 		return nil
 	}
@@ -37,7 +37,7 @@ func checkAuth(ctx context.Context, expected string) error {
 	if !ok {
 		return status.Error(codes.Unauthenticated, "executor: missing request metadata")
 	}
-	values := md.Get(authMetadataKey)
+	values := md.Get(AuthMetadataKey)
 	if len(values) == 0 || values[0] != expected {
 		return status.Error(codes.Unauthenticated, "executor: invalid auth token")
 	}

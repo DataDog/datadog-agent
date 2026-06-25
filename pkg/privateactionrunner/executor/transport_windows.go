@@ -16,9 +16,10 @@ import (
 	"github.com/Microsoft/go-winio"
 )
 
-// defaultSocketPath is the platform-specific transport path used when the
-// operator did not configure one. On Windows the path is a named pipe.
-func defaultSocketPath() string {
+// DefaultSocketPath is the platform-specific transport path used when
+// the operator did not configure one. On Windows the path is a named
+// pipe.
+func DefaultSocketPath() string {
 	return `\\.\pipe\datadog-par-executor`
 }
 
@@ -39,16 +40,16 @@ func Listen(socketPath string) (net.Listener, error) {
 	return l, nil
 }
 
-// dialTarget returns the gRPC target string a client uses to dial the given
-// pipe.
-func dialTarget(socketPath string) string {
+// DialTarget returns the gRPC target string a client uses to dial the
+// given pipe.
+func DialTarget(socketPath string) string {
 	return "pipe:" + socketPath
 }
 
-// signalProcess best-effort tries to ask the child to exit gracefully.
+// SignalProcess best-effort tries to ask the child to exit gracefully.
 // Windows lacks SIGTERM; os.Process.Kill is the only built-in option and
 // the WaitDelay timer will force termination anyway.
-func signalProcess(p *os.Process) error {
+func SignalProcess(p *os.Process) error {
 	if p == nil {
 		return nil
 	}

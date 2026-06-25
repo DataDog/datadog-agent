@@ -39,6 +39,7 @@ import (
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	parexecutor "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
+	executorserver "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor/server"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor/task-verifier"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/config"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/shared/adapters/rcclient"
@@ -132,7 +133,7 @@ func serve(ctx context.Context, params *cliParams, deps executorDeps) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	handler := parexecutor.NewTaskHandler(cfg, keysManager, taskVerifier, deps.Traceroute, deps.EventPlatform, deps.IPC.GetClient())
 
-	server := parexecutor.NewServer(handler, deps.IPC.GetAuthToken())
+	server := executorserver.NewServer(handler, deps.IPC.GetAuthToken())
 	listener, err := parexecutor.Listen(params.socketPath)
 	if err != nil {
 		return fmt.Errorf("listen on executor socket: %w", err)

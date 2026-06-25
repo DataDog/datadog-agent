@@ -16,9 +16,9 @@ import (
 	"syscall"
 )
 
-// defaultSocketPath is the platform-specific socket path used when the
+// DefaultSocketPath is the platform-specific socket path used when the
 // operator did not configure one.
-func defaultSocketPath() string {
+func DefaultSocketPath() string {
 	return "/opt/datadog-agent/run/par-executor.sock"
 }
 
@@ -49,15 +49,15 @@ func Listen(socketPath string) (net.Listener, error) {
 	return l, nil
 }
 
-// dialTarget returns the gRPC target string a client uses to dial the given
-// socket path.
-func dialTarget(socketPath string) string {
+// DialTarget returns the gRPC target string a client uses to dial the
+// given socket path.
+func DialTarget(socketPath string) string {
 	return "unix:" + socketPath
 }
 
-// signalProcess sends SIGTERM to the running child so it has a chance to
+// SignalProcess sends SIGTERM to the running child so it has a chance to
 // drain before the WaitDelay-driven SIGKILL.
-func signalProcess(p *os.Process) error {
+func SignalProcess(p *os.Process) error {
 	if p == nil {
 		return nil
 	}
