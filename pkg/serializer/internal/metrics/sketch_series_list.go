@@ -110,15 +110,12 @@ func newPayloadsBuilder(
 	pipelineContext *PipelineContext,
 ) *payloadsBuilder {
 	buf := bufferContext.PrecompressionBuf
-	sketchBuf := &bytes.Buffer{}
 	pb := &payloadsBuilder{
 		bufferContext: bufferContext,
 		strategy:      strategy,
 		compressor:    nil,
 		buf:           buf,
 		ps:            molecule.NewProtoStream(buf),
-		sketchBuf:     sketchBuf,
-		sketchPS:      molecule.NewProtoStream(sketchBuf),
 		// the backend accepts payloads up to specific compressed / uncompressed
 		// sizes, but prefers small uncompressed payloads.
 		maxPayloadSize:      config.GetInt("serializer_max_payload_size"),
@@ -143,11 +140,8 @@ type payloadsBuilder struct {
 	pointCount          int
 	logger              log.Component
 
-	// Scratch state for serializing a single Distribution. sketchPS streams the
-	// inner sketch body into sketchBuf during WriteDDSketch; sketchPointCount
-	// tracks the points written during the current WriteTo.
-	sketchBuf        *bytes.Buffer
-	sketchPS         *molecule.ProtoStream
+	// Scratch state for serializing a single Distribution.
+	sketchStream     *molecule.ProtoStream
 	sketchPointCount int
 
 	pipelineConfig  PipelineConfig
@@ -245,11 +239,9 @@ func (pb *payloadsBuilder) WriteDDSketch(meta metrics.DistributionMetadata, numP
 	// protobuf field numbers for the dogsketch entries, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
 
-	pb.sketchBuf.Reset()
-	pb.sketchPS.Reset(pb.sketchBuf)
 	pb.sketchPointCount = numPoints
 
-	ps := pb.sketchPS
+	ps := pb.sketchStream
 	if err := ps.String(sketchMetric, meta.Name); err != nil {
 		return err
 	}
@@ -323,14 +315,10 @@ func (pb *payloadsBuilder) writeSketch(dist metrics.Distribution) error {
 		return nil
 	}
 
-	if err := dist.WriteTo(pb); err != nil {
-		return err
-	}
-
 	pb.buf.Reset()
 	err := pb.ps.Embedded(payloadSketches, func(ps *molecule.ProtoStream) error {
-		_, err := ps.Write(pb.sketchBuf.Bytes())
-		return err
+		pb.sketchStream = ps
+		return dist.WriteTo(pb)
 	})
 	if err != nil {
 		return err
