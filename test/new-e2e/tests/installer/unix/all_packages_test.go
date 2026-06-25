@@ -377,10 +377,19 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		"TESTING_YUM_URL":          "yum.datadoghq.com",
 		"TESTING_YUM_VERSION_PATH": "",
 	}
+	// Build a set of keys already provided in params so env defaults don't override them.
+	paramKeys := make(map[string]struct{}, len(params))
+	for _, p := range params {
+		if key, _, found := strings.Cut(p, "="); found {
+			paramKeys[key] = struct{}{}
+		}
+	}
 	mergedParams := make([]string, len(params))
 	copy(mergedParams, params)
 	for k, v := range env {
-		mergedParams = append(mergedParams, fmt.Sprintf("%s=%s", k, v))
+		if _, overridden := paramKeys[k]; !overridden {
+			mergedParams = append(mergedParams, fmt.Sprintf("%s=%s", k, v))
+		}
 	}
 
 	environments := []string{}
