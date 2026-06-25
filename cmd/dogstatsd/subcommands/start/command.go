@@ -20,13 +20,21 @@ import (
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
+	apiimpl "github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
+	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	adnoopfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -48,6 +56,7 @@ import (
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatformstorefx "github.com/DataDog/datadog-agent/comp/healthplatform/store/fx"
 	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
@@ -59,6 +68,8 @@ import (
 	resourcesimpl "github.com/DataDog/datadog-agent/comp/metadata/resources/impl"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
+	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
+	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -67,6 +78,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -178,6 +190,22 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		}),
 		healthprobefx.Module(),
 		haagentfx.Module(),
+		// API/gRPC server stack so the Agent Data Plane can fetch its
+		// configuration from the standalone dogstatsd process over IPC
+		// (the AgentSecure StreamConfigEvents endpoint). This mirrors the
+		// wiring used by the full Agent's `run` command.
+		apiimpl.Module(),
+		grpcAgentfx.Module(),
+		commonendpoints.Module(),
+		configstreamfx.Module(),
+		remoteagentregistryfx.Module(),
+		adnoopfx.Module(),
+		healthplatformstorefx.Module(),
+		// Optional dependencies of the gRPC server that the standalone
+		// dogstatsd process does not run; provide explicit "none" values.
+		fx.Provide(func() option.Option[rcservice.Component] { return option.None[rcservice.Component]() }),
+		fx.Provide(func() option.Option[rcservicemrf.Component] { return option.None[rcservicemrf.Component]() }),
+		fx.Provide(func() option.Option[collector.Component] { return option.None[collector.Component]() }),
 	)
 }
 
@@ -197,6 +225,7 @@ func start(
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
 	_ healthprobe.Component,
+	_ api.Component,
 ) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
