@@ -81,17 +81,25 @@ func NewExporterWithGatewayUsage(
 }
 
 // ConsumeLogs checks the scope of the logs and routes them to the appropriate consumer
-func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
-	scope := getLogsScope(ld)
-	switch scope {
-	case K8sObjectsReceiver:
-		if e.orchestratorExporter.config.Enabled {
-			return e.consumeK8sObjects(ctx, ld)
-		}
-		fallthrough
-	default:
+func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
+	if !e.orchestratorExporter.config.Enabled {
 		return e.consumeRegularLogs(ctx, ld)
 	}
+
+	k8sLogs, regularLogs := splitLogsByScope(ld)
+
+	var errs []error
+	if k8sLogs.ResourceLogs().Len() > 0 {
+		if err := e.consumeK8sObjects(ctx, k8sLogs); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if regularLogs.ResourceLogs().Len() > 0 {
+		if err := e.consumeRegularLogs(ctx, regularLogs); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // consumeRegularLogs maps logs from OTLP to DD format and ingests them through the exporter channel
@@ -188,14 +196,17 @@ type ScopeName string
 // K8sObjectsReceiver is the scope name for the k8sobjectsreceiver
 var K8sObjectsReceiver ScopeName = "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver"
 
-// getLogsScope extracts the scope name from the logs data
-func getLogsScope(ld plog.Logs) ScopeName {
+// splitLogsByScope partitions ld into k8sobjects-receiver logs and everything else
+func splitLogsByScope(ld plog.Logs) (plog.Logs, plog.Logs) {
+	k8sLogs := plog.NewLogs()
+	regularLogs := plog.NewLogs()
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
-		resourceLogs := ld.ResourceLogs().At(i)
-		if resourceLogs.ScopeLogs().Len() > 0 {
-			scopeLogs := resourceLogs.ScopeLogs().At(0)
-			return ScopeName(scopeLogs.Scope().Name())
+		rl := ld.ResourceLogs().At(i)
+		dst := regularLogs
+		if rl.ScopeLogs().Len() > 0 && ScopeName(rl.ScopeLogs().At(0).Scope().Name()) == K8sObjectsReceiver {
+			dst = k8sLogs
 		}
+		rl.CopyTo(dst.ResourceLogs().AppendEmpty())
 	}
-	return ""
+	return k8sLogs, regularLogs
 }

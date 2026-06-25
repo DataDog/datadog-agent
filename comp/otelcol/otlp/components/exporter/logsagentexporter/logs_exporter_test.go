@@ -408,3 +408,16 @@ func traceIDToHexOrEmptyString(id pcommon.TraceID) string {
 	}
 	return hex.EncodeToString(id[:])
 }
+
+func TestSplitLogsByScope(t *testing.T) {
+	ld := plog.NewLogs()
+	for _, scope := range []string{"filelog", string(K8sObjectsReceiver), "filelog", string(K8sObjectsReceiver)} {
+		ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().Scope().SetName(scope)
+	}
+
+	k8s, regular := splitLogsByScope(ld)
+	assert.Equal(t, 2, k8s.ResourceLogs().Len())
+	assert.Equal(t, 2, regular.ResourceLogs().Len())
+	assert.Equal(t, string(K8sObjectsReceiver), k8s.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
+	assert.Equal(t, "filelog", regular.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Name())
+}
