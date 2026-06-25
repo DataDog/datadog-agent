@@ -12,7 +12,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/benbjohnson/clock v1.3.5
-	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/kr/pretty v0.3.1
@@ -24,7 +23,10 @@ require (
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 )
 
-require gopkg.in/yaml.v3 v3.0.1
+require (
+	github.com/cenkalti/backoff/v6 v6.0.1
+	gopkg.in/yaml.v3 v3.0.1
+)
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7 // indirect

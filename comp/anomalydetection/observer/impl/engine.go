@@ -75,6 +75,9 @@ type engine struct {
 	// existing entries when the correlator reports a newer version.
 	accumulatedCorrelations map[string]observerdef.ActiveCorrelation
 	correlationMu           sync.RWMutex
+	// maxCorrelations caps accumulatedCorrelations. 0 = built-in default (500),
+	// -1 = unlimited (testbench replay).
+	maxCorrelations int
 
 	// Optional callbacks for direct telemetry emission.
 	onStorageSeriesEvicted func(reason string, count int)
@@ -733,8 +736,12 @@ func (e *engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) 
 		}
 	}
 
-	// Evict oldest entries if over cap.
-	for len(e.accumulatedCorrelations) > maxAccumulatedCorrelations {
+	// Evict oldest entries if over cap. cap=-1 means unlimited (testbench).
+	cap := e.maxCorrelations
+	if cap == 0 {
+		cap = maxAccumulatedCorrelations
+	}
+	for cap > 0 && len(e.accumulatedCorrelations) > cap {
 		var oldestKey string
 		var oldestTime int64 = math.MaxInt64
 		for k, ac := range e.accumulatedCorrelations {
@@ -905,6 +912,7 @@ func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []
 	e.resetFull()
 	e.mu.Lock()
 	e.storage = newTimeSeriesStorageWith(storageCfg)
+	e.maxCorrelations = storageCfg.MaxCorrelations
 	e.mu.Unlock()
 }
 
