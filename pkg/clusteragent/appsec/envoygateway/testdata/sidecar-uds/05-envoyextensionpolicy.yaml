@@ -1,0 +1,21 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyExtensionPolicy
+metadata:
+  name: datadog-appsec-extproc
+  namespace: eg-appsec-demo
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: appsec-gateway
+  extProc:
+    - failOpen: false
+      messageTimeout: 2s
+      backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: datadog-appsec-extproc
+      processingMode:
+        allowModeOverride: true
+        request: {}
+        response: {}

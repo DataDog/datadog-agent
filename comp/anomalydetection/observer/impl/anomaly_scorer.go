@@ -162,13 +162,15 @@ var levelWeights = [5]float64{0.2, 0.5, 1.0, 2.0, 3.0}
 // Per-detector thresholds are set based on empirical score distributions across
 // kafka-partition-saturation, postmark, and dns-upstream-outage scenarios.
 func DefaultScorerConfig() observer.ScorerConfig {
+	const windowSecs = 15
 	return observer.ScorerConfig{
 		Alpha:         0.014,
 		SaturationK:   5.0,
-		WindowSecs:    15,
-		LowThreshold:  0.040,
-		HighThreshold: 0.060,
+		WindowSecs:    windowSecs,
+		LowThreshold:  0.15,
+		HighThreshold: 0.40,
 		MarginPct:     0.20,
+		// MaxBuckets intentionally left at zero: the trim logic defaults to WindowSecs.
 		DetectorThresholds: map[string][4]float64{
 			// tukey_biweight scores cap hard at ~50 across all scenarios.
 			// Calibrated: p25≈6, p50≈9, p75≈15, p90≈27, p99≈45 (3-scenario avg).
@@ -278,7 +280,8 @@ type secEWMA struct {
 //	Advance(t)     → finalises every second in [lastAdvancedSec+1, t]:
 //	                   merge pending anomalies into windowMap,
 //	                   evict stale series (older than WindowSecs),
-//	                   compute saturation + EWMA from window.
+//	                   compute saturation + EWMA from window,
+//	                   run global severity state machine.
 //	ScoreState()   → returns accumulated telemetry snapshot.
 //	Reset()        → clears all internal state.
 //
@@ -527,9 +530,14 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 		WeightSum: weightSum,
 		Ewma:      s.ewma,
 	})
-	if int64(len(s.buckets)) > s.config.WindowSecs {
-		trimmed := make([]observer.ScoreBucket, s.config.WindowSecs)
-		copy(trimmed, s.buckets[int64(len(s.buckets))-s.config.WindowSecs:])
+	// Default cap is WindowSecs; MaxBuckets overrides this when set to a positive value.
+	bucketCap := s.config.MaxBuckets
+	if bucketCap <= 0 {
+		bucketCap = s.config.WindowSecs
+	}
+	if int64(len(s.buckets)) > bucketCap {
+		trimmed := make([]observer.ScoreBucket, bucketCap)
+		copy(trimmed, s.buckets[int64(len(s.buckets))-bucketCap:])
 		s.buckets = trimmed
 	}
 
