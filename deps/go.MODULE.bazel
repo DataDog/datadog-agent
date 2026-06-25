@@ -8,6 +8,13 @@ use_repo(go_sdk, "go_work_sdk")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 
+# Expose repos for legacy rules, inspired by https://github.com/bazel-contrib/bazel-gazelle/pull/2361
+inject_repo(
+    go_deps,
+    protobuf = "protobuf",
+    rules_proto = "rules_proto",
+)
+
 # TODO(agent-build): when all Go modules are migrated, use //:go.work instead of @bazelify_go_work//:go.work
 use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
 
@@ -66,6 +73,7 @@ go_deps.gazelle_default_attributes(
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib @@//pkg/util/compression/impl-zlib:impl-zlib",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/option @@//pkg/util/option:option",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state:state",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/network/driver @@//pkg/network/driver:driver",
     ],
 )
 go_deps.gazelle_override(
@@ -88,6 +96,10 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=requirefips"],
     path = "go.opentelemetry.io/collector/config/configtls",
 )
+go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=trivy_no_javadb"],
+    path = "github.com/aquasecurity/trivy",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",
@@ -96,7 +108,6 @@ use_repo(
     "com_github_acobaugh_osrelease",
     "com_github_alecthomas_participle",
     "com_github_alecthomas_units",
-    "com_github_alessio_shellescape",
     "com_github_aptly_dev_aptly",
     "com_github_aquasecurity_trivy",
     "com_github_aquasecurity_trivy_db",
@@ -126,6 +137,7 @@ use_repo(
     "com_github_blabber_go_freebsd_sysctl",
     "com_github_bmatcuk_doublestar_v4",
     "com_github_cenkalti_backoff_v5",
+    "com_github_cenkalti_backoff_v6",
     "com_github_cespare_xxhash_v2",
     "com_github_charlievieth_strcase",
     "com_github_cilium_ebpf",
@@ -185,7 +197,6 @@ use_repo(
     "com_github_glaslos_ssdeep",
     "com_github_go_delve_delve",
     "com_github_go_enry_go_license_detector_v4",
-    "com_github_go_ini_ini",
     "com_github_go_jose_go_jose_v4",
     "com_github_go_json_experiment_json",
     "com_github_go_ole_go_ole",
@@ -264,7 +275,6 @@ use_repo(
     "com_github_moby_moby_api",
     "com_github_moby_moby_client",
     "com_github_moby_sys_mountinfo",
-    "com_github_modelcontextprotocol_go_sdk",
     "com_github_mohae_deepcopy",
     "com_github_netsampler_goflow2",
     "com_github_nvidia_go_nvml",
@@ -393,6 +403,7 @@ use_repo(
     "com_gitlab_gitlab_org_api_client_go",
     "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
+    "dev_essio_al_pkg_shellescape",
     "in_gopkg_ini_v1",
     "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",

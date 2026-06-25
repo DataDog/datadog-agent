@@ -90,12 +90,8 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 
 		// Create an EKS cluster with the default configuration.
 		clusterArgs := &eks.ClusterArgs{
-			Name:    e.CommonNamer().DisplayName(100),
-			Version: pulumi.StringPtr(e.KubernetesVersion()),
-			// Required by an org-wide SCP that denies eks:CreateCluster without an explicit support type.
-			UpgradePolicy: awsEks.ClusterUpgradePolicyArgs{
-				SupportType: pulumi.String("STANDARD"),
-			},
+			Name:                         e.CommonNamer().DisplayName(100),
+			Version:                      pulumi.StringPtr(e.KubernetesVersion()),
 			EndpointPrivateAccess:        pulumi.BoolPtr(true),
 			EndpointPublicAccess:         pulumi.BoolPtr(false),
 			ClusterSecurityGroup:         clusterSG,
@@ -125,6 +121,9 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 						pulumi.String("read-only"),
 					},
 				},
+			},
+			UpgradePolicy: awsEks.ClusterUpgradePolicyArgs{
+				SupportType: pulumi.String("STANDARD"),
 			},
 		}
 

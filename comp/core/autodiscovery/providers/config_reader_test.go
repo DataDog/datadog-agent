@@ -27,46 +27,46 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// file contains invalid Yaml
-	_, _, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
+	_, _, err = GetIntegrationConfigFromFile("foo", "testdata/invalid.yaml")
 	assert.NotNil(t, err)
 
 	// valid yaml but not a valid integration configuration
-	config, _, err := GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
+	config, _, err := GetIntegrationConfigFromFile("foo", "testdata/notaconfig.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 
 	// empty file
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/empty.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/empty.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, err.Error(), emptyFileError)
 	assert.Equal(t, len(config.Instances), 0)
 
 	// valid yaml with a stub integration instance
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/stub.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/stub.yaml")
 	assert.Nil(t, err)
 	assert.Equal(t, len(config.Instances), 1)
 
 	// valid yaml, instances array is null
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/null_instances.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/null_instances.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 
 	// valid metric file
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/metrics.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/metrics.yaml")
 	assert.Nil(t, err)
 	assert.NotNil(t, config.MetricConfig)
 
 	// valid logs-agent file
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/logs-agent_only.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/logs-agent_only.yaml")
 	assert.Nil(t, err)
 	assert.NotNil(t, config.LogsConfig)
 
 	// valid configuration file
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/testcheck.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/testcheck.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.Name, "foo")
 	assert.Equal(t, []byte(config.InitConfig), []byte("- test: 21\n"))
-	assert.Equal(t, config.Source, "file:tests/testcheck.yaml")
+	assert.Equal(t, config.Source, "file:testdata/testcheck.yaml")
 	assert.Equal(t, len(config.Instances), 1)
 	assert.Equal(t, []byte(config.Instances[0]), []byte("foo: bar\n"))
 	assert.Len(t, config.ADIdentifiers, 0)
@@ -74,17 +74,17 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.Nil(t, config.LogsConfig)
 
 	// autodiscovery
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/ad.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/ad.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.ADIdentifiers, []string{"foo_id", "bar_id"})
 
 	// advanced autodiscovery
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/advanced_ad.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/advanced_ad.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.AdvancedADIdentifiers, []integration.AdvancedADIdentifier{{KubeService: integration.KubeNamespacedName{Name: "svc-name", Namespace: "svc-ns"}}})
 
 	// advanced autodiscovery kube_endpoints
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/advanced_ad_kube_endpoints.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/advanced_ad_kube_endpoints.yaml")
 	require.Nil(t, err)
 	assert.Equal(t,
 		[]integration.AdvancedADIdentifier{
@@ -102,36 +102,36 @@ func TestGetIntegrationConfig(t *testing.T) {
 	)
 
 	// advanced autodiscovery: cel_selector
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/cel_selector.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/cel_selector.yaml")
 	require.Nil(t, err)
-	assert.Equal(t, "file:tests/cel_selector.yaml", config.Source)
+	assert.Equal(t, "file:testdata/cel_selector.yaml", config.Source)
 	expectedRules := workloadfilter.Rules{Containers: []string{"ctn1.rule1", "ctn2.rule2"}}
 	assert.Equal(t, expectedRules, config.CELSelector)
 	assert.Len(t, config.ADIdentifiers, 0)
 
 	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/ad_deprecated.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/ad_deprecated.yaml")
 	assert.NotNil(t, err)
 
 	// autodiscovery: check that the service ID is ignored when set explicitly.
 	// Service ID is not meant to be set in configs provided by users. It's set
 	// automatically when needed.
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/ad_with_service_id.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/ad_with_service_id.yaml")
 	assert.Nil(t, err)
 	assert.Empty(t, config.ServiceID)
 
 	// discovery: presence of `discovery: {}` populates Config.Discovery.
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/discovery.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/discovery.yaml")
 	require.Nil(t, err)
 	require.NotNil(t, config.Discovery, "discovery: {} should produce a non-nil Discovery field")
 
 	// no discovery: a regular config leaves Discovery nil.
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/testcheck.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/testcheck.yaml")
 	require.Nil(t, err)
 	assert.Nil(t, config.Discovery)
 
 	// discovery-only: a file with only `discovery: {}` is valid and has no instances.
-	config, _, err = GetIntegrationConfigFromFile("foo", "tests/discovery_only.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "testdata/discovery_only.yaml")
 	require.Nil(t, err)
 	require.NotNil(t, config.Discovery, "discovery-only file should produce a non-nil Discovery field")
 	assert.Empty(t, config.Instances)
@@ -140,7 +140,7 @@ func TestGetIntegrationConfig(t *testing.T) {
 }
 
 func TestReadConfigFiles(t *testing.T) {
-	paths := []string{"tests"}
+	paths := []string{"testdata"}
 	ResetReader(paths)
 
 	configs, errors, err := ReadConfigFiles(GetAll)
@@ -171,7 +171,7 @@ func TestReadConfigFiles(t *testing.T) {
 		Instances: []integration.Data{
 			integration.Data("foo: bar\n"),
 		},
-		Source: "file:tests/advanced_ad.yaml",
+		Source: "file:testdata/advanced_ad.yaml",
 	}
 
 	expectedConfig2 := integration.Config{
@@ -190,7 +190,7 @@ func TestReadConfigFiles(t *testing.T) {
 		Instances: []integration.Data{
 			integration.Data("foo: bar\n"),
 		},
-		Source: "file:tests/advanced_ad_kube_endpoints.yaml",
+		Source: "file:testdata/advanced_ad_kube_endpoints.yaml",
 	}
 
 	configs, _, err = ReadConfigFiles(WithAdvancedADOnly)
