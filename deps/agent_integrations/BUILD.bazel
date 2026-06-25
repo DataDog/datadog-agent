@@ -16,7 +16,6 @@ py_binary(
     srcs = ["build_wheel.py"],
     main = "build_wheel.py",
     deps = [
-        requirement("build"),
         requirement("hatchling"),
     ],
 )
