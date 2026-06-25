@@ -147,11 +147,16 @@ func (s *processAutodiscoverySuite) verifyRedisCheckScheduledViaProcess(c *asser
 	}
 
 	// Verify the check has executed successfully
+	ran := false
 	for instanceName, checkStat := range instances {
 		if len(checkStat.ExecutionTimes) > 0 {
 			t.Logf("Redis check instance %s: runs=%d", instanceName, len(checkStat.ExecutionTimes))
+			ran = true
 			break
 		}
+	}
+	if !assert.True(c, ran, "Redis check is configured but has not run yet") {
+		return
 	}
 
 	// Verify config.provider in inventory-checks metadata reflects process-based autodiscovery

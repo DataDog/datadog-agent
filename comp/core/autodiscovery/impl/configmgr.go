@@ -460,7 +460,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	}
 
 	digest := tpl.Digest()
-	config, err := configresolver.Resolve(tpl, svc)
+	config, err := configresolver.Resolve(tpl, svc, false)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
 		log.Errorf("autodiscovery: skipping config - %s", msg)

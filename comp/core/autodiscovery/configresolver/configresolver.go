@@ -32,7 +32,12 @@ func SubstituteTemplateEnvVars(config *integration.Config) error {
 
 // Resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
-func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
+//
+// isDiscovery must be true when the template was resolved via the configuration-discovery
+// path (i.e. the caller is responding to a discovery probe result). The caller is
+// responsible for passing this flag because the discovery path clears tpl.Discovery before
+// calling Resolve, so Resolve cannot infer it from the template alone.
+func Resolve(tpl integration.Config, svc listeners.Service, isDiscovery bool) (integration.Config, error) {
 	// Copy original template
 	resolvedConfig := integration.Config{
 		Name:          tpl.Name,
@@ -48,7 +53,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		Source: rewriteFileSourcePrefix(
 			tpl.Source,
 			strings.HasPrefix(svc.GetServiceID(), "process://"),
-			tpl.Discovery != nil,
+			isDiscovery,
 		),
 		MetricsExcluded: svc.HasFilter(filter.MetricsFilter),
 		LogsExcluded:    svc.HasFilter(filter.LogsFilter),

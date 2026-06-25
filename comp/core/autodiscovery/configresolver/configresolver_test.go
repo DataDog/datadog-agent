@@ -939,7 +939,7 @@ func TestResolve(t *testing.T) {
 			// Make sure we don't modify the template object
 			checksum := tc.tpl.Digest()
 
-			cfg, err := Resolve(tc.tpl, tc.svc)
+			cfg, err := Resolve(tc.tpl, tc.svc, false)
 			if tc.errorString != "" {
 				assert.EqualError(t, err, tc.errorString)
 			} else {
@@ -1001,7 +1001,7 @@ func BenchmarkResolve(b *testing.B) {
 			var cfg integration.Config
 			var err error
 			for i := 0; i < b.N; i++ {
-				cfg, err = Resolve(tc.tpl, tc.svc)
+				cfg, err = Resolve(tc.tpl, tc.svc, false)
 			}
 			if tc.errorString != "" {
 				assert.EqualError(b, err, tc.errorString)
@@ -1139,7 +1139,7 @@ func TestResolveSourceRewrite(t *testing.T) {
 				Discovery:     tc.discovery,
 			}
 
-			resolved, err := Resolve(tpl, svc)
+			resolved, err := Resolve(tpl, svc, tc.discovery != nil)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.wantSource, resolved.Source, "Source should reflect how the template was applied")
 			assert.Equal(t, tc.wantProvider, resolved.Provider, "Provider must not be modified by Resolve")
