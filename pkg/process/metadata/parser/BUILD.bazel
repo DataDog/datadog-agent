@@ -37,6 +37,7 @@ go_test(
         "service_test.go",
         "service_windows_test.go",
     ],
+    data = ["//pkg/process/metadata/parser/nodejs:nodejs_testdata"],  # keep
     embed = [":parser"],
     gotags = ["test"],
     deps = [
