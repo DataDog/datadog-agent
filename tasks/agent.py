@@ -4,6 +4,8 @@ Agent namespaced tasks
 
 import ast
 import glob
+import json
+import lzma
 import os
 import platform
 import re
@@ -85,6 +87,7 @@ def build(
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
     enable_bazel=False,
+    sbom=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -92,6 +95,9 @@ def build(
 
     Example invokation:
         dda inv agent.build --build-exclude=systemd
+
+    Pass --sbom to also emit a compact CycloneDX SBOM for the build under
+    <bin dir>/sbom/ (requires a regular, non-worktree checkout).
     """
     flavor = AgentFlavor[flavor]
 
@@ -179,6 +185,86 @@ def build(
             development=development,
             windows_sysprobe=windows_sysprobe,
         )
+
+    if sbom:
+        with gitlab_section("Generate SBOM", collapsed=True):
+            generate_sbom(ctx, f"cmd/{flavor_cmd}", build_tags, env=env)
+
+
+# cyclonedx-gomod is fetched on demand via `go run` (pinned for reproducibility)
+# rather than added to the dev tool list.
+CYCLONEDX_GOMOD = "github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.9.0"
+# Module prefix of the agent's own (first-party) code.
+SBOM_FIRST_PARTY_PREFIX = "github.com/DataDog/datadog-agent"
+
+
+def generate_sbom(ctx, main_pkg, build_tags, env=None):
+    """
+    Emit a compact CycloneDX SBOM for the agent build under <bin>/sbom/.
+
+    cyclonedx-gomod "app" mode is run with the same build constraints as the
+    build, yielding file-level detail. The document is then reduced to what is
+    useful for tracking the agent's own source and kept small:
+      - first-party packages keep per-file SHA-256 hashes (where local changes
+        show up);
+      - external dependencies are kept at module level with their go.sum hash —
+        their files are immutable and already covered by that hash, so per-file
+        detail there is redundant;
+      - only SHA-256 is retained, and the result is minified and xz-compressed.
+
+    Requires a regular checkout: "app" mode resolves the main module version via
+    git and does not support git worktrees.
+    """
+    out_dir = os.path.join(BIN_PATH, "sbom")
+    os.makedirs(out_dir, exist_ok=True)
+    raw = os.path.join(out_dir, "cyclonedx.json")
+    out = os.path.join(out_dir, "cyclonedx.json.xz")
+
+    run_env = dict(env or os.environ)
+    run_env["GOFLAGS"] = f"{run_env.get('GOFLAGS', '')} -tags={','.join(build_tags)}".strip()
+    ctx.run(
+        f"go run {CYCLONEDX_GOMOD} app -json -files -packages -paths " f"-main {main_pkg} -output {raw} .",
+        env=run_env,
+    )
+
+    _compact_sbom(raw, out)
+    os.remove(raw)
+    print(f"SBOM written to {out}")
+
+
+def _compact_sbom(src, dst):
+    """Scope file-level hashes to first-party code, keep SHA-256 only, xz-compress."""
+
+    def walk(components):
+        for component in components or []:
+            yield component
+            yield from walk(component.get("components"))
+
+    def keep_sha256(component):
+        if "hashes" in component:
+            component["hashes"] = [h for h in component["hashes"] if h["alg"] == "SHA-256"]
+
+    with open(src) as f:
+        doc = json.load(f)
+
+    # The main module lives under metadata.component; its packages are first-party.
+    main_component = doc.get("metadata", {}).get("component", {})
+    for component in walk(main_component.get("components")):
+        keep_sha256(component)
+
+    for module in doc.get("components", []):
+        if module.get("name", "").startswith(SBOM_FIRST_PARTY_PREFIX):
+            for component in walk(module.get("components")):
+                keep_sha256(component)
+        else:
+            # External dependency: drop the redundant per-file detail, keep the
+            # module entry and its go.sum hash.
+            module.pop("components", None)
+            keep_sha256(module)
+
+    data = json.dumps(doc, separators=(",", ":")).encode()
+    with lzma.open(dst, "wb", preset=9 | lzma.PRESET_EXTREME) as f:
+        f.write(data)
 
 
 _PLATFORM_TO_OS_TARGET = {
@@ -680,8 +766,6 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
 
     `excluded` is a comma-separated list of directories that don't contain an actual integration
     """
-    import json
-
     manifest_overrides = _load_manifest_platform_overrides(integrations_dir)
     integrations = []
 
