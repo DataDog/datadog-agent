@@ -5,12 +5,13 @@
 
 //go:build kubeapiserver
 
-package helmactions
+package helmactionsimpl
 
 import (
 	"context"
 	"testing"
 
+	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -18,8 +19,8 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-func validOptions() RollbackInputs {
-	return RollbackInputs{
+func validOptions() helmactions.RollbackInputs {
+	return helmactions.RollbackInputs{
 		Release:               "myrel",
 		ReleaseNamespace:      "prod",
 		JobNamespace:          "ops",
@@ -30,24 +31,24 @@ func validOptions() RollbackInputs {
 func TestRollbackOptionsValidate(t *testing.T) {
 	tests := []struct {
 		name    string
-		mutate  func(*RollbackInputs)
+		mutate  func(*helmactions.RollbackInputs)
 		wantErr bool
 	}{
-		{"valid", func(*RollbackInputs) {}, false},
-		{"missing release", func(o *RollbackInputs) { o.Release = "" }, true},
-		{"missing release namespace", func(o *RollbackInputs) { o.ReleaseNamespace = "" }, true},
-		{"missing job namespace", func(o *RollbackInputs) { o.JobNamespace = "" }, true},
-		{"missing service account", func(o *RollbackInputs) { o.JobServiceAccountName = "" }, true},
-		{"negative revision", func(o *RollbackInputs) { o.Revision = -1 }, true},
-		{"zero revision is allowed", func(o *RollbackInputs) { o.Revision = 0 }, false},
-		{"positive revision is allowed", func(o *RollbackInputs) { o.Revision = 7 }, false},
+		{"valid", func(*helmactions.RollbackInputs) {}, false},
+		{"missing release", func(o *helmactions.RollbackInputs) { o.Release = "" }, true},
+		{"missing release namespace", func(o *helmactions.RollbackInputs) { o.ReleaseNamespace = "" }, true},
+		{"missing job namespace", func(o *helmactions.RollbackInputs) { o.JobNamespace = "" }, true},
+		{"missing service account", func(o *helmactions.RollbackInputs) { o.JobServiceAccountName = "" }, true},
+		{"negative revision", func(o *helmactions.RollbackInputs) { o.Revision = -1 }, true},
+		{"zero revision is allowed", func(o *helmactions.RollbackInputs) { o.Revision = 0 }, false},
+		{"positive revision is allowed", func(o *helmactions.RollbackInputs) { o.Revision = 7 }, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			o := validOptions()
 			tt.mutate(&o)
-			err := o.validate()
+			err := o.Validate()
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -150,7 +151,7 @@ func TestRollbackExecutor_Run_ValidationError(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
 	executor := NewRollbackExecutor(clientset)
 
-	_, err := executor.Run(context.Background(), RollbackInputs{})
+	_, err := executor.Run(context.Background(), helmactions.RollbackInputs{})
 	assert.Error(t, err)
 
 	jobs, listErr := clientset.BatchV1().Jobs("").List(context.Background(), metav1.ListOptions{})

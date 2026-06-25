@@ -9,17 +9,23 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/helmactions"
+	"github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
+	"github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/impl"
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	batchv1 "k8s.io/api/batch/v1"
 )
 
-type HelmRollbackHandler struct{}
+type HelmRollbackHandler struct {
+	ha helmactions.Component
+}
 
-func NewRollbackHandler() types.Action {
-	return &HelmRollbackHandler{}
+func NewRollbackHandler(ha helmactions.Component) types.Action {
+	return &HelmRollbackHandler{
+		ha: ha,
+	}
 }
 
 type HelmRollbackOutputs struct {
@@ -40,15 +46,14 @@ func (rh *HelmRollbackHandler) Run(ctx context.Context, task *types.Task,
 		return nil, err
 	}
 
-	executor := helmactions.NewRollbackExecutor(client)
+	executor := helmactionsimpl.NewRollbackExecutor(client)
 	job, err := executor.Run(ctx, in)
 	if err != nil {
-		return nil, fmt.Errorf("helm rollback job: %w", err)
+		return nil, fmt.Errorf("create helm rollback job in %s: %w", in.JobNamespace, err)
 	}
 
-	// todo(dp): remove after debug is complete
-	fmt.Printf("Created helm rollback job %s/%s for release %s:%s (revision=%d)\n",
-		job.Namespace, job.Name, in.ReleaseNamespace, in.Release, 0)
+	log.Infof("[HelmActions] Created rollback job %s/%s for release %s/%s (revision=%d)",
+		job.Namespace, job.Name, in.ReleaseNamespace, in.Release, in.Revision)
 
 	return &HelmRollbackOutputs{
 		Job: job,

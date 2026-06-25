@@ -20,7 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/helmactions"
+	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
+	helmactionsimpl "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -79,7 +80,7 @@ which must already have the RBAC permissions helm needs to act on the release.`,
 	cmd.Flags().IntVar(&params.revision, "revision", 0, "Target revision number; 0 (default) means previous revision")
 	cmd.Flags().StringVar(&params.jobNamespace, "job-namespace", "", "Namespace where the rollback Job is created (required)")
 	cmd.Flags().StringVar(&params.serviceAccount, "job-service-account", "", "ServiceAccount the rollback Job runs as (required)")
-	cmd.Flags().StringVar(&params.image, "job-image", "", "Helm container image (default: "+helmactions.DefaultHelmImage+")")
+	cmd.Flags().StringVar(&params.image, "job-image", "", "Helm container image (default: "+helmactionsimpl.DefaultHelmImage+")")
 	cmd.Flags().StringVar(&params.driver, "driver", "", "Helm storage driver (secret|configmap|sql); empty inherits helm's default (secret)")
 
 	for _, name := range []string{"release", "namespace", "job-namespace", "job-service-account"} {
@@ -95,7 +96,7 @@ func runRollback(_ log.Component, _ config.Component, params *rollbackCliParams)
 		return fmt.Errorf("create kubernetes client: %w", err)
 	}
 
-	executor := helmactions.NewRollbackExecutor(client)
+	executor := helmactionsimpl.NewRollbackExecutor(client)
 	job, err := executor.Run(context.Background(), helmactions.RollbackInputs{
 		Release:               params.release,
 		ReleaseNamespace:      params.releaseNamespace,

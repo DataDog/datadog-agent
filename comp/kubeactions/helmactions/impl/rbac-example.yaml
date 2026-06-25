@@ -1,0 +1,91 @@
+# Sample RBAC for `datadog-cluster-agent helm rollback(actions)`.
+#
+# Two service accounts are involved when running a rollback:
+#
+#   1. The CALLER SA — whoever runs the CLI / invokes the
+#      helmactions.RollbackExecutor. When the command runs inside the
+#      cluster-agent pod (the common case), this is the cluster-agent's own SA.
+#      It needs permission to create the rollback Job in --job-namespace.
+#
+#   2. The JOB SA — the SA configured via --job-service-account on the CLI (or
+#      RollbackOptions.ServiceAccountName). The rollback Job pod runs as this
+#      SA, so it needs every permission `helm rollback` exercises on the
+#      release: read/write the release's storage secrets and act on the
+#      resources the chart manages.
+#
+# The cluster-agent's bundled ClusterRole intentionally does NOT grant
+# `create` on batch/jobs cluster-wide. Grant it per-namespace via the Role +
+# RoleBinding below.
+#
+# Substitute the placeholders before applying:
+#   <job-namespace>            namespace passed as --job-namespace
+#   <release-namespace>        namespace of the Helm release
+#   <cluster-agent-namespace>  namespace where the cluster-agent runs
+#   <cluster-agent-sa>         the cluster-agent's ServiceAccount name
+#   <job-sa>                   the SA passed as --job-service-account
+#
+# ----------------------------------------------------------------------------
+# 1. CALLER permissions: let the cluster-agent SA create the rollback Job.
+# ----------------------------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: datadog-cluster-agent-helm-rollback-caller
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    # `create` is required. get/list/watch let the CLI (or a future --wait
+    # flag) observe the Job. `delete` is optional: TTL-after-finished handles
+    # cleanup automatically, but `delete` is useful for manual re-runs.
+    verbs: ["create", "get", "list", "watch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: datadog-cluster-agent-helm-rollback-caller
+subjects:
+  - kind: ServiceAccount
+    name: <cluster-agent-sa>
+    namespace: <cluster-agent-namespace>
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: datadog-cluster-agent-helm-rollback-caller
+---
+# ----------------------------------------------------------------------------
+# 2. JOB SA permissions: let `helm rollback` access release storage.
+# ----------------------------------------------------------------------------
+# Helm 3 stores release state in objects named
+#   sh.helm.release.v1.<release>.v<rev>
+# in the release namespace. Which resource kind depends on the driver:
+#   * default driver (--driver unset or --driver secret):    Secrets
+#   * --driver configmap:                                    ConfigMaps
+#   * --driver sql:                                          external DB (no in-cluster RBAC needed)
+# Pick the matching `resources:` entry below for your release.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: helm-release-storage
+  namespace: worktest
+subjects:
+  - kind: ServiceAccount
+    name: <job service account>
+    namespace: <job namespace>
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: helm-release-storage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: helm-release-storage
+rules:
+  - apiGroups: [""]
+    # Use ["secrets"] for the default driver, ["configmaps"] for --driver configmap.
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

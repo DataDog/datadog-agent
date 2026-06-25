@@ -5,17 +5,20 @@
 
 package com_datadoghq_kubernetes_helmactions
 
-import "github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+import (
+	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+)
 
 type KubernetesHelmActions struct {
 	actions map[string]types.Action
 }
 
-func NewKubernetesHelmActions() *KubernetesHelmActions {
+func NewKubernetesHelmActions(ha helmactions.Component) *KubernetesHelmActions {
 	return &KubernetesHelmActions{
 		actions: map[string]types.Action{
 			// Manual actions
-			"rollback": NewRollbackHandler(),
+			"rollback": NewRollbackHandler(ha),
 		},
 	}
 }
