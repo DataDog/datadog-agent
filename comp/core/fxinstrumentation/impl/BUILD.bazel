@@ -2,7 +2,13 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "impl",
-    srcs = ["doc.go"],
+    srcs = [
+        "doc.go",
+        "fxinstrumentation.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/impl",
     visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/fxinstrumentation/def",
+    ],
 )
