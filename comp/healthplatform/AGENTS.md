@@ -24,7 +24,7 @@ Path B — external reporters (direct)                         │
                                                          agenthealth-intake.<site>
 ```
 
-Use **Path A** when detection logic belongs inside the health platform (self-contained checks). Use **Path B** when an existing component (the collector, autodiscovery) already detects the condition and should call `store.ReportIssue` directly with a fully-built proto `Issue`. In both cases the module's `BuildIssue` template is still required — Path B callers build the `Issue` themselves using `registry.BuildIssue` before calling the store.
+Use **Path A** when you want to delegate detection logic and evaluation scheduling to the health platform component. Use **Path B** when an existing component (the collector, autodiscovery) already detects the condition and should call `store.ReportIssue` directly with a fully-built proto `Issue`, or when reporting from another process (system-probe).
 
 Sub-package roles:
 
