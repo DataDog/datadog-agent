@@ -11,6 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 )
 
-func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
+func registerUSMEndpoints(nt *networkTracerModule, httpMux *module.Router) {
 	registerUSMCommonEndpoints(nt, httpMux)
 }

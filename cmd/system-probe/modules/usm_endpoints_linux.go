@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
+func registerUSMEndpoints(nt *networkTracerModule, httpMux *module.Router) {
 	registerUSMCommonEndpoints(nt, httpMux)
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
