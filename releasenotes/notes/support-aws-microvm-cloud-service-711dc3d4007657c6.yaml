@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support for AWS Lambda MicroVM as a cloud service in ``serverless-init``.
