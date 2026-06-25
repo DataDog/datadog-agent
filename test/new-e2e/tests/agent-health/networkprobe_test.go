@@ -100,6 +100,11 @@ func (suite *networkProbeSuite) TestNetworkProbeInitFailureLifecycle() {
 	// Step 2 — Kernel fix: remove exclusion, assert network-probe-kernel-unsupported RESOLVED
 	// -------------------------------------------------------------------------
 	suite.T().Run("KernelIssueResolution", func(t *testing.T) {
+		// Flush before restarting: the agent resolves the issue at startup, so the
+		// RESOLVED tombstone arrives before UpdateEnv returns. Flushing first ensures
+		// it is not cleared before the assertion below can observe it.
+		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
+
 		suite.UpdateEnv(awshost.Provisioner(
 			awshost.WithRunOptions(
 				ec2.WithAgentOptions(
@@ -108,8 +113,6 @@ func (suite *networkProbeSuite) TestNetworkProbeInitFailureLifecycle() {
 				),
 			),
 		))
-
-		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()
@@ -174,6 +177,8 @@ func (suite *networkProbeSuite) TestNetworkProbeInitFailureLifecycle() {
 			t.Skipf("kernel %d.%d.%d >= %d.%d: USM is supported, skipping USM resolution scenario", major, minor, patch, usmMinMajor, usmMinMinor)
 		}
 
+		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
+
 		suite.UpdateEnv(awshost.Provisioner(
 			awshost.WithRunOptions(
 				ec2.WithAgentOptions(
@@ -182,8 +187,6 @@ func (suite *networkProbeSuite) TestNetworkProbeInitFailureLifecycle() {
 				),
 			),
 		))
-
-		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()

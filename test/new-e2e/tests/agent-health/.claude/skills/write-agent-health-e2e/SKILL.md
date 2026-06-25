@@ -199,7 +199,7 @@ Never re-declare `healthPlatformAgentConfig` — it is already a `const` in `che
 
 ## Step 5 — Rules (never break these)
 
-- **Flush order**: restart or `UpdateEnv` first → wait for agent ready → `FlushServerAndResetAggregators()`. Never flush before restarting.
+- **Flush order**: for issues resolved during a **periodic check** (e.g. check failures): `UpdateEnv` → wait for agent ready → `FlushServerAndResetAggregators()`. For issues resolved **at startup** (e.g. probe init failures): `FlushServerAndResetAggregators()` → `UpdateEnv`. The risk with startup-resolved issues is that the RESOLVED tombstone arrives before `UpdateEnv` returns, so a flush afterward clears it permanently.
 - **No resilience phase**: `RestartResilience` is covered once in `TestResilienceSuite`. Do not add it here.
 - **No diagnose assertions**: assert only through fakeintake state (`ISSUE_STATE_NEW`, `ISSUE_STATE_RESOLVED`).
 - **No shared lifecycle driver**: phases (`IssueDetection`, `Resolution`) are always inline in the test method.
