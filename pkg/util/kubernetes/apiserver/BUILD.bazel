@@ -10,6 +10,7 @@ go_library(
         "diagnosis.go",
         "endpoints.go",
         "endpointslices.go",
+        "event_collector.go",
         "events.go",
         "hostname.go",
         "openshift.go",
@@ -72,6 +73,7 @@ go_library(
         "@io_k8s_kube_aggregator//pkg/client/clientset_generated/clientset/typed/apiregistration/v1:apiregistration",
         "@org_golang_x_mod//semver",
         "@org_golang_x_sync//errgroup",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
