@@ -96,7 +96,7 @@ sysprobe_defaults = {
         "linux": "${run_path}/sysprobe.sock",
         "darwin": "/opt/datadog-agent/run/sysprobe.sock",
         "windows": "\\\\.\\pipe\\dd_system_probe",
-        "aix": "",
+        "aix": "${run_path}/sysprobe.sock",
     },
     "runtime_security_config.security_profile.dir": "${run_path}/runtime-security/profiles",
     "runtime_security_config.activity_dump.local_storage.output_directory": "${run_path}/runtime-security/profiles",
