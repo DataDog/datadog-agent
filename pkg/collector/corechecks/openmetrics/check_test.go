@@ -1381,13 +1381,192 @@ max_returned_metrics: 1
 # TYPE metric1 gauge
 metric1 1
 # TYPE metric2 gauge
-metric2 2
-invalid_metric{
+metric2{bad} 2
 `))
 		require.NoError(t, err)
 	}))
 
 	require.Error(t, run.check.Run())
+}
+
+func TestLatestDirectStreamFastPathSubmitsExactMetrics(t *testing.T) {
+	run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - requests
+  - queue_depth
+  - request_duration_seconds
+`, `
+# TYPE requests_total counter
+requests_total{method="GET"} 10
+# TYPE queue_depth gauge
+queue_depth{queue="default"} 3
+# TYPE ignored_metric gauge
+ignored_metric{expensive_label="skipped"} 99
+# TYPE request_duration_seconds histogram
+request_duration_seconds_bucket{le="0.1"} 2
+request_duration_seconds_bucket{le="+Inf"} 2
+request_duration_seconds_sum 0.2
+request_duration_seconds_count 2
+`)
+
+	require.True(t, run.check.scraper.inner.canDirectStreamParse(false))
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.requests.count", 10, "", []string{"endpoint:" + run.endpoint, "method:GET"}, false)
+	run.sender.AssertMetric(t, "Gauge", "test.queue_depth", 3, "", []string{"endpoint:" + run.endpoint, "queue:default"})
+	run.sender.AssertMetricMissing(t, "Gauge", "test.ignored_metric")
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_duration_seconds.bucket", 2, "", []string{"endpoint:" + run.endpoint, "upper_bound:0.1"}, false)
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_duration_seconds.sum", 0.2, "", []string{"endpoint:" + run.endpoint}, false)
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_duration_seconds.count", 2, "", []string{"endpoint:" + run.endpoint}, false)
+}
+
+func TestLatestDirectStreamFastPathSubmitsSummary(t *testing.T) {
+	run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - request_latency_seconds
+`, `
+# TYPE request_latency_seconds summary
+request_latency_seconds{route="/",quantile="0.5"} 0.25
+request_latency_seconds{route="/",quantile="0.9"} 0.9
+request_latency_seconds_sum{route="/"} 12.5
+request_latency_seconds_count{route="/"} 50
+# TYPE ignored_summary summary
+ignored_summary{quantile="0.5"} 1
+`)
+
+	require.True(t, run.check.scraper.inner.canDirectStreamParse(false))
+	run.sender.AssertMetric(t, "Gauge", "test.request_latency_seconds.quantile", 0.25, "", []string{"endpoint:" + run.endpoint, "route:/", "quantile:0.5"})
+	run.sender.AssertMetric(t, "Gauge", "test.request_latency_seconds.quantile", 0.9, "", []string{"endpoint:" + run.endpoint, "route:/", "quantile:0.9"})
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_latency_seconds.sum", 12.5, "", []string{"endpoint:" + run.endpoint, "route:/"}, false)
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_latency_seconds.count", 50, "", []string{"endpoint:" + run.endpoint, "route:/"}, false)
+	run.sender.AssertMetricMissing(t, "Gauge", "test.ignored_summary.quantile")
+}
+
+func TestLatestDirectStreamFastPathSubmitsPrimitiveTransformers(t *testing.T) {
+	run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - requests:
+      type: counter
+  - queue_depth:
+      type: gauge
+  - request_duration_seconds:
+      type: histogram
+`, `
+# TYPE requests_total counter
+requests_total{method="POST"} 7
+# TYPE queue_depth gauge
+queue_depth{queue="critical"} 4
+# TYPE request_duration_seconds histogram
+request_duration_seconds_bucket{le="0.5"} 6
+request_duration_seconds_bucket{le="+Inf"} 6
+request_duration_seconds_sum 1.5
+request_duration_seconds_count 6
+`)
+
+	require.True(t, run.check.scraper.inner.canDirectStreamParse(false))
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.requests.count", 7, "", []string{"endpoint:" + run.endpoint, "method:POST"}, false)
+	run.sender.AssertMetric(t, "Gauge", "test.queue_depth", 4, "", []string{"endpoint:" + run.endpoint, "queue:critical"})
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_duration_seconds.bucket", 6, "", []string{"endpoint:" + run.endpoint, "upper_bound:0.5"}, false)
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_duration_seconds.sum", 1.5, "", []string{"endpoint:" + run.endpoint}, false)
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_duration_seconds.count", 6, "", []string{"endpoint:" + run.endpoint}, false)
+}
+
+func TestLatestDirectStreamSkippedMetricStillValidatesResponseTail(t *testing.T) {
+	run := configureOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: openmetrics
+metrics:
+  - metric1
+`, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, err := w.Write([]byte(`
+# TYPE metric1 gauge
+metric1 1
+# TYPE ignored gauge
+ignored{bad} 2
+`))
+		require.NoError(t, err)
+	}))
+
+	require.True(t, run.check.scraper.inner.canDirectStreamParse(false))
+	require.Error(t, run.check.Run())
+}
+
+func TestLatestDirectStreamMaxReturnedMetricsStillValidatesResponseTail(t *testing.T) {
+	run := configureOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: openmetrics
+metrics:
+  - metric1
+  - metric2
+max_returned_metrics: 1
+`, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, err := w.Write([]byte(`
+# TYPE metric1 gauge
+metric1 1
+# TYPE metric2 gauge
+metric2{bad} 2
+`))
+		require.NoError(t, err)
+	}))
+
+	require.True(t, run.check.scraper.inner.canDirectStreamParse(false))
+	require.Error(t, run.check.Run())
+}
+
+func TestLatestDirectStreamDisabledForUnboundedScrapes(t *testing.T) {
+	run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - metric1
+max_returned_metrics: -1
+`, `
+# TYPE metric1 gauge
+metric1 1
+`)
+
+	require.False(t, run.check.scraper.inner.canDirectStreamParse(false))
+	run.sender.AssertMetric(t, "Gauge", "test.metric1", 1, "", []string{"endpoint:" + run.endpoint})
+}
+
+func TestLatestDirectStreamDisabledForTelemetry(t *testing.T) {
+	run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - metric1
+telemetry: true
+`, `
+# TYPE metric1 gauge
+metric1 1
+`)
+
+	require.False(t, run.check.scraper.inner.canDirectStreamParse(false))
+	run.sender.AssertMetric(t, "Gauge", "test.metric1", 1, "", []string{"endpoint:" + run.endpoint})
+	run.sender.AssertMetric(t, "Count", "test.telemetry.metrics.input.count", 1, "", []string{"endpoint:" + run.endpoint})
+}
+
+func TestLatestDirectStreamDisabledForNonNativeTransformer(t *testing.T) {
+	run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - requests:
+      type: counter_gauge
+`, `
+# TYPE requests_total counter
+requests_total 10
+`)
+
+	require.False(t, run.check.scraper.inner.canDirectStreamParse(false))
+	run.sender.AssertMetric(t, "Gauge", "test.requests.total", 10, "", []string{"endpoint:" + run.endpoint})
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.requests.count", 10, "", []string{"endpoint:" + run.endpoint}, false)
 }
 
 func TestIntegrationsCoreOpenMetricsFixtureParity(t *testing.T) {

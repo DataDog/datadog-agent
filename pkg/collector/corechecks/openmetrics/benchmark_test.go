@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -38,6 +39,86 @@ func BenchmarkOpenMetricsUpstreamFixtures(b *testing.B) {
 			benchmarkOpenMetricsRun(b, benchmark.instance, benchmark.payload)
 		})
 	}
+}
+
+func BenchmarkOpenMetricsStressPayload(b *testing.B) {
+	payload := benchmarkStressPayload(50_000, 0)
+	widePayload := benchmarkStressPayload(50_000, 50_000)
+
+	b.Run("default_cap", func(b *testing.B) {
+		benchmarkOpenMetricsRun(b, `
+openmetrics_endpoint: %%endpoint%%
+namespace: om_eval
+metrics:
+  - stress_gauge:
+      type: gauge
+  - stress_counter:
+      type: counter
+  - stress_histogram_seconds:
+      type: histogram
+`, payload)
+	})
+
+	b.Run("default_cap_buffered", func(b *testing.B) {
+		benchmarkOpenMetricsRunWithSetup(b, `
+openmetrics_endpoint: %%endpoint%%
+namespace: om_eval
+metrics:
+  - stress_gauge:
+      type: gauge
+  - stress_counter:
+      type: counter
+  - stress_histogram_seconds:
+      type: histogram
+`, payload, func(scraper *openmetricsScraper) {
+			scraper.transformer.patterns = append(scraper.transformer.patterns, metricPattern{pattern: regexp.MustCompile("a^")})
+		})
+	})
+
+	b.Run("uncapped", func(b *testing.B) {
+		benchmarkOpenMetricsRun(b, `
+openmetrics_endpoint: %%endpoint%%
+namespace: om_eval
+metrics:
+  - stress_gauge:
+      type: gauge
+  - stress_counter:
+      type: counter
+  - stress_histogram_seconds:
+      type: histogram
+max_returned_metrics: -1
+`, payload)
+	})
+
+	b.Run("wide_endpoint_subset", func(b *testing.B) {
+		benchmarkOpenMetricsRun(b, `
+openmetrics_endpoint: %%endpoint%%
+namespace: om_eval
+metrics:
+  - stress_gauge:
+      type: gauge
+  - stress_counter:
+      type: counter
+  - stress_histogram_seconds:
+      type: histogram
+`, widePayload)
+	})
+
+	b.Run("wide_endpoint_subset_buffered", func(b *testing.B) {
+		benchmarkOpenMetricsRunWithSetup(b, `
+openmetrics_endpoint: %%endpoint%%
+namespace: om_eval
+metrics:
+  - stress_gauge:
+      type: gauge
+  - stress_counter:
+      type: counter
+  - stress_histogram_seconds:
+      type: histogram
+`, widePayload, func(scraper *openmetricsScraper) {
+			scraper.transformer.patterns = append(scraper.transformer.patterns, metricPattern{pattern: regexp.MustCompile("a^")})
+		})
+	})
 }
 
 func TestOpenMetricsUpstreamBenchmarkFixtureSmoke(t *testing.T) {
@@ -301,6 +382,43 @@ func benchmarkReadCompressedTestdata(name string) ([]byte, error) {
 	return io.ReadAll(reader)
 }
 
+func benchmarkStressPayload(series int, ignoredSeries int) string {
+	var builder strings.Builder
+	builder.WriteString("# HELP stress_target_uptime_seconds Synthetic target uptime.\n")
+	builder.WriteString("# TYPE stress_target_uptime_seconds gauge\n")
+	builder.WriteString("stress_target_uptime_seconds 1\n")
+	builder.WriteString("# HELP stress_gauge Synthetic gauge.\n")
+	builder.WriteString("# TYPE stress_gauge gauge\n")
+	builder.WriteString("# HELP stress_counter_total Synthetic counter.\n")
+	builder.WriteString("# TYPE stress_counter_total counter\n")
+	builder.WriteString("# HELP stress_histogram_seconds Synthetic histogram.\n")
+	builder.WriteString("# TYPE stress_histogram_seconds histogram\n")
+	if ignoredSeries > 0 {
+		builder.WriteString("# HELP noise_gauge Synthetic unselected gauge.\n")
+		builder.WriteString("# TYPE noise_gauge gauge\n")
+		builder.WriteString("# HELP noise_counter_total Synthetic unselected counter.\n")
+		builder.WriteString("# TYPE noise_counter_total counter\n")
+	}
+	for i := 0; i < series; i++ {
+		shard := i % 64
+		fmt.Fprintf(&builder, "stress_gauge{series=\"%d\",shard=\"%d\"} %d\n", i, shard, i%1000)
+		fmt.Fprintf(&builder, "stress_counter_total{series=\"%d\",shard=\"%d\"} %d\n", i, shard, i)
+		if i%10 == 0 {
+			fmt.Fprintf(&builder, "stress_histogram_seconds_bucket{series=\"%d\",le=\"0.1\"} 1\n", i)
+			fmt.Fprintf(&builder, "stress_histogram_seconds_bucket{series=\"%d\",le=\"1\"} 2\n", i)
+			fmt.Fprintf(&builder, "stress_histogram_seconds_bucket{series=\"%d\",le=\"+Inf\"} 3\n", i)
+			fmt.Fprintf(&builder, "stress_histogram_seconds_sum{series=\"%d\"} 0.7\n", i)
+			fmt.Fprintf(&builder, "stress_histogram_seconds_count{series=\"%d\"} 3\n", i)
+		}
+	}
+	for i := 0; i < ignoredSeries; i++ {
+		shard := i % 128
+		fmt.Fprintf(&builder, "noise_gauge{series=\"%d\",shard=\"%d\",region=\"local\",mode=\"ignored\"} %d\n", i, shard, i%1000)
+		fmt.Fprintf(&builder, "noise_counter_total{series=\"%d\",shard=\"%d\",region=\"local\",mode=\"ignored\"} %d\n", i, shard, i)
+	}
+	return builder.String()
+}
+
 type benchmarkAmazonMSKData struct {
 	Metrics   map[string]string `json:"metrics"`
 	Overrides map[string]string `json:"overrides"`
@@ -366,6 +484,11 @@ func sortedMapKeys[V any](data map[string]V) []string {
 
 func benchmarkOpenMetricsRun(b *testing.B, instance string, payload string) {
 	b.Helper()
+	benchmarkOpenMetricsRunWithSetup(b, instance, payload, nil)
+}
+
+func benchmarkOpenMetricsRunWithSetup(b *testing.B, instance string, payload string, setup func(*openmetricsScraper)) {
+	b.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
@@ -381,6 +504,9 @@ func benchmarkOpenMetricsRun(b *testing.B, instance string, payload string) {
 	senderManager := &benchmarkSenderManager{sender: benchmarkSender{}}
 	if err := omCheck.Configure(senderManager, integration.FakeConfigHash, integration.Data([]byte(instance)), nil, "benchmark", "provider"); err != nil {
 		b.Fatal(err)
+	}
+	if setup != nil {
+		setup(omCheck.scraper.inner)
 	}
 	if err := omCheck.Run(); err != nil {
 		b.Fatal(err)

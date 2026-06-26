@@ -17,7 +17,6 @@ import (
 	"os"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -51,6 +50,12 @@ type openmetricsScraper struct {
 
 type scrapePrepass struct {
 	processStartTime float64
+}
+
+type scrapeResponse struct {
+	body          io.ReadCloser
+	contentType   string
+	contentLength int64
 }
 
 var defaultBearerTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -105,19 +110,32 @@ func newScraper(cfg *scraperConfig) (*openmetricsScraper, error) {
 }
 
 func (s *openmetricsScraper) scrape(sender sender.Sender) error {
-	body, contentType, err := s.fetch(sender)
+	response, err := s.fetch(sender)
 	if err != nil {
 		if s.flushFirstValue {
 			s.flushFirstValue = false
 		}
 		return err
 	}
-	if body == nil {
+	if response == nil {
 		s.flushFirstValue = true
 		return nil
 	}
+	defer response.body.Close()
 
-	useOpenMetrics := s.cfg.useLatestSpec || responseUsesOpenMetrics(contentType)
+	useOpenMetrics := s.cfg.useLatestSpec || responseUsesOpenMetrics(response.contentType)
+	if s.canDirectStreamParse(useOpenMetrics) {
+		return s.scrapeDirectStream(sender, response)
+	}
+
+	body, readErr := io.ReadAll(response.body)
+	if readErr != nil {
+		s.submitHealth(sender, servicecheck.ServiceCheckCritical, readErr.Error())
+		if s.flushFirstValue {
+			s.flushFirstValue = false
+		}
+		return readErr
+	}
 	prepass := scrapePrepass{processStartTime: math.Inf(1)}
 	if s.needsPrepass() {
 		if _, err := s.runPrepass(body, useOpenMetrics, &prepass); err != nil {
@@ -149,11 +167,105 @@ func (s *openmetricsScraper) scrape(sender sender.Sender) error {
 
 	if s.cfg.telemetry {
 		s.submitTelemetryCount(sender, "telemetry.metrics.blacklist.count", float64(ignoredLines))
+		s.submitTelemetryGauge(sender, "telemetry.payload.size", s.payloadSize(response, len(body)))
 	}
 
 	s.labelAggregator.afterScrape()
 	s.flushFirstValue = true
 	return nil
+}
+
+func (s *openmetricsScraper) canDirectStreamParse(useOpenMetrics bool) bool {
+	return !useOpenMetrics &&
+		s.cfg.mode == latestMode &&
+		s.cfg.maxReturnedMetrics > 0 &&
+		!s.cfg.telemetry &&
+		s.rawLineFilter == nil &&
+		!s.needsPrepass() &&
+		s.cfg.rawMetricPrefix == "" &&
+		s.hasOnlyDirectStreamCompatibleTransformers() &&
+		len(s.transformer.patterns) == 0 &&
+		len(s.excludeMetrics) == 0 &&
+		s.excludeMetricPatterns == nil &&
+		len(s.labelExcluders) == 0 &&
+		len(s.includeLabels) == 0 &&
+		len(s.excludeLabels) == 0 &&
+		len(s.cfg.renameLabels) == 0 &&
+		s.cfg.hostnameLabel == "" &&
+		!s.labelAggregator.configured &&
+		s.cfg.collectHistogramBuckets &&
+		!s.cfg.nonCumulativeHistogramBuckets &&
+		!s.cfg.histogramBucketsAsDistributions &&
+		!s.cfg.collectCountersWithDistributions
+}
+
+func (s *openmetricsScraper) hasOnlyDirectStreamCompatibleTransformers() bool {
+	if len(s.transformer.exact) == 0 {
+		return false
+	}
+	for _, transformer := range s.transformer.exact {
+		if !directStreamCompatibleTransformer(transformer.metricType) {
+			return false
+		}
+	}
+	return true
+}
+
+func directStreamCompatibleTransformer(metricType string) bool {
+	switch metricType {
+	case transformerNative, "counter", "gauge", "histogram", "summary":
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *openmetricsScraper) scrapeDirectStream(sender sender.Sender, response *scrapeResponse) error {
+	runtime := runtimeData{
+		flushFirstValue: s.flushFirstValue,
+		staticTags:      s.staticTags,
+	}
+	submittedSamples := 0
+	result, err := s.walkAndSubmitPrometheusTextStream(response.body, runtime, sender, &submittedSamples)
+	if err != nil {
+		s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
+		if s.flushFirstValue {
+			s.flushFirstValue = false
+		}
+		return err
+	}
+	if s.cfg.telemetry {
+		s.submitTelemetryCount(sender, "telemetry.metrics.blacklist.count", float64(result.ignoredLines))
+		s.submitTelemetryGauge(sender, "telemetry.payload.size", s.payloadSize(response, int(result.bytesRead)))
+	}
+
+	s.labelAggregator.afterScrape()
+	s.flushFirstValue = true
+	return nil
+}
+
+func (s *openmetricsScraper) walkAndSubmitPrometheusTextStream(r io.Reader, runtime runtimeData, sender sender.Sender, submittedSamples *int) (streamParseResult, error) {
+	shouldMaterialize := func(sampleName []byte, metricTypes map[string]string) bool {
+		if s.cfg.maxReturnedMetrics > 0 && *submittedSamples >= s.cfg.maxReturnedMetrics {
+			return false
+		}
+		familyName := prometheusFamilyNameBytes(sampleName, metricTypes, s.cfg.mode == latestMode)
+		_, configured := s.transformer.exact[familyName]
+		return configured
+	}
+	return walkPrometheusTextSamples(r, s.cfg.mode == latestMode, shouldMaterialize, func(sample parsedSample, metricTypes map[string]string) error {
+		familyName := prometheusFamilyName(sample.Name, metricTypes, s.cfg.mode == latestMode)
+		metric := parsedMetric{
+			Name:    familyName,
+			Type:    metricTypes[familyName],
+			Samples: []parsedSample{sample},
+		}
+		if metric.Type == "" {
+			metric.Type = "unknown"
+		}
+		*submittedSamples += s.processMetric(metric, runtime, sender, *submittedSamples)
+		return nil
+	})
 }
 
 func (s *openmetricsScraper) needsPrepass() bool {
@@ -226,11 +338,11 @@ func (s *openmetricsScraper) processMetric(metric parsedMetric, runtime runtimeD
 	return len(samples)
 }
 
-func (s *openmetricsScraper) fetch(sender sender.Sender) ([]byte, string, error) {
+func (s *openmetricsScraper) fetch(sender sender.Sender) (*scrapeResponse, error) {
 	request, err := http.NewRequest(http.MethodGet, s.cfg.endpoint, nil)
 	if err != nil {
 		s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
-		return nil, "", err
+		return nil, err
 	}
 
 	for key, value := range s.cfg.headers {
@@ -253,13 +365,13 @@ func (s *openmetricsScraper) fetch(sender sender.Sender) ([]byte, string, error)
 		token, err := s.bearerToken()
 		if err != nil {
 			s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
-			return nil, "", err
+			return nil, err
 		}
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
 	if err := s.cfg.authToken.apply(request); err != nil {
 		s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
-		return nil, "", err
+		return nil, err
 	}
 
 	response, err := s.httpClient.Do(request)
@@ -267,34 +379,30 @@ func (s *openmetricsScraper) fetch(sender sender.Sender) ([]byte, string, error)
 		s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
 		if s.cfg.ignoreConnectionErrors {
 			log.Warnf("OpenMetrics endpoint %s is not accessible", s.cfg.endpoint)
-			return nil, "", nil
+			return nil, nil
 		}
-		return nil, "", err
+		return nil, err
 	}
-	defer response.Body.Close()
-
-	body, readErr := io.ReadAll(response.Body)
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		response.Body.Close()
 		err := fmt.Errorf("unexpected status code %d scraping %s", response.StatusCode, s.cfg.endpoint)
 		s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
-		return nil, "", err
-	}
-	if readErr != nil {
-		s.submitHealth(sender, servicecheck.ServiceCheckCritical, readErr.Error())
-		return nil, "", readErr
+		return nil, err
 	}
 
 	s.submitHealth(sender, servicecheck.ServiceCheckOK, "")
-	if s.cfg.telemetry {
-		payloadSize := float64(len(body))
-		if contentLength := response.Header.Get("Content-Length"); contentLength != "" {
-			if parsed, err := parsePositiveFloat(contentLength); err == nil {
-				payloadSize = parsed
-			}
-		}
-		s.submitTelemetryGauge(sender, "telemetry.payload.size", payloadSize)
+	return &scrapeResponse{
+		body:          response.Body,
+		contentType:   response.Header.Get("Content-Type"),
+		contentLength: response.ContentLength,
+	}, nil
+}
+
+func (s *openmetricsScraper) payloadSize(response *scrapeResponse, bytesRead int) float64 {
+	if response.contentLength >= 0 {
+		return float64(response.contentLength)
 	}
-	return body, response.Header.Get("Content-Type"), nil
+	return float64(bytesRead)
 }
 
 func (s *openmetricsScraper) bearerToken() (string, error) {
@@ -799,15 +907,4 @@ func tlsCipherSuite(cipher string) (uint16, bool) {
 	default:
 		return 0, false
 	}
-}
-
-func parsePositiveFloat(value string) (float64, error) {
-	parsed, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		return 0, err
-	}
-	if parsed < 0 {
-		return 0, fmt.Errorf("expected a positive number, got %s", value)
-	}
-	return parsed, nil
 }
