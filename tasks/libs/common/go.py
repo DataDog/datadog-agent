@@ -39,7 +39,10 @@ def download_go_dependencies(
         max_retry = 1
 
     verbosity = ' -x' if verbose else ''
-    cmd = f"go mod download{verbosity} && go mod tidy{verbosity}"
+    # deps-fetch only needs the modcache populated; `go mod tidy` is a
+    # maintenance graph-walk that adds nothing to the cache. Keep it out
+    # of the critical path (enforced separately by `dda inv tidy`).
+    cmd = f"go mod download{verbosity}"
 
     # Sequential path for MockContext (tests) - ctx.run() isn't thread-safe
     if isinstance(ctx, MockContext) or max_workers == 1:
@@ -67,7 +70,7 @@ def download_go_dependencies(
         error_output = result.stderr or result.stdout if result else "unknown error"
         raise Exit(f"go mod failed for {path}: {error_output}", code=1)
 
-    with timed("go mod download && go mod tidy"):
+    with timed("go mod download"):
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(process_module, path) for path in paths]
             for future in as_completed(futures):
