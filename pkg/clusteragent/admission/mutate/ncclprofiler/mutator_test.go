@@ -63,10 +63,10 @@ func TestMutatePod_HappyPath(t *testing.T) {
 			sawSoVol = true
 		case socketVolumeName:
 			require.NotNil(t, v.HostPath, "socket volume should be hostPath")
-			assert.Equal(t, testSocketPath, v.HostPath.Path,
-				"with default config, host file == hostSocketPath+/+filepath.Base(socketPath)")
+			assert.Equal(t, testHostSocketDir, v.HostPath.Path,
+				"socket volume mounts the host socket DIRECTORY, not the file")
 			require.NotNil(t, v.HostPath.Type)
-			assert.Equal(t, corev1.HostPathSocket, *v.HostPath.Type)
+			assert.Equal(t, corev1.HostPathDirectoryOrCreate, *v.HostPath.Type)
 			sawSocketVol = true
 		}
 	}
@@ -82,8 +82,8 @@ func TestMutatePod_HappyPath(t *testing.T) {
 	}
 	assert.Contains(t, mounts, soVolumeName)
 	assert.Contains(t, mounts, socketVolumeName)
-	assert.Equal(t, testSocketPath, mounts[socketVolumeName],
-		"socket mount destination must equal socketPath (file mount)")
+	assert.Equal(t, testClientDir, mounts[socketVolumeName],
+		"socket mount destination is the in-pod socket DIRECTORY")
 
 	envs := map[string]string{}
 	for _, e := range trainer.Env {
@@ -116,9 +116,9 @@ func TestMutatePod_DecoupledHostAndContainerPaths(t *testing.T) {
 	}
 	require.NotNil(t, socketVol)
 	require.NotNil(t, socketVol.HostPath)
-	assert.Equal(t, "/var/run/datadog-agent/nccl.socket", socketVol.HostPath.Path)
+	assert.Equal(t, "/var/run/datadog-agent", socketVol.HostPath.Path)
 	require.NotNil(t, socketVol.HostPath.Type)
-	assert.Equal(t, corev1.HostPathSocket, *socketVol.HostPath.Type)
+	assert.Equal(t, corev1.HostPathDirectoryOrCreate, *socketVol.HostPath.Type)
 
 	trainer := pod.Spec.Containers[0]
 	var mountPath string
@@ -127,7 +127,7 @@ func TestMutatePod_DecoupledHostAndContainerPaths(t *testing.T) {
 			mountPath = m.MountPath
 		}
 	}
-	assert.Equal(t, "/var/run/datadog/nccl.socket", mountPath)
+	assert.Equal(t, "/var/run/datadog", mountPath)
 
 	for _, e := range trainer.Env {
 		if e.Name == "NCCL_DD_SOCKET_PATH" {

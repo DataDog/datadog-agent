@@ -13,7 +13,6 @@ import (
 	"maps"
 	"net"
 	"os"
-	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
@@ -192,7 +191,7 @@ func init() {
 	osinit()
 
 	// init default for code that access the config before it initialized
-	InitConfigObjects("", "")
+	InitConfigObjects()
 }
 
 // Variables to initialize at start time
@@ -277,48 +276,12 @@ var commonConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
-type configLibBackend struct {
-	ConfNodeTreeModel string `yaml:"conf_nodetreemodel"`
-}
-
-func resolveConfigLibType(cliPath string, defaultDir string) string {
-	configPath := ""
-	for _, path := range []string{cliPath, defaultDir} {
-		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
-			path = filepath.Join(path, "datadog.yaml")
-		}
-
-		if _, err := os.Stat(path); err == nil {
-			configPath = path
-		}
-	}
-
-	if configPath == "" {
-		return ""
-	}
-
-	yamlFile, err := os.ReadFile(configPath)
-	if err != nil {
-		return ""
-	}
-
-	conf := configLibBackend{}
-	err = yaml.Unmarshal(yamlFile, &conf)
-	if err != nil {
-		return ""
-	}
-	return conf.ConfNodeTreeModel
-}
-
 // InitConfigObjects initializes the global config objects use across the code. This should never be called anywhere
 // but from the main.
-func InitConfigObjects(cliPath string, defaultDir string) {
-	// We first load the configuration to see which config library should be used.
-	configLib := resolveConfigLibType(cliPath, defaultDir)
-
+func InitConfigObjects() {
 	// Assign the config globals, using locks to make the tests happy
-	SetDatadog(create.NewConfig("datadog", configLib))          // nolint: forbidigo // legitimate use of SetDatadog
-	SetSystemProbe(create.NewConfig("system-probe", configLib)) // nolint: forbidigo // legitimate use of SetDatadog
+	SetDatadog(create.NewConfig("datadog"))          // nolint: forbidigo // legitimate use of SetDatadog
+	SetSystemProbe(create.NewConfig("system-probe")) // nolint: forbidigo // legitimate use of SetDatadog
 
 	// Configuration defaults, should only be logic-free calls to BindEnvAndSetDefault / BindEnv / SetDefault
 	initConfig()
@@ -329,8 +292,6 @@ func InitConfigObjects(cliPath string, defaultDir string) {
 	// Build the environment variable layer
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
-
-	log.Infof("config lib used: %s", datadog.GetLibType())
 }
 
 // InitConfig initializes the config defaults on a config used by all agents
@@ -410,44 +371,33 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 		return value, found
 	}
 
-	var isSet bool
 	p := &pkgconfigmodel.Proxy{}
-	if isSet = config.IsSet("proxy"); isSet {
-		if err := structure.UnmarshalKey(config, "proxy", p); err != nil {
-			isSet = false
-			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
-		}
+	if err := structure.UnmarshalKey(config, "proxy", p); err != nil {
+		log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
 	}
 
 	if HTTP, found := lookupEnv("DD_PROXY_HTTP"); found {
-		isSet = true
 		p.HTTP = HTTP
 	} else if HTTP, found := lookupEnvCaseInsensitive("HTTP_PROXY"); found {
-		isSet = true
 		p.HTTP = HTTP
 	}
 
 	if HTTPS, found := lookupEnv("DD_PROXY_HTTPS"); found {
-		isSet = true
 		p.HTTPS = HTTPS
 	} else if HTTPS, found := lookupEnvCaseInsensitive("HTTPS_PROXY"); found {
-		isSet = true
 		p.HTTPS = HTTPS
 	}
 
 	if noProxy, found := lookupEnv("DD_PROXY_NO_PROXY"); found {
-		isSet = true
 		p.NoProxy = strings.FieldsFunc(noProxy, func(r rune) bool {
 			return r == ',' || r == ' '
 		}) // comma and space-separated list, consistent with viper and documentation
 	} else if noProxy, found := lookupEnvCaseInsensitive("NO_PROXY"); found {
-		isSet = true
 		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
 	}
 
 	if !config.GetBool("use_proxy_for_cloud_metadata") {
 		log.Debugf("'use_proxy_for_cloud_metadata' is enabled: adding cloud provider URL to the no_proxy list")
-		isSet = true
 		p.NoProxy = append(p.NoProxy,
 			"169.254.169.254", // Azure, EC2, GCE
 			"100.100.100.200", // Alibaba
@@ -456,7 +406,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
-	if isSet {
+	if p.HTTPS != "" || p.HTTP != "" || len(p.NoProxy) > 0 {
 		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceConfigPostInit)
 		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceConfigPostInit)
 
@@ -1522,6 +1472,28 @@ func ApplyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
 	}
 }
 
+// ComputeDataPlaneStopTimeout is a post-load override that, when the user has
+// not explicitly set data_plane.stop_timeout, recomputes it from
+// aggregator_stop_timeout + forwarder_stop_timeout. The Agent Data Plane reads
+// this value via the config stream to size its topology graceful-shutdown
+// budget; computing the sum here keeps that budget aligned with the documented
+// core-agent shutdown window even when users customize the component
+// timeouts.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
+func ComputeDataPlaneStopTimeout(config pkgconfigmodel.Config) {
+	if config.GetSource("data_plane.stop_timeout") != pkgconfigmodel.SourceDefault {
+		return
+	}
+	sum := config.GetInt("aggregator_stop_timeout") + config.GetInt("forwarder_stop_timeout")
+	// Keep the source as default: the value is a derived default, not an
+	// agent runtime decision, so it should be filtered out by views that
+	// strip defaults (e.g. config dumps for diagnostics).
+	config.Set("data_plane.stop_timeout", sum, pkgconfigmodel.SourceDefault)
+}
+
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnvAndSetDefault(prefix+"dd_url", "")
@@ -1544,6 +1516,13 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
 	config.SetDefault(prefix+"dev_mode_no_ssl", false)
+
+	// DEPRECATED in favor of `logs_config.force_use_http`.
+	config.BindEnvAndSetDefault(prefix+"use_http", false)
+	config.BindEnvAndSetDefault(prefix+"force_use_http", false)
+	// DEPRECATED in favor of `logs_config.force_use_tcp`.
+	config.BindEnvAndSetDefault(prefix+"use_tcp", false)
+	config.BindEnvAndSetDefault(prefix+"force_use_tcp", false)
 }
 
 // pathExists returns true if the given path exists
@@ -1596,4 +1575,14 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 	}
 
 	return true
+}
+
+func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
+	if val, found := platformValues[runtime.GOOS]; found {
+		return val
+	}
+	if val, found := platformValues["other"]; found {
+		return val
+	}
+	return nil
 }

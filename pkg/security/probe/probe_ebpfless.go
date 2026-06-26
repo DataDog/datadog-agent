@@ -664,6 +664,12 @@ func (p *EBPFLessProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
 }
 
+// EnrichRuleEvent is a no-op for the ebpf-less probe. The ptracer-based
+// userspace pipeline applies its own truncation in pkg/security/ptracer and
+// does not retain the pre-truncation argv/envp, so there is no cheap source
+// of fuller values to backfill from at rule-match time.
+func (p *EBPFLessProbe) EnrichRuleEvent(_ *model.Event) {}
+
 // HandleActions handles the rule actions
 func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 	ev := ctx.Event.(*model.Event)

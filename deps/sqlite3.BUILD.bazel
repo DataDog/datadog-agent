@@ -7,7 +7,7 @@ package(
     default_visibility = ["//visibility:private"],
 )
 
-VERSION = "3.53.0"
+VERSION = "3.53.2"
 
 license(
     name = "license",

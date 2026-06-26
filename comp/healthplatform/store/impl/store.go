@@ -23,7 +23,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -79,6 +79,10 @@ type healthPlatformImpl struct {
 	// Persistence: lifecycle state only — proto payload is not stored here.
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
 	persistence     issuesPersistence
+
+	// Issue observers: receive issue events outside issuesMux.
+	observersMu sync.RWMutex
+	observers   []healthplatformdef.IssuesObserver
 
 	// Metrics
 	metrics telemetryMetrics
@@ -310,8 +314,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 // start starts the health platform component
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
-
-	// Load persisted issues from disk
 	if err := h.loadFromDisk(); err != nil {
 		h.log.Warn("Failed to load persisted issues: " + err.Error())
 	}
@@ -322,6 +324,31 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 func (h *healthPlatformImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping health platform component")
 	return nil
+}
+
+// RegisterIssuesObserver appends an observer. Observers registered after
+// OnStart will miss events that occurred before registration.
+func (h *healthPlatformImpl) RegisterIssuesObserver(obs healthplatformdef.IssuesObserver) {
+	h.observersMu.Lock()
+	h.observers = append(h.observers, obs)
+	h.observersMu.Unlock()
+}
+
+// notifyResolved writes a resolved tombstone to each observer's ResolvedCh.
+// Must be called outside issuesMux.
+func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
+	h.observersMu.RLock()
+	obs := h.observers
+	h.observersMu.RUnlock()
+	for _, o := range obs {
+		if o.ResolvedCh != nil {
+			select {
+			case o.ResolvedCh <- resolved:
+			default:
+				h.log.Warnf("health platform: resolved channel full, %s recoverable from disk", resolved.Id)
+			}
+		}
+	}
 }
 
 // ============================================================================
@@ -419,11 +446,13 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	h.issuesMux.Lock()
 
 	stateChanged := false
+	var resolved *healthplatform.Issue
+
 	if _, ok := h.issues[issueID]; ok {
 		h.log.Info("Cleared issue: " + issueID)
+		delete(h.issues, issueID)
 		stateChanged = true
 	}
-	delete(h.issues, issueID)
 
 	if persisted := h.persistedIssues[issueID]; persisted != nil {
 		h.issuesByName[persisted.IssueType] = removeID(h.issuesByName[persisted.IssueType], issueID)
@@ -432,9 +461,19 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 			persisted.ResolvedAt = time.Now().Format(time.RFC3339)
 			stateChanged = true
 		}
+
+		resolved = &healthplatform.Issue{
+			Id:             issueID,
+			IssueName:      persisted.IssueType,
+			PersistedIssue: persistedIssueToProto(persisted),
+		}
 	}
 
 	h.issuesMux.Unlock()
+
+	if resolved != nil {
+		h.notifyResolved(resolved)
+	}
 
 	if stateChanged {
 		if err := h.saveToDisk(); err != nil {
@@ -443,15 +482,22 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	}
 }
 
-// ResolveAllIssues clears all active issues.
+// ResolveAllIssues marks every active issue as resolved.
 func (h *healthPlatformImpl) ResolveAllIssues() {
 	h.issuesMux.Lock()
 
 	now := time.Now().Format(time.RFC3339)
+	var resolved []*healthplatform.Issue
+
 	for _, persisted := range h.persistedIssues {
 		if persisted != nil && persisted.State != IssueStateResolved {
 			persisted.State = IssueStateResolved
 			persisted.ResolvedAt = now
+			resolved = append(resolved, &healthplatform.Issue{
+				Id:             persisted.IssueID,
+				IssueName:      persisted.IssueType,
+				PersistedIssue: persistedIssueToProto(persisted),
+			})
 		}
 	}
 
@@ -460,6 +506,10 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 	h.log.Info("Cleared all issues")
 
 	h.issuesMux.Unlock()
+
+	for _, t := range resolved {
+		h.notifyResolved(t)
+	}
 
 	if err := h.saveToDisk(); err != nil {
 		h.log.Warn("Failed to persist issues to disk: " + err.Error())
@@ -602,9 +652,10 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 	pruneOldResolvedIssues(state.Issues)
 
 	h.issuesMux.Lock()
-	defer h.issuesMux.Unlock()
 
 	activeCount := 0
+	var resolvedIssues []*healthplatform.Issue
+
 	for issueID, persisted := range state.Issues {
 		if persisted == nil {
 			continue
@@ -612,16 +663,32 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 		persisted.IssueID = issueID
 		h.persistedIssues[issueID] = persisted
 
-		if persisted.State == IssueStateResolved || persisted.IssueType == "" {
+		if persisted.IssueType == "" {
 			continue
 		}
 
-		nameKey := persisted.IssueType
-		h.issuesByName[nameKey] = append(h.issuesByName[nameKey], issueID)
+		if persisted.State == IssueStateResolved {
+			resolvedIssues = append(resolvedIssues, &healthplatform.Issue{
+				Id:             issueID,
+				IssueName:      persisted.IssueType,
+				PersistedIssue: persistedIssueToProto(persisted),
+			})
+			continue
+		}
+
+		h.issuesByName[persisted.IssueType] = append(h.issuesByName[persisted.IssueType], issueID)
 		activeCount++
 	}
 
-	h.log.Info(fmt.Sprintf("Loaded %d persisted issues (%d active)", len(state.Issues), activeCount))
+	h.issuesMux.Unlock()
+
+	h.log.Info(fmt.Sprintf("Loaded %d persisted issues (%d active, %d resolved pending send)",
+		len(state.Issues), activeCount, len(resolvedIssues)))
+
+	for _, t := range resolvedIssues {
+		h.notifyResolved(t)
+	}
+
 	return nil
 }
 

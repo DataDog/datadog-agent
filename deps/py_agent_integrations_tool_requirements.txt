@@ -1,0 +1,2 @@
+hatchling==0.25.1  # Build backend used by integration packages
+installer==1.0.1  # Wheel installer

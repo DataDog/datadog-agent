@@ -56,7 +56,7 @@ bazel_dep(name = "package_metadata", version = "0.0.10")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.3.1")
-bazel_dep(name = "rules_cc", version = "0.2.19")
+bazel_dep(name = "rules_cc", version = "0.2.20")
 bazel_dep(name = "rules_flex", version = "0.4.1")
 bazel_dep(name = "rules_go", version = "0.61.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
@@ -335,7 +335,12 @@ pip.parse(
     python_version = PYTHON_VERSION,
     requirements_lock = "//deps:py_dev_requirements_lock.txt",
 )
-use_repo(pip, "py_dev_requirements")
+pip.parse(
+    hub_name = "py_agent_integrations_tool_requirements",
+    python_version = PYTHON_VERSION,
+    requirements_lock = "//deps:py_agent_integrations_tool_requirements_lock.txt",
+)
+use_repo(pip, "py_agent_integrations_tool_requirements", "py_dev_requirements")
 
 register_toolchains("@pythons_hub//:all")
 
@@ -433,6 +438,9 @@ include("//deps/msodbcsql18:msodbcsql18.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps:go.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/agent_integrations:integrations.MODULE.bazel")
 
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64

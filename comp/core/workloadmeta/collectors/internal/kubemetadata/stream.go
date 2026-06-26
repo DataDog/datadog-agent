@@ -22,6 +22,7 @@ import (
 	grpcmeta "google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -199,12 +200,16 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 	var events []workloadmeta.CollectorEvent
 
 	if update.updateIsFullState {
+		events = append(events, p.buildKueueQueueEvents(update.updatedKueueQueues)...)
+
 		for _, uid := range seenPods {
 			if podEvent, ok := p.buildPodEventFromUID(uid); ok {
 				events = append(events, podEvent)
 			}
 		}
 	} else {
+		events = append(events, p.buildKueueQueueEvents(update.updatedKueueQueues)...)
+
 		for namespacedName := range update.updatedPods {
 			uid, ok := seenPods[namespacedName]
 			if !ok {
@@ -280,10 +285,38 @@ func (p *streamingProvider) getNamespaceMetadata(ns string) (labels, annotations
 	return selectNamespaceMetadata(metadata, p.collectNamespaceLabels, p.collectNamespaceAnnotations)
 }
 
+func (p *streamingProvider) buildKueueQueueEvents(updatedQueueIDs map[string]struct{}) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(updatedQueueIDs))
+	for queueID := range updatedQueueIDs {
+		queue, found := p.dcaStream.getKueueQueue(queueID)
+		if found {
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceClusterOrchestrator,
+				Type:   workloadmeta.EventTypeSet,
+				Entity: queue,
+			})
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesKueueQueue{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueQueue,
+					ID:   queueID,
+				},
+			},
+		})
+	}
+	return events
+}
+
 type streamUpdate struct {
-	updateIsFullState bool
-	updatedPods       map[string]struct{} // keys are "namespace/name"
-	updatedNamespaces map[string]struct{}
+	updateIsFullState  bool
+	updatedPods        map[string]struct{} // keys are "namespace/name"
+	updatedNamespaces  map[string]struct{}
+	updatedKueueQueues map[string]struct{} // keys are workloadmeta entity IDs
 }
 
 // dcaStreamClient manages a gRPC streaming connection to the DCA for
@@ -295,6 +328,7 @@ type dcaStreamClient struct {
 	mu            sync.RWMutex
 	podServices   map[string][]string          // "namespace/podName" -> services
 	namespaces    map[string]namespaceMetadata // namespace name -> labels/annotations
+	kueueQueues   map[string]*workloadmeta.KubernetesKueueQueue
 	initialized   bool
 	unimplemented bool
 	pendingUpdate streamUpdate
@@ -313,6 +347,7 @@ func newDCAStreamClient(nodeName string, cfg configmodel.Reader) *dcaStreamClien
 		cfg:         cfg,
 		podServices: make(map[string][]string),
 		namespaces:  make(map[string]namespaceMetadata),
+		kueueQueues: make(map[string]*workloadmeta.KubernetesKueueQueue),
 		readyCh:     make(chan struct{}),
 		updateCh:    make(chan struct{}, 1),
 	}
@@ -376,6 +411,20 @@ func (sc *dcaStreamClient) getNamespaceMetadata(namespace string) (labels, annot
 		return nil, nil, false
 	}
 	return ns.labels, ns.annotations, true
+}
+
+func (sc *dcaStreamClient) getKueueQueue(queueID string) (*workloadmeta.KubernetesKueueQueue, bool) {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	queue, found := sc.kueueQueues[queueID]
+	if !found {
+		return nil, false
+	}
+	// Keep ownership of the cached entity with the stream client. The returned
+	// queue is passed to workloadmeta after sc.mu is released, and it contains
+	// mutable maps such as Labels and Annotations.
+	return queue.DeepCopy().(*workloadmeta.KubernetesKueueQueue), true
 }
 
 func (sc *dcaStreamClient) isUnimplemented() bool {
@@ -507,14 +556,30 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		}
 		sc.namespaces = newNamespaces
 
+		newKueueQueues := make(map[string]*workloadmeta.KubernetesKueueQueue, len(resp.KueueQueues))
+		updatedKueueQueues := make(map[string]struct{}, len(resp.KueueQueues)+len(sc.kueueQueues))
+		for queueID := range sc.kueueQueues {
+			updatedKueueQueues[queueID] = struct{}{}
+		}
+		for _, queueMetadata := range resp.KueueQueues {
+			queue := newKueueQueue(queueMetadata)
+			if queue == nil {
+				continue
+			}
+			newKueueQueues[queue.EntityID.ID] = queue
+			updatedKueueQueues[queue.EntityID.ID] = struct{}{}
+		}
+		sc.kueueQueues = newKueueQueues
+
 		sc.initialized = true
 		sc.pendingUpdate.updateIsFullState = true
+		sc.pendingUpdate.updatedKueueQueues = updatedKueueQueues
 		sc.notifyUpdate()
 		sc.signalReady()
 		return
 	}
 
-	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0) {
+	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
@@ -555,9 +620,76 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		sc.pendingUpdate.updatedNamespaces[ns.Namespace] = struct{}{}
 	}
 
-	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 {
+	for _, queueMetadata := range resp.KueueQueues {
+		queueID := kueueQueueID(queueMetadata)
+		switch queueMetadata.Type {
+		case pb.KubeMetadataEventType_SET:
+			queue := newKueueQueue(queueMetadata)
+			if queue == nil {
+				continue
+			}
+			sc.kueueQueues[queue.EntityID.ID] = queue
+			queueID = queue.EntityID.ID
+		case pb.KubeMetadataEventType_UNSET:
+			delete(sc.kueueQueues, queueID)
+		default:
+			log.Errorf("Unknown event type %d for Kueue queue metadata %s", queueMetadata.Type, queueID)
+			continue
+		}
+		if sc.pendingUpdate.updatedKueueQueues == nil {
+			sc.pendingUpdate.updatedKueueQueues = make(map[string]struct{})
+		}
+		sc.pendingUpdate.updatedKueueQueues[queueID] = struct{}{}
+	}
+
+	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 {
 		sc.notifyUpdate()
 	}
+}
+
+func newKueueQueue(queueMetadata *pb.KueueQueue) *workloadmeta.KubernetesKueueQueue {
+	if queueMetadata == nil || queueMetadata.Name == "" {
+		return nil
+	}
+
+	queueType := workloadmetaKueueQueueType(queueMetadata.QueueType)
+	return &workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   kueueQueueID(queueMetadata),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      queueMetadata.Name,
+			Namespace: queueMetadata.Namespace,
+			UID:       queueMetadata.Uid,
+		},
+		QueueType:        queueType,
+		ClusterQueueName: queueMetadata.ClusterQueue,
+		ResolvedTags:     queueMetadata.ResolvedTags,
+	}
+}
+
+func workloadmetaKueueQueueType(queueType pb.KueueQueueType) workloadmeta.KueueQueueType {
+	switch queueType {
+	case pb.KueueQueueType_CLUSTER_QUEUE:
+		return workloadmeta.KueueClusterQueue
+	default:
+		return workloadmeta.KueueLocalQueue
+	}
+}
+
+func kueueQueueID(queueMetadata *pb.KueueQueue) string {
+	if queueMetadata == nil {
+		return ""
+	}
+
+	queueType := workloadmetaKueueQueueType(queueMetadata.QueueType)
+	id, err := kubernetesresourceparsers.GenerateKueueQueueEntityID(queueType, queueMetadata.Namespace, queueMetadata.Name)
+	if err != nil {
+		log.Errorf("Could not generate Kueue queue entity ID for %s/%s: %v", queueMetadata.Namespace, queueMetadata.Name, err)
+		return ""
+	}
+	return id
 }
 
 // notifyUpdate sends signal on updateCh. Must be called with sc.mu held.

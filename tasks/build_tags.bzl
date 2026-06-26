@@ -52,6 +52,7 @@ ALL_TAGS = set([
     "ncm",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
+    "no_gogo",  # drops the gogo/protobuf compatibility shim in containerd/typeurl
     "npm",
     "nvml",  # used for the nvidia go-nvml library
     "oracle",
@@ -177,8 +178,11 @@ CLUSTER_AGENT_TAGS = set([
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "cel"])
 
-# DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "podman", "zlib", "zstd"])
+# DOGSTATSD_TAGS lists the tags needed when building dogstatsd.
+# no_gogo drops the legacy gogo/protobuf compatibility shim in containerd/typeurl;
+# the containerd metric types dogstatsd unmarshals (cgroups/v3, hcsshim stats) all
+# use the modern google.golang.org/protobuf runtime, so the shim is dead weight.
+DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "no_gogo", "podman", "zlib", "zstd"])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
 IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib", "zstd"])

@@ -1,6 +1,8 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended", "mergeConfidence:all-badges", ":enablePreCommit", "schedule:nonOfficeHours"],
+    "timezone": "Europe/Paris",
+    "updateNotScheduled": false,
     "ignorePaths": [],
     "minimumReleaseAge": "7 days",
     "prConcurrentLimit": 20,
@@ -8,6 +10,7 @@
     "stopUpdatingLabel": "stop-updating",
     "gitIgnoredAuthors": ["200755185+dd-octo-sts[bot]@users.noreply.github.com"],
     "platformCommit": "enabled",
+    "postUpdateOptions": ["gomodUpdateImportPaths"],
     "packageRules": [
       {
         "matchDepNames": ["*"],
@@ -92,12 +95,6 @@
           "github.com/mailru/easyjson"
         ],
         "enabled": false
-      },
-      {
-        "description": "Only propose Go module updates compatible with the module go directive",
-        "matchManagers": ["gomod"],
-        "matchDepTypes": ["require", "indirect", "tool"],
-        "constraintsFiltering": "strict"
       },
       {
         "description": "Disable Go directives, toolchain (go update is managed independently) or replace (->fork)",

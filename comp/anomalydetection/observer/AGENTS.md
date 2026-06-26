@@ -21,7 +21,7 @@ events to reporters injected via the `anomalydetection_reporters` Fx group.
 
 | Layer | Code | Role |
 |-------|------|------|
-| **Component** (`observerImpl`) | `impl/observer.go` | Fx lifecycle, channel dispatch, Handle factory, agent-internal log tap |
+| **Component** (`observerImpl`) | `impl/observer.go` | Fx lifecycle, channel dispatch, Handle factory, `agent_logs` tap |
 | **Engine** (`engine`) | `impl/engine.go` | Storage, detection, correlation, replay — the shared core |
 
 The engine is a plain Go struct, not an Fx component. Both the live observer
@@ -38,10 +38,11 @@ and the testbench use the same engine.
 | `impl/scheduler.go` | Scheduling policy: when to advance analysis |
 | `impl/observer.go` | Fx component: lifecycle, channel loop, handle creation, log tap |
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
-| `impl/agent_logs.go` | Agent-internal log tap (source: `agent-internal-logs`) |
+| `impl/agent_logs.go` | Agent internal log tap (source: `agent_logs`) |
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
 | `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
 | `impl/anomaly_correlator_time_cluster.go` | Default time-proximity correlator |
+| `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay) |
 | `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
 
 ### Component catalog (defaults)
@@ -58,8 +59,27 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Detector | `cusum`, `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | on |
 | Correlator | `cross_signal`, `passthrough` | off |
+| Correlator | `anomaly_scorer` | off |
 
-Toggle via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
+Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
+
+The `anomaly_scorer` correlator has a **dedicated config namespace** under `anomaly_detection.anomaly_scorer.*` (not `detectors.*`) with an `output` sub-section controlling logs and correlation events:
+
+```yaml
+anomaly_detection:
+  anomaly_scorer:
+    enabled: true
+    alpha: 0.3
+    window_secs: 30
+    low_threshold: 0.030
+    high_threshold: 0.060
+    output:
+      logs: true
+      correlation_events: false
+      cooldown_secs: 300
+```
+
+The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/` for testbench replay.
 
 ## Key Design Decisions
 
@@ -100,7 +120,7 @@ are unaffected.
 4. **Extractor names must be unique.** The name is the storage namespace for
    derived metrics. Duplicates cause silent data collision.
 
-5. **Agent-internal logs are not logssource.** The internal tap is wired in
+5. **Agent internal logs are not logssource.** The internal tap is wired in
    `impl/observer.go`, gated by `anomaly_detection.logs.internal.*`.
 
 ## Testing
