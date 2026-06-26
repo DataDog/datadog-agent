@@ -34,6 +34,10 @@ run_binary(
         "$(execpath backend_linux_doc_gen/backend_linux.md)",
         "backend_linux.md",
     ],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     tool = "//tasks/libs/cws:backend_doc_gen",
 )
 
@@ -58,6 +62,10 @@ run_binary(
         "$(execpath secl_linux_doc_gen/linux_expressions.md)",
         "linux_expressions.md",
     ],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     tool = "//tasks/libs/cws:secl_doc_gen",
 )
 
