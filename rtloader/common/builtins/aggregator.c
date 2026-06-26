@@ -134,11 +134,24 @@ static char **py_tag_to_c(PyObject *py_tags)
         // `item` is borrowed, no need to decref
         PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i);
 
-        char *ctag = as_string(item);
-        if (ctag == NULL) {
+        // Borrow the string data directly from the Python object — no copy.
+        // PyUnicode_AsUTF8 returns a pointer into CPython's internal UTF-8 cache,
+        // valid for the lifetime of `item`. PyBytes_AS_STRING returns the internal
+        // buffer pointer directly. Both stay valid until at least Py_XDECREF(py_tags_list)
+        // below, which happens after the callback has returned and copied the strings.
+        const char *ctag;
+        if (PyUnicode_Check(item)) {
+            ctag = PyUnicode_AsUTF8(item);
+            if (ctag == NULL) {
+                PyErr_Clear();
+                continue;
+            }
+        } else if (PyBytes_Check(item)) {
+            ctag = PyBytes_AS_STRING(item);
+        } else {
             continue;
         }
-        tags[nb_valid_tag] = ctag;
+        tags[nb_valid_tag] = (char *)ctag;
         nb_valid_tag++;
     }
     tags[nb_valid_tag] = NULL;
@@ -157,10 +170,8 @@ done:
 */
 static void free_tags(char **tags)
 {
-    int i;
-    for (i = 0; tags[i] != NULL; i++) {
-        _free(tags[i]);
-    }
+    // Only the pointer array is heap-owned. The strings it points to are borrowed
+    // from Python Unicode/bytes objects and must not be freed here.
     _free(tags);
 }
 
