@@ -44,11 +44,6 @@ type managedBaseEntry struct {
 	remainder *integration.Config // remainder config currently scheduled, or nil if none
 }
 
-// isSupportedIntegration reports whether name is a supported DB integration.
-func isSupportedIntegration(name string) bool {
-	return name == "postgres" || name == "sap_hana"
-}
-
 // instanceHost returns the host/server field for an integration instance,
 // handling the fact that sap_hana uses "server" while postgres uses "host".
 func instanceHost(instance map[string]any) string {
@@ -312,8 +307,8 @@ func (c *component) findMatchingConfig(dbID *DBIdentifier) (*integration.Config,
 	var lastParseErr error
 	for cfgIdx := range cfgs {
 		cfg := cfgs[cfgIdx]
-		if !isSupportedIntegration(cfg.Name) {
-			continue
+		if cfg.Name != "postgres" && cfg.Name != "sap_hana" {
+			c.log.Warnf("DO query action: config %s is not a known DO-supported integration", cfg.Name)
 		}
 
 		for _, instanceData := range cfg.Instances {
