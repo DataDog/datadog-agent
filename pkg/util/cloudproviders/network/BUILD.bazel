@@ -23,6 +23,7 @@ go_test(
     embed = [":network"],
     gotags = ["test"],
     deps = [
+        "//pkg/config/mock",
         "//pkg/util/cache",
         "@com_github_stretchr_testify//require",
     ],
