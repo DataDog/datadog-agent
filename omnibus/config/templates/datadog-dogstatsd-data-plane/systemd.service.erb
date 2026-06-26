@@ -1,0 +1,15 @@
+[Unit]
+Description=Datadog Agent Data Plane (dogstatsd)
+After=datadog-dogstatsd.service
+BindsTo=datadog-dogstatsd.service
+
+[Service]
+Type=simple
+User=dd-agent
+Restart=on-failure
+ExecStart=<%= install_dir %>/embedded/bin/agent-data-plane --config /etc/datadog-dogstatsd/dogstatsd.yaml run
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

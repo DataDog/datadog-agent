@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The standalone ``dogstatsd`` Linux (deb/rpm) packages now ship a
+    ``datadog-dogstatsd-data-plane`` service (systemd and upstart) that runs the
+    bundled Agent Data Plane alongside ``dogstatsd``. The service is enabled by
+    default but is a no-op until the data plane is turned on: the
+    ``agent-data-plane`` process exits immediately when ``data_plane.enabled`` is
+    false (the default). Set ``data_plane.enabled: true`` in
+    ``/etc/datadog-dogstatsd/dogstatsd.yaml`` to use it.

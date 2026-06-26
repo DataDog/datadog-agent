@@ -1,0 +1,21 @@
+description "Datadog Agent Data Plane (dogstatsd)"
+
+# Started alongside dogstatsd. The agent-data-plane process exits immediately
+# when data_plane.enabled is false (the default), so it is a no-op until the
+# data plane is enabled in /etc/datadog-dogstatsd/dogstatsd.yaml.
+start on started datadog-dogstatsd
+stop on (runlevel [!2345] or stopping datadog-dogstatsd)
+
+respawn
+respawn limit 4 25
+normal exit 0
+
+# console log is not available before upstart 1.4. CentOS/RHEL6 use an earlier version of upstart.
+console output
+env DD_LOG_TO_CONSOLE=false
+
+script
+  # setuid is not available in versions of upstart before 1.4. CentOS/RHEL6 use an earlier version of upstart.
+  # This is the best way to set the user in the absence of setuid.
+  exec su -s /bin/sh -c 'exec "$0" "$@"' dd-agent -- <%= install_dir %>/embedded/bin/agent-data-plane --config /etc/datadog-dogstatsd/dogstatsd.yaml run
+end script
