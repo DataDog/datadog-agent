@@ -157,7 +157,7 @@ var (
 		[]string{"shard", "data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
 	tlmProcessedMetrics         = tlmProcessed.WithValues("", "metrics")
 	tlmProcessedHistogramBucket = tlmProcessed.WithValues("", "histogram_bucket")
-	tlmDogstatsdTimeBuckets = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_time_buckets",
+	tlmDogstatsdTimeBuckets     = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_time_buckets",
 		[]string{"shard"}, "Number of time buckets in the dogstatsd sampler")
 	tlmDogstatsdContexts = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_contexts",
 		[]string{"shard"}, "Count the number of dogstatsd contexts in the aggregator")
