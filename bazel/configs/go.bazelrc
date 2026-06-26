@@ -1,4 +1,4 @@
 # Go specific config settings.
 
-go_race:test --@rules_go//go/config:race
-go_race:test --test_env=GORACE=atexit_sleep_ms=50
+test:go_race --@rules_go//go/config:race
+test:go_race --test_env=GORACE=atexit_sleep_ms=50
