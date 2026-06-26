@@ -47,9 +47,9 @@ type Requires struct {
 	Config config.Component
 }
 
-// New creates a forwarder. It never registers lifecycle hooks; there is nothing
+// NewComponent creates a forwarder. It never registers lifecycle hooks; there is nothing
 // to clean up for a stateless HTTP client.
-func New(reqs Requires) forwarderdef.Component {
+func NewComponent(reqs Requires) forwarderdef.Component {
 	return &forwarder{
 		cfg:        reqs.Config,
 		intakeURL:  buildIntakeURL(reqs.Config),
