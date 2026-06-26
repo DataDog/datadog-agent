@@ -466,12 +466,11 @@ func TestTranslateCheck(t *testing.T) {
 			for i, substr := range tt.instanceContains {
 				assert.Contains(t, string(configs[0].Instances[i]), substr)
 			}
-			assert.Nil(t, configs[0].LogsConfig)
 		})
 	}
 }
 
-func TestBuildCELSelector(t *testing.T) {
+func TestRootOwnerCELFilter(t *testing.T) {
 	tests := []struct {
 		name      string
 		kind      string
@@ -515,7 +514,7 @@ func TestBuildCELSelector(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ref := autoscalingv2.CrossVersionObjectReference{Kind: tt.kind, Name: tt.target}
-			rules := buildCELSelector(ref, tt.namespace)
+			rules := rootOwnerCELFilter(ref, tt.namespace)
 			require.Len(t, rules.Containers, 1)
 			for _, substr := range tt.contains {
 				assert.Contains(t, rules.Containers[0], substr)

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -61,9 +62,9 @@ func (h *ChecksHandler) HasSection(cr *datadoghq.DatadogInstrumentation) bool {
 // SupportsTarget returns whether Autodiscovery check delivery supports the target kind.
 func (h *ChecksHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
 	switch ref.Kind {
-	case "Deployment", "DaemonSet", "StatefulSet", "CronJob", "Job":
+	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.CronJobKind, kubernetes.JobKind:
 		return true
-	case "Service":
+	case kubernetes.ServiceKind:
 		// Service target support is backed by endpoint slices CR provider. If Endpointslice collection
 		// is disabled then service targets can't be supported.
 		return h.serviceTargetEnabled
@@ -172,7 +173,7 @@ func (h *ChecksHandler) Handle(_ context.Context, event instrumentation.EventTyp
 }
 
 func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
-	initConfig, instances, logsConfig, err := translateCheckFields(check)
+	initConfig, instances, err := translateCheckFields(check)
 	if err != nil {
 		return integration.Config{}, err
 	}
@@ -187,14 +188,13 @@ func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadogh
 		ADIdentifiers: adIdentifiers,
 		InitConfig:    initConfig,
 		Instances:     instances,
-		LogsConfig:    logsConfig,
-		CELSelector:   buildCELSelector(cr.Spec.TargetRef, cr.Namespace),
+		CELSelector:   rootOwnerCELFilter(cr.Spec.TargetRef, cr.Namespace),
 		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
 
 func translateServiceCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
-	initConfig, instances, logsConfig, err := translateCheckFields(check)
+	initConfig, instances, err := translateCheckFields(check)
 	if err != nil {
 		return integration.Config{}, err
 	}
@@ -202,15 +202,14 @@ func translateServiceCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq
 		Name:       check.Integration,
 		InitConfig: initConfig,
 		Instances:  instances,
-		LogsConfig: logsConfig,
 		Source:     fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
 
-func translateCheckFields(check datadoghq.DatadogInstrumentationCheckConfig) (integration.Data, []integration.Data, integration.Data, error) {
+func translateCheckFields(check datadoghq.DatadogInstrumentationCheckConfig) (integration.Data, []integration.Data, error) {
 	initConfig, err := rawExtensionToData(check.InitConfig)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("init_config: %w", err)
+		return nil, nil, fmt.Errorf("init_config: %w", err)
 	}
 	if len(initConfig) == 0 {
 		initConfig = integration.Data("{}")
@@ -220,12 +219,12 @@ func translateCheckFields(check datadoghq.DatadogInstrumentationCheckConfig) (in
 	for j, raw := range check.Instances {
 		data, err := rawExtensionToData(raw)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("instances[%d]: %w", j, err)
+			return nil, nil, fmt.Errorf("instances[%d]: %w", j, err)
 		}
 		instances = append(instances, data)
 	}
 
-	return initConfig, instances, nil, nil
+	return initConfig, instances, nil
 }
 
 func rawExtensionToData(raw runtime.RawExtension) (integration.Data, error) {
@@ -242,18 +241,7 @@ func rawExtensionToData(raw runtime.RawExtension) (integration.Data, error) {
 	return b, nil
 }
 
-func marshalLogs(logs []datadoghq.DatadogInstrumentationLogConfig) (integration.Data, error) {
-	if len(logs) == 0 {
-		return nil, nil
-	}
-	b, err := json.Marshal(logs)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
-}
-
-func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace string) workloadfilter.Rules {
+func rootOwnerCELFilter(ref autoscalingv2.CrossVersionObjectReference, namespace string) workloadfilter.Rules {
 	expr := fmt.Sprintf(
 		`container.pod.rootowner.kind == %q && container.pod.rootowner.name == %q && container.pod.namespace == %q && container.image.reference != ""`,
 		ref.Kind, ref.Name, namespace,
