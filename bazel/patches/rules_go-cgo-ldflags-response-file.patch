@@ -1,0 +1,17 @@
+diff --git a/go/tools/builders/cgo2.go b/go/tools/builders/cgo2.go
+--- a/go/tools/builders/cgo2.go
++++ b/go/tools/builders/cgo2.go
+@@ -103,6 +103,13 @@
+ 	if err != nil {
+ 		return "", nil, nil, err
+ 	}
++	// Go 1.27 changed response-file expansion (cmd/internal/objabi) from newline-
++	// separated to GCC-compatible whitespace-separated (issue #77177). Space-separated
++	// ldflags in the @file get split into individual os.Args entries before flag
++	// parsing, so cgo sees them as unknown flags. Fall back to CGO_LDFLAGS for 1.27+.
++	if brokenInGo27, err2 := onVersionOrHigher(27); err2 == nil && brokenInGo27 {
++		canUseLdflagsFile = false
++	}
+
+ 	var ldflagsFile *os.File
+ 	combinedLdFlagsStr := strings.Join(combinedLdFlags, " ")

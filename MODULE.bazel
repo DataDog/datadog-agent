@@ -78,6 +78,7 @@ single_version_override(
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
+        "//bazel/patches:rules_go-cgo-ldflags-response-file.patch",  # fix cgo @file ldflags broken by Go 1.27 whitespace-based response-file expansion
     ],
 )
 
