@@ -97,7 +97,7 @@ type IssueState = healthplatform.IssueState
 
 const (
 	IssueStateNew      = healthplatform.IssueState_ISSUE_STATE_NEW     //nolint:staticcheck
-	IssueStateOngoing  = healthplatform.IssueState_ISSUE_STATE_ONGOING  //nolint:staticcheck
+	IssueStateOngoing  = healthplatform.IssueState_ISSUE_STATE_ONGOING //nolint:staticcheck
 	IssueStateResolved = healthplatform.IssueState_ISSUE_STATE_RESOLVED
 
 	// resolvedIssueTTL is the time after which resolved issues are pruned from the persistence file.

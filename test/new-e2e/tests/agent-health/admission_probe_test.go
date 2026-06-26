@@ -127,7 +127,7 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 		require.NotNil(t, detectedIssue.PersistedIssue)
 		assert.Contains(t,
 			[]healthplatform.IssueState{
-				healthplatform.IssueState_ISSUE_STATE_NEW, //nolint:staticcheck
+				healthplatform.IssueState_ISSUE_STATE_NEW,     //nolint:staticcheck
 				healthplatform.IssueState_ISSUE_STATE_ONGOING, //nolint:staticcheck
 			},
 			detectedIssue.PersistedIssue.State)
