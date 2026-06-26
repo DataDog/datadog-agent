@@ -22,7 +22,7 @@ import (
 // Compile-time guards: the concrete types passed via LifecycleContext must
 // satisfy the lifecycle interfaces.  Failures here mean Init() would panic at
 // runtime when the lifecycle server calls the missing methods.
-var _ lifecycle.Flusher       = (*serverlessMetrics.ServerlessMetricAgent)(nil)
+var _ lifecycle.Flusher = (*serverlessMetrics.ServerlessMetricAgent)(nil)
 var _ lifecycle.SampleDrainer = (*serverlessMetrics.ServerlessMetricAgent)(nil)
 var _ lifecycle.MetricEmitter = (*serverlessMetrics.ServerlessMetricAgent)(nil)
 
@@ -155,7 +155,6 @@ func TestMicroVMShutdown_LiveServer_StopsCleanly(t *testing.T) {
 	m := &MicroVM{server: srv, flushTimeout: time.Second}
 	assert.NotPanics(t, func() { m.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, false, nil) })
 }
-
 
 func TestMicroVMInit_NonMicroVMServicesIgnoreLifecycleCtx(t *testing.T) {
 	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}

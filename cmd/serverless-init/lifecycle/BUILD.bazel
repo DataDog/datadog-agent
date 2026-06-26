@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "lifecycle",
+    srcs = ["server.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/metrics",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "lifecycle_test",
+    srcs = ["server_test.go"],
+    embed = [":lifecycle"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/metrics",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

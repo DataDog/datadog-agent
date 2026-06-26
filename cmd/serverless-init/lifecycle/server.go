@@ -67,7 +67,7 @@ type SampleDrainer interface {
 
 // launchBody is the JSON payload sent by the MicroVM platform on /launch.
 type launchBody struct {
-	MicroVmID string `json:"microVmId"`
+	MicroVMID string `json:"microVmId"`
 }
 
 // Server is the MicroVM lifecycle hook HTTP server.
@@ -161,8 +161,8 @@ func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
 	var body launchBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		log.Debugf("MicroVM lifecycle: could not parse launch body: %v", err)
-	} else if body.MicroVmID != "" {
-		s.instanceID.Store(body.MicroVmID)
+	} else if body.MicroVMID != "" {
+		s.instanceID.Store(body.MicroVMID)
 	}
 	s.emitLifecycleMetric(launchMetricName)
 	w.WriteHeader(http.StatusOK)

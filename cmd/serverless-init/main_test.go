@@ -164,4 +164,3 @@ func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	const panicWindow = 500 * time.Millisecond
 	<-time.After(panicWindow)
 }
-
