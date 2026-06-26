@@ -6,6 +6,7 @@ load("@@//bazel/rules/foreign_cc_runnable:foreign_cc_runnable.bzl", "foreign_cc_
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR", "PYTHON_MAJOR_MINOR_FLAT")
 load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
@@ -164,6 +165,32 @@ python_deps = {
     "liblzma": "-llzma",
 }
 
+# Opt-in flag to compile the embedded CPython interpreter at -O0 instead of -O2.
+# This skips GCC's expensive codegen passes, substantially cutting the configure_make
+# compile phase. It is intended ONLY for non-deploy testing builds where the
+# interpreter's runtime speed is irrelevant (the artifact just needs to package and
+# pass a smoke test). It defaults to False so deploy/release builds are untouched;
+# the omnibus python3 software def only sets it for non-deploy Linux builds.
+bool_flag(
+    name = "cpython_fast_compile",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "cpython_fast_compile_on",
+    flag_values = {
+        ":cpython_fast_compile": "True",
+    },
+)
+
+# OPT is consumed by CPython's makefile to set the optimization level for its C
+# translation units. Keep -DNDEBUG/-fwrapv for behavioral correctness in both modes;
+# only the optimization level changes.
+OPT_FLAGS = select({
+    ":cpython_fast_compile_on": "-O0 -DNDEBUG -fwrapv",
+    "//conditions:default": "-DNDEBUG -fwrapv",
+})
+
 configure_make(
     name = "python_unix",
     configure_options = [
@@ -186,11 +213,12 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    copts = [
-        "-O2",
-    ],
+    copts = select({
+        ":cpython_fast_compile_on": ["-O0"],
+        "//conditions:default": ["-O2"],
+    }),
     env = {
-        "OPT": "-DNDEBUG -fwrapv",
+        "OPT": OPT_FLAGS,
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
         # Avoid quotation issues around keeping `redacted` (for __DATE__/__TIME__) properly quoted

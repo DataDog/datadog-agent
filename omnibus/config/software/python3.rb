@@ -11,9 +11,16 @@ build do
 
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 
+  # For non-deploy (testing) builds the embedded interpreter's runtime speed is
+  # irrelevant (the artifact just needs to package and pass a smoke test), so we
+  # compile CPython at -O0 to skip GCC's expensive codegen passes and cut build
+  # time. Deploy builds (DEPLOY_AGENT=true) keep the default -O2.
+  is_deploy = ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+  cpython_fast_compile_flag = is_deploy ? "" : "--@cpython//:cpython_fast_compile=true"
+
   if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @cpython//:install --destdir='#{install_dir}'",
+    command_on_repo_root "bazelisk run #{cpython_fast_compile_flag} --//:install_dir=#{install_dir} -- @cpython//:install --destdir='#{install_dir}'",
       :live_stream => Omnibus.logger.live_stream(:info)
     # Libraries and binaries are rpath-patched by dd_cc_packaged in cpython.BUILD.bazel;
     # this call is now only for the ##PREFIX## text substitution in _sysconfigdata.
