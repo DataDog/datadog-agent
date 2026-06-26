@@ -551,6 +551,7 @@ func (c *Check) resolveRootDevices() map[string]string {
 
 func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_disk.PartitionStat, rootDevices map[string]string, isPhysicalDisk *bool, allowedIODevices map[string]struct{}) {
 	for _, partition := range partitions {
+		originalDevice := partition.Device
 		if rootDev, ok := rootDevices[partition.Device]; ok {
 			log.Debugf("Found [device: %s] in rootDevices as [rawDev: %s]", partition.Device, rootDev)
 			partition.Device = rootDev
@@ -563,6 +564,9 @@ func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_di
 		if usage := c.getPartitionUsage(partition); usage != nil {
 			if allowedIODevices != nil {
 				allowedIODevices[baseDeviceName(partition.Device)] = struct{}{}
+				if originalDevice != partition.Device {
+					allowedIODevices[baseDeviceName(originalDevice)] = struct{}{}
+				}
 			}
 			tags := c.getPartitionTags(partition)
 			if c.instanceConfig.TagByPhysicalStorage && isPhysicalDisk != nil {
