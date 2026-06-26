@@ -8,62 +8,67 @@
 package apiserver
 
 import (
+	"context"
 	"time"
 
 	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/informers"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// EventCollector watches Kubernetes events through a shared informer and
+// EventCollector watches Kubernetes events through a client-go Reflector and
 // buffers them for a periodic consumer to drain.
 type EventCollector struct {
-	factory informers.SharedInformerFactory
+	client  kubernetes.Interface
+	filter  string
 	startTS time.Time
 
 	events  chan *v1.Event
 	dropped *atomic.Uint64
 }
 
-// NewEventCollector returns an EventCollector whose informer lists/watches
+// NewEventCollector returns an EventCollector whose Reflector lists/watches
 // events matching filter (a field selector). Requires that the bufferSize be greater than 0.
 func (c *APIClient) NewEventCollector(filter string, bufferSize int) *EventCollector {
 	if bufferSize <= 0 {
 		log.Errorf("Event collection buffer size must be greater than 0, got %d", bufferSize)
 		return nil
 	}
-	factory := c.GetInformerWithOptions(nil, informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
-		opts.FieldSelector = filter
-	}))
 	return &EventCollector{
-		factory: factory,
+		client:  c.InformerCl,
+		filter:  filter,
 		events:  make(chan *v1.Event, bufferSize),
 		dropped: atomic.NewUint64(0),
 	}
 }
 
-// Start registers the events informer and its handlers, starts it, and blocks
-// until its cache has synced. The informer runs until stopCh is closed.
+// Start builds the events Reflector and runs it until stopCh is closed. The
+// Reflector lists then watches events matching the field selector, forwarding
+// them to the buffer through eventReflectorStore.
 func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
 	ec.startTS = time.Now()
 
-	eventsInformer := ec.factory.Core().V1().Events()
-	if _, err := eventsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    ec.enqueue,
-		UpdateFunc: func(_, newObj interface{}) { ec.enqueue(newObj) },
-	}); err != nil {
-		return err
+	lw := &cache.ListWatch{
+		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+			opts.FieldSelector = ec.filter
+			return ec.client.CoreV1().Events(metav1.NamespaceAll).List(context.TODO(), opts)
+		},
+		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+			opts.FieldSelector = ec.filter
+			return ec.client.CoreV1().Events(metav1.NamespaceAll).Watch(context.TODO(), opts)
+		},
 	}
 
-	go eventsInformer.Informer().Run(stopCh)
+	reflector := cache.NewReflector(lw, &v1.Event{}, &eventReflectorStore{enqueue: ec.enqueue}, 0)
+	go reflector.Run(stopCh)
 
-	return SyncInformers(map[InformerName]cache.SharedInformer{
-		"kubernetes-events": eventsInformer.Informer(),
-	}, 0)
+	return nil
 }
 
 // Drain returns the events buffered since the last call.
