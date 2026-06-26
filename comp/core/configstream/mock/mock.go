@@ -10,6 +10,7 @@ package mock
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
@@ -20,6 +21,7 @@ import (
 type Component struct {
 	m           sync.Mutex
 	subscribers map[string]chan *pb.ConfigEvent
+	closed      atomic.Bool
 
 	// SubscribedC is a channel that receives the request of any new subscriber.
 	// Tests can use this to verify that a component has subscribed.
@@ -46,21 +48,33 @@ func Mock(t *testing.T) configstream.Component {
 
 // Subscribe implements the component interface.
 func (mock *Component) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.ConfigEvent, func()) {
-	mock.m.Lock()
-	defer mock.m.Unlock()
-
 	ch := make(chan *pb.ConfigEvent, 100)
+
+	mock.m.Lock()
 	mock.subscribers[req.Name] = ch
+	mock.m.Unlock()
 
-	mock.SubscribedC <- req
+	// Send outside the lock: SubscribedC has capacity 1 and a blocking send
+	// while holding the lock would deadlock any concurrent Subscribe/Close call.
+	if !mock.closed.Load() {
+		mock.SubscribedC <- req
+	}
 
+	var once sync.Once
 	unsubscribe := func() {
-		mock.m.Lock()
-		defer mock.m.Unlock()
-		delete(mock.subscribers, req.Name)
-		close(ch)
+		once.Do(func() {
+			mock.m.Lock()
+			_, ok := mock.subscribers[req.Name]
+			delete(mock.subscribers, req.Name)
+			mock.m.Unlock()
 
-		mock.UnsubscribedC <- struct{}{}
+			if ok {
+				close(ch)
+				if !mock.closed.Load() {
+					mock.UnsubscribedC <- struct{}{}
+				}
+			}
+		})
 	}
 
 	return ch, unsubscribe
@@ -82,10 +96,15 @@ func (mock *Component) SendEvent(event *pb.ConfigEvent) {
 
 // Close cleans up the mock's resources.
 func (mock *Component) Close() {
-	mock.m.Lock()
-	defer mock.m.Unlock()
+	mock.closed.Store(true)
 
-	for _, ch := range mock.subscribers {
+	mock.m.Lock()
+	subs := mock.subscribers
+	mock.subscribers = make(map[string]chan *pb.ConfigEvent)
+	mock.m.Unlock()
+
+	// Close channels that were not already closed by their unsubscribe function.
+	for _, ch := range subs {
 		close(ch)
 	}
 	close(mock.SubscribedC)
