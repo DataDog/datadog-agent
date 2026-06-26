@@ -203,10 +203,10 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		rawConfig := r.lastDefaults[cfgPath]
 
 		if err := load(rules.DefaultPolicyType, rawConfig.Metadata.ID, rawConfig.Config); err != nil {
-			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+			r.client.UpdateApplyStatusIfVersion(cfgPath, rawConfig.Metadata.Version, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			errs = multierror.Append(errs, err)
 		} else {
-			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			r.client.UpdateApplyStatusIfVersion(cfgPath, rawConfig.Metadata.Version, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
 	}
 
@@ -214,10 +214,10 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		rawConfig := r.lastCustoms[cfgPath]
 
 		if err := load(rules.CustomPolicyType, rawConfig.Metadata.ID, rawConfig.Config); err != nil {
-			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+			r.client.UpdateApplyStatusIfVersion(cfgPath, rawConfig.Metadata.Version, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			errs = multierror.Append(errs, err)
 		} else {
-			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			r.client.UpdateApplyStatusIfVersion(cfgPath, rawConfig.Metadata.Version, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
 	}
 
@@ -225,10 +225,10 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		rawConfig := r.lastRemediations[cfgPath]
 
 		if err := load(rules.RemediationPolicyType, rawConfig.Metadata.ID, rawConfig.Config); err != nil {
-			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+			r.client.UpdateApplyStatusIfVersion(cfgPath, rawConfig.Metadata.Version, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			errs = multierror.Append(errs, err)
 		} else {
-			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			r.client.UpdateApplyStatusIfVersion(cfgPath, rawConfig.Metadata.Version, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
 	}
 

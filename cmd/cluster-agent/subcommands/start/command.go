@@ -504,7 +504,12 @@ func start(log log.Component,
 			subscribeAgentTask(rcClient, config, statusComponent, diagnoseComp, ipc)
 			rcClient.Start()
 			defer func() {
-				rcClient.Close()
+				// Bound the wait: Close blocks until in-flight listener
+				// callbacks return, and a stuck listener (e.g. a long-running
+				// AGENT_TASK) must not hang cluster-agent shutdown.
+				if !rcClient.CloseTimeout(5 * time.Second) {
+					pkglog.Warnf("remote-config client did not drain within 5s on shutdown; a listener is likely stuck")
+				}
 			}()
 		}
 	}

@@ -8,10 +8,12 @@ package state
 import (
 	"encoding/base64"
 	"encoding/json"
+	"sync"
 	"testing"
 
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewRepositoryWithNilRoot(t *testing.T) {
@@ -1075,4 +1077,196 @@ func TestUpdateMetadataOnlyWhenHashUnchangedVersionIncreased(t *testing.T) {
 	assert.Equal(t, 1, len(state.CachedFiles))
 	assert.EqualValues(t, 3, state.Configs[0].Version)
 	assert.Equal(t, initialApplyStatusUnverified, state.Configs[0].ApplyStatus)
+}
+
+// TestUpdateApplyStatusIfVersion verifies the version-checked apply-status
+// write: it must apply when the version matches, refuse to apply (and not
+// mutate state) when the version has been bumped, and refuse for unknown
+// paths. This is the load-bearing guarantee that protects the async listener
+// dispatcher in pkg/config/remote/client from stamping stale acks onto newer
+// config versions.
+func TestUpdateApplyStatusIfVersion(t *testing.T) {
+	ta := newTestArtifacts()
+	r := ta.repository
+
+	// Install v1.
+	file := newCWSDDFile()
+	path, _, data := addCWSDDFile("test", 1, file, ta.targets)
+	b := signTargets(ta.key, ta.targets)
+	_, err := r.Update(Update{
+		TUFTargets:    b,
+		TargetFiles:   map[string][]byte{path: data},
+		ClientConfigs: []string{path},
+	})
+	require.NoError(t, err)
+
+	stored := r.GetConfigs(ProductCWSDD)[path]
+	require.EqualValues(t, 1, stored.Metadata.Version)
+	v1 := stored.Metadata.Version
+
+	// liveStatus reads the authoritative apply-status from CurrentState
+	// (sync.Map metadata), which is what's sent back to the backend in
+	// ConfigStates. GetConfigs returns the Metadata embedded in RawConfig
+	// at Update() time, which is not refreshed by apply-status writes —
+	// that's existing behavior shared by UpdateApplyStatus.
+	liveStatus := func() ApplyStatus {
+		s, err := r.CurrentState()
+		require.NoError(t, err)
+		for _, c := range s.Configs {
+			parsed, _ := parseConfigPath(path)
+			if c.ID == parsed.ConfigID && c.Product == parsed.Product {
+				return c.ApplyStatus
+			}
+		}
+		t.Fatalf("config %s not found in CurrentState", path)
+		return ApplyStatus{}
+	}
+
+	// Matching version: applied.
+	wantV1 := ApplyStatus{State: ApplyStateAcknowledged}
+	require.True(t, r.UpdateApplyStatusIfVersion(path, v1, wantV1))
+	assert.Equal(t, wantV1, liveStatus())
+
+	// Bump to v2.
+	_, _, data2 := addCWSDDFile("test", 2, []byte("v2-body"), ta.targets)
+	b = signTargets(ta.key, ta.targets)
+	_, err = r.Update(Update{
+		TUFTargets:    b,
+		TargetFiles:   map[string][]byte{path: data2},
+		ClientConfigs: []string{path},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, r.GetConfigs(ProductCWSDD)[path].Metadata.Version)
+
+	// Capture v2 status to prove a stale v1 ack does not mutate it.
+	beforeStale := liveStatus()
+
+	// Stale (v1) ack arrives after v2 landed: dropped, no mutation.
+	staleStatus := ApplyStatus{State: ApplyStateError, Error: "should be dropped"}
+	require.False(t, r.UpdateApplyStatusIfVersion(path, v1, staleStatus))
+	assert.Equal(t, beforeStale, liveStatus(),
+		"stale apply-status must not overwrite newer version's status")
+
+	// Unknown path: dropped.
+	require.False(t, r.UpdateApplyStatusIfVersion("datadog/2/CWS_DD/no-such-config/x", 1,
+		ApplyStatus{State: ApplyStateAcknowledged}))
+
+	// v2 ack: applied.
+	wantV2 := ApplyStatus{State: ApplyStateError, Error: "v2 failed"}
+	require.True(t, r.UpdateApplyStatusIfVersion(path, 2, wantV2))
+	assert.Equal(t, wantV2, liveStatus())
+}
+
+// TestRepositoryConcurrentUpdateAndGetConfigs exercises configsMu: it hammers
+// GetConfigs (read) from many goroutines while the main goroutine drives
+// Update (write) repeatedly. This mirrors production, where GetConfigs is a
+// public method called off the poll-loop goroutine (e.g. the cluster-agent
+// admission provider's leader loop) concurrently with the poll loop applying
+// updates. Before configsMu, the unsynchronized `configs` map made this an
+// immediate "concurrent map read and map write" fatal crash; the test must
+// pass cleanly under -race.
+//
+// Note: CurrentState and the TUF-state fields are intentionally NOT exercised
+// concurrently here — in production they are only ever touched by the single
+// poll-loop goroutine (via newUpdateRequest), so they need no locking.
+func TestRepositoryConcurrentUpdateAndGetConfigs(t *testing.T) {
+	ta := newTestArtifacts()
+	r := ta.repository
+
+	file := newCWSDDFile()
+	path, _, _ := addCWSDDFile("test", 1, file, ta.targets)
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					_ = r.GetConfigs(ProductCWSDD)
+				}
+			}
+		}()
+	}
+
+	for v := 1; v <= 50; v++ {
+		_, _, data := addCWSDDFile("test", int64(v), []byte("body"), ta.targets)
+		b := signTargets(ta.key, ta.targets)
+		_, err := r.Update(Update{
+			TUFTargets:    b,
+			TargetFiles:   map[string][]byte{path: data},
+			ClientConfigs: []string{path},
+		})
+		require.NoError(t, err)
+	}
+
+	close(stop)
+	wg.Wait()
+}
+
+// TestRepositoryConcurrentApplyStatusAndUpdate exercises metadataMu under
+// contention: ackers call UpdateApplyStatusIfVersion / UpdateApplyStatus from
+// several goroutines while the main goroutine bumps the config version via
+// Update. metadataMu is what makes each check-then-store atomic against
+// applyUpdateResult's metadata writes — without it, a stale ack's read-modify-
+// store could resurrect an old version's metadata (the exact corruption the
+// async dispatcher would otherwise cause). Must pass under -race.
+func TestRepositoryConcurrentApplyStatusAndUpdate(t *testing.T) {
+	ta := newTestArtifacts()
+	r := ta.repository
+
+	file := newCWSDDFile()
+	path, _, data := addCWSDDFile("test", 1, file, ta.targets)
+	b := signTargets(ta.key, ta.targets)
+	_, err := r.Update(Update{
+		TUFTargets:    b,
+		TargetFiles:   map[string][]byte{path: data},
+		ClientConfigs: []string{path},
+	})
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+	for i := 0; i < 6; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					// Interleave a stale-version ack (v1, almost always
+					// superseded) and a plain by-path ack.
+					r.UpdateApplyStatusIfVersion(path, 1, ApplyStatus{State: ApplyStateAcknowledged})
+					r.UpdateApplyStatus(path, ApplyStatus{State: ApplyStateAcknowledged})
+				}
+			}
+		}()
+	}
+
+	for v := 2; v <= 60; v++ {
+		_, _, d := addCWSDDFile("test", int64(v), []byte("body"), ta.targets)
+		bb := signTargets(ta.key, ta.targets)
+		_, err := r.Update(Update{
+			TUFTargets:    bb,
+			TargetFiles:   map[string][]byte{path: d},
+			ClientConfigs: []string{path},
+		})
+		require.NoError(t, err)
+	}
+
+	close(stop)
+	wg.Wait()
+
+	// The version must be the latest the writer applied — a concurrent stale
+	// ack must never have rolled it back — and a stale-version ack is rejected.
+	require.EqualValues(t, 60, r.GetConfigs(ProductCWSDD)[path].Metadata.Version)
+	require.False(t, r.UpdateApplyStatusIfVersion(path, 1,
+		ApplyStatus{State: ApplyStateAcknowledged}),
+		"a stale (v1) ack must be rejected after the version advanced")
 }

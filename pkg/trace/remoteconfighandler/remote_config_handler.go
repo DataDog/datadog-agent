@@ -159,7 +159,11 @@ func (h *RemoteConfigHandler) mrfUpdateCallback(updates map[string]state.RawConf
 }
 
 func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	mergedConfig, err := state.MergeRCAgentConfig(h.client.UpdateApplyStatus, updates)
+	// Use the apply-status callback handed to this update, not the raw
+	// client.UpdateApplyStatus: the former is version-bound to the snapshot we
+	// were given, so a slow update here can't stamp a stale ack onto a newer
+	// config version that landed in the meantime.
+	mergedConfig, err := state.MergeRCAgentConfig(applyStateCallback, updates)
 	if err != nil {
 		log.Debugf("couldn't merge the agent config from remote configuration: %s", err)
 		return

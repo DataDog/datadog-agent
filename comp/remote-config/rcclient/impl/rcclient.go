@@ -33,6 +33,9 @@ import (
 )
 
 const (
+	// rcCloseTimeout bounds how long shutdown waits for in-flight remote-config
+	// listener callbacks to drain when the lifecycle context carries no deadline.
+	rcCloseTimeout          = 5 * time.Second
 	agentTaskTimeout        = 5 * time.Minute
 	failoverMetricsSetting  = "multi_region_failover.failover_metrics"
 	failoverLogsSetting     = "multi_region_failover.failover_logs"
@@ -139,8 +142,21 @@ func NewComponent(deps Dependencies) (rcclient.Component, error) {
 	}
 
 	deps.Lc.Append(compdef.Hook{
-		OnStop: func(context.Context) error {
-			rc.client.Close()
+		OnStop: func(ctx context.Context) error {
+			// Client.Close blocks until every listener callback in flight has
+			// returned. A stuck listener (e.g. a long-running AGENT_TASK) must
+			// not hang shutdown, so bound the wait by the lifecycle context's
+			// deadline (falling back to a short default). The poll loop is
+			// always canceled regardless of whether workers drain in time.
+			timeout := rcCloseTimeout
+			if deadline, ok := ctx.Deadline(); ok {
+				if d := time.Until(deadline); d > 0 {
+					timeout = d
+				}
+			}
+			if !rc.client.CloseTimeout(timeout) {
+				pkglog.Warnf("remote-config client did not drain within %s on shutdown; a listener is likely stuck", timeout)
+			}
 			return nil
 		},
 	})
@@ -349,7 +365,10 @@ func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]st
 }
 
 func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
+	// Use the version-bound callback handed to this update, not the raw
+	// client.UpdateApplyStatus: the former drops a stale ack if a newer config
+	// version landed while we were processing. See Client.boundApplyStatus.
+	mergedConfig, err := state.MergeRCAgentConfig(applyStateCallback, updates)
 	if err != nil {
 		return
 	}
@@ -435,7 +454,9 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 			defer pkglog.Debugf("Agent task %s completed", configPath)
 			task, err := types.ParseConfigAgentTask(c.Config, c.Metadata)
 			if err != nil {
-				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
+				// Version-bound callback (not the raw client method) so a stale
+				// parse-error ack can't land on a newer config version.
+				applyStateCallback(configPath, state.ApplyStatus{
 					State: state.ApplyStateError,
 					Error: err.Error(),
 				})

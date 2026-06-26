@@ -85,6 +85,28 @@ type Repository struct {
 	// Config file storage
 	metadata sync.Map // map[string]Metadata
 	configs  map[string]map[string]interface{}
+
+	// configsMu guards the `configs` map (and its inner maps), which—unlike
+	// metadata—is a plain map with no built-in synchronization. The poll loop
+	// mutates it via applyUpdateResult while readers (GetConfigs and the typed
+	// per-product accessors) run on other goroutines. Without this lock a
+	// reader concurrent with an Update is an immediate "concurrent map
+	// read/write" fatal crash.
+	//
+	// Lock ordering: acquire configsMu BEFORE metadataMu. Only applyUpdateResult
+	// takes both; no path takes them in the reverse order.
+	configsMu sync.RWMutex
+
+	// metadataMu serializes metadata writes (Update's applyUpdateResult and
+	// UpdateApplyStatusIfVersion) so the latter's "check version then write
+	// status" is atomic against config-version bumps. Plain UpdateApplyStatus
+	// also takes this lock so a non-version-checked status write can't
+	// interleave between a check and a write.
+	//
+	// Reads (Load / Range) intentionally do NOT take this lock; sync.Map's
+	// own atomicity is sufficient for them, and CurrentState's Range is
+	// called on the request path where blocking is undesirable.
+	metadataMu sync.Mutex
 }
 
 // NewRepository creates a new remote config repository that will track
@@ -178,17 +200,27 @@ func (r *Repository) Update(update Update) ([]string, error) {
 
 	result := newUpdateResult()
 
-	// 2: Check the config list and mark any missing configs as "to be removed"
+	// 2: Check the config list and mark any missing configs as "to be removed".
+	// Snapshot the currently-stored paths under the read lock, then process
+	// them without it (the per-path work below can return errors, which makes a
+	// held lock awkward, and parseConfigPath doesn't touch r.configs).
+	r.configsMu.RLock()
+	storedPaths := make([]string, 0, len(r.configs))
 	for _, configs := range r.configs {
 		for path := range configs {
-			if _, ok := clientConfigsMap[path]; !ok {
-				result.removed = append(result.removed, path)
-				parsedPath, err := parseConfigPath(path)
-				if err != nil {
-					return nil, err
-				}
-				result.productsUpdated[parsedPath.Product] = true
+			storedPaths = append(storedPaths, path)
+		}
+	}
+	r.configsMu.RUnlock()
+
+	for _, path := range storedPaths {
+		if _, ok := clientConfigsMap[path]; !ok {
+			result.removed = append(result.removed, path)
+			parsedPath, err := parseConfigPath(path)
+			if err != nil {
+				return nil, err
 			}
+			result.productsUpdated[parsedPath.Product] = true
 		}
 	}
 
@@ -296,7 +328,10 @@ func (r *Repository) Update(update Update) ([]string, error) {
 // wasn't and which errors occurred while processing.
 // Note: it is the responsibility of the caller to ensure that no new Update() call was made between
 // the first Update() call and the call to UpdateApplyStatus() so as to keep the repository state accurate.
+// Prefer UpdateApplyStatusIfVersion for callers that may be running concurrently with Update().
 func (r *Repository) UpdateApplyStatus(cfgPath string, status ApplyStatus) {
+	r.metadataMu.Lock()
+	defer r.metadataMu.Unlock()
 	if val, ok := r.metadata.Load(cfgPath); ok {
 		if m, ok := val.(Metadata); ok {
 			m.ApplyStatus = status
@@ -305,13 +340,59 @@ func (r *Repository) UpdateApplyStatus(cfgPath string, status ApplyStatus) {
 	}
 }
 
+// UpdateApplyStatusIfVersion is a version-checked variant of UpdateApplyStatus.
+// It writes status only if the stored metadata for cfgPath still has the
+// expected version. It returns true if the status was applied, false if the
+// stored metadata is missing or has been replaced by a newer version (a stale
+// write was dropped).
+//
+// This exists for asynchronous callers — typically a slow Listener.OnUpdate
+// that finishes processing a snapshot after the next Update() has already
+// landed. Without the version check, the late ApplyStatus would be stamped
+// onto the newer config version's metadata, causing the next request to the
+// backend to report a wrong apply state for that version.
+//
+// The check-then-store is atomic against both Update() (via applyUpdateResult,
+// which acquires the same lock for its metadata writes) and against other
+// UpdateApplyStatus[IfVersion] callers.
+func (r *Repository) UpdateApplyStatusIfVersion(cfgPath string, expectedVersion uint64, status ApplyStatus) bool {
+	r.metadataMu.Lock()
+	defer r.metadataMu.Unlock()
+	val, ok := r.metadata.Load(cfgPath)
+	if !ok {
+		return false
+	}
+	m, ok := val.(Metadata)
+	if !ok {
+		return false
+	}
+	if m.Version != expectedVersion {
+		return false
+	}
+	m.ApplyStatus = status
+	r.metadata.Store(cfgPath, m)
+	return true
+}
+
+// getConfigs returns a shallow copy of the stored configs for a product.
+//
+// It returns a copy (not the live inner map) so callers can iterate without
+// holding configsMu: the values are immutable config objects that are
+// replaced—never mutated in place—by applyUpdateResult, so copying the map
+// references is sufficient to make the snapshot safe.
 func (r *Repository) getConfigs(product string) map[string]interface{} {
+	r.configsMu.RLock()
+	defer r.configsMu.RUnlock()
 	configs, ok := r.configs[product]
 	if !ok {
 		return nil
 	}
 
-	return configs
+	cp := make(map[string]interface{}, len(configs))
+	for path, config := range configs {
+		cp[path] = config
+	}
+	return cp
 }
 
 // applyUpdateResult changes the state of the client based on the given update.
@@ -319,6 +400,15 @@ func (r *Repository) getConfigs(product string) map[string]interface{} {
 // The update is guaranteed to succeed at this point, having been vetted and the details
 // needed to apply the update stored in the `updateResult`.
 func (r *Repository) applyUpdateResult(_ Update, result updateResult) {
+	// Hold configsMu across the configs mutations so concurrent readers
+	// (GetConfigs / typed accessors) never observe a half-applied update, and
+	// metadataMu across the metadata Store/Delete loops so a concurrent
+	// UpdateApplyStatusIfVersion call cannot observe a stale version between
+	// its check and its write. Ordering: configsMu before metadataMu.
+	r.configsMu.Lock()
+	defer r.configsMu.Unlock()
+	r.metadataMu.Lock()
+	defer r.metadataMu.Unlock()
 	// 4.b Save all the updated and new config files
 	for product, configs := range result.changed {
 		for path, config := range configs {
