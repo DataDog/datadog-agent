@@ -1,6 +1,7 @@
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -62,6 +63,15 @@ def omnibus_run_task(
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
             ctx.run(cmd.format(**args), env=env, replace_env=True, err_stream=sys.stdout)
+
+
+def _clear_agent_install_directory(agent_path):
+    with os.scandir(agent_path) as entries:
+        for entry in entries:
+            if entry.is_dir(follow_symlinks=False):
+                shutil.rmtree(entry.path)
+            else:
+                os.unlink(entry.path)
 
 
 def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
@@ -462,9 +472,7 @@ def build_repackaged_agent(ctx, log_level="info"):
         ):
             raise Exit("Operation cancelled")
 
-        import shutil
-
-        shutil.rmtree("/opt/datadog-agent")
+        _clear_agent_install_directory(agent_path)
 
     architecture = ctx.run("dpkg --print-architecture", hide=True).stdout.strip()
 
