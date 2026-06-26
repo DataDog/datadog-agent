@@ -59,9 +59,9 @@ import (
 )
 
 const (
-	datadogConfigPath   = "datadog.yaml"
-	miniAgentDir        = "/tmp/datadog"
-	miniAgentReadyFile  = miniAgentDir + "/mini_agent_ready"
+	datadogConfigPath  = "datadog.yaml"
+	miniAgentDir       = "/tmp/datadog"
+	miniAgentReadyFile = miniAgentDir + "/mini_agent_ready"
 )
 
 var modeConf mode.Conf
