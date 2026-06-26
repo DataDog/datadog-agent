@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -43,11 +44,12 @@ type KubeServiceConfigProvider struct {
 	configErrorsMu sync.RWMutex
 	configErrors   map[string]types.ErrorMsgSet
 	telemetryStore *telemetry.Store
+	healthPlatform healthplatformdef.Component
 }
 
 // NewKubeServiceConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeServiceConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeServiceConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	// Using GetAPIClient() (no retry)
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -64,6 +66,7 @@ func NewKubeServiceConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, tele
 		configErrors:   make(map[string]types.ErrorMsgSet),
 		telemetryStore: telemetryStore,
 		upToDate:       atomic.NewBool(false),
+		healthPlatform: hp,
 	}
 
 	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -202,11 +205,21 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 	}
 
 	k.configErrorsMu.Lock()
+	previousErrors := k.configErrors
 	k.configErrors = newErrors
 	if k.telemetryStore != nil {
 		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeServices)
 	}
 	k.configErrorsMu.Unlock()
+
+	for serviceID, errMsgSet := range newErrors {
+		reportConfigurationError(k.healthPlatform, serviceID, errMsgSet, types.KubeServiceAnnotationSource)
+	}
+	for serviceID := range previousErrors {
+		if _, stillErroring := newErrors[serviceID]; !stillErroring {
+			clearConfigurationErrors(k.healthPlatform, serviceID)
+		}
+	}
 
 	return configs, nil
 }
