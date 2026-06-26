@@ -199,17 +199,17 @@ type SpanConcentrator struct {
 	computeStatsBySpanKind                bool
 	additionalMetricTagValueBlockSentinel string
 	cardinalityLimits                     BucketCardinalityLimits
-	obfuscationEnabled *atomic.Bool  // nil when zero-value; read via isObfuscationEnabled()
-	resourceMaxBytes   *atomic.Int64 // nil when zero-value; read via getResourceMaxBytes()
+	obfuscationEnabled                    *atomic.Bool  // nil when zero-value; read via isObfuscationEnabled()
+	resourceMaxBytes                      *atomic.Int64 // nil when zero-value; read via getResourceMaxBytes()
 
 	// per-collapse-type atomic counters; drained on each flush via DrainBlockCounts
-	lengthBlocks         *atomic.Int64 // additional_metric_tags value > 200 chars
-	capBlocks            *atomic.Int64 // additional_metric_tags cardinality cap
-	wholeKeyCollapses    *atomic.Int64
-	resourceCollapses    *atomic.Int64
+	lengthBlocks          *atomic.Int64 // additional_metric_tags value > 200 chars
+	capBlocks             *atomic.Int64 // additional_metric_tags cardinality cap
+	wholeKeyCollapses     *atomic.Int64
+	resourceCollapses     *atomic.Int64
 	httpEndpointCollapses *atomic.Int64
-	peerTagsCollapses    *atomic.Int64
-	originCollapses      *atomic.Int64
+	peerTagsCollapses     *atomic.Int64
+	originCollapses       *atomic.Int64
 
 	// bucket duration in nanoseconds
 	bsize int64
