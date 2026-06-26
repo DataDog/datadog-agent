@@ -380,6 +380,7 @@ func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggK
 // is set to the sentinel value, preserving only the deployment-level (payload) key.
 // is_trace_root is NOT_SET (0) and synthetics is false as required by the RFC.
 func wholeKeyCollapsedAggregation(aggKey PayloadAggregationKey, sentinel string) Aggregation {
+	sentinelHash := tagsFnvHash([]string{sentinel})
 	return Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
@@ -390,8 +391,8 @@ func wholeKeyCollapsedAggregation(aggKey PayloadAggregationKey, sentinel string)
 			SpanKind:                 sentinel,
 			StatusCode:               0,
 			Synthetics:               false,
-			PeerTagsHash:             tagsFnvHash([]string{sentinel}),
-			AdditionalMetricTagsHash: tagsFnvHash([]string{sentinel}),
+			PeerTagsHash:             sentinelHash,
+			AdditionalMetricTagsHash: sentinelHash,
 			ServiceSource:            sentinel,
 			IsTraceRoot:              0, // NOT_SET
 			GRPCStatusCode:           "",
