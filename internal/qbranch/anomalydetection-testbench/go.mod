@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/log v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/option v0.81.0-devel.0.20260603133502-a41610237dba
-	github.com/DataDog/datadog-api-client-go/v2 v2.60.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.61.0
 	github.com/apache/arrow-go/v18 v18.6.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
@@ -93,7 +93,7 @@ require (
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/apache/thrift v0.23.1-0.20260429145742-d2acd3c49e58 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.42.0 // indirect
-	github.com/aws/smithy-go v1.27.1 // indirect
+	github.com/aws/smithy-go v1.27.2 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v6 v6.0.1 // indirect
