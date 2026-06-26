@@ -248,7 +248,6 @@ func (c *ddConverter) addProcessorToPipelinesWithDDExporter(conf confmaputils.Co
 	}
 }
 
-
 // addComponentToConfig adds comp to the collector config. It supports receivers,
 // processors, exporters and extensions.
 func addComponentToConfig(conf confmaputils.ConfMap, comp component) {

@@ -64,6 +64,69 @@ require (
 )
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.78.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.78.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.78.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.78.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
+	github.com/DataDog/datadog-agent/pkg/util/confmaputils v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0 // indirect
+	github.com/Masterminds/semver/v3 v3.5.0 // indirect
+	github.com/alecthomas/repr v0.5.2 // indirect
+	github.com/aws/aws-sdk-go v1.55.8 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.30 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.307.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.83.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/elasticache v1.52.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/kafka v1.52.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/lightsail v1.54.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/rds v1.119.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.2.0 // indirect
+	github.com/bahlo/generic-list-go v0.2.0 // indirect
+	github.com/buger/jsonparser v1.1.2 // indirect
+	github.com/cenkalti/backoff/v6 v6.0.1 // indirect
+	github.com/containerd/platforms v1.0.0-rc.2 // indirect
+	github.com/felixge/fgprof v0.9.5 // indirect
+	github.com/google/pprof v0.0.0-20260507013755-92041b743c96 // indirect
+	github.com/hashicorp/go-metrics v0.5.4 // indirect
+	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/moby/moby/api v1.54.2 // indirect
+	github.com/moby/moby/client v0.4.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.154.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.154.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.154.0 // indirect
+	github.com/outcaste-io/ristretto v0.2.3 // indirect
+	github.com/outscale/osc-sdk-go/v2 v2.34.0 // indirect
+	github.com/pb33f/jsonpath v0.8.2 // indirect
+	github.com/pb33f/libopenapi v0.37.2 // indirect
+	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
+	github.com/prometheus/client_golang/exp v0.0.0-20260518105423-c9d5bc4c50a9 // indirect
+	github.com/tidwall/gjson v1.18.0 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/vultr/govultr/v3 v3.31.2 // indirect
+	github.com/zeebo/xxh3 v1.1.0 // indirect
+	go.uber.org/mock v0.6.0 // indirect
+	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+	sigs.k8s.io/randfill v1.0.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+)
+
+require (
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.64.0 // indirect
