@@ -6076,68 +6076,74 @@ properties:
             node_type: setting
             type: string
             default: ''
-      detectors:
+      anomaly_scorer:
         node_type: section
         type: object
         properties:
-          anomaly_scorer:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          alpha:
+            node_type: setting
+            type: number
+            default: 0.014
+            tags:
+            - golang_type:float64
+          saturation_k:
+            node_type: setting
+            type: number
+            default: 5
+            tags:
+            - golang_type:float64
+          window_secs:
+            node_type: setting
+            type: integer
+            default: 15
+            comment: Sliding deduplication window in seconds. An anomaly series is counted at most once per window.
+          low_threshold:
+            node_type: setting
+            type: number
+            golang_type: float64
+            default: 0.15
+          high_threshold:
+            node_type: setting
+            type: number
+            golang_type: float64
+            default: 0.40
+          margin_pct:
+            node_type: setting
+            type: number
+            golang_type: float64
+            default: 0.20
+          output:
             node_type: section
             type: object
             properties:
-              alpha:
-                node_type: setting
-                type: number
-                default: 0.014
-                tags:
-                - golang_type:float64
-              enabled:
+              correlation_events:
                 node_type: setting
                 type: boolean
                 default: false
-              saturation_k:
+                comment: Emit closed High-severity periods as v2 change events.
+              logs:
                 node_type: setting
-                type: number
-                default: 5
-                tags:
-                - golang_type:float64
-              window_secs:
-                node_type: setting
-                type: integer
-                default: 15
-                comment: Sliding deduplication window in seconds. An anomaly series
-                  is counted at most once per window.
-              low_threshold:
-                node_type: setting
-                type: number
-                golang_type: float64
-                default: 0.040
-              high_threshold:
-                node_type: setting
-                type: number
-                golang_type: float64
-                default: 0.060
-              margin_pct:
-                node_type: setting
-                type: number
-                golang_type: float64
-                default: 0.20
+                type: boolean
+                default: false
+                comment: Log every severity transition via pkglog.
               cooldown_secs:
                 node_type: setting
                 type: integer
                 default: 300
-                comment: "Minimum seconds before the built-in helper subscription can de-escalate. Only used when helper.enabled is true."
-              helper:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
-                  report_events:
-                    node_type: setting
-                    type: boolean
-                    default: false
+                comment: Minimum seconds before a de-escalation callback can fire.
+              max_anomalies:
+                node_type: setting
+                type: integer
+                default: 50
+                comment: Maximum anomalies tracked per High-severity episode.
+      detectors:
+        node_type: section
+        type: object
+        properties:
           bocpd:
             node_type: section
             type: object
