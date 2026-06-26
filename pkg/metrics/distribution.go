@@ -15,6 +15,9 @@ type Distribution interface {
 	// WriteTo is called by the serializer to serialize the sketch.
 	//
 	// May be invoked multiple times on the same value.
+	//
+	// Implementers must call one of the methods on DistributionWriter, and must pass the returned
+	// error without modification.
 	WriteTo(DistributionWriter) error
 }
 
