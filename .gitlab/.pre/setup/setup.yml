@@ -21,5 +21,3 @@ setup_agent_version:
   artifacts:
     reports:
       dotenv: build.env
-  variables:
-    DISABLE_GIT_CACHE: true
