@@ -10,8 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go.opentelemetry.io/collector/confmap"
-
+	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 	"github.com/DataDog/datadog-agent/pkg/util/hostport"
 )
 
@@ -19,33 +18,6 @@ var (
 	// prometheus
 	prometheusName         = "prometheus"
 	prometheusEnhancedName = prometheusName + "/" + ddAutoconfiguredSuffix
-	prometheusConfig       = map[string]any{
-		"config": map[string]any{
-			"scrape_configs": []any{
-				map[string]any{
-					"fallback_scrape_protocol":      "PrometheusText0.0.4",
-					"job_name":                      "datadog-agent",
-					"metric_name_validation_scheme": "legacy",
-					"metric_name_escaping_scheme":   "underscores",
-					"scrape_interval":               "60s",
-					"scrape_protocols":              []any{"PrometheusText0.0.4"},
-					"static_configs": []any{
-						map[string]any{
-							"targets": []any{"0.0.0.0:8888"},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	// component
-	prometheusReceiver = component{
-		Name:         prometheusName,
-		EnhancedName: prometheusEnhancedName,
-		Type:         "receivers",
-		Config:       prometheusConfig,
-	}
 )
 
 // addPrometheusReceiver ensures that each datadogexporter is configured with a prometheus receiver
@@ -56,19 +28,16 @@ var (
 // to shipping the health metrics twice to the same org. If there are two datadog exporters with
 // different API keys, there is no way to know if these are from the same org, so there is a risk
 // of double shipping.
-func addPrometheusReceiver(conf *confmap.Conf, promServerAddr string) {
-	mLevel := conf.Get("service::telemetry::metrics::level")
-	if mLevel != nil && strings.ToLower(mLevel.(string)) == "none" {
+func addPrometheusReceiver(conf confmaputils.ConfMap, promServerAddr string) {
+	if mLevel, ok := confmaputils.Get[string](conf, "service::telemetry::metrics::level"); ok && strings.ToLower(mLevel) == "none" {
 		return
 	}
 
 	datadogExportersMap := getDatadogExporters(conf)
 
-	stringMapConf := conf.ToStringMap()
-
 	// find prometheus receivers which point to internal telemetry metrics. If present, check if it is defined
 	// in pipeline with DD exporter. If so, remove from datadog exporter map.
-	cfgsByRecv := findComps(stringMapConf, prometheusReceiver.Name, "receivers")
+	cfgsByRecv := findComps(conf, prometheusName, "receivers")
 	for name, cfg := range cfgsByRecv {
 		prometheusConfig, ok := cfg["config"]
 		if !ok {
@@ -129,53 +98,17 @@ func addPrometheusReceiver(conf *confmap.Conf, promServerAddr string) {
 			}
 		}
 	}
-	*conf = *confmap.NewFromStringMap(stringMapConf)
 
 	if len(datadogExportersMap) == 0 {
 		return
 	}
 
-	comp := prometheusReceiver
-	// update default prometheus config based on service telemetry address.
-	prometheusConfigMap, ok := comp.Config.(map[string]any)
-	if !ok {
-		return
+	comp := component{
+		Name:         prometheusName,
+		EnhancedName: prometheusEnhancedName,
+		Type:         "receivers",
+		Config:       confmaputils.PrometheusReceiverConfig("datadog-agent", promServerAddr),
 	}
-	config, ok := prometheusConfigMap["config"]
-	if !ok {
-		return
-	}
-	configMap, ok := config.(map[string]any)
-	if !ok {
-		return
-	}
-	scrapeConfig, ok := configMap["scrape_configs"]
-	if !ok {
-		return
-	}
-	scrapeConfigSlice, ok := scrapeConfig.([]any)
-	if !ok {
-		return
-	}
-	onlyScrapeConfig := scrapeConfigSlice[0]
-	onlyScrapeConfigMap, ok := onlyScrapeConfig.(map[string]any)
-	if !ok {
-		return
-	}
-	staticConfigs, ok := onlyScrapeConfigMap["static_configs"]
-	if !ok {
-		return
-	}
-	staticConfigsSlice, ok := staticConfigs.([]any)
-	if !ok {
-		return
-	}
-	onlyStaticConfig := staticConfigsSlice[0]
-	onlyStaticConfigMap, ok := onlyStaticConfig.(map[string]any)
-	if !ok {
-		return
-	}
-	onlyStaticConfigMap["targets"] = []any{promServerAddr}
 
 	addComponentToConfig(conf, comp)
 
@@ -184,7 +117,7 @@ func addPrometheusReceiver(conf *confmap.Conf, promServerAddr string) {
 	addDDExpToInternalPipeline(conf, []component{comp, processorInternalPipeline}, datadogExportersMap)
 }
 
-func addDDExpToInternalPipeline(conf *confmap.Conf, comps []component, datadogExportersMap map[string]any) {
+func addDDExpToInternalPipeline(conf confmaputils.ConfMap, comps []component, datadogExportersMap map[string]any) {
 	for ddExporterName := range datadogExportersMap {
 		pipelineName := "metrics" + "/" + ddAutoconfiguredSuffix + "/" + ddExporterName
 		for _, comp := range comps {
@@ -203,37 +136,13 @@ func getProcessorInternalPipeline() component {
 		Type:         "processors",
 		Name:         name,
 		EnhancedName: name + "/" + ddAutoconfiguredSuffix,
-		Config: map[string]any{
-			"metrics": map[string]any{
-				"exclude": map[string]any{
-					"match_type": "regexp",
-					"metric_names": []any{
-						"^scrape_.*$",
-						"^up$",
-						"^promhttp_metric_handler_errors_total$",
-					},
-				},
-			},
-		},
+		Config:       confmaputils.FilterProcessorConfig(),
 	}
 }
 
-func receiverInPipelineWithDatadogExporter(conf *confmap.Conf, receiverName string) []string {
+func receiverInPipelineWithDatadogExporter(conf confmaputils.ConfMap, receiverName string) []string {
 	var ddExporters []string
-	stringMapConf := conf.ToStringMap()
-	service, ok := stringMapConf["service"]
-	if !ok {
-		return nil
-	}
-	serviceMap, ok := service.(map[string]any)
-	if !ok {
-		return nil
-	}
-	pipelines, ok := serviceMap["pipelines"]
-	if !ok {
-		return nil
-	}
-	pipelinesMap, ok := pipelines.(map[string]any)
+	pipelinesMap, ok := confmaputils.Get[confmaputils.ConfMap](conf, "service::pipelines")
 	if !ok {
 		return nil
 	}
@@ -252,7 +161,7 @@ func receiverInPipelineWithDatadogExporter(conf *confmap.Conf, receiverName stri
 		}
 		for _, exporter := range exportersSlice {
 			if exporterString, ok := exporter.(string); ok {
-				if componentName(exporterString) == "datadog" {
+				if confmaputils.IsComponentType(exporterString, "datadog") {
 					// datadog component is an exporter in this pipeline. Check if the prometheusReceiver is configured
 					receivers, ok := componentsMap["receivers"]
 					if !ok {
@@ -274,75 +183,47 @@ func receiverInPipelineWithDatadogExporter(conf *confmap.Conf, receiverName stri
 				}
 			}
 		}
-
 	}
 	return ddExporters
 }
 
-func getDatadogExporters(conf *confmap.Conf) map[string]any {
+func getDatadogExporters(conf confmaputils.ConfMap) map[string]any {
 	datadogExporters := map[string]any{}
-	stringMapConf := conf.ToStringMap()
-	exporters, ok := stringMapConf["exporters"]
-	if !ok {
-		return datadogExporters
-	}
-	exportersMap, ok := exporters.(map[string]any)
+	exportersMap, ok := confmaputils.Get[confmaputils.ConfMap](conf, "exporters")
 	if !ok {
 		return datadogExporters
 	}
 	for exporterName, exporterConfig := range exportersMap {
-		if componentName(exporterName) == "datadog" {
+		if confmaputils.IsComponentType(exporterName, "datadog") {
 			datadogExporters[exporterName] = exporterConfig
 		}
 	}
-
 	return datadogExporters
 }
 
 // findInternalMetricsAddress returns the address of internal prometheus server if configured
-func findInternalMetricsAddress(conf *confmap.Conf) string {
+func findInternalMetricsAddress(conf confmaputils.ConfMap) string {
 	internalMetricsAddress := "0.0.0.0:8888"
-	mreaders := conf.Get("service::telemetry::metrics::readers")
-	mreadersSlice, ok := mreaders.([]any)
+	mreadersSlice, ok := confmaputils.Get[[]any](conf, "service::telemetry::metrics::readers")
 	if !ok {
 		return internalMetricsAddress
 	}
 	for _, reader := range mreadersSlice {
-		readerMap, ok := reader.(map[string]any)
+		readerMap, ok := reader.(confmaputils.ConfMap)
 		if !ok {
 			continue
 		}
-		pull, ok := readerMap["pull"]
-		if !ok {
-			continue
-		}
-		pullMap, ok := pull.(map[string]any)
-		if !ok {
-			continue
-		}
-		exp, ok := pullMap["exporter"]
-		if !ok {
-			continue
-		}
-		expMap, ok := exp.(map[string]any)
-		if !ok {
-			continue
-		}
-		promExp, ok := expMap["prometheus"]
-		if !ok {
-			continue
-		}
-		promExpMap, ok := promExp.(map[string]any)
+		promExpMap, ok := confmaputils.Get[confmaputils.ConfMap](readerMap, "pull::exporter::prometheus")
 		if !ok {
 			continue
 		}
 		host := "0.0.0.0"
 		port := 8888
-		if h, ok := promExpMap["host"]; ok {
-			host = h.(string)
+		if h, ok := confmaputils.Get[string](promExpMap, "host"); ok {
+			host = h
 		}
-		if p, ok := promExpMap["port"]; ok {
-			port = p.(int)
+		if p, ok := confmaputils.Get[int](promExpMap, "port"); ok {
+			port = p
 		}
 		return hostport.Join(host, strconv.Itoa(port))
 	}

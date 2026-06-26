@@ -7,7 +7,7 @@
 package converterimpl
 
 import (
-	"go.opentelemetry.io/collector/confmap"
+	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 )
 
 var (
@@ -98,13 +98,8 @@ func createExtensions(enabledFeatures []string) []component {
 	return components
 }
 
-func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
-	pipelineExtensions := conf.Get("service::extensions")
-	if pipelineExtensions == nil {
-		return false
-	}
-
-	extensionsSlice, ok := pipelineExtensions.([]any)
+func extensionIsInServicePipeline(conf confmaputils.ConfMap, comp component) bool {
+	extensionsSlice, ok := confmaputils.Get[[]any](conf, "service::extensions")
 	if !ok {
 		return false
 	}
@@ -113,7 +108,7 @@ func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
 		if !ok {
 			return false
 		}
-		if componentName(extensionString) == comp.Name {
+		if confmaputils.IsComponentType(extensionString, comp.Name) {
 			return true
 		}
 	}
@@ -124,21 +119,16 @@ func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
 // findExistingExtensionID returns the ID of the first extension defined in conf
 // (under the "extensions" key) whose base component name equals compName.
 // Returns "" when no such definition exists.
-func findExistingExtensionID(conf *confmap.Conf, compName string) string {
-	for id := range findComps(conf.ToStringMap(), compName, "extensions") {
+func findExistingExtensionID(conf confmaputils.ConfMap, compName string) string {
+	for id := range findComps(conf, compName, "extensions") {
 		return id
 	}
 	return ""
 }
 
 // wireExtensionIDToPipeline appends extensionID verbatim to service::extensions.
-func wireExtensionIDToPipeline(conf *confmap.Conf, extensionID string) {
-	stringMapConf := conf.ToStringMap()
-	service, ok := stringMapConf["service"]
-	if !ok {
-		return
-	}
-	serviceMap, ok := service.(map[string]any)
+func wireExtensionIDToPipeline(conf confmaputils.ConfMap, extensionID string) {
+	serviceMap, ok := confmaputils.Get[confmaputils.ConfMap](conf, "service")
 	if !ok {
 		return
 	}
@@ -149,27 +139,18 @@ func wireExtensionIDToPipeline(conf *confmap.Conf, extensionID string) {
 		extensionsSlice = append(extensionsSlice, extensionID)
 		serviceMap["extensions"] = extensionsSlice
 	}
-	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-func addExtensionToPipeline(conf *confmap.Conf, comp component) {
-	stringMapConf := conf.ToStringMap()
-	service, ok := stringMapConf["service"]
+func addExtensionToPipeline(conf confmaputils.ConfMap, comp component) {
+	serviceMap, ok := confmaputils.Get[confmaputils.ConfMap](conf, "service")
 	if !ok {
 		return
 	}
-	serviceMap, ok := service.(map[string]any)
-	if !ok {
-		return
-	}
-	_, ok = serviceMap["extensions"]
-	if !ok {
+	if _, ok = serviceMap["extensions"]; !ok {
 		serviceMap["extensions"] = []any{}
 	}
 	if extensionsSlice, ok := serviceMap["extensions"].([]any); ok {
 		extensionsSlice = append(extensionsSlice, comp.EnhancedName)
 		serviceMap["extensions"] = extensionsSlice
 	}
-
-	*conf = *confmap.NewFromStringMap(stringMapConf)
 }

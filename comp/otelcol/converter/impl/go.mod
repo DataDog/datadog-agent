@@ -7,6 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/confmaputils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/stretchr/testify v1.11.1
@@ -16,6 +17,7 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.60.0
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.60.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.60.0
+	go.opentelemetry.io/collector/confmap/xconfmap v0.154.0
 	go.uber.org/zap v1.28.0
 )
 
