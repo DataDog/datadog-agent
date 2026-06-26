@@ -205,6 +205,9 @@ func Run(ctx *pulumi.Context) error {
 					"checksd": map[string]string{
 						"simple_check.py": simpleCheckPy,
 					},
+					"operator": map[string]any{
+						"enabled": false,
+					},
 				},
 				"agents": map[string]any{
 					"nodeSelector": map[string]any{
@@ -252,10 +255,22 @@ func Run(ctx *pulumi.Context) error {
 						"effect":   "NoSchedule",
 					}, param.variant),
 				},
+				"operator": map[string]any{
+					"datadogCRDs": map[string]any{
+						"crds": map[string]any{
+							"datadogAgents":           param.deployCRDs,
+							"datadogMonitors":         param.deployCRDs,
+							"datadogSLOs":             param.deployCRDs,
+							"datadogDashboards":       param.deployCRDs,
+							"datadogGenericResources": param.deployCRDs,
+						},
+					},
+				},
 				"datadog-crds": map[string]any{
 					"crds": map[string]any{
-						"datadogMetrics":        param.deployCRDs,
-						"datadogPodAutoscalers": param.deployCRDs,
+						"datadogMetrics":                      param.deployCRDs,
+						"datadogPodAutoscalers":               param.deployCRDs,
+						"datadogPodAutoscalerClusterProfiles": param.deployCRDs,
 					},
 				},
 			})),
