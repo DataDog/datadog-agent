@@ -8,9 +8,9 @@
 package apiserver
 
 import (
-	"sync/atomic"
 	"time"
 
+	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -26,7 +26,7 @@ type EventCollector struct {
 	startTS time.Time
 
 	events  chan *v1.Event
-	dropped atomic.Uint64
+	dropped *atomic.Uint64
 }
 
 // NewEventCollector returns an EventCollector whose informer lists/watches
@@ -42,6 +42,7 @@ func (c *APIClient) NewEventCollector(filter string, bufferSize int) *EventColle
 	return &EventCollector{
 		factory: factory,
 		events:  make(chan *v1.Event, bufferSize),
+		dropped: atomic.NewUint64(0),
 	}
 }
 

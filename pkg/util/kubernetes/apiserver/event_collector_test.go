@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -20,6 +21,7 @@ func makeCollector(bufferSize int, startTS time.Time) *EventCollector {
 	return &EventCollector{
 		events:  make(chan *v1.Event, bufferSize),
 		startTS: startTS,
+		dropped: atomic.NewUint64(0),
 	}
 }
 
@@ -42,12 +44,12 @@ func TestShouldCollect(t *testing.T) {
 		},
 		{
 			name: "EventTime after startTS, LastTimestamp zero: collect",
-			ev:   &v1.Event{EventTime: metav1.MicroTime{Time: future.Time}},
+			ev:   &v1.Event{EventTime: metav1.MicroTime(future)},
 			want: true,
 		},
 		{
 			name: "both timestamps before startTS: drop",
-			ev:   &v1.Event{LastTimestamp: past, EventTime: metav1.MicroTime{Time: past.Time}},
+			ev:   &v1.Event{LastTimestamp: past, EventTime: metav1.MicroTime(past)},
 			want: false,
 		},
 	} {

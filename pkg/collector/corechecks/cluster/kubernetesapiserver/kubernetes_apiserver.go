@@ -51,7 +51,6 @@ const (
 	defaultTimeoutEventCollection      = 2000
 	defaultMaxEstimatedEventTextLength = 3750
 	defaultEventCollectionBufferSize   = 10000
-	maximumWaitForAPIServer            = 10 * time.Second
 )
 
 var (
@@ -222,23 +221,6 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		k.eventCollection.Transformer = newBundledTransformer(clusterName, k.tagger, k.instance.CollectedEventTypes, k.instance.FilteringEnabled)
 	}
 
-	// Initialize the API Server client once at configuration time
-	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
-	defer apiCancel()
-	k.ac, err = apiserver.WaitForAPIClient(apiCtx)
-	if err != nil {
-		return err
-	}
-
-	if err := apiserver.InitializeGlobalResourceTypeCache(k.ac.Cl.Discovery()); err != nil {
-		log.Errorf("Could not initialize the global resource type cache: %s", err)
-	}
-
-	// We detect OpenShift presence for quota collection
-	if k.instance.CollectOShiftQuotas {
-		k.oshiftAPILevel = k.ac.DetectOpenShiftAPILevel()
-	}
-
 	return nil
 }
 
@@ -275,18 +257,35 @@ func (k *KubeASCheck) Run() error {
 		}
 	}
 
-	if k.instance.UseNewEventCollection {
-		// If we are not the current leader, we might need to stop the event collection.
-		if !isCurrentLeader {
+	if !isCurrentLeader {
+		if k.instance.UseNewEventCollection {
 			k.stopEventCollection()
-			return nil
 		}
-		// ... or start it if we are the current leader
+		return nil
+	}
+
+	// API Server client init on first run as leader.
+	if k.ac == nil {
+		// Using GetAPIClient (no wait) so the check retries naturally on each run.
+		k.ac, err = apiserver.GetAPIClient()
+		if err != nil {
+			k.Warnf("Could not connect to apiserver: %s", err) //nolint:errcheck
+			return err
+		}
+
+		if err = apiserver.InitializeGlobalResourceTypeCache(k.ac.Cl.Discovery()); err != nil {
+			log.Errorf("Could not initialize the global resource type cache: %s", err)
+		}
+
+		if k.instance.CollectOShiftQuotas {
+			k.oshiftAPILevel = k.ac.DetectOpenShiftAPILevel()
+		}
+	}
+
+	if k.instance.CollectEvent && k.instance.UseNewEventCollection {
 		if err := k.startEventCollection(); err != nil {
 			return err
 		}
-	} else if !isCurrentLeader {
-		return nil
 	}
 
 	// Running the Control Plane status check.
