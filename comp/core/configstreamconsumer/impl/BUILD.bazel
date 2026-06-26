@@ -25,6 +25,7 @@ go_library(
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//metadata",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
