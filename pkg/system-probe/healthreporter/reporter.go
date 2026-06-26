@@ -44,6 +44,8 @@ type Reporter struct {
 	ipc         ipcdef.Component
 	callTimeout time.Duration
 	maxWait     time.Duration
+	// newClientFn overrides newClient when set; used in tests to inject a mock.
+	newClientFn func() (pb.AgentSecureClient, error)
 }
 
 // New returns a Reporter that uses the given IPC component for mTLS and auth.
@@ -111,6 +113,9 @@ func (r *Reporter) Resolve(ctx context.Context, issueID string) error {
 }
 
 func (r *Reporter) newClient() (pb.AgentSecureClient, error) {
+	if r.newClientFn != nil {
+		return r.newClientFn()
+	}
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("get IPC address: %w", err)
