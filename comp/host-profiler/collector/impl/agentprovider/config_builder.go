@@ -20,10 +20,10 @@ import (
 type confMap = map[string]any
 
 const (
-	infraAttributesName  = "infraattributes"
-	k8sAttributesName    = "k8sattributes"
-	hpflareName          = "hpflare"
-	ddprofilingName      = "ddprofiling"
+	infraAttributesName = "infraattributes"
+	k8sAttributesName   = "k8sattributes"
+	hpflareName         = "hpflare"
+	ddprofilingName     = "ddprofiling"
 )
 
 func buildReceivers(conf confMap, agent configManager) []any {
