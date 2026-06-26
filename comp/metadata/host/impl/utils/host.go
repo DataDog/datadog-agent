@@ -105,7 +105,7 @@ type Payload struct {
 func getNetworkMeta(ctx context.Context) *NetworkMeta {
 	nid, err := network.GetNetworkID(ctx)
 	if err != nil {
-		log.Infof("could not get network metadata: %s", err)
+		log.Debugf("could not get network metadata: %s", err)
 		return nil
 	}
 

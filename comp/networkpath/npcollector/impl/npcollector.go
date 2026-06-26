@@ -391,17 +391,18 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 
 	cfg := config.Config{
-		DestHostname:              ptest.Pathtest.Hostname,
-		DestPort:                  ptest.Pathtest.Port,
-		MaxTTL:                    uint8(s.collectorConfigs.maxTTL),
-		Timeout:                   s.collectorConfigs.timeout,
-		Protocol:                  ptest.Pathtest.Protocol,
-		TCPMethod:                 s.collectorConfigs.tcpMethod,
-		TCPSynParisTracerouteMode: s.collectorConfigs.tcpSynParisTracerouteMode,
-		DisableWindowsDriver:      s.collectorConfigs.disableWindowsDriver,
-		ReverseDNS:                false, // Do not run reverse DNS in datadog-traceroute, it's handled in npcollector
-		TracerouteQueries:         s.collectorConfigs.tracerouteQueries,
-		E2eQueries:                s.collectorConfigs.e2eQueries,
+		DestHostname:                    ptest.Pathtest.Hostname,
+		DestPort:                        ptest.Pathtest.Port,
+		MaxTTL:                          uint8(s.collectorConfigs.maxTTL),
+		Timeout:                         s.collectorConfigs.timeout,
+		Protocol:                        ptest.Pathtest.Protocol,
+		TCPMethod:                       s.collectorConfigs.tcpMethod,
+		TCPSynParisTracerouteMode:       s.collectorConfigs.tcpSynParisTracerouteMode,
+		DisableWindowsDriver:            s.collectorConfigs.disableWindowsDriver,
+		DisableSourcePublicIPCollection: s.collectorConfigs.disableSourcePublicIPCollection,
+		ReverseDNS:                      false, // Do not run reverse DNS in datadog-traceroute, it's handled in npcollector
+		TracerouteQueries:               s.collectorConfigs.tracerouteQueries,
+		E2eQueries:                      s.collectorConfigs.e2eQueries,
 	}
 
 	s.logger.Debugf("Running traceroute with config: %+v", cfg)

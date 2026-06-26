@@ -313,47 +313,50 @@ func TestGetTraceroutePlainTextErrorFallback(t *testing.T) {
 
 func TestGetTracerouteURL(t *testing.T) {
 	tests := []struct {
-		name                      string
-		host                      string
-		clientID                  string
-		port                      uint16
-		protocol                  payload.Protocol
-		tcpMethod                 payload.TCPMethod
-		tcpSynParisTracerouteMode bool
-		disableWindowsDriver      bool
-		reverseDNS                bool
-		maxTTL                    uint8
-		timeout                   time.Duration
-		tracerouteQueries         int
-		e2eQueries                int
-		expectedParams            map[string]string
+		name                            string
+		host                            string
+		clientID                        string
+		port                            uint16
+		protocol                        payload.Protocol
+		tcpMethod                       payload.TCPMethod
+		tcpSynParisTracerouteMode       bool
+		disableWindowsDriver            bool
+		reverseDNS                      bool
+		disableSourcePublicIPCollection bool
+		maxTTL                          uint8
+		timeout                         time.Duration
+		tracerouteQueries               int
+		e2eQueries                      int
+		expectedParams                  map[string]string
 	}{
 		{
-			name:                      "validate URL",
-			host:                      "google.com",
-			clientID:                  "test-client",
-			port:                      80,
-			protocol:                  payload.ProtocolTCP,
-			tcpMethod:                 payload.TCPConfigPreferSACK,
-			tcpSynParisTracerouteMode: true,
-			disableWindowsDriver:      false,
-			reverseDNS:                true,
-			maxTTL:                    30,
-			timeout:                   5 * time.Second,
-			tracerouteQueries:         3,
-			e2eQueries:                50,
+			name:                            "validate URL",
+			host:                            "google.com",
+			clientID:                        "test-client",
+			port:                            80,
+			protocol:                        payload.ProtocolTCP,
+			tcpMethod:                       payload.TCPConfigPreferSACK,
+			tcpSynParisTracerouteMode:       true,
+			disableWindowsDriver:            false,
+			reverseDNS:                      true,
+			disableSourcePublicIPCollection: false,
+			maxTTL:                          30,
+			timeout:                         5 * time.Second,
+			tracerouteQueries:               3,
+			e2eQueries:                      50,
 			expectedParams: map[string]string{
-				"client_id":                     "test-client",
-				"port":                          "80",
-				"max_ttl":                       "30",
-				"timeout":                       "5000000000",
-				"protocol":                      "TCP",
-				"tcp_method":                    "prefer_sack",
-				"tcp_syn_paris_traceroute_mode": "true",
-				"reverse_dns":                   "true",
-				"traceroute_queries":            "3",
-				"e2e_queries":                   "50",
-				"disable_windows_driver":        "false",
+				"client_id":                           "test-client",
+				"port":                                "80",
+				"max_ttl":                             "30",
+				"timeout":                             "5000000000",
+				"protocol":                            "TCP",
+				"tcp_method":                          "prefer_sack",
+				"tcp_syn_paris_traceroute_mode":       "true",
+				"reverse_dns":                         "true",
+				"disable_source_public_ip_collection": "false",
+				"traceroute_queries":                  "3",
+				"e2e_queries":                         "50",
+				"disable_windows_driver":              "false",
 			},
 		},
 	}
@@ -380,6 +383,7 @@ func TestGetTracerouteURL(t *testing.T) {
 				tt.tcpSynParisTracerouteMode,
 				tt.disableWindowsDriver,
 				tt.reverseDNS,
+				tt.disableSourcePublicIPCollection,
 				tt.maxTTL,
 				tt.timeout,
 				tt.tracerouteQueries,
