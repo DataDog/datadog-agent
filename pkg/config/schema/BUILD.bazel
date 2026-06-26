@@ -1,8 +1,9 @@
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("//bazel/rules:zstd.bzl", "zstd_compress")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # Top schemas exposed as labels for downstream rules (e.g. the
 # `schema_template_config` rule in :template.bzl).
@@ -139,11 +140,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "schema_test",
     srcs = ["schema_test.go"],
     embed = [":schema"],
-    gotags = ["test"],
     deps = [
         "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
         "@com_github_stretchr_testify//assert",

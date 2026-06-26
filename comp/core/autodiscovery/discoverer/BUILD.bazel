@@ -16,8 +16,8 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/workloadmeta/def",
+        "//pkg/collector/python",
         "//pkg/util/log",
-        "@//pkg/collector/python",
         "@io_k8s_apimachinery//pkg/util/wait",
         "@io_k8s_client_go//util/workqueue",
     ],
@@ -31,7 +31,7 @@ dd_agent_go_test(
         "worker_test.go",
     ],
     embed = [":discoverer"],
-    tags = ["manual"], # keep
+    tags = ["manual"],  # keep
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/workloadmeta/def",

@@ -186,7 +186,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/transformers
 # gazelle:exclude pkg/collector/corechecks/containers/containerd
 # gazelle:exclude pkg/collector/corechecks/containers/cri
-# gazelle:exclude pkg/collector/corechecks/containers/docker
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet
 # gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
 # gazelle:exclude pkg/collector/corechecks/gpu/nvidia
@@ -209,14 +208,12 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/system/disk
 # gazelle:exclude pkg/collector/corechecks/system/filehandles
 # gazelle:exclude pkg/collector/corechecks/system/wincrashdetect/*.go
-# gazelle:exclude pkg/collector/python
 # gazelle:exclude pkg/collector/runner/*.go
 # gazelle:exclude pkg/collector/sharedlibrary/ffi
 # gazelle:exclude pkg/collector/sharedlibrary/sharedlibraryimpl
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance/cli
 # gazelle:exclude pkg/compliance/tests
-# gazelle:exclude pkg/config/legacy
 # gazelle:exclude pkg/dyninst/ebpfbench
 # gazelle:exclude pkg/dyninst/irgen/cli
 # gazelle:exclude pkg/dyninst/module
