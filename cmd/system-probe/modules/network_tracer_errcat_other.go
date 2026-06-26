@@ -20,6 +20,4 @@ func categorizeTracerError(err error) error {
 
 // checkAndReportUSMState is a no-op on non-Linux platforms where the USM silent-skip
 // scenario (CNM starts, USM silently disabled on kernel < 4.14) cannot occur.
-func checkAndReportUSMState(deps module.FactoryDependencies, _ *networkconfig.Config) {
-	resolveNetworkProbeUSMIssue(deps)
-}
+func checkAndReportUSMState(_ module.FactoryDependencies, _ *networkconfig.Config) {}
