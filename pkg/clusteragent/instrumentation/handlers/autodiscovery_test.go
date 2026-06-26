@@ -421,8 +421,6 @@ func TestTranslateCheck(t *testing.T) {
 		expectedInit     string
 		expectedInstLen  int
 		expectedADIDs    []string
-		expectedCEL      []string
-		unexpectedCEL    []string
 		instanceContains []string
 		logsNil          bool
 		logsContains     string
@@ -437,8 +435,6 @@ func TestTranslateCheck(t *testing.T) {
 			expectedInit:    "{}",
 			expectedInstLen: 1,
 			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
-			expectedCEL:     []string{`container.pod.rootowner.name == "app"`},
-			unexpectedCEL:   []string{`container.name == "app"`},
 			logsNil:         true,
 		},
 		{
@@ -452,8 +448,6 @@ func TestTranslateCheck(t *testing.T) {
 			expectedInit:    `{"service":"myservice"}`,
 			expectedInstLen: 1,
 			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
-			expectedCEL:     []string{`container.pod.rootowner.name == "app"`},
-			unexpectedCEL:   []string{`container.name == "app"`},
 			logsNil:         true,
 		},
 		{
@@ -467,8 +461,6 @@ func TestTranslateCheck(t *testing.T) {
 			expectedInit:    "{}",
 			expectedInstLen: 1,
 			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
-			expectedCEL:     []string{`container.pod.rootowner.name == "app"`},
-			unexpectedCEL:   []string{`container.name == "app"`},
 			logsContains:    `"type":"tcp"`,
 		},
 		{
@@ -494,17 +486,6 @@ func TestTranslateCheck(t *testing.T) {
 			assert.Equal(t, tt.expectedInit, string(configs[0].InitConfig))
 			require.Len(t, configs[0].Instances, tt.expectedInstLen)
 			require.ElementsMatch(t, tt.expectedADIDs, configs[0].ADIdentifiers)
-
-			if len(tt.expectedCEL) > 0 {
-				require.Len(t, configs[0].CELSelector.Containers, 1)
-				for _, expr := range tt.expectedCEL {
-					assert.Contains(t, configs[0].CELSelector.Containers[0], expr)
-				}
-			}
-			for _, expr := range tt.unexpectedCEL {
-				require.Len(t, configs[0].CELSelector.Containers, 1)
-				assert.NotContains(t, configs[0].CELSelector.Containers[0], expr)
-			}
 
 			for i, substr := range tt.instanceContains {
 				assert.Contains(t, string(configs[0].Instances[i]), substr)

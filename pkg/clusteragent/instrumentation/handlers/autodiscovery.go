@@ -176,9 +176,15 @@ func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadogh
 	if err != nil {
 		return integration.Config{}, err
 	}
+
+	var adIdentifiers []string
+	if hasContainerName(check) {
+		adIdentifiers = []string{adtypes.KubeContainerNameIdentifier(strings.TrimSpace(check.ContainerName))}
+	}
+
 	return integration.Config{
 		Name:          check.Integration,
-		ADIdentifiers: adIdentifiers(check),
+		ADIdentifiers: adIdentifiers,
 		InitConfig:    initConfig,
 		Instances:     instances,
 		LogsConfig:    logsConfig,
@@ -263,11 +269,4 @@ func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace s
 
 func hasContainerName(check datadoghq.DatadogInstrumentationCheckConfig) bool {
 	return strings.TrimSpace(check.ContainerName) != ""
-}
-
-func adIdentifiers(check datadoghq.DatadogInstrumentationCheckConfig) []string {
-	if hasContainerName(check) {
-		return []string{adtypes.KubeContainerNameIdentifier(strings.TrimSpace(check.ContainerName))}
-	}
-	return nil
 }
