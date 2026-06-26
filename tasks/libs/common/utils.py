@@ -356,6 +356,18 @@ def get_build_flags(
         # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
         extldflags += "-Wl,-z,lazy "
 
+    # Omit DWARF debug info at link time on Linux release builds to cut Go link
+    # time across the many omnibus binaries; keep DWARF for debugger builds.
+    # -s (strip symbol table) is intentionally NOT added so the omnibus
+    # strip_build/dbg-package step still finds a symbol table to relocate.
+    if (
+        sys.platform.startswith('linux')
+        and not static
+        and not os.environ.get('DELVE')
+        and not os.environ.get('NO_GO_OPT')
+    ):
+        ldflags += "-w "
+
     if os.getenv("DD_CC"):
         env["CC"] = os.getenv("DD_CC")
     if os.getenv("DD_CXX"):
