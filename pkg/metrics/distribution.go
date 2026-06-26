@@ -35,5 +35,8 @@ type DDSketchPoints interface {
 	// GetDDSketchPoint returns the sketch point at index i.
 	// Implementers may return k and n backed by the same storage.
 	// Callers must not retain k and n across calls.
+	//
+	// Returning primitives is a few percent faster at the time of writing, see
+	// https://github.com/DataDog/datadog-agent/pull/52491 for benchmarks.
 	GetDDSketchPoint(i int) (ts int64, cnt int64, min, max, sum, avg float64, k []int32, n []uint32)
 }
