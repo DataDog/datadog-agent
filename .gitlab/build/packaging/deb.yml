@@ -20,6 +20,9 @@ include:
   variables:
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     KUBERNETES_CPU_REQUEST: 16
+    # xz data.tar compression is single-threaded by default (COMPRESSION_THREADS=1);
+    # fan it across the requested cores via XZ_OPT=-T<n> in the omnibus deb packager.
+    OMNIBUS_WORKERS_OVERRIDE: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-deb.txt"
