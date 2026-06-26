@@ -269,7 +269,7 @@
           "test/new-e2e/tests/installer/unix/package_definitions.go"
         ],
         "matchStrings": [
-          "func pinnedApmInjectVersion\\(\\)[^{]+{[^}]+return \"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+)\""
+          "func pinnedApmInjectVersion\\(\\) string \\{[\\s\\S]*?\\n\\s*return \"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+)\""
         ],
         "depNameTemplate": "DataDog/dd-apm-inject",
         "datasourceTemplate": "custom.dd-apm-inject",
@@ -281,7 +281,7 @@
           "test/new-e2e/tests/installer/unix/package_definitions.go"
         ],
         "matchStrings": [
-          "func pinnedApmLibraryPythonVersion\\(\\)[^{]+{[^}]+return \"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
+          "func pinnedApmLibraryPythonVersion\\(\\) string \\{[\\s\\S]*?\\n\\s*return \"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
         ],
         "depNameTemplate": "DataDog/dd-apm-library-python",
         "datasourceTemplate": "custom.dd-apm-library-python",
