@@ -30,6 +30,9 @@ build_system-probe-x64:
   extends: .system-probe_build_common
   variables:
     ARCH: amd64
+    # Pure cgo-godefs consistency check; emits no .deb artifact. Run it in a
+    # dedicated lint/test job rather than padding this critical-path build.
+    SYSTEM_PROBE_VERIFY_GENERATED: "false"
 
 build_system-probe-arm64:
   stage: binary_build

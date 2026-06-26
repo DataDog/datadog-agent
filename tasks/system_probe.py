@@ -1193,7 +1193,11 @@ def build_object_files(
 
     # Verify all committed cgo godefs files are up to date.
     # The test_suite skips platform-incompatible tests via target_compatible_with.
-    bazel(ctx, "test", *arch_flags, "//pkg/ebpf:verify_generated_files")
+    # This is a pure consistency check that emits no build artifact; it can be
+    # gated off the critical-path package build via SYSTEM_PROBE_VERIFY_GENERATED
+    # (run in a dedicated lint/test job instead).
+    if os.environ.get("SYSTEM_PROBE_VERIFY_GENERATED", "true").lower() != "false":
+        bazel(ctx, "test", *arch_flags, "//pkg/ebpf:verify_generated_files")
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
