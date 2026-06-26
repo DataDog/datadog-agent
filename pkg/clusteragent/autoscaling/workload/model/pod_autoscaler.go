@@ -263,7 +263,8 @@ func NewPodAutoscalerFromProfile(
 
 // previewOptions holds the parsed feature flags from PreviewAnnotation.
 type previewOptions struct {
-	Burstable bool `json:"burstable,omitempty"`
+	Burstable      bool `json:"burstable,omitempty"`
+	HPAIntegration bool `json:"hpa-integration,omitempty"`
 }
 
 // parsePreviewAnnotationString parses a raw PreviewAnnotation JSON string.
@@ -277,6 +278,14 @@ func parsePreviewAnnotationString(raw string) previewOptions {
 		return previewOptions{}
 	}
 	return opts
+}
+
+// IsHPAIntegrationEnabled returns true when the hpa-integration preview annotation is set.
+// When true, the horizontal controller writes the backend recommendation to status but skips
+// scaler.update() — the existing HPA actuates the workload by reading the recommendation via
+// the external metrics API (metric name "dpa-target-replicas").
+func (p *PodAutoscalerInternal) IsHPAIntegrationEnabled() bool {
+	return p.previewOptions.HPAIntegration
 }
 
 // UpdateFromProfile updates the spec from a profile template while preserving scaling state.

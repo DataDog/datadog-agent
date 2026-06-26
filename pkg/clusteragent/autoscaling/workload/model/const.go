@@ -19,6 +19,10 @@ const (
 	// Known keys:
 	//   "burstable" (bool) — when true, CPU limits are removed from containers so they can burst
 	//                        beyond their CPU request when spare capacity is available on the node.
+	//   "hpa-integration" (bool) — when true, the controller computes the desired replica count
+	//                              but defers horizontal scaling to an existing HPA; the HPA reads
+	//                              the recommendation via the external metrics API using metric name
+	//                              "dpa-target-replicas" with selector labels matching scaleTargetRef.
 	PreviewAnnotationKey = "autoscaling.datadoghq.com/preview"
 
 	// PauseAnnotationKey ("true") stops all actions of the autoscaler: the workload stays as it is.

@@ -16,6 +16,8 @@ import (
 	"time"
 
 	apierr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -30,19 +32,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 )
 
 const (
 	autogenExpirationPeriodHours int64 = 3
 )
 
+const (
+	// dpaTargetReplicasMetric is the external metric name for the DPA horizontal target replicas.
+	// HPA config: type: External, metric.name: dpa-target-replicas, selector: {kind: <kind>, name: <targetRef.name>}
+	dpaTargetReplicasMetric = "dpa-target-replicas"
+)
+
 type datadogMetricProvider struct {
 	// Default implementation recommended for ListAllExternalMetrics
 	defaults.DefaultExternalMetricsProvider
 
-	apiCl            *apiserver.APIClient
-	store            DatadogMetricsInternalStore
-	autogenNamespace string
+	apiCl                 *apiserver.APIClient
+	store                 DatadogMetricsInternalStore
+	autogenNamespace      string
+	scalingValuesProvider workload.ScalingValuesProvider
 }
 
 var (
@@ -50,8 +61,9 @@ var (
 	metricsQueryValidityPeriod int64
 )
 
-// NewDatadogMetricProvider configures and returns a new datadogMetricProvider
-func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, datadogClient datadogclient.Component, hpaGVR schema.GroupVersionResource) (provider.ExternalMetricsProvider, error) {
+// NewDatadogMetricProvider configures and returns a new datadogMetricProvider.
+// scalingValuesProvider is optional; when non-nil it enables serving the "dpa-target-replicas" metric.
+func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, datadogClient datadogclient.Component, hpaGVR schema.GroupVersionResource, scalingValuesProvider workload.ScalingValuesProvider) (provider.ExternalMetricsProvider, error) {
 	if apiCl == nil {
 		return nil, errors.New("Impossible to create DatadogMetricProvider without valid APIClient")
 	}
@@ -75,9 +87,10 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 	numWorkers := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.num_workers")
 
 	provider := &datadogMetricProvider{
-		apiCl:            apiCl,
-		store:            NewDatadogMetricsInternalStore(),
-		autogenNamespace: autogenNamespace,
+		apiCl:                 apiCl,
+		store:                 NewDatadogMetricsInternalStore(),
+		autogenNamespace:      autogenNamespace,
+		scalingValuesProvider: scalingValuesProvider,
 	}
 
 	// Start MetricsRetriever, only leader will do refresh metrics
@@ -157,6 +170,10 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 	// Convert metric name to lower case to allow proper matching (and DD metrics are always lower case)
 	info.Metric = strings.ToLower(info.Metric)
 
+	if info.Metric == dpaTargetReplicasMetric {
+		return p.getDPATargetReplicas(namespace, metricSelector)
+	}
+
 	// If the metric name is already prefixed, we can directly look up metrics in store
 	datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(info.Metric, namespace)
 	if !hasPrefix {
@@ -181,5 +198,44 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 
 	return &external_metrics.ExternalMetricValueList{
 		Items: []external_metrics.ExternalMetricValue{*externalMetric},
+	}, nil
+}
+
+// getDPATargetReplicas serves the "dpa-target-replicas" external metric.
+// The selector must contain "kind" and "name" labels matching the DPA's spec.targetRef,
+// which are the same values as the HPA's spec.scaleTargetRef.kind and .name.
+//
+// Returns the raw backend recommendation (status.Horizontal.Target.Replicas), which has NOT
+// passed through DPA's stabilization windows or rate-limit policies. As a result, the HPA's
+// own stabilization window governs timing instead of DPA's configured policies.
+//
+// TODO: serve horizontalAction.ToReplicas (post-DPA-stabilization) from a dedicated status
+// field as "dpa-desired-replicas" so DPA's policies take effect.
+func (p *datadogMetricProvider) getDPATargetReplicas(namespace string, metricSelector labels.Selector) (*external_metrics.ExternalMetricValueList, error) {
+	if p.scalingValuesProvider == nil {
+		return nil, log.Warnf("%s metric requires autoscaling.workload.enabled=true", dpaTargetReplicasMetric)
+	}
+
+	targetKind, kindOK := metricSelector.RequiresExactMatch("kind")
+	targetName, nameOK := metricSelector.RequiresExactMatch("name")
+	if !kindOK || !nameOK {
+		return nil, log.Warnf("%s metric requires exact 'kind' and 'name' selector labels matching the HPA's scaleTargetRef, got: %s", dpaTargetReplicasMetric, metricSelector.String())
+	}
+
+	replicas, err := p.scalingValuesProvider.TargetReplicas(namespace, targetKind, targetName)
+	if err != nil {
+		return nil, log.Warnf("%s query failed for %s/%s/%s: %v", dpaTargetReplicasMetric, namespace, targetKind, targetName, err)
+	}
+
+	log.Debugf("Serving %s=%d for %s/%s/%s", dpaTargetReplicasMetric, replicas, namespace, targetKind, targetName)
+
+	return &external_metrics.ExternalMetricValueList{
+		Items: []external_metrics.ExternalMetricValue{
+			{
+				MetricName: dpaTargetReplicasMetric,
+				Timestamp:  metav1.Now(),
+				Value:      *resource.NewQuantity(int64(replicas), resource.DecimalSI),
+			},
+		},
 	}, nil
 }

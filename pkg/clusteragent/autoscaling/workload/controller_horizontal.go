@@ -140,6 +140,26 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 		return autoscaling.NoRequeue, nil
 	}
 
+	// HPA integration: DPA computed the desired replicas but defers actuation to the existing HPA,
+	// which reads status.Horizontal.Target.Replicas via the "dpa-target-replicas" external metric.
+	// Skip scaler.update() but still call UpdateFromHorizontalAction so stabilization history
+	// stays accurate for the next cycle.
+	//
+	// Limitation: Target.Replicas is the raw backend recommendation — DPA's stabilization windows
+	// and rate-limit policies are NOT applied to the served metric value. The HPA's own stabilization
+	// window governs scale-up/scale-down timing instead of DPA's configured policies.
+	//
+	// TODO: write horizontalAction.ToReplicas (post-DPA-stabilization) to a dedicated status field
+	// and serve that as "dpa-desired-replicas" so DPA's configured policies take effect and HPA's
+	// stabilization window becomes a near-no-op on top of an already-stable value.
+	if autoscalerInternal.IsHPAIntegrationEnabled() {
+		autoscalerInternal.UpdateFromHorizontalAction(horizontalAction, nil)
+		if nextEvalAfter > 0 {
+			return autoscaling.Requeue.After(nextEvalAfter), nil
+		}
+		return autoscaling.NoRequeue, nil
+	}
+
 	// Final gates: the pause annotation and the apply mode can never be bypassed
 	if autoscalerInternal.IsPaused() {
 		autoscalerInternal.UpdateFromHorizontalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "horizontal scaling disabled: autoscaling locally paused by the %s annotation", model.PauseAnnotationKey))

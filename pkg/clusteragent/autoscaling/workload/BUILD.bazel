@@ -20,6 +20,7 @@ go_library(
         "pod_watcher_fake.go",
         "scaler.go",
         "scaler_fake.go",
+        "scaling_values_provider.go",
         "telemetry.go",
         "utils.go",
     ],

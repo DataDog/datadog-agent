@@ -41,7 +41,9 @@ import (
 	"k8s.io/client-go/discovery"
 )
 
-// StartWorkloadAutoscaling starts the workload autoscaling controller
+// StartWorkloadAutoscaling starts the workload autoscaling controller.
+// Returns a PodPatcher and a ScalingValuesProvider that exposes current DPA scaling state
+// to other components (e.g. the external metrics provider for the "dpa-target-replicas" metric).
 func StartWorkloadAutoscaling(
 	ctx context.Context,
 	clusterID string,
@@ -53,9 +55,9 @@ func StartWorkloadAutoscaling(
 	taggerComp tagger.Component,
 	senderManager sender.SenderManager,
 	gate *autoscalinggate.Gate,
-) (workload.PodPatcher, error) {
+) (workload.PodPatcher, workload.ScalingValuesProvider, error) {
 	if apiCl == nil {
-		return nil, errors.New("Impossible to start workload autoscaling without valid APIClient")
+		return nil, nil, errors.New("Impossible to start workload autoscaling without valid APIClient")
 	}
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -79,13 +81,13 @@ func StartWorkloadAutoscaling(
 	clock := clock.RealClock{}
 	_, err := workload.NewConfigRetriever(ctx, clock, store, isLeaderFunc, rcClient)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
+		return nil, nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
 	}
 
 	// We could consider the sender to be optional, but it's actually required for backend information
 	sender, err := senderManager.GetSender("workload_autoscaling")
 	if err != nil {
-		return nil, fmt.Errorf("Unable to start local telemetry for autoscaling: %w", err)
+		return nil, nil, fmt.Errorf("Unable to start local telemetry for autoscaling: %w", err)
 	}
 	sender.DisableDefaultHostname(true)
 
@@ -103,7 +105,7 @@ func StartWorkloadAutoscaling(
 
 	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
+		return nil, nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
 
 	profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
@@ -115,7 +117,7 @@ func StartWorkloadAutoscaling(
 		profileStore,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to start profile controller: %w", err)
+		return nil, nil, fmt.Errorf("Unable to start profile controller: %w", err)
 	}
 
 	workloadResources := []profile.GroupVersionKindResource{
@@ -163,12 +165,12 @@ func StartWorkloadAutoscaling(
 		externalTLSConfig := buildExternalRecommenderTLSConfig(pkgconfigsetup.Datadog())
 		externalRecommender, err := external.NewRecommender(ctx, clock, podWatcher, store, clusterName, externalTLSConfig)
 		if err != nil {
-			return nil, fmt.Errorf("Unable to start workload autoscaling external recommender: %w", err)
+			return nil, nil, fmt.Errorf("Unable to start workload autoscaling external recommender: %w", err)
 		}
 		go externalRecommender.Run(ctx)
 	}
 
-	return podPatcher, nil
+	return podPatcher, workload.NewScalingValuesProvider(store), nil
 }
 
 func runPodWatcherWhenReady(ctx context.Context, gate *autoscalinggate.Gate, run func(context.Context)) {

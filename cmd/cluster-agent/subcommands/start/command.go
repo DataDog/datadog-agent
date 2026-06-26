@@ -565,23 +565,9 @@ func start(log log.Component,
 		pkglog.Debug("Cluster check Autodiscovery disabled")
 	}
 
-	wg := sync.WaitGroup{}
-	// Autoscaler Controller Goroutine
-	if config.GetBool("external_metrics_provider.enabled") {
-		// Start the k8s custom metrics server. This is a blocking call
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			errServ := custommetrics.RunServer(mainCtx, apiCl, dc)
-			if errServ != nil {
-				pkglog.Errorf("Error in the External Metrics API Server: %v", errServ)
-			}
-		}()
-	}
-
-	// Autoscaling Product
+	// Autoscaling Products
 	var pp workload.PodPatcher
+	var scalingValuesProvider workload.ScalingValuesProvider
 	if config.GetBool("autoscaling.workload.enabled") {
 		if rcClient == nil {
 			return errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
@@ -591,11 +577,12 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
-			pp = patcher
-		} else {
+		patcher, p, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer, autoscalingGate)
+		if err != nil {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
 		}
+		pp = patcher
+		scalingValuesProvider = p
 	}
 
 	if config.GetBool("autoscaling.cluster.enabled") {
@@ -615,6 +602,22 @@ func start(log log.Component,
 		} else {
 			return fmt.Errorf("Error while starting spot scheduling: %w", err)
 		}
+	}
+
+	wg := sync.WaitGroup{}
+	// External metrics server — started after all autoscaling products so the ScalingValuesProvider
+	// from workload autoscaling can be passed in for the "dpa-target-replicas" metric.
+	if config.GetBool("external_metrics_provider.enabled") {
+		// Start the k8s custom metrics server. This is a blocking call
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			errServ := custommetrics.RunServer(mainCtx, apiCl, dc, scalingValuesProvider)
+			if errServ != nil {
+				pkglog.Errorf("Error in the External Metrics API Server: %v", errServ)
+			}
+		}()
 	}
 
 	// Kubernetes Actions

@@ -10,6 +10,7 @@ go_library(
         "//comp/autoscaling/datadogclient/def",
         "//pkg/clusteragent/autoscaling/custommetrics",
         "//pkg/clusteragent/autoscaling/externalmetrics",
+        "//pkg/clusteragent/autoscaling/workload",
         "//pkg/config/setup",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/common/namespace",

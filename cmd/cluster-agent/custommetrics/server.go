@@ -22,6 +22,7 @@ import (
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
@@ -51,8 +52,9 @@ const (
 	tlsVersion13Str   = "VersionTLS13"
 )
 
-// RunServer creates and start a k8s custom metrics API server
-func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component]) error {
+// RunServer creates and start a k8s custom metrics API server.
+// scalingValuesProvider is optional; when non-nil it enables the "dpa-target-replicas" external metric.
+func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component], scalingValuesProvider workload.ScalingValuesProvider) error {
 	defer clearServerResources()
 	if apiCl == nil {
 		return errors.New("unable to run server with nil APIClient")
@@ -71,7 +73,7 @@ func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option
 		return err
 	}
 
-	server, stopProvider, err := buildServerWithRetry(ctx, apiCl, datadogCl)
+	server, stopProvider, err := buildServerWithRetry(ctx, apiCl, datadogCl, scalingValuesProvider)
 	if err != nil {
 		return err
 	}
@@ -82,7 +84,7 @@ func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option
 }
 
 // buildServerWithRetry constructs the custom metrics API server with exponential backoff.
-func buildServerWithRetry(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component]) (*apiserver.CustomMetricsAdapterServer, func(), error) {
+func buildServerWithRetry(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component], scalingValuesProvider workload.ScalingValuesProvider) (*apiserver.CustomMetricsAdapterServer, func(), error) {
 	retries := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.startup_retries")
 	retryDelay := pkgconfigsetup.Datadog().GetDuration("external_metrics_provider.startup_retry_delay")
 	retryMaxDelay := pkgconfigsetup.Datadog().GetDuration("external_metrics_provider.startup_retry_max_delay")
@@ -118,7 +120,7 @@ func buildServerWithRetry(ctx context.Context, apiCl *as.APIClient, datadogCl op
 
 	// The Datadog Metric Provider uses shared informers so it is constructed exactly once.
 	providerCtx, cancelProvider := context.WithCancel(ctx)
-	provider, err := cmd.buildProvider(providerCtx, apiCl, datadogCl, deps)
+	provider, err := cmd.buildProvider(providerCtx, apiCl, datadogCl, scalingValuesProvider, deps)
 	if err != nil {
 		cancelProvider()
 		return nil, nil, err
@@ -229,10 +231,10 @@ func (a *DatadogMetricsAdapter) setupAPIServerDeps(apiCl *as.APIClient) (apiServ
 }
 
 // buildProvider constructs the Datadog Metric Provider.
-func (a *DatadogMetricsAdapter) buildProvider(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component], deps apiServerDeps) (provider.ExternalMetricsProvider, error) {
+func (a *DatadogMetricsAdapter) buildProvider(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component], scalingValuesProvider workload.ScalingValuesProvider, deps apiServerDeps) (provider.ExternalMetricsProvider, error) {
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") {
 		if dc, ok := datadogCl.Get(); ok {
-			return externalmetrics.NewDatadogMetricProvider(ctx, apiCl, dc, deps.hpaGVR)
+			return externalmetrics.NewDatadogMetricProvider(ctx, apiCl, dc, deps.hpaGVR, scalingValuesProvider)
 		}
 		return nil, errors.New("unable to create DatadogMetricProvider as DatadogClient failed with uninitialized datadog client")
 	}
