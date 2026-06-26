@@ -26,8 +26,10 @@ func GetInformation() *host.InfoStat {
 				log.Errorf("failed to retrieve host info: %s", err)
 				return &host.InfoStat{}, err
 			}
-			if platformVersion := platform.ParsePlatformVersionFromOsLevel(info.KernelVersion); platformVersion != "" {
-				info.PlatformVersion = platformVersion
+			// PlatformVersion is formatted as "<X>.<Y> TL<Z>" (e.g. "7.3 TL2"),
+			// SP is not included. Derived from oslevel -s output (e.g. "7300-02-02-2419").
+			if aixVersion, ok := platform.ParseAIXVersion(info.KernelVersion); ok {
+				info.PlatformVersion = aixVersion.PlatformVersion()
 			}
 			return info, err
 		})

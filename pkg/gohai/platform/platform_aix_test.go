@@ -29,8 +29,13 @@ func TestParseAIXOsLevel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := ParseKernelVersionFromOsLevel(tt.input)
-			assert.Equal(t, tt.want, got)
+			aixVersion, ok := ParseAIXVersion(tt.input)
+			if tt.want == "" {
+				assert.False(t, ok)
+			} else {
+				assert.True(t, ok)
+				assert.Equal(t, tt.want, aixVersion.KernelVersion())
+			}
 		})
 	}
 }

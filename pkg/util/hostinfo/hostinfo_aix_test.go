@@ -36,7 +36,13 @@ func TestFormatAIXPlatformVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			assert.Equal(t, tt.expected, platform.ParsePlatformVersionFromOsLevel(tt.input))
+			aixVersion, ok := platform.ParseAIXVersion(tt.input)
+			if tt.expected == "" {
+				assert.False(t, ok)
+			} else {
+				assert.True(t, ok)
+				assert.Equal(t, tt.expected, aixVersion.PlatformVersion())
+			}
 		})
 	}
 }

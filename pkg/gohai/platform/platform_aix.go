@@ -46,25 +46,6 @@ func ParseAIXVersion(osLevel string) (AIXVersion, bool) {
 	return AIXVersion{Version: v, Release: r, TL: tl, SP: sp}, true
 }
 
-// ParseKernelVersionFromOsLevel converts oslevel -s output to VRMF dot notation
-// (e.g. "7300-02-02-2419" -> "7.3.2.2").
-func ParseKernelVersionFromOsLevel(osLevel string) string {
-	if aixVersion, ok := ParseAIXVersion(osLevel); ok {
-		return aixVersion.KernelVersion()
-	}
-	return ""
-}
-
-// ParsePlatformVersionFromOsLevel derives "<X>.<Y> TL<Z>" from an oslevel -s
-// string (e.g. "7300-02-02-2419" -> "7.3 TL2").
-// SP is not included in the platform version.
-func ParsePlatformVersionFromOsLevel(osLevel string) string {
-	if aixVersion, ok := ParseAIXVersion(osLevel); ok {
-		return aixVersion.PlatformVersion()
-	}
-	return ""
-}
-
 func (info *Info) fillPlatformInfo() {
 	info.Family = utils.NewErrorValue[string](utils.ErrNotCollectable)
 	info.OS = utils.NewValue("AIX")
@@ -89,7 +70,14 @@ func (info *Info) fillPlatformInfo() {
 	if err == nil {
 		info.KernelName = utils.NewValue("AIX")
 		info.Hostname = utils.NewValue(hostInfo.Hostname)
-		info.KernelVersion = utils.NewValue(ParseKernelVersionFromOsLevel(hostInfo.KernelVersion))
+		// KernelVersion is formatted as VRMF dot notation (e.g. "7.3.2.2") derived
+		// from oslevel -s output (e.g. "7300-02-02-2419"), which is more useful than
+		// the raw dash-separated string used by installp/lslpp.
+		if aixVersion, ok := ParseAIXVersion(hostInfo.KernelVersion); ok {
+			info.KernelVersion = utils.NewValue(aixVersion.KernelVersion())
+		} else {
+			info.KernelVersion = utils.NewValue(hostInfo.KernelVersion)
+		}
 	} else if unameErr == nil {
 		// Fall back to uname fields if gopsutil fails.
 		info.KernelName = utils.NewValue(utils.StringFromBytes(uname.Sysname[:]))
