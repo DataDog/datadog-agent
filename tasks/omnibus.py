@@ -184,6 +184,13 @@ def get_omnibus_env(
     kubernetes_cpu_request = os.environ.get('KUBERNETES_CPU_REQUEST')
     if kubernetes_cpu_request:
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
+        # Force xz to split the install tar into independent blocks so the
+        # configured compression_threads actually parallelize the encode.
+        # Without an explicit block size, xz picks a block large enough that
+        # the ~1GB agent tar is effectively a single block and the worker
+        # threads sit idle (single-threaded encode). xz honors XZ_OPT for
+        # extra CLI options.
+        env['XZ_OPT'] = '--block-size=16MiB'
 
     env_to_forward = _passthrough_env_for_os(os.environ, sys.platform)
     env.update(env_to_forward)
