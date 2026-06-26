@@ -8,7 +8,10 @@
 package setup
 
 import (
+	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
@@ -82,4 +85,31 @@ func TestRequestedAgentVersion(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestApplyAgentDistChannel(t *testing.T) {
+	t.Run("stable is a no-op", func(t *testing.T) {
+		t.Setenv(envInstallerRegistryURLAgent, "")
+		e := &env.Env{RegistryOverrideByImage: map[string]string{}}
+		assert.NoError(t, applyAgentDistChannel(e, channelStable))
+		assert.Empty(t, e.RegistryOverrideByImage)
+		assert.Empty(t, os.Getenv(envInstallerRegistryURLAgent))
+	})
+
+	t.Run("beta sets per-image override and env var", func(t *testing.T) {
+		t.Setenv(envInstallerRegistryURLAgent, "")
+		e := &env.Env{RegistryOverrideByImage: map[string]string{}}
+		assert.NoError(t, applyAgentDistChannel(e, channelBeta))
+		assert.Equal(t, betaRegistry, e.RegistryOverrideByImage[agentPackageImage])
+		assert.Equal(t, betaRegistry, os.Getenv(envInstallerRegistryURLAgent))
+	})
+
+	t.Run("user-provided override wins over beta", func(t *testing.T) {
+		const userRegistry = "user.registry.example.com"
+		t.Setenv(envInstallerRegistryURLAgent, userRegistry)
+		e := &env.Env{RegistryOverrideByImage: map[string]string{agentPackageImage: userRegistry}}
+		assert.NoError(t, applyAgentDistChannel(e, channelBeta))
+		assert.Equal(t, userRegistry, e.RegistryOverrideByImage[agentPackageImage])
+		assert.Equal(t, userRegistry, os.Getenv(envInstallerRegistryURLAgent))
+	})
 }
