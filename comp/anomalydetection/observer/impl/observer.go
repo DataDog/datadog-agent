@@ -885,6 +885,7 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 	}
 	o.replayMu.Lock()
 	requests := o.engine.IngestLog(source, lo)
+	o.engine.storage.RecordObservationTime(lo.timestampMs / 1000)
 	for _, req := range requests {
 		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 	}
@@ -912,6 +913,7 @@ func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView
 	o.replayMu.Lock()
 	// Advance requests are intentionally discarded.
 	_ = o.engine.IngestLog(source, lo)
+	o.engine.storage.RecordObservationTime(lo.timestampMs / 1000)
 	if o.telemetry != nil {
 		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
 		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
