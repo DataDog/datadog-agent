@@ -79,11 +79,6 @@ type Dependencies struct {
 // components that are instantiated last).  Remote configuration client is a good candidate for this since it must be
 // able to interact with any other components (i.e. be at the end of the dependency graph).
 func NewComponent(deps Dependencies) (rcclient.Component, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-
 	if deps.Params.AgentName == "" || deps.Params.AgentVersion == "" {
 		return nil, errors.New("Remote config client is missing agent name or version parameter")
 	}
