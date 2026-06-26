@@ -110,7 +110,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/gui/impl
 # gazelle:exclude comp/core/diagnose/local
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-core
-# gazelle:exclude comp/core/workloadmeta/collectors/internal/process
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
