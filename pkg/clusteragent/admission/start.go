@@ -24,6 +24,7 @@ import (
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,6 +43,7 @@ type ControllerContext struct {
 	MutatingInformers            informers.SharedInformerFactory
 	DynamicInformer              dynamicinformer.DynamicSharedInformerFactory
 	Client                       kubernetes.Interface
+	RcClient                     *rcclient.Client
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
@@ -108,6 +110,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		pp,
 		sh,
 		datadogConfig,
+		ctx.RcClient,
 		ctx.Demultiplexer,
 		ctx.FilterStore,
 		ctx.InstrumentationHandlers,
