@@ -364,10 +364,10 @@ require (
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/component v1.61.1-0.20260625204839-9782f9e8a3d6 // indirect
-	go.opentelemetry.io/collector/featuregate v1.61.1-0.20260625204839-9782f9e8a3d6 // indirect
-	go.opentelemetry.io/collector/pdata v1.61.1-0.20260625204839-9782f9e8a3d6 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.155.1-0.20260625204839-9782f9e8a3d6 // indirect
+	go.opentelemetry.io/collector/component v1.61.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.61.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.61.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.155.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.18.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.20.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 // indirect
