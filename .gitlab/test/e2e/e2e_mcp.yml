@@ -1,0 +1,104 @@
+---
+# e2e-mcp spike (direction 2: backend-triggered provisioning)
+#
+# Goal: prove that a GitLab CI job can provision a real EC2 VM + Agent on
+# demand and hand back its connection info, so an MCP backend can trigger
+# provisioning without ever holding AWS credentials.
+#
+# How it works:
+#   - Reuses the exact agent-qa credential + Pulumi-S3 setup that the e2e
+#     template and the .post cleanup job use (assume agent-qa-ci profile,
+#     fetch SSH keys + Pulumi passphrase, `pulumi login s3://dd-pulumi-state`).
+#   - Synthesizes the Manual QA local profile (~/.test_infra_config.yaml) that
+#     the `dda inv aws.*` tasks read, then drives them directly:
+#       provision -> `dda inv aws.create-vm`  (EC2 + Agent, stack kept alive)
+#       host info -> `dda inv aws.show-vm`     (JSON: address/user/port)
+#       destroy   -> `dda inv aws.destroy-vm`
+#   - The host info is published as the `e2e-mcp-host-info.json` artifact, which
+#     the MCP backend reads after the pipeline completes.
+#
+# Because Pulumi state lives in S3 (shared), the destroy job can tear down the
+# same stack in a later pipeline using only the stack name -- no local state.
+#
+# Triggering (the MCP backend would do this via the pipeline API):
+#   provision: pipeline variable E2E_MCP_PROVISION=true
+#   destroy:   pipeline variable E2E_MCP_DESTROY=true  (+ E2E_MCP_STACK_NAME)
+
+.e2e_mcp_base:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  stage: e2e
+  needs:
+    - go_e2e_deps
+    - go_tools_deps
+  variables:
+    E2E_AWS_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    E2E_AWS_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    # Stack suffix; the framework prefixes it with the CI user, so the full
+    # Pulumi stack name is `<ci-user>-<E2E_MCP_STACK_NAME>`. Defaults to the
+    # pipeline id so concurrent pipelines don't collide; override to target a
+    # specific stack (e.g. for the destroy job).
+    E2E_MCP_STACK_NAME: mcp-$CI_PIPELINE_ID
+    E2E_MCP_OS_FAMILY: ubuntu
+    KUBERNETES_MEMORY_REQUEST: 6Gi
+    KUBERNETES_MEMORY_LIMIT: 8Gi
+    KUBERNETES_CPU_REQUEST: 4
+  before_script:
+    - !reference [.retrieve_linux_go_e2e_deps]
+    - !reference [.retrieve_linux_pulumi_plugins]
+    - !reference [.retrieve_linux_go_tools_deps]
+    # AWS credentials -> agent-qa-ci profile (no creds ever leave CI)
+    - mkdir -p ~/.aws
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
+    - export AWS_PROFILE=agent-qa-ci
+    # SSH key pair (agent-qa)
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AWS_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_AWS_PRIVATE_KEY_PATH && chmod 600 $E2E_AWS_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_AWS_PRIVATE_KEY_PATH || exit $?
+    # Pulumi S3 backend + passphrase
+    - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E pulumi_passphrase) || exit $?; export PULUMI_CONFIG_PASSPHRASE
+    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    # Datadog API key (agent ships to the real org-2 intake; no fakeintake here)
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    # Synthesize the Manual QA local profile that `dda inv aws.*` reads.
+    - |
+      cat > ~/.test_infra_config.yaml <<EOF
+      configParams:
+        aws:
+          keyPairName: $E2E_KEY_PAIR_NAME
+          publicKeyPath: $E2E_AWS_PUBLIC_KEY_PATH
+          privateKeyPath: $E2E_AWS_PRIVATE_KEY_PATH
+          account: agent-qa
+          teamTag: agent-devx
+        agent:
+          apiKey: $DD_API_KEY
+        pulumi:
+          passphrase: $PULUMI_CONFIG_PASSPHRASE
+      options:
+        checkKeyPair: false
+      EOF
+    - chmod 600 ~/.test_infra_config.yaml
+
+# Provision a VM + Agent and publish its connection info as an artifact.
+e2e-mcp-provision-vm:
+  extends: .e2e_mcp_base
+  rules:
+    - if: $E2E_MCP_PROVISION == "true"
+  script:
+    - dda inv -- -e aws.create-vm --no-interactive --no-add-known-host --stack-name=$E2E_MCP_STACK_NAME --os-family=$E2E_MCP_OS_FAMILY
+    - dda inv -- -e aws.show-vm --stack-name=$E2E_MCP_STACK_NAME > e2e-mcp-host-info.json
+    - echo "Provisioned stack suffix:" $E2E_MCP_STACK_NAME
+    - cat e2e-mcp-host-info.json
+  artifacts:
+    expire_in: 1 week
+    when: always
+    paths:
+      - e2e-mcp-host-info.json
+
+# Tear down a previously provisioned stack (same E2E_MCP_STACK_NAME).
+e2e-mcp-destroy-vm:
+  extends: .e2e_mcp_base
+  rules:
+    - if: $E2E_MCP_DESTROY == "true"
+  script:
+    - dda inv -- -e aws.destroy-vm --no-clean-known-hosts --stack-name=$E2E_MCP_STACK_NAME
