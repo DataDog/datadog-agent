@@ -5221,7 +5221,7 @@ api_key:
 
 #   # @param http_allowlist - list of strings - optional - default: []
 #   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - comma-separated list of strings - optional - default: []
-#   # List of allowed domain for HTTP actions. Supports glob pattern. Example : ["datadoghq.com", "*.datadoghq.com"]
+#   # List of allowed domains for HTTP actions. Supports glob pattern. Example : ["datadoghq.com", "*.datadoghq.com"]
 #
 #   http_allowlist: []
 
