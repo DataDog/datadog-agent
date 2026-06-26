@@ -136,7 +136,24 @@ func mapPbTaskToStruct(task *privateactionspb.PrivateActionTask) *types.Task {
 				Inputs:                task.Inputs.AsMap(),
 				OrgId:                 task.OrgId,
 				ConnectionInfo:        task.ConnectionInfo,
+				RemoteAction:          remoteActionAttributes(task),
 			},
 		},
+	}
+}
+
+func remoteActionAttributes(task *privateactionspb.PrivateActionTask) *types.RemoteActionAttributes {
+	remoteAction := task.GetRemoteAction()
+	if remoteAction == nil {
+		return nil
+	}
+	targetCommands := remoteAction.GetTargetCommands()
+	targetPaths := remoteAction.GetTargetPaths()
+	if len(targetCommands) == 0 && len(targetPaths) == 0 {
+		return nil
+	}
+	return &types.RemoteActionAttributes{
+		TargetCommands: targetCommands,
+		TargetPaths:    targetPaths,
 	}
 }

@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/rshell/interp"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
@@ -37,6 +36,14 @@ const (
 // statFn is the function used to check path existence. It defaults to os.Stat
 // and can be overridden in tests.
 var statFn = os.Stat
+
+// RunCommandHandlerConfig carries agent-side rshell policy settings.
+type RunCommandHandlerConfig struct {
+	OperatorAllowedPaths              []string
+	OperatorAllowedPathsConfigured    bool
+	OperatorAllowedCommands           []string
+	OperatorAllowedCommandsConfigured bool
+}
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
 //
@@ -59,87 +66,80 @@ var statFn = os.Stat
 //
 // On either axis, an explicit empty operator list is the kill-switch.
 type RunCommandHandler struct {
-	operatorAllowedPaths    []string
-	operatorAllowedCommands []string
-	mode                    interp.Mode
+	operatorAllowedPaths              []string
+	operatorAllowedPathsConfigured    bool
+	operatorAllowedCommands           []string
+	operatorAllowedCommandsConfigured bool
+	mode                              interp.Mode
 }
 
-// NewRunCommandHandler builds the read-only runCommand handler.
-func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
-	return newRunCommandHandler(operatorAllowedPaths, operatorAllowedCommands, interp.ModeReadOnly)
+// newRunCommandHandler builds a run-command handler and precomputes the
+// operator allowlists:
+//
+//  1. Paths are normalized, reduced to the broadest entries per access group,
+//     and deduplicated so same-path read-write entries replace read-only ones.
+//  2. Commands are deduplicated.
+func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode, pathsConfigured, commandsConfigured bool) *RunCommandHandler {
+	// remove duplicates
+	commands := slices.Clone(operatorAllowedCommands)
+	slices.Sort(commands)
+	commands = slices.Compact(commands)
+	return &RunCommandHandler{
+		operatorAllowedPaths:              reducePathListToBroadest(cleanPathList(operatorAllowedPaths)),
+		operatorAllowedPathsConfigured:    pathsConfigured,
+		operatorAllowedCommands:           commands,
+		operatorAllowedCommandsConfigured: commandsConfigured,
+		mode:                              mode,
+	}
+}
+
+func NewRunCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
+	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeReadOnly, cfg.OperatorAllowedPathsConfigured, cfg.OperatorAllowedCommandsConfigured)
 }
 
 // NewRunRemediationCommandHandler builds the write-capable runRemediationCommand
 // handler. It shares all sandboxing with runCommand and only switches rshell into
 // remediation mode.
-func NewRunRemediationCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
-	return newRunCommandHandler(operatorAllowedPaths, operatorAllowedCommands, interp.ModeRemediation)
-}
-
-func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode) *RunCommandHandler {
-	operatorAllowedCommandsClone := slices.Clone(operatorAllowedCommands)
-	slices.Sort(operatorAllowedCommandsClone)
-	return &RunCommandHandler{
-		operatorAllowedPaths:    reducePathListToBroadest(cleanPathList(operatorAllowedPaths)),
-		operatorAllowedCommands: slices.Compact(operatorAllowedCommandsClone),
-		mode:                    mode,
-	}
+func NewRunRemediationCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
+	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeRemediation, cfg.OperatorAllowedPathsConfigured, cfg.OperatorAllowedCommandsConfigured)
 }
 
 // filterAllowedCommands returns the effective command allowlist, passed to rshell:
-// intersection of the operator-configured list and the backend-configured list.
+// the signed task list limited to the rshell command namespace, optionally
+// narrowed by explicitly configured agent-side commands.
 func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []string {
-	// If either list is empty, the intersection is an empty list.
-	if len(backendAllowed) == 0 || len(h.operatorAllowedCommands) == 0 {
-		return []string{}
+	backendAllowed = onlyRshellPrefixedCommands(backendAllowed)
+	if !h.operatorAllowedCommandsConfigured {
+		return backendAllowed
 	}
-
-	// If the operator-configured list contains the wildcard, the intersection is the backend-configured list.
-	// Most of the executions should return here.
-	if slices.Contains(h.operatorAllowedCommands, setup.RShellCommandAllowAllWildcard) {
-		return onlyRshellPrefixedCommands(backendAllowed)
-	}
-
-	filtered := make([]string, 0)
-	for _, c := range backendAllowed {
-		if slices.Contains(h.operatorAllowedCommands, c) {
-			filtered = append(filtered, c)
-		}
-	}
-	return filtered
+	return intersectAllowedCommands(backendAllowed, h.operatorAllowedCommands)
 }
 
-// filterAllowedPaths returns the effective path allowlist, passed to rshell:
-// intersection of the operator-configured list and the backend-configured list.
-// The narrower side wins.
-func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
-	// If either list is empty, the intersection is an empty list.
-	if len(backend) == 0 || len(h.operatorAllowedPaths) == 0 {
-		return []string{}
-	}
-
-	backend = reducePathListToBroadest(cleanPathList(backend))
-
-	// If the operator-configured list contains the wildcard, the intersection is the backend-configured list.
-	// Most of the executions should return here.
-	if slices.Contains(h.operatorAllowedPaths, setup.RShellPathAllowAll) {
-		return backend
-	}
-
-	return intersectPathLists(h.operatorAllowedPaths, backend)
-}
-
-// RunCommandInputs defines the inputs for the runCommand action.
+// filterAllowedPaths returns the effective path allowlist passed to rshell:
 //
-// The backend is the authoritative source for both allowlists. A nil Go
-// slice (field absent or explicit JSON null) blocks everything on its
-// respective axis — rshell refuses to run any command or open any file.
-// A non-nil list is intersected with the operator config before being
-// handed to rshell.
+//  1. Normalize the signed backend paths.
+//  2. If no operator allowlist is configured, reduce the backend paths to
+//     remove duplicates and redundant descendants, then use that reduced list.
+//  3. If an operator allowlist is configured, intersect operator and backend
+//     paths by access group and containment, keeping the narrower matching path.
+//  4. Remove same-path read-only entries when a read-write entry exists. For example,
+//     if `/var/log:ro` and `/var/log:rw` both exist, only `/var/log:rw` is kept.
+func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
+	backendPaths := cleanPathList(backend)
+	if !h.operatorAllowedPathsConfigured {
+		return reducePathListToBroadest(backendPaths)
+	}
+	return intersectAllowedPathsByAccess(h.operatorAllowedPaths, backendPaths)
+}
+
+// RunCommandInputs defines the user-supplied inputs for the runCommand action.
+//
+// The command allowlists are no longer carried in inputs: they are resolved
+// from execution policies on the backend and delivered in the signed task
+// (Attributes.RemoteAction.TargetCommands / Attributes.RemoteAction.TargetPaths).
+// Inputs only carry the command to run.
 type RunCommandInputs struct {
-	Command         string              `json:"command"`
-	AllowedCommands []string            `json:"allowedCommands"`
-	AllowedPaths    map[string][]string `json:"allowedPaths"`
+	Command string `json:"command"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -171,11 +171,17 @@ func (h *RunCommandHandler) Run(
 		return nil, errors.New("command is required")
 	}
 
-	backendPaths := selectBackendPathsFromEnv(inputs.AllowedPaths)
-	effectiveAllowedCommands := h.filterAllowedCommands(inputs.AllowedCommands)
+	// The backend allowlists come from the signed task, not from user inputs.
+	var backendCommands []string
+	var backendPaths []string
+	if task.Data.Attributes.RemoteAction != nil {
+		backendCommands = task.Data.Attributes.RemoteAction.TargetCommands
+		backendPaths = task.Data.Attributes.RemoteAction.TargetPaths
+	}
+	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
 	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
-		h.mode, inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
+		h.mode, inputs.Command, backendCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {
@@ -183,8 +189,9 @@ func (h *RunCommandHandler) Run(
 	}
 
 	for _, p := range effectiveAllowedPaths {
-		if _, err := statFn(p); err != nil {
-			log.Warnf("path %q not found, rshell may fail to execute commands", p)
+		statPath := pathSpecPath(p)
+		if _, err := statFn(statPath); err != nil {
+			log.Warnf("path %q not found, rshell may fail to execute commands", statPath)
 		}
 	}
 	var stdout, stderr bytes.Buffer
