@@ -1311,6 +1311,67 @@ func TestAutoinstrumentation(t *testing.T) {
 				containerNames: defaultContainerNames,
 			},
 		},
+		"local sdk injection with tracer-configs annotation injects env vars": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/ruby-lib.version":          "v3",
+					"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"},{"name":"DD_DATA_JOBS_ENABLED","value":"true"}]`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"ruby": "v3",
+				},
+				requiredEnvs: map[string]string{
+					"DD_PROFILING_ENABLED": "true",
+					"DD_DATA_JOBS_ENABLED": "true",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"inject-all annotation with tracer-configs annotation injects env vars": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/all-lib.version":           "latest",
+					"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"}]`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				requiredEnvs: map[string]string{
+					"DD_PROFILING_ENABLED": "true",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
 		"targets with matching rule and local sdk injection but no label favors target": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,

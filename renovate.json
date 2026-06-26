@@ -1,17 +1,16 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended", "mergeConfidence:all-badges", ":enablePreCommit", "schedule:nonOfficeHours"],
+    "timezone": "Europe/Paris",
+    "updateNotScheduled": false,
     "ignorePaths": [],
-    "constraints": {
-      "go": "1.26.4"
-    },
-    "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",
     "prConcurrentLimit": 20,
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "gitIgnoredAuthors": ["200755185+dd-octo-sts[bot]@users.noreply.github.com"],
     "platformCommit": "enabled",
+    "postUpdateOptions": ["gomodUpdateImportPaths"],
     "packageRules": [
       {
         "matchDepNames": ["*"],
@@ -98,11 +97,13 @@
         "enabled": false
       },
       {
+        "description": "Disable Go directives, toolchain (go update is managed independently) or replace (->fork)",
         "matchManagers": ["gomod"],
-        "matchDepTypes": ["replace"],
+        "matchDepTypes": ["golang", "toolchain", "replace"],
         "enabled": false
       },
       {
+        "description": "Disable when pinned on a commit (->forks)",
         "matchManagers": ["gomod"],
         "matchUpdateTypes": ["digest"],
         "enabled": false

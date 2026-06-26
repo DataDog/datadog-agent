@@ -327,6 +327,60 @@ func TestLogsExporter(t *testing.T) {
 	}
 }
 
+func TestLogsExporterContextCancelled(t *testing.T) {
+	// Unbuffered channel: sends always block when there is no reader.
+	testChannel := make(chan *message.Message)
+
+	params := exportertest.NewNopSettings(component.MustNewType(TypeStr))
+	f := NewFactory(testChannel, otel.NewDisabledGatewayUsage())
+	cfg := &Config{
+		OtelSource:    otelSource,
+		LogSourceName: LogSourceName,
+	}
+	ctx := context.Background()
+	exp, err := f.CreateLogs(ctx, params, cfg)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	lr := testutil.GenerateLogsOneLogRecord()
+	err = exp.ConsumeLogs(ctx, lr)
+	// The scrubber replaces the error with errors.New(string) which breaks
+	// the error chain, so we check the string instead of using errors.Is.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "context canceled")
+	assert.Contains(t, err.Error(), "log records remaining")
+}
+
+func TestLogsExporterContextCancelledPartialDelivery(t *testing.T) {
+	// Buffer of 1: first log is accepted, second blocks and sees cancelled context.
+	testChannel := make(chan *message.Message, 1)
+
+	params := exportertest.NewNopSettings(component.MustNewType(TypeStr))
+	f := NewFactory(testChannel, otel.NewDisabledGatewayUsage())
+	cfg := &Config{
+		OtelSource:    otelSource,
+		LogSourceName: LogSourceName,
+	}
+	ctx := context.Background()
+	exp, err := f.CreateLogs(ctx, params, cfg)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	lr := testutil.GenerateLogsTwoLogRecordsSameResource()
+	err = exp.ConsumeLogs(ctx, lr)
+
+	// With a cancelled context and buffer of 1, the select is non-deterministic:
+	// either both sends hit ctx.Done(), or the first succeeds and the second fails.
+	// In both cases we must get an error.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "context canceled")
+	assert.Contains(t, err.Error(), "log records remaining")
+}
+
 // traceIDToUint64 converts 128bit traceId to 64 bit uint64
 func traceIDToUint64(b [16]byte) uint64 {
 	return binary.BigEndian.Uint64(b[len(b)-8:])

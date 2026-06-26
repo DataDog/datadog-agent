@@ -1695,6 +1695,62 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  pci.link.speed.degraded:
+    metadata:
+      metric_type: gauge
+      description: Whether the current PCI link speed is lower than the max PCI link speed
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.link.width.current:
+    metadata:
+      metric_type: gauge
+      description: Current lane width for the PCI link
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 32
+    support:
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.link.width.max:
+    metadata:
+      metric_type: gauge
+      description: Max lane width for the PCI link
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 32
+    support:
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  pci.link.width.degraded:
+    metadata:
+      metric_type: gauge
+      description: Whether the current PCI link width is lower than the max PCI link width
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   performance_state:
     metadata:
       metric_type: gauge

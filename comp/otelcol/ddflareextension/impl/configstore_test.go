@@ -77,7 +77,7 @@ func TestGetConfDump(t *testing.T) {
 		factories:              &factories,
 		configProviderSettings: newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), false),
 	}
-	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, option.None[ipc.Component](), true, false)
+	extension, err := NewComponent(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, option.None[ipc.Component](), true, false)
 	assert.NoError(t, err)
 
 	ext, ok := extension.(*ddExtension)
@@ -212,7 +212,7 @@ func newResolverSettings(uris []string, enhanced bool) confmap.ResolverSettings 
 func newConverterFactory(enhanced bool) []confmap.ConverterFactory {
 	converterFactories := []confmap.ConverterFactory{}
 
-	converter, err := converterimpl.NewConverterForAgent(converterimpl.Requires{})
+	converter, err := converterimpl.NewComponent(converterimpl.Requires{})
 	if err != nil {
 		return []confmap.ConverterFactory{}
 	}

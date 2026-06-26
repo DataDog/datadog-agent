@@ -380,7 +380,7 @@ func (r *RRCFDetector) alignByTimestamp(pointsByMetric map[string][]observer.Poi
 
 // sortTimestampedVectors sorts vectors by timestamp ascending.
 func sortTimestampedVectors(vecs []timestampedVector) {
-	// Simple insertion sort (vectors are typically small and nearly sorted)
+	// Simple insertion sort (vectors are typically small)
 	for i := 1; i < len(vecs); i++ {
 		for j := i; j > 0 && vecs[j].timestamp < vecs[j-1].timestamp; j-- {
 			vecs[j], vecs[j-1] = vecs[j-1], vecs[j]
