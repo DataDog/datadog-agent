@@ -49,6 +49,17 @@ build do
 
     env = with_standard_compiler_flags(env)
 
+    # Set CC/CXX explicitly so CGo uses the glibc cross-compiler (DD_CC).
+    # The CI build image uses musl libc by default, which lacks tm_gmtoff in
+    # struct tm. The glibc cross-compiler has tm_gmtoff in its sysroot headers,
+    # which is required by internal/coreinternal/timeutils/strptime_cgo_testlib.go.
+    unless ENV["DD_CC"].nil? || ENV["DD_CC"].empty?
+        env["CC"] = ENV["DD_CC"]
+    end
+    unless ENV["DD_CXX"].nil? || ENV["DD_CXX"].empty?
+        env["CXX"] = ENV["DD_CXX"]
+    end
+
     if fips_mode?
       add_msgo_to_env(env)
     end
