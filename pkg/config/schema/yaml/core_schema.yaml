@@ -6392,7 +6392,9 @@ properties:
               Ordered metric processing rules applied at the observer handle boundary.
               Rules are evaluated in sequence and the first match wins. Metrics that
               do not match any rule are allowed. Metrics from `log_metrics_extractor`
-              are always allowed.
+              are always allowed. Because unmatched metrics are already allowed,
+              `include_at_match` rules are mainly useful as earlier exceptions to
+              later excludes, including the built-in internal agent metric exclude.
             example: |2-
 
                 - type: exclude_at_match
