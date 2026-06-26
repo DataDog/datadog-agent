@@ -1472,6 +1472,8 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 	))
 
 	cfg := configmock.New(t)
+	cfg.SetInTest("kubernetes_resources_labels_as_tags", `{"localqueues.kueue.x-k8s.io": {"team": "team"}}`)
+	cfg.SetInTest("kubernetes_resources_annotations_as_tags", `{"localqueues.kueue.x-k8s.io": {"owner": "+owner"}}`)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 	actual := collector.handleKubeKueueQueue(workloadmeta.Event{
@@ -1479,14 +1481,13 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 		Entity: &workloadmeta.KubernetesKueueQueue{
 			EntityID: queueID,
 			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "batch",
-				Namespace: "default",
+				Name:        "batch",
+				Namespace:   "default",
+				Labels:      map[string]string{"team": "eng"},
+				Annotations: map[string]string{"owner": "alice"},
 			},
 			QueueType:        workloadmeta.KueueLocalQueue,
 			ClusterQueueName: "cluster-batch",
-			// ResolvedTags are produced by the cluster agent. A leading '+' on
-			// the name denotes a high-cardinality tag.
-			ResolvedTags: []string{"team:eng", "+owner:alice"},
 		},
 		IsComplete: true,
 	})
@@ -1510,7 +1511,7 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 	assertTagInfoListEqual(t, expected, actual)
 }
 
-func TestHandleKubeKueueQueueResolvedTags(t *testing.T) {
+func TestHandleKubeKueueQueueMetadataAsTags(t *testing.T) {
 	queueID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesKueueQueue,
 		ID:   "localqueue/default/batch",
@@ -1524,6 +1525,8 @@ func TestHandleKubeKueueQueueResolvedTags(t *testing.T) {
 	))
 
 	cfg := configmock.New(t)
+	cfg.SetInTest("kubernetes_resources_labels_as_tags", `{"localqueues.kueue.x-k8s.io": {"team": "team"}}`)
+	cfg.SetInTest("kubernetes_resources_annotations_as_tags", `{"localqueues.kueue.x-k8s.io": {"owner": "+owner"}}`)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 	actual := collector.handleKubeKueueQueue(workloadmeta.Event{
@@ -1531,14 +1534,13 @@ func TestHandleKubeKueueQueueResolvedTags(t *testing.T) {
 		Entity: &workloadmeta.KubernetesKueueQueue{
 			EntityID: queueID,
 			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "batch",
-				Namespace: "default",
+				Name:        "batch",
+				Namespace:   "default",
+				Labels:      map[string]string{"team": "batch"},
+				Annotations: map[string]string{"owner": "team-a"},
 			},
 			QueueType:        workloadmeta.KueueLocalQueue,
 			ClusterQueueName: "cluster-batch",
-			// The cluster agent resolves label/annotation tags and streams them
-			// pre-resolved; a leading '+' denotes a high-cardinality tag.
-			ResolvedTags: []string{"team:batch", "+owner:team-a"},
 		},
 		IsComplete: true,
 	})

@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -50,19 +49,17 @@ type kueueQueueEntry struct {
 	name             string
 	queueType        workloadmeta.KueueQueueType
 	clusterQueueName string
-	// resolvedTags holds the queue's label/annotation tags already resolved
-	// against kubernetes_resources_{labels,annotations}_as_tags. Each entry is
-	// in "name:value" form where a leading '+' on the name denotes a
-	// high-cardinality tag (as interpreted by taglist.AddAuto).
-	resolvedTags []string
-	uid          string
+	labels           map[string]string
+	annotations      map[string]string
+	uid              string
 }
 
 type kueueResourceFlavorEntry struct {
-	name         string
-	resolvedTags []string
-	uid          string
-	nodeLabels   map[string]string
+	name        string
+	labels      map[string]string
+	annotations map[string]string
+	uid         string
+	nodeLabels  map[string]string
 }
 
 type metadataSnapshot struct {
@@ -74,9 +71,8 @@ type metadataSnapshot struct {
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
 // labels/annotations from the DCA to node agents.
 type KubeMetadataStreamServer struct {
-	store    *controllers.MetaBundleStore
-	wmeta    workloadmeta.Component
-	resolver *kueueResourcesMetadataAsTagsResolver
+	store *controllers.MetaBundleStore
+	wmeta workloadmeta.Component
 
 	metadataMutex sync.RWMutex
 	metadata      metadataSnapshot
@@ -92,7 +88,6 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 	return &KubeMetadataStreamServer{
 		store:                store,
 		wmeta:                wmeta,
-		resolver:             newKueueResourcesMetadataAsTagsResolver(pkgconfigsetup.Datadog()),
 		metadata:             newMetadataSnapshot(),
 		namespaceSubscribers: make(map[string][]chan struct{}),
 	}
@@ -248,11 +243,11 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 				changed = true
 			}
 		case *workloadmeta.KubernetesKueueQueue:
-			if srv.metadata.processKueueQueueEvent(srv.resolver, event.Type, entity) {
+			if srv.metadata.processKueueQueueEvent(event.Type, entity) {
 				changed = true
 			}
 		case *workloadmeta.KubernetesKueueResourceFlavor:
-			if srv.metadata.processKueueResourceFlavorEvent(srv.resolver, event.Type, entity) {
+			if srv.metadata.processKueueResourceFlavorEvent(event.Type, entity) {
 				changed = true
 			}
 		default:
@@ -286,7 +281,7 @@ func (s *metadataSnapshot) processNamespaceEvent(eventType workloadmeta.EventTyp
 	return false
 }
 
-func (s *metadataSnapshot) processKueueQueueEvent(resolver *kueueResourcesMetadataAsTagsResolver, eventType workloadmeta.EventType, queue *workloadmeta.KubernetesKueueQueue) bool {
+func (s *metadataSnapshot) processKueueQueueEvent(eventType workloadmeta.EventType, queue *workloadmeta.KubernetesKueueQueue) bool {
 	key := queue.EntityID.ID
 	switch eventType {
 	case workloadmeta.EventTypeSet:
@@ -295,7 +290,8 @@ func (s *metadataSnapshot) processKueueQueueEvent(resolver *kueueResourcesMetada
 			name:             queue.Name,
 			queueType:        queue.QueueType,
 			clusterQueueName: queue.ClusterQueueName,
-			resolvedTags:     resolver.resolveQueueMetadataAsTags(queue),
+			labels:           queue.Labels,
+			annotations:      queue.Annotations,
 			uid:              queue.UID,
 		}
 		return true
@@ -310,15 +306,16 @@ func (s *metadataSnapshot) processKueueQueueEvent(resolver *kueueResourcesMetada
 	return false
 }
 
-func (s *metadataSnapshot) processKueueResourceFlavorEvent(resolver *kueueResourcesMetadataAsTagsResolver, eventType workloadmeta.EventType, flavor *workloadmeta.KubernetesKueueResourceFlavor) bool {
+func (s *metadataSnapshot) processKueueResourceFlavorEvent(eventType workloadmeta.EventType, flavor *workloadmeta.KubernetesKueueResourceFlavor) bool {
 	key := flavor.EntityID.ID
 	switch eventType {
 	case workloadmeta.EventTypeSet:
 		s.kueueResourceFlavors[key] = kueueResourceFlavorEntry{
-			name:         flavor.Name,
-			resolvedTags: resolver.resolveResourceFlavorMetadataAsTags(flavor),
-			uid:          flavor.UID,
-			nodeLabels:   flavor.NodeLabels,
+			name:        flavor.Name,
+			labels:      flavor.Labels,
+			annotations: flavor.Annotations,
+			uid:         flavor.UID,
+			nodeLabels:  flavor.NodeLabels,
 		}
 		return true
 	case workloadmeta.EventTypeUnset:
@@ -586,7 +583,8 @@ func protoKueueQueue(entry kueueQueueEntry, eventType pb.KubeMetadataEventType) 
 		Name:         entry.name,
 		QueueType:    protoKueueQueueType(entry.queueType),
 		ClusterQueue: entry.clusterQueueName,
-		ResolvedTags: entry.resolvedTags,
+		Labels:       entry.labels,
+		Annotations:  entry.annotations,
 		Uid:          entry.uid,
 		Type:         eventType,
 	}
@@ -594,11 +592,12 @@ func protoKueueQueue(entry kueueQueueEntry, eventType pb.KubeMetadataEventType) 
 
 func protoKueueResourceFlavor(entry kueueResourceFlavorEntry, eventType pb.KubeMetadataEventType) *pb.KueueResourceFlavor {
 	return &pb.KueueResourceFlavor{
-		Name:         entry.name,
-		ResolvedTags: entry.resolvedTags,
-		Uid:          entry.uid,
-		NodeLabels:   entry.nodeLabels,
-		Type:         eventType,
+		Name:        entry.name,
+		Labels:      entry.labels,
+		Annotations: entry.annotations,
+		Uid:         entry.uid,
+		NodeLabels:  entry.nodeLabels,
+		Type:        eventType,
 	}
 }
 
@@ -608,13 +607,15 @@ func kueueQueueEqual(left, right kueueQueueEntry) bool {
 		left.queueType == right.queueType &&
 		left.clusterQueueName == right.clusterQueueName &&
 		left.uid == right.uid &&
-		slices.Equal(left.resolvedTags, right.resolvedTags)
+		maps.Equal(left.labels, right.labels) &&
+		maps.Equal(left.annotations, right.annotations)
 }
 
 func kueueResourceFlavorEqual(left, right kueueResourceFlavorEntry) bool {
 	return left.name == right.name &&
 		left.uid == right.uid &&
-		slices.Equal(left.resolvedTags, right.resolvedTags) &&
+		maps.Equal(left.labels, right.labels) &&
+		maps.Equal(left.annotations, right.annotations) &&
 		maps.Equal(left.nodeLabels, right.nodeLabels)
 }
 

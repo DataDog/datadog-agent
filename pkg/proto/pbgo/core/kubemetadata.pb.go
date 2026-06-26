@@ -294,18 +294,15 @@ func (x *NamespaceMetadata) GetType() KubeMetadataEventType {
 }
 
 type KueueQueue struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	Namespace    string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	Name         string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	QueueType    KueueQueueType         `protobuf:"varint,3,opt,name=queue_type,json=queueType,proto3,enum=datadog.kubemetadata.KueueQueueType" json:"queue_type,omitempty"`
-	ClusterQueue string                 `protobuf:"bytes,4,opt,name=cluster_queue,json=clusterQueue,proto3" json:"cluster_queue,omitempty"`
-	// resolved_tags holds the queue's label/annotation tags already resolved by
-	// the cluster agent against kubernetes_resources_{labels,annotations}_as_tags.
-	// Each entry is in "name:value" form where a leading '+' on the name denotes
-	// a high-cardinality tag (as interpreted by taglist.AddAuto).
-	ResolvedTags  []string              `protobuf:"bytes,5,rep,name=resolved_tags,json=resolvedTags,proto3" json:"resolved_tags,omitempty"`
-	Uid           string                `protobuf:"bytes,7,opt,name=uid,proto3" json:"uid,omitempty"`
-	Type          KubeMetadataEventType `protobuf:"varint,8,opt,name=type,proto3,enum=datadog.kubemetadata.KubeMetadataEventType" json:"type,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	QueueType     KueueQueueType         `protobuf:"varint,3,opt,name=queue_type,json=queueType,proto3,enum=datadog.kubemetadata.KueueQueueType" json:"queue_type,omitempty"`
+	ClusterQueue  string                 `protobuf:"bytes,4,opt,name=cluster_queue,json=clusterQueue,proto3" json:"cluster_queue,omitempty"`
+	Labels        map[string]string      `protobuf:"bytes,5,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Annotations   map[string]string      `protobuf:"bytes,6,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Uid           string                 `protobuf:"bytes,7,opt,name=uid,proto3" json:"uid,omitempty"`
+	Type          KubeMetadataEventType  `protobuf:"varint,8,opt,name=type,proto3,enum=datadog.kubemetadata.KubeMetadataEventType" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -368,9 +365,16 @@ func (x *KueueQueue) GetClusterQueue() string {
 	return ""
 }
 
-func (x *KueueQueue) GetResolvedTags() []string {
+func (x *KueueQueue) GetLabels() map[string]string {
 	if x != nil {
-		return x.ResolvedTags
+		return x.Labels
+	}
+	return nil
+}
+
+func (x *KueueQueue) GetAnnotations() map[string]string {
+	if x != nil {
+		return x.Annotations
 	}
 	return nil
 }
@@ -390,16 +394,13 @@ func (x *KueueQueue) GetType() KubeMetadataEventType {
 }
 
 type KueueResourceFlavor struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	Name       string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Uid        string                 `protobuf:"bytes,2,opt,name=uid,proto3" json:"uid,omitempty"`
-	NodeLabels map[string]string      `protobuf:"bytes,3,rep,name=node_labels,json=nodeLabels,proto3" json:"node_labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Type       KubeMetadataEventType  `protobuf:"varint,4,opt,name=type,proto3,enum=datadog.kubemetadata.KubeMetadataEventType" json:"type,omitempty"`
-	// resolved_tags holds the ResourceFlavor's label/annotation tags already resolved by
-	// the cluster agent against kubernetes_resources_{labels,annotations}_as_tags.
-	// Each entry is in "name:value" form where a leading '+' on the name denotes
-	// a high-cardinality tag (as interpreted by taglist.AddAuto).
-	ResolvedTags  []string `protobuf:"bytes,5,rep,name=resolved_tags,json=resolvedTags,proto3" json:"resolved_tags,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Labels        map[string]string      `protobuf:"bytes,2,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Annotations   map[string]string      `protobuf:"bytes,3,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Uid           string                 `protobuf:"bytes,4,opt,name=uid,proto3" json:"uid,omitempty"`
+	NodeLabels    map[string]string      `protobuf:"bytes,5,rep,name=node_labels,json=nodeLabels,proto3" json:"node_labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Type          KubeMetadataEventType  `protobuf:"varint,6,opt,name=type,proto3,enum=datadog.kubemetadata.KubeMetadataEventType" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -441,6 +442,20 @@ func (x *KueueResourceFlavor) GetName() string {
 	return ""
 }
 
+func (x *KueueResourceFlavor) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
+}
+
+func (x *KueueResourceFlavor) GetAnnotations() map[string]string {
+	if x != nil {
+		return x.Annotations
+	}
+	return nil
+}
+
 func (x *KueueResourceFlavor) GetUid() string {
 	if x != nil {
 		return x.Uid
@@ -460,13 +475,6 @@ func (x *KueueResourceFlavor) GetType() KubeMetadataEventType {
 		return x.Type
 	}
 	return KubeMetadataEventType_SET
-}
-
-func (x *KueueResourceFlavor) GetResolvedTags() []string {
-	if x != nil {
-		return x.ResolvedTags
-	}
-	return nil
 }
 
 type KubeMetadataStreamResponse struct {
@@ -567,24 +575,38 @@ const file_datadog_kubemetadata_kubemetadata_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa0\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x91\x04\n" +
 	"\n" +
 	"KueueQueue\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12C\n" +
 	"\n" +
 	"queue_type\x18\x03 \x01(\x0e2$.datadog.kubemetadata.KueueQueueTypeR\tqueueType\x12#\n" +
-	"\rcluster_queue\x18\x04 \x01(\tR\fclusterQueue\x12#\n" +
-	"\rresolved_tags\x18\x05 \x03(\tR\fresolvedTags\x12\x10\n" +
+	"\rcluster_queue\x18\x04 \x01(\tR\fclusterQueue\x12D\n" +
+	"\x06labels\x18\x05 \x03(\v2,.datadog.kubemetadata.KueueQueue.LabelsEntryR\x06labels\x12S\n" +
+	"\vannotations\x18\x06 \x03(\v21.datadog.kubemetadata.KueueQueue.AnnotationsEntryR\vannotations\x12\x10\n" +
 	"\x03uid\x18\a \x01(\tR\x03uid\x12?\n" +
-	"\x04type\x18\b \x01(\x0e2+.datadog.kubemetadata.KubeMetadataEventTypeR\x04type\"\xbc\x02\n" +
+	"\x04type\x18\b \x01(\x0e2+.datadog.kubemetadata.KubeMetadataEventTypeR\x04type\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
+	"\x10AnnotationsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbf\x04\n" +
 	"\x13KueueResourceFlavor\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
-	"\x03uid\x18\x02 \x01(\tR\x03uid\x12Z\n" +
-	"\vnode_labels\x18\x03 \x03(\v29.datadog.kubemetadata.KueueResourceFlavor.NodeLabelsEntryR\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12M\n" +
+	"\x06labels\x18\x02 \x03(\v25.datadog.kubemetadata.KueueResourceFlavor.LabelsEntryR\x06labels\x12\\\n" +
+	"\vannotations\x18\x03 \x03(\v2:.datadog.kubemetadata.KueueResourceFlavor.AnnotationsEntryR\vannotations\x12\x10\n" +
+	"\x03uid\x18\x04 \x01(\tR\x03uid\x12Z\n" +
+	"\vnode_labels\x18\x05 \x03(\v29.datadog.kubemetadata.KueueResourceFlavor.NodeLabelsEntryR\n" +
 	"nodeLabels\x12?\n" +
-	"\x04type\x18\x04 \x01(\x0e2+.datadog.kubemetadata.KubeMetadataEventTypeR\x04type\x12#\n" +
-	"\rresolved_tags\x18\x05 \x03(\tR\fresolvedTags\x1a=\n" +
+	"\x04type\x18\x06 \x01(\x0e2+.datadog.kubemetadata.KubeMetadataEventTypeR\x04type\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
+	"\x10AnnotationsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +
 	"\x0fNodeLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x83\x03\n" +
@@ -614,7 +636,7 @@ func file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_kubemetadata_kubemetadata_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_datadog_kubemetadata_kubemetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_datadog_kubemetadata_kubemetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_datadog_kubemetadata_kubemetadata_proto_goTypes = []any{
 	(KubeMetadataEventType)(0),         // 0: datadog.kubemetadata.KubeMetadataEventType
 	(KueueQueueType)(0),                // 1: datadog.kubemetadata.KueueQueueType
@@ -626,7 +648,11 @@ var file_datadog_kubemetadata_kubemetadata_proto_goTypes = []any{
 	(*KubeMetadataStreamResponse)(nil), // 7: datadog.kubemetadata.KubeMetadataStreamResponse
 	nil,                                // 8: datadog.kubemetadata.NamespaceMetadata.LabelsEntry
 	nil,                                // 9: datadog.kubemetadata.NamespaceMetadata.AnnotationsEntry
-	nil,                                // 10: datadog.kubemetadata.KueueResourceFlavor.NodeLabelsEntry
+	nil,                                // 10: datadog.kubemetadata.KueueQueue.LabelsEntry
+	nil,                                // 11: datadog.kubemetadata.KueueQueue.AnnotationsEntry
+	nil,                                // 12: datadog.kubemetadata.KueueResourceFlavor.LabelsEntry
+	nil,                                // 13: datadog.kubemetadata.KueueResourceFlavor.AnnotationsEntry
+	nil,                                // 14: datadog.kubemetadata.KueueResourceFlavor.NodeLabelsEntry
 }
 var file_datadog_kubemetadata_kubemetadata_proto_depIdxs = []int32{
 	0,  // 0: datadog.kubemetadata.PodServiceMapping.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
@@ -634,18 +660,22 @@ var file_datadog_kubemetadata_kubemetadata_proto_depIdxs = []int32{
 	9,  // 2: datadog.kubemetadata.NamespaceMetadata.annotations:type_name -> datadog.kubemetadata.NamespaceMetadata.AnnotationsEntry
 	0,  // 3: datadog.kubemetadata.NamespaceMetadata.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
 	1,  // 4: datadog.kubemetadata.KueueQueue.queue_type:type_name -> datadog.kubemetadata.KueueQueueType
-	0,  // 5: datadog.kubemetadata.KueueQueue.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	10, // 6: datadog.kubemetadata.KueueResourceFlavor.node_labels:type_name -> datadog.kubemetadata.KueueResourceFlavor.NodeLabelsEntry
-	0,  // 7: datadog.kubemetadata.KueueResourceFlavor.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	3,  // 8: datadog.kubemetadata.KubeMetadataStreamResponse.mappings:type_name -> datadog.kubemetadata.PodServiceMapping
-	4,  // 9: datadog.kubemetadata.KubeMetadataStreamResponse.namespace_metadata:type_name -> datadog.kubemetadata.NamespaceMetadata
-	5,  // 10: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_queues:type_name -> datadog.kubemetadata.KueueQueue
-	6,  // 11: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_resource_flavors:type_name -> datadog.kubemetadata.KueueResourceFlavor
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	10, // 5: datadog.kubemetadata.KueueQueue.labels:type_name -> datadog.kubemetadata.KueueQueue.LabelsEntry
+	11, // 6: datadog.kubemetadata.KueueQueue.annotations:type_name -> datadog.kubemetadata.KueueQueue.AnnotationsEntry
+	0,  // 7: datadog.kubemetadata.KueueQueue.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
+	12, // 8: datadog.kubemetadata.KueueResourceFlavor.labels:type_name -> datadog.kubemetadata.KueueResourceFlavor.LabelsEntry
+	13, // 9: datadog.kubemetadata.KueueResourceFlavor.annotations:type_name -> datadog.kubemetadata.KueueResourceFlavor.AnnotationsEntry
+	14, // 10: datadog.kubemetadata.KueueResourceFlavor.node_labels:type_name -> datadog.kubemetadata.KueueResourceFlavor.NodeLabelsEntry
+	0,  // 11: datadog.kubemetadata.KueueResourceFlavor.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
+	3,  // 12: datadog.kubemetadata.KubeMetadataStreamResponse.mappings:type_name -> datadog.kubemetadata.PodServiceMapping
+	4,  // 13: datadog.kubemetadata.KubeMetadataStreamResponse.namespace_metadata:type_name -> datadog.kubemetadata.NamespaceMetadata
+	5,  // 14: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_queues:type_name -> datadog.kubemetadata.KueueQueue
+	6,  // 15: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_resource_flavors:type_name -> datadog.kubemetadata.KueueResourceFlavor
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_datadog_kubemetadata_kubemetadata_proto_init() }
@@ -659,7 +689,7 @@ func file_datadog_kubemetadata_kubemetadata_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_kubemetadata_kubemetadata_proto_rawDesc), len(file_datadog_kubemetadata_kubemetadata_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   9,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

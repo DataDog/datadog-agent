@@ -745,13 +745,14 @@ func newKueueQueue(queueMetadata *pb.KueueQueue) *workloadmeta.KubernetesKueueQu
 			ID:   kueueQueueID(queueMetadata),
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name:      queueMetadata.Name,
-			Namespace: queueMetadata.Namespace,
-			UID:       queueMetadata.Uid,
+			Name:        queueMetadata.Name,
+			Namespace:   queueMetadata.Namespace,
+			Labels:      queueMetadata.Labels,
+			Annotations: queueMetadata.Annotations,
+			UID:         queueMetadata.Uid,
 		},
 		QueueType:        queueType,
 		ClusterQueueName: queueMetadata.ClusterQueue,
-		ResolvedTags:     queueMetadata.ResolvedTags,
 	}
 }
 
@@ -766,11 +767,12 @@ func newKueueResourceFlavor(flavorMetadata *pb.KueueResourceFlavor) *workloadmet
 			ID:   kueueResourceFlavorID(flavorMetadata),
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: flavorMetadata.Name,
-			UID:  flavorMetadata.Uid,
+			Name:        flavorMetadata.Name,
+			Labels:      flavorMetadata.Labels,
+			Annotations: flavorMetadata.Annotations,
+			UID:         flavorMetadata.Uid,
 		},
-		NodeLabels:   flavorMetadata.NodeLabels,
-		ResolvedTags: flavorMetadata.ResolvedTags,
+		NodeLabels: flavorMetadata.NodeLabels,
 	}
 }
 

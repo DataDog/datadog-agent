@@ -34,15 +34,17 @@ type expectedKueueQueue struct {
 	namespace        string
 	name             string
 	clusterQueueName string
-	resolvedTags     []string
+	labels           map[string]string
+	annotations      map[string]string
 	uid              string
 }
 
 type expectedKueueResourceFlavor struct {
-	name         string
-	nodeLabels   map[string]string
-	resolvedTags []string
-	uid          string
+	name        string
+	nodeLabels  map[string]string
+	labels      map[string]string
+	annotations map[string]string
+	uid         string
 }
 
 // This is a simple test for run(). Exhaustive tests for the individual
@@ -438,18 +440,20 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 						Name:         "batch",
 						QueueType:    pb.KueueQueueType_LOCAL_QUEUE,
 						ClusterQueue: "cluster-batch",
-						ResolvedTags: []string{"queue:batch", "+owner:team-a"},
+						Labels:       map[string]string{"queue": "batch"},
+						Annotations:  map[string]string{"owner": "team-a"},
 						Uid:          "queue-uid",
 						Type:         pb.KubeMetadataEventType_SET,
 					},
 				},
 				KueueResourceFlavors: []*pb.KueueResourceFlavor{
 					{
-						Name:         "a100",
-						ResolvedTags: []string{"flavor:gpu", "+owner:team-a"},
-						Uid:          "flavor-uid",
-						NodeLabels:   map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
-						Type:         pb.KubeMetadataEventType_SET,
+						Name:        "a100",
+						Labels:      map[string]string{"flavor": "gpu"},
+						Annotations: map[string]string{"owner": "team-a"},
+						Uid:         "flavor-uid",
+						NodeLabels:  map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+						Type:        pb.KubeMetadataEventType_SET,
 					},
 				},
 			},
@@ -512,16 +516,18 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 					namespace:        "default",
 					name:             "batch",
 					clusterQueueName: "cluster-batch",
-					resolvedTags:     []string{"queue:batch", "+owner:team-a"},
+					labels:           map[string]string{"queue": "batch"},
+					annotations:      map[string]string{"owner": "team-a"},
 					uid:              "queue-uid",
 				},
 			},
 			expectedKueueResourceFlavors: map[string]expectedKueueResourceFlavor{
 				"a100": {
-					name:         "a100",
-					resolvedTags: []string{"flavor:gpu", "+owner:team-a"},
-					uid:          "flavor-uid",
-					nodeLabels:   map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+					name:        "a100",
+					labels:      map[string]string{"flavor": "gpu"},
+					annotations: map[string]string{"owner": "team-a"},
+					uid:         "flavor-uid",
+					nodeLabels:  map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
 				},
 			},
 		},
@@ -1039,7 +1045,8 @@ func assertKueueQueues(t *testing.T, wmetaMock workloadmetamock.Mock, expected m
 		assert.Equal(t, expectedQueue.name, queue.Name)
 		assert.Equal(t, workloadmeta.KueueLocalQueue, queue.QueueType)
 		assert.Equal(t, expectedQueue.clusterQueueName, queue.ClusterQueueName)
-		assert.Equal(t, expectedQueue.resolvedTags, queue.ResolvedTags)
+		assert.Equal(t, expectedQueue.labels, queue.Labels)
+		assert.Equal(t, expectedQueue.annotations, queue.Annotations)
 		assert.Equal(t, expectedQueue.uid, queue.UID)
 	}
 }
@@ -1056,7 +1063,8 @@ func assertKueueResourceFlavors(t *testing.T, wmetaMock workloadmetamock.Mock, e
 		require.True(t, found)
 		assert.Equal(t, expectedFlavor.name, flavor.Name)
 		assert.Equal(t, expectedFlavor.nodeLabels, flavor.NodeLabels)
-		assert.Equal(t, expectedFlavor.resolvedTags, flavor.ResolvedTags)
+		assert.Equal(t, expectedFlavor.labels, flavor.Labels)
+		assert.Equal(t, expectedFlavor.annotations, flavor.Annotations)
 		assert.Equal(t, expectedFlavor.uid, flavor.UID)
 	}
 }
