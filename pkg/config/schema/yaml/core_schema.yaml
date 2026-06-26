@@ -1709,10 +1709,11 @@ properties:
       log_file:
         node_type: setting
         type: string
-        default: ${conf_path}/logs/ddtray.log
+        default: ${log_path}/ddtray.log
         visibility: public
         description: The full path to the file where Datadog Agent Manager System
           Tray logs are written.
+        example: '"c:\\programdata\\datadog\\logs\\ddtray.log"'
         tags:
         - template_section:Agent
         comment: Datadog Agent Manager System Tray
@@ -6890,7 +6891,7 @@ properties:
   conf_path:
     node_type: setting
     type: string
-    default: /etc/datadog-agent
+    default: ${conf_path}
   config_files_discovery:
     node_type: section
     type: object
@@ -7116,7 +7117,7 @@ properties:
       log_file:
         node_type: setting
         type: string
-        default: /var/log/datadog/agent-data-plane.log
+        default: ${log_path}/agent-data-plane.log
       otlp:
         node_type: section
         type: object
@@ -7806,7 +7807,7 @@ properties:
   dogstatsd_log_file:
     node_type: setting
     type: string
-    default: /var/log/datadog/dogstatsd_info/dogstatsd-stats.log
+    default: ${log_path}/dogstatsd_info/dogstatsd-stats.log
     comment: Control how dogstatsd-stats logs can be generated
   dogstatsd_log_file_max_rolls:
     node_type: setting
@@ -8385,7 +8386,7 @@ properties:
   forwarder_storage_path:
     node_type: setting
     type: string
-    default: /opt/datadog-agent/run/transactions_to_retry
+    default: ${run_path}/transactions_to_retry
     comment: Forwarder storage on disk
   genresources:
     node_type: section
