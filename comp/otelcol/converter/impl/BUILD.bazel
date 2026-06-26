@@ -17,9 +17,11 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/otelcol/converter/def",
+        "//pkg/util/confmaputils",
         "//pkg/util/hostport",
         "//pkg/util/log/zap",
         "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap",
         "@org_uber_go_zap//:zap",
     ],
 )
