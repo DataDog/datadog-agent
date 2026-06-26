@@ -6,9 +6,6 @@
 package hostinfo
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/shirou/gopsutil/v4/host"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
@@ -29,22 +26,10 @@ func GetInformation() *host.InfoStat {
 				log.Errorf("failed to retrieve host info: %s", err)
 				return &host.InfoStat{}, err
 			}
-			if platformVersion := kernelVersionToPlatformVersion(info.KernelVersion); platformVersion != "" {
+			if platformVersion := platform.ParsePlatformVersionFromOsLevel(info.KernelVersion); platformVersion != "" {
 				info.PlatformVersion = platformVersion
 			}
 			return info, err
 		})
 	return info
-}
-
-// kernelVersionToPlatformVersion derives "<X>.<Y> TL<Z>" from an
-// kernel version string (e.g. "7.3.1.4" -> "7.3 TL1").
-// Supplementary Package (SP) is not included in the platform version.
-func kernelVersionToPlatformVersion(osLevelVersion string) string {
-	kernelVersion := platform.ParseKernelVersionFromOsLevel(osLevelVersion)
-	parts := strings.Split(kernelVersion, ".")
-	if len(parts) < 3 {
-		return ""
-	}
-	return fmt.Sprintf("%s.%s TL%s", parts[0], parts[1], parts[2])
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -35,7 +36,7 @@ func TestFormatAIXPlatformVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			assert.Equal(t, tt.expected, kernelVersionToPlatformVersion(tt.input))
+			assert.Equal(t, tt.expected, platform.ParsePlatformVersionFromOsLevel(tt.input))
 		})
 	}
 }

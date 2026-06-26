@@ -8,24 +8,61 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	gopsutilhost "github.com/shirou/gopsutil/v4/host"
 	"golang.org/x/sys/unix"
 )
 
-// osLevelRe matches oslevel -s output (e.g. "7300-02-02-2419") and captures
+// osLevelRegex matches oslevel -s output (e.g. "7300-02-02-2419") and captures
 // version, release, TL, and SP. The 0* prefix on TL and SP strips leading zeros.
-var osLevelKernelVersionRegex = regexp.MustCompile(`^(\d)(\d)\d{2}-0*(\d+)-0*(\d+)-\d{4}$`)
+var osLevelRegex = regexp.MustCompile(`^(\d)(\d)\d{2}-0*(\d+)-0*(\d+)-\d{4}$`)
+
+// AIXVersion holds the VRMF components parsed from an oslevel -s output string.
+type AIXVersion struct {
+	Version, Release, TL, SP int
+}
+
+func (v *AIXVersion) KernelVersion() string {
+	return fmt.Sprintf("%d.%d.%d.%d", v.Version, v.Release, v.TL, v.SP)
+}
+
+func (v *AIXVersion) PlatformVersion() string {
+	return fmt.Sprintf("%d.%d TL%d", v.Version, v.Release, v.TL)
+}
+
+// ParseAIXVersion parses an oslevel -s string (e.g. "7300-02-02-2419") into its
+// VRMF components. Returns false if the string is not a valid oslevel -s output.
+func ParseAIXVersion(osLevel string) (AIXVersion, bool) {
+	matches := osLevelRegex.FindStringSubmatch(osLevel)
+	if matches == nil {
+		return AIXVersion{}, false
+	}
+	v, _ := strconv.Atoi(matches[1])
+	r, _ := strconv.Atoi(matches[2])
+	tl, _ := strconv.Atoi(matches[3])
+	sp, _ := strconv.Atoi(matches[4])
+	return AIXVersion{Version: v, Release: r, TL: tl, SP: sp}, true
+}
 
 // ParseKernelVersionFromOsLevel converts oslevel -s output to VRMF dot notation
 // (e.g. "7300-02-02-2419" -> "7.3.2.2").
-func ParseKernelVersionFromOsLevel(osLevelVersion string) string {
-	matches := osLevelKernelVersionRegex.FindStringSubmatch(osLevelVersion)
-	if matches == nil {
-		return ""
+func ParseKernelVersionFromOsLevel(osLevel string) string {
+	if aixVersion, ok := ParseAIXVersion(osLevel); ok {
+		return aixVersion.KernelVersion()
 	}
-	return fmt.Sprintf("%s.%s.%s.%s", matches[1], matches[2], matches[3], matches[4])
+	return ""
+}
+
+// ParsePlatformVersionFromOsLevel derives "<X>.<Y> TL<Z>" from an oslevel -s
+// string (e.g. "7300-02-02-2419" -> "7.3 TL2").
+// SP is not included in the platform version.
+func ParsePlatformVersionFromOsLevel(osLevel string) string {
+	if aixVersion, ok := ParseAIXVersion(osLevel); ok {
+		return aixVersion.PlatformVersion()
+	}
+	return ""
 }
 
 func (info *Info) fillPlatformInfo() {
