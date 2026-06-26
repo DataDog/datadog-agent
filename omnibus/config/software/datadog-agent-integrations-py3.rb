@@ -155,28 +155,51 @@ build do
       end
     end
 
-    checks_to_install.each do |check|
-      # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
-      # whether or not this might switch back in the future is not guaranteed, so we check for both name
-      # with dashes and underscores
-      if !(installed_list.include?(check) || installed_list.include?(check.gsub('_', '-')))
-        if windows_target?
-          shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
-        else
-          shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => "#{project_dir}/#{check}"
-        end
-        shellout! "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
-        if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
-          shellout! "dda inv -- -e agent.upload-integration-to-cache " \
-                    "--python 3 --bucket #{cache_bucket} " \
-                    "--branch #{cache_branch} " \
-                    "--integrations-dir #{windows_safe_path(project_dir)} " \
-                    "--build-dir #{wheel_build_dir} " \
-                    "--integration #{check}",
-                    :cwd => tasks_dir_in
+    # Phase 1: build the wheel for every cache-miss check concurrently.
+    # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
+    # whether or not this might switch back in the future is not guaranteed, so we check for both name
+    # with dashes and underscores
+    require 'thread'
+    to_build = checks_to_install.reject do |check|
+      installed_list.include?(check) || installed_list.include?(check.gsub('_', '-'))
+    end
+    queue = Queue.new
+    to_build.each { |c| queue << c }
+    workers = (1..[to_build.size, 6].min).map do
+      Thread.new do
+        loop do
+          check = begin
+            queue.pop(true)
+          rescue ThreadError
+            break
+          end
+          if windows_target?
+            shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
+          else
+            shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => "#{project_dir}/#{check}"
+          end
+          if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
+            shellout! "dda inv -- -e agent.upload-integration-to-cache " \
+                      "--python 3 --bucket #{cache_bucket} " \
+                      "--branch #{cache_branch} " \
+                      "--integrations-dir #{windows_safe_path(project_dir)} " \
+                      "--build-dir #{wheel_build_dir} " \
+                      "--integration #{check}",
+                      :cwd => tasks_dir_in
+          end
         end
       end
+    end
+    workers.each(&:join)
 
+    # Phase 2: install all newly built wheels in a single pip invocation.
+    unless to_build.empty?
+      shellout! "#{python} -m pip install --no-deps --no-index --find-links=#{wheel_build_dir} " +
+                to_build.map { |c| "datadog-#{c}" }.join(' ')
+    end
+
+    # Phase 3: copy conf files and SNMP profiles (serial, no pip).
+    checks_to_install.each do |check|
       check_dir = File.join(project_dir, check)
       check_conf_dir = "#{conf_dir}/#{check}.d"
 
