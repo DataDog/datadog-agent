@@ -62,14 +62,6 @@ PyObject *buildTagsList(char **tags)
     }
 
     PyObject *res = PyList_New(n);
-    if (res == NULL) {
-        for (int i = 0; i < n; i++) {
-            cgo_free(tags[i]);
-        }
-        cgo_free(tags);
-        return NULL;
-    }
-
     for (int i = 0; i < n; i++) {
         PyObject *pyTag = PyUnicode_FromString(tags[i]);
         cgo_free(tags[i]);
