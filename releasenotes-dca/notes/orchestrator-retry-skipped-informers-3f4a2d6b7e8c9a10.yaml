@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix an orchestrator check issue where collectors whose informer cache
+    failed to sync during startup stayed skipped until the check was restarted,
+    even if the informer later recovered.
