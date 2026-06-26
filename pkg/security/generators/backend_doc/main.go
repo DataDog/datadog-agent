@@ -84,7 +84,7 @@ func jsonTypeNamer(ty reflect.Type) string {
 
 func main() {
 	var (
-		output        string
+		output         string
 		serializersDir string
 	)
 
