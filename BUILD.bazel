@@ -285,13 +285,8 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/logs/tailers/container
 # gazelle:exclude pkg/logs/tailers/journald
 # gazelle:exclude pkg/network/containers
-# gazelle:exclude pkg/network/encoding
-# gazelle:exclude pkg/network/encoding/marshal
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/luts.go
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/main.go
-# gazelle:exclude pkg/network/protocols/kafka/debugging
-# gazelle:exclude pkg/network/protocols/postgres/debugging
-# gazelle:exclude pkg/network/protocols/redis/debugging
 # gazelle:exclude pkg/network/sender
 # gazelle:exclude pkg/network/tracer/connection
 # gazelle:exclude pkg/network/tracer/testutil/proxy
@@ -305,9 +300,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/process/metadata/workloadmeta/collector
 # gazelle:exclude pkg/process/monitor
 # gazelle:exclude pkg/process/runner/mocks
-# gazelle:exclude pkg/procmgr
-# gazelle:exclude pkg/sbom/collectors/host
-# gazelle:exclude pkg/sbom/collectors/procfs
 # gazelle:exclude pkg/serverless/logs
 # gazelle:exclude pkg/serverless/otlp
 # gazelle:exclude pkg/serverless/trace/span_modifer_test.go
@@ -441,6 +433,7 @@ exports_files(["go.mod"])
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient //pkg/proto/pbgo/privateactionrunner/actionsclient
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode //pkg/proto/pbgo/privateactionrunner/errorcode
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions //pkg/proto/pbgo/privateactionrunner/privateactions
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr //pkg/proto/pbgo/procmgr
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx //pkg/proto/pbgo/trace/idx
 # gazelle:resolve proto datadog/healthplatform/healthplatform.proto @com_github_datadog_agent_payload_v5//proto/healthplatform:healthplatform_proto
 # gazelle:resolve proto go datadog/healthplatform/healthplatform.proto @com_github_datadog_agent_payload_v5//healthplatform
