@@ -113,12 +113,13 @@ func (h *ConfigMapHandlers) ScrubBeforeExtraction(_ processors.ProcessorContext,
 	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
 
-// ScrubBeforeMarshalling strips Data and BinaryData so that ConfigMap values are never
-// included in the emitted manifest.
+// ScrubBeforeMarshalling strips Data, BinaryData, and ManagedFields so that ConfigMap
+// values and field-manager history are never included in the emitted manifest.
 //
 //nolint:revive
 func (h *ConfigMapHandlers) ScrubBeforeMarshalling(_ processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.ConfigMap)
 	r.Data = nil
 	r.BinaryData = nil
+	r.ManagedFields = nil
 }

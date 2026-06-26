@@ -29,7 +29,7 @@ import (
 func createTestConfigMap(name string) *corev1.ConfigMap {
 	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 
-	return &corev1.ConfigMap{
+	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              name,
 			Namespace:         "test-namespace",
@@ -51,6 +51,10 @@ func createTestConfigMap(name string) *corev1.ConfigMap {
 			"bin-key": []byte("binary-value"),
 		},
 	}
+	cm.ManagedFields = []metav1.ManagedFieldsEntry{
+		{Manager: "kubectl", Operation: metav1.ManagedFieldsOperationApply},
+	}
+	return cm
 }
 
 func newConfigMapProcessorContext(cfg *orchestratorconfig.OrchestratorConfig) *processors.K8sProcessorContext {
@@ -177,6 +181,7 @@ func TestConfigMapHandlers_ScrubBeforeMarshalling(t *testing.T) {
 	cm := createTestConfigMap("test-cm")
 	assert.NotEmpty(t, cm.Data)
 	assert.NotEmpty(t, cm.BinaryData)
+	assert.NotEmpty(t, cm.ManagedFields)
 
 	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
 	ctx := newConfigMapProcessorContext(cfg)
@@ -185,6 +190,7 @@ func TestConfigMapHandlers_ScrubBeforeMarshalling(t *testing.T) {
 
 	assert.Nil(t, cm.Data)
 	assert.Nil(t, cm.BinaryData)
+	assert.Nil(t, cm.ManagedFields)
 }
 
 func TestConfigMapHandlers_CloneResource(t *testing.T) {
@@ -201,8 +207,10 @@ func TestConfigMapHandlers_CloneResource(t *testing.T) {
 	// Mutating the clone must not affect the original (informer cache protection).
 	clonedTyped.Data = nil
 	clonedTyped.BinaryData = nil
+	clonedTyped.ManagedFields = nil
 	assert.NotEmpty(t, original.Data)
 	assert.NotEmpty(t, original.BinaryData)
+	assert.NotEmpty(t, original.ManagedFields)
 }
 
 func TestConfigMapHandlers_BuildManifestMessageBody(t *testing.T) {
@@ -287,6 +295,7 @@ func TestConfigMapProcessor_Process(t *testing.T) {
 
 	metadata, ok := parsed["metadata"].(map[string]interface{})
 	assert.True(t, ok)
+	assert.NotContains(t, metadata, "managedFields", "managedFields must be stripped before marshalling")
 	assert.Equal(t, "cm-1", metadata["name"])
 	assert.Equal(t, string(cm1.UID), metadata["uid"])
 

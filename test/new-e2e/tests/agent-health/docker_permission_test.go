@@ -104,8 +104,8 @@ func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 		for _, p := range payloads {
 			for _, iss := range findIssuesByID(suite.T(), p, issueID) {
 				if iss.PersistedIssue != nil &&
-					(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
-						iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
+					(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW || //nolint:staticcheck
+						iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) { //nolint:staticcheck
 					reloadedIssues = append(reloadedIssues, iss)
 				}
 			}
@@ -149,7 +149,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 			issues = nil
 			for _, p := range payloads {
 				for _, iss := range findIssuesByID(t, p, issueID) {
-					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW { //nolint:staticcheck
 						issues = append(issues, iss)
 					}
 				}
