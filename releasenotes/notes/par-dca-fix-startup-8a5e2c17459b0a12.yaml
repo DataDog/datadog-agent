@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed an issue where the Private Action Runner (PAR) would fail to start up properly, causing it to not execute any tasks.
+    This was caused by a race condition where the Remote Configuration notification could be fired
+    before the PAR component had finished subscribing, causing it to miss the initial configuration.

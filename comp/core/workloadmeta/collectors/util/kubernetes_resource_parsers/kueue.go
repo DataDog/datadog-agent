@@ -1,0 +1,96 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//go:build kubeapiserver
+
+package kubernetesresourceparsers
+
+import (
+	"fmt"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+)
+
+type kueueQueueParser struct {
+	queueType workloadmeta.KueueQueueType
+}
+
+// NewKueueQueueParser returns a parser for Kueue queue resources.
+func NewKueueQueueParser(queueType workloadmeta.KueueQueueType) (ObjectParser, error) {
+	if err := validateKueueQueueType(queueType); err != nil {
+		return nil, err
+	}
+	return kueueQueueParser{queueType: queueType}, nil
+}
+
+func (p kueueQueueParser) Parse(obj interface{}) workloadmeta.Entity {
+	u := obj.(*unstructured.Unstructured)
+	meta := workloadmeta.EntityMeta{
+		Name:        u.GetName(),
+		Namespace:   u.GetNamespace(),
+		Labels:      u.GetLabels(),
+		Annotations: u.GetAnnotations(),
+		UID:         string(u.GetUID()),
+	}
+
+	queue := &workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   p.entityID(meta.Namespace, meta.Name),
+		},
+		EntityMeta: meta,
+		QueueType:  p.queueType,
+	}
+
+	switch p.queueType {
+	case workloadmeta.KueueLocalQueue:
+		clusterQueue, _, _ := unstructured.NestedString(u.Object, "spec", "clusterQueue")
+		queue.ClusterQueueName = clusterQueue
+	case workloadmeta.KueueClusterQueue:
+		queue.ClusterQueueName = meta.Name
+	}
+
+	return queue
+}
+
+func (p kueueQueueParser) entityID(namespace, name string) string {
+	id, _ := workloadmeta.GenerateKueueQueueEntityID(p.queueType, namespace, name)
+	return id
+}
+
+// GenerateKueueQueueEntityID returns the workloadmeta entity ID for a Kueue queue.
+func GenerateKueueQueueEntityID(queueType workloadmeta.KueueQueueType, namespace, name string) (string, error) {
+	return workloadmeta.GenerateKueueQueueEntityID(queueType, namespace, name)
+}
+
+// QueueTypeForKueueResource returns the workloadmeta queue type for a Kueue resource name.
+func QueueTypeForKueueResource(resource string) (workloadmeta.KueueQueueType, error) {
+	switch resource {
+	case kubernetes.KueueLocalQueueResourceName:
+		return workloadmeta.KueueLocalQueue, nil
+	case kubernetes.KueueClusterQueueResourceName:
+		return workloadmeta.KueueClusterQueue, nil
+	default:
+		return "", fmt.Errorf("unsupported Kueue resource %q", resource)
+	}
+}
+
+func validateKueueQueueType(queueType workloadmeta.KueueQueueType) error {
+	switch queueType {
+	case workloadmeta.KueueLocalQueue, workloadmeta.KueueClusterQueue:
+		return nil
+	default:
+		return fmt.Errorf("unsupported Kueue queue type %q", queueType)
+	}
+}
+
+// KueueQueueDeletionMeta returns Kubernetes object metadata used by generic reflector stores.
+func KueueQueueDeletionMeta(obj interface{}) metav1.Object {
+	return obj.(metav1.Object)
+}

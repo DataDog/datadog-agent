@@ -196,7 +196,7 @@ go_e2e_test_binaries:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
     - pushd test/new-e2e
-    - go install github.com/DataDog/orchestrion@v1.4.0
+    - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
@@ -269,7 +269,8 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --run "TestK8S(CEL|Legacy)FilteringSuite"
-      - EXTRA_PARAMS: --skip "Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
+      - EXTRA_PARAMS: --run TestDDIAutodiscoverySuite
+      - EXTRA_PARAMS: --skip "Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering|DDIAutodiscovery)Suite"
 
 new-e2e-containers-k8s-latest:
   extends:
