@@ -1422,8 +1422,15 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     },
                 )
 
+    # Pin ninja parallelism to the CI CPU allocation (KUBERNETES_CPU_REQUEST) so the
+    # CPU-bound `bpftool gen min_core_btf` jobs match the cgroup quota instead of
+    # ninja's default (node nproc + 2), which oversubscribes on large shared nodes.
+    jobs = int(os.environ.get("KUBERNETES_CPU_REQUEST") or os.cpu_count() or 1)
     with trace_span("minimize-btfs", meta={"programs": len(bpf_programs)}):
-        ctx.run(f"ninja -f {ninja_file_path}", env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "})
+        ctx.run(
+            f"ninja -j {jobs} -f {ninja_file_path}",
+            env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "},
+        )
 
 
 def compute_go_parallelism(debug: bool = False, ci: bool | None = None) -> int:
