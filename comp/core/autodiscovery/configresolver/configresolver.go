@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -31,20 +32,29 @@ func SubstituteTemplateEnvVars(config *integration.Config) error {
 
 // Resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
-func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
+//
+// isDiscovery must be true when the template was resolved via the configuration-discovery
+// path (i.e. the caller is responding to a discovery probe result). The caller is
+// responsible for passing this flag because the discovery path clears tpl.Discovery before
+// calling Resolve, so Resolve cannot infer it from the template alone.
+func Resolve(tpl integration.Config, svc listeners.Service, isDiscovery bool) (integration.Config, error) {
 	// Copy original template
 	resolvedConfig := integration.Config{
-		Name:            tpl.Name,
-		Instances:       make([]integration.Data, len(tpl.Instances)),
-		InitConfig:      make(integration.Data, len(tpl.InitConfig)),
-		MetricConfig:    tpl.MetricConfig,
-		LogsConfig:      tpl.LogsConfig,
-		ADIdentifiers:   tpl.ADIdentifiers,
-		ClusterCheck:    tpl.ClusterCheck,
-		Provider:        tpl.Provider,
-		ServiceID:       svc.GetServiceID(),
-		NodeName:        tpl.NodeName,
-		Source:          tpl.Source,
+		Name:          tpl.Name,
+		Instances:     make([]integration.Data, len(tpl.Instances)),
+		InitConfig:    make(integration.Data, len(tpl.InitConfig)),
+		MetricConfig:  tpl.MetricConfig,
+		LogsConfig:    tpl.LogsConfig,
+		ADIdentifiers: tpl.ADIdentifiers,
+		ClusterCheck:  tpl.ClusterCheck,
+		Provider:      tpl.Provider,
+		ServiceID:     svc.GetServiceID(),
+		NodeName:      tpl.NodeName,
+		Source: rewriteFileSourcePrefix(
+			tpl.Source,
+			strings.HasPrefix(svc.GetServiceID(), "process://"),
+			isDiscovery,
+		),
 		MetricsExcluded: svc.HasFilter(filter.MetricsFilter),
 		LogsExcluded:    svc.HasFilter(filter.LogsFilter),
 		ImageName:       svc.GetImageName(),
@@ -83,6 +93,32 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	}
 
 	return resolvedConfig, nil
+}
+
+// rewriteFileSourcePrefix rewrites the "file:" prefix of a resolved config's
+// Source to encode whether it was applied to a process service and/or via a
+// configuration-discovery template. Only the "file" provider is rewritten;
+// other providers (container, kubernetes, …) are already specific enough.
+//
+// Config.Provider is intentionally left unchanged — it is used by the secret
+// resolver security mechanism and must not vary with the service type.
+func rewriteFileSourcePrefix(source string, isProcess bool, isDiscovery bool) string {
+	if !strings.HasPrefix(source, names.File+":") {
+		return source
+	}
+	var newPrefix string
+	switch {
+	case isProcess && isDiscovery:
+		newPrefix = names.ADProcessDiscovery
+	case isProcess:
+		newPrefix = names.ADProcess
+	case isDiscovery:
+		newPrefix = names.ADContainerDiscovery
+	default:
+		// container/k8s + no discovery: leave as "file" to avoid breaking existing analytics
+		return source
+	}
+	return newPrefix + source[len(names.File):]
 }
 
 // substituteTemplateVariables replaces %%VARIABLES%% in the config init,

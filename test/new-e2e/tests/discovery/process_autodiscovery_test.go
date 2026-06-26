@@ -147,14 +147,50 @@ func (s *processAutodiscoverySuite) verifyRedisCheckScheduledViaProcess(c *asser
 	}
 
 	// Verify the check has executed successfully
+	ran := false
 	for instanceName, checkStat := range instances {
 		if len(checkStat.ExecutionTimes) > 0 {
 			t.Logf("Redis check instance %s: runs=%d", instanceName, len(checkStat.ExecutionTimes))
-			return
+			ran = true
+			break
 		}
 	}
+	require.True(c, ran, "Redis check is configured but has not run yet")
 
-	assert.Fail(c, "Redis check is configured but has not run yet")
+	// Verify config.provider in inventory-checks metadata reflects process-based autodiscovery
+	s.verifyProcessCheckProvider(c, "redisdb")
+}
+
+// verifyProcessCheckProvider checks that the named check has config.provider = "ad-process+file"
+// in the inventory-checks metadata, confirming it was resolved via process-based autodiscovery.
+func (s *processAutodiscoverySuite) verifyProcessCheckProvider(c *assert.CollectT, checkName string) {
+	t := s.T()
+
+	metadataOut := s.Env().RemoteHost.MustExecuteOn(c, "sudo datadog-agent diagnose show-metadata inventory-checks")
+
+	var payload struct {
+		CheckMetadata map[string][]map[string]interface{} `json:"check_metadata"`
+	}
+	if !assert.NoError(c, json.Unmarshal([]byte(metadataOut), &payload), "failed to parse inventory-checks metadata") {
+		t.Logf("inventory-checks output: %s", metadataOut)
+		return
+	}
+
+	instances, exists := payload.CheckMetadata[checkName]
+	if !assert.True(c, exists, "%s should appear in inventory-checks metadata", checkName) {
+		keys := make([]string, 0, len(payload.CheckMetadata))
+		for k := range payload.CheckMetadata {
+			keys = append(keys, k)
+		}
+		t.Logf("available checks in inventory metadata: %v", keys)
+		return
+	}
+	if !assert.NotEmpty(c, instances, "%s metadata should have at least one instance", checkName) {
+		return
+	}
+
+	assert.Equal(c, "ad-process+file", instances[0]["config.provider"],
+		"%s resolved via process AD should have config.provider = ad-process+file", checkName)
 }
 
 // TestNginxCheckScheduledViaProcessAutodiscovery verifies that the nginx check

@@ -1,0 +1,17 @@
+---
+enhancements:
+  - |
+    The ``config.provider`` field in inventory metadata now carries more specific values
+    when Autodiscovery resolves a file-based template against a process service or a
+    configuration-discovery template. Previously, all file-based Autodiscovery configs
+    reported ``config.provider: file`` regardless of how they were applied. The new values
+    are:
+
+    - ``ad-process+file`` -- file template resolved against a bare process service
+    - ``ad-container-discovery+file`` -- configuration-discovery template resolved against
+      a container or Kubernetes service
+    - ``ad-process-discovery+file`` -- configuration-discovery template resolved against
+      a process service
+
+    File templates resolved against containers without configuration discovery continue
+    to report ``file``, preserving existing analytics queries.

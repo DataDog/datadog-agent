@@ -67,6 +67,14 @@ const (
 	PrometheusHTTPSD = "prometheus-http-sd"
 	// InstrumentationChecks pulls AD configurations derived from DatadogInstrumentation CRs via the cluster-agent.
 	InstrumentationChecks = "instrumentation-checks"
+	// ADProcess is the source prefix for file templates resolved by AD against process services (non-container).
+	ADProcess = "ad-process+file"
+	// ADContainerDiscovery is the source prefix for configuration-discovery file templates resolved
+	// against non-process services (containers, k8s pods, etc.).
+	ADContainerDiscovery = "ad-container-discovery+file"
+	// ADProcessDiscovery is the source prefix for configuration-discovery file templates resolved
+	// against process services.
+	ADProcessDiscovery = "ad-process-discovery+file"
 )
 
 // Internal Autodiscovery names for the config providers

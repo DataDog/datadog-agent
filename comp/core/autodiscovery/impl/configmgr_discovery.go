@@ -121,7 +121,7 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 	merged.IgnoreAutodiscoveryTags = discovered.IgnoreAutodiscoveryTags
 	merged.CheckTagCardinality = discovered.CheckTagCardinality
 
-	resolved, err := configresolver.Resolve(merged, svcAndADIDs.svc)
+	resolved, err := configresolver.Resolve(merged, svcAndADIDs.svc, true)
 	if err != nil {
 		log.Errorf("error resolving discovered config %s for service %s: %v", merged.Name, svcID, err)
 		errorStats.setResolveWarning(tpl.Name, err.Error())
