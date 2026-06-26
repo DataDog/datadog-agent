@@ -65,6 +65,7 @@ AIX_CORECHECKS = [
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
     "sbom",
+    "thermal",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
