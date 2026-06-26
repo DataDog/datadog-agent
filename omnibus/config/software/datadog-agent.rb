@@ -87,6 +87,11 @@ build do
   else
     command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}'",
       :live_stream => Omnibus.logger.live_stream(:info)
+    # Compile-only pass that populates the in-job Go build cache (GOCACHE) over
+    # the union of cmd entrypoints with the broadest tag set, so the sequential
+    # per-binary builds below reuse shared package object files instead of
+    # recompiling them. Produces no artifacts (no -o).
+    command "dda inv -- -e agent.prewarm-build-cache --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 

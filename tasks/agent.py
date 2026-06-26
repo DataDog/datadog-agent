@@ -181,6 +181,76 @@ def build(
         )
 
 
+@task
+def prewarm_build_cache(
+    ctx,
+    install_path=None,
+    embedded_path=None,
+    rtloader_root=None,
+    python_home_3=None,
+    flavor=AgentFlavor.base.name,
+    go_mod="readonly",
+):
+    """
+    Populate the in-job Go build cache (GOCACHE) before the per-binary omnibus
+    builds run.
+
+    The datadog-agent omnibus software def builds ~10 Go binaries sequentially,
+    each via its own `go build`. They share a huge overlapping dependency graph;
+    the build cache is what lets the 2nd..Nth build reuse package object files
+    compiled by the 1st. This task issues ONE compile-only `go build` pass (no
+    -o, so it only populates GOCACHE and does not link/install) over the union
+    of the cmd entrypoints with the broadest (agent-flavor) build-tag set, so
+    every tag-invariant shared package is cached before any real binary build.
+
+    Compile-only: produces no artifacts; the real per-binary build commands are
+    unchanged and still emit the binaries. Worst case is added wall time.
+    """
+    flavor = AgentFlavor[flavor]
+
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        install_path=install_path,
+        embedded_path=embedded_path,
+        rtloader_root=rtloader_root,
+        python_home_3=python_home_3,
+    )
+
+    # Broadest tag set (the agent build) so the widest set of shared packages
+    # gets cached. Tags narrower than this are subsets, so their object files
+    # are still reused by later builds.
+    build_tags = compute_build_tags_for_flavor(
+        build="agent",
+        flavor=flavor,
+        build_include=None,
+        build_exclude=None,
+    )
+
+    mains = [
+        "agent",
+        "trace-agent",
+        "process-agent",
+        "security-agent",
+        "installer",
+        "cws-instrumentation",
+        "secret-generic-connector",
+    ]
+    entrypoint = " ".join(f"{REPO_PATH}/cmd/{m}" for m in mains)
+
+    with gitlab_section("Prewarm Go build cache", collapsed=True):
+        # bin_path=None => compile-only, no link/output; populates GOCACHE.
+        go_build(
+            ctx,
+            entrypoint,
+            mod=go_mod,
+            env=env,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            bin_path=None,
+        )
+
+
 _PLATFORM_TO_OS_TARGET = {
     "linux": "linux",
     "win32": "windows",
