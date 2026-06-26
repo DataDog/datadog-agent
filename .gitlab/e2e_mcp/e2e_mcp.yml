@@ -51,8 +51,9 @@
   before_script:
     # GitHub token for private Go module downloads during `pulumi up`.
     - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
-    # Python deps for the legacy-e2e invoke tasks (provides pydantic etc.).
-    - dda self dep sync -f legacy-e2e -f legacy-github
+    # Python deps for the invoke tasks. legacy-tasks provides the core task
+    # deps (pydantic etc.); legacy-e2e adds the e2e-framework task deps.
+    - dda self dep sync -f legacy-tasks -f legacy-e2e
     # Go modules + Pulumi plugins for the aws/vm scenario.
     - dda inv -- -e new-e2e-tests.deps
     - pushd test/new-e2e && PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install && popd
