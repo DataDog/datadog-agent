@@ -8,6 +8,7 @@ import sys
 from collections import defaultdict
 from fnmatch import fnmatch
 from glob import glob
+from pathlib import Path
 
 import yaml
 from invoke.exceptions import Exit
@@ -235,42 +236,65 @@ def releasenote_unique_ids(ctx, files=None):
     full corpus — intended for pre-commit and CI use. Without --files the full corpus
     is scanned for any existing duplicates.
     """
-    uid_re = re.compile(r'-([0-9a-f]{16})\.yaml$')
+    hex_digits = set('0123456789abcdefABCDEF')
 
-    def uid_of(path):
-        m = uid_re.search(os.path.basename(path))
-        return m.group(1) if m else None
+    def path_key(path):
+        return Path(str(path).replace('\\', '/')).as_posix()
 
-    def corpus_dir(path):
+    def uid_of(path: Path):
+        if path.suffix != '.yaml':
+            return None
+        uid = path.stem[-16:]
+        return uid.lower() if len(uid) == 16 and all(c in hex_digits for c in uid) else None
+
+    def release_note_dir(path: Path):
         """Return the top-level releasenotes* directory for a given path."""
-        parts = path.replace('\\', '/').split('/')
-        for part in parts:
+        for part in path.parts:
             if part.startswith('releasenotes'):
                 return part
         return ''
 
-    # Each releasenotes* directory is a separate reno corpus; UIDs only need to
-    # be unique within a corpus, not across all corpora.
-    all_notes = glob('releasenotes*/notes/**/*.yaml', recursive=True)
+    def release_note_paths():
+        note_paths = []
+        for root in sorted(Path('.').iterdir()):
+            if not root.is_dir() or not root.name.startswith('releasenotes'):
+                continue
+            notes_dir = root / 'notes'
+            if not notes_dir.is_dir():
+                continue
+            for dirpath, dirnames, filenames in os.walk(notes_dir):
+                dirnames.sort()
+                note_paths.extend(
+                    Path(dirpath) / filename for filename in sorted(filenames) if filename.endswith('.yaml')
+                )
+        return note_paths
 
-    # corpus_map: {corpus_dir -> {uid -> [paths]}}
-    corpus_map: dict[str, dict[str, list[str]]] = {}
+    # Each top-level releasenotes* directory is a separate reno tree; UIDs only
+    # need to be unique within one tree.
+    all_notes = release_note_paths()
+    targets = [Path(f.strip()) for f in files.split(',') if f.strip()] if files else all_notes
+    target_keys = {path_key(path) for path in targets} if files else None
+
+    seen: dict[tuple[str, str], Path] = {}
+    duplicate_groups: dict[tuple[str, str], list[Path]] = {}
     for path in all_notes:
         uid = uid_of(path)
-        if uid:
-            d = corpus_dir(path)
-            corpus_map.setdefault(d, {}).setdefault(uid, []).append(path)
-
-    targets = [f.strip() for f in files.split(',') if f.strip()] if files else all_notes
+        if not uid:
+            continue
+        key = (release_note_dir(path), uid)
+        if key in seen:
+            duplicate_groups.setdefault(key, [seen[key]]).append(path)
+        else:
+            seen[key] = path
 
     errors = []
-    for path in targets:
-        uid = uid_of(path)
-        if uid:
-            d = corpus_dir(path)
-            existing = [f for f in corpus_map.get(d, {}).get(uid, []) if f != path]
-            if existing:
-                errors.append((path, uid, existing))
+    for (_, uid), paths in duplicate_groups.items():
+        if target_keys is None:
+            errors.append((paths[0], uid, paths[1:]))
+            continue
+        for path in paths:
+            if path_key(path) in target_keys:
+                errors.append((path, uid, [other for other in paths if other != path]))
 
     if errors:
         print(color_message("Duplicate release note UIDs detected:", "red"), file=sys.stderr)
