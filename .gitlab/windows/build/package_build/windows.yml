@@ -106,6 +106,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       -m 24576M
       -v "$(Get-Location):c:\mnt"
       -e CI
+      -e GITLAB_CI
       -e CI_COMMIT_BRANCH
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
