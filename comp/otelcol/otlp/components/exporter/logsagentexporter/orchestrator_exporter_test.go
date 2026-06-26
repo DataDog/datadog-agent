@@ -371,6 +371,7 @@ func TestToManifest(t *testing.T) {
 	tests := []struct {
 		name            string
 		bodyJSON        string
+		attributes      map[string]string
 		expectError     bool
 		errorContains   string
 		expectWatchMode bool
@@ -464,10 +465,17 @@ func TestToManifest(t *testing.T) {
 			},
 		},
 		{
-			name:          "invalid json",
-			bodyJSON:      `{invalid json`,
+			name:          "k8s Event with non-JSON body (expected skip)",
+			bodyJSON:      `some raw event string`,
+			attributes:    map[string]string{"k8s.resource.name": "events"},
 			expectError:   true,
 			errorContains: "unsupported log record",
+		},
+		{
+			name:          "non-Event resource with invalid JSON body",
+			bodyJSON:      `{invalid json`,
+			expectError:   true,
+			errorContains: "failed to unmarshal log body",
 		},
 		{
 			name: "watch mode - object field not a map",
@@ -484,6 +492,9 @@ func TestToManifest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logRecord := plog.NewLogRecord()
 			logRecord.Body().SetStr(tt.bodyJSON)
+			for k, v := range tt.attributes {
+				logRecord.Attributes().PutStr(k, v)
+			}
 
 			manifest, isWatchMode, err := logsmapping.ToManifest(logRecord)
 

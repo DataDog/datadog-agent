@@ -51,10 +51,13 @@ func init() {
 //
 // Returns the manifest and a boolean indicating if it's from a watch event.
 func ToManifest(logRecord plog.LogRecord) (*agentmodel.Manifest, bool, error) {
-	// Try to parse the body to detect the mode; non-JSON bodies (e.g. k8s Events) are a routine skip.
+	// Try to parse the body to detect the mode; non-JSON bodies (k8s Events) are a routine skip.
 	var bodyMap map[string]interface{}
 	if err := json.Unmarshal([]byte(logRecord.Body().AsString()), &bodyMap); err != nil {
-		return nil, false, errSkipUnsupportedRecord
+		if v, ok := logRecord.Attributes().Get("k8s.resource.name"); ok && v.AsString() == "events" {
+			return nil, false, errSkipUnsupportedRecord
+		}
+		return nil, false, fmt.Errorf("failed to unmarshal log body: %w", err)
 	}
 
 	// Check if this is a watch log (body contains "object" field)
