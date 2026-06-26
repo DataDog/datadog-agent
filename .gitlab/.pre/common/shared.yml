@@ -40,6 +40,40 @@
     paths:
       - omnibus/vendor/bundle
 
+# Cache and reuse the dda "legacy-tasks" virtualenv across Linux preamble jobs
+# instead of cold-resolving + reinstalling it on the first `dda inv` of every job.
+#
+# `dda inv` provisions a `legacy` venv under dda's storage data dir
+# (app.config.storage.join("venvs", "legacy")) and runs ensure_features_installed
+# (uv sync --frozen) against it on every first invocation. On a fresh CI container
+# this venv does not exist, so uv must resolve and install the whole legacy-tasks
+# dependency set before any task runs — paid once per preamble job, outside the
+# build-trace fragments. By pinning DDA_DATA_DIR under $CI_PROJECT_DIR the venv
+# becomes cacheable; on a cache hit the same `uv sync --frozen` collapses to a
+# near-instant no-op against the already-populated venv.
+#
+# (We intentionally do NOT set DDA_NO_DYNAMIC_DEPS=1 here: that path bypasses the
+# storage venv entirely and runs invoke from dda's own system prefix, which is
+# baked into the build image, not cacheable, and would lack legacy-tasks.)
+#
+# Usage:
+#   before_script:
+#     - !reference [.cache_dda_legacy_venv, setup]
+#   cache:
+#     - !reference [.cache_dda_legacy_venv, cache]
+.cache_dda_legacy_venv:
+  setup:
+    # Pin dda storage so venvs/legacy lands under $CI_PROJECT_DIR and is cacheable.
+    - export DDA_DATA_DIR="$CI_PROJECT_DIR/.dda-data"
+  cache:
+    - key:
+        files:
+          - .go-version
+          - .dda/version
+        prefix: dda-legacy-venv-$CI_IMAGE_LINUX
+      paths:
+        - .dda-data/venvs/legacy
+
 ## Shared `dd-pkg` helpers:
 # - Log the preinstalled `dd-pkg` version before using it.
 .log_dd_pkg_version:

@@ -46,6 +46,18 @@ generate_minimized_btfs_x64:
   extends: .generate_minimized_btfs_common
   variables:
     ARCH: x86_64
+  before_script:
+    - !reference [.cache_dda_legacy_venv, setup]
+  # This job runs on the btf-gen image, so key the dda legacy venv cache on that
+  # image rather than reusing the linux-image-keyed anchor (different interpreter).
+  cache:
+    - key:
+        files:
+          - .go-version
+          - .dda/version
+        prefix: dda-legacy-venv-$CI_IMAGE_BTF_GEN
+      paths:
+        - .dda-data/venvs/legacy
 
 generate_minimized_btfs_arm64:
   needs: ["build_system-probe-arm64"]

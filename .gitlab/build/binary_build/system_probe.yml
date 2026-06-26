@@ -5,6 +5,7 @@
   rules:
     - when: on_success
   before_script:
+    - !reference [.cache_dda_legacy_venv, setup]
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
@@ -30,6 +31,8 @@ build_system-probe-x64:
   extends: .system-probe_build_common
   variables:
     ARCH: amd64
+  cache:
+    - !reference [.cache_dda_legacy_venv, cache]
 
 build_system-probe-arm64:
   stage: binary_build
