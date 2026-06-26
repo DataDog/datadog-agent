@@ -3,9 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package lifecycle
 
-import "go.uber.org/atomic"
+import (
+	"os"
+	"sync/atomic"
+	"syscall"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 // ChildHandle exposes the user process's liveness to the lifecycle server.
 // /ready maps it directly: alive → 200, anything else → 503. The
@@ -18,11 +26,15 @@ type ChildHandle interface {
 // cmd.Start succeeds and defers MarkDead so it fires whenever cmd.Wait
 // returns (clean exit, signal, panic, runtime.Goexit). Safe for concurrent use.
 type Child struct {
-	alive *atomic.Bool
+	alive atomic.Bool
+	proc  atomic.Pointer[os.Process]
 }
 
 // NewChild returns a Child in the not-alive state.
-func NewChild() *Child { return &Child{alive: atomic.NewBool(false)} }
+func NewChild() *Child { return &Child{} }
+
+// StoreProcess records the OS process handle for use by SignalRun.
+func (c *Child) StoreProcess(p *os.Process) { c.proc.Store(p) }
 
 // IsAlive reports whether the child process is currently running.
 func (c *Child) IsAlive() bool { return c.alive.Load() }
@@ -42,3 +54,29 @@ type noopChild struct{}
 // NewNoopChildHandle returns a ChildHandle that always reports not-alive.
 func NewNoopChildHandle() ChildHandle { return noopChild{} }
 func (noopChild) IsAlive() bool       { return false }
+
+// RunSignal is sent to the child on /run. SIGUSR2 lets tracer libraries
+// (e.g. dd-trace-js) reseed their PRNG after a Firecracker clone restore.
+var RunSignal os.Signal = syscall.SIGUSR2
+
+// SignalRun delivers sig to the child. Returns nil if no process has been
+// stored yet — /run may arrive before cmd.Start returns.
+func (c *Child) SignalRun(sig os.Signal) error {
+	p := c.proc.Load()
+	if p == nil {
+		return nil
+	}
+	return p.Signal(sig)
+}
+
+func (s *Server) sendRunSignal() {
+	if !s.runSignalEnabled {
+		return
+	}
+	if s.child == nil {
+		return
+	}
+	if err := s.child.SignalRun(RunSignal); err != nil {
+		log.Warnf("MicroVM lifecycle: /run signal (%v) to child failed: %v", RunSignal, err)
+	}
+}
