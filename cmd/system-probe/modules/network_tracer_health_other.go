@@ -15,6 +15,3 @@ func reportNetworkProbeInitFailure(_ module.FactoryDependencies, _ error, _, _ b
 
 // resolveNetworkProbeKernelIssue is a no-op on Windows and Darwin.
 func resolveNetworkProbeKernelIssue(_ module.FactoryDependencies) {}
-
-// resolveNetworkProbeUSMIssue is a no-op on Windows and Darwin.
-func resolveNetworkProbeUSMIssue(_ module.FactoryDependencies) {}
