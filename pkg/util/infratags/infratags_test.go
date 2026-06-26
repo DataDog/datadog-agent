@@ -23,144 +23,81 @@ import (
 
 func TestIsTagged(t *testing.T) {
 	tests := []struct {
-		name       string
-		checkName  string
-		setupCfg   func(cfg pkgconfigmodel.Config)
-		wantResult bool
+		name         string
+		checkName    string
+		taggedChecks []string
+		wantResult   bool
 	}{
-		{
-			name:      "infrastructure_mode cloud_cost_only, check in tagged list returns true",
-			checkName: "cpu",
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.cloud_cost_only.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
-			},
-			wantResult: true,
-		},
-		{
-			name:      "infrastructure_mode cloud_cost_only, check not in tagged list returns false",
-			checkName: "disk",
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.cloud_cost_only.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
-			},
-			wantResult: false,
-		},
-		{
-			name:      "infrastructure_mode cloud_cost_only, empty tagged list tags non-custom checks",
-			checkName: "any_check",
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.cloud_cost_only.tagged", []string{}, pkgconfigmodel.SourceFile)
-			},
-			wantResult: true,
-		},
-		{
-			name:      "custom check is never tagged",
-			checkName: "custom_my",
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.cloud_cost_only.tagged", []string{}, pkgconfigmodel.SourceFile)
-			},
-			wantResult: false,
-		},
-		{
-			name:      "infrastructure_mode full, check would be in tagged list",
-			checkName: "cpu",
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.cloud_cost_only.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
-			},
-			wantResult: false,
-		},
-		{
-			name:      "unknown infrastructure_mode is not tagged",
-			checkName: "cpu",
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("infrastructure_mode", "unknown_future_mode", pkgconfigmodel.SourceFile)
-			},
-			wantResult: false,
-		},
+		{"check in allow-list returns true", "cpu", []string{"cpu"}, true},
+		{"check not in allow-list returns false", "disk", []string{"cpu"}, false},
+		{"empty allow-list tags all non-custom checks", "any_check", nil, true},
+		{"custom check is never tagged", "custom_my", nil, false},
+		{"empty check name returns false", "", nil, false},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
-			tt.setupCfg(cfg)
-
-			result := IsTagged(tt.checkName, cfg)
-			assert.Equal(t, tt.wantResult, result)
+			assert.Equal(t, tt.wantResult, IsTagged(tt.checkName, tt.taggedChecks))
 		})
 	}
 }
 
-func TestIsTaggableMode(t *testing.T) {
+func TestResolveEnrichmentState(t *testing.T) {
 	tests := []struct {
-		name         string
-		mode         string
-		wantTaggable bool
+		name             string
+		mode             string
+		taggedChecks     []string
+		wantTags         []string
+		wantTaggedChecks []string
 	}{
-		{"cloud_cost_only is taggable", "cloud_cost_only", true},
-		{"full is not taggable", "full", false},
-		{"empty is not taggable", "", false},
-		{"unknown mode is not taggable", "some_future_mode", false},
+		{"cloud_cost_only returns tags and empty list", "cloud_cost_only", []string{}, []string{InfraModeCloudCostTag}, []string{}},
+		{"cloud_cost_only returns tags and allow-list", "cloud_cost_only", []string{"cpu"}, []string{InfraModeCloudCostTag}, []string{"cpu"}},
+		{"full returns nil tags", "full", nil, nil, nil},
+		{"unknown mode returns nil tags", "some_future_mode", nil, nil, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.Set("infrastructure_mode", tt.mode, pkgconfigmodel.SourceFile)
-			assert.Equal(t, tt.wantTaggable, IsTaggableMode(cfg))
+			if tt.taggedChecks != nil {
+				cfg.Set("integration."+tt.mode+".tagged", tt.taggedChecks, pkgconfigmodel.SourceFile)
+			}
+			tags, taggedChecks := ResolveEnrichmentState(cfg)
+			assert.Equal(t, tt.wantTags, tags)
+			assert.Equal(t, tt.wantTaggedChecks, taggedChecks)
 		})
 	}
 }
 
 func TestAppendJMXDogstatsdInfraTags(t *testing.T) {
-	t.Run("nil cfg is no-op", func(t *testing.T) {
+	cloudCostTags := []string{InfraModeCloudCostTag}
+
+	t.Run("empty infraModeTags is no-op", func(t *testing.T) {
 		tags := []string{"a:1"}
-		assert.Equal(t, tags, AppendJMXDogstatsdInfraTags(tags, "kafka", nil))
+		assert.Equal(t, tags, AppendJMXDogstatsdInfraTags(tags, "kafka", nil, nil))
 	})
 	t.Run("empty jmxCheckName is no-op", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
 		tags := []string{"env:prod"}
-		assert.Equal(t, tags, AppendJMXDogstatsdInfraTags(tags, "", cfg))
+		assert.Equal(t, tags, AppendJMXDogstatsdInfraTags(tags, "", cloudCostTags, nil))
 	})
-	t.Run("eligible JMX check gets tag", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-		cfg.Set("integration.cloud_cost_only.tagged", []string{"kafka"}, pkgconfigmodel.SourceFile)
+	t.Run("eligible JMX check gets tags", func(t *testing.T) {
 		tags := []string{"env:prod"}
-		got := AppendJMXDogstatsdInfraTags(tags, "kafka", cfg)
-		tag, ok := tagForMode(cfg.GetString("infrastructure_mode"))
-		assert.True(t, ok)
-		assert.Contains(t, got, tag)
+		got := AppendJMXDogstatsdInfraTags(tags, "kafka", cloudCostTags, []string{"kafka"})
+		assert.Contains(t, got, InfraModeCloudCostTag)
 	})
 	t.Run("JMX check not in tagged list", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-		cfg.Set("integration.cloud_cost_only.tagged", []string{"kafka"}, pkgconfigmodel.SourceFile)
 		tags := []string{"env:prod"}
-		got := AppendJMXDogstatsdInfraTags(tags, "tomcat", cfg)
-		tag, ok := tagForMode(cfg.GetString("infrastructure_mode"))
-		assert.True(t, ok)
-		assert.NotContains(t, got, tag)
+		got := AppendJMXDogstatsdInfraTags(tags, "tomcat", cloudCostTags, []string{"kafka"})
+		assert.NotContains(t, got, InfraModeCloudCostTag)
+	})
+	t.Run("empty tagged list tags all checks", func(t *testing.T) {
+		tags := []string{"env:prod"}
+		got := AppendJMXDogstatsdInfraTags(tags, "kafka", cloudCostTags, nil)
+		assert.Contains(t, got, InfraModeCloudCostTag)
 	})
 	t.Run("custom_ JMX check name is not tagged", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-		cfg.Set("integration.cloud_cost_only.tagged", []string{}, pkgconfigmodel.SourceFile)
 		tags := []string{"env:prod"}
-		got := AppendJMXDogstatsdInfraTags(tags, "custom_jmx", cfg)
-		tag, ok := tagForMode(cfg.GetString("infrastructure_mode"))
-		assert.True(t, ok)
-		assert.NotContains(t, got, tag)
-	})
-	t.Run("non-taggable mode is no-op", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
-		tags := []string{"env:prod"}
-		got := AppendJMXDogstatsdInfraTags(tags, "kafka", cfg)
-		assert.Equal(t, tags, got)
+		got := AppendJMXDogstatsdInfraTags(tags, "custom_jmx", cloudCostTags, nil)
+		assert.NotContains(t, got, InfraModeCloudCostTag)
 	})
 }
 

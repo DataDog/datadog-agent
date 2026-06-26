@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -42,7 +41,8 @@ type enrichConfig struct {
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
-	infraCfg                  model.Reader // optional: infra mode JMX DogStatsD tagging; nil skips
+	infraModeTags             []string // pre-resolved infra_mode tags
+	taggedChecks              []string // pre-resolved allow-list; nil/empty = all checks tagged
 }
 
 // extractTagsMetadata returns tags (client tags + host tag), information needed to query the tagger
@@ -152,7 +152,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource, jmxCheckName := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
-	tags = infratags.AppendJMXDogstatsdInfraTags(tags, jmxCheckName, conf.infraCfg)
+	tags = infratags.AppendJMXDogstatsdInfraTags(tags, jmxCheckName, conf.infraModeTags, conf.taggedChecks)
 
 	if !isExcluded(metricName, conf.metricPrefix, conf.metricPrefixBlacklist) {
 		metricName = conf.metricPrefix + metricName
