@@ -16,7 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 )
 
-// categorizeTracerError wraps err with one of the sentinel errors defined in network_tracer.go
+// errNetworkProbeUSMUnsupported is reported when USM requires a newer kernel than the one running.
+var errNetworkProbeUSMUnsupported = errors.New("USM not supported on this kernel")
+
+// categorizeTracerError wraps err with one of the sentinel errors defined in this package
 // so that buildNetworkProbeIssue can select targeted remediation steps.
 func categorizeTracerError(err error) error {
 	switch {

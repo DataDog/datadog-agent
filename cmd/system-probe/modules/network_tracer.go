@@ -30,11 +30,8 @@ import (
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
 var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
-// Sentinel errors that categorize probe-init failures for targeted remediation in health issues.
-var (
-	errNetworkProbeKernelUnsupported = errors.New("kernel version not supported by network probe")
-	errNetworkProbeUSMUnsupported    = errors.New("USM not supported on this kernel")
-)
+// errNetworkProbeKernelUnsupported is reported when the OS kernel version check fails.
+var errNetworkProbeKernelUnsupported = errors.New("kernel version not supported by network probe")
 
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
