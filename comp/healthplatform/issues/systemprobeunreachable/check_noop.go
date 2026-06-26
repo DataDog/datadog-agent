@@ -1,0 +1,22 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build !linux
+
+package systemprobeunreachable
+
+import (
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+)
+
+// BuiltInStartupHealthCheck returns nil on non-Linux platforms — system-probe is not supported.
+func (m *systemProbeUnreachableModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
+	return nil
+}
+
+// Check is a no-op on non-Linux platforms where system-probe is not supported.
+func Check() ([]runnerdef.IssueReport, error) {
+	return nil, nil
+}
