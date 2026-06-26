@@ -26,16 +26,16 @@ const (
 	telemetryReportsEmitted = "observer.reports.emitted"
 	telemetryReportsOngoing = "observer.reports.ongoing"
 
-	// scorerHelperEscalationMarker is emitted by anomalyScorerHelper.OnSeverityTransition
-	// when the EWMA rises above low_threshold (an escalation event). It is logged at info
-	// level, captured by journald, and serves as the assertion target for scorer helper tests.
+	// scorerHelperEscalationMarker is emitted by anomalyScorer.OnSeverityTransition
+	// when output.logs=true and the EWMA rises above low_threshold (an escalation event).
+	// Logged at info level, captured by journald, and serves as the assertion target.
 	// Full example: "[observer] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
 	scorerHelperEscalationMarker = "[observer] anomaly scorer anomaly_scorer severity escalation"
 
 	// scorerHelperRegisteredMarker is logged once at agent startup when the
-	// anomalyScorerHelper is successfully wired to the scorer. Waiting for it
-	// before sending metrics ensures the subscription is in place.
-	scorerHelperRegisteredMarker = "[observer] anomaly_scorer_helper registered for scorer"
+	// anomaly scorer is successfully wired with telemetry. Waiting for it
+	// before sending metrics ensures the scorer is active.
+	scorerHelperRegisteredMarker = "[observer] anomaly_scorer registered"
 )
 
 // observerTestSuite is a minimal interface satisfied by all suite types in this
