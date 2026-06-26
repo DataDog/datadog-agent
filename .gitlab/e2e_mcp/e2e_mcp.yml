@@ -45,11 +45,12 @@
     # pipeline id; override (with the same value) to target the destroy job.
     E2E_MCP_STACK_NAME: mcp-$CI_PIPELINE_ID
     E2E_MCP_OS_FAMILY: ubuntu
-    # The scenario runner is compiled by `pulumi up` at runtime, which is
-    # memory-heavy (a smaller limit OOM-kills the Go compile).
-    KUBERNETES_MEMORY_REQUEST: 16Gi
-    KUBERNETES_MEMORY_LIMIT: 32Gi
-    KUBERNETES_CPU_REQUEST: 6
+    # `pulumi up` compiles the scenario runner (full Pulumi provider SDKs) at
+    # runtime, which is very memory-heavy. Mirror the go_e2e_test_binaries job's
+    # resource profile (64Gi), the known-good config for compiling e2e Go.
+    KUBERNETES_MEMORY_REQUEST: 48Gi
+    KUBERNETES_MEMORY_LIMIT: 64Gi
+    KUBERNETES_CPU_REQUEST: 4
   before_script:
     # GitHub token for private Go module downloads during `pulumi up`.
     - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
