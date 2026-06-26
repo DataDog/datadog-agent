@@ -32,6 +32,9 @@ type hpFlareConfig struct {
 type k8sAttributesConfig struct {
 	// KubeletMode uses the kubelet pod source instead of api_server with node filter (K8S_NODE_NAME).
 	KubeletMode bool
+	// KubeletEndpoint is the kubelet endpoint (e.g. "https://${HOST_IP}:10250") used when KubeletMode is
+	// enabled. If empty, the node hostname is used.
+	KubeletEndpoint string
 }
 
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
@@ -115,7 +118,8 @@ func newConfigManager(config config.Component) configManager {
 			Port: config.GetInt("hostprofiler.hpflare.port"),
 		},
 		K8sAttributes: k8sAttributesConfig{
-			KubeletMode: config.GetBool("hostprofiler.k8sattributes.kubelet_mode"),
+			KubeletMode:     config.GetBool("hostprofiler.k8sattributes.kubelet_mode"),
+			KubeletEndpoint: config.GetString("hostprofiler.k8sattributes.kubelet_endpoint"),
 		},
 	}
 

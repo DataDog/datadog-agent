@@ -167,6 +167,9 @@ func buildProcessors(conf confMap, k8sAttr k8sAttributesConfig) []any {
 	}
 	if k8sAttr.KubeletMode {
 		k8sattributes["source"] = "kubelet"
+		if k8sAttr.KubeletEndpoint != "" {
+			k8sattributes["kubelet"] = confMap{"endpoint": k8sAttr.KubeletEndpoint}
+		}
 	} else {
 		k8sattributes["filter"] = confMap{"node_from_env_var": "K8S_NODE_NAME"}
 	}

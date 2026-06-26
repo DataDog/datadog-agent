@@ -1136,6 +1136,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
 	// kubelet_mode: use kubelet pod source instead of api_server with node filter (K8S_NODE_NAME env var)
 	config.BindEnvAndSetDefault("hostprofiler.k8sattributes.kubelet_mode", false)
+	// kubelet_endpoint: kubelet endpoint (e.g. "https://${HOST_IP}:10250") used in kubelet_mode; empty uses the node hostname
+	config.BindEnvAndSetDefault("hostprofiler.k8sattributes.kubelet_endpoint", "")
 }
 
 func agent(config pkgconfigmodel.Setup) {
