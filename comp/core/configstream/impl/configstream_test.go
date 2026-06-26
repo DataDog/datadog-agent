@@ -147,6 +147,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 		timeout := time.After(2 * time.Second)
 		typedValues := make(map[string]interface{})
 
+	loop:
 		for len(typedValues) < 4 {
 			select {
 			case event := <-eventChan:
@@ -166,7 +167,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 					}
 				}
 			case <-timeout:
-				break
+				break loop
 			}
 		}
 
