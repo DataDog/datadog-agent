@@ -70,6 +70,18 @@ func tearDown() {
 	os.Remove(tmpfile.Name())
 }
 
+// runBench runs a Python expression without temp-file output capture. Intended
+// for BenchmarkXxx functions where file I/O overhead would dwarf the signal.
+func runBench(call string) {
+	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf("import tagger\n%s", call)))
+	defer C.call_free(unsafe.Pointer(code))
+	runtime.LockOSThread()
+	state := C.ensure_gil(rtloader)
+	C.run_simple_string(rtloader, code)
+	C.release_gil(rtloader, state)
+	runtime.UnlockOSThread()
+}
+
 func run(call string) (string, error) {
 	tmpfile.Truncate(0)
 	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
