@@ -99,7 +99,11 @@ e2e-mcp-provision-vm:
     - if: $E2E_MCP_PROVISION == "true"
   script:
     - dda inv -- -e aws.create-vm --no-interactive --no-add-known-host --stack-name=$E2E_MCP_STACK_NAME --os-family=$E2E_MCP_OS_FAMILY
-    - dda inv -- -e aws.show-vm --stack-name=$E2E_MCP_STACK_NAME > e2e-mcp-host-info.json
+    # Capture host info; aws.show-vm prints a JSON object (no -e, to avoid the
+    # invoke command echo). Extract from the first '{' and validate so the
+    # artifact is always clean JSON regardless of any leading output.
+    - dda inv -- aws.show-vm --stack-name=$E2E_MCP_STACK_NAME > show-vm.out
+    - python3 -c "import json; t=open('show-vm.out').read(); d=json.loads(t[t.index('{'):]); open('e2e-mcp-host-info.json','w').write(json.dumps(d, indent=2))"
     - echo "Provisioned stack suffix:" $E2E_MCP_STACK_NAME
     - cat e2e-mcp-host-info.json
   artifacts:
