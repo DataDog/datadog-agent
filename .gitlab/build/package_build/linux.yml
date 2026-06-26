@@ -30,6 +30,23 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     BUILD_TRACE_SEGMENT: omnibus
+    # Accelerate omnibus git-cache full-tree index scans between software defs.
+    # Git reads GIT_CONFIG_COUNT/GIT_CONFIG_KEY_n/GIT_CONFIG_VALUE_n for every
+    # git process it spawns (including omnibus-ruby's GitCache snapshots), so
+    # these tune the repeated full /opt/datadog-agent tree stat/hash passes.
+    GIT_CONFIG_COUNT: "6"
+    GIT_CONFIG_KEY_0: "core.untrackedCache"
+    GIT_CONFIG_VALUE_0: "true"
+    GIT_CONFIG_KEY_1: "core.preloadIndex"
+    GIT_CONFIG_VALUE_1: "true"
+    GIT_CONFIG_KEY_2: "index.threads"
+    GIT_CONFIG_VALUE_2: "true"
+    GIT_CONFIG_KEY_3: "core.fsync"
+    GIT_CONFIG_VALUE_3: "none"
+    GIT_CONFIG_KEY_4: "core.fsyncMethod"
+    GIT_CONFIG_VALUE_4: "batch"
+    GIT_CONFIG_KEY_5: "gc.auto"
+    GIT_CONFIG_VALUE_5: "0"
   artifacts:
     expire_in: 2 weeks
     paths:
