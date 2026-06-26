@@ -95,7 +95,7 @@ properties:
     items:
       type: string
     visibility: public
-    description: List of allowed domain for HTTP actions. Supports glob pattern.
+    description: List of allowed domains for HTTP actions. Supports glob pattern.
     examples:
       - [ "datadoghq.com", "*.datadoghq.com" ]
     tags:
