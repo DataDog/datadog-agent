@@ -40,11 +40,11 @@ type expectedKueueQueue struct {
 }
 
 type expectedKueueResourceFlavor struct {
-	name        string
-	nodeLabels  map[string]string
-	labels      map[string]string
-	annotations map[string]string
-	uid         string
+	name               string
+	nodeAffinityLabels map[string]string
+	labels             map[string]string
+	annotations        map[string]string
+	uid                string
 }
 
 // This is a simple test for run(). Exhaustive tests for the individual
@@ -448,12 +448,12 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 				},
 				KueueResourceFlavors: []*pb.KueueResourceFlavor{
 					{
-						Name:        "a100",
-						Labels:      map[string]string{"flavor": "gpu"},
-						Annotations: map[string]string{"owner": "team-a"},
-						Uid:         "flavor-uid",
-						NodeLabels:  map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
-						Type:        pb.KubeMetadataEventType_SET,
+						Name:               "a100",
+						Labels:             map[string]string{"flavor": "gpu"},
+						Annotations:        map[string]string{"owner": "team-a"},
+						Uid:                "flavor-uid",
+						NodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+						Type:               pb.KubeMetadataEventType_SET,
 					},
 				},
 			},
@@ -523,11 +523,11 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 			},
 			expectedKueueResourceFlavors: map[string]expectedKueueResourceFlavor{
 				"a100": {
-					name:        "a100",
-					labels:      map[string]string{"flavor": "gpu"},
-					annotations: map[string]string{"owner": "team-a"},
-					uid:         "flavor-uid",
-					nodeLabels:  map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+					name:               "a100",
+					labels:             map[string]string{"flavor": "gpu"},
+					annotations:        map[string]string{"owner": "team-a"},
+					uid:                "flavor-uid",
+					nodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
 				},
 			},
 		},
@@ -718,7 +718,7 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 						EntityMeta: workloadmeta.EntityMeta{
 							Name: "a100",
 						},
-						NodeLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+						NodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
 					},
 				},
 			},
@@ -1062,7 +1062,7 @@ func assertKueueResourceFlavors(t *testing.T, wmetaMock workloadmetamock.Mock, e
 		expectedFlavor, found := expected[flavor.EntityID.ID]
 		require.True(t, found)
 		assert.Equal(t, expectedFlavor.name, flavor.Name)
-		assert.Equal(t, expectedFlavor.nodeLabels, flavor.NodeLabels)
+		assert.Equal(t, expectedFlavor.nodeAffinityLabels, flavor.NodeAffinityLabels)
 		assert.Equal(t, expectedFlavor.labels, flavor.Labels)
 		assert.Equal(t, expectedFlavor.annotations, flavor.Annotations)
 		assert.Equal(t, expectedFlavor.uid, flavor.UID)

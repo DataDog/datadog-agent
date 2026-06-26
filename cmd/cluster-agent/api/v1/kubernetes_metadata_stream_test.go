@@ -600,7 +600,7 @@ func TestProcessKueueResourceFlavorEvents(t *testing.T) {
 					Labels:      map[string]string{"flavor_class": "gpu"},
 					Annotations: map[string]string{"owner": "team-a"},
 				},
-				NodeLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+				NodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
 			},
 		},
 	})
@@ -610,7 +610,7 @@ func TestProcessKueueResourceFlavorEvents(t *testing.T) {
 	assert.Equal(t, "a100", entry.name)
 	assert.Equal(t, map[string]string{"flavor_class": "gpu"}, entry.labels)
 	assert.Equal(t, map[string]string{"owner": "team-a"}, entry.annotations)
-	assert.Equal(t, map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"}, entry.nodeLabels)
+	assert.Equal(t, map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"}, entry.nodeAffinityLabels)
 
 	srv.processWmetaEvents([]workloadmeta.Event{
 		{
@@ -630,10 +630,10 @@ func TestProcessKueueResourceFlavorEvents(t *testing.T) {
 func TestComputeKueueResourceFlavorDiff(t *testing.T) {
 	old := map[string]kueueResourceFlavorEntry{
 		"a100": {
-			name:        "a100",
-			labels:      map[string]string{"tier": "old"},
-			annotations: map[string]string{"owner": "team-a"},
-			nodeLabels:  map[string]string{"nvidia.com/gpu.product": "old"},
+			name:               "a100",
+			labels:             map[string]string{"tier": "old"},
+			annotations:        map[string]string{"owner": "team-a"},
+			nodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "old"},
 		},
 		"h100": {
 			name: "h100",
@@ -641,10 +641,10 @@ func TestComputeKueueResourceFlavorDiff(t *testing.T) {
 	}
 	current := map[string]kueueResourceFlavorEntry{
 		"a100": {
-			name:        "a100",
-			labels:      map[string]string{"tier": "new"},
-			annotations: map[string]string{"owner": "team-a"},
-			nodeLabels:  map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+			name:               "a100",
+			labels:             map[string]string{"tier": "new"},
+			annotations:        map[string]string{"owner": "team-a"},
+			nodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
 		},
 	}
 
@@ -652,11 +652,11 @@ func TestComputeKueueResourceFlavorDiff(t *testing.T) {
 
 	assert.ElementsMatch(t, []*pb.KueueResourceFlavor{
 		{
-			Name:        "a100",
-			Labels:      map[string]string{"tier": "new"},
-			Annotations: map[string]string{"owner": "team-a"},
-			NodeLabels:  map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
-			Type:        pb.KubeMetadataEventType_SET,
+			Name:               "a100",
+			Labels:             map[string]string{"tier": "new"},
+			Annotations:        map[string]string{"owner": "team-a"},
+			NodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+			Type:               pb.KubeMetadataEventType_SET,
 		},
 		{
 			Name: "h100",
@@ -679,8 +679,8 @@ func TestFullStateResponse(t *testing.T) {
 		annotations: map[string]string{"a1": "v2"},
 	}
 	metadata.kueueResourceFlavors["a100"] = kueueResourceFlavorEntry{
-		name:       "a100",
-		nodeLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+		name:               "a100",
+		nodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
 	}
 
 	resp := fullStateResponse(pods, metadata)
@@ -705,9 +705,9 @@ func TestFullStateResponse(t *testing.T) {
 		},
 		KueueResourceFlavors: []*pb.KueueResourceFlavor{
 			{
-				Name:       "a100",
-				NodeLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
-				Type:       pb.KubeMetadataEventType_SET,
+				Name:               "a100",
+				NodeAffinityLabels: map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"},
+				Type:               pb.KubeMetadataEventType_SET,
 			},
 		},
 	}

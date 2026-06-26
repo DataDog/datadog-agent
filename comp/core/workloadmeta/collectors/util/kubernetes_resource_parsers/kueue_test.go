@@ -119,7 +119,7 @@ func TestKueueResourceFlavorParser(t *testing.T) {
 			Annotations: map[string]string{"owner": "batch"},
 			UID:         "uid-a100",
 		},
-		NodeLabels: map[string]string{
+		NodeAffinityLabels: map[string]string{
 			"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB",
 		},
 	}

@@ -81,15 +81,15 @@ func (p kueueResourceFlavorParser) Parse(obj interface{}) workloadmeta.Entity {
 		UID:         string(u.GetUID()),
 	}
 
-	nodeLabels, _, _ := unstructured.NestedStringMap(u.Object, "spec", "nodeLabels")
+	nodeAffinityLabels, _, _ := unstructured.NestedStringMap(u.Object, "spec", "nodeLabels")
 
 	return &workloadmeta.KubernetesKueueResourceFlavor{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
 			ID:   workloadmeta.GenerateKueueResourceFlavorEntityID(meta.Name),
 		},
-		EntityMeta: meta,
-		NodeLabels: nodeLabels,
+		EntityMeta:         meta,
+		NodeAffinityLabels: nodeAffinityLabels,
 	}
 }
 

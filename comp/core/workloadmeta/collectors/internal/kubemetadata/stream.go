@@ -471,7 +471,7 @@ func (sc *dcaStreamClient) getKueueResourceFlavor(flavorID string) (*workloadmet
 	}
 	// Keep ownership of the cached entity with the stream client. The returned
 	// flavor is passed to workloadmeta after sc.mu is released, and it contains
-	// mutable maps such as NodeLabels.
+	// mutable maps such as NodeAffinityLabels.
 	return flavor.DeepCopy().(*workloadmeta.KubernetesKueueResourceFlavor), true
 }
 
@@ -772,7 +772,7 @@ func newKueueResourceFlavor(flavorMetadata *pb.KueueResourceFlavor) *workloadmet
 			Annotations: flavorMetadata.Annotations,
 			UID:         flavorMetadata.Uid,
 		},
-		NodeLabels: flavorMetadata.NodeLabels,
+		NodeAffinityLabels: flavorMetadata.NodeAffinityLabels,
 	}
 }
 

@@ -55,11 +55,11 @@ type kueueQueueEntry struct {
 }
 
 type kueueResourceFlavorEntry struct {
-	name        string
-	labels      map[string]string
-	annotations map[string]string
-	uid         string
-	nodeLabels  map[string]string
+	name               string
+	labels             map[string]string
+	annotations        map[string]string
+	uid                string
+	nodeAffinityLabels map[string]string
 }
 
 type metadataSnapshot struct {
@@ -311,11 +311,11 @@ func (s *metadataSnapshot) processKueueResourceFlavorEvent(eventType workloadmet
 	switch eventType {
 	case workloadmeta.EventTypeSet:
 		s.kueueResourceFlavors[key] = kueueResourceFlavorEntry{
-			name:        flavor.Name,
-			labels:      flavor.Labels,
-			annotations: flavor.Annotations,
-			uid:         flavor.UID,
-			nodeLabels:  flavor.NodeLabels,
+			name:               flavor.Name,
+			labels:             flavor.Labels,
+			annotations:        flavor.Annotations,
+			uid:                flavor.UID,
+			nodeAffinityLabels: flavor.NodeAffinityLabels,
 		}
 		return true
 	case workloadmeta.EventTypeUnset:
@@ -592,12 +592,12 @@ func protoKueueQueue(entry kueueQueueEntry, eventType pb.KubeMetadataEventType) 
 
 func protoKueueResourceFlavor(entry kueueResourceFlavorEntry, eventType pb.KubeMetadataEventType) *pb.KueueResourceFlavor {
 	return &pb.KueueResourceFlavor{
-		Name:        entry.name,
-		Labels:      entry.labels,
-		Annotations: entry.annotations,
-		Uid:         entry.uid,
-		NodeLabels:  entry.nodeLabels,
-		Type:        eventType,
+		Name:               entry.name,
+		Labels:             entry.labels,
+		Annotations:        entry.annotations,
+		Uid:                entry.uid,
+		NodeAffinityLabels: entry.nodeAffinityLabels,
+		Type:               eventType,
 	}
 }
 
@@ -616,7 +616,7 @@ func kueueResourceFlavorEqual(left, right kueueResourceFlavorEntry) bool {
 		left.uid == right.uid &&
 		maps.Equal(left.labels, right.labels) &&
 		maps.Equal(left.annotations, right.annotations) &&
-		maps.Equal(left.nodeLabels, right.nodeLabels)
+		maps.Equal(left.nodeAffinityLabels, right.nodeAffinityLabels)
 }
 
 func protoKueueQueueType(queueType workloadmeta.KueueQueueType) pb.KueueQueueType {

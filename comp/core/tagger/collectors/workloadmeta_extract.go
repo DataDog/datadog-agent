@@ -968,7 +968,7 @@ func (c *WorkloadMetaCollector) extractKueueQueueTags(queue *workloadmeta.Kubern
 
 func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadmeta.KubernetesKueueResourceFlavor, tagList *taglist.TagList) {
 	tagList.AddLow(tags.KueueResourceFlavor, flavor.Name)
-	for name, value := range flavor.NodeLabels {
+	for name, value := range flavor.NodeAffinityLabels {
 		if strings.HasPrefix(name, "nvidia.com/") {
 			tagList.AddLow(tags.KubeGPUVendor, "nvidia")
 		}

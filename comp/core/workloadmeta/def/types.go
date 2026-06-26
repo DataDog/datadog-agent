@@ -1499,7 +1499,7 @@ func GenerateKueueResourceFlavorEntityID(name string) string {
 type KubernetesKueueResourceFlavor struct {
 	EntityID
 	EntityMeta
-	NodeLabels map[string]string
+	NodeAffinityLabels map[string]string
 }
 
 // GetID implements Entity#GetID.
@@ -1531,7 +1531,7 @@ func (rf KubernetesKueueResourceFlavor) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
 	_, _ = fmt.Fprint(&sb, rf.EntityMeta.String(verbose))
 	_, _ = fmt.Fprintln(&sb, "----------- Kueue Resource Flavor -----------")
-	_, _ = fmt.Fprintln(&sb, "Node Labels:", rf.NodeLabels)
+	_, _ = fmt.Fprintln(&sb, "Node Affinity Labels:", rf.NodeAffinityLabels)
 	return sb.String()
 }
 

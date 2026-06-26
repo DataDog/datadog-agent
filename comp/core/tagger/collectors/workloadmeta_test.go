@@ -1576,15 +1576,15 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 	tests := []struct {
-		name             string
-		nodeLabels       map[string]string
-		expectedLowCard  []string
-		expectedFlavorID string
+		name               string
+		nodeAffinityLabels map[string]string
+		expectedLowCard    []string
+		expectedFlavorID   string
 	}{
 		{
 			name:             "a100 sxm4",
 			expectedFlavorID: "a100",
-			nodeLabels: map[string]string{
+			nodeAffinityLabels: map[string]string{
 				"nvidia.com/gpu.product":              "NVIDIA-A100-SXM4-40GB",
 				"nvidia.com/gpu.family":               "Ampere",
 				"nvidia.com/gpu.compute.major":        "8",
@@ -1604,7 +1604,7 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 		{
 			name:             "a100 pcie mig shared",
 			expectedFlavorID: "a100-pcie-mig",
-			nodeLabels: map[string]string{
+			nodeAffinityLabels: map[string]string{
 				"nvidia.com/gpu.product": "NVIDIA-A100-80GB-PCIe-MIG-3g.40gb-SHARED",
 			},
 			expectedLowCard: []string{
@@ -1617,7 +1617,7 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 		{
 			name:             "tesla t4",
 			expectedFlavorID: "t4",
-			nodeLabels: map[string]string{
+			nodeAffinityLabels: map[string]string{
 				"nvidia.com/gpu.product": "Tesla-T4",
 			},
 			expectedLowCard: []string{
@@ -1630,7 +1630,7 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 		{
 			name:             "h100 nvl",
 			expectedFlavorID: "h100-nvl",
-			nodeLabels: map[string]string{
+			nodeAffinityLabels: map[string]string{
 				"nvidia.com/gpu.product": "NVIDIA-H100-NVL-MIG-3g.47gb",
 			},
 			expectedLowCard: []string{
@@ -1643,7 +1643,7 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 		{
 			name:             "rtx ada",
 			expectedFlavorID: "rtx-6000",
-			nodeLabels: map[string]string{
+			nodeAffinityLabels: map[string]string{
 				"nvidia.com/gpu.product": "NVIDIA-RTX-6000-Ada-Generation",
 			},
 			expectedLowCard: []string{
@@ -1669,7 +1669,7 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: tt.expectedFlavorID,
 					},
-					NodeLabels: tt.nodeLabels,
+					NodeAffinityLabels: tt.nodeAffinityLabels,
 				},
 				IsComplete: true,
 			})
