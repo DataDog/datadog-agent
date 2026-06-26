@@ -28,7 +28,7 @@ require (
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/pkg/sftp v1.13.10
-	github.com/pulumi/pulumi-aws/sdk/v7 v7.33.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.34.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.6.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3
