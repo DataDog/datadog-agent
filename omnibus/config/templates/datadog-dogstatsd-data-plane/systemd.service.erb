@@ -5,10 +5,9 @@ BindsTo=datadog-dogstatsd.service
 
 [Service]
 Type=simple
-PIDFile=<%= install_dir %>/run/agent-data-plane.pid
 User=dd-agent
 Restart=on-failure
-ExecStart=<%= install_dir %>/embedded/bin/agent-data-plane --config /etc/datadog-dogstatsd/dogstatsd.yaml run --pidfile <%= install_dir %>/run/agent-data-plane.pid
+ExecStart=<%= install_dir %>/embedded/bin/agent-data-plane --config /etc/datadog-dogstatsd/dogstatsd.yaml run
 StartLimitInterval=10
 StartLimitBurst=5
 
