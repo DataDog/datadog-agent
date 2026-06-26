@@ -42,6 +42,7 @@ go_library(
         "version_nopy.go",
         "version_python.go",
     ],
+    cdeps = ["//rtloader:rtloader_dynamic"],
     cgo = True,
     clinkopts = select({
         "@rules_go//go/platform:aix": [

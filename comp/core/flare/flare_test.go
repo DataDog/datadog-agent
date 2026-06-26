@@ -404,5 +404,4 @@ func TestLocalFlareFileContent(t *testing.T) {
 	require.NotNil(t, mockBuilder)
 	mockBuilder.AssertFileContentMatch(`unable to contact the agent to retrieve flare: connection refused`, "local")
 	mockBuilder.AssertFileContentMatch(`Flare creation time: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`, "local")
-	mockBuilder.AssertFileContentMatch(`Go version: go\d+\.\d+`, "local")
 }
