@@ -62,6 +62,15 @@ runs:
       version: ${{ steps.cache-key.outputs.version }}
       features: ${{ inputs.features }}
 
+  - name: Reset cached dda install
+    if: steps.dda-cache.outputs.cache-hit == 'true' && steps.install-from-cache.outcome != 'success'
+    run: |-
+      rm -rf "${HOME}/.local/share/pyapp/dda"
+      if [[ -n "${RUNNER_TOOL_CACHE:-}" ]]; then
+        rm -rf "${RUNNER_TOOL_CACHE}/.dda"
+      fi
+    shell: bash
+
   - name: Install dda
     if: steps.dda-cache.outputs.cache-hit != 'true' || steps.install-from-cache.outcome != 'success'
     uses: DataDog/datadog-agent-dev@00e4a423088309efce1d5ba6b8c5366eef648710 # install
