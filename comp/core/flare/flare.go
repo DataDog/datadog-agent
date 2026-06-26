@@ -137,6 +137,16 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		f.log.Infof("Unrecognized value passed via enable_streamlogs, creating flare without streamlogs enabled: %q", streamlogs)
 	}
 
+	flareSource := task.Config.TaskArgs["source"]
+
+	var tags []string
+	if rawTags, ok := task.Config.TaskArgs["tags"]; ok && rawTags != "" {
+		if err := json.Unmarshal([]byte(rawTags), &tags); err != nil {
+			f.log.Infof("Could not parse flare tags %q from agent task, ignoring: %v", rawTags, err)
+			tags = nil
+		}
+	}
+
 	filePath, err := f.CreateWithArgs(flareArgs, 0, nil, []byte{})
 	if err != nil {
 		return true, err
@@ -144,7 +154,8 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 
 	f.log.Infof("Flare was created by remote-config at %s", filePath)
 
-	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
+	source := helpers.NewRemoteConfigFlareSource(task.Config.UUID).WithFlareSourceTags(flareSource, tags)
+	_, err = f.Send(filePath, caseID, userHandle, source)
 	return true, err
 }
 
