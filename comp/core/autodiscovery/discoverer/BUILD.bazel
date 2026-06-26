@@ -1,5 +1,8 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# We cannot enable flavored tests here because of the python_bridge.go file.
+# pkg/collector/python has not been fully migrated yet.
+# gazelle:dd_agent_go_test off
 
 go_library(
     name = "discoverer",
@@ -23,7 +26,7 @@ go_library(
     ],
 )
 
-dd_agent_go_test(
+go_test(
     name = "discoverer_test",
     srcs = [
         "discovery_json_test.go",
@@ -31,7 +34,7 @@ dd_agent_go_test(
         "worker_test.go",
     ],
     embed = [":discoverer"],
-    tags = ["manual"],
+    gotags = ["test"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/workloadmeta/def",
