@@ -43,6 +43,10 @@ func GetNetworkID(ctx context.Context) (string, error) {
 				return networkID, nil
 			}
 
+			if len(pkgconfigsetup.Datadog().GetStringSlice("cloud_provider_metadata")) == 0 {
+				return "", errors.New("cloud provider metadata is disabled by configuration")
+			}
+
 			log.Debugf("GetNetworkID trying GCE")
 			if networkID, err = gce.GetNetworkID(ctx); err == nil {
 				log.Debugf("GetNetworkID: using network ID from GCE metadata: %s", networkID)

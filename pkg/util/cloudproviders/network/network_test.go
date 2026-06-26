@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -27,6 +28,15 @@ func addCleanupForSubnets(t *testing.T) {
 func mockGetVPCSubnetsForHostImpl(t *testing.T, mock func(context.Context) ([]string, error)) {
 	t.Cleanup(func() { getVPCSubnetsForHost = getVPCSubnetsForHostImpl })
 	getVPCSubnetsForHost = mock
+}
+
+func TestGetNetworkIDCloudProviderDisabled(t *testing.T) {
+	t.Cleanup(func() { cache.Cache.Delete(networkIDCacheKey) })
+	cfg := configmock.New(t)
+	cfg.SetInTest("cloud_provider_metadata", []string{})
+
+	_, err := GetNetworkID(context.Background())
+	require.ErrorContains(t, err, "cloud provider metadata is disabled by configuration")
 }
 
 func TestGetVPCSubnetsForHost(t *testing.T) {
