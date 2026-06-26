@@ -184,6 +184,7 @@ func TestIngestMetricSyncDropsNormalizedAgentMetrics(t *testing.T) {
 	agentSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.AgentNamespace})
 	assert.Empty(t, agentSeries)
 }
+
 // TestMetricDropHandle covers the metricDropHandle wrapper in isolation.
 func TestMetricDropHandle(t *testing.T) {
 	inner := &countingHandle{}
