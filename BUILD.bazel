@@ -101,9 +101,7 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/systray
 # gazelle:exclude comp/checks/windowseventlog/fx
 # gazelle:exclude comp/checks/windowseventlog/impl/*.go
-# gazelle:exclude comp/checks/windowseventlog/impl/check/*.go
 # gazelle:exclude comp/checks/winregistry/fx
-# gazelle:exclude comp/checks/winregistry/impl
 # gazelle:exclude comp/collector/bundle.go
 # gazelle:exclude comp/collector/collector/fx
 # gazelle:exclude comp/collector/collector/impl/*.go
