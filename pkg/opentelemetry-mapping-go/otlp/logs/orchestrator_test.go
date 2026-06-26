@@ -185,7 +185,7 @@ func TestChunkManifestsBySizeAndWeight_IncludesTagsAndExtraAttributes(t *testing
 		Content: []byte("5"),
 	}
 
-	maxWeight := len(first.Content) + len(first.Tags[0]) + len("env") + len("prod")
+	maxWeight := first.Size()
 	chunks := chunkManifestsBySizeAndWeight([]*agentmodel.Manifest{first, second}, 10, maxWeight)
 
 	require.Len(t, chunks, 2)

@@ -74,31 +74,38 @@ func ToManifest(logRecord plog.LogRecord, resources ...pcommon.Resource) (*agent
 		return nil, isWatch, err
 	}
 
+	manifest.ExtraAttributes = manifestExtraAttributes(logRecord, resources...)
+
+	return manifest, isWatch, nil
+}
+
+func manifestExtraAttributes(logRecord plog.LogRecord, resources ...pcommon.Resource) map[string]string {
 	extraAttributesCapacity := logRecord.Attributes().Len()
 	for _, resource := range resources {
 		extraAttributesCapacity += resource.Attributes().Len()
 	}
+	if extraAttributesCapacity == 0 {
+		return nil
+	}
 
 	extraAttributes := make(map[string]string, extraAttributesCapacity)
 	for _, resource := range resources {
-		resource.Attributes().Range(func(k string, v pcommon.Value) bool {
-			if k != "" {
-				extraAttributes[k] = v.AsString()
-			}
-			return true
-		})
+		addOTLPAttributes(extraAttributes, resource.Attributes())
 	}
-	logRecord.Attributes().Range(func(k string, v pcommon.Value) bool {
+	addOTLPAttributes(extraAttributes, logRecord.Attributes())
+	if len(extraAttributes) == 0 {
+		return nil
+	}
+	return extraAttributes
+}
+
+func addOTLPAttributes(extraAttributes map[string]string, attributes pcommon.Map) {
+	attributes.Range(func(k string, v pcommon.Value) bool {
 		if k != "" {
 			extraAttributes[k] = v.AsString()
 		}
 		return true
 	})
-	if len(extraAttributes) > 0 {
-		manifest.ExtraAttributes = extraAttributes
-	}
-
-	return manifest, isWatch, nil
 }
 
 // watchLogToManifest handles logs from k8sobjectsreceiver in watch mode.
@@ -445,15 +452,7 @@ func chunkManifestsBySizeAndWeight(manifests []*agentmodel.Manifest, maxChunkSiz
 	list := &util.PayloadList[interface{}]{
 		Items: interfaceManifests,
 		WeightAt: func(i int) int {
-			manifest := manifests[i]
-			weight := len(manifest.Content)
-			for _, tag := range manifest.Tags {
-				weight += len(tag)
-			}
-			for key, value := range manifest.ExtraAttributes {
-				weight += len(key) + len(value)
-			}
-			return weight
+			return manifests[i].Size()
 		},
 	}
 
