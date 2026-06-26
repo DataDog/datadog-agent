@@ -78,6 +78,12 @@ func TestNormalizeTag(t *testing.T) {
 	}
 }
 
+func TestNormalizeTagValue(t *testing.T) {
+	// NormalizeTagValue operates on the value portion only (no key:value split),
+	// so a leading colon is not a valid tag-value start character.
+	assert.Equal(t, ":still_ok", NormalizeTagValue(":still_ok"))
+}
+
 func benchNormalize(tag string, normFn func(string) string) func(b *testing.B) {
 	return func(b *testing.B) {
 		b.ReportAllocs()
