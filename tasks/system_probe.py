@@ -43,7 +43,6 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
-NPM_TAG = "npm"
 
 TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
 E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
@@ -412,7 +411,7 @@ def test_debug(
     if not skip_object_files:
         build_object_files(ctx)
 
-    build_tags = [NPM_TAG]
+    build_tags = []
     build_tags.extend(UNIT_TEST_TAGS)
     if not is_windows:
         build_tags.append(BPF_TAG)
@@ -510,7 +509,7 @@ def e2e_prepare(ctx, ci=False, packages=""):
     """
     Compile test suite for e2e tests
     """
-    build_tags = [NPM_TAG]
+    build_tags = []
     if not is_windows:
         build_tags.append(BPF_TAG)
 

@@ -53,7 +53,6 @@ ALL_TAGS = set([
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
     "no_gogo",  # drops the gogo/protobuf compatibility shim in containerd/typeurl
-    "npm",
     "nvml",  # used for the nvidia go-nvml library
     "oracle",
     "orchestrator",
@@ -242,7 +241,6 @@ SYSTEM_PROBE_TAGS = set([
     "ec2",
     "linux_bpf",
     "netcgo",
-    "npm",
     "nvml",
     "pcap",
     "zlib",
@@ -309,7 +307,6 @@ AIX_EXCLUDED_TAGS = set([
     "kubelet",
     "linux_bpf",
     "netcgo",
-    "npm",
     "nvml",
     "orchestrator",
     "pcap",
