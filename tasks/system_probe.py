@@ -1043,8 +1043,11 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
 
     extra_flags = ebpf_bazel_flags(arch)
 
+    # Match Bazel concurrency to the cgroup CPU allocation instead of the host node's CPU count.
+    jobs = os.environ.get("KUBERNETES_CPU_REQUEST") or os.cpu_count() or 6
+    concurrency_flags = [f"--jobs={jobs}", f"--local_cpu_resources={jobs}"]
     print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
-    bazel(ctx, "build", *extra_flags, *all_build_targets)
+    bazel(ctx, "build", *concurrency_flags, *extra_flags, *all_build_targets)
     bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
 
     co_re_dir = os.path.join(build_dir, "co-re")
