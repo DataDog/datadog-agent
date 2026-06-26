@@ -803,11 +803,8 @@ func TestActiveCorrelationsNilWhenDisabled(t *testing.T) {
 // Step sequence (WindowSecs=1, alpha=0.99):
 //
 //	Advance(1000) → seed at Low
-//	Advance(1001) + spike → Low→High, episode opens
-//	Advance(1002) (no anomalies) → EWMA≈0; High→Low, episode closes
-//
-// We read closedEpisodes AFTER Advance(1002) and BEFORE any further Advance
-// that would drain them.
+//	Advance(1001) + spike → Low→High, episode opens (EpisodeStarted in PendingEvents)
+//	Advance(1002) (no anomalies) → EWMA≈0; High→Low, episode closes (EpisodeEnded in PendingEvents)
 func TestEpisodeOpenClose(t *testing.T) {
 	cfg := episodeTestCfg()
 	cfg.CorrelationEvents = true
@@ -822,56 +819,77 @@ func TestEpisodeOpenClose(t *testing.T) {
 		t.Fatal("expected openEpisode to be non-nil after crossing High threshold")
 	}
 
+	// Drain EpisodeStarted from the escalation advance.
+	_ = s.PendingEvents()
+
 	// One no-anomaly advance collapses EWMA to zero (WindowSecs=1): de-escalation fires.
 	triggerDeescalation(s, spikeSec)
 
-	// Read BEFORE the next Advance (which would drain closedEpisodes).
 	s.mu.Lock()
 	openAfterDecay := s.openEpisode != nil
-	closedCount := len(s.closedEpisodes)
 	s.mu.Unlock()
-
 	if openAfterDecay {
 		t.Error("expected openEpisode to be nil after EWMA decayed below threshold")
 	}
-	if closedCount == 0 {
-		t.Error("expected at least one closed episode after de-escalation")
+
+	// Closed episode must be in PendingEvents as EpisodeEnded.
+	evts := s.PendingEvents()
+	var foundEnded bool
+	for _, ce := range evts {
+		if ce.Kind == observer.CorrelatorEventEpisodeEnded {
+			foundEnded = true
+		}
+	}
+	if !foundEnded {
+		t.Error("expected an EpisodeEnded event in PendingEvents after de-escalation")
 	}
 }
 
 // TestActiveCorrelationsSnapshotSafe verifies that calling ActiveCorrelations
-// multiple times between Advance calls returns the same episodes (no destructive
-// drain in ActiveCorrelations itself — drain happens at the start of Advance).
+// multiple times between Advance calls returns the same result (open episode
+// is snapshot-safe), and that PendingEvents drains exactly once.
 func TestActiveCorrelationsSnapshotSafe(t *testing.T) {
 	cfg := episodeTestCfg()
 	cfg.CorrelationEvents = true
 	s := newScorerWithTelemetry(cfg)
 
-	spikeSec := seedAndCrossHighThreshold(s, 1000)
-	// Trigger de-escalation: closedEpisodes is now populated.
-	deescSec := triggerDeescalation(s, spikeSec)
+	// Episode opens — open episode visible in ActiveCorrelations.
+	seedAndCrossHighThreshold(s, 1000)
 
-	// First read — should see the closed episode.
 	first := s.ActiveCorrelations()
 	if len(first) == 0 {
-		t.Fatal("expected at least one correlation after de-escalation")
+		t.Fatal("expected open episode in ActiveCorrelations while High")
 	}
-
-	// Second read must return the same count — no drain in ActiveCorrelations.
+	// Second read must be identical — no drain in ActiveCorrelations.
 	second := s.ActiveCorrelations()
 	if len(second) != len(first) {
 		t.Errorf("ActiveCorrelations is not snapshot-safe: first=%d, second=%d", len(first), len(second))
 	}
 
-	// After the next Advance, old closed episodes are drained.
-	s.Advance(deescSec + 1)
-	third := s.ActiveCorrelations()
-	for _, ac := range third {
-		for _, prev := range first {
-			if ac.Pattern == prev.Pattern {
-				t.Errorf("closed episode %q survived past the following Advance", ac.Pattern)
-			}
+	// Drain EpisodeStarted then trigger de-escalation.
+	_ = s.PendingEvents()
+	spikeSec := first[0].FirstSeen
+	triggerDeescalation(s, spikeSec)
+
+	// After de-escalation, no open episode remains in ActiveCorrelations.
+	if got := s.ActiveCorrelations(); len(got) != 0 {
+		t.Errorf("expected no open episode after de-escalation, got %d", len(got))
+	}
+
+	// EpisodeEnded must be in PendingEvents — drain-once semantics.
+	evts := s.PendingEvents()
+	var foundEnded bool
+	for _, ce := range evts {
+		if ce.Kind == observer.CorrelatorEventEpisodeEnded {
+			foundEnded = true
 		}
+	}
+	if !foundEnded {
+		t.Error("expected EpisodeEnded in PendingEvents after de-escalation")
+	}
+	// Second drain returns nothing.
+	if got := s.PendingEvents(); len(got) != 0 {
+		t.Errorf("PendingEvents should be empty after drain, got %d", len(got))
 	}
 }
 
@@ -938,62 +956,71 @@ func TestScorerWithTelemetry_GaugesAndLogs(_ *testing.T) {
 }
 
 // TestActiveCorrelationsEngineAccumulationOrdering verifies the engine's
-// contract: episodes are visible in ActiveCorrelations() between the Advance
-// that closes them and the NEXT Advance that drains them.
+// contract: closed episodes appear in PendingEvents() after the Advance that
+// closes them, and are drained exactly once.
 func TestActiveCorrelationsEngineAccumulationOrdering(t *testing.T) {
 	cfg := episodeTestCfg()
 	cfg.CorrelationEvents = true
 	s := newScorerWithTelemetry(cfg)
 
 	spikeSec := seedAndCrossHighThreshold(s, 1000)
-	// De-escalation advance: closes episode and populates closedEpisodes.
-	deescSec := triggerDeescalation(s, spikeSec)
-
-	// Simulate engine: read ActiveCorrelations (accumulate), then Advance.
-	engineRead := s.ActiveCorrelations()
-	if len(engineRead) == 0 {
-		t.Fatal("engine's pre-advance ActiveCorrelations found no episodes")
-	}
-	accumulated := engineRead[0].Pattern
-
-	// Advance drains closedEpisodes at its start.
-	s.Advance(deescSec + 1)
-
-	// The closed episode must be gone after the drain.
-	for _, ac := range s.ActiveCorrelations() {
-		if ac.Pattern == accumulated {
-			t.Errorf("drained episode %q still visible after Advance", accumulated)
+	// Drain EpisodeStarted from the escalation advance.
+	startEvts := s.PendingEvents()
+	var startPattern string
+	for _, ce := range startEvts {
+		if ce.Kind == observer.CorrelatorEventEpisodeStarted {
+			startPattern = ce.Correlation.Pattern
 		}
+	}
+	if startPattern == "" {
+		t.Fatal("expected EpisodeStarted in PendingEvents after escalation")
+	}
+
+	// De-escalation advance: EpisodeEnded lands in PendingEvents.
+	triggerDeescalation(s, spikeSec)
+
+	endEvts := s.PendingEvents()
+	var foundEnd bool
+	for _, ce := range endEvts {
+		if ce.Kind == observer.CorrelatorEventEpisodeEnded && ce.Correlation.Pattern == startPattern {
+			foundEnd = true
+		}
+	}
+	if !foundEnd {
+		t.Fatalf("expected EpisodeEnded for pattern %q in PendingEvents", startPattern)
+	}
+
+	// Second drain must be empty.
+	if got := s.PendingEvents(); len(got) != 0 {
+		t.Errorf("PendingEvents should be empty after drain, got %d events", len(got))
 	}
 }
 
-// TestActiveCorrelationsResetClearsEpisodes verifies that Reset clears both
-// open and closed episodes.
+// TestActiveCorrelationsResetClearsEpisodes verifies that Reset clears
+// the open episode and any pending events.
 func TestActiveCorrelationsResetClearsEpisodes(t *testing.T) {
 	cfg := episodeTestCfg()
 	cfg.CorrelationEvents = true
 	s := newScorerWithTelemetry(cfg)
 
-	spikeSec := seedAndCrossHighThreshold(s, 1000)
-	// Trigger de-escalation so we have something in closedEpisodes.
-	triggerDeescalation(s, spikeSec)
+	seedAndCrossHighThreshold(s, 1000)
 
 	if len(s.ActiveCorrelations()) == 0 {
-		t.Fatal("expected episodes before Reset")
+		t.Fatal("expected open episode before Reset")
 	}
 
 	s.Reset()
 
 	s.mu.Lock()
 	hasOpen := s.openEpisode != nil
-	hasClosed := len(s.closedEpisodes) > 0
+	hasPending := len(s.pendingEvents) > 0
 	s.mu.Unlock()
 
 	if hasOpen {
 		t.Error("Reset did not clear openEpisode")
 	}
-	if hasClosed {
-		t.Error("Reset did not clear closedEpisodes")
+	if hasPending {
+		t.Error("Reset did not clear pendingEvents")
 	}
 }
 
@@ -1030,5 +1057,107 @@ func TestEmptySeconds(t *testing.T) {
 	// not zero) and strictly less than after t=1000 (score has decayed twice).
 	if s.LastScore() == 0 {
 		t.Error("expected non-zero EWMA after decaying from seeded value")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// PendingEvents tests
+// ---------------------------------------------------------------------------
+
+// TestPendingEvents_EpisodeStarted verifies that PendingEvents returns a single
+// EpisodeStarted event on the advance that crosses into High severity, and that
+// subsequent calls to PendingEvents return nil (drained).
+func TestPendingEvents_EpisodeStarted(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	s := newScorerWithTelemetry(cfg)
+
+	// Seed state at Low.
+	s.Advance(1000)
+	if got := s.PendingEvents(); got != nil {
+		t.Fatalf("expected nil PendingEvents after seed advance, got %v", got)
+	}
+
+	// Spike: pushes EWMA above HighThreshold → EpisodeStarted.
+	ts := seedAndCrossHighThreshold(s, 1001)
+	evts := s.PendingEvents()
+	if len(evts) != 1 {
+		t.Fatalf("expected 1 PendingEvent after spike, got %d", len(evts))
+	}
+	if evts[0].Kind != observer.CorrelatorEventEpisodeStarted {
+		t.Errorf("expected EpisodeStarted, got kind %d", evts[0].Kind)
+	}
+	if evts[0].ToLevel != observer.SeverityHigh {
+		t.Errorf("expected ToLevel=High, got %d", evts[0].ToLevel)
+	}
+	if evts[0].Timestamp != ts {
+		t.Errorf("expected Timestamp=%d, got %d", ts, evts[0].Timestamp)
+	}
+	if evts[0].Correlation.Pattern == "" {
+		t.Error("expected non-empty Correlation.Pattern")
+	}
+	// Drain is idempotent — second call returns nil.
+	if got := s.PendingEvents(); got != nil {
+		t.Fatalf("expected nil on second PendingEvents call (already drained), got %v", got)
+	}
+}
+
+// TestPendingEvents_EpisodeEnded verifies that PendingEvents returns an EpisodeEnded
+// event on the advance that drops out of High severity.
+func TestPendingEvents_EpisodeEnded(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	s := newScorerWithTelemetry(cfg)
+
+	seedAndCrossHighThreshold(s, 1000)
+	// Drain the EpisodeStarted event.
+	_ = s.PendingEvents()
+
+	// No anomalies → EWMA decays below LowThreshold → High→Low.
+	endTs := triggerDeescalation(s, 1001)
+	evts := s.PendingEvents()
+	if len(evts) != 1 {
+		t.Fatalf("expected 1 PendingEvent after decay, got %d", len(evts))
+	}
+	if evts[0].Kind != observer.CorrelatorEventEpisodeEnded {
+		t.Errorf("expected EpisodeEnded, got kind %d", evts[0].Kind)
+	}
+	if evts[0].FromLevel != observer.SeverityHigh {
+		t.Errorf("expected FromLevel=High, got %d", evts[0].FromLevel)
+	}
+	if evts[0].Correlation.LastUpdated != endTs {
+		t.Errorf("expected Correlation.LastUpdated=%d, got %d", endTs, evts[0].Correlation.LastUpdated)
+	}
+	// Drain is idempotent.
+	if got := s.PendingEvents(); got != nil {
+		t.Fatalf("expected nil on second PendingEvents call (already drained), got %v", got)
+	}
+}
+
+// TestPendingEvents_DisabledWhenCorrelationEventsOff verifies that PendingEvents
+// always returns nil when CorrelationEvents=false, even during severity transitions.
+func TestPendingEvents_DisabledWhenCorrelationEventsOff(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = false
+	s := newScorerWithTelemetry(cfg)
+
+	seedAndCrossHighThreshold(s, 1000)
+	if got := s.PendingEvents(); got != nil {
+		t.Fatalf("expected nil PendingEvents with CorrelationEvents=false, got %v", got)
+	}
+}
+
+// TestPendingEvents_ResetClearsPending verifies that Reset() discards any
+// accumulated but unread pending events.
+func TestPendingEvents_ResetClearsPending(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	s := newScorerWithTelemetry(cfg)
+
+	seedAndCrossHighThreshold(s, 1000)
+	// Don't drain — Reset should clear them.
+	s.Reset()
+	if got := s.PendingEvents(); got != nil {
+		t.Fatalf("expected nil PendingEvents after Reset(), got %v", got)
 	}
 }
