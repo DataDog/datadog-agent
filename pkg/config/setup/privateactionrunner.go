@@ -47,6 +47,15 @@ const (
 
 	// Meant for internal usage
 	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"
+
+	// Executor process model. ExecutorMode selects "in-process" (default)
+	// or "binary"; the other fields configure binary-mode IPC. The IPC
+	// auth token is reused from the agent's shared IPC component
+	// (comp/core/ipc) — both processes load the same on-disk token, so
+	// there is no separate executor auth-token config.
+	PARExecutorMode         = "private_action_runner.executor_mode"
+	PARExecutorSocketPath   = "private_action_runner.executor_socket_path"
+	PARExecutorDrainTimeout = "private_action_runner.executor_drain_timeout_seconds"
 )
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
@@ -100,4 +109,11 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	pkgconfighelper.ParseEnvJSONOrComma(PARRestrictedShellAllowedCommands, config)
 
 	config.BindEnvAndSetDefault(PAROpmsExtraHeaders, map[string]string{})
+
+	// Executor process model. Default to in-process so existing
+	// deployments keep their current behaviour; binary mode is opt-in.
+	// Empty socket path defers to the executor's platform-aware default.
+	config.BindEnvAndSetDefault(PARExecutorMode, "in-process")
+	config.BindEnvAndSetDefault(PARExecutorSocketPath, "")
+	config.BindEnvAndSetDefault(PARExecutorDrainTimeout, 30)
 }

@@ -59,6 +59,17 @@ type Config struct {
 	EnableProfiling            bool
 	DisableCredentialTemplates bool
 
+	// Executor process model. ExecutorMode selects the executor
+	// implementation ("in-process" or "binary"); the other fields
+	// configure the local gRPC channel and child-process lifecycle when
+	// running in binary mode. The IPC auth token is read from the
+	// agent's shared IPC component, not from PAR config.
+	ExecutorMode         string
+	ExecutorSocketPath   string
+	ExecutorDrainTimeout time.Duration
+	ConfPath             string
+	ExtraConfFiles       []string
+
 	Version string
 
 	OpmsExtraHeaders map[string]string

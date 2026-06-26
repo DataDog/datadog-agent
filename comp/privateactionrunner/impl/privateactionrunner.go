@@ -33,6 +33,7 @@ import (
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
+	parexecutor "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -78,8 +79,8 @@ type PrivateActionRunner struct {
 	eventPlatform  eventplatform.Component
 	ipc            ipc.Component
 
-	workflowRunner *runners.WorkflowRunner
-	commonRunner   *runners.CommonRunner
+	orchestrator *runners.Orchestrator
+	commonRunner *runners.CommonRunner
 
 	telemetry *telemetry.Telemetry
 
@@ -227,13 +228,22 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+	taskHandler := parexecutor.NewTaskHandler(cfg, keysManager, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+	exec, err := parexecutor.NewExecutor(parexecutor.Params{
+		Mode:           cfg.ExecutorMode,
+		Handler:        taskHandler,
+		SocketPath:     cfg.ExecutorSocketPath,
+		AuthToken:      p.ipc.GetAuthToken(),
+		DrainTimeout:   cfg.ExecutorDrainTimeout,
+		ConfPath:       cfg.ConfPath,
+		ExtraConfFiles: cfg.ExtraConfFiles,
+	})
 	if err != nil {
 		return err
 	}
+	p.orchestrator = runners.NewOrchestrator(cfg, opmsClient, exec)
 	p.commonRunner = runners.NewCommonRunner(p.coreConfig, cfg)
-	err = p.workflowRunner.Start(ctx)
-	if err != nil {
+	if err := p.orchestrator.Start(ctx); err != nil {
 		return err
 	}
 	return p.commonRunner.Start(ctx)
@@ -253,8 +263,8 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		// Don't return - continue to cleanup what we can
 	}
 
-	if p.workflowRunner != nil {
-		err := p.workflowRunner.Stop(ctx)
+	if p.orchestrator != nil {
+		err := p.orchestrator.Stop(ctx)
 		if err != nil {
 			return err
 		}

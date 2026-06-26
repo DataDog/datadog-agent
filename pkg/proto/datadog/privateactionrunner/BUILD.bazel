@@ -48,3 +48,21 @@ go_proto_library(
     visibility = ["//visibility:public"],
     deps = [":actionsclient_go_proto"],
 )
+
+proto_library(
+    name = "executor_proto",
+    srcs = ["executor.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "executor_go_proto",
+    compilers = [
+        "@rules_go//proto:go_proto",
+        "//bazel/rules/go_proto_compiler:go_grpc_futureproof",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor",
+    proto = ":executor_proto",
+    visibility = ["//visibility:public"],
+)

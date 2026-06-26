@@ -1,0 +1,22 @@
+---
+features:
+  - |
+    The Private Action Runner can now run its task executor as a separate
+    child process via the new ``private_action_runner.executor_mode``
+    setting (``in-process`` (default) or ``binary``). In ``binary`` mode the
+    orchestrator forwards each dequeued task to a child re-exec'd from the
+    same agent binary over a local gRPC socket, isolating the action
+    surface from the polling loop. The child is spawned lazily on the
+    first task, so an idle runner does not run the action surface at all.
+    New settings ``private_action_runner.executor_socket_path``,
+    ``private_action_runner.executor_auth_token``, and
+    ``private_action_runner.executor_drain_timeout_seconds`` configure the
+    IPC transport and shutdown behavior.
+enhancements:
+  - |
+    Private Action Runner shutdown now waits for in-flight tasks to drain
+    before tearing the executor down, bounded by
+    ``private_action_runner.executor_drain_timeout_seconds`` (default 30s).
+    Tasks that do not finish within the drain window are cancelled and
+    recovered later via OPMS lease expiry rather than being killed by the
+    agent's stop signal.
