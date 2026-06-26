@@ -7,16 +7,37 @@ _PATCHED = [
     "src/cmd/go/internal/modload/load.go",
 ]
 
+def _go_minor_version(version_str):
+    """Extract the minor version number from a Go version string like 'go1.27rc1' or 'go1.26.4'."""
+    parts = version_str.strip().split(".")
+    if len(parts) < 2:
+        return 0
+    minor_str = parts[1]
+    digits = ""
+    for c in minor_str.elems():
+        if c >= "0" and c <= "9":
+            digits += c
+        else:
+            break
+    return int(digits) if digits else 0
+
 def _impl(rctx):
     sdk = rctx.path(rctx.attr._go_sdk).dirname
     rctx.watch(sdk.get_child("VERSION"))  # invalidate on SDK bump, since non-overlaid files can differ across patches
+
+    # The patch was upstreamed in Go 1.27; applying it to 1.27+ causes a build
+    # error due to the symbols already being declared in the standard library.
+    version_str = rctx.read(sdk.get_child("VERSION"))
+    need_patch = _go_minor_version(version_str) < 27
+
     replace = {}
     for path in _PATCHED:
         src = sdk.get_child(path)
         rctx.file(path, rctx.read(src))
         replace[str(src)] = path
     rctx.file("overlay.json", json.encode({"Replace": replace}))
-    rctx.patch(rctx.attr.patch)
+    if need_patch:
+        rctx.patch(rctx.attr.patch)
     go = sdk.get_child("bin/go{}".format(".exe" if repo_utils.get_platforms_os_name(rctx) == "windows" else ""))
     out = "{}.exe".format(rctx.original_name)  # like native_binary, since .exe is needed on Windows, otherwise harmless
     repo_utils.execute_checked(
