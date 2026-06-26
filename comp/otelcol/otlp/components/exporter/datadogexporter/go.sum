@@ -144,8 +144,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.155.0 h1:CJosD1GUi/DDW4kW/oKw2XZG3SZsfdQDBsSwgq2PK0w=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.155.0/go.mod h1:8rXdvtr2/lOJnBY2X4G4W9uG7GzEIidU+nNML/Ttv/w=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626140900-eace6eba2655 h1:7bnK2ibxNeJyO1glZm+B57m1pVK6+6UTybaReHUW0lY=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626140900-eace6eba2655/go.mod h1:FxTuWlhdNO7y2yHEF8TdpV7rIc26bj0mNYlJhBXowzo=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514 h1:o+AAU2uERivzrGHfOa4K7jPaJE1o0TDiXGdCV2xcyws=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514/go.mod h1:bRhXFqznYeAlceb+3egv2lKmvX8JA38ujox8ViVfCvM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.155.0 h1:g+wuSBd5R8Ts3KbomgCLW8yGmeDsI7YiHDU0Uer64q8=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.155.0/go.mod h1:zdgSjJcwo1mo0t+2dO1rmhuW4naNNjsnLDcWFtlu2pg=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.155.0 h1:ZQ7xPQvAAoe0zhfDS71mxFvnbc0KwxatLt631F/dqnI=

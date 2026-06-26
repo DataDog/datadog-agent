@@ -4434,8 +4434,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.155.0/go.mod h1:bk1aJfwsemDJ8uaanM9lTBAktMx1OoHuUZ20BRFX/8Q=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.155.0 h1:+KAdGwHADDONo5CcejadeXCSIgkccIbHFA4LfIEaQA0=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.155.0/go.mod h1:pDugo73OzsKogUnOb+U5RYcT/2gDI1DtYb5z1jagX1Y=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626140900-eace6eba2655 h1:7bnK2ibxNeJyO1glZm+B57m1pVK6+6UTybaReHUW0lY=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626140900-eace6eba2655/go.mod h1:FxTuWlhdNO7y2yHEF8TdpV7rIc26bj0mNYlJhBXowzo=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514 h1:o+AAU2uERivzrGHfOa4K7jPaJE1o0TDiXGdCV2xcyws=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514/go.mod h1:bRhXFqznYeAlceb+3egv2lKmvX8JA38ujox8ViVfCvM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/experimentalmetricmetadata v0.155.0 h1:l1ZSMVMOYxLlJOWCWIWhrWP0waE7tx4lsdeGFIt0Aik=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/experimentalmetricmetadata v0.155.0/go.mod h1:wjUr1mlqzuk2n/0HeVDjacLOUBrffxnG0BvMpx4aC8I=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.155.0 h1:mbiQHHqcEvxXXbjQl28rbDJam95Qd3BYJCOkjI7E9nM=
