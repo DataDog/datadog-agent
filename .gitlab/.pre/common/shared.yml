@@ -49,10 +49,14 @@
 # - Create detached signatures for packages produced by Omnibus, to be used by agent-release-management in downstream pipelines
 .create_signature_and_lint_linux_packages:
   - !reference [.log_dd_pkg_version]
-  - find $OMNIBUS_PACKAGE_DIR -iregex '.*\.\(deb\|rpm\)' | xargs dd-pkg lint
   - |
-    if [ -n "$PACKAGE_REQUIRED_FILES_LIST" ]; then
-      find $OMNIBUS_PACKAGE_DIR \( -name '*.deb' -or -name '*.rpm' \) -a -not -name '*-dbg[_-]*' | xargs dd-pkg check-files --required-files ${PACKAGE_REQUIRED_FILES_LIST}
+    if [ "$DEPLOY_AGENT" = "true" ]; then
+      find $OMNIBUS_PACKAGE_DIR -iregex '.*\.\(deb\|rpm\)' | xargs dd-pkg lint
+      if [ -n "$PACKAGE_REQUIRED_FILES_LIST" ]; then
+        find $OMNIBUS_PACKAGE_DIR \( -name '*.deb' -or -name '*.rpm' \) -a -not -name '*-dbg[_-]*' | xargs dd-pkg check-files --required-files ${PACKAGE_REQUIRED_FILES_LIST}
+      fi
+    else
+      echo 'Skipping dd-pkg lint / check-files on non-deploy build'
     fi
   - dd-pkg sign --key-id "${PIPELINE_KEY_ALIAS}" "${OMNIBUS_PACKAGE_DIR}"
 
