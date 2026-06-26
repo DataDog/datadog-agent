@@ -18,7 +18,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.86.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
-	github.com/cenkalti/backoff/v5 v5.0.3
+	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/docker/cli v29.5.3+incompatible // indirect
 	github.com/fatih/color v1.19.0
 	github.com/google/uuid v1.6.0
@@ -210,10 +210,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace v0.77.0
 	github.com/DataDog/datadog-go/v5 v5.8.3
+	github.com/DataDog/datadog-operator/api v0.0.0-20260515125012-8e158b708444
 	github.com/DataDog/dd-trace-go/v2 v2.8.2
 	github.com/DataDog/orchestrion v1.10.0
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
+	github.com/cenkalti/backoff/v6 v6.0.1
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-viper/mapstructure/v2 v2.5.0
@@ -349,7 +351,7 @@ require (
 	github.com/pulumi/pulumi-command/sdk v1.2.1 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.2.0 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v9 v9.27.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.0 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 // indirect
@@ -384,6 +386,7 @@ require (
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
+	sigs.k8s.io/controller-runtime v0.23.3 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )

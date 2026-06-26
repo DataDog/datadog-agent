@@ -272,6 +272,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.enabled", true)
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.timeout", 5000)
 	config.BindEnvAndSetDefault("network_path.collector.disable_intra_vpc_collection", false)
+	config.BindEnvAndSetDefault("network_path.collector.disable_source_public_ip_collection", false)
 	config.BindEnvAndSetDefault("network_path.collector.source_excludes", map[string][]string{})
 	config.BindEnvAndSetDefault("network_path.collector.dest_excludes", map[string][]string{})
 	config.BindEnvAndSetDefault("network_path.collector.tcp_method", "")
@@ -351,6 +352,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.envoy_gateway.namespace", "envoy-gateway-system")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.envoy_gateway.controller_namespace", "envoy-gateway-system")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")
 
 	// APM tracing for the cluster agent itself (currently covers cluster check dispatching)
@@ -368,6 +371,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.cpu", "")
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.memory", "")
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.body_parsing_size_limit", "")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.uds_path", "/var/run/datadog/extproc.sock")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.run_as_user", 65532)
 
 	// ingress-nginx injection configuration
 	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_image", "datadog/ingress-nginx-injection")
@@ -478,6 +483,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
 	config.BindEnvAndSetDefault("gpu.nvlink.fec_light_error_threshold", 3)
 	config.BindEnvAndSetDefault("gpu.parallel_collectors", true)
+	// gpu.collection_interval_override (seconds) overrides the gpu check scheduling
+	// cadence when > 0, taking precedence over the instance's min_collection_interval.
+	// Binds DD_GPU_COLLECTION_INTERVAL_OVERRIDE.
+	config.BindEnvAndSetDefault("gpu.collection_interval_override", 0)
 
 	// NCCL
 	config.BindEnvAndSetDefault("gpu.nccl.enabled", false)
@@ -1802,12 +1811,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.kubelet_api_client_read_timeout", "30s")
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultpaths.GetDefaultRunPath())
-	// DEPRECATED in favor of `logs_config.force_use_http`.
-	config.BindEnvAndSetDefault("logs_config.use_http", false)
-	config.BindEnvAndSetDefault("logs_config.force_use_http", false)
-	// DEPRECATED in favor of `logs_config.force_use_tcp`.
-	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
-	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
 	// Maximum interval for HTTP connectivity retry checks with exponential backoff (in seconds)
 	// When TCP fallback occurs, the agent will retry HTTP connectivity at increasing intervals
 	// up to this ceiling, then continue checking at this interval. Default: 1 hour

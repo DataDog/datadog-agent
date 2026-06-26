@@ -272,7 +272,7 @@ require (
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.1
-	github.com/mattn/go-sqlite3 v1.14.45
+	github.com/mattn/go-sqlite3 v1.14.46
 	github.com/mdlayher/netlink v1.11.2
 	github.com/miekg/dns v1.1.72
 	github.com/moby/sys/mountinfo v0.7.2
@@ -335,7 +335,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v3 v3.6.11 // indirect
-	go.mongodb.org/mongo-driver/v2 v2.6.1
+	go.mongodb.org/mongo-driver/v2 v2.7.0
 	go.opentelemetry.io/collector/component v1.60.0
 	go.opentelemetry.io/collector/component/componenttest v0.154.0
 	go.opentelemetry.io/collector/config/configtelemetry v0.154.0
@@ -393,8 +393,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	istio.io/api v1.30.1
-	istio.io/client-go v1.30.1
+	istio.io/api v1.30.2
+	istio.io/client-go v1.30.2
 	k8s.io/api v0.35.5
 	k8s.io/apiextensions-apiserver v0.35.5
 	k8s.io/apimachinery v0.35.6
@@ -948,6 +948,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/bazelbuild/rules_go v0.61.1
+	github.com/cenkalti/backoff/v6 v6.0.1
 	github.com/creack/pty v1.1.24
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/hashicorp/consul/api v1.34.3
