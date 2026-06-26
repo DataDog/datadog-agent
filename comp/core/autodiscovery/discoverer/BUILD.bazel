@@ -1,8 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
-
-# We cannot enable flavored tests here because of the python_bridge.go file.
-# pkg/collector/python has not been fully migrated yet.
-# gazelle:dd_agent_go_test off
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "discoverer",
@@ -14,7 +11,7 @@ go_library(
         "worker.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer",
-    tags = ["manual"],
+    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
@@ -26,7 +23,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "discoverer_test",
     srcs = [
         "discovery_json_test.go",
@@ -34,7 +31,7 @@ go_test(
         "worker_test.go",
     ],
     embed = [":discoverer"],
-    gotags = ["test"],
+    tags = ["manual"], # keep
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/workloadmeta/def",
