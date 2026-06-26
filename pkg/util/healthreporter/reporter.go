@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package healthreporter provides a reusable gRPC client for system-probe modules
-// to report and resolve health issues via the core agent's AgentSecure endpoint.
-// Any module that detects a runtime failure can instantiate a Reporter and call
-// ReportWithRetry / ResolveWithRetry without duplicating connection or retry logic.
+// Package healthreporter provides a reusable gRPC client for sub-agents (system-probe,
+// process-agent, security-agent, …) to report and resolve health issues via the core
+// agent's AgentSecure endpoint. Any module that detects a runtime failure can
+// instantiate a Reporter and call ReportWithRetry / ResolveWithRetry without
+// duplicating connection or retry logic.
 package healthreporter
 
 import (

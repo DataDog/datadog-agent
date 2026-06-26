@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "healthreporter",
     srcs = ["reporter.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/system-probe/healthreporter",
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/healthreporter",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",

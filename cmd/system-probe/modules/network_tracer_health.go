@@ -13,7 +13,7 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/healthreporter"
+	"github.com/DataDog/datadog-agent/pkg/util/healthreporter"
 )
 
 // Per-error-type issue IDs so each failure mode has an independent lifecycle.
