@@ -45,8 +45,10 @@
     # pipeline id; override (with the same value) to target the destroy job.
     E2E_MCP_STACK_NAME: mcp-$CI_PIPELINE_ID
     E2E_MCP_OS_FAMILY: ubuntu
-    KUBERNETES_MEMORY_REQUEST: 8Gi
-    KUBERNETES_MEMORY_LIMIT: 12Gi
+    # The scenario runner is compiled by `pulumi up` at runtime, which is
+    # memory-heavy (a smaller limit OOM-kills the Go compile).
+    KUBERNETES_MEMORY_REQUEST: 16Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
     KUBERNETES_CPU_REQUEST: 6
   before_script:
     # GitHub token for private Go module downloads during `pulumi up`.
