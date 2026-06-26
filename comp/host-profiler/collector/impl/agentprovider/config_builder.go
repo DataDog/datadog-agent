@@ -21,6 +21,7 @@ type confMap = map[string]any
 
 const (
 	infraAttributesName = "infraattributes"
+	k8sAttributesName   = "k8sattributes"
 	hpflareName         = "hpflare"
 	ddprofilingName     = "ddprofiling"
 )
@@ -102,7 +103,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 	return profilesExporters
 }
 
-func buildProcessors(conf confMap) []any {
+func buildProcessors(conf confMap, k8sAttr k8sAttributesConfig) []any {
 	processors := make(confMap)
 
 	infraattributes := confMap{
@@ -127,8 +128,55 @@ func buildProcessors(conf confMap) []any {
 	}
 	_ = confmaputils.Set(processors, "resource/dd-profiler-internal-metadata", metadata)
 
+	k8sattributes := confMap{
+		"extract": confMap{
+			"metadata": []any{
+				"k8s.namespace.name",
+				"k8s.pod.name",
+				"k8s.pod.uid",
+				"k8s.node.name",
+				"k8s.pod.start_time",
+				"k8s.deployment.name",
+				"k8s.replicaset.name",
+				"k8s.replicaset.uid",
+				"k8s.daemonset.name",
+				"k8s.daemonset.uid",
+				"k8s.job.name",
+				"k8s.job.uid",
+				"k8s.container.name",
+				"k8s.cronjob.name",
+				"k8s.statefulset.name",
+				"k8s.statefulset.uid",
+				"container.image.tag",
+				"container.image.name",
+				"k8s.cluster.uid",
+				"service.namespace",
+				"service.name",
+				"service.version",
+				"service.instance.id",
+			},
+			"otel_annotations": true,
+		},
+		"passthrough": false,
+		"pod_association": []any{
+			confMap{"sources": []any{confMap{"from": "resource_attribute", "name": "container.id"}}},
+			confMap{"sources": []any{confMap{"from": "resource_attribute", "name": "k8s.pod.ip"}}},
+			confMap{"sources": []any{confMap{"from": "resource_attribute", "name": "k8s.pod.uid"}}},
+			confMap{"sources": []any{confMap{"from": "connection"}}},
+		},
+	}
+	if k8sAttr.KubeletMode {
+		k8sattributes["source"] = "kubelet"
+		if k8sAttr.KubeletEndpoint != "" {
+			k8sattributes["kubelet"] = confMap{"endpoint": k8sAttr.KubeletEndpoint}
+		}
+	} else {
+		k8sattributes["filter"] = confMap{"node_from_env_var": "K8S_NODE_NAME"}
+	}
+	_ = confmaputils.Set(processors, k8sAttributesName, k8sattributes)
+
 	conf["processors"] = processors
-	return []any{infraAttributesName, "resource/dd-profiler-internal-metadata"}
+	return []any{infraAttributesName, k8sAttributesName, "resource/dd-profiler-internal-metadata"}
 }
 
 func buildMetricsTelemetry(conf confMap, healthMetrics healthMetricsConfig) {
@@ -178,7 +226,7 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 
 	profilesPipeline, _ := confmaputils.Ensure[confMap](config, "service::pipelines::profiles")
 
-	profilesProcessors := buildProcessors(config)
+	profilesProcessors := buildProcessors(config, agent.hostProfilerConfig.K8sAttributes)
 	profilesExporters := buildExporters(config, agent)
 	profilesReceivers := buildReceivers(config, agent)
 

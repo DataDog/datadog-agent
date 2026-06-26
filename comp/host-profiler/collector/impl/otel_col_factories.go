@@ -126,6 +126,7 @@ func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 	return []processor.Factory{
 		infraattributesprocessor.NewFactoryForAgent(e.tagger, e.hostname.Get),
+		k8sattributesprocessor.NewFactory(),
 		resourceprocessor.NewFactory(),
 	}
 }
