@@ -68,6 +68,7 @@ func (p *Preprocessor) Process(msg *message.Message) {
 // are labeled noAggregate so the CombiningAggregator emits them standalone.
 func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
 	tokens, tokenIndices := p.tokenizer.Tokenize(msg.GetContent())
+	p.observeTokenizedLog(msg, tokens)
 
 	var label Label
 	if msg.ParsingExtra.IsMultiLine {

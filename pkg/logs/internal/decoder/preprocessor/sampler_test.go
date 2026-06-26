@@ -14,7 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/adaptivesampling"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // helpers
@@ -44,6 +47,14 @@ func testMsg() *message.Message {
 
 func testMsgWith(content, status string) *message.Message {
 	return message.NewMessage([]byte(content), nil, status, 0)
+}
+
+func testMsgForContainer(containerID string) *message.Message {
+	msg := testMsg()
+	msg.Origin = message.NewOrigin(sources.NewLogSource("test", &logsconfig.LogsConfig{
+		Identifier: containerID,
+	}))
+	return msg
 }
 
 func requireSampledCountTag(t *testing.T, msg *message.Message, want int64) {
@@ -165,6 +176,55 @@ func TestAdaptiveSampler_CreditsRefillOverTime(t *testing.T) {
 	require.NotNil(t, out, "should be allowed after credit refill")
 	requireSampledCountTag(t, out, 1)
 	assert.Equal(t, int64(0), s.entries[0].sampled, "emitting should reset the suppressed count")
+}
+
+func TestAdaptiveSampler_AppliesSamplingBoostCreditGrant(t *testing.T) {
+	adaptivesampling.ResetDefaultSamplingBoostStoreForTest()
+	t.Cleanup(adaptivesampling.ResetDefaultSamplingBoostStoreForTest)
+
+	s := newSampler(10, 1.0, 0)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	require.NotNil(t, s.Process(testMsgForContainer("container-a"), patternA))
+	assert.Nil(t, s.Process(testMsgForContainer("container-a"), patternA), "pattern should be exhausted before boost")
+	require.Equal(t, int64(1), s.entries[0].sampled)
+
+	boost := adaptivesampling.DefaultSamplingBoostStore().Set(adaptivesampling.SamplingBoost{
+		ContainerID:     "container-a",
+		PatternHash:     adaptiveSamplerLogHash(patternA),
+		ExpiresAt:       t0.Add(time.Minute),
+		RateMultiplier:  10,
+		BurstMultiplier: 10,
+		CreditGrant:     2,
+	})
+
+	out := s.Process(testMsgForContainer("container-a"), patternA)
+	require.NotNil(t, out, "boost credit grant should allow the next matching log")
+	requireSampledCountTag(t, out, 1)
+	assert.Equal(t, boost.ID, s.entries[0].appliedBoostID)
+}
+
+func TestAdaptiveSampler_IgnoresSamplingBoostForDifferentPattern(t *testing.T) {
+	adaptivesampling.ResetDefaultSamplingBoostStoreForTest()
+	t.Cleanup(adaptivesampling.ResetDefaultSamplingBoostStoreForTest)
+
+	s := newSampler(10, 1.0, 0)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	require.NotNil(t, s.Process(testMsgForContainer("container-a"), patternA))
+	assert.Nil(t, s.Process(testMsgForContainer("container-a"), patternA))
+
+	adaptivesampling.DefaultSamplingBoostStore().Set(adaptivesampling.SamplingBoost{
+		ContainerID:     "container-a",
+		PatternHash:     adaptiveSamplerLogHash(patternB),
+		ExpiresAt:       t0.Add(time.Minute),
+		BurstMultiplier: 10,
+		CreditGrant:     2,
+	})
+
+	assert.Nil(t, s.Process(testMsgForContainer("container-a"), patternA))
 }
 
 func TestAdaptiveSampler_TagsSuppressedMatchesAfterLongDelay(t *testing.T) {

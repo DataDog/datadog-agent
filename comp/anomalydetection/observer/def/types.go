@@ -57,6 +57,16 @@ type LogView interface {
 	GetTimestampUnixMilli() int64
 }
 
+// TokenizedLogView optionally enriches a LogView with Logs Agent tokenizer
+// identity. Extractors should type-assert this interface when they can use
+// precomputed tokenization, while continuing to accept plain LogView callers.
+type TokenizedLogView interface {
+	LogView
+	GetContainerID() string
+	GetPattern() string
+	GetPatternHash() string
+}
+
 // LogMetricsExtractor transforms observed logs into metrics.
 // Implementations should be fast since they run synchronously on every observed
 // log. Extractors may keep lightweight internal state when needed for pattern
@@ -552,6 +562,10 @@ type MetricContext struct {
 	Example string
 	// Source identifies the originating component or data stream.
 	Source string
+	// ContainerID identifies the container that produced this signal, when known.
+	ContainerID string
+	// PatternHash is the sampler-compatible hash of Pattern, when known.
+	PatternHash string
 	// SplitTags carries the tag-group key/value pairs (source, service, env, host) that
 	// scoped the sub-clusterer which produced this metric. Nil when no split tags apply.
 	SplitTags map[string]string

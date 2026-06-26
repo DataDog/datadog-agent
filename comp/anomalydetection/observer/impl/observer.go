@@ -106,10 +106,14 @@ type logObs struct {
 	tags        []string
 	hostname    string
 	timestampMs int64
+	containerID string
+	pattern     string
+	patternHash string
 }
 
 // Ensure logObs implements observerdef.LogView
 var _ observerdef.LogView = (*logObs)(nil)
+var _ observerdef.TokenizedLogView = (*logObs)(nil)
 
 func (l *logObs) GetContent() string {
 	return l.content
@@ -130,6 +134,18 @@ func (l *logObs) GetHostname() string {
 // GetTimestampUnixMilli implements observerdef.LogView.
 func (l *logObs) GetTimestampUnixMilli() int64 {
 	return l.timestampMs
+}
+
+func (l *logObs) GetContainerID() string {
+	return l.containerID
+}
+
+func (l *logObs) GetPattern() string {
+	return l.pattern
+}
+
+func (l *logObs) GetPatternHash() string {
+	return l.patternHash
 }
 
 // settingsFromAgentConfig reads component configuration from the agent config
@@ -344,6 +360,7 @@ func NewComponent(deps Requires) Provides {
 	// internal logs are also disabled. anomaly_detection.logs.internal.enabled
 	// defaults to true when unset (explicit false disables it).
 	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
+	installLogsAgentTokenizedLogTap(obs, cfg, deps.Lifecycle, analysisEnabled, recorderEnabled, logsEnabled)
 	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.logs.internal.enabled") || cfg.GetBool("anomaly_detection.logs.internal.enabled")
 	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
 		minSeverity := cfg.GetString("anomaly_detection.logs.internal.min_severity")
@@ -775,14 +792,7 @@ func (o *observerImpl) StorageReader() observerdef.StorageReader {
 // observation: build logObs, call engine.IngestLog, drive any advance
 // requests, and forward telemetry. Implements DebugView.
 func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
-	timestampMs := msg.GetTimestampUnixMilli()
-	lo := &logObs{
-		content:     msg.GetContent(),
-		status:      msg.GetStatus(),
-		tags:        copyTags(msg.Tags()),
-		hostname:    msg.GetHostname(),
-		timestampMs: timestampMs,
-	}
+	lo := newLogObsFromView(msg)
 	o.replayMu.Lock()
 	requests := o.engine.IngestLog(source, lo)
 	for _, req := range requests {
@@ -801,14 +811,7 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 // and log metrics are written to storage, but detector/correlator advances are
 // deferred to the subsequent ReplayStoredData call.
 func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView) {
-	timestampMs := msg.GetTimestampUnixMilli()
-	lo := &logObs{
-		content:     msg.GetContent(),
-		status:      msg.GetStatus(),
-		tags:        copyTags(msg.Tags()),
-		hostname:    msg.GetHostname(),
-		timestampMs: timestampMs,
-	}
+	lo := newLogObsFromView(msg)
 	o.replayMu.Lock()
 	// Advance requests are intentionally discarded.
 	_ = o.engine.IngestLog(source, lo)
@@ -909,13 +912,10 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 
 // ObserveLog observes a log message.
 func (h *handle) ObserveLog(msg observerdef.LogView) {
-	// Use provided timestampMs if available, otherwise use current time
-	timestampMs := msg.GetTimestampUnixMilli()
-	tags := copyTags(msg.Tags())
-	content := msg.GetContent()
+	lo := newLogObsFromView(msg)
 	logSource := ""
 	if h.telemetry != nil {
-		logSource = classifyLogSource(h.source, tags)
+		logSource = classifyLogSource(h.source, lo.tags)
 		// Increment before enqueue to avoid a race where the consumer dequeues and
 		// decrements to zero before this producer increments.
 		h.telemetry.incrementLogsInFlight(logSource)
@@ -923,30 +923,40 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 
 	obs := observation{
 		source: h.source,
-		log: &logObs{
-			content:     content,
-			status:      msg.GetStatus(),
-			tags:        tags,
-			hostname:    msg.GetHostname(),
-			timestampMs: timestampMs,
-		},
+		log:    lo,
 	}
 
 	// Non-blocking send - drop if channel is full.
 	select {
 	case h.ch <- obs:
 		if h.telemetry != nil {
-			h.telemetry.recordLogIngested(logSource, len(content))
+			h.telemetry.recordLogIngested(logSource, len(lo.content))
 		}
 	default:
 		h.dropCount.Add(1)
 		if h.telemetry != nil {
 			// Roll back pre-enqueue in-flight increment for dropped logs.
 			h.telemetry.decrementLogsInFlight(logSource)
-			h.telemetry.recordDroppedLog(h.source, tags)
+			h.telemetry.recordDroppedLog(h.source, lo.tags)
 			h.telemetry.recordChannelDropped(h.source)
 		}
 	}
+}
+
+func newLogObsFromView(msg observerdef.LogView) *logObs {
+	lo := &logObs{
+		content:     msg.GetContent(),
+		status:      msg.GetStatus(),
+		tags:        copyTags(msg.Tags()),
+		hostname:    msg.GetHostname(),
+		timestampMs: msg.GetTimestampUnixMilli(),
+	}
+	if tokenized, ok := msg.(observerdef.TokenizedLogView); ok {
+		lo.containerID = tokenized.GetContainerID()
+		lo.pattern = tokenized.GetPattern()
+		lo.patternHash = tokenized.GetPatternHash()
+	}
+	return lo
 }
 
 // logView wraps logObs to implement LogView interface.
@@ -959,3 +969,6 @@ func (v *logView) GetStatus() string            { return v.obs.status }
 func (v *logView) Tags() []string               { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
 func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
+func (v *logView) GetContainerID() string       { return v.obs.containerID }
+func (v *logView) GetPattern() string           { return v.obs.pattern }
+func (v *logView) GetPatternHash() string       { return v.obs.patternHash }

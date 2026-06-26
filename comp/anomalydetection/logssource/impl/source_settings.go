@@ -9,12 +9,15 @@ import config "github.com/DataDog/datadog-agent/comp/core/config"
 
 const (
 	anomalyDetectionLogsEnabledKey           = "anomaly_detection.logs.enabled"
+	anomalyDetectionLogsAgentTapEnabledKey   = "anomaly_detection.logs.agent_tap.enabled"
 	anomalyDetectionLogsContainersEnabledKey = "anomaly_detection.logs.containers.enabled"
 	anomalyDetectionLogsKubeletEnabledKey    = "anomaly_detection.logs.kubelet.enabled"
 )
 
 type logSourceSettings struct {
 	logsEnabled             bool
+	agentTapEnabled         bool
+	logsAgentEnabled        bool
 	containerSourcesEnabled bool
 	kubeletSourceEnabled    bool
 }
@@ -22,6 +25,8 @@ type logSourceSettings struct {
 func newLogSourceSettings(cfg config.Component) logSourceSettings {
 	return logSourceSettings{
 		logsEnabled:             configBoolDefaultTrue(cfg, anomalyDetectionLogsEnabledKey),
+		agentTapEnabled:         configBoolDefaultTrue(cfg, anomalyDetectionLogsAgentTapEnabledKey),
+		logsAgentEnabled:        cfg.GetBool("logs_enabled") || cfg.GetBool("log_enabled"),
 		containerSourcesEnabled: configBoolDefaultTrue(cfg, anomalyDetectionLogsContainersEnabledKey),
 		kubeletSourceEnabled:    configBoolDefaultTrue(cfg, anomalyDetectionLogsKubeletEnabledKey),
 	}
@@ -36,6 +41,9 @@ func (s logSourceSettings) shouldStart(observerAvailable, workloadmetaAvailable,
 		return false
 	}
 	if !recordingEnabled && (!analysisEnabled || !s.logsEnabled) {
+		return false
+	}
+	if s.logsEnabled && s.agentTapEnabled && s.logsAgentEnabled {
 		return false
 	}
 	return s.kubeletSourceEnabled || (s.containerSourcesEnabled && workloadmetaAvailable)

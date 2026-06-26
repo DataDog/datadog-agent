@@ -2101,6 +2101,7 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	// Log ingestion gate. When false, all log sources (container, kubelet, internal)
 	// are not routed into the anomaly detection pipeline (recording is unaffected).
 	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.agent_tap.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.enabled", true)
 

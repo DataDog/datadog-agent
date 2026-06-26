@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "adaptivesampling",
+    srcs = [
+        "boost.go",
+        "debug.go",
+        "tap.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/adaptivesampling",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "adaptivesampling_test",
+    srcs = [
+        "boost_test.go",
+        "plumbing_test.go",
+        "tap_test.go",
+    ],
+    embed = [":adaptivesampling"],
+    gotags = ["test"],
+    deps = [
+        "//comp/anomalydetection/observer/def",
+        "//comp/anomalydetection/observer/impl",
+        "//comp/logs/agent/config",
+        "//pkg/logs/internal/decoder/preprocessor",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -22,25 +22,53 @@ datadog:
     enabled: true
   env:
 {{- if eq .Mode "record-parquet"}}
-    - name: DD_OBSERVER_RECORDING_ENABLED
+    - name: DD_ANOMALY_DETECTION_ENABLED
+      value: "true"
+    - name: DD_ANOMALY_DETECTION_RECORDING_ENABLED
       value: "true"
 {{- end}}
 {{- if eq .Mode "live-anomaly-detection"}}
-    - name: DD_OBSERVER_ANALYSIS_ENABLED
+    - name: DD_ANOMALY_DETECTION_ENABLED
       value: "true"
-    - name: DD_OBSERVER_EVENT_REPORTER_SENDING_ENABLED
+    - name: DD_ANOMALY_DETECTION_LOGS_ENABLED
+      value: "true"
+    - name: DD_ANOMALY_DETECTION_LOGS_AGENT_TAP_ENABLED
+      value: "true"
+    - name: DD_ANOMALY_DETECTION_REPORTING_STDOUT_ENABLED
+      value: "true"
+    - name: DD_ANOMALY_DETECTION_REPORTING_STDOUT_VERBOSE
+      value: "true"
+    - name: DD_LOGS_CONFIG_EXPERIMENTAL_ADAPTIVE_SAMPLING_ENABLED
+      value: "true"
+    - name: DD_LOGS_CONFIG_EXPERIMENTAL_ADAPTIVE_SAMPLING_RATE_LIMIT
+      value: "0.2"
+    - name: DD_LOGS_CONFIG_EXPERIMENTAL_ADAPTIVE_SAMPLING_BURST_SIZE
+      value: "2"
+    - name: DD_LOGS_CONFIG_EXPERIMENTAL_ADAPTIVE_SAMPLING_TAG_PATTERN_HASH
       value: "true"
 {{- end}}
 {{- if eq .Mode "live-and-record"}}
-    - name: DD_OBSERVER_RECORDING_ENABLED
+    - name: DD_ANOMALY_DETECTION_ENABLED
       value: "true"
-    - name: DD_OBSERVER_ANALYSIS_ENABLED
+    - name: DD_ANOMALY_DETECTION_RECORDING_ENABLED
       value: "true"
-    - name: DD_OBSERVER_EVENT_REPORTER_SENDING_ENABLED
+    - name: DD_ANOMALY_DETECTION_LOGS_ENABLED
+      value: "true"
+    - name: DD_ANOMALY_DETECTION_LOGS_AGENT_TAP_ENABLED
+      value: "true"
+    - name: DD_ANOMALY_DETECTION_REPORTING_STDOUT_ENABLED
+      value: "true"
+    - name: DD_ANOMALY_DETECTION_REPORTING_STDOUT_VERBOSE
+      value: "true"
+    - name: DD_LOGS_CONFIG_EXPERIMENTAL_ADAPTIVE_SAMPLING_ENABLED
+      value: "true"
+    - name: DD_LOGS_CONFIG_EXPERIMENTAL_ADAPTIVE_SAMPLING_RATE_LIMIT
+      value: "0.2"
+    - name: DD_LOGS_CONFIG_EXPERIMENTAL_ADAPTIVE_SAMPLING_BURST_SIZE
+      value: "2"
+    - name: DD_LOGS_CONFIG_EXPERIMENTAL_ADAPTIVE_SAMPLING_TAG_PATTERN_HASH
       value: "true"
 {{- end}}
-    - name: DD_OBSERVER_HIGH_FREQUENCY_INTERVAL
-      value: "1s"
 
 agents:
   enabled: true
@@ -51,29 +79,51 @@ agents:
     pullPolicy: Always
   useConfigMap: true
   customAgentConfig:
-    observer:
+    anomaly_detection:
+      enabled: true
+      detectors:
+        anomaly_scorer:
+          enabled: true
+          alpha: 0.5
+          low_threshold: 0.001
+          high_threshold: 0.002
+          window_secs: 60
 {{- if eq .Mode "record-parquet"}}
       recording:
         enabled: true
-        parquet_output_dir: /tmp/observer-parquet
-        parquet_flush_interval: 30s
+        output_dir: /tmp/observer-parquet
+        flush_interval: 30
 {{- end}}
 {{- if eq .Mode "live-anomaly-detection"}}
-      analysis:
+      logs:
         enabled: true
-      event_reporter:
-        sending_enabled: true
+        agent_tap:
+          enabled: true
+      reporting:
+        stdout:
+          enabled: true
+          verbose: true
 {{- end}}
 {{- if eq .Mode "live-and-record"}}
       recording:
         enabled: true
-        parquet_output_dir: /tmp/observer-parquet
-        parquet_flush_interval: 30s
-      analysis:
+        output_dir: /tmp/observer-parquet
+        flush_interval: 30
+      logs:
         enabled: true
-      event_reporter:
-        sending_enabled: true
+        agent_tap:
+          enabled: true
+      reporting:
+        stdout:
+          enabled: true
+          verbose: true
 {{- end}}
+    logs_config:
+      experimental_adaptive_sampling:
+        enabled: true
+        rate_limit: 0.2
+        burst_size: 2.0
+        tag_pattern_hash: true
   containers:
     agent:
       resources:
