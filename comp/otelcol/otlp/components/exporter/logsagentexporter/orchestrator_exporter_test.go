@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	logsmapping "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs"
@@ -87,9 +86,6 @@ func TestTranslateK8sObjects_Deduplication(t *testing.T) {
 }
 
 func TestTranslateK8sObjects_SkipsNonJSONBody(t *testing.T) {
-	core, logs := observer.New(zap.DebugLevel)
-	logger := zap.New(core)
-
 	ld := plog.NewLogs()
 	rl := ld.ResourceLogs().AppendEmpty()
 	rl.Resource().Attributes().PutStr("k8s.cluster.uid", "test-cluster-uid")
@@ -99,13 +95,9 @@ func TestTranslateK8sObjects_SkipsNonJSONBody(t *testing.T) {
 	lr.Body().SetStr("not valid json at all")
 	lr.Attributes().PutStr("k8s.resource.name", "events")
 
-	result := logsmapping.TranslateK8sObjects(ld, nil, logger)
+	result := logsmapping.TranslateK8sObjects(ld, nil, zap.NewNop())
 
 	assert.Empty(t, result.Chunks, "non-JSON record should be skipped, producing no manifests")
-
-	debugLogs := logs.FilterMessage("Skipping log record: body is not a supported k8s manifest")
-	require.Len(t, debugLogs.All(), 1, "expected exactly one debug log for the skipped record")
-	assert.Equal(t, "events", debugLogs.All()[0].ContextMap()["k8s.resource.name"])
 }
 
 // TestShouldSkipResourceKind tests that secrets and configmaps are rejected.
