@@ -6,6 +6,7 @@
 package setup
 
 import (
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -116,7 +117,10 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.max_memory", 5e8, "DD_APM_MAX_MEMORY")
 	config.BindEnvAndSetDefault("apm_config.max_cpu_percent", 50.0, "DD_APM_MAX_CPU_PERCENT")
 	config.BindEnvAndSetDefault("apm_config.env", "", "DD_APM_ENV")
-	config.BindEnvAndSetDefault("apm_config.apm_non_local_traffic", false, "DD_APM_NON_LOCAL_TRAFFIC")
+	// Default to non-local traffic in Kubernetes, where the trace-agent and apps run in
+	// separate containers. Defaulting in the binary (instead of datadog-kubernetes.yaml)
+	// keeps it set when external tooling replaces datadog.yaml; file/env still override.
+	config.BindEnvAndSetDefault("apm_config.apm_non_local_traffic", pkgconfigenv.IsKubernetes(), "DD_APM_NON_LOCAL_TRAFFIC")
 	config.BindEnvAndSetDefault("apm_config.apm_dd_url", "", "DD_APM_DD_URL")
 	config.BindEnvAndSetDefault("apm_config.connection_limit", 2000, "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")
 	config.BindEnvAndSetDefault("apm_config.connection_reset_interval", 0, "DD_APM_CONNECTION_RESET_INTERVAL")
