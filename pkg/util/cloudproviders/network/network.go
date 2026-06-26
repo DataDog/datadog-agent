@@ -14,6 +14,7 @@ import (
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -25,6 +26,12 @@ const (
 	vpcSubnetsForHostCacheKey = "vpcSubnetsForHost"
 )
 
+// for testing
+var (
+	getGCENetworkID = gce.GetNetworkID
+	getEC2NetworkID = ec2.GetNetworkID
+)
+
 // GetNetworkID retrieves the network_id which can be used to improve network
 // connection resolution. This can be configured or detected.  The
 // following sources will be queried:
@@ -32,7 +39,6 @@ const (
 // * GCE
 // * EC2
 func GetNetworkID(ctx context.Context) (string, error) {
-	var err error
 	return cache.Get[string](
 		networkIDCacheKey,
 		func() (string, error) {
@@ -43,23 +49,33 @@ func GetNetworkID(ctx context.Context) (string, error) {
 				return networkID, nil
 			}
 
-			if len(pkgconfigsetup.Datadog().GetStringSlice("cloud_provider_metadata")) == 0 {
+			cfg := pkgconfigsetup.Datadog()
+			var errs []error
+
+			if configutils.IsCloudProviderEnabled(gce.CloudProviderName, cfg) {
+				log.Debugf("GetNetworkID trying GCE")
+				networkID, err := getGCENetworkID(ctx)
+				if err == nil {
+					log.Debugf("GetNetworkID: using network ID from GCE metadata: %s", networkID)
+					return networkID, nil
+				}
+				errs = append(errs, err)
+			}
+
+			if configutils.IsCloudProviderEnabled(ec2.CloudProviderName, cfg) {
+				log.Debugf("GetNetworkID trying EC2")
+				networkID, err := getEC2NetworkID(ctx)
+				if err == nil {
+					log.Debugf("GetNetworkID: using network ID from EC2 metadata: %s", networkID)
+					return networkID, nil
+				}
+				errs = append(errs, err)
+			}
+
+			if len(errs) == 0 {
 				return "", errors.New("cloud provider metadata is disabled by configuration")
 			}
-
-			log.Debugf("GetNetworkID trying GCE")
-			if networkID, err = gce.GetNetworkID(ctx); err == nil {
-				log.Debugf("GetNetworkID: using network ID from GCE metadata: %s", networkID)
-				return networkID, nil
-			}
-
-			log.Debugf("GetNetworkID trying EC2")
-			if networkID, err = ec2.GetNetworkID(ctx); err == nil {
-				log.Debugf("GetNetworkID: using network ID from EC2 metadata: %s", networkID)
-				return networkID, nil
-			}
-
-			return "", fmt.Errorf("could not detect network ID: %w", err)
+			return "", fmt.Errorf("could not detect network ID: %w", errors.Join(errs...))
 		})
 }
 

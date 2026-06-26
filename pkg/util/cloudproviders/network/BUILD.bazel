@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/setup",
+        "//pkg/config/utils",
         "//pkg/util/cache",
         "//pkg/util/cloudproviders/gce",
         "//pkg/util/ec2",
