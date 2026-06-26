@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix Private Action Runner instances running in the Cluster Agent failing to receive
+    Remote Config keys for several hours after startup, causing actions to fail execution.
+    The keys manager now seeds from already-cached Remote Config state immediately on startup
+    instead of waiting for the next poll cycle.
