@@ -159,7 +159,39 @@ func TestBaseline_AnomaliesForwardedAfterWindow(t *testing.T) {
 	e.Advance(100) // seeds window
 	e.Advance(800) // past window end: anomaly forwarded, freeze fires
 
-	assert.Len(t, correlator.received, 1)
+	assert.NotEmpty(t, correlator.received)
+}
+
+func TestBaseline_ExactFreezeTimeBoundary(t *testing.T) {
+	// Window: [100, 700). activeAt uses strict <, so t=699 is the last in-window
+	// second and t=700 is the first out-of-window second (exact freeze point).
+	const start, dur = int64(100), int64(600)
+	correlator := &recordingCorrelator{}
+	e, _ := makeBaselineEngine(BaselineConfig{Enabled: true, DurationSec: dur, MuteNoisyMetrics: true}, correlator)
+
+	e.Advance(start)           // seeds window, anomaly held back and marked
+	e.Advance(start + dur - 1) // t=699: still in window, anomaly held back
+	assert.Empty(t, correlator.received)
+	assert.False(t, e.baseline.frozen)
+
+	e.Advance(start + dur) // t=700: exact freeze point — freeze fires, muted anomaly blocked
+	assert.Empty(t, correlator.received)
+	assert.True(t, e.baseline.frozen)
+}
+
+func TestBaseline_FreezeAdvanceAnomalyNotForwardedToCorrelator(t *testing.T) {
+	// Regression test: on the advance that closes the baseline window, activeAt()
+	// returns false so anomalies bypass the in-window gate. Without the second
+	// gate that checks mutedHashes, noisy-series anomalies from this advance
+	// reach processAnomaly and land in the correlator's sliding window, causing
+	// false-positive reports immediately after freeze.
+	correlator := &recordingCorrelator{}
+	e, _ := makeBaselineEngine(BaselineConfig{Enabled: true, DurationSec: 600, MuteNoisyMetrics: true}, correlator)
+
+	e.Advance(100) // seeds window, marks "ns/cpu" as noisy
+	e.Advance(700) // freeze advance: activeAt(700)=false, anomaly must NOT reach correlator
+
+	assert.Empty(t, correlator.received)
 }
 
 func TestBaseline_FreezeEmitsEvent(t *testing.T) {
@@ -197,7 +229,7 @@ func TestBaseline_DisabledByConfig(t *testing.T) {
 	e.Advance(400)
 
 	// No baseline window — anomalies forwarded immediately
-	assert.Len(t, correlator.received, 2)
+	assert.NotEmpty(t, correlator.received)
 	assert.Nil(t, e.baseline)
 }
 

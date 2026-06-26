@@ -748,13 +748,14 @@ func (s *baselineEventSink) onEngineEvent(evt engineEvent) {
 // Compile-time assertion: observerImpl satisfies the testbench-extended surface.
 // testbenchView in the bench package embeds DebugView and adds this method;
 // the assertion ensures it is never silently dropped from observerImpl.
-var _ interface{ DebugSubscribeBaselineCompleted(func([]string)) } = (*observerImpl)(nil)
+var _ interface{ DebugSubscribeBaselineCompleted(func(int64, []string)) } = (*observerImpl)(nil)
 
 // DebugSubscribeBaselineCompleted registers a one-time callback invoked when the
 // baseline window closes. Testbench-only — never called by the live agent.
-// The callback receives sorted "namespace/metricName" group keys for all muted
-// series, resolved from storage while series are still alive (before reclaim).
-func (o *observerImpl) DebugSubscribeBaselineCompleted(callback func(mutedGroups []string)) {
+// The callback receives the freeze timestamp (Unix seconds) and sorted
+// "namespace/metricName" group keys for all muted series, resolved from
+// storage while series are still alive (before reclaim).
+func (o *observerImpl) DebugSubscribeBaselineCompleted(callback func(endSec int64, mutedGroups []string)) {
 	if o.engine.baseline == nil {
 		return
 	}
@@ -766,7 +767,7 @@ func (o *observerImpl) DebugSubscribeBaselineCompleted(callback func(mutedGroups
 
 type baselineCompletedCallbackSink struct {
 	engine   *engine
-	callback func([]string)
+	callback func(int64, []string)
 }
 
 func (s *baselineCompletedCallbackSink) onEngineEvent(evt engineEvent) {
@@ -787,7 +788,7 @@ func (s *baselineCompletedCallbackSink) onEngineEvent(evt engineEvent) {
 		}
 	}
 	sort.Strings(groups)
-	s.callback(groups)
+	s.callback(evt.timestamp, groups)
 }
 
 // GetReplayProgress returns lock-free replay progress counters. Implements DebugView.

@@ -16,6 +16,7 @@ import (
 	"runtime/pprof"
 	"strings"
 	"syscall"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -74,6 +75,8 @@ func main() {
 	skipDropped := flag.Bool("skip-dropped", true, "Skip metrics marked as dropped by the live observer's channel during parquet load")
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
 	parquetFormat := flag.String("parquet-format", "", "Parquet layout: v1 (observer-metrics-*/observer-logs-*), v2 (contexts.parquet + metrics-*/logs-*), or empty to auto-detect")
+	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 10m window.")
+	muteNoisyMetrics := flag.Bool("mute-noisy-metrics", true, "Mute metrics that fire anomalies during the baseline window")
 	flag.Parse()
 
 	// --config takes full precedence over --enable/--disable/--only.
@@ -122,12 +125,43 @@ func main() {
 		componentSettings = observerimpl.ComponentSettings{Enabled: overrides}
 	}
 
+	if *baselineDuration == "0" || *baselineDuration == "disabled" {
+		componentSettings.Baseline = observerimpl.BaselineConfig{Enabled: false}
+	} else if *baselineDuration != "" {
+		dur, err := time.ParseDuration(*baselineDuration)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid --baseline-duration %q: %v\n", *baselineDuration, err)
+			os.Exit(1)
+		}
+		componentSettings.Baseline = observerimpl.BaselineConfig{
+			Enabled:          true,
+			DurationSec:      int64(dur.Seconds()),
+			MuteNoisyMetrics: *muteNoisyMetrics,
+		}
+	} else {
+		componentSettings.Baseline = observerimpl.BaselineConfig{
+			Enabled:          true,
+			DurationSec:      300,
+			MuteNoisyMetrics: *muteNoisyMetrics,
+		}
+	}
+
 	if *headless == "" {
 		fmt.Printf("Observer Test Bench\n")
 		fmt.Printf("  Scenarios dir: %s\n", *scenariosDir)
 		fmt.Printf("  HTTP address:  %s\n", *httpAddr)
 		if *logsOnly {
 			fmt.Printf("  Logs-only:     true (parquet metrics and trace stats are not loaded)\n")
+		}
+		b := componentSettings.Baseline
+		if b.Enabled {
+			mode := "mute"
+			if !b.MuteNoisyMetrics {
+				mode = "observe"
+			}
+			fmt.Printf("  Baseline:      %dm window, mode=%s\n", b.DurationSec/60, mode)
+		} else {
+			fmt.Printf("  Baseline:      disabled\n")
 		}
 		fmt.Println()
 	}

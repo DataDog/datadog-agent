@@ -570,6 +570,15 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 				}
 				continue
 			}
+			// On the freeze advance activeAt returns false, so anomalies from noisy
+			// series would otherwise enter processAnomaly and land in the correlator
+			// just as the series is being reclaimed. Drop them here instead.
+			if e.baseline != nil && !e.baseline.frozen && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
+				h := seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags)
+				if _, muted := e.baseline.mutedHashes[h]; muted {
+					continue
+				}
+			}
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate
 			}
@@ -832,8 +841,10 @@ func (e *engine) freezeBaseline(upToSec int64) {
 	pkglog.Infof("[observer] baseline window ended: %d/%d series muted from anomaly detection (%d anomalies seen)",
 		len(e.baseline.mutedHashes), totalSeries, windowAnomalyCount)
 
-	for _, name := range displayNames {
-		pkglog.Infof("[observer] baseline muted: %s", name)
+	if e.baseline.config.Verbose {
+		for _, name := range displayNames {
+			pkglog.Infof("[observer] baseline muted: %s", name)
+		}
 	}
 }
 
