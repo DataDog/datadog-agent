@@ -120,6 +120,9 @@ type ntmConfig struct {
 	// any given configuration key. Multiple env vars can be associated with one key
 	configEnvVars map[string][]string
 
+	// when true, buildEnvVars produces an empty env layer instead of reading os.LookupEnv
+	envVarsCleared atomic.Bool
+
 	// known keys are the set of valid keys to get either leaf or inner node values
 	// they are defined by one of (1) SetDefault (2) BindEnv (3) SetKnown
 	// the map value represents `isLeaf` for each key
@@ -614,6 +617,11 @@ func (c *ntmConfig) isReady() bool {
 }
 
 func (c *ntmConfig) buildEnvVars() {
+	if c.envVarsCleared.Load() {
+		c.envs = newInnerNode(nil)
+		return
+	}
+
 	root := newInnerNode(nil)
 	envWarnings := []error{}
 
@@ -631,6 +639,20 @@ func (c *ntmConfig) buildEnvVars() {
 	}
 	c.envs = root
 	c.warnings = append(c.warnings, envWarnings...)
+}
+
+// ClearEnvVars empties the env layer and re-merges. The envVarsCleared flag guards against
+// repopulation if a test rebuilds the schema (production never rebuilds — see allowDynamicSchema).
+func (c *ntmConfig) ClearEnvVars() {
+	c.Lock()
+	defer c.Unlock()
+	c.envVarsCleared.Store(true)
+	c.envs = newInnerNode(nil)
+	if c.isReady() {
+		if err := c.mergeAllLayers(); err != nil {
+			c.warnings = append(c.warnings, err)
+		}
+	}
 }
 
 func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval string) error {
@@ -711,30 +733,6 @@ func (c *ntmConfig) ParseEnvJSON(key string, varType any) {
 		}
 		return reflect.ValueOf(res).Elem().Interface()
 	}
-}
-
-// IsSet checks if a key is set in the config
-func (c *ntmConfig) IsSet(key string) bool {
-	c.maybeRebuild()
-
-	c.RLock()
-	defer c.RUnlock()
-
-	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
-		return false
-	}
-
-	pathParts := splitKey(key)
-	curr := c.root
-	for _, part := range pathParts {
-		next, err := curr.GetChild(part)
-		if err != nil {
-			return false
-		}
-		curr = next
-	}
-	return true
 }
 
 func hasNonDefaultLeaf(node *nodeImpl) bool {
@@ -898,20 +896,6 @@ func (c *ntmConfig) SetEnvPrefix(in string) {
 // mergeWithEnvPrefix derives the environment variable to use for a given key.
 func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
 	return strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
-}
-
-// BindEnv binds one or more environment variables to the given key
-func (c *ntmConfig) BindEnv(key string, envvars ...string) {
-	c.Lock()
-	defer c.Unlock()
-
-	if c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("cannot BindEnv() once the config has been marked as ready for use")
-	}
-
-	key = strings.ToLower(key)
-	c.bindEnv(key, envvars)
-	c.addToKnownKeys(key)
 }
 
 func (c *ntmConfig) bindEnv(key string, envvars []string) {

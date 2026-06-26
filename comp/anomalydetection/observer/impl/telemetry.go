@@ -27,6 +27,7 @@ const (
 	telemetryLogsSamplerDropped              = "observer.logs.sampler_dropped"                // Logs dropped by the source sampler before reaching the observer, by source and priority.
 	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Per-detector processing time in nanoseconds.
 	telemetryScorerEWMA                      = "observer.scorer.ewma"                         // Anomaly scorer smoothed EWMA signal, updated every second.
+	telemetryScorerState                     = "observer.scorer.state"                        // Anomaly scorer severity level on transition (0=Low,1=Medium,2=High).
 )
 
 type observerTelemetry struct {
@@ -46,6 +47,7 @@ type observerTelemetry struct {
 	samplerDropped   telemetry.Counter
 	processingTime   telemetry.Gauge
 	scorerEwma       telemetry.Gauge
+	scorerState      telemetry.Gauge
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -144,6 +146,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"scorer"},
 			"Anomaly scorer EWMA signal, updated every second",
 		),
+		scorerState: telemetryComp.NewGauge(
+			"observer",
+			telemetryScorerState,
+			[]string{"scorer", "direction"},
+			"Anomaly scorer severity level on transition (0=Low, 1=Medium, 2=High)",
+		),
 	}
 }
 
@@ -229,7 +237,7 @@ func (t *observerTelemetry) inFlightCounter(logSource string) *atomic.Int64 {
 }
 
 func classifyLogSource(source string, tags []string) string {
-	if source == "agent-internal-logs" {
+	if source == "agent_logs" {
 		return "internal"
 	}
 	for _, tag := range tags {
@@ -242,8 +250,4 @@ func classifyLogSource(source string, tags []string) string {
 
 func (t *observerTelemetry) recordProcessingTime(detectorTag string, durationNs float64) {
 	t.processingTime.Set(durationNs, detectorTag)
-}
-
-func (t *observerTelemetry) recordScorerEWMA(scorerName string, score float64) {
-	t.scorerEwma.Set(score, scorerName)
 }

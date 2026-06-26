@@ -35,6 +35,7 @@ excluded_folders = [
   'datadog_checks_dev',            # Development package, (NOT AN INTEGRATION)
   'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
   'docker_daemon',                 # Agent v5 only
+  'tokumx',                        # py2-only, unsupported by current Agent
 ]
 
 if osx_target?
@@ -49,7 +50,6 @@ if arm_target?
   excluded_folders.push('ibm_mq')
 end
 
-final_constraints_file = 'final_constraints-py3.txt'
 agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
 agent_requirements_in = 'agent_requirements.in'
@@ -82,14 +82,10 @@ build do
   }
 
   # Install integration dependencies, datadog-checks-base, and datadog-checks-downloader
-  command_on_repo_root "bazelisk run " \
-                       "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
-                       "--//:install_dir=#{install_dir} " \
-                       "-- //deps/agent_integrations:install --destdir=#{install_dir}"
-
-  # Create a constraint file after installing all the core dependencies and before any integration
-  # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
-  command "#{python} -m pip freeze > #{install_dir}/#{final_constraints_file}"
+  command "bazel run " \
+          "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
+          "--//:install_dir=#{install_dir} " \
+          "-- //deps/agent_integrations:install --destdir=#{install_dir}"
 
   # Prepare build env for integrations
   wheel_build_dir = windows_safe_path(project_dir, ".wheels")
@@ -115,7 +111,7 @@ build do
     tasks_dir_in = windows_safe_path(Dir.pwd)
     # Collect integrations to install
     checks_to_install = (
-      shellout! "dda inv -- agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
+      shellout! "dda inv -- agent.collect-integrations #{project_dir} #{os} #{excluded_folders.join(',')}",
                 :cwd => tasks_dir_in
     ).stdout.split()
     # Retrieving integrations from cache
