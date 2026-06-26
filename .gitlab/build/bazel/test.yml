@@ -13,14 +13,16 @@ include:
   variables:
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
     FLAVOR: base
+    BEP_FILE: $CI_PROJECT_DIR/bazel-bep-$FLAVOR.json
   after_script:
-    - dda inv -- -e bazel.collect-junit --flavor=$FLAVOR --output-tgz=junit-${CI_JOB_NAME}.tgz || true
+    - dda inv -- -e bazel.collect-junit --flavor=$FLAVOR --output-tgz=junit-${CI_JOB_NAME}.tgz --bep-file=$BEP_FILE || true
     - !reference [.upload_junit_source]
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
       - junit-*.tgz
+      - bazel-bep-*.json
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
@@ -32,20 +34,20 @@ bazel:test:linux-amd64:
   extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:linux-amd64 ]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --config=no-dd-agent-go-tests //...
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
 
 bazel:test:linux-arm64:
   extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:linux-arm64 ]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --config=no-dd-agent-go-tests //...
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
 
 bazel:test:macos-amd64:
   extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:macos-amd64 ]
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --config=no-dd-agent-go-tests //...
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
   after_script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
@@ -55,7 +57,7 @@ bazel:test:macos-arm64:
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --config=no-dd-agent-go-tests //...
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --config=no-dd-agent-go-tests //...
   after_script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
@@ -76,7 +78,7 @@ bazel:test:windows-amd64:
   extends: [ .bazel:test, .bazel:test:reporting ]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --test_arg=-test.v=test2json --build_tests_only --config=$FLAVOR //pkg/... //comp/... //cmd/...
+    - bazel test --keep_going --remote_download_outputs=toplevel --test_arg=-test.v=test2json --build_event_json_file=$BEP_FILE --build_tests_only --config=$FLAVOR //pkg/... //comp/... //cmd/...
 
 # macOS flavor variant: re-installs dda in both script and after_script since
 # macOS shell executors run each phase in a fresh shell.
@@ -85,7 +87,7 @@ bazel:test:windows-amd64:
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --test_arg=-test.v=test2json --build_tests_only --config=$FLAVOR //pkg/... //comp/... //cmd/...
+    - bazel test --keep_going --remote_download_outputs=toplevel --test_arg=-test.v=test2json --build_event_json_file=$BEP_FILE --build_tests_only --config=$FLAVOR //pkg/... //comp/... //cmd/...
   after_script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
