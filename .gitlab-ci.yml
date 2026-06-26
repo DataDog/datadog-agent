@@ -548,7 +548,10 @@ workflow:
     - <<: *if_release_branch
     - <<: *if_deploy
     - <<: *if_run_all_e2e_tests
-    - !reference [.if_deploy_installer]
+    # Inlined from .gitlab/deploy/conditions.yml (.if_deploy_installer) so the
+    # workflow still resolves when the e2e-mcp single-job pipeline excludes the
+    # deploy include.
+    - if: $DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null
     - <<: *if_mergequeue
     - changes:
         paths: *windows_path
