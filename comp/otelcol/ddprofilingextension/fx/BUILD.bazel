@@ -6,8 +6,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/fx",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/log/def",
         "//comp/otelcol/ddprofilingextension/def",
         "//comp/otelcol/ddprofilingextension/impl",
+        "//comp/trace/agent/def",
         "//pkg/util/fxutil",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@org_uber_go_fx//:fx",
     ],
 )
