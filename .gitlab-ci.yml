@@ -21,6 +21,11 @@
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
+# e2e-mcp: when set, the pipeline provisions/destroys a single on-demand VM
+# (see .gitlab/e2e_mcp/e2e_mcp.yml) and the entire normal pipeline is excluded.
+.if_mcp_pipeline: &if_mcp_pipeline
+  if: $E2E_MCP_PROVISION == "true" || $E2E_MCP_DESTROY == "true"
+
 # Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
 .windows_path:
   &windows_path # Windows-specific Go source files (by filename convention)
@@ -125,15 +130,30 @@
   - Cargo.lock
 
 include:
+  # e2e-mcp single-job pipeline: when E2E_MCP_PROVISION/E2E_MCP_DESTROY is set,
+  # exclude the entire normal pipeline so only the e2e_mcp job runs.
   - local: .adms/**/*.yaml
+    rules: &rules_not_mcp
+      - <<: *if_mcp_pipeline
+        when: never
+      - when: always
   - local: .gitlab/.pre/**.yml
+    rules: *rules_not_mcp
   - local: .gitlab/build/**.yml
+    rules: *rules_not_mcp
   - local: .gitlab/deploy/**.yml
+    rules: *rules_not_mcp
   - local: .gitlab/test/**.yml
+    rules: *rules_not_mcp
   - local: .gitlab/.post/**.yml
+    rules: *rules_not_mcp
+  # e2e-mcp on-demand provisioning job (self-gated via job rules).
+  - local: .gitlab/e2e_mcp/e2e_mcp.yml
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
     rules:
+      - <<: *if_mcp_pipeline
+        when: never
       - if: $SKIP_WINDOWS == "true"
         when: never
       - <<: *if_main_branch
