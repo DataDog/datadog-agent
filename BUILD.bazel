@@ -104,7 +104,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/system-probe/subcommands/usm
 # gazelle:exclude cmd/system-probe/windows
 # gazelle:exclude cmd/systray
-# gazelle:exclude comp/api/authtoken
 # gazelle:exclude comp/checks/windowseventlog/fx
 # gazelle:exclude comp/checks/windowseventlog/impl/*.go
 # gazelle:exclude comp/checks/windowseventlog/impl/check/*.go
@@ -113,17 +112,13 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/collector/bundle.go
 # gazelle:exclude comp/collector/collector/fx
 # gazelle:exclude comp/collector/collector/impl/*.go
-# gazelle:exclude comp/core/autodiscovery/autodiscoveryimpl
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/gui/fx
 # gazelle:exclude comp/core/gui/impl
-# gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
 # gazelle:exclude comp/core/diagnose/local
-# gazelle:exclude comp/core/workloadmeta/collectors/catalog
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-core
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
 # gazelle:exclude comp/dogstatsd/http/fx
-# gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
@@ -261,7 +256,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/ebpf/_obj
 # It is a generated via genrule src that shouldn't be added to the runtime
 # library.
-# gazelle:exclude pkg/ebpf/bytecode/runtime/integrity_gen.go
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
 # gazelle:exclude pkg/ebpf/features
@@ -272,15 +266,11 @@ exports_files(["go.mod"])
 # Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/integrationtests
-# gazelle:exclude pkg/logs/client/http
-# gazelle:exclude pkg/logs/client/tcp
 # gazelle:exclude pkg/logs/internal/util/adlistener
 # gazelle:exclude pkg/logs/launchers/container/tailerfactory
 # gazelle:exclude pkg/logs/launchers/file
 # gazelle:exclude pkg/logs/launchers/integration
 # gazelle:exclude pkg/logs/launchers/journald
-# gazelle:exclude pkg/logs/pipeline
-# gazelle:exclude pkg/logs/processor
 # gazelle:exclude pkg/logs/schedulers/ad
 # gazelle:exclude pkg/logs/tailers/container
 # gazelle:exclude pkg/logs/tailers/journald
