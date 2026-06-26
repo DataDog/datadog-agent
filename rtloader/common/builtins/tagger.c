@@ -49,20 +49,24 @@ int parseArgs(PyObject *args, char **id, int *cardinality)
 */
 PyObject *buildTagsList(char **tags)
 {
-    PyObject *res = PyList_New(0);
     if (tags == NULL) {
-        return res;
+        return PyList_New(0);
     }
 
-    int i;
-    for (i = 0; tags[i]; i++) {
+    // Count tags first so we can pre-allocate the list to the exact size.
+    // This avoids the repeated realloc calls that PyList_Append triggers as
+    // CPython grows the internal ob_item array with its 1.125x overalloc factor.
+    int n = 0;
+    while (tags[n]) {
+        n++;
+    }
+
+    PyObject *res = PyList_New(n);
+    for (int i = 0; i < n; i++) {
         PyObject *pyTag = PyUnicode_FromString(tags[i]);
         cgo_free(tags[i]);
-
-        // PyList_Append (unlike `PyList_SetItem`) increments the refcount on pyTag
-        // so we must DECREF once appended
-        PyList_Append(res, pyTag);
-        Py_XDECREF(pyTag);
+        // PyList_SET_ITEM steals the reference — no DECREF needed.
+        PyList_SET_ITEM(res, i, pyTag);
     }
     cgo_free(tags);
     return res;
