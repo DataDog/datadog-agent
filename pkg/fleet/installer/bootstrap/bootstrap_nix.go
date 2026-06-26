@@ -67,7 +67,15 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if _, err := os.Stat(installerBinPath); err != nil {
 		return nil, err
 	}
-	return exec.NewInstallerExec(env, installerBinPath), nil
+	// The installer extracted from the agent package's installer layer is a bare
+	// binary. For FIPS builds it is compiled with requirefips and would panic at
+	// init unless an OpenSSL FIPS provider is available, so give it the env that
+	// points at a configured provider (a no-op for non-FIPS builds).
+	extraEnv, err := fipsInstallerEnv()
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve FIPS provider for bootstrap installer: %w", err)
+	}
+	return exec.NewInstallerExecWithExtraEnv(env, installerBinPath, extraEnv), nil
 }
 
 func getInstallerOCI(_ context.Context, env *env.Env) (string, error) {

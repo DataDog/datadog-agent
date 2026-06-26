@@ -30,6 +30,7 @@ import (
 type InstallerExec struct {
 	env              *env.Env
 	installerBinPath string
+	extraEnv         []string
 }
 
 // NewInstallerExec returns a new InstallerExec.
@@ -37,6 +38,17 @@ func NewInstallerExec(env *env.Env, installerBinPath string) *InstallerExec {
 	return &InstallerExec{
 		env:              env,
 		installerBinPath: installerBinPath,
+	}
+}
+
+// NewInstallerExecWithExtraEnv returns a new InstallerExec whose spawned commands
+// receive the given additional environment variables. They are appended last, so
+// they take precedence over the inherited and Env-derived variables.
+func NewInstallerExecWithExtraEnv(env *env.Env, installerBinPath string, extraEnv []string) *InstallerExec {
+	return &InstallerExec{
+		env:              env,
+		installerBinPath: installerBinPath,
+		extraEnv:         extraEnv,
 	}
 }
 
@@ -77,6 +89,7 @@ func (i *InstallerExec) setupInstallerCmd(ctx context.Context, span *telemetry.S
 	env := i.env.ToEnv()
 	env = append(os.Environ(), env...)
 	env = append(env, telemetry.EnvFromContext(ctx)...)
+	env = append(env, i.extraEnv...)
 	cmd.Env = env
 	cmd = i.newInstallerCmdPlatform(cmd)
 	return &installerCmd{

@@ -5,6 +5,8 @@ go_library(
     srcs = [
         "bootstrap.go",
         "bootstrap_nix.go",
+        "bootstrap_nix_fips.go",
+        "bootstrap_nix_nofips.go",
         "bootstrap_windows.go",
         "bootstrapper.go",
     ],
