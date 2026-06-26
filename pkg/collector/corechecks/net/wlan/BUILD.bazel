@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "wlan",
+    srcs = [
+        "wlan.go",
+        "wlan_darwin.go",
+        "wlan_nix.go",
+        "wlan_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/wlan",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/defaultpaths",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/defaultpaths",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "wlan_test",
+    srcs = ["wlan_test.go"],
+    embed = [":wlan"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/mocksender",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
