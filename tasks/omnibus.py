@@ -185,6 +185,12 @@ def get_omnibus_env(
     if kubernetes_cpu_request:
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
 
+    # Skip the omnibus debug-symbol strip on non-deploy (testing) builds: the
+    # artifact is not shipped and the debug package is not consumed. This removes
+    # the sequential post-install strip pass (~58s) from the critical path.
+    if os.environ.get('OMNIBUS_PACKAGE_ARTIFACT_DIR') is None and os.environ.get('DEPLOY_AGENT') != 'true':
+        env['SKIP_OMNIBUS_STRIP'] = 'true'
+
     env_to_forward = _passthrough_env_for_os(os.environ, sys.platform)
     env.update(env_to_forward)
 

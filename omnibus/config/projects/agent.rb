@@ -382,7 +382,10 @@ if linux_target? or windows_target?
   # the stripper will drop the symbols in a `.debug` folder in the installdir
   # we want to make sure that directory is not in the main build, while present
   # in the debug package.
-  strip_build windows_target? || do_build
+  # On non-deploy testing builds we skip the (sequential, ~58s) strip pass:
+  # the artifact is not shipped and no datadog-agent-dbg package is consumed.
+  skip_strip = ENV['SKIP_OMNIBUS_STRIP'] == 'true'
+  strip_build !skip_strip && (windows_target? || do_build)
   debug_path ".debug"  # the strip symbols will be in here
 end
 
