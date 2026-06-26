@@ -93,14 +93,25 @@ and dropped before they reach observer storage.
 ## Reporter Model
 
 Reporters register through the `anomalydetection_reporters` Fx group
-(`reporter/def`). The observer subscribes each injected `Reporter` after each
-advance cycle.
+(`reporter/def`). The observer calls each injected `Reporter.Report()` after
+every advance cycle.
 
-- **StdoutReporter** — always active in `reporter/fx`; logs correlations at
-  info on first-seen, debug for ongoing
-- **EventReporter** — created when `anomaly_detection.reporting.enabled=true`
-  AND the event-platform forwarder is available; publishes change events via
-  `reporter/impl/notify.go`
+**Reporters are stateless forwarders.** All deduplication and first-seen logic
+lives inside each correlator via the shared `correlationEmitter` helper
+(`observer/impl/correlation_emitter.go`). Reporters iterate
+`ReportOutput.CorrelatorEvents` and dispatch directly — no per-reporter seen-map.
+
+- **StdoutReporter** — always active in `reporter/fx`; logs
+  `CorrelationDetected` events at info and ongoing active correlations at debug
+- **EventReporter** — created when `anomaly_detection.reporting.events.enabled=true`
+  AND the event-platform forwarder is available; dispatches change events for
+  `CorrelationDetected` and scorer episode events via `reporter/impl/notify.go`
+
+`ReportOutput.CorrelatorEvents` carries three event kinds:
+- `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster`, `CrossSignal`,
+  `Passthrough` at first-seen (and again after a pattern goes inactive and recurs)
+- `CorrelatorEventEpisodeStarted` — emitted by `anomaly_scorer` on High entry
+- `CorrelatorEventEpisodeEnded` — emitted by `anomaly_scorer` on High exit
 
 See `reporter/reporter.allium` for the payload contract.
 
