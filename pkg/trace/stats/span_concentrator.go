@@ -8,7 +8,6 @@ package stats
 import (
 	"strings"
 	"sync"
-	stdatomic "sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -200,10 +199,8 @@ type SpanConcentrator struct {
 	computeStatsBySpanKind                bool
 	additionalMetricTagValueBlockSentinel string
 	cardinalityLimits                     BucketCardinalityLimits
-	// obfuscationEnabled and resourceMaxBytes are accessed from concurrent goroutines;
-	// use sync/atomic value types so the zero value is safe (no pointer init required).
-	obfuscationEnabled stdatomic.Bool
-	resourceMaxBytes   stdatomic.Int64
+	obfuscationEnabled *atomic.Bool  // nil when zero-value; read via isObfuscationEnabled()
+	resourceMaxBytes   *atomic.Int64 // nil when zero-value; read via getResourceMaxBytes()
 
 	// per-collapse-type atomic counters; drained on each flush via DrainBlockCounts
 	lengthBlocks         *atomic.Int64 // additional_metric_tags value > 200 chars
@@ -247,6 +244,8 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 			Origin:         cfg.OriginCardinalityLimit,
 			WholeKey:       cfg.WholeKeyCardinalityLimit,
 		},
+		obfuscationEnabled:    atomic.NewBool(cfg.ObfuscationEnabled),
+		resourceMaxBytes:      atomic.NewInt64(int64(resourceMaxBytes)),
 		lengthBlocks:          atomic.NewInt64(0),
 		capBlocks:             atomic.NewInt64(0),
 		wholeKeyCollapses:     atomic.NewInt64(0),
@@ -260,8 +259,6 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 		mu:                    sync.Mutex{},
 		buckets:               make(map[int64]*RawBucket),
 	}
-	sc.obfuscationEnabled.Store(cfg.ObfuscationEnabled)
-	sc.resourceMaxBytes.Store(int64(resourceMaxBytes))
 	return sc
 }
 
@@ -270,6 +267,17 @@ func (sc *SpanConcentrator) getAdditionalMetricTagValueBlockSentinel() string {
 		return blockedByTracerSentinel
 	}
 	return sc.additionalMetricTagValueBlockSentinel
+}
+
+func (sc *SpanConcentrator) isObfuscationEnabled() bool {
+	return sc.obfuscationEnabled != nil && sc.obfuscationEnabled.Load()
+}
+
+func (sc *SpanConcentrator) getResourceMaxBytes() int {
+	if sc.resourceMaxBytes == nil {
+		return defaultResourceMaxBytes
+	}
+	return int(sc.resourceMaxBytes.Load())
 }
 
 // SetObfuscationEnabled updates whether string length caps are applied during stat span creation.
@@ -419,8 +427,8 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 		return nil, false
 	}
 	service, name, typ, resource := config.Service, config.Name, config.Type, config.Resource
-	if sc.obfuscationEnabled.Load() {
-		resourceMax := int(sc.resourceMaxBytes.Load())
+	if sc.isObfuscationEnabled() {
+		resourceMax := sc.getResourceMaxBytes()
 		service = normalize.TruncateUTF8(service, stringFieldMaxBytes)
 		name = normalize.TruncateUTF8(name, stringFieldMaxBytes)
 		typ = normalize.TruncateUTF8(typ, stringFieldMaxBytes)
@@ -465,8 +473,8 @@ func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []st
 	}
 	serviceSource, _ := s.GetAttributeAsString(tagServiceSource)
 	service, name, typ, resource := s.Service(), s.Name(), s.Type(), s.Resource()
-	if sc.obfuscationEnabled.Load() {
-		resourceMax := int(sc.resourceMaxBytes.Load())
+	if sc.isObfuscationEnabled() {
+		resourceMax := sc.getResourceMaxBytes()
 		service = normalize.TruncateUTF8(service, stringFieldMaxBytes)
 		name = normalize.TruncateUTF8(name, stringFieldMaxBytes)
 		typ = normalize.TruncateUTF8(typ, stringFieldMaxBytes)
