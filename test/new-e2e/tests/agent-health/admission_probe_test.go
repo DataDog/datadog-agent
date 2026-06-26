@@ -107,8 +107,8 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 			for _, p := range payloads {
 				for _, iss := range findIssuesByID(t, p, admissionProbeIssueID) {
 					if iss.PersistedIssue != nil &&
-						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
-							iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
+						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW || //nolint:staticcheck
+							iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) { //nolint:staticcheck
 						detectedIssue = iss
 						return
 					}
@@ -127,8 +127,8 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 		require.NotNil(t, detectedIssue.PersistedIssue)
 		assert.Contains(t,
 			[]healthplatform.IssueState{
-				healthplatform.IssueState_ISSUE_STATE_NEW,
-				healthplatform.IssueState_ISSUE_STATE_ONGOING,
+				healthplatform.IssueState_ISSUE_STATE_NEW,     //nolint:staticcheck
+				healthplatform.IssueState_ISSUE_STATE_ONGOING, //nolint:staticcheck
 			},
 			detectedIssue.PersistedIssue.State)
 	})

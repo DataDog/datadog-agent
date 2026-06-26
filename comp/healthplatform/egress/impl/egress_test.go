@@ -228,7 +228,7 @@ func TestResolvedStaysOnSendFailure(t *testing.T) {
 func TestActiveWinsOverResolvedOnRecurrence(t *testing.T) {
 	store := &mockStore{issues: map[string]*healthplatformpayload.Issue{
 		"i:1": {Id: "i:1", PersistedIssue: &healthplatformpayload.PersistedIssue{
-			State: healthplatformpayload.IssueState_ISSUE_STATE_NEW,
+			State: healthplatformpayload.IssueState_ISSUE_STATE_NEW, //nolint:staticcheck
 		}},
 	}}
 	fwd := &mockForwarder{}
@@ -247,7 +247,7 @@ func TestActiveWinsOverResolvedOnRecurrence(t *testing.T) {
 	require.Len(t, fwd.reports, 1)
 	sent := fwd.reports[0].Issues["i:1"]
 	require.NotNil(t, sent)
-	assert.Equal(t, healthplatformpayload.IssueState_ISSUE_STATE_NEW, sent.PersistedIssue.GetState(),
+	assert.Equal(t, healthplatformpayload.IssueState_ISSUE_STATE_NEW, sent.PersistedIssue.GetState(), //nolint:staticcheck
 		"active NEW entry must win over stale resolved tombstone on recurrence")
 }
 

@@ -228,13 +228,13 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 	deps.HP.ReportIssue(issueA)
 	deps.HP.ReportIssue(issueB)
 	require.Eventually(t, func() bool {
-		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW) &&
-			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_NEW)
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW) && //nolint:staticcheck
+			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_NEW) //nolint:staticcheck
 	}, waitTimeout, waitInterval, "issueA and issueB never appeared as NEW in forwarded reports")
 
 	deps.HP.ReportIssue(issueA)
 	require.Eventually(t, func() bool {
-		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ONGOING)
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ONGOING) //nolint:staticcheck
 	}, waitTimeout, waitInterval, "issueA never transitioned to ONGOING in forwarded reports")
 
 	deps.HP.ResolveIssue(issueAID)
@@ -247,7 +247,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 
 	deps.HP.ReportIssue(issueA)
 	require.Eventually(t, func() bool {
-		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW)
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW) //nolint:staticcheck
 	}, waitTimeout, waitInterval, "issueA never appeared as NEW in the latest forwarded payload")
 
 	// RESOLVED must appear exactly once: tombstones are removed after a successful send.
