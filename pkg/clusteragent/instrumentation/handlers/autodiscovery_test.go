@@ -160,17 +160,6 @@ func TestValidate(t *testing.T) {
 			expectErrCount: 0,
 		},
 		{
-			name: "valid check with container image",
-			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
-				{
-					Integration:    "redisdb",
-					ContainerImage: []string{"redis"},
-					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
-				},
-			}),
-			expectErrCount: 0,
-		},
-		{
 			name: "valid check with container name",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
@@ -182,25 +171,12 @@ func TestValidate(t *testing.T) {
 			expectErrCount: 0,
 		},
 		{
-			name: "container image and container name are mutually exclusive",
-			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
-				{
-					Integration:    "redisdb",
-					ContainerImage: []string{"redis"},
-					ContainerName:  "redis",
-					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
-				},
-			}),
-			expectErrCount: 1,
-			expectField:    "spec.config.checks[0]",
-		},
-		{
 			name: "empty integration name",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration:    "",
-					ContainerImage: []string{"redis"},
-					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:   "",
+					ContainerName: "redis",
+					Instances:     []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
 			expectErrCount: 1,
@@ -210,9 +186,9 @@ func TestValidate(t *testing.T) {
 			name: "whitespace-only integration name",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration:    "   ",
-					ContainerImage: []string{"redis"},
-					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:   "   ",
+					ContainerName: "redis",
+					Instances:     []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
 			expectErrCount: 1,
@@ -222,9 +198,9 @@ func TestValidate(t *testing.T) {
 			name: "no instances or logs",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration:    "redisdb",
-					ContainerImage: []string{"redis"},
-					Instances:      nil,
+					Integration:   "redisdb",
+					ContainerName: "redis",
+					Instances:     nil,
 				},
 			}),
 			expectErrCount: 1,
@@ -234,9 +210,9 @@ func TestValidate(t *testing.T) {
 			name: "logs only is valid",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration:    "custom",
-					ContainerImage: []string{"app"},
-					Logs:           []datadoghq.DatadogInstrumentationLogFields{{Type: "tcp"}},
+					Integration:   "custom",
+					ContainerName: "app",
+					Logs:          []datadoghq.DatadogInstrumentationLogConfig{{Type: "tcp"}},
 				},
 			}),
 			expectErrCount: 0,
@@ -250,7 +226,7 @@ func TestValidate(t *testing.T) {
 				},
 			}),
 			expectErrCount: 1,
-			expectField:    "spec.config.checks[0]",
+			expectField:    "spec.config.checks[0].containerName",
 		},
 		{
 			name: "all validations fail for workload",
@@ -263,14 +239,14 @@ func TestValidate(t *testing.T) {
 			name: "multiple checks with mixed errors",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration:    "redisdb",
-					ContainerImage: []string{"redis"},
-					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:   "redisdb",
+					ContainerName: "redis",
+					Instances:     []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 				{
-					Integration:    "",
-					ContainerImage: []string{"app"},
-					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:   "",
+					ContainerName: "app",
+					Instances:     []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
 			expectErrCount: 1,
@@ -481,45 +457,18 @@ func TestTranslateCheck(t *testing.T) {
 			logsNil:         true,
 		},
 		{
-			name: "container image fallback uses AD identifiers",
+			name: "logs config is translated",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration:    "http_check",
-				ContainerImage: []string{"app-image", "sidecar-image"},
-				Instances: []runtime.RawExtension{
-					{Raw: []byte(`{"url":"http://host1"}`)},
-					{Raw: []byte(`{"url":"http://host2"}`)},
-				},
-			},
-			expectedInit:     "{}",
-			expectedInstLen:  2,
-			expectedADIDs:    []string{"app-image", "sidecar-image"},
-			instanceContains: []string{"host1", "host2"},
-			logsNil:          true,
-		},
-		{
-			name: "container name takes precedence over container image",
-			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration:    "http_check",
-				ContainerName:  "app",
-				ContainerImage: []string{"app-image"},
-				Instances:      []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
+				Integration:   "custom",
+				ContainerName: "app",
+				Instances:     []runtime.RawExtension{{Raw: []byte(`{"key":"val"}`)}},
+				Logs:          []datadoghq.DatadogInstrumentationLogConfig{{Type: "tcp", Port: &port}},
 			},
 			expectedInit:    "{}",
 			expectedInstLen: 1,
 			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
 			expectedCEL:     []string{`container.pod.rootowner.name == "app"`},
 			unexpectedCEL:   []string{`container.name == "app"`},
-			logsNil:         true,
-		},
-		{
-			name: "logs config is translated",
-			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration: "custom",
-				Instances:   []runtime.RawExtension{{Raw: []byte(`{"key":"val"}`)}},
-				Logs:        []datadoghq.DatadogInstrumentationLogFields{{Type: "tcp", Port: &port}},
-			},
-			expectedInit:    "{}",
-			expectedInstLen: 1,
 			logsContains:    `"type":"tcp"`,
 		},
 		{
