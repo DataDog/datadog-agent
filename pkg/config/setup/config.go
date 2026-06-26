@@ -188,8 +188,6 @@ func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 }
 
 func init() {
-	osinit()
-
 	// init default for code that access the config before it initialized
 	InitConfigObjects()
 }

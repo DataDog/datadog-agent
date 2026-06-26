@@ -56,7 +56,7 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/agent/subcommands/import
 # gazelle:exclude cmd/agent/subcommands/jmx
 # gazelle:exclude cmd/agent/subcommands/processchecks
-# gazelle:exclude cmd/agent/subcommands/run
+# gazelle:exclude cmd/agent/subcommands/run/*.go
 # gazelle:exclude cmd/agent/windows
 # gazelle:exclude cmd/cluster-agent/*.go
 # gazelle:exclude cmd/cluster-agent/admission
@@ -84,12 +84,16 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/otel-agent/subcommands/run
 # gazelle:exclude cmd/privateactionrunner/subcommands/*.go
 # gazelle:exclude cmd/privateactionrunner/subcommands/run
-# gazelle:exclude cmd/process-agent/api
 # gazelle:exclude cmd/process-agent/command
 # gazelle:exclude cmd/process-agent/subcommands
 # gazelle:exclude cmd/security-agent/*.go
 # gazelle:exclude cmd/security-agent/api
-# gazelle:exclude cmd/security-agent/subcommands
+# gazelle:exclude cmd/security-agent/subcommands/*.go
+# gazelle:exclude cmd/security-agent/subcommands/compliance
+# gazelle:exclude cmd/security-agent/subcommands/config
+# gazelle:exclude cmd/security-agent/subcommands/coverage
+# gazelle:exclude cmd/security-agent/subcommands/flare
+# gazelle:exclude cmd/security-agent/subcommands/start
 # gazelle:exclude cmd/serverless-init/*.go
 # gazelle:exclude cmd/serverless-init/cloudservice
 # gazelle:exclude cmd/serverless-init/log
@@ -118,12 +122,10 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-core
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
 # gazelle:exclude comp/dogstatsd/http/fx
-# gazelle:exclude comp/dogstatsd/http/impl/*.go
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
-# gazelle:exclude comp/logs/agent/def
 # gazelle:exclude comp/logs/agent/fx
 # gazelle:exclude comp/logs/agent/impl
 # gazelle:exclude comp/logs/agent/mock
@@ -140,7 +142,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/metadata/inventorychecks/impl
 # gazelle:exclude comp/ndmtmp/*.go
 # gazelle:exclude comp/netflow/flowaggregator
-# gazelle:exclude comp/netflow/goflowlib/*.go
 # gazelle:exclude comp/netflow/server/fx
 # gazelle:exclude comp/netflow/server/impl
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
@@ -148,8 +149,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/otelcol/otlp/integrationtest
 # gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/privateactionrunner/impl
-# gazelle:exclude comp/process/apiserver/fx
-# gazelle:exclude comp/process/apiserver/impl
 # gazelle:exclude comp/process/agent/*.go
 # gazelle:exclude comp/process/agent/fx
 # gazelle:exclude comp/process/agent/impl
@@ -157,7 +156,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/process/containercheck
 # gazelle:exclude comp/process/expvars/fx
 # gazelle:exclude comp/process/expvars/impl
-# gazelle:exclude comp/process/gpusubscriber/fx-mock
 # gazelle:exclude comp/process/hostinfo
 # gazelle:exclude comp/process/processcheck
 # gazelle:exclude comp/process/processdiscoverycheck
@@ -269,7 +267,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/eventmonitor/consumers
 # gazelle:exclude pkg/eventmonitor/testutil
 # Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
-# gazelle:exclude pkg/flare
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/integrationtests
 # gazelle:exclude pkg/logs/client/http
@@ -301,13 +298,10 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privateactionrunner/runners
 # gazelle:exclude pkg/privileged-logs/test
-# gazelle:exclude pkg/process/checks
-# gazelle:exclude pkg/process/metadata/parser/*.go
-# gazelle:exclude pkg/process/metadata/workloadmeta
+# gazelle:exclude pkg/process/checks/mocks
+# gazelle:exclude pkg/process/metadata/workloadmeta/collector
 # gazelle:exclude pkg/process/monitor
-# gazelle:exclude pkg/process/net
 # gazelle:exclude pkg/process/runner/mocks
-# gazelle:exclude pkg/process/util/containers
 # gazelle:exclude pkg/procmgr
 # gazelle:exclude pkg/sbom/collectors/host
 # gazelle:exclude pkg/sbom/collectors/procfs

@@ -15,11 +15,6 @@ const (
 	defaultGuiPort = 5002
 )
 
-func osinit() {
-	// Fleet Automation
-	pkgconfigmodel.AddOverrideFunc(FleetConfigOverride)
-}
-
 // FleetConfigOverride sets the fleet_policies_dir config value to the value set in the registry.
 //
 // This value tells the agent to load a config experiment from Fleet Automation.
