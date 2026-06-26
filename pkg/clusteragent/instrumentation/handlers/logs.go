@@ -9,6 +9,8 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -139,17 +141,19 @@ func (h *LogsHandler) Handle(_ context.Context, event instrumentation.EventType,
 func translateWorkloadLog(cr *datadoghq.DatadogInstrumentation, logConfig datadoghq.DatadogInstrumentationLogConfig) (integration.Config, error) {
 	containerName := strings.TrimSpace(logConfig.ContainerName)
 	if containerName == "" {
-		return integration.Config{}, fmt.Errorf("container name must not be empty")
+		return integration.Config{}, errors.New("container name must not be empty")
 	}
-	logsConfig, err := marshalLogs([]datadoghq.DatadogInstrumentationLogFields{logConfig.DatadogInstrumentationLogFields})
+
+	config, err := json.Marshal([]datadoghq.DatadogInstrumentationLogFields{logConfig.DatadogInstrumentationLogFields})
 	if err != nil {
 		return integration.Config{}, err
 	}
+
 	return integration.Config{
 		Name:          logsCheckName,
 		ADIdentifiers: []string{adtypes.KubeContainerNameIdentifier(containerName)},
-		LogsConfig:    logsConfig,
-		CELSelector:   buildCELSelector(cr.Spec.TargetRef, cr.Namespace),
+		LogsConfig:    config,
+		CELSelector:   rootOwnerCELFilter(cr.Spec.TargetRef, cr.Namespace),
 		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
