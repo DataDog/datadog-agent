@@ -68,6 +68,7 @@ core,github.com/Azure/azure-sdk-for-go/sdk/azcore/to,MIT,Copyright (c) Microsoft
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/tracing,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/azidentity,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/azidentity/internal,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azidentity/internal/customtokenproxy,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/internal/diag,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/internal/errorinfo,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/internal/exported,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
@@ -843,6 +844,7 @@ core,github.com/cavaliergopher/grab/v3/pkg/bps,BSD-3-Clause,Copyright (c) 2017 R
 core,github.com/cenkalti/backoff,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cenkalti/backoff/v4,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cenkalti/backoff/v5,MIT,Copyright (c) 2014 Cenk Altı
+core,github.com/cenkalti/backoff/v6,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cespare/xxhash/v2,MIT,Copyright (c) 2016 Caleb Spare
 core,github.com/charlievieth/strcase,MIT,Copyright 2024 Charlie Vieth
 core,github.com/charlievieth/strcase/internal/bytealg,MIT,Copyright 2024 Charlie Vieth
@@ -2285,9 +2287,10 @@ core,github.com/redis/go-redis/v9/internal/hashtag,BSD-2-Clause,Copyright (c) 20
 core,github.com/redis/go-redis/v9/internal/hscan,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/interfaces,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/maintnotifications/logs,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
+core,github.com/redis/go-redis/v9/internal/otel,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/pool,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/proto,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
-core,github.com/redis/go-redis/v9/internal/rand,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
+core,github.com/redis/go-redis/v9/internal/routing,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/util,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/maintnotifications,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/push,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
