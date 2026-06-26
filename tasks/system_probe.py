@@ -1734,7 +1734,11 @@ def save_build_outputs(ctx, destfile):
 
         if count == 0:
             raise Exit(message="no build outputs captured")
-        ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
+        # Use multi-threaded xz (-T0) to parallelize compression across all CPUs
+        # the job is provisioned with (KUBERNETES_CPU_REQUEST: 6). Output is a
+        # standard .tar.xz that downstream `tar -xf`/`tar xJf` consumers decode
+        # transparently.
+        ctx.run(f"tar -C {stagedir} -cf - . | xz -T0 -c > {absdest}")
 
     outfiles.sort()
     for outfile in outfiles:
