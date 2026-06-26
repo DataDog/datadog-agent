@@ -251,7 +251,3 @@ func classifyLogSource(source string, tags []string) string {
 func (t *observerTelemetry) recordProcessingTime(detectorTag string, durationNs float64) {
 	t.processingTime.Set(durationNs, detectorTag)
 }
-
-func (t *observerTelemetry) recordScorerEWMA(scorerName string, score float64) {
-	t.scorerEwma.Set(score, scorerName)
-}

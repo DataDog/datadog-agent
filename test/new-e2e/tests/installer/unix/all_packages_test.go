@@ -227,9 +227,14 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		}
 		// Install ansible then install the agent
 		var ansiblePrefix string
+		collectionVersion := os.Getenv("E2E_DATADOG_DD_COLLECTION_VERSION")
+		if collectionVersion == "" {
+			collectionVersion = "6.5.0"
+		}
 		for i := 0; i < 3; i++ {
 			ansiblePrefix = s.installAnsible(s.os)
-			if _, err := s.Env().RemoteHost.Execute(ansiblePrefix + "ansible-galaxy collection install -vvv datadog.dd"); err == nil {
+			collectionInstallCmd := fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:%s", ansiblePrefix, collectionVersion)
+			if _, err := s.Env().RemoteHost.Execute(collectionInstallCmd); err == nil {
 				break
 			}
 			if i == 2 {
@@ -372,10 +377,19 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		"TESTING_YUM_URL":          "yum.datadoghq.com",
 		"TESTING_YUM_VERSION_PATH": "",
 	}
+	// Build a set of keys already provided in params so env defaults don't override them.
+	paramKeys := make(map[string]struct{}, len(params))
+	for _, p := range params {
+		if key, _, found := strings.Cut(p, "="); found {
+			paramKeys[key] = struct{}{}
+		}
+	}
 	mergedParams := make([]string, len(params))
 	copy(mergedParams, params)
 	for k, v := range env {
-		mergedParams = append(mergedParams, fmt.Sprintf("%s=%s", k, v))
+		if _, overridden := paramKeys[k]; !overridden {
+			mergedParams = append(mergedParams, fmt.Sprintf("%s=%s", k, v))
+		}
 	}
 
 	environments := []string{}
