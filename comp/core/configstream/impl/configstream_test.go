@@ -282,6 +282,24 @@ done:
 	}
 }
 
+// TestSubscribeBlocksUntilSnapshotReady guards against Subscribe() returning before
+// the initial snapshot is buffered in the channel.
+func TestSubscribeBlocksUntilSnapshotReady(t *testing.T) {
+	cfg := configmock.New(t)
+	mockLog := logmock.New(t)
+	cs := newConfigStreamForTest(t, cfg, mockLog)
+
+	eventChan, unsubscribe := cs.Subscribe(&pb.ConfigStreamRequest{Name: "test-client"})
+	defer unsubscribe()
+
+	select {
+	case event := <-eventChan:
+		require.NotNil(t, event.GetSnapshot(), "first event after Subscribe() must be a snapshot")
+	default:
+		t.Fatal("snapshot not in channel immediately after Subscribe() returned")
+	}
+}
+
 func TestNewComponentNoError(t *testing.T) {
 	mockLog := logmock.New(t)
 	telemetryComp := telemetrynoops.GetCompatComponent()
