@@ -163,6 +163,15 @@ func GetValue[T any](obj any) (T, bool) {
 	case T:
 		return t, true
 	case xconfmap.ExpandedValue:
+		// For string requests, prefer Original: OTel stores the substituted text there,
+		// while Value may have been parsed into a non-string scalar (int, bool, etc.)
+		// when the env var content looks like a YAML literal (e.g. DD_API_KEY=12345).
+		var zero T
+		if _, isString := any(zero).(string); isString {
+			if s, ok := any(t.Original).(T); ok {
+				return s, true
+			}
+		}
 		val, ok := t.Value.(T)
 		return val, ok
 	default:
