@@ -19,41 +19,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// defaultEventChanCapacity is a defensive floor used when the caller passes a
-// non-positive buffer size. The kubernetes_apiserver check normally supplies
-// event_collection_buffer_size. The buffer bounds how many events may queue
-// between drains: a full channel drops new events rather than blocking the
-// informer's delivery goroutine (see enqueue), so the size divided by the
-// check interval is the sustainable event rate.
-const defaultEventChanCapacity = 1000
-
 // EventCollector watches Kubernetes events through a shared informer and
-// buffers them for a periodic consumer to drain. The informer's reflector owns
-// resource-version tracking and resync, so this type holds none of the manual
-// watermarking that RunEventCollection required.
-//
-// An EventCollector is single-use: create a new one each time the informer is
-// (re)started, because a SharedInformerFactory cannot be restarted once its
-// stop channel is closed.
+// buffers them for a periodic consumer to drain.
 type EventCollector struct {
 	factory informers.SharedInformerFactory
 	startTS time.Time
 
-	// events buffers collected events between drains. The informer's single
-	// delivery goroutine sends; Drain receives. dropped counts events shed when
-	// the channel was full, for the check to surface as telemetry.
 	events  chan *v1.Event
 	dropped atomic.Uint64
 }
 
 // NewEventCollector returns an EventCollector whose informer lists/watches
-// events matching filter (a field selector, e.g. the value built from
-// filtered_event_types).
-// bufferSize bounds how many events may queue between drains; a non-positive
-// value falls back to defaultEventChanCapacity.
+// events matching filter (a field selector). Requires that the bufferSize be greater than 0.
 func (c *APIClient) NewEventCollector(filter string, bufferSize int) *EventCollector {
 	if bufferSize <= 0 {
-		bufferSize = defaultEventChanCapacity
+		log.Errorf("Event collection buffer size must be greater than 0, got %d", bufferSize)
+		return nil
 	}
 	factory := c.GetInformerWithOptions(nil, informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 		opts.FieldSelector = filter
@@ -84,8 +65,7 @@ func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
 	}, 0)
 }
 
-// Drain returns the events buffered since the last call, leaving the channel
-// empty. It never blocks: it pulls only what is currently queued.
+// Drain returns the events buffered since the last call.
 func (ec *EventCollector) Drain() []*v1.Event {
 	var drained []*v1.Event
 	for {
@@ -98,15 +78,13 @@ func (ec *EventCollector) Drain() []*v1.Event {
 	}
 }
 
-// Dropped returns the cumulative count of events shed because the buffer was
-// full, so the check can surface it as telemetry.
+// Dropped returns the number of events dropped due to the buffer being full.
 func (ec *EventCollector) Dropped() uint64 {
 	return ec.dropped.Load()
 }
 
-// enqueue buffers an event surfaced by the informer, dropping anything
-// shouldCollect rejects. The send is non-blocking: a full buffer drops the
-// event rather than stalling the informer's delivery goroutine.
+// enqueue adds an event to the buffer. If the event's lastTimestamp and EventTime are before the startTS, it is not collected.
+// If the buffer is full, the event is dropped.
 func (ec *EventCollector) enqueue(obj interface{}) {
 	ev, ok := obj.(*v1.Event)
 	if !ok {
@@ -125,8 +103,7 @@ func (ec *EventCollector) enqueue(obj interface{}) {
 	}
 }
 
-// shouldCollect reports whether an event the informer surfaced should be
-// buffered for emission.
+// shouldCollect reports whether an event should be collected.
 func (ec *EventCollector) shouldCollect(ev *v1.Event) bool {
 	return ev.LastTimestamp.After(ec.startTS) || ev.EventTime.Time.After(ec.startTS)
 }

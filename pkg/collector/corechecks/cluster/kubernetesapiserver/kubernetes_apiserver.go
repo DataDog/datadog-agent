@@ -50,12 +50,8 @@ const (
 	defaultResyncPeriodInSecond        = 300
 	defaultTimeoutEventCollection      = 2000
 	defaultMaxEstimatedEventTextLength = 3750
-	// defaultEventCollectionBufferSize bounds the informer event buffer between
-	// check runs. At a 15s interval this sustains ~666 events/s, comfortably
-	// above the highest observed cluster churn; raise event_collection_buffer_size
-	// for clusters that exceed it.
-	defaultEventCollectionBufferSize = 10000
-	maximumWaitForAPIServer          = 10 * time.Second
+	defaultEventCollectionBufferSize   = 10000
+	maximumWaitForAPIServer            = 10 * time.Second
 )
 
 var (
@@ -85,18 +81,14 @@ type KubeASConfig struct {
 	UseComponentStatus  bool `yaml:"use_component_status"`
 
 	// Event collection configuration
-	CollectEvent             bool `yaml:"collect_events"`
-	MaxEventCollection       int  `yaml:"max_events_per_run"`
-	EventCollectionTimeoutMs int  `yaml:"kubernetes_event_read_timeout_ms"`
-	ResyncPeriodEvents       int  `yaml:"kubernetes_event_resync_period_s"`
-	UnbundleEvents           bool `yaml:"unbundle_events"`
-	BundleUnspecifiedEvents  bool `yaml:"bundle_unspecified_events"`
-	UseNewEventCollection    bool `yaml:"use_new_event_collection"`
-
-	// EventCollectionBufferSize bounds how many events the informer-based
-	// collector buffers between check runs. Only used when UseNewEventCollection
-	// is true. Size it to at least the event rate times the check interval.
-	EventCollectionBufferSize int `yaml:"event_collection_buffer_size"`
+	CollectEvent              bool `yaml:"collect_events"`
+	MaxEventCollection        int  `yaml:"max_events_per_run"`
+	EventCollectionTimeoutMs  int  `yaml:"kubernetes_event_read_timeout_ms"`
+	ResyncPeriodEvents        int  `yaml:"kubernetes_event_resync_period_s"`
+	UnbundleEvents            bool `yaml:"unbundle_events"`
+	BundleUnspecifiedEvents   bool `yaml:"bundle_unspecified_events"`
+	UseNewEventCollection     bool `yaml:"use_new_event_collection"`
+	EventCollectionBufferSize int  `yaml:"event_collection_buffer_size"`
 
 	// FilteredEventTypes is a slice of kubernetes field selectors that
 	// works as a deny list of events to filter out.
@@ -141,8 +133,6 @@ type KubeASCheck struct {
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
 	tagger          tagger.Component
 
-	// eventCollectorRunning tracks whether the event informers are currently
-	// running, so they are started and stopped only on leadership transitions.
 	eventCollectorRunning bool
 	informersStopCh       chan struct{}
 }
@@ -375,11 +365,7 @@ func (k *KubeASCheck) Cancel() {
 func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Event, error) {
 	events := k.eventCollection.EventCollector.Drain()
 
-	// Surface events shed because the buffer was full, so churn-induced loss is
-	// visible rather than silent. Cumulative across the collector's lifetime; it
-	// resets to zero when the informer is restarted on a leadership change.
-	sender.MonotonicCount("kubernetes_apiserver.events_dropped", float64(k.eventCollection.EventCollector.Dropped()), "", nil)
-
+	sender.Gauge("kubernetes_apiserver.events_dropped", float64(k.eventCollection.EventCollector.Dropped()), "", nil)
 	ddevents, errs := k.eventCollection.Transformer.Transform(events)
 
 	for _, err := range errs {
