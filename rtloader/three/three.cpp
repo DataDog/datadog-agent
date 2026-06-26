@@ -705,19 +705,15 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module)
             goto done;
         }
 
-        // get symbol name, as_string returns a new object that we have to free
-        char *symbol_name = as_string(symbol);
-        if (symbol_name == NULL) {
-            // as_string returns NULL if `symbol` is not a string object
-            // and raises TypeError. Let's clear the error and keep going.
-            PyErr_Clear();
+        // PyObject_GetAttr accepts the name as a PyObject directly, so we can
+        // skip the as_string() conversion (strdupe malloc + free) entirely.
+        if (!PyUnicode_Check(symbol)) {
             continue;
         }
 
         // get symbol instance. It's a new ref but in case of success we don't
         // DecRef since we return it and the caller will be owner
-        klass = PyObject_GetAttrString(module, symbol_name);
-        ::_free(symbol_name);
+        klass = PyObject_GetAttr(module, symbol);
         if (klass == NULL) {
             PyErr_Clear();
             continue;
