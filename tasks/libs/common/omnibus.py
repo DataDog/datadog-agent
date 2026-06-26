@@ -141,6 +141,7 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'NOTARIZATION_ATTEMPTS',
         'NOTARIZATION_TIMEOUT',
         'OMNIBUS_GIT_CACHE_DIR',
+        'OMNIBUS_GOCACHE',
         'OMNIBUS_GOMODCACHE',
         'OMNIBUS_WORKERS_OVERRIDE',
         'PACKAGE_VERSION',

@@ -30,6 +30,10 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     BUILD_TRACE_SEGMENT: omnibus
+    # Persist and reuse the Go build cache (GOCACHE) across pipelines so the omnibus
+    # datadog-agent Go binaries compile incrementally instead of from scratch every run.
+    # The path lives under the persisted .cache dir (see .bazel:defs:cache:omnibus-transition).
+    OMNIBUS_GOCACHE: "$CI_PROJECT_DIR/.cache/go-build"
   artifacts:
     expire_in: 2 weeks
     paths:

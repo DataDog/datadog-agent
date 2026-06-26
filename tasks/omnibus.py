@@ -123,6 +123,13 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
+    # If the host has a GOCACHE set (or OMNIBUS_GOCACHE plumbed by CI), reuse it so the
+    # omnibus Go binaries compile incrementally against a persisted build cache instead
+    # of recompiling from scratch every run.
+    go_build_cache = os.environ.get('OMNIBUS_GOCACHE') or os.environ.get('GOCACHE')
+    if go_build_cache:
+        env['OMNIBUS_GOCACHE'] = go_build_cache
+
     external_repos = {
         "INTEGRATIONS_CORE_VERSION": "https://github.com/DataDog/integrations-core.git",
         "OMNIBUS_RUBY_VERSION": "https://github.com/DataDog/omnibus-ruby.git",

@@ -66,6 +66,11 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
+  unless ENV["OMNIBUS_GOCACHE"].nil? || ENV["OMNIBUS_GOCACHE"].empty?
+    gocache = Pathname.new(ENV["OMNIBUS_GOCACHE"])
+    env["GOCACHE"] = gocache.to_path
+  end
+
   env = with_standard_compiler_flags(env)
   if fips_mode?
     add_msgo_to_env(env)
