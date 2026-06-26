@@ -1516,6 +1516,13 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
 	config.SetDefault(prefix+"dev_mode_no_ssl", false)
+
+	// DEPRECATED in favor of `logs_config.force_use_http`.
+	config.BindEnvAndSetDefault(prefix+"use_http", false)
+	config.BindEnvAndSetDefault(prefix+"force_use_http", false)
+	// DEPRECATED in favor of `logs_config.force_use_tcp`.
+	config.BindEnvAndSetDefault(prefix+"use_tcp", false)
+	config.BindEnvAndSetDefault(prefix+"force_use_tcp", false)
 }
 
 // pathExists returns true if the given path exists
@@ -1568,4 +1575,14 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 	}
 
 	return true
+}
+
+func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
+	if val, found := platformValues[runtime.GOOS]; found {
+		return val
+	}
+	if val, found := platformValues["other"]; found {
+		return val
+	}
+	return nil
 }
