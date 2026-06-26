@@ -79,6 +79,7 @@ func (suite *networkProbeSuite) TestNetworkProbeInitFailureLifecycle() {
 				),
 			),
 		))
+		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
 		defer logNetworkProbeLogsOnFailure(t, suite)
 
@@ -149,6 +150,7 @@ func (suite *networkProbeSuite) TestNetworkProbeInitFailureLifecycle() {
 				),
 			),
 		))
+		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
 		defer logNetworkProbeLogsOnFailure(t, suite)
 
