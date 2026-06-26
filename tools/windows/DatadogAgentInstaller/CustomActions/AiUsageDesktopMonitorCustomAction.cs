@@ -10,8 +10,8 @@ namespace Datadog.CustomActions
 {
     public class AiUsageDesktopMonitorCustomAction
     {
-        private const string TaskName = "Datadog AI Usage Monitor";
-        private const string TaskDescription = "Starts the Datadog AI Prompt Logger desktop monitor in the interactive user session.";
+        private const string TaskName = "Datadog AI Usage Agent";
+        private const string TaskDescription = "Starts the Datadog AI Usage Agent desktop monitor in the interactive user session.";
         private const string UsersGroupSid = "S-1-5-32-545";
 
         private static ActionResult Configure(ISession session)
@@ -20,13 +20,13 @@ namespace Datadog.CustomActions
             var configRoot = session.Property("APPLICATIONDATADIRECTORY");
             if (string.IsNullOrEmpty(projectLocation) || string.IsNullOrEmpty(configRoot))
             {
-                session.Log("Skipping AI Prompt Logger desktop monitor task registration: install paths are unavailable.");
+                session.Log("Skipping AI Usage Agent desktop monitor task registration: install paths are unavailable.");
                 return ActionResult.Success;
             }
 
-            var hostPath = Path.Combine(projectLocation, "bin", "agent", "ai-prompt-logger-native-host.exe");
+            var hostPath = Path.Combine(projectLocation, "bin", "agent", "ai-usage-agent-native-host.exe");
             var configPath = Path.Combine(configRoot, "ai_usage_native_host.yaml");
-            var taskXmlPath = Path.Combine(Path.GetTempPath(), $"datadog-ai-prompt-logger-{Guid.NewGuid():N}.xml");
+            var taskXmlPath = Path.Combine(Path.GetTempPath(), $"datadog-ai-usage-agent-{Guid.NewGuid():N}.xml");
             var schtasks = Path.Combine(Environment.SystemDirectory, "schtasks.exe");
 
             try
@@ -38,17 +38,17 @@ namespace Datadog.CustomActions
                 {
                     if (proc.ExitCode != 0)
                     {
-                        session.Log($"AI Prompt Logger desktop monitor task registration exited with code: {proc.ExitCode}");
+                        session.Log($"AI Usage Agent desktop monitor task registration exited with code: {proc.ExitCode}");
                         return ActionResult.Failure;
                     }
                 }
 
-                session.Log("AI Prompt Logger desktop monitor task registered.");
+                session.Log("AI Usage Agent desktop monitor task registered.");
                 using (var runProc = session.RunCommand(schtasks, $"/Run /TN \"{TaskName}\""))
                 {
                     if (runProc.ExitCode != 0)
                     {
-                        session.Log($"AI Prompt Logger desktop monitor task start exited with code: {runProc.ExitCode}");
+                        session.Log($"AI Usage Agent desktop monitor task start exited with code: {runProc.ExitCode}");
                     }
                 }
 
@@ -62,7 +62,7 @@ namespace Datadog.CustomActions
                 }
                 catch (Exception e)
                 {
-                    session.Log($"Failed to delete temporary AI Prompt Logger task XML: {e}");
+                    session.Log($"Failed to delete temporary AI Usage Agent task XML: {e}");
                 }
             }
         }
@@ -74,7 +74,7 @@ namespace Datadog.CustomActions
             {
                 if (endProc.ExitCode != 0)
                 {
-                    session.Log($"AI Prompt Logger desktop monitor task end exited with code: {endProc.ExitCode}");
+                    session.Log($"AI Usage Agent desktop monitor task end exited with code: {endProc.ExitCode}");
                 }
             }
 
@@ -82,7 +82,7 @@ namespace Datadog.CustomActions
             {
                 if (deleteProc.ExitCode != 0)
                 {
-                    session.Log($"AI Prompt Logger desktop monitor task deletion exited with code: {deleteProc.ExitCode}");
+                    session.Log($"AI Usage Agent desktop monitor task deletion exited with code: {deleteProc.ExitCode}");
                 }
             }
 

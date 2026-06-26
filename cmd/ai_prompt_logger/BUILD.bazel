@@ -11,7 +11,7 @@ _MACOS_OR_WINDOWS = select({
 })
 
 rust_binary(
-    name = "ai-prompt-logger-native-host",
+    name = "ai-usage-agent-native-host",
     srcs = glob(["src/**/*.rs"]),
     compile_data = ["ai_usage_native_host.yaml.example"],
     edition = "2024",
@@ -38,7 +38,7 @@ rust_binary(
 
 pkg_files(
     name = "native_host_files",
-    srcs = [":ai-prompt-logger-native-host"],
+    srcs = [":ai-usage-agent-native-host"],
     attributes = select({
         "@platforms//os:windows": None,  # Windows doesn't use Unix permissions.
         "//conditions:default": pkg_attributes(
@@ -77,7 +77,7 @@ pkg_files(
 
 pkg_files(
     name = "macos_desktop_monitor_launchagent",
-    srcs = ["com.datadoghq.ai-prompt-logger.desktop-monitor.plist.example"],
+    srcs = ["com.datadoghq.ai-usage-agent.desktop-monitor.plist.example"],
     attributes = pkg_attributes(
         mode = "0644",
     ),
@@ -91,7 +91,7 @@ pkg_files(
     srcs = ["manifest.json"],
     prefix = "bin/agent/dist",
     renames = {
-        "manifest.json": "com.datadoghq.ai_prompt_logger.native_host.json",
+        "manifest.json": "com.datadoghq.ai_usage_agent.native_host.json",
     },
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//packages:__subpackages__"],

@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.datadoghq.ai-prompt-logger.desktop-monitor</string>
+    <string>com.datadoghq.ai-usage-agent.desktop-monitor</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/opt/datadog-agent/embedded/bin/ai-prompt-logger-native-host</string>
+        <string>/opt/datadog-agent/embedded/bin/ai-usage-agent-native-host</string>
         <string>--desktop-monitor</string>
         <string>--config</string>
         <string>/opt/datadog-agent/etc/ai_usage_native_host.yaml</string>

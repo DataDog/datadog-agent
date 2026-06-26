@@ -323,7 +323,7 @@
   "moduleExtensions": {
     "//bazel/toolchains/linux_headers:linux_headers.bzl%linux_headers_extension": {
       "general": {
-        "bzlTransitiveDigest": "st+R/ulVqPkT0R/t3yLLAqOk8EAK4MzET2sMpfW8YB4=",
+        "bzlTransitiveDigest": "CeK/BA0wTzNFQJ9vNuYKCg8wXpdL8fZWAPwRNbkfc9g=",
         "usagesDigest": "Gkt9dniyJltedRsP9VwZgpDnbzWmq0SeOXle8DjQ96s=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -348,7 +348,7 @@
     },
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
-        "bzlTransitiveDigest": "eOYXODssdQNOf4X8CCImpZYvyFCF/VqCz/43DBjJieA=",
+        "bzlTransitiveDigest": "L67A58ViDXnouey/grwOU76W/Dr+mOtr9FuG9fDhK0Q=",
         "usagesDigest": "lBRxCKYy9X03c4jyF/C6hWEAf+24zs/m6M/bS7BVXQU=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -374,7 +374,7 @@
     },
     "//bazel/toolchains/otool:otool_configure.bzl%find_system_otool": {
       "general": {
-        "bzlTransitiveDigest": "68iERr/kCkKOV3vSc2q4LzpEgt7vSpOMHMX9EL+4l7g=",
+        "bzlTransitiveDigest": "1EqlvLMsXc9SmdJwuH1LmOHrKN/1VU/SzoT5jzL/dmQ=",
         "usagesDigest": "fSN6/kn8e/g7DLnxiuMteG88rd6OVfCnXR7SSOcGUdw=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -387,7 +387,7 @@
     },
     "//bazel/toolchains/patchelf:patchelf_configure.bzl%find_system_patchelf": {
       "general": {
-        "bzlTransitiveDigest": "LycsDwhNSFStb20EW25ZzhzQ5zgmwMvzS7gxKN0tTo0=",
+        "bzlTransitiveDigest": "h/34iJRsppuwRgke9QA2KoAGS7yIA0wXxQxbSaS7UKU=",
         "usagesDigest": "sbh/OV5qDj0UnO59z1JQIBVtZdGEcUj1f7xDqQlvL+Y=",
         "recordedInputs": [],
         "generatedRepoSpecs": {

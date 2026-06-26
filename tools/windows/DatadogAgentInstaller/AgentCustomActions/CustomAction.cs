@@ -60,13 +60,13 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult ConfigureAiPromptLoggerDesktopMonitor(Session session)
+        public static ActionResult ConfigureAiUsageMonitorDesktopMonitor(Session session)
         {
             return Datadog.CustomActions.AiUsageDesktopMonitorCustomAction.Configure(session);
         }
 
         [CustomAction]
-        public static ActionResult RemoveAiPromptLoggerDesktopMonitor(Session session)
+        public static ActionResult RemoveAiUsageMonitorDesktopMonitor(Session session)
         {
             return Datadog.CustomActions.AiUsageDesktopMonitorCustomAction.Remove(session);
         }

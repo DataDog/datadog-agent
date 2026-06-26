@@ -33,7 +33,8 @@ else
     sudo_cmd='sudo'
 fi
 
-ai_usage_desktop_monitor_label="com.datadoghq.ai-prompt-logger.desktop-monitor"
+ai_usage_desktop_monitor_label="com.datadoghq.ai-usage-agent.desktop-monitor"
+old_ai_usage_desktop_monitor_label="com.datadoghq.ai-prompt-logger.desktop-monitor"
 
 function on_error() {
     printf "${RED}
@@ -57,8 +58,10 @@ for logged_user in $(who | awk '{print $1}' | sort -u); do
     logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
     $sudo_cmd launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
     $sudo_cmd launchctl bootout "gui/$logged_uid/$ai_usage_desktop_monitor_label" 2>/dev/null || true
+    $sudo_cmd launchctl bootout "gui/$logged_uid/$old_ai_usage_desktop_monitor_label" 2>/dev/null || true
 done
 $sudo_cmd pkill -f 'Datadog Agent.app' 2>/dev/null || true
+$sudo_cmd pkill -f 'ai-usage-agent-native-host.*--desktop-monitor' 2>/dev/null || true
 $sudo_cmd pkill -f 'ai-prompt-logger-native-host.*--desktop-monitor' 2>/dev/null || true
 
 printf "${BLUE}\n    - Removing launchd plists...\n${NC}"
@@ -67,6 +70,7 @@ $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist
 $sudo_cmd rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
 $sudo_cmd rm -f "/Library/LaunchAgents/$ai_usage_desktop_monitor_label.plist"
+$sudo_cmd rm -f "/Library/LaunchAgents/$old_ai_usage_desktop_monitor_label.plist"
 
 printf "${BLUE}\n    - Removing application and install directory...\n${NC}"
 $sudo_cmd rm -rf "/Applications/Datadog Agent.app"

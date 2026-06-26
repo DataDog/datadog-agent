@@ -20,9 +20,9 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction SetupInstaller { get; set; }
 
-        public ManagedAction ConfigureAiPromptLoggerDesktopMonitor { get; }
+        public ManagedAction ConfigureAiUsageMonitorDesktopMonitor { get; }
 
-        public ManagedAction RemoveAiPromptLoggerDesktopMonitor { get; }
+        public ManagedAction RemoveAiUsageMonitorDesktopMonitor { get; }
 
         public ManagedAction EnsureGeneratedFilesRemoved { get; }
 
@@ -336,9 +336,9 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], FLEET_INSTALL=[FLEET_INSTALL], DATABASE=[DATABASE]");
 
-            ConfigureAiPromptLoggerDesktopMonitor = new CustomAction<CustomActions>(
-                    new Id(nameof(ConfigureAiPromptLoggerDesktopMonitor)),
-                    CustomActions.ConfigureAiPromptLoggerDesktopMonitor,
+            ConfigureAiUsageMonitorDesktopMonitor = new CustomAction<CustomActions>(
+                    new Id(nameof(ConfigureAiUsageMonitorDesktopMonitor)),
+                    CustomActions.ConfigureAiUsageMonitorDesktopMonitor,
                     Return.ignore,
                     When.After,
                     new Step(WriteConfig.Id),
@@ -367,9 +367,9 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            RemoveAiPromptLoggerDesktopMonitor = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveAiPromptLoggerDesktopMonitor)),
-                    CustomActions.RemoveAiPromptLoggerDesktopMonitor,
+            RemoveAiUsageMonitorDesktopMonitor = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveAiUsageMonitorDesktopMonitor)),
+                    CustomActions.RemoveAiUsageMonitorDesktopMonitor,
                     Return.ignore,
                     When.Before,
                     new Step(CleanupOnUninstall.Id),
