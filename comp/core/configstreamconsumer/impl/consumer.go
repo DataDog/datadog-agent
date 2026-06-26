@@ -20,10 +20,10 @@ import (
 	"net"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
+	uberatomic "go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
@@ -76,10 +76,9 @@ type consumer struct {
 	stream     pb.AgentSecure_StreamConfigEventsClient
 	streamLock sync.Mutex
 
-	// lastSeqID is accessed only from the single streamLoop goroutine; atomic for clarity.
-	lastSeqID atomic.Int32
+	lastSeqID *uberatomic.Int32
 
-	ready     atomic.Bool
+	ready     *uberatomic.Bool
 	readyCh   chan struct{}
 	readyOnce sync.Once
 
@@ -142,6 +141,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		authToken: authToken,
 		clientTLS: clientTLS,
 		readyCh:   make(chan struct{}),
+		ready:     uberatomic.NewBool(false),
+		lastSeqID: uberatomic.NewInt32(0),
 	}
 	c.initMetrics()
 

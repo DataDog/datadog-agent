@@ -10,7 +10,6 @@ package mock
 
 import (
 	"sync"
-	"sync/atomic"
 	"testing"
 
 	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
@@ -21,7 +20,7 @@ import (
 type Component struct {
 	m           sync.Mutex
 	subscribers map[string]chan *pb.ConfigEvent
-	closed      atomic.Bool
+	closedC     chan struct{} // closed by Close(); guards sends to SubscribedC/UnsubscribedC against close-after-close
 
 	// SubscribedC is a channel that receives the request of any new subscriber.
 	// Tests can use this to verify that a component has subscribed.
@@ -35,6 +34,7 @@ type Component struct {
 func Mock(t *testing.T) configstream.Component {
 	m := &Component{
 		subscribers:   make(map[string]chan *pb.ConfigEvent),
+		closedC:       make(chan struct{}),
 		SubscribedC:   make(chan *pb.ConfigStreamRequest, 1),
 		UnsubscribedC: make(chan struct{}, 1),
 	}
@@ -54,10 +54,9 @@ func (mock *Component) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.Config
 	mock.subscribers[req.Name] = ch
 	mock.m.Unlock()
 
-	// Send outside the lock: SubscribedC has capacity 1 and a blocking send
-	// while holding the lock would deadlock any concurrent Subscribe/Close call.
-	if !mock.closed.Load() {
-		mock.SubscribedC <- req
+	select {
+	case mock.SubscribedC <- req:
+	case <-mock.closedC:
 	}
 
 	var once sync.Once
@@ -66,12 +65,15 @@ func (mock *Component) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.Config
 			mock.m.Lock()
 			_, ok := mock.subscribers[req.Name]
 			delete(mock.subscribers, req.Name)
+			if ok {
+				close(ch)
+			}
 			mock.m.Unlock()
 
 			if ok {
-				close(ch)
-				if !mock.closed.Load() {
-					mock.UnsubscribedC <- struct{}{}
+				select {
+				case mock.UnsubscribedC <- struct{}{}:
+				case <-mock.closedC:
 				}
 			}
 		})
@@ -96,14 +98,13 @@ func (mock *Component) SendEvent(event *pb.ConfigEvent) {
 
 // Close cleans up the mock's resources.
 func (mock *Component) Close() {
-	mock.closed.Store(true)
+	close(mock.closedC)
 
 	mock.m.Lock()
 	subs := mock.subscribers
 	mock.subscribers = make(map[string]chan *pb.ConfigEvent)
 	mock.m.Unlock()
 
-	// Close channels that were not already closed by their unsubscribe function.
 	for _, ch := range subs {
 		close(ch)
 	}
