@@ -96,7 +96,7 @@ Reporters register through the `anomalydetection_reporters` Fx group
 (`reporter/def`). The observer calls each injected `Reporter.Report()` after
 every advance cycle.
 
-**Reporters are stateless forwarders.** All deduplication and first-seen logic
+**Reporters hold no deduplication state.** All first-seen and recurrence logic
 lives inside each correlator via the shared `correlationEmitter` helper
 (`observer/impl/correlation_emitter.go`). Reporters iterate
 `ReportOutput.CorrelatorEvents` and dispatch directly — no per-reporter seen-map.
@@ -105,7 +105,10 @@ lives inside each correlator via the shared `correlationEmitter` helper
   `CorrelationDetected` events at info and ongoing active correlations at debug
 - **EventReporter** — created when `anomaly_detection.reporting.events.enabled=true`
   AND the event-platform forwarder is available; dispatches change events for
-  `CorrelationDetected` and scorer episode events via `reporter/impl/notify.go`
+  `CorrelationDetected` and scorer episode events via `reporter/impl/notify.go`.
+  Not fully stateless: it carries a `retryPending` queue of `CorrelationDetected`
+  sends that failed transiently; entries are retried each advance cycle and evicted
+  after `defaultMaxRetryAttempts` consecutive failures.
 
 `ReportOutput.CorrelatorEvents` carries three event kinds:
 - `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster`, `CrossSignal`,
