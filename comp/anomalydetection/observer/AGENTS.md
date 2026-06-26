@@ -42,6 +42,7 @@ and the testbench use the same engine.
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
 | `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
 | `impl/anomaly_correlator_time_cluster.go` | Default time-proximity correlator |
+| `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay) |
 | `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
 
 ### Component catalog (defaults)
@@ -58,8 +59,27 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Detector | `cusum`, `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | on |
 | Correlator | `cross_signal`, `passthrough` | off |
+| Correlator | `anomaly_scorer` | off |
 
-Toggle via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
+Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
+
+The `anomaly_scorer` correlator has a **dedicated config namespace** under `anomaly_detection.anomaly_scorer.*` (not `detectors.*`) with an `output` sub-section controlling logs and correlation events:
+
+```yaml
+anomaly_detection:
+  anomaly_scorer:
+    enabled: true
+    alpha: 0.3
+    window_secs: 30
+    low_threshold: 0.030
+    high_threshold: 0.060
+    output:
+      logs: true
+      correlation_events: false
+      cooldown_secs: 300
+```
+
+The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/` for testbench replay.
 
 ## Key Design Decisions
 

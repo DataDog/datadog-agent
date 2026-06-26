@@ -101,7 +101,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/system-probe/modules
 # gazelle:exclude cmd/system-probe/subcommands/compliance
 # gazelle:exclude cmd/system-probe/subcommands/run
-# gazelle:exclude cmd/system-probe/subcommands/runtime
 # gazelle:exclude cmd/system-probe/subcommands/usm
 # gazelle:exclude cmd/system-probe/windows
 # gazelle:exclude cmd/systray
@@ -125,7 +124,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/process
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
-# gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
 # gazelle:exclude comp/logs/adscheduler/impl
@@ -136,7 +134,8 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/logs/streamlogs/impl
 # gazelle:exclude comp/metadata/clusteragent/fx
 # gazelle:exclude comp/metadata/clusteragent/impl
-# gazelle:exclude comp/metadata/clusterchecks
+# gazelle:exclude comp/metadata/clusterchecks/fx
+# gazelle:exclude comp/metadata/clusterchecks/impl
 # gazelle:exclude comp/metadata/host/fx
 # gazelle:exclude comp/metadata/host/impl/*.go
 # gazelle:exclude comp/metadata/host/impl/utils
@@ -273,7 +272,6 @@ exports_files(["go.mod"])
 # Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/integrationtests
-# gazelle:exclude pkg/kubestatemetrics/builder
 # gazelle:exclude pkg/logs/client/http
 # gazelle:exclude pkg/logs/client/tcp
 # gazelle:exclude pkg/logs/internal/util/adlistener

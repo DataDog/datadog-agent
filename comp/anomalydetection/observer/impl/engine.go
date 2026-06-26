@@ -10,7 +10,6 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -33,9 +32,9 @@ type anomalyDedupKey struct {
 // The engine does not own reporters or scheduling policy. It accepts explicit
 // Advance calls and returns results that callers route to their own outputs.
 type engine struct {
-	// mu protects detectors, correlators, scorers, extractors, logObservers,
+	// mu protects detectors, correlators, extractors, logObservers,
 	// lastAnalyzedDataTime, and latestDataTime from concurrent access.
-	// Writers (Advance, Reset, SetDetectors, SetCorrelators, SetScorers, SetExtractors)
+	// Writers (Advance, Reset, SetDetectors, SetCorrelators, SetExtractors)
 	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
@@ -43,7 +42,11 @@ type engine struct {
 	extractors  []observerdef.LogMetricsExtractor
 	detectors   []observerdef.Detector
 	correlators []observerdef.Correlator
-	scorers     []observerdef.AnomalyScorer
+
+	// scorer is a typed pointer to the anomaly scorer (when present).
+	// It is also included in correlators for processing; this pointer is used
+	// only for ScoreState() introspection without a type assertion at read time.
+	scorer *anomalyScorer
 
 	// scheduler decides when the engine should advance analysis.
 	scheduler schedulerPolicy
@@ -84,10 +87,6 @@ type engine struct {
 	onStorageCapacityHit   func()
 	onAdvanceSkipped       func(reason string)
 	onProcessingTime       func(detectorTag string, durationNs float64)
-	onScorerEWMA           func(scorerName string, score float64)
-
-	// detectorTags caches "detector:<name>" strings, rebuilt when components change.
-	detectorTags map[string]string
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -126,7 +125,9 @@ type engineConfig struct {
 	extractors  []observerdef.LogMetricsExtractor
 	detectors   []observerdef.Detector
 	correlators []observerdef.Correlator
-	scorers     []observerdef.AnomalyScorer
+	// scorer is the optional unified anomaly scorer. When non-nil, it is also
+	// appended to correlators so it participates in the normal correlator loop.
+	scorer *anomalyScorer
 	// scheduler is the scheduling policy. If nil, defaults to currentBehaviorPolicy.
 	scheduler schedulerPolicy
 
@@ -142,12 +143,18 @@ func newEngine(cfg engineConfig) *engine {
 	}
 	validateUniqueExtractorNames(cfg.extractors)
 
+	// Include the scorer in correlators so it participates in the normal loop.
+	correlators := cfg.correlators
+	if cfg.scorer != nil {
+		correlators = append(correlators, cfg.scorer)
+	}
+
 	e := &engine{
 		storage:     cfg.storage,
 		extractors:  cfg.extractors,
 		detectors:   cfg.detectors,
-		correlators: cfg.correlators,
-		scorers:     cfg.scorers,
+		correlators: correlators,
+		scorer:      cfg.scorer,
 		scheduler:   sched,
 
 		rawAnomalyWindow: cfg.rawAnomalyWindow,
@@ -163,38 +170,6 @@ func newEngine(cfg engineConfig) *engine {
 	}
 
 	return e
-}
-
-// rebuildDetectorTags rebuilds the cached "detector:<name>" tag strings from
-// the current extractors, detectors, logObservers, and correlators.
-// Called on construction and whenever the component sets change.
-func (e *engine) rebuildDetectorTags() {
-	tags := make(map[string]string)
-	for _, ext := range e.extractors {
-		tags[ext.Name()] = "detector:" + ext.Name()
-	}
-	for _, d := range e.detectors {
-		tags[d.Name()] = "detector:" + d.Name()
-	}
-	for _, lo := range e.logObservers {
-		tags[lo.Name()] = "detector:" + lo.Name()
-	}
-	for _, c := range e.correlators {
-		tags[c.Name()] = "detector:" + c.Name()
-	}
-	for _, sc := range e.scorers {
-		tags[sc.Name()] = "detector:" + sc.Name()
-	}
-	e.detectorTags = tags
-}
-
-// detectorTag returns the cached "detector:<name>" tag string. Falls back to
-// concatenation if the name is not cached (should not happen in practice).
-func (e *engine) detectorTag(name string) string {
-	if tag, ok := e.detectorTags[name]; ok {
-		return tag
-	}
-	return "detector:" + name
 }
 
 // enableDetectDigestRecording sets a callback invoked after each Detect() call
@@ -257,14 +232,9 @@ func (e *engine) registerHandle(h *handle) {
 // The bounded-source assumption: every production caller of obs.GetHandle()
 // passes a statically-defined string constant. As of this writing the full
 // set is:
-//   - "dogstatsd"                  (pkg/aggregator/demultiplexer_agent.go, DogStatsD workers)
-//   - "check"                      (pkg/aggregator/demultiplexer_agent.go, core check aggregator)
-//   - "log_metrics_extractor"      (virtual metrics from logs)
-//   - "connection_error_extractor" (connection error extractor)
-//   - "log_pattern_extractor"      (log pattern extractor)
-//   - "logs"                       (comp/anomalydetection/logssource/impl/logssource.go)
-//   - "agent_logs"                 (comp/anomalydetection/observer/impl/observer.go)
-//   - "telemetry"                  (observer-internal debug metrics)
+//   - "all-metrics"          (pkg/aggregator/demultiplexer_agent.go)
+//   - "logs"                 (comp/anomalydetection/logssource/impl/logssource.go)
+//   - "agent-internal-logs"  (comp/anomalydetection/observer/impl/observer.go)
 //
 // If a future caller ever passes a user-controlled or per-container source
 // string, the COW map becomes unbounded and this memoisation strategy is
@@ -445,7 +415,6 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	}
 	detectors := e.detectors
 	correlators := e.correlators
-	scorers := e.scorers
 	e.lastAnalyzedDataTime = upToSec
 	e.mu.Unlock()
 
@@ -479,7 +448,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		})
 	}
 
-	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators, scorers)
+	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
 	// Evict series beyond the storage cap and fan freed refs to detectors.
 	if freed := e.storage.EvictDefault(); len(freed) > 0 {
@@ -515,7 +484,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 // correlators to upTo after processing would evict just-formed clusters before
 // they can be accumulated. We accumulate correlations BEFORE advancing so
 // clusters are captured while still alive.
-func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator, scorers []observerdef.AnomalyScorer) advanceResult {
+func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
 
 	// Detect, deduplicate, and feed anomalies to correlators.
@@ -583,18 +552,6 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		})
 	}
 
-	// Advance scorers once per second tick, after all anomalies have been processed.
-	for _, scorer := range scorers {
-		advanceStart := time.Now()
-		scorer.Advance(upTo)
-		if e.onProcessingTime != nil {
-			e.onProcessingTime(e.detectorTag(scorer.Name()), float64(time.Since(advanceStart).Nanoseconds()))
-		}
-		if e.onScorerEWMA != nil {
-			e.onScorerEWMA(scorer.Name(), scorer.LastScore())
-		}
-	}
-
 	return advanceResult{
 		anomalies: allAnomalies,
 	}
@@ -614,17 +571,10 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 	a.Context = ctx
 }
 
-// processAnomaly sends an anomaly to all registered correlators and scorers.
+// processAnomaly sends an anomaly to all registered correlators.
 func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 	for _, correlator := range e.correlators {
 		correlator.ProcessAnomaly(anomaly)
-	}
-	for _, scorer := range e.scorers {
-		processingStartTime := time.Now()
-		scorer.ProcessAnomaly(anomaly)
-		if e.onProcessingTime != nil {
-			e.onProcessingTime(e.detectorTag(scorer.Name()), float64(time.Since(processingStartTime).Nanoseconds()))
-		}
 	}
 }
 
@@ -799,15 +749,6 @@ func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
 	e.correlators = correlators
 }
 
-// SetScorers replaces the engine's scorers.
-func (e *engine) SetScorers(scorers []observerdef.AnomalyScorer) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	e.scorers = scorers
-	e.rebuildDetectorTags()
-}
-
 // SetExtractors replaces the engine's log-metrics extractors. Used when
 // testbench components are toggled so that replayed log ingestion uses
 // only the currently-enabled extractors.
@@ -836,10 +777,6 @@ func (e *engine) Reset() {
 
 	for _, correlator := range e.correlators {
 		correlator.Reset()
-	}
-
-	for _, scorer := range e.scorers {
-		scorer.Reset()
 	}
 
 	for _, extractor := range e.extractors {
@@ -896,9 +833,6 @@ func (e *engine) resetAnalysisState() {
 	for _, correlator := range e.correlators {
 		correlator.Reset()
 	}
-	for _, scorer := range e.scorers {
-		scorer.Reset()
-	}
 	// Extractors are intentionally NOT reset: their state was built during
 	// log ingestion and is needed by enrichAnomaly during replay.
 
@@ -909,10 +843,18 @@ func (e *engine) resetAnalysisState() {
 // ResetForReplay reconfigures with new components, clears all state, and replaces storage.
 // The caller supplies storageCfg so it owns any non-default retention policy
 // (e.g. the testbench passes PointRetentionSecs=0 for unbounded replay storage).
-func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, scorers []observerdef.AnomalyScorer, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig) {
+// If scorer is non-nil it is appended to correlators so it participates in
+// the normal correlator loop.
+func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, scorer *anomalyScorer, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig) {
 	e.SetDetectors(detectors)
-	e.SetCorrelators(correlators)
-	e.SetScorers(scorers)
+	allCorrelators := correlators
+	if scorer != nil {
+		allCorrelators = append(allCorrelators, scorer)
+	}
+	e.SetCorrelators(allCorrelators)
+	e.mu.Lock()
+	e.scorer = scorer
+	e.mu.Unlock()
 	e.SetExtractors(extractors)
 	e.resetFull()
 	e.mu.Lock()
