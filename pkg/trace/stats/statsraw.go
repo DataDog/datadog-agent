@@ -276,75 +276,14 @@ func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggK
 	// --- Per-field cardinality checks ---
 	// Each field is checked independently; collapsed fields use the sentinel value.
 	// After any per-field collapse, aggr is recomputed.
-	recomputeAggr := false
 	sentinel := sb.getAdditionalMetricTagValueBlockSentinel()
-
-	if sb.resourceCardinalityLimit > 0 && s.resource != "" {
-		if _, exists := sb.distinctResources[s.resource]; !exists {
-			if len(sb.distinctResources) >= sb.resourceCardinalityLimit {
-				if !sb.warnedThisBucket {
-					log.Debugf("stats cardinality resource limit (%d) reached for this bucket; collapsing resource to sentinel", sb.resourceCardinalityLimit)
-					sb.warnedThisBucket = true
-				}
-				s.resource = sentinel
-				result.ResourceCollapsed = true
-				recomputeAggr = true
-			} else {
-				sb.distinctResources[s.resource] = struct{}{}
-			}
-		}
-	}
-
-	if sb.httpEndpointCardinalityLimit > 0 && s.httpEndpoint != "" {
-		if _, exists := sb.distinctHTTPEndpoints[s.httpEndpoint]; !exists {
-			if len(sb.distinctHTTPEndpoints) >= sb.httpEndpointCardinalityLimit {
-				if !sb.warnedThisBucket {
-					log.Debugf("stats cardinality http_endpoint limit (%d) reached for this bucket; collapsing http_endpoint to sentinel", sb.httpEndpointCardinalityLimit)
-					sb.warnedThisBucket = true
-				}
-				s.httpEndpoint = sentinel
-				result.HTTPEndpointCollapsed = true
-				recomputeAggr = true
-			} else {
-				sb.distinctHTTPEndpoints[s.httpEndpoint] = struct{}{}
-			}
-		}
-	}
-
-	if sb.peerTagsCardinalityLimit > 0 && len(s.matchingPeerTags) > 0 {
-		h := tagsFnvHash(s.matchingPeerTags)
-		if _, exists := sb.distinctPeerTagHashes[h]; !exists {
-			if len(sb.distinctPeerTagHashes) >= sb.peerTagsCardinalityLimit {
-				if !sb.warnedThisBucket {
-					log.Debugf("stats cardinality peer_tags limit (%d) reached for this bucket; collapsing peer_tags to sentinel", sb.peerTagsCardinalityLimit)
-					sb.warnedThisBucket = true
-				}
-				s.matchingPeerTags = []string{sentinel}
-				result.PeerTagsCollapsed = true
-				recomputeAggr = true
-			} else {
-				sb.distinctPeerTagHashes[h] = struct{}{}
-			}
-		}
-	}
-
-	if sb.originCardinalityLimit > 0 && origin != "" {
-		if _, exists := sb.distinctOrigins[origin]; !exists {
-			if len(sb.distinctOrigins) >= sb.originCardinalityLimit {
-				if !sb.warnedThisBucket {
-					log.Debugf("stats cardinality origin limit (%d) reached for this bucket; collapsing origin to empty", sb.originCardinalityLimit)
-					sb.warnedThisBucket = true
-				}
-				// Origin is not a field on StatSpan — it controls the Synthetics flag in the aggregation.
-				// We collapse by clearing the origin so Synthetics=false in the overflow aggregation.
-				origin = ""
-				result.OriginCollapsed = true
-				recomputeAggr = true
-			} else {
-				sb.distinctOrigins[origin] = struct{}{}
-			}
-		}
-	}
+	result.ResourceCollapsed = sb.checkStringField(sb.resourceCardinalityLimit, sb.distinctResources, &s.resource, "resource", sentinel)
+	result.HTTPEndpointCollapsed = sb.checkStringField(sb.httpEndpointCardinalityLimit, sb.distinctHTTPEndpoints, &s.httpEndpoint, "http_endpoint", sentinel)
+	result.PeerTagsCollapsed = sb.checkPeerTagsField(sb.peerTagsCardinalityLimit, sb.distinctPeerTagHashes, &s.matchingPeerTags, sentinel)
+	// Origin is not a field on StatSpan — it controls the Synthetics flag in the aggregation.
+	// Collapsing clears origin so the overflow aggregation has Synthetics=false.
+	result.OriginCollapsed = sb.checkStringField(sb.originCardinalityLimit, sb.distinctOrigins, &origin, "origin", sentinel)
+	recomputeAggr := result.ResourceCollapsed || result.HTTPEndpointCollapsed || result.PeerTagsCollapsed || result.OriginCollapsed
 
 	if recomputeAggr {
 		aggr = NewAggregationFromSpan(s, origin, aggKey)
@@ -438,6 +377,50 @@ func (sb *RawBucket) add(s *StatSpan, weight float64, aggr Aggregation) {
 			log.Debugf("Error adding distribution stats: %v", err)
 		}
 	}
+}
+
+// checkStringField enforces a per-field cardinality limit for a plain string aggregation field.
+// It returns true (collapsing *value to sentinel) when the limit is reached and the value is new.
+// It returns false when the limit is disabled (0), the value is empty, or the value is already tracked.
+func (sb *RawBucket) checkStringField(limit int, distinct map[string]struct{}, value *string, fieldName, sentinel string) bool {
+	if limit <= 0 || *value == "" {
+		return false
+	}
+	if _, exists := distinct[*value]; exists {
+		return false
+	}
+	if len(distinct) < limit {
+		distinct[*value] = struct{}{}
+		return false
+	}
+	if !sb.warnedThisBucket {
+		log.Debugf("stats cardinality %s limit (%d) reached for this bucket; collapsing %s to sentinel", fieldName, limit, fieldName)
+		sb.warnedThisBucket = true
+	}
+	*value = sentinel
+	return true
+}
+
+// checkPeerTagsField enforces the peer_tags cardinality limit.
+// It uses the FNV hash of the tag slice as the distinct key and overwrites *tags with a singleton sentinel slice on collapse.
+func (sb *RawBucket) checkPeerTagsField(limit int, distinct map[uint64]struct{}, tags *[]string, sentinel string) bool {
+	if limit <= 0 || len(*tags) == 0 {
+		return false
+	}
+	h := tagsFnvHash(*tags)
+	if _, exists := distinct[h]; exists {
+		return false
+	}
+	if len(distinct) < limit {
+		distinct[h] = struct{}{}
+		return false
+	}
+	if !sb.warnedThisBucket {
+		log.Debugf("stats cardinality peer_tags limit (%d) reached for this bucket; collapsing peer_tags to sentinel", limit)
+		sb.warnedThisBucket = true
+	}
+	*tags = []string{sentinel}
+	return true
 }
 
 // nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
