@@ -71,6 +71,11 @@ pyproject_wheel(
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
+    name = "all_wheels",
+    srcs = ["base_wheels", "integrations_wheels"],
+)
+
+filegroup(
     name = "base_wheels",
     srcs = [{base_wheel_srcs}],
 )
