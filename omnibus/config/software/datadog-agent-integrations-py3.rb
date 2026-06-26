@@ -50,7 +50,6 @@ if arm_target?
   excluded_folders.push('ibm_mq')
 end
 
-final_constraints_file = 'final_constraints-py3.txt'
 agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
 agent_requirements_in = 'agent_requirements.in'
@@ -87,10 +86,6 @@ build do
           "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
           "--//:install_dir=#{install_dir} " \
           "-- //deps/agent_integrations:install --destdir=#{install_dir}"
-
-  # Create a constraint file after installing all the core dependencies and before any integration
-  # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
-  command "#{python} -m pip freeze > #{install_dir}/#{final_constraints_file}"
 
   # Prepare build env for integrations
   wheel_build_dir = windows_safe_path(project_dir, ".wheels")
