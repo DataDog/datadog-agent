@@ -57,7 +57,7 @@ if [ ! -f "$AGENT_SRC/go.mod" ]; then
 fi
 
 log "Agent source found at $AGENT_SRC"
-log "  go.mod: $(head -1 "$AGENT_SRC/go.mod")"
+log "  go.mod: $(head -1 "$AGENT_SRC"/go.mod)"
 
 # ─── Step 2: Read INTEGRATIONS_CORE_VERSION from release.json ─────────────────
 
