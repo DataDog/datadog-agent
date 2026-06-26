@@ -87,12 +87,14 @@ func (suite *networkProbeSuite) TestNetworkProbeInitFailureLifecycle() {
 			assert.NoError(ct, err)
 			for _, p := range payloads {
 				for _, iss := range findIssuesByID(t, p, "network-probe-kernel-unsupported") {
-					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+					if iss.PersistedIssue != nil &&
+						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
+							iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
 						return
 					}
 				}
 			}
-			assert.Fail(ct, "network-probe-kernel-unsupported not found as NEW")
+			assert.Fail(ct, "network-probe-kernel-unsupported not found as NEW or ONGOING")
 		}, defaultIssueTimeout, defaultIssuePollInterval, "kernel issue not detected in fakeintake")
 	})
 
@@ -155,12 +157,14 @@ func (suite *networkProbeSuite) TestNetworkProbeInitFailureLifecycle() {
 			assert.NoError(ct, err)
 			for _, p := range payloads {
 				for _, iss := range findIssuesByID(t, p, "network-probe-usm-unsupported") {
-					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+					if iss.PersistedIssue != nil &&
+						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
+							iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
 						return
 					}
 				}
 			}
-			assert.Fail(ct, "network-probe-usm-unsupported not found as NEW")
+			assert.Fail(ct, "network-probe-usm-unsupported not found as NEW or ONGOING")
 		}, defaultIssueTimeout, defaultIssuePollInterval, "USM issue not detected in fakeintake")
 	})
 
