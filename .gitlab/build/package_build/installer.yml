@@ -162,7 +162,7 @@ installer-install-scripts:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" ${INSTALL_DIR_PARAM}
+    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" --flavor "${FLAVOR:-base}" ${INSTALL_DIR_PARAM}
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -220,6 +220,58 @@ installer-arm64-oci:
   extends: installer-arm64
   variables:
     DESTINATION_FILE: "datadog-updater_7-arm64-oci.tar.xz"
+  before_script:
+    - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
+    - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
+
+# FIPS flavor of the installer. Built with AGENT_FLAVOR=fips so the binary is
+# FIPS-built (BuiltForFIPS() == true); packaged as the "fips" variant of the
+# datadog-installer OCI image in .gitlab/build/packaging/oci.yml.
+
+installer-fips-amd64:
+  extends: [.installer_build_common, .agent_fips_flavor]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: ["go_deps"]
+  variables:
+    PACKAGE_ARCH: amd64
+    DESTINATION_FILE: "datadog-fips-installer_7-amd64.tar.xz"
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+
+installer-fips-arm64:
+  extends: [.installer_build_common, .agent_fips_flavor]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
+  needs: ["go_deps"]
+  variables:
+    PACKAGE_ARCH: arm64
+    DESTINATION_FILE: "datadog-fips-installer_7-arm64.tar.xz"
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+
+installer-fips-amd64-oci:
+  extends: installer-fips-amd64
+  variables:
+    DESTINATION_FILE: "datadog-fips-updater_7-amd64-oci.tar.xz"
+  before_script:
+    - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
+    - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
+
+installer-fips-arm64-oci:
+  extends: installer-fips-arm64
+  variables:
+    DESTINATION_FILE: "datadog-fips-updater_7-arm64-oci.tar.xz"
   before_script:
     - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
