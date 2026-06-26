@@ -220,8 +220,6 @@ func splitLogsByScope(ld plog.Logs) (plog.Logs, plog.Logs) {
 		return ld, plog.NewLogs()
 	}
 
-	isK8s := func(name string) bool { return ScopeName(name) == K8sObjectsReceiver }
-	isRegular := func(name string) bool { return ScopeName(name) != K8sObjectsReceiver }
 	k8sLogs := plog.NewLogs()
 	regularLogs := plog.NewLogs()
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
@@ -232,27 +230,28 @@ func splitLogsByScope(ld plog.Logs) (plog.Logs, plog.Logs) {
 			rl.SetSchemaUrl(srcRL.SchemaUrl())
 			continue
 		}
-		copyMatchingScopes(srcRL, k8sLogs, isK8s)
-		copyMatchingScopes(srcRL, regularLogs, isRegular)
+		var k8sRL, regularRL plog.ResourceLogs
+		var k8sInit, regularInit bool
+		for j := 0; j < srcRL.ScopeLogs().Len(); j++ {
+			sl := srcRL.ScopeLogs().At(j)
+			if ScopeName(sl.Scope().Name()) == K8sObjectsReceiver {
+				if !k8sInit {
+					k8sRL = k8sLogs.ResourceLogs().AppendEmpty()
+					srcRL.Resource().CopyTo(k8sRL.Resource())
+					k8sRL.SetSchemaUrl(srcRL.SchemaUrl())
+					k8sInit = true
+				}
+				sl.CopyTo(k8sRL.ScopeLogs().AppendEmpty())
+			} else {
+				if !regularInit {
+					regularRL = regularLogs.ResourceLogs().AppendEmpty()
+					srcRL.Resource().CopyTo(regularRL.Resource())
+					regularRL.SetSchemaUrl(srcRL.SchemaUrl())
+					regularInit = true
+				}
+				sl.CopyTo(regularRL.ScopeLogs().AppendEmpty())
+			}
+		}
 	}
 	return k8sLogs, regularLogs
-}
-
-// copyMatchingScopes copies ScopeLogs from src to dst whose scope name passes match.
-func copyMatchingScopes(src plog.ResourceLogs, dst plog.Logs, match func(scopeName string) bool) {
-	var rl plog.ResourceLogs
-	initialized := false
-	for j := 0; j < src.ScopeLogs().Len(); j++ {
-		sl := src.ScopeLogs().At(j)
-		if !match(sl.Scope().Name()) {
-			continue
-		}
-		if !initialized {
-			rl = dst.ResourceLogs().AppendEmpty()
-			src.Resource().CopyTo(rl.Resource())
-			rl.SetSchemaUrl(src.SchemaUrl())
-			initialized = true
-		}
-		sl.CopyTo(rl.ScopeLogs().AppendEmpty())
-	}
 }

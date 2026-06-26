@@ -10,19 +10,32 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
+	"sync/atomic"
 	"testing"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 )
+
+type stubHostname struct{ name string }
+
+func (s stubHostname) Get(context.Context) (string, error) { return s.name, nil }
+func (s stubHostname) GetWithProvider(context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{Hostname: s.name, Provider: "stub"}, nil
+}
+func (s stubHostname) GetSafe(context.Context) string { return s.name }
 
 func TestLogsExporter(t *testing.T) {
 	lr := testutil.GenerateLogsOneLogRecord()
@@ -495,5 +508,133 @@ func TestSplitLogsByScope(t *testing.T) {
 		assert.Equal(t, 0, k8s.ResourceLogs().Len())
 		assert.Equal(t, 1, regular.ResourceLogs().Len())
 		assert.Equal(t, ld, regular)
+	})
+}
+
+func TestConsumeLogs_OrchestratorBranching(t *testing.T) {
+	regularLog := func() plog.Logs {
+		ld := plog.NewLogs()
+		rl := ld.ResourceLogs().AppendEmpty()
+		sl := rl.ScopeLogs().AppendEmpty()
+		sl.Scope().SetName("filelog")
+		sl.LogRecords().AppendEmpty().Body().SetStr("hello")
+		return ld
+	}
+	mixedLogs := func() plog.Logs {
+		ld := plog.NewLogs()
+		rl := ld.ResourceLogs().AppendEmpty()
+		rl.Resource().Attributes().PutStr("k8s.cluster.uid", "cluster-1")
+		rl.Resource().Attributes().PutStr("k8s.cluster.name", "my-cluster")
+		regular := rl.ScopeLogs().AppendEmpty()
+		regular.Scope().SetName("filelog")
+		regular.LogRecords().AppendEmpty().Body().SetStr("hello")
+		k8sScope := rl.ScopeLogs().AppendEmpty()
+		k8sScope.Scope().SetName(string(K8sObjectsReceiver))
+		k8sScope.LogRecords().AppendEmpty().Body().SetStr(
+			`{"apiVersion":"v1","kind":"Pod","metadata":{"uid":"pod-uid","resourceVersion":"v1","name":"p"}}`)
+		return ld
+	}
+
+	newExp := func(t *testing.T, ch chan *message.Message, cfg *Config) exp.Logs {
+		t.Helper()
+		params := exportertest.NewNopSettings(component.MustNewType(TypeStr))
+		f := NewFactory(ch, otel.NewDisabledGatewayUsage())
+		e, err := f.CreateLogs(context.Background(), params, cfg)
+		require.NoError(t, err)
+		return e
+	}
+
+	t.Run("orchestrator disabled routes everything to regular path", func(t *testing.T) {
+		ch := make(chan *message.Message, 4)
+		e := newExp(t, ch, &Config{OtelSource: otelSource, LogSourceName: LogSourceName})
+		require.NoError(t, e.ConsumeLogs(context.Background(), regularLog()))
+		select {
+		case <-ch:
+		default:
+			t.Fatal("expected regular log to reach channel")
+		}
+	})
+
+	t.Run("orchestrator enabled, only regular logs: no HTTP call", func(t *testing.T) {
+		var posts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			posts.Add(1)
+		}))
+		defer server.Close()
+
+		ch := make(chan *message.Message, 4)
+		e := newExp(t, ch, &Config{
+			OtelSource:    otelSource,
+			LogSourceName: LogSourceName,
+			OrchestratorConfig: OrchestratorConfig{
+				Enabled: true, Endpoint: server.URL, Key: "k", Hostname: stubHostname{name: "h"},
+			},
+		})
+		require.NoError(t, e.ConsumeLogs(context.Background(), regularLog()))
+		assert.Equal(t, int32(0), posts.Load(), "k8s consumer should not be invoked")
+		select {
+		case <-ch:
+		default:
+			t.Fatal("expected regular log to reach channel")
+		}
+	})
+
+	t.Run("orchestrator enabled, only k8s logs: no channel send", func(t *testing.T) {
+		var posts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			posts.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		ld := plog.NewLogs()
+		rl := ld.ResourceLogs().AppendEmpty()
+		rl.Resource().Attributes().PutStr("k8s.cluster.uid", "cluster-1")
+		rl.Resource().Attributes().PutStr("k8s.cluster.name", "my-cluster")
+		sl := rl.ScopeLogs().AppendEmpty()
+		sl.Scope().SetName(string(K8sObjectsReceiver))
+		sl.LogRecords().AppendEmpty().Body().SetStr(
+			`{"apiVersion":"v1","kind":"Pod","metadata":{"uid":"pod-uid","resourceVersion":"v1","name":"p"}}`)
+
+		ch := make(chan *message.Message, 4)
+		e := newExp(t, ch, &Config{
+			OtelSource:    otelSource,
+			LogSourceName: LogSourceName,
+			OrchestratorConfig: OrchestratorConfig{
+				Enabled: true, Endpoint: server.URL, Key: "k", Hostname: stubHostname{name: "h"},
+			},
+		})
+		require.NoError(t, e.ConsumeLogs(context.Background(), ld))
+		assert.Equal(t, int32(1), posts.Load(), "k8s consumer should be invoked once")
+		select {
+		case <-ch:
+			t.Fatal("regular channel should not receive anything")
+		default:
+		}
+	})
+
+	t.Run("orchestrator enabled, mixed batch: both consumers invoked", func(t *testing.T) {
+		var posts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			posts.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		ch := make(chan *message.Message, 4)
+		e := newExp(t, ch, &Config{
+			OtelSource:    otelSource,
+			LogSourceName: LogSourceName,
+			OrchestratorConfig: OrchestratorConfig{
+				Enabled: true, Endpoint: server.URL, Key: "k", Hostname: stubHostname{name: "h"},
+			},
+		})
+		require.NoError(t, e.ConsumeLogs(context.Background(), mixedLogs()))
+		assert.Equal(t, int32(1), posts.Load(), "k8s consumer should be invoked once")
+		select {
+		case <-ch:
+		default:
+			t.Fatal("expected regular log to reach channel")
+		}
 	})
 }
