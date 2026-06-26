@@ -22,7 +22,7 @@ import (
 func TestWebhook_DisabledByDefault(t *testing.T) {
 	cfg := configmock.New(t)
 
-	w := NewWebhook(cfg)
+	w := NewWebhook(cfg, nil)
 
 	assert.False(t, w.IsEnabled(), "webhook must be disabled when no admission_controller.nccl_profiler.enabled is set")
 }
@@ -32,7 +32,7 @@ func TestWebhook_EnabledButNoInjectorImage_DisablesItself(t *testing.T) {
 	cfg.SetInTest("admission_controller.nccl_profiler.enabled", true)
 	// admission_controller.nccl_profiler.injector_image deliberately left empty
 
-	w := NewWebhook(cfg)
+	w := NewWebhook(cfg, nil)
 
 	assert.False(t, w.IsEnabled(),
 		"webhook must self-disable when enabled=true but injector_image is empty (no broken image refs in pods)")
@@ -44,7 +44,7 @@ func TestWebhook_EnabledWithInjectorImage(t *testing.T) {
 	cfg.SetInTest("admission_controller.nccl_profiler.injector_image",
 		"376334461865.dkr.ecr.us-east-1.amazonaws.com/nccl-profiler-injector:latest")
 
-	w := NewWebhook(cfg)
+	w := NewWebhook(cfg, nil)
 
 	assert.True(t, w.IsEnabled())
 	assert.Equal(t, "nccl_profiler", w.Name())
@@ -53,7 +53,7 @@ func TestWebhook_EnabledWithInjectorImage(t *testing.T) {
 
 func TestWebhook_LabelSelectorTargetsOnlyOptedInPods(t *testing.T) {
 	cfg := configmock.New(t)
-	w := NewWebhook(cfg)
+	w := NewWebhook(cfg, nil)
 
 	nsSel, objSel := w.LabelSelectors(false)
 
@@ -79,7 +79,7 @@ func TestWebhook_LabelSelector_FallbackFailsClosed(t *testing.T) {
 	cfg.SetInTest("admission_controller.nccl_profiler.enabled", true)
 	cfg.SetInTest("admission_controller.nccl_profiler.injector_image", "registry.example/img:tag")
 
-	nsSel, objSel := NewWebhook(cfg).LabelSelectors(true)
+	nsSel, objSel := NewWebhook(cfg, nil).LabelSelectors(true)
 
 	require.Nil(t, objSel, "fallback mode: objectSelector must not be returned (K8s 1.10-1.14 ignores it)")
 	require.NotNil(t, nsSel)
@@ -134,7 +134,7 @@ func TestWebhook_InvalidSocketConfigDisablesItself(t *testing.T) {
 			cfg.SetInTest("admission_controller.nccl_profiler.enabled", true)
 			cfg.SetInTest("admission_controller.nccl_profiler.injector_image", "registry.example/img:tag")
 			cfg.SetInTest(tc.key, tc.val)
-			assert.False(t, NewWebhook(cfg).IsEnabled())
+			assert.False(t, NewWebhook(cfg, nil).IsEnabled())
 		})
 	}
 }
@@ -155,7 +155,7 @@ func TestWebhook_LabelSelector_MutateUnlabelled(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetInTest(tc.key, true)
 
-			_, objSel := NewWebhook(cfg).LabelSelectors(false)
+			_, objSel := NewWebhook(cfg, nil).LabelSelectors(false)
 
 			require.NotNil(t, objSel)
 			assert.Empty(t, objSel.MatchLabels, "blanket mode must not require label=true")

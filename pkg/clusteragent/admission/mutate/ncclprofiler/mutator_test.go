@@ -42,7 +42,7 @@ func newTestPod() *corev1.Pod {
 func TestMutatePod_HappyPath(t *testing.T) {
 	pod := newTestPod()
 
-	mutated, err := mutatePod(pod, testInjectorImage, testHostSocketDir, testClientDir, testSocketFilename, nil)
+	mutated, err := mutatePod(pod, testInjectorImage, testHostSocketDir, testClientDir, testSocketFilename, nil, nil)
 
 	require.NoError(t, err)
 	assert.True(t, mutated, "mutatePod should report it mutated the pod")
@@ -104,7 +104,7 @@ func TestMutatePod_DecoupledHostAndContainerPaths(t *testing.T) {
 	clientDir := "/var/run/datadog"
 	filename := "nccl.socket"
 
-	mutated, err := mutatePod(pod, testInjectorImage, hostDir, clientDir, filename, nil)
+	mutated, err := mutatePod(pod, testInjectorImage, hostDir, clientDir, filename, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, mutated)
 

@@ -76,9 +76,13 @@ const (
 // operators with a LimitRange or strict QoS requirements override via
 // admission_controller.nccl_profiler.init_resources.{cpu,memory}.
 //
-// Pod-level opt-in policy (label + mutate_unlabelled) is enforced by the
-// webhook objectSelector at the K8s API server, not re-checked here.
-func mutatePod(pod *corev1.Pod, injectorImage, hostSocketDir, clientSocketDir, socketFilename string, initResources *corev1.ResourceRequirements) (bool, error) {
+// Pod-level opt-in policy (label, mutate_unlabelled, or a DatadogInstrumentation
+// ncclProfiler target) is decided by the webhook before calling this, not re-checked here.
+//
+// extraEnv carries optional env overrides from a DatadogInstrumentation ncclProfiler
+// section. They are injected first so they win over the defaults below (InjectEnv is a
+// no-op when the var is already present).
+func mutatePod(pod *corev1.Pod, injectorImage, hostSocketDir, clientSocketDir, socketFilename string, initResources *corev1.ResourceRequirements, extraEnv []corev1.EnvVar) (bool, error) {
 	soVolume := corev1.Volume{
 		Name:         soVolumeName,
 		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
@@ -105,8 +109,15 @@ func mutatePod(pod *corev1.Pod, injectorImage, hostSocketDir, clientSocketDir, s
 	soVolAdded, soMountAdded := mutatecommon.InjectVolume(pod, soVolume, soMount)
 	sockVolAdded, sockMountAdded := mutatecommon.InjectVolume(pod, volume, volumeMount)
 
+	// Inject DatadogInstrumentation-supplied env overrides first so they take
+	// precedence over the defaults below (InjectEnv is a no-op once a var is set).
+	envAdded := false
+	for _, e := range extraEnv {
+		envAdded = mutatecommon.InjectEnv(pod, e) || envAdded
+	}
+
 	// Inject NCCL env vars into all app containers.
-	envAdded := mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_PROFILER_PLUGIN", Value: soDestPath})
+	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_PROFILER_PLUGIN", Value: soDestPath}) || envAdded
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: clientFile}) || envAdded
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_INSPECTOR_PATH", Value: soMountPath + "/libnccl-profiler-inspector.so"}) || envAdded
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_ENABLE", Value: "1"}) || envAdded

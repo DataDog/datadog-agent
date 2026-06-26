@@ -759,10 +759,15 @@ func start(log log.Component,
 
 func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore) []instrumentation.Handler {
 	checkStore := instrumentationhandlers.NewCheckStore()
+	// NCCL profiler enablement store, written by the NCCL DDI handler. The same instance
+	// must be handed to the ncclprofiler admission webhook so it can read it to decide
+	// injection (replacing the per-pod opt-in label) — see the NCCL DDI design doc.
+	ncclProfilerStore := instrumentationhandlers.NewNCCLProfilerStore()
 	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
 		IsLeader:                  le.IsLeader,
 		CheckStore:                checkStore,
 		ServiceCheckTemplateStore: serviceTemplateStore,
+		NCCLProfilerStore:         ncclProfilerStore,
 	})
 
 	api.ModifyAPIRouter(func(r *http.ServeMux) {

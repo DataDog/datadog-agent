@@ -46,6 +46,7 @@ import (
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	kubecommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -175,11 +176,26 @@ func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta 
 		}
 	}
 
-	// Setup NCCL profiler injection webhook.
-	ncclWebhook := ncclprofiler.NewWebhook(datadogConfig)
+	// Setup NCCL profiler injection webhook. It shares the NCCL profiler store with
+	// the DatadogInstrumentation NCCL handler (same instance) so a ncclProfiler CR
+	// can drive injection; the store is read from the handler registered above.
+	ncclWebhook := ncclprofiler.NewWebhook(datadogConfig, ncclProfilerStore(handlers))
 	webhooks = append(webhooks, ncclWebhook)
 
 	return webhooks
+}
+
+// ncclProfilerStore extracts the shared NCCL profiler store from the registered
+// DatadogInstrumentation handlers, if the NCCL handler is present. Returns nil
+// otherwise, in which case store-driven (DDI) injection stays off and the webhook
+// behaves exactly as label-only injection.
+func ncclProfilerStore(handlers []instrumentation.Handler) *instrumentationhandlers.NCCLProfilerStore {
+	for _, h := range handlers {
+		if nh, ok := h.(*instrumentationhandlers.NCCLHandler); ok {
+			return nh.Store()
+		}
+	}
+	return nil
 }
 
 func generateConfigWebhook(datadogConfig config.Component) (*configWebhook.Webhook, error) {

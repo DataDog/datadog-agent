@@ -26,11 +26,16 @@ type Deps struct {
 	// ServiceCheckTemplateStore holds check templates for Service-targeted DDI CRs.
 	// Shared with the endpoint slices CR config provider that resolves templates into endpoint configs.
 	ServiceCheckTemplateStore *ServiceCheckTemplateStore
+
+	// NCCLProfilerStore is the shared store for NCCL profiler enablement between the
+	// NCCL handler and the ncclprofiler admission webhook.
+	NCCLProfilerStore *NCCLProfilerStore
 }
 
 // DefaultHandlers returns the product handlers registered for the shared controller.
 func DefaultHandlers(deps *Deps) []instrumentation.Handler {
 	return []instrumentation.Handler{
 		NewAutodiscoveryHandler(deps),
+		NewNCCLHandler(deps),
 	}
 }

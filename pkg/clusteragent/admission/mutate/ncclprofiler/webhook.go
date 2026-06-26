@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,6 +51,12 @@ type Webhook struct {
 	socketFilename   string
 	clientSocketDir  string
 	initResources    *corev1.ResourceRequirements
+	// ddi enables DatadogInstrumentation-driven injection (feature flag + store set):
+	// inject pods matching an enabled ncclProfiler target, alongside the opt-in label.
+	ddi bool
+	// store holds NCCL profiler enablement written by the DDI handler; read when ddi
+	// is true. nil disables the store-driven path.
+	store *instrumentationhandlers.NCCLProfilerStore
 }
 
 // NewWebhook creates a new NCCL profiler webhook from agent config.
@@ -58,7 +65,7 @@ type Webhook struct {
 // Mirrors `mutate/config` (APM/DSD): hostSocketDir + socketFilename describe
 // the host bind-mount source, clientSocketDir + socketFilename describe the
 // workload's in-container view. Self-disables on pathological inputs.
-func NewWebhook(datadogConfig config.Component) *Webhook {
+func NewWebhook(datadogConfig config.Component, store *instrumentationhandlers.NCCLProfilerStore) *Webhook {
 	enabled := datadogConfig.GetBool("admission_controller.nccl_profiler.enabled")
 	image := datadogConfig.GetString("admission_controller.nccl_profiler.injector_image")
 	hostSocketDir := datadogConfig.GetString("gpu.nccl.host_socket_path")
@@ -72,6 +79,19 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 		log.Errorf("NCCL profiler webhook: invalid gpu.nccl.host_socket_path=%q, admission_controller.nccl_profiler.socket_dir=%q, or gpu.nccl.socket_path=%q; both directories must be absolute and non-root, and socket_path must be an absolute file path with a non-empty basename (no trailing separator). Disabling webhook.", hostSocketDir, clientSocketDir, socketPath)
 		enabled = false
 	}
+	// DDI-driven injection is opt-in: it requires the feature flag AND a store.
+	// When off, behavior is identical to label-only injection (selector unchanged),
+	// so the webhook is not invoked for every pod cluster-wide.
+	//
+	// NOTE (blast radius): when ddi is on, the objectSelector broadens to every pod
+	// in every non-system namespace (see LabelSelectors), so every Create pod
+	// admission cluster-wide routes through this webhook even with zero ncclProfiler
+	// CRs. Actual injection is still gated per-pod by the store match. Narrowing to
+	// GPU pods (e.g. a MatchConditions CEL on nvidia.com/gpu) is a follow-up.
+	ddi := datadogConfig.GetBool("admission_controller.nccl_profiler.ddi_enabled") && store != nil
+	if ddi && mutateUnlabelledEnabled(datadogConfig) {
+		log.Warnf("NCCL profiler webhook: both DDI mode (ddi_enabled) and mutate_unlabelled are set; DDI store-match takes precedence and the blanket mutate_unlabelled injection is disabled for unlabelled pods.")
+	}
 	return &Webhook{
 		isEnabled:        enabled,
 		mutateUnlabelled: mutateUnlabelledEnabled(datadogConfig),
@@ -80,6 +100,8 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 		socketFilename:   path.Base(socketPath),
 		clientSocketDir:  clientSocketDir,
 		initResources:    parseInitResources(datadogConfig),
+		ddi:              ddi,
+		store:            store,
 	}
 }
 
@@ -219,7 +241,10 @@ func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *
 			Values:   mutatecommon.DefaultDisabledNamespaces(),
 		}},
 	}
-	return namespaceSelector, objectSelector(w.mutateUnlabelled)
+	// In DDI mode the API server must route store-targeted (unlabelled) pods to the
+	// webhook, so broaden the object selector to every pod not opted out. Actual
+	// injection is still gated per-pod in WebhookFunc by the store match.
+	return namespaceSelector, objectSelector(w.mutateUnlabelled || w.ddi)
 }
 
 // MatchConditions returns the match conditions for the webhook (none required).
@@ -229,6 +254,15 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition { r
 func (w *Webhook) Timeout() int32 { return 0 }
 
 // WebhookFunc returns the function that mutates pods on admission.
+//
+// Injection decision (the broadened DDI objectSelector lets unlabelled pods reach
+// here, so the policy is enforced in-code rather than purely at the API server):
+//   - label == "false" → never inject (explicit opt-out, highest precedence)
+//   - label == "true"  → inject (explicit per-pod opt-in, backward compatible)
+//   - else, DDI mode    → inject iff the pod matches an enabled ncclProfiler target
+//     (owner-reference match first, then namespace scope), applying the target's
+//     injector image / env overrides
+//   - else, mutate_unlabelled (and not DDI mode) → inject (legacy cluster-wide)
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
 		return common.MutationResponse(mutatecommon.Mutate(
@@ -236,8 +270,30 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 			request.Namespace,
 			w.Name(),
 			func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+				image := w.injectorImage
+				var extraEnv []corev1.EnvVar
+
+				labelVal, labelExists := enabledLabelValue(pod)
+				switch {
+				case labelExists && !labelVal:
+					return false, nil // opt-out
+				case labelExists && labelVal:
+					// explicit per-pod opt-in
+				default:
+					cfg, matched := w.ddiConfig(pod)
+					if matched {
+						if cfg.InjectorImage != "" {
+							image = cfg.InjectorImage
+						}
+						extraEnv = cfg.Env
+					} else if !(w.mutateUnlabelled && !w.ddi) {
+						// no label, no DDI match, and not in legacy mutate_unlabelled mode
+						return false, nil
+					}
+				}
+
 				log.Debugf("Injecting NCCL profiler plugin into pod %s", mutatecommon.PodString(pod))
-				return mutatePod(pod, w.injectorImage, w.hostSocketDir, w.clientSocketDir, w.socketFilename, w.initResources)
+				return mutatePod(pod, image, w.hostSocketDir, w.clientSocketDir, w.socketFilename, w.initResources, extraEnv)
 			},
 			request.DynamicClient,
 		))
