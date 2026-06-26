@@ -36,5 +36,22 @@ EOF
 cat >> /home/bits/.zshrc << 'EOF'
 
 # Enter the developer environment automatically
+_dev_env_init_marker="${HOME}/.dev-env-initialized"
+if [[ ! -f "${_dev_env_init_marker}" ]]; then
+    cd ~/dd/datadog-agent
+
+    # Start the developer environment on first login (dda config is initialized with Git info)
+    dda env dev start
+
+    # Persist workspace settings inside the developer environment for xdg-open
+    dda env dev run -- sudo bash -c \
+        'echo WORKSPACES_SSH_PORT=2222 >> /etc/environment && echo WORKSPACES_SSH_USER=dd >> /etc/environment'
+    if [[ -n "${REAL_USER:-}" ]]; then
+        dda env dev run -- sudo bash -c "echo REAL_USER=${REAL_USER} >> /etc/environment"
+    fi
+
+    touch "${_dev_env_init_marker}"
+fi
+
 dda env dev shell
 EOF
