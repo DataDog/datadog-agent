@@ -49,8 +49,8 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
 		return nil, initErr
 	}
-	// Kernel is supported: resolve only the kernel issue before attempting tracer init.
-	resolveNetworkProbeKernelIssue(deps)
+	// Kernel is supported — defer resolving the kernel issue until after tracer init so
+	// that the async resolve goroutine cannot race with and overwrite a subsequent failure report.
 
 	if ncfg.NPMEnabled {
 		log.Info("enabling cloud network monitoring (CNM)")
@@ -62,11 +62,15 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
 	if err != nil {
 		initErr := categorizeTracerError(err)
+		// Report the failure synchronously first, then resolve the kernel issue.
+		// The kernel IS supported, so the kernel issue should be cleared, but the
+		// report must land in the store before the resolve goroutine fires.
 		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
+		resolveNetworkProbeKernelIssue(deps)
 		return nil, initErr
 	}
-	// Tracer initialized: check if USM was silently skipped (CNM starts on 4.4+,
-	// USM requires 4.14+) and report/resolve accordingly.
+	// Tracer fully initialized: resolve the kernel issue and check USM state.
+	resolveNetworkProbeKernelIssue(deps)
 	checkAndReportUSMState(deps, ncfg)
 
 	ctx, cancel := context.WithCancel(context.Background())

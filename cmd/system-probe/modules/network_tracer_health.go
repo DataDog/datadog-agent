@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build (linux && linux_bpf) || (windows && npm) || darwin
+//go:build linux && linux_bpf
 
 package modules
 
@@ -37,9 +37,9 @@ func networkProbeIssueIDFor(initErr error) string {
 func networkProbeIssueNameFor(initErr error) string {
 	switch {
 	case errors.Is(initErr, errNetworkProbeKernelUnsupported):
-		return "Network Probe Kernel Version Unsupported"
+		return "Network Probe Kernel Unsupported"
 	case errors.Is(initErr, errNetworkProbeUSMUnsupported):
-		return "Network Probe USM Kernel Version Unsupported"
+		return "Network Probe USM Unsupported"
 	}
 	return ""
 }
@@ -132,7 +132,7 @@ func networkProbeRemediation(initErr error) *healthplatformpayload.Remediation {
 				{Order: 1, Text: "Check system-probe logs: journalctl -u datadog-agent-sysprobe or /var/log/datadog/system-probe.log"},
 				{Order: 2, Text: "Check the kernel version: uname -r (CNM requires >= 4.4, USM requires >= 4.14)"},
 				{Order: 3, Text: "Upgrade the host kernel or disable the unsupported feature in system-probe.yaml"},
-				{Order: 4, Text: "Restart after fixing: systemctl restart datadog-agent-sysprobe"},
+				{Order: 4, Text: "Restart after fixing: sudo systemctl restart datadog-agent-sysprobe"},
 			},
 		}
 	case errors.Is(initErr, errNetworkProbeUSMUnsupported):
@@ -142,7 +142,7 @@ func networkProbeRemediation(initErr error) *healthplatformpayload.Remediation {
 				{Order: 1, Text: "Check system-probe logs: journalctl -u datadog-agent-sysprobe or /var/log/datadog/system-probe.log"},
 				{Order: 2, Text: "Check the kernel version: uname -r (USM requires >= 4.14)"},
 				{Order: 3, Text: "Upgrade the host kernel or disable USM (service_monitoring_config.enabled: false) in datadog.yaml"},
-				{Order: 4, Text: "Restart after fixing: systemctl restart datadog-agent-sysprobe"},
+				{Order: 4, Text: "Restart after fixing: sudo systemctl restart datadog-agent-sysprobe"},
 			},
 		}
 	}
