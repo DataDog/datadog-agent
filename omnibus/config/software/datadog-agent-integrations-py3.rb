@@ -38,6 +38,22 @@ excluded_folders = [
   'tokumx',                        # py2-only, unsupported by current Agent
 ]
 
+# Prune non-core integrations for fast deb/x86 non-deploy testing builds.
+# Gated by OMNIBUS_INTEGRATIONS_CORE_ONLY (set in tasks/omnibus.py only on
+# non-deploy testing builds), so production/deploy debs are unaffected.
+# collect-integrations (tasks/agent.py) skips any folder named in `excluded`,
+# so these checks are never wheel-built, never installed, and never iterated
+# in the conf-copy loop. base/downloader packages are installed explicitly
+# outside this loop and are not affected.
+if ENV['OMNIBUS_INTEGRATIONS_CORE_ONLY'] == 'true'
+  non_core_integrations = [
+    'ibm_mq', 'ibm_ace', 'ibm_db2', 'ibm_i', 'ibm_was',
+    'aerospike', 'teradata', 'sap_hana', 'cloudera', 'aspdotnet',
+    'oracle', 'snowflake', 'vertica', 'voltdb', 'singlestore',
+  ]
+  excluded_folders.concat(non_core_integrations)
+end
+
 if osx_target?
   # Temporarily exclude Aerospike until builder supports new dependency
   excluded_folders.push('aerospike')

@@ -184,6 +184,14 @@ def get_omnibus_env(
     if kubernetes_cpu_request:
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
 
+    # On non-deploy (testing) builds, prune the non-core long-tail integrations
+    # from the datadog-agent-integrations-py3 software def. The artifact is not
+    # shipped, so it does not need the full vendor integration set. This shrinks
+    # the wheel-install set and the per-check conf-copy loop (see
+    # omnibus/config/software/datadog-agent-integrations-py3.rb).
+    if os.environ.get('OMNIBUS_PACKAGE_ARTIFACT_DIR') is None and os.environ.get('DEPLOY_AGENT') != 'true':
+        env['OMNIBUS_INTEGRATIONS_CORE_ONLY'] = 'true'
+
     env_to_forward = _passthrough_env_for_os(os.environ, sys.platform)
     env.update(env_to_forward)
 
