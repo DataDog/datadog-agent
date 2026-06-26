@@ -29,6 +29,12 @@ default_path = {
         "${run_path}": "/opt/datadog-agent/run",
         "${log_path}": "/var/log/datadog",
     },
+    "aix": {
+        "${conf_path}": "/etc/datadog-agent",
+        "${install_path}": "/opt/datadog-agent",
+        "${run_path}": "/opt/datadog-agent/run",
+        "${log_path}": "/var/log/datadog",
+    },
     "darwin": {
         "${conf_path}": "/opt/datadog-agent/etc",
         "${install_path}": "/opt/datadog-agent",
@@ -175,8 +181,14 @@ def _get_platform_version(data, os_target):
         return data[os_target]
     elif os_target == "container" and "linux" in data:
         return data["linux"]
-
-    return data["other"]
+    elif "other" in data:
+        return data["other"]
+    elif "linux" in data:
+        # platform_default entries that list specific platforms without a
+        # catch-all "other" key: fall back to linux for Unix-like platforms
+        # (e.g. aix) that share its path and runtime conventions.
+        return data["linux"]
+    return next(iter(data.values()))
 
 
 def _get_default_from_node(node, os_target):
