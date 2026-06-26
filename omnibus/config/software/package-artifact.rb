@@ -11,9 +11,24 @@ build do
   # that have been stripped out during the build
   # We want this in a `block` to have access to the Builder DSL
   block "Extract intermediate build artifacts" do
+    # `tar xf` auto-detects xz and pipes through a single-threaded `xz -d`, so
+    # the large (~GB uncompressed) artifact decompresses on one core even though
+    # the deb runner has many. The upstream artifact is produced with
+    # compression_threads>1 (multi-block xz), so it is parallel-decompressible.
+    # Use `xz -T0` to spread decompression across all cores; fall back to the
+    # original single-threaded extraction if xz lacks multithreaded decode.
+    parallel_xz = begin
+      shellout!("xz --help 2>&1 | grep -q -- '--threads' && echo yes || echo no").stdout.strip == "yes"
+    rescue StandardError
+      false
+    end
     Dir.glob("*.tar.xz", base: input_dir).each do |input|
       path = File.join(input_dir, input)
-      shellout! "tar xf #{path} -C /"
+      if parallel_xz
+        shellout! "xz -dc -T0 #{path} | tar x -C /"
+      else
+        shellout! "tar xf #{path} -C /"
+      end
       FileUtils.rm path
     end
   end
