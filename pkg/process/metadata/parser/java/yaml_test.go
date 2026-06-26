@@ -50,4 +50,13 @@ wordpress:
 	val, ok := source.Get("logging.level.org.springframework")
 	require.True(t, ok)
 	require.Equal(t, val, "ERROR")
+	require.Equal(t, []string{
+		"email",
+		"logging.level.com.mkyong",
+		"logging.level.org.springframework",
+		"spring.main.banner-mode",
+		"spring.profiles.active",
+		"thread-pool",
+		"wordpress.themes.default-folder",
+	}, source.Names())
 }

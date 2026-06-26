@@ -71,9 +71,10 @@ type dynamicCorrelator struct {
 	currentIndex int
 }
 
-func (c *dynamicCorrelator) Name() string                         { return "dynamic_correlator" }
-func (c *dynamicCorrelator) ProcessAnomaly(_ observerdef.Anomaly) {}
-func (c *dynamicCorrelator) Advance(_ int64)                      {}
+func (c *dynamicCorrelator) Name() string                                 { return "dynamic_correlator" }
+func (c *dynamicCorrelator) ProcessAnomaly(_ observerdef.Anomaly)         {}
+func (c *dynamicCorrelator) Advance(_ int64)                              {}
+func (c *dynamicCorrelator) PendingEvents() []observerdef.CorrelatorEvent { return nil }
 func (c *dynamicCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	return []observerdef.ActiveCorrelation{
 		{

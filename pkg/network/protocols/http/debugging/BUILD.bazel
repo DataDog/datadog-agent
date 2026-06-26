@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "debugging",
+    srcs = ["debugging.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/dns",
+            "//pkg/network/protocols",
+            "//pkg/network/protocols/http",
+            "//pkg/process/util",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/dns",
+            "//pkg/network/protocols",
+            "//pkg/network/protocols/http",
+            "//pkg/process/util",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/network/dns",
+            "//pkg/network/protocols",
+            "//pkg/network/protocols/http",
+            "//pkg/process/util",
+        ],
+        "//conditions:default": [],
+    }),
+)

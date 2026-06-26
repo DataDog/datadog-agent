@@ -34,3 +34,9 @@ excludes:
   - ^gh-pages$
   - ^.*DO-NOT-DELETE$
   - ^agent-v5$
+---
+schema-version: v2
+kind: adms
+auto-version-updates:
+  disabled:
+    reason: Version updates are managed fully by renovate

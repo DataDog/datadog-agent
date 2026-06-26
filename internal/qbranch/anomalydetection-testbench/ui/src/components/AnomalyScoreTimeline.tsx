@@ -166,7 +166,10 @@ export function AnomalyScoreTimeline({
 
   const allBuckets = scoreState?.buckets ?? [];
   const allEvents = scoreState?.events ?? [];
-  const cfg = scoreState?.config ?? replayConfig ?? DISPLAY_FALLBACK_CONFIG;
+  // Merge: use replayConfig (fetched from /api/scores/config) as the base so that
+  // cooldown_secs is always present, then overlay EWMA fields from scoreState.config.
+  // scoreState.config only contains the def-level AnomalyScorerConfig (no cooldown).
+  const cfg: ScorerConfig = { ...(replayConfig ?? DISPLAY_FALLBACK_CONFIG), ...(scoreState?.config ?? {}) };
 
   // Filter buckets to the selected time range (client-side zoom)
   const buckets = useMemo(() => {

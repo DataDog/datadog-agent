@@ -121,11 +121,6 @@ log "Freezing installed packages to $STAGING/constraints.txt"
 $PIP freeze > "$STAGING/constraints.txt"
 log "Constraints written to $STAGING/constraints.txt ($(wc -l < "$STAGING/constraints.txt") packages)"
 
-# Also write to the package root so the file is included in the BFF package
-# at /opt/datadog-agent/final_constraints-py3.txt, matching other platforms.
-cp "$STAGING/constraints.txt" "$STAGING/opt/datadog-agent/final_constraints-py3.txt"
-log "Copied constraints to $STAGING/opt/datadog-agent/final_constraints-py3.txt"
-
 # --- Mark complete ---
 mkdir -p "$(dirname "$SENTINEL")"
 touch "$SENTINEL"

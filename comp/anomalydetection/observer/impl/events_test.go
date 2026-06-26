@@ -146,9 +146,10 @@ type resettableCorrelator struct {
 	resetCount int
 }
 
-func (c *resettableCorrelator) Name() string                         { return c.name }
-func (c *resettableCorrelator) ProcessAnomaly(_ observerdef.Anomaly) {}
-func (c *resettableCorrelator) Advance(_ int64)                      {}
+func (c *resettableCorrelator) Name() string                                 { return c.name }
+func (c *resettableCorrelator) ProcessAnomaly(_ observerdef.Anomaly)         {}
+func (c *resettableCorrelator) Advance(_ int64)                              {}
+func (c *resettableCorrelator) PendingEvents() []observerdef.CorrelatorEvent { return nil }
 func (c *resettableCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	return nil
 }
