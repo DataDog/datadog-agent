@@ -1167,9 +1167,13 @@ def bazel_build_windows_resources(ctx: Context) -> None:
 def build_object_files(
     ctx,
     arch: str = CURRENT_ARCH,
+    strip: bool | None = None,
 ) -> None:
     _object_files_start = time.perf_counter()
     arch_obj = Arch.from_str(arch)
+    if strip is None:
+        # Strip eBPF objects only for real deploys; testing .debs don't need the size reduction.
+        strip = bool(os.environ.get('DEPLOY_AGENT')) or os.environ.get('BUCKET_BRANCH') in ('beta', 'stable')
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
 
@@ -1186,7 +1190,7 @@ def build_object_files(
         bazel(ctx, "run", *arch_flags, "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
 
         # Build eBPF .o files via Bazel
-        bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir)
+        bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir, strip=strip)
 
     if is_windows:
         bazel_build_windows_resources(ctx)
