@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "healthreporter",
@@ -13,6 +13,22 @@ go_library(
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "healthreporter_test",
+    srcs = ["reporter_test.go"],
+    embed = [":healthreporter"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/proto/pbgo/core",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//types/known/emptypb",
         "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
