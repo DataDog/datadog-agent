@@ -81,6 +81,7 @@
           teamTag: agent-devx
         agent:
           apiKey: $DD_API_KEY
+          appKey: ""
         pulumi:
           passphrase: $PULUMI_CONFIG_PASSPHRASE
       options:
