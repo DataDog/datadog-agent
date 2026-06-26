@@ -1353,11 +1353,16 @@ no_minimize = ["lock_contention.o"]
 
 
 @task(iterable=['bpf_programs'])
-def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
+def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs, max_btfs_per_distro=0):
     """
     Given an input directory containing compressed full-sized BTFs, generates an identically-structured
     output directory containing compressed minimized versions of those BTFs, tailored to the given
     bpf program(s).
+
+    If max_btfs_per_distro > 0, only the first N *.btf.tar.xz files found in each source subdirectory
+    (a distro/release) are minimized. This subsets the full btfhub kernel matrix to reduce the number
+    of ninja min_core_btf work units on non-deploy testing builds. Default 0 keeps the full matrix
+    (deploy parity).
     """
 
     # If there are no input programs, we don't need to actually do anything; however, in order to
@@ -1397,10 +1402,13 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                 output_subdir = os.path.join(output_dir, path_from_root, d)
                 os.makedirs(output_subdir, exist_ok=True)
 
-            for file in files:
-                if not file.endswith(".btf.tar.xz"):
-                    continue
+            btf_files = [f for f in files if f.endswith(".btf.tar.xz")]
+            if max_btfs_per_distro > 0:
+                # each source subdir is a distro/release; keep only a representative
+                # subset of kernels to cut the number of min_core_btf work units.
+                btf_files = sorted(btf_files)[:max_btfs_per_distro]
 
+            for file in btf_files:
                 btf_filename = file.removesuffix(".tar.xz")
                 minimized_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
 
