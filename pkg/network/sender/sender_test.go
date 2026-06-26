@@ -71,7 +71,7 @@ func (f *fakeConnectionSource) GetProcessCacheTags() map[uint32][]string {
 	return nil
 }
 
-func mockDirectSender(t *testing.T) *directSender {
+func mockDirectSender(t *testing.T, overrides map[string]interface{}) *directSender {
 	hostnameComp, _ := hostname.NewMock("test")
 	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
@@ -82,7 +82,7 @@ func mockDirectSender(t *testing.T) *directSender {
 	d, err := New(t.Context(), &fakeConnectionSource{}, Dependencies{
 		Config:         config.NewMock(t),
 		Logger:         logmock.New(t),
-		Sysprobeconfig: sysprobeconfigmock.NewMock(t),
+		Sysprobeconfig: sysprobeconfigmock.NewMockWithOverrides(t, overrides),
 		Tagger:         taggernoop.NewComponent(),
 		Wmeta:          wmeta,
 		Hostname:       hostnameComp,
@@ -94,7 +94,7 @@ func mockDirectSender(t *testing.T) *directSender {
 }
 
 func TestNetworkConnectionBatching(t *testing.T) {
-	d := mockDirectSender(t)
+	d := mockDirectSender(t, nil)
 	for i, tc := range []struct {
 		cur, last      []network.ConnectionStats
 		maxSize        int
@@ -159,7 +159,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
-	d := mockDirectSender(t)
+	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 1
 	p := makeConnections(4)
 	conns := &network.Connections{
@@ -194,7 +194,7 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	p[4].Dest = util.AddressFromString("1.2.3.4")
 	p[5].Dest = util.AddressFromString("1.3.4.5")
 
-	d := mockDirectSender(t)
+	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 2
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
 	payloads := slices.Collect(d.batches(conns, 1))
@@ -234,7 +234,7 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 		dns.ToHostname("baz.com"): {dns.TypeA: dns.Stats{Timeouts: 5}},
 	}
 
-	d := mockDirectSender(t)
+	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 1
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
 	payloads := slices.Collect(d.batches(conns, 1))
@@ -345,7 +345,7 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	p[6].Via = &network.Via{Subnet: network.Subnet{Alias: "foo4"}}
 	p[7].Via = &network.Via{Subnet: network.Subnet{Alias: "foo3"}}
 
-	d := mockDirectSender(t)
+	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 4
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
 	payloads := slices.Collect(d.batches(conns, 1))
@@ -413,7 +413,7 @@ func TestNetworkConnectionTags(t *testing.T) {
 	}
 	var foundTags []fakeConn
 
-	d := mockDirectSender(t)
+	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 4
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
 	payloads := slices.Collect(d.batches(conns, 1))
@@ -450,8 +450,10 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	expectedTags := []string{"process_context:my-server", "process_name:my-server.sh", "tag0"}
 
 	var dsch eventmonitor.EventConsumerHandler
-	d := mockDirectSender(t)
-	d.sysprobeconfig.SetInTest("system_probe_config.process_service_inference.enabled", true)
+	d := mockDirectSender(t, map[string]interface{}{
+		"network_config.enabled":                                true, // necessary to prevent Adjust from undoing the setting below
+		"system_probe_config.process_service_inference.enabled": true,
+	})
 	evm := &fakeEventMonitor{}
 	dsc, err := NewDirectSenderConsumer(evm, d.log, d.sysprobeconfig)
 	require.NoError(t, err)
@@ -495,7 +497,7 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	fakeTagger.SetTags(pid2EntityID, "process", nil, nil, []string{"env:staging", "team:backend"}, nil)
 	fakeTagger.SetTags(pid3EntityID, "process", nil, nil, []string{"env:dev"}, nil)
 
-	d := mockDirectSender(t)
+	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 2
 	d.tagger = fakeTagger
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
@@ -544,7 +546,7 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 	p := makeConnections(2)
 	containerID := p[0].ContainerID.Source
 
-	d := mockDirectSender(t)
+	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 10
 	conns := &network.Connections{
 		BufferedData: network.BufferedData{Conns: p},
