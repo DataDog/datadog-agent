@@ -1920,6 +1920,10 @@ properties:
             node_type: setting
             type: boolean
             default: false
+          disable_source_public_ip_collection:
+            node_type: setting
+            type: boolean
+            default: false
           disable_windows_driver:
             node_type: setting
             type: boolean
