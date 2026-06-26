@@ -72,7 +72,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/cluster-agent/subcommands/configcheck
 # gazelle:exclude cmd/cluster-agent/subcommands/flare
 # gazelle:exclude cmd/cluster-agent/subcommands/start
-# gazelle:exclude cmd/cluster-agent/subcommands/telemetry
 # gazelle:exclude cmd/cluster-agent-cloudfoundry
 # gazelle:exclude cmd/dogstatsd
 # gazelle:exclude cmd/host-profiler/*.go
@@ -87,15 +86,11 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/process-agent/command
 # gazelle:exclude cmd/process-agent/subcommands
 # gazelle:exclude cmd/security-agent/*.go
-# gazelle:exclude cmd/security-agent/api
+# gazelle:exclude cmd/security-agent/api/*.go
 # gazelle:exclude cmd/security-agent/subcommands/*.go
 # gazelle:exclude cmd/security-agent/subcommands/compliance
-# gazelle:exclude cmd/security-agent/subcommands/config
-# gazelle:exclude cmd/security-agent/subcommands/coverage
-# gazelle:exclude cmd/security-agent/subcommands/flare
 # gazelle:exclude cmd/security-agent/subcommands/start
 # gazelle:exclude cmd/serverless-init/*.go
-# gazelle:exclude cmd/serverless-init/cloudservice
 # gazelle:exclude cmd/serverless-init/log
 # gazelle:exclude cmd/serverless-init/mode
 # gazelle:exclude cmd/system-probe/modules
