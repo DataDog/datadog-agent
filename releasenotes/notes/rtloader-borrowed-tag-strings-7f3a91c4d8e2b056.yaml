@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    Eliminated per-tag heap allocations when Python checks submit metrics,
-    service checks, and histogram buckets. Tag strings are now borrowed
-    directly from their Python objects instead of being copied.
