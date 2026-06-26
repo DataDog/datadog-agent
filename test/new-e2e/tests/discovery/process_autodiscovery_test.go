@@ -155,9 +155,7 @@ func (s *processAutodiscoverySuite) verifyRedisCheckScheduledViaProcess(c *asser
 			break
 		}
 	}
-	if !assert.True(c, ran, "Redis check is configured but has not run yet") {
-		return
-	}
+	require.True(c, ran, "Redis check is configured but has not run yet")
 
 	// Verify config.provider in inventory-checks metadata reflects process-based autodiscovery
 	s.verifyProcessCheckProvider(c, "redisdb")
