@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -135,7 +134,7 @@ func TestGetPayload(t *testing.T) {
 	}
 
 	assert.Equal(t, flavor.GetFlavor(), p.AgentFlavor)
-	assert.Equal(t, python.GetPythonVersion(), p.PythonVersion)
+	assert.Equal(t, getPythonInfo(), p.PythonVersion)
 	assert.NotNil(t, p.SystemStats)
 	assert.NotNil(t, p.Meta)
 	assert.NotNil(t, p.HostTags)
