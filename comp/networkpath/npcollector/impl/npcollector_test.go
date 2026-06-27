@@ -1170,6 +1170,104 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 	}
 }
 
+func Test_npCollectorImpl_ScheduleNetworkPathTests_ReturnsHasTestDecisions(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters": []map[string]any{
+			{
+				"type":     "exclude",
+				"match_ip": "10.0.0.4",
+			},
+		},
+	}
+	conns := []npmodel.NetworkPathConnection{
+		{
+			Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+			Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+			Direction: model.ConnectionDirection_incoming,
+			Family:    model.ConnectionFamily_v4,
+			Type:      model.ConnectionType_tcp,
+		},
+		{
+			Source:    netip.MustParseAddrPort("10.0.0.1:30001"),
+			Dest:      netip.MustParseAddrPort("10.0.0.3:443"),
+			Direction: model.ConnectionDirection_outgoing,
+			Family:    model.ConnectionFamily_v4,
+			Type:      model.ConnectionType_tcp,
+		},
+		{
+			Source:    netip.MustParseAddrPort("10.0.0.1:30002"),
+			Dest:      netip.MustParseAddrPort("10.0.0.4:443"),
+			Direction: model.ConnectionDirection_outgoing,
+			Family:    model.ConnectionFamily_v4,
+			Type:      model.ConnectionType_tcp,
+		},
+	}
+
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
+
+	decisions := npCollector.ScheduleNetworkPathTests(slices.Values(conns))
+
+	assert.Equal(t, []npmodel.NetworkPathScheduleDecision{
+		{HasTest: false},
+		{HasTest: true},
+		{HasTest: false},
+	}, decisions)
+
+	select {
+	case pathtest := <-npCollector.pathtestInputChan:
+		assert.Equal(t, &common.Pathtest{
+			Hostname: "10.0.0.3",
+			Port:     uint16(443),
+			Protocol: payload.ProtocolTCP,
+			Origin:   payload.PathOriginNetworkTraffic,
+		}, pathtest)
+	default:
+		require.Fail(t, "expected pathtest")
+	}
+}
+
+func Test_npCollectorImpl_ScheduleNetworkPathTests_HasTestIgnoresEnqueueFailure(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+	conn := npmodel.NetworkPathConnection{
+		Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+		Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+		Direction: model.ConnectionDirection_outgoing,
+		Family:    model.ConnectionFamily_v4,
+		Type:      model.ConnectionType_tcp,
+	}
+
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
+	npCollector.pathtestInputChan = nil
+
+	decisions := npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{conn}))
+
+	assert.Equal(t, []npmodel.NetworkPathScheduleDecision{{HasTest: true}}, decisions)
+}
+
+func Test_npCollectorImpl_ScheduleNetworkPathTests_DisabledReturnsNoDecisions(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+	conn := npmodel.NetworkPathConnection{
+		Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+		Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+		Direction: model.ConnectionDirection_outgoing,
+		Family:    model.ConnectionFamily_v4,
+		Type:      model.ConnectionType_tcp,
+	}
+
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
+
+	assert.Nil(t, npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{conn})))
+}
+
 func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
 	connectionsOnlyConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled":      true,

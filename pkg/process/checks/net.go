@@ -218,8 +218,8 @@ func (c *ConnectionsCheck) Cleanup() {
 	c.localresolver.Stop()
 }
 
-func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
-	c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
+func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) []npmodel.NetworkPathScheduleDecision {
+	return c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
 		for _, conn := range conns.Conns {
 			srcIP, err := netip.ParseAddr(conn.Laddr.GetIp())
 			if err != nil {

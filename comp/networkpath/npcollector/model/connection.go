@@ -26,3 +26,11 @@ type NetworkPathConnection struct {
 	IntraHost         bool
 	SystemProbeConn   bool
 }
+
+// NetworkPathScheduleDecision contains the per-input scheduling decision for
+// a NetworkPathConnection.
+type NetworkPathScheduleDecision struct {
+	// HasTest is true when the connection maps to a dynamic Network Path test
+	// that the agent should maintain.
+	HasTest bool
+}
