@@ -34,10 +34,12 @@
     KUBERNETES_MEMORY_REQUEST: "64Gi"
     KUBERNETES_MEMORY_LIMIT: "64Gi"
     KUBERNETES_CPU_REQUEST: 24
+    BUILD_TRACE_SEGMENT: preamble
   artifacts:
     expire_in: 2 weeks
     paths:
     - $CI_PROJECT_DIR/minimized-btfs.tar.xz
+    - $CI_PROJECT_DIR/build-trace/
 
 generate_minimized_btfs_x64:
   needs: ["build_system-probe-x64"]

@@ -70,6 +70,7 @@ go_deps:
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
+    BUILD_TRACE_SEGMENT: preamble
   script:
     # If the cache already contains the dependencies, don't redownload them
     # but still provide the artifact that's expected for the other jobs to run
@@ -80,6 +81,7 @@ go_deps:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache.tar.zst
+      - $CI_PROJECT_DIR/build-trace/
   cache:
     # The `cache:key:files` only accepts up to two paths ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
     # We should also include the file this job is defined in to invalicate the cache when this job is modified.

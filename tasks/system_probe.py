@@ -11,6 +11,7 @@ import shutil
 import string
 import sys
 import tempfile
+import time
 from pathlib import Path
 from subprocess import check_output
 
@@ -25,6 +26,7 @@ from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
+from tasks.libs.common.build_trace import record_span, trace_span
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import go_build
@@ -1166,6 +1168,7 @@ def build_object_files(
     ctx,
     arch: str = CURRENT_ARCH,
 ) -> None:
+    _object_files_start = time.perf_counter()
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
@@ -1228,6 +1231,8 @@ def build_object_files(
             with ctx.cd(runtime_dir):
                 ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/runtime")
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
+
+    record_span("build-object-files", time.perf_counter() - _object_files_start)
 
 
 def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None, packages: list[str] | None = None):
@@ -1417,7 +1422,8 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     },
                 )
 
-    ctx.run(f"ninja -f {ninja_file_path}", env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "})
+    with trace_span("minimize-btfs", meta={"programs": len(bpf_programs)}):
+        ctx.run(f"ninja -f {ninja_file_path}", env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "})
 
 
 def compute_go_parallelism(debug: bool = False, ci: bool | None = None) -> int:
