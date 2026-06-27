@@ -1402,6 +1402,14 @@ func etwHttpServiceSummary() {
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEventRecord) {
 
+	// Signal that ETW is ready on the first event received. This confirms the
+	// provider is live and producing, and lets waiters proceed without relying
+	// on a fixed sleep.
+	hei.etwReadyOnce.Do(func() {
+		close(hei.etwReady)
+		log.Infof("ETW HttpService tracing is now ready (first event received)")
+	})
+
 	// Total number of bytes transferred to kernel from HTTP.sys driver. 0x68 is ETW header size
 	transferedETWBytesTotal += (uint64(eventInfo.UserDataLength) + 0x68)
 	transferedETWBytesPayload += uint64(eventInfo.UserDataLength)
