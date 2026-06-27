@@ -3,17 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build python
+//go:build python && !python_runtime_optional
 
-package runner
+package python
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
-)
-
-func terminateChecksRunningProcesses() {
-	if !python.IsPythonRuntimeAvailable() {
-		return
-	}
-	python.TerminateRunningProcesses()
+func pythonRuntimeOptional() bool {
+	return false
 }
