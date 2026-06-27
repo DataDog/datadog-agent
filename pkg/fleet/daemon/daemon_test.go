@@ -670,3 +670,83 @@ func TestDecryptSecrets(t *testing.T) {
 		assert.Contains(t, err.Error(), "could not decrypt secret")
 	})
 }
+
+func TestHeartbeatDuringTask(t *testing.T) {
+	testPkg := Package{
+		Name:     "test-package",
+		Version:  "1.0.0",
+		URL:      "oci://example.com/test-package@sha256:5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+		Platform: runtime.GOOS,
+		Arch:     runtime.GOARCH,
+	}
+
+	started := make(chan struct{})
+	done := make(chan struct{})
+
+	bm := &testBoostrapper{}
+	installExperimentFunc = bm.InstallExperiment
+	pm := &testPackageManager{}
+	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
+		States:       map[string]repository.State{testPkg.Name: {}},
+		ConfigStates: map[string]repository.State{testPkg.Name: {}},
+	}, nil)
+	pm.On("Install", mock.Anything, testPkg.URL, []string(nil)).
+		Return(nil).
+		Run(func(_ mock.Arguments) {
+			close(started)
+			<-done
+		})
+
+	rcc := newTestRemoteConfigClient(t)
+	rc := &remoteConfig{client: rcc}
+	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	const heartbeatInterval = 10 * time.Millisecond
+	daemon := newDaemon(
+		rc,
+		func(_ *env.Env) installer.Installer { return pm },
+		&env.Env{RemoteUpdates: true},
+		taskDB,
+		heartbeatInterval,
+		1*time.Hour,
+		secretsPubKey,
+		secretsPrivKey,
+	)
+	i := &testInstaller{daemonImpl: daemon, rcc: rcc, pm: pm, bm: bm}
+	i.Start(context.Background())
+	defer i.Stop()
+
+	paramsJSON, _ := json.Marshal(installPackageTaskParams{Version: testPkg.Version})
+	i.rcc.SubmitCatalog(catalog{Packages: []Package{testPkg}})
+	i.rcc.SubmitRequest(remoteAPIRequest{
+		ID:      "heartbeat-test",
+		Method:  methodInstallPackage,
+		Package: testPkg.Name,
+		Params:  paramsJSON,
+	})
+
+	// Wait until the blocking Install call is entered (heartbeat goroutine is live).
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("install did not start within 5 seconds")
+	}
+
+	initialTS := rcc.GetInstallerState().Packages[0].HeartbeatTimestamp
+
+	// HeartbeatTimestamp is Unix seconds; the heartbeat goroutine ticks every
+	// 10ms, so within 2 seconds at least one second boundary will have crossed.
+	require.Eventually(t, func() bool {
+		state := rcc.GetInstallerState()
+		return state != nil && len(state.Packages) > 0 &&
+			state.Packages[0].HeartbeatTimestamp > initialTS
+	}, 2*time.Second, 100*time.Millisecond, "heartbeat timestamp did not advance during task")
+
+	close(done)
+	i.requestsWG.Wait()
+	pm.AssertExpectations(t)
+}
