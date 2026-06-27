@@ -1507,6 +1507,98 @@ func (suite *ConfigTestSuite) TestBatchWaitSubsecondValues() {
 	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-large values")
 }
 
+// TestDDURL443SiteAware verifies that ddURL443 derives the host from the configured site
+// when the user has not explicitly set logs_config.dd_url_443, and that an explicit user
+// value always wins (backward compatibility).
+func (suite *ConfigTestSuite) TestDDURL443SiteAware() {
+	tests := []struct {
+		name         string
+		site         string
+		explicitURL  string
+		expectedHost string
+	}{
+		{
+			// No site configured: falls back to DefaultSite (datadoghq.com).
+			// BuildURLWithPrefix appends a trailing dot for known FQDN sites.
+			name:         "default US1 site",
+			site:         "",
+			explicitURL:  "",
+			expectedHost: "agent-443-intake.logs.datadoghq.com.",
+		},
+		{
+			name:         "US1 site explicitly set",
+			site:         "datadoghq.com",
+			explicitURL:  "",
+			expectedHost: "agent-443-intake.logs.datadoghq.com.",
+		},
+		{
+			name:         "EU site",
+			site:         "datadoghq.eu",
+			explicitURL:  "",
+			expectedHost: "agent-443-intake.logs.datadoghq.eu.",
+		},
+		{
+			name:         "US3 site",
+			site:         "us3.datadoghq.com",
+			explicitURL:  "",
+			expectedHost: "agent-443-intake.logs.us3.datadoghq.com.",
+		},
+		{
+			name:         "US5 site",
+			site:         "us5.datadoghq.com",
+			explicitURL:  "",
+			expectedHost: "agent-443-intake.logs.us5.datadoghq.com.",
+		},
+		{
+			name:         "AP1 site",
+			site:         "ap1.datadoghq.com",
+			explicitURL:  "",
+			expectedHost: "agent-443-intake.logs.ap1.datadoghq.com.",
+		},
+		{
+			name:         "GovCloud site",
+			site:         "ddog-gov.com",
+			explicitURL:  "",
+			expectedHost: "agent-443-intake.logs.ddog-gov.com.",
+		},
+		{
+			// An explicitly configured dd_url_443 must not be modified (no trailing dot added).
+			name:         "explicit dd_url_443 overrides site",
+			site:         "datadoghq.eu",
+			explicitURL:  "my-custom-proxy.example.com",
+			expectedHost: "my-custom-proxy.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		suite.Run(tt.name, func() {
+			cfg := config.NewMock(suite.T())
+			if tt.site != "" {
+				cfg.SetInTest("site", tt.site)
+			}
+			if tt.explicitURL != "" {
+				cfg.SetInTest("logs_config.dd_url_443", tt.explicitURL)
+			}
+			logsConfig := defaultLogsConfigKeys(cfg)
+			suite.Equal(tt.expectedHost, logsConfig.ddURL443())
+		})
+	}
+}
+
+// TestDDURL443UsePort443TCPEndpoint verifies that the TCP endpoint host is correctly derived
+// from the site when use_port_443 is enabled and dd_url_443 is not explicitly set.
+func (suite *ConfigTestSuite) TestDDURL443UsePort443TCPEndpoint() {
+	suite.config.SetInTest("api_key", "test-key")
+	suite.config.SetInTest("site", "datadoghq.eu")
+	suite.config.SetInTest("logs_config.use_port_443", true)
+
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), false)
+	suite.Nil(err)
+	suite.Equal("agent-443-intake.logs.datadoghq.eu.", endpoints.Main.Host)
+	suite.Equal(443, endpoints.Main.Port)
+	suite.True(endpoints.Main.UseSSL())
+}
+
 func (suite *ConfigTestSuite) TestTCPEndpointsPortLookup() {
 	// This test verifies that TCP endpoints are constructed with the correct ports
 	// when the logsEndpoints map is looked up with hostnames that have trailing dots (FQDNs).
