@@ -493,6 +493,10 @@ def build_repackaged_agent(ctx, log_level="info"):
 
     env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
     env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
+    base_dir = _resolve_omnibus_path_override(None, "OMNIBUS_BASE_DIR")
+    if base_dir:
+        env['OMNIBUS_BASE_DIR'] = base_dir
+
     # Set up compiler flags (assumes an environment based on our glibc-targeting toolchains)
     if architecture == "amd64":
         env.update(
@@ -517,7 +521,7 @@ def build_repackaged_agent(ctx, log_level="info"):
         ctx,
         "build",
         "agent",
-        base_dir=_resolve_omnibus_path_override(None, "OMNIBUS_BASE_DIR"),
+        base_dir=base_dir,
         env=env,
         log_level=log_level,
         cache_dir=_resolve_omnibus_path_override(None, "OMNIBUS_CACHE_DIR"),
