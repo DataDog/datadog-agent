@@ -20,7 +20,28 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// TEMPORARY diagnostic telemetry to confirm event-drop theory at scale. Remove after investigation.
+var (
+	eventCollectionPath = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		"kubernetes_apiserver",
+		"event_collection_path",
+		[]string{"path"},
+		"Event collection runs by path: watch, resync_periodic, resync_expired.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
+
+	eventListTruncated = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		"kubernetes_apiserver",
+		"event_list_truncated",
+		[]string{},
+		"Resync List calls that returned a full page, indicating events were likely dropped (no pagination).",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
 )
 
 // RunEventCollection will return the most recent events emitted by the apiserver.
@@ -40,6 +61,7 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 			// resver can be "" if we need to resync
 			resVerInt = 0
 		}
+		eventCollectionPath.Inc("resync_periodic")
 		return diffEvents(resVerInt, listed), lastResVer, lastTime, nil
 	}
 	// Start watcher with the most up to date RV
@@ -81,6 +103,7 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 						log.Errorf("Error converting the stored Resource Version: %s", err.Error())
 						continue
 					}
+					eventCollectionPath.Inc("resync_expired")
 					return diffEvents(i, evList), resVer, lastListTime, nil
 				default:
 					// see the different types: k8s.io/apimachinery/pkg/apis/meta/v1/types.go
@@ -120,6 +143,7 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 			}
 
 		case <-timeoutParse.C:
+			eventCollectionPath.Inc("watch")
 			log.Debugf("Collected %d events, will resume watching from resource version %s", len(added), resVer)
 			// No more events to read or the watch lasted more than `eventReadTimeout`.
 			// so return what was processed.
@@ -157,6 +181,12 @@ func (c *APIClient) listForEventResync(eventReadTimeout int64, eventCardinalityL
 	for id := range evList.Items {
 		// List call returns a different type than the Watch call.
 		added = append(added, &evList.Items[id])
+	}
+	// A non-empty Continue token means the API server had more events than this
+	// single page and expects a follow-up request — which this code never makes.
+	// That is the definitive signal that we dropped events on a resync.
+	if evList.Continue != "" {
+		eventListTruncated.Inc()
 	}
 	return added, evList.ResourceVersion, time.Now(), nil
 }
