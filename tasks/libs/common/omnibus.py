@@ -36,6 +36,7 @@ ENV_PASSHTROUGH = {
     'INTEGRATIONS_WHEELS_STORAGE': 'Storage tier ("dev" or "stable") for integration dependency wheels, expanded by pip in lockfiles',
     'MY_RUBY_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'OMNIBUS_FORCE_PACKAGES': 'Force Omnibus to build actual packages',
+    'OMNIBUS_BASE_DIR': 'Base directory used by Omnibus for build state and staged filesystem roots',
     'OMNIBUS_GIT_CACHE_DIR': 'Local directory used by Omnibus for the local git cache',
     'OMNIBUS_PACKAGE_ARTIFACT_DIR': 'Directory to take the base artifact from on "packaging-only" mode',
     'PACKAGE_ARCH': 'Target architecture',

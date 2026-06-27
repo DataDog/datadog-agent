@@ -257,6 +257,14 @@ class TestOmnibusRunTask(unittest.TestCase):
         self.assertEqual(command.count("--override="), 1)
 
 
+class TestOmnibusEnvPassthrough(unittest.TestCase):
+    def test_omnibus_base_dir_is_forwarded_to_recipes(self):
+        with mock.patch('tasks.omnibus.warnings.warn'):
+            env = omnibus._passthrough_env_for_os({'OMNIBUS_BASE_DIR': '/var/cache/dd/omnibus'}, 'linux')
+
+        self.assertEqual(env['OMNIBUS_BASE_DIR'], '/var/cache/dd/omnibus')
+
+
 class TestOmnibusInstall(unittest.TestCase):
     def setUp(self):
         self.mock_ctx = MockContextRaising(run={})
