@@ -120,6 +120,10 @@ enum TC_RAWPACKET_KEYS {
 #define BPF_OBJ_NAME_LEN 16U
 #endif
 
+#ifndef BPF_F_CLONE
+#define BPF_F_CLONE (1U << 9)
+#endif
+
 #define EVENT_GEN_SIZE 16
 
 #ifndef VALID_OPEN_FLAGS
@@ -248,6 +252,14 @@ static __attribute__((always_inline)) u64 is_sk_storage_supported() {
     u64 is_sk_storage_supported;
     LOAD_CONSTANT("is_sk_storage_supported", is_sk_storage_supported);
     return is_sk_storage_supported;
+}
+
+// is_sk_lookup_pid_supported returns whether TC pid resolution uses bpf_sk_lookup + sk-local storage
+// instead of the flow_pid map (decided by IsSkLookupPidResolutionSupported on the Go side).
+static __attribute__((always_inline)) u64 is_sk_lookup_pid_supported() {
+    u64 is_sk_lookup_pid_supported;
+    LOAD_CONSTANT("sk_lookup_pid_supported", is_sk_lookup_pid_supported);
+    return is_sk_lookup_pid_supported;
 }
 
 static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {

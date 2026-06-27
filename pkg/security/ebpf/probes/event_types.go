@@ -83,6 +83,14 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 		ps = append(ps, &manager.BestEffort{Selectors: []manager.ProbesSelector{
 			hookFunc("hook_sock_create"),
 			hookFunc("hook_sock_release"),
+			hookFunc("hook_post_bind4"),
+			hookFunc("hook_post_bind6"),
+			hookFunc("hook_connect4"),
+			hookFunc("hook_connect6"),
+			hookFunc("hook_sendmsg4"),
+			hookFunc("hook_sendmsg6"),
+			hookFunc("hook_recvmsg4"),
+			hookFunc("hook_recvmsg6"),
 		}})
 	}
 
@@ -134,8 +142,30 @@ func GetCapabilitiesMonitoringSelectors() []manager.ProbesSelector {
 	}
 }
 
+// GetNetworkSelectors returns the probes that track network interfaces and sockets.
+// These probes must be loaded independently of the current ruleset or network filter actions as
+// these are used to track resources that are needed if we later dynamically load network rules
+// or network filter actions.
+func GetNetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
+	selectors := []manager.ProbesSelector{
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.AllOf{Selectors: NetworkSelectors(hasCgroupSocket)},
+			&manager.AllOf{Selectors: NetworkVethSelectors()},
+		}},
+	}
+
+	// add probes depending on loaded modules
+	if loadedModules, err := utils.FetchLoadedModules(); err == nil {
+		if _, ok := loadedModules["nf_nat"]; ok {
+			selectors = append(selectors, NetworkNFNatSelectors()...)
+		}
+	}
+
+	return selectors
+}
+
 // GetSelectorsPerEventType returns the list of probes that should be activated for each event
-func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.EventType][]manager.ProbesSelector {
+func GetSelectorsPerEventType(hasFentry bool) map[eval.EventType][]manager.ProbesSelector {
 	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
@@ -623,29 +653,14 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 		},
 	}
 
-	// Add probes required to track network interfaces and map network flows to processes
-	// networkEventTypes: dns, imds, packet, network_monitor
+	// Register the network event types so they are correctly reflected in the enabled_events map when
+	// requested by rules, activity dumps, security profiles or event sampling. The probes that track
+	// network interfaces and sockets are activated in updateProbes whenever the network
+	// feature is enabled (see GetNetworkSelectors), because they are required to track these resources.
 	networkEventTypes := model.GetEventTypePerCategory(model.NetworkCategory)[model.NetworkCategory]
 	for _, networkEventType := range networkEventTypes {
 		if model.EventTypeDependsOnInterfaceTracking(networkEventType) {
-			selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
-				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.AllOf{Selectors: NetworkSelectors(hasCgroupSocket)},
-					&manager.AllOf{Selectors: NetworkVethSelectors()},
-				}},
-			}
-		}
-	}
-
-	// add probes depending on loaded modules
-	loadedModules, err := utils.FetchLoadedModules()
-	if err == nil {
-		if _, ok := loadedModules["nf_nat"]; ok {
-			for _, networkEventType := range networkEventTypes {
-				if model.EventTypeDependsOnInterfaceTracking(networkEventType) {
-					selectorsPerEventTypeStore[networkEventType] = append(selectorsPerEventTypeStore[networkEventType], NetworkNFNatSelectors()...)
-				}
-			}
+			selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{}
 		}
 	}
 

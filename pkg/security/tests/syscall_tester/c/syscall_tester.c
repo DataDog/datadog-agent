@@ -20,6 +20,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 #include <netdb.h>
 #include <linux/un.h>
 #include <linux/prctl.h>
@@ -1306,6 +1307,252 @@ int test_new_netns_exec(int argc, char **argv) {
     return EXIT_FAILURE;
 }
 
+// build_dns_query encodes a minimal DNS query of type A for the given domain into buf and returns
+// its length, or -1 on error.
+static int build_dns_query(unsigned char *buf, size_t buf_size, const char *domain) {
+    if (buf_size < 12 + strlen(domain) + 2 + 5) {
+        return -1;
+    }
+
+    unsigned char *p = buf;
+    // header: id=0x1234, flags=0x0100 (standard query, recursion desired), qdcount=1, others=0
+    static const unsigned char header[12] = {0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    memcpy(p, header, sizeof(header));
+    p += sizeof(header);
+
+    // qname: each dot-separated label is prefixed with its length, terminated by a null byte
+    const char *start = domain;
+    while (*start) {
+        const char *dot = strchr(start, '.');
+        size_t len = dot ? (size_t)(dot - start) : strlen(start);
+        if (len == 0 || len > 63) {
+            return -1;
+        }
+        *p++ = (unsigned char)len;
+        memcpy(p, start, len);
+        p += len;
+        if (!dot) {
+            break;
+        }
+        start = dot + 1;
+    }
+    *p++ = 0x00; // end of qname
+
+    // qtype = A (1), qclass = IN (1)
+    *p++ = 0x00;
+    *p++ = 0x01;
+    *p++ = 0x00;
+    *p++ = 0x01;
+
+    return (int)(p - buf);
+}
+
+// bring_loopback_up brings the loopback interface of the current network namespace up.
+static int bring_loopback_up(void) {
+    int ctl = socket(AF_INET, SOCK_DGRAM, 0);
+    if (ctl < 0) {
+        perror("socket");
+        return -1;
+    }
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, "lo", IFNAMSIZ - 1);
+    if (ioctl(ctl, SIOCGIFFLAGS, &ifr) < 0) {
+        perror("SIOCGIFFLAGS");
+        close(ctl);
+        return -1;
+    }
+    ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
+    if (ioctl(ctl, SIOCSIFFLAGS, &ifr) < 0) {
+        perror("SIOCSIFFLAGS");
+        close(ctl);
+        return -1;
+    }
+    close(ctl);
+    return 0;
+}
+
+// test_dns_client_send repeatedly sends a DNS query to 127.0.0.1:53. It is meant to be run from
+// within an already set up network namespace (loopback up). The query is sent several times to
+// absorb the latency of the agent attaching its TC programs to the namespace.
+int test_dns_client_send(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please specify a domain to query\n");
+        return EXIT_FAILURE;
+    }
+    const char *domain = argv[1];
+
+    unsigned char query[512];
+    int query_len = build_dns_query(query, sizeof(query), domain);
+    if (query_len < 0) {
+        fprintf(stderr, "invalid domain: %s\n", domain);
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(53);
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    for (int i = 0; i < 6; i++) {
+        sleep(1);
+        int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sockfd < 0) {
+            perror("socket");
+            return EXIT_FAILURE;
+        }
+        if (sendto(sockfd, query, query_len, 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+            perror("sendto");
+            close(sockfd);
+            return EXIT_FAILURE;
+        }
+        close(sockfd);
+    }
+
+    return EXIT_SUCCESS;
+}
+
+// test_new_netns_dns_server moves the process into a new network namespace, brings up its loopback
+// interface, binds a UDP socket on 127.0.0.1:53 (the DNS "server") and forks a separate client
+// binary that sends DNS queries to it. Keeping the client in a distinct binary means its egress
+// packets are attributed to that binary, while the ingress packets reaching the :53 socket can only
+// be attributed to this process through the bpf_sk_lookup based resolution. This lets a test assert
+// that pid resolution works for traffic observed in another network namespace.
+int test_new_netns_dns_server(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Please specify the client binary path and a domain to query\n");
+        return EXIT_FAILURE;
+    }
+    const char *client_path = argv[1];
+    const char *domain = argv[2];
+
+    if (unshare(CLONE_NEWNET)) {
+        perror("unshare");
+        return EXIT_FAILURE;
+    }
+
+    if (bring_loopback_up() < 0) {
+        return EXIT_FAILURE;
+    }
+
+    // bind the DNS server socket and keep it open so bpf_sk_lookup can find it on ingress
+    int server_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (server_fd < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+    struct sockaddr_in bind_addr;
+    memset(&bind_addr, 0, sizeof(bind_addr));
+    bind_addr.sin_family = AF_INET;
+    bind_addr.sin_port = htons(53);
+    bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (bind(server_fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) < 0) {
+        perror("bind");
+        close(server_fd);
+        return EXIT_FAILURE;
+    }
+
+    // run the client (a distinct binary) in the same network namespace
+    pid_t child = fork();
+    if (child < 0) {
+        perror("fork");
+        close(server_fd);
+        return EXIT_FAILURE;
+    }
+    if (child == 0) {
+        // make sure the client goes away if this process dies
+        prctl(PR_SET_PDEATHSIG, SIGKILL);
+        execl(client_path, client_path, "dns_client_send", domain, (char *)NULL);
+        perror("execl");
+        _exit(EXIT_FAILURE);
+    }
+
+    int status;
+    waitpid(child, &status, 0);
+
+    // keep the server socket around a little longer so late ingress packets still resolve
+    sleep(1);
+    close(server_fd);
+    return EXIT_SUCCESS;
+}
+
+// send_fd sends the file descriptor payload_fd over the unix socket sock_fd using SCM_RIGHTS.
+static int send_fd(int sock_fd, int payload_fd) {
+    char data = 'x';
+    struct iovec io = {.iov_base = &data, .iov_len = 1};
+    union {
+        char buf[CMSG_SPACE(sizeof(int))];
+        struct cmsghdr align;
+    } u;
+    memset(&u, 0, sizeof(u));
+
+    struct msghdr msg = {0};
+    msg.msg_iov = &io;
+    msg.msg_iovlen = 1;
+    msg.msg_control = u.buf;
+    msg.msg_controllen = sizeof(u.buf);
+
+    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    memcpy(CMSG_DATA(cmsg), &payload_fd, sizeof(int));
+
+    if (sendmsg(sock_fd, &msg, 0) < 0) {
+        perror("sendmsg");
+        return -1;
+    }
+    return 0;
+}
+
+// test_create_socket_send_fd creates a socket of the requested domain/type and sends it back to the
+// parent over the unix socket inherited as fd 3 (via SCM_RIGHTS). The socket is created by this
+// (child) process, so the cgroup/sock_create hook records this process's pid in sk_storage_pid.
+int test_create_socket_send_fd(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Please specify a socket domain (ipv4/ipv6/unix) and type (tcp/udp)\n");
+        return EXIT_FAILURE;
+    }
+
+    int domain;
+    if (strcmp(argv[1], "ipv4") == 0) {
+        domain = AF_INET;
+    } else if (strcmp(argv[1], "ipv6") == 0) {
+        domain = AF_INET6;
+    } else if (strcmp(argv[1], "unix") == 0) {
+        domain = AF_UNIX;
+    } else {
+        fprintf(stderr, "invalid domain: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+
+    int type;
+    if (strcmp(argv[2], "tcp") == 0) {
+        type = SOCK_STREAM;
+    } else if (strcmp(argv[2], "udp") == 0) {
+        type = SOCK_DGRAM;
+    } else {
+        fprintf(stderr, "invalid type: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    int fd = socket(domain, type, 0);
+    if (fd < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    // fd 3 is the unix socket passed by the parent through which we send our socket fd
+    if (send_fd(3, fd) < 0) {
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
 int test_network_flow_send_udp4(int argc, char **argv) {
     if (argc < 3) {
         fprintf(stderr, "Please specify the remote IP address and port\n");
@@ -2153,6 +2400,12 @@ int main(int argc, char **argv) {
             exit_code = test_tracer_memfd(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "new_netns_dns_server") == 0) {
+            exit_code = test_new_netns_dns_server(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "dns_client_send") == 0) {
+            exit_code = test_dns_client_send(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "create_socket_send_fd") == 0) {
+            exit_code = test_create_socket_send_fd(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {

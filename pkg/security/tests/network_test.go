@@ -899,3 +899,70 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 		}, "test_rule_network_flow")
 	})
 }
+
+// TestNetworkNamespacePIDResolution checks that the TC classifier resolves the pid of a packet
+// observed in a network namespace different from the one the agent runs in. A "server" process
+// (syscall_tester) runs in a new network namespace and binds 127.0.0.1:53, while a distinct client
+// binary sends DNS queries to it. The DNS request reaching the server can only be attributed to it
+// through the bpf_sk_lookup based resolution (the ingress skb has no associated socket, so the
+// socket-cookie path cannot resolve it), which exercises the resolution this test validates.
+func TestNetworkNamespacePIDResolution(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkNetworkCompatibility(t)
+
+	domain := "cross-ns-resolution.test"
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule_netns_pid",
+		Expression: fmt.Sprintf(`dns.question.name == "%s" && process.file.name == "syscall_tester"`, domain),
+	}
+
+	// network ingress must be enabled so the TC ingress classifier is attached: the DNS request
+	// reaching the server is an ingress packet, and only its ingress observation is resolved
+	// through bpf_sk_lookup (the egress observation is attributed to the client binary).
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// The bpf_sk_lookup based resolution requires bpf_sk_lookup and sk-local storage in the relevant
+	// program types and the cgroup socket hook to be attached. Otherwise the flow_pid fallback is
+	// used, which cannot reliably resolve a pid for traffic observed in another namespace, so there
+	// is nothing to validate here.
+	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		t.Skip("not an ebpf probe")
+	}
+
+	if !p.IsSkLookupPidResolutionSupported() {
+		t.Skip("bpf_sk_lookup based pid resolution is not supported on this kernel")
+	}
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// copy syscall_tester under a different name so the DNS client is attributed to that binary,
+	// leaving the server (syscall_tester) as the only process resolvable through bpf_sk_lookup
+	dnsClient := filepath.Join(t.TempDir(), "dns_client")
+	if err := copyFile(syscallTester, dnsClient, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(syscallTester, "new_netns_dns_server", dnsClient, domain)
+	t.Cleanup(func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}
+	})
+
+	test.WaitSignalFromRule(t, func() error {
+		return cmd.Start()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "dns", event.GetType(), "wrong event type")
+		assert.Equal(t, domain, event.DNS.Question.Name, "wrong domain name")
+	}, "test_rule_netns_pid")
+}
