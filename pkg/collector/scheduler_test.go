@@ -63,18 +63,23 @@ func (l *MockPythonLoader) Load(_ sender.SenderManager, config integration.Confi
 }
 
 func TestAddLoader(t *testing.T) {
-	s := CheckScheduler{}
-	assert.Len(t, s.loaders, 0)
-	s.addLoader(&MockCoreLoader{})
-	s.addLoader(&MockCoreLoader{}) // noop
-	assert.Len(t, s.loaders, 1)
+	cl := &CheckLoader{}
+	assert.Len(t, cl.loaders, 0)
+	cl.addLoader(&MockCoreLoader{})
+	cl.addLoader(&MockCoreLoader{}) // noop
+	assert.Len(t, cl.loaders, 1)
 }
 
 func TestGetChecksFromConfigs(t *testing.T) {
-	s := CheckScheduler{}
-	assert.Len(t, s.loaders, 0)
-	s.addLoader(&MockCoreLoader{})
-	s.addLoader(&MockPythonLoader{})
+	cl := &CheckLoader{}
+	assert.Len(t, cl.loaders, 0)
+	cl.addLoader(&MockCoreLoader{})
+	cl.addLoader(&MockPythonLoader{})
+
+	s := &CheckScheduler{
+		loader:         cl,
+		configToChecks: make(map[string][]checkid.ID),
+	}
 
 	// test instance level loader selection
 	conf1 := integration.Config{
@@ -109,7 +114,7 @@ func TestGetChecksFromConfigs(t *testing.T) {
 
 	checks := s.GetChecksFromConfigs([]integration.Config{conf1, conf2, conf3, conf4}, false)
 
-	assert.Len(t, s.loaders, 2)
+	assert.Len(t, cl.loaders, 2)
 
 	var actualChecks []string
 
@@ -161,11 +166,13 @@ func (m *MockCollector) AddEventReceiver(_ collectorcomp.EventReceiver) {
 func TestSchedule_AllChecksAllowed(t *testing.T) {
 	// Test that when not in basic mode, all checks are scheduled
 	mockCollector := &MockCollector{}
+	cl := &CheckLoader{}
+	cl.addLoader(&MockCoreLoader{})
 	s := &CheckScheduler{
+		loader:         cl,
 		collector:      option.New[collectorcomp.Component](mockCollector),
 		configToChecks: make(map[string][]checkid.ID),
 	}
-	s.addLoader(&MockCoreLoader{})
 
 	configs := []integration.Config{
 		{

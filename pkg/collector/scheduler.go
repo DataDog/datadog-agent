@@ -9,11 +9,8 @@ package collector
 import (
 	"expvar"
 	"fmt"
-	"slices"
-	"strings"
 	"sync"
 
-	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -25,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -36,14 +32,6 @@ var (
 	errorStats     = newCollectorErrors()
 	checkScheduler *CheckScheduler
 )
-
-type commonInitConfig struct {
-	LoaderName string `yaml:"loader"`
-}
-
-type commonInstanceConfig struct {
-	LoaderName string `yaml:"loader"`
-}
 
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
@@ -58,26 +46,18 @@ func init() {
 // CheckScheduler is the check scheduler
 type CheckScheduler struct {
 	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
-	loaders        []check.Loader
+	loader         *CheckLoader
 	collector      option.Option[collectorcomp.Component]
-	senderManager  sender.SenderManager
 	m              sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
+func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], taggerComp tagger.Component, filterStore filter.Component) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
-		senderManager:  senderManager,
+		loader:         newCheckLoader(senderManager, logReceiver, taggerComp, filterStore),
 		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 	}
-	// add the check loaders
-	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
-		checkScheduler.addLoader(loader)
-		log.Debugf("Added %s to Check Scheduler", loader)
-	}
-
 	return checkScheduler
 }
 
@@ -153,88 +133,6 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 // Stop is a stub to satisfy the scheduler interface
 func (s *CheckScheduler) Stop() {}
 
-// addLoader adds a new Loader that AutoConfig can use to load a check.
-func (s *CheckScheduler) addLoader(loader check.Loader) {
-	if slices.Contains(s.loaders, loader) {
-		log.Warnf("Loader %s was already added, skipping...", loader)
-		return
-	}
-	s.loaders = append(s.loaders, loader)
-}
-
-// getChecks takes a check configuration and returns a slice of Check instances
-// along with any error it might happen during the process
-func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
-	checks := []check.Check{}
-	numLoaders := len(s.loaders)
-
-	initConfig := commonInitConfig{}
-	err := yaml.Unmarshal(config.InitConfig, &initConfig)
-	if err != nil {
-		return nil, err
-	}
-	selectedLoader := initConfig.LoaderName
-
-	for instanceIndex, instance := range config.Instances {
-		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
-			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
-			continue
-		}
-
-		selectedInstanceLoader := selectedLoader
-		instanceConfig := commonInstanceConfig{}
-
-		err := yaml.Unmarshal(instance, &instanceConfig)
-		if err != nil {
-			log.Warnf("Unable to parse instance config for check `%s`: %v", config.Name, instance)
-			continue
-		}
-
-		if instanceConfig.LoaderName != "" {
-			selectedInstanceLoader = instanceConfig.LoaderName
-		}
-		if selectedInstanceLoader != "" {
-			log.Debugf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
-		} else {
-			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
-		}
-
-		loaderErrors := make(map[string]error, len(s.loaders))
-		for _, loader := range s.loaders {
-			// the loader is skipped if the loader name is set and does not match
-			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
-				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
-				continue
-			}
-			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
-			if err == nil {
-				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-				checks = append(checks, c)
-				break
-			}
-			loaderErrors[fmt.Sprintf("%v", loader)] = err
-		}
-
-		if len(loaderErrors) == numLoaders {
-			var concatErr strings.Builder
-			for loaderName, err := range loaderErrors {
-				errMsg := err.Error()
-				errorStats.setLoaderError(config.Name, loaderName, errMsg)
-
-				concatErr.WriteString(loaderName)
-				concatErr.WriteString(": ")
-				concatErr.WriteString(errMsg)
-				concatErr.WriteString("; ")
-			}
-			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, concatErr.String())
-		} else {
-			errorStats.removeLoaderErrors(config.Name)
-		}
-	}
-
-	return checks, nil
-}
-
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
 func GetChecksByNameForConfigs(checkName string, configs []integration.Config) []check.Check {
 	var checks []check.Check
@@ -270,7 +168,7 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 			continue
 		}
 		configDigest := config.Digest()
-		checks, err := s.getChecks(config)
+		checks, err := s.loader.LoadChecks(config, s.loader.senderManager)
 		if err != nil {
 			log.Errorf("Unable to load the check: %v", err)
 			continue
