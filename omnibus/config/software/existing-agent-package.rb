@@ -27,7 +27,7 @@ build do
 
     block "Populate install directory from extracted package" do
       FileUtils.mkdir_p(install_dir)
-      FileUtils.cp_r("#{staged_install_dir}/.", install_dir, preserve: true)
+      FileUtils.cp_r("#{staged_install_dir}/.", install_dir)
     end
   end
 end
