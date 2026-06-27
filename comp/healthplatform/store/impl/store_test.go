@@ -183,19 +183,19 @@ func TestReportIssueMinimalProto(t *testing.T) {
 	assert.Equal(t, "custom-type", issue.IssueName)
 }
 
-func TestReportIssueStateTransition(t *testing.T) {
+func TestReportIssueActiveStateKeepsFirstSeen(t *testing.T) {
 	h := newTestStore(t)
 	issue := &healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}
 
 	require.NoError(t, h.ReportIssue(issue))
 	persisted := h.persistedIssues["t:id"]
 	require.NotNil(t, persisted)
-	assert.Equal(t, IssueStateNew, persisted.State)
+	assert.Equal(t, IssueStateActive, persisted.State)
 	firstSeen := persisted.FirstSeen
 
 	require.NoError(t, h.ReportIssue(issue))
 	persisted = h.persistedIssues["t:id"]
-	assert.Equal(t, IssueStateOngoing, persisted.State)
+	assert.Equal(t, IssueStateActive, persisted.State)
 	assert.Equal(t, firstSeen, persisted.FirstSeen, "FirstSeen must not change on re-report")
 	assert.GreaterOrEqual(t, persisted.LastSeen, firstSeen)
 }
@@ -306,14 +306,20 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	assert.Equal(t, "t:id", persisted.IssueID)
 	assert.Equal(t, "t", persisted.IssueType)
 	assert.Equal(t, firstSeen, persisted.FirstSeen)
-	assert.Equal(t, IssueStateNew, persisted.State)
+	assert.Equal(t, IssueStateActive, persisted.State)
 
 	// Re-reporting the same issue picks up the persisted firstSeen.
 	require.NoError(t, h2.ReportIssue(&healthplatformpayload.Issue{
 		Id: "t:id", IssueName: "t", Title: "Test Issue", Source: "test-src",
 	}))
 	assert.Equal(t, firstSeen, h2.persistedIssues["t:id"].FirstSeen, "firstSeen must be preserved across restart")
-	assert.Equal(t, IssueStateOngoing, h2.persistedIssues["t:id"].State)
+	assert.Equal(t, IssueStateActive, h2.persistedIssues["t:id"].State)
+}
+
+func TestLegacyActiveStatesLoadAsActive(t *testing.T) {
+	assert.Equal(t, IssueStateActive, issueStateFromString("new"))
+	assert.Equal(t, IssueStateActive, issueStateFromString("ongoing"))
+	assert.Equal(t, IssueStateActive, issueStateFromString("active"))
 }
 
 func TestPersistenceVersionMismatch(t *testing.T) {

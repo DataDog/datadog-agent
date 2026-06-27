@@ -62,7 +62,7 @@ func TestCheckFailureSuite(t *testing.T) {
 	)
 }
 
-// TestCheckFailureIssueLifecycle verifies that a check execution failure is detected as NEW
+// TestCheckFailureIssueLifecycle verifies that a check execution failure is detected as ACTIVE
 // and transitions to RESOLVED after the check is fixed. Cross-restart persistence is in TestResilienceSuite.
 func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 	fakeIntake := suite.Env().FakeIntake.Client()
@@ -70,7 +70,7 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 	const issuePrefix = "check-execution-failure:broken_check"
 
 	suite.T().Run("IssueDetection", func(t *testing.T) {
-		// Accept NEW or ONGOING: check may fail multiple times before the first egress tick.
+		// Check may fail multiple times before the first egress tick; active issues use ACTIVE.
 		var issues []*healthplatform.Issue
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()
@@ -78,14 +78,12 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 			issues = nil
 			for _, p := range payloads {
 				for _, iss := range findIssuesByPrefix(p, issuePrefix) {
-					if iss.PersistedIssue != nil &&
-						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
-							iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 						issues = append(issues, iss)
 					}
 				}
 			}
-			assert.NotEmpty(ct, issues, "check execution failure not found as NEW or ONGOING in fakeintake")
+			assert.NotEmpty(ct, issues, "check execution failure not found as ACTIVE in fakeintake")
 		}, defaultIssueTimeout, defaultIssuePollInterval, "check execution failure not detected in fakeintake")
 
 		require.NotEmpty(t, issues)
