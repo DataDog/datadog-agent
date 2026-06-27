@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Adds Network Path availability metadata to Cloud Network Monitoring connection payloads.
