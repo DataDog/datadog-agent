@@ -33,6 +33,7 @@ type NetworkDeviceConfig struct {
 	Content      string             `json:"content"`
 	ID           string             `json:"id,omitempty"`
 	ConfigHash   string             `json:"config_hash,omitempty"`
+	Test         string             `json:"test"` // [NDM migration] static test value emitted on every config object
 }
 
 // InventoryEntry contains the metadata about the configs stored locally on the agent
@@ -79,5 +80,6 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigTyp
 		Content:      string(content),
 		ID:           uuid,
 		ConfigHash:   configHash,
+		Test:         "test", // [NDM migration] static value emitted on every config object
 	}
 }
