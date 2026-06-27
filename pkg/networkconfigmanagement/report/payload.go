@@ -7,6 +7,8 @@
 package report
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
@@ -29,10 +31,13 @@ type NetworkDeviceConfig struct {
 	ConfigType   types.ConfigType   `json:"config_type"`
 	ConfigSource types.ConfigSource `json:"config_source"`
 	Timestamp    int64              `json:"timestamp"`
-	Tags         []string           `json:"tags"`
-	Content      string             `json:"content"`
-	ID           string             `json:"id,omitempty"`
-	ConfigHash   string             `json:"config_hash,omitempty"`
+	// [NDM migration: epoch→timestamp] RFC3339 form of Timestamp, emitted alongside the epoch field so the
+	// backend can store a timestamp. Optional during rollout; consumers fall back to Timestamp (epoch).
+	TimestampRFC3339 string   `json:"timestamp_rfc3339,omitempty"`
+	Tags             []string `json:"tags"`
+	Content          string   `json:"content"`
+	ID               string   `json:"id,omitempty"`
+	ConfigHash       string   `json:"config_hash,omitempty"`
 }
 
 // InventoryEntry contains the metadata about the configs stored locally on the agent
@@ -69,15 +74,20 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigTyp
 	} else {
 		ts = 0
 	}
+	var tsRFC3339 string
+	if ts != 0 {
+		tsRFC3339 = time.Unix(ts, 0).UTC().Format(time.RFC3339)
+	}
 	return NetworkDeviceConfig{
-		DeviceID:     deviceID,
-		DeviceIP:     deviceIP,
-		ConfigType:   configType,
-		ConfigSource: types.CLI,
-		Timestamp:    ts,
-		Tags:         tags,
-		Content:      string(content),
-		ID:           uuid,
-		ConfigHash:   configHash,
+		DeviceID:         deviceID,
+		DeviceIP:         deviceIP,
+		ConfigType:       configType,
+		ConfigSource:     types.CLI,
+		Timestamp:        ts,
+		TimestampRFC3339: tsRFC3339, // [NDM migration] RFC3339 form of the same instant as Timestamp
+		Tags:             tags,
+		Content:          string(content),
+		ID:               uuid,
+		ConfigHash:       configHash,
 	}
 }
