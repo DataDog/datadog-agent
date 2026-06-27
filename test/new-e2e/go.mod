@@ -15,7 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.308.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.86.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.87.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -205,7 +205,7 @@ require (
 	github.com/DataDog/dd-trace-go/v2 v2.8.2
 	github.com/DataDog/orchestrion v1.10.0
 	github.com/avast/retry-go/v4 v4.7.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.0
 	github.com/cenkalti/backoff/v6 v6.0.1
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/go-jose/go-jose/v4 v4.1.4
