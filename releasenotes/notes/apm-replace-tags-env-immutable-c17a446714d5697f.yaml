@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    APM: ``DD_APM_REPLACE_TAGS`` rules can no longer change a span's ``env`` tag.
+    A rule targeting ``env`` or a ``*`` wildcard rule previously rewrote the
+    ``env`` Meta tag, which the trace agent uses to derive the sampling env. This
+    could silently change the env used for sampling-bucket signatures and cause
+    the tracer to fall back to 100% ingestion. The ``env`` tag is now immutable
+    to replace rules.
