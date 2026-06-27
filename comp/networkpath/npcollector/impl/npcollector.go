@@ -305,12 +305,16 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	for conn := range conns {
 		connCount++
 		hasTest := s.shouldScheduleNetworkPathForConn(conn, origin, vpcSubnets)
-		networkPaths = append(networkPaths, npmodel.NetworkPath{HasTest: hasTest})
 		if !hasTest {
+			networkPaths = append(networkPaths, npmodel.NetworkPath{HasTest: false})
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
 		pathtest := s.makePathtest(conn, origin)
+		networkPaths = append(networkPaths, npmodel.NetworkPath{
+			HasTest:      true,
+			TestIdentity: makeTestIdentity(conn.SourceHostname, pathtest),
+		})
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)

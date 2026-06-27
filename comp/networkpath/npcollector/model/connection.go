@@ -17,6 +17,7 @@ type NetworkPathConnection struct {
 	Source            netip.AddrPort
 	Dest              netip.AddrPort
 	TranslatedDest    netip.AddrPort
+	SourceHostname    string
 	SourceContainerID string
 	Namespace         string
 	Type              model.ConnectionType
@@ -33,4 +34,7 @@ type NetworkPath struct {
 	// HasTest is true when the connection maps to a dynamic Network Path test
 	// that the agent should maintain.
 	HasTest bool
+	// TestIdentity is the stable identity of the dynamic Network Path test.
+	// It is empty when HasTest is false or the identity cannot be computed.
+	TestIdentity string
 }

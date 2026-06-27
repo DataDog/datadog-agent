@@ -220,6 +220,10 @@ func (c *ConnectionsCheck) Cleanup() {
 
 func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) []npmodel.NetworkPath {
 	scheduledConns := make([]*model.Connection, 0, len(conns.Conns))
+	sourceHostname := ""
+	if c.hostInfo != nil {
+		sourceHostname = c.hostInfo.HostName
+	}
 	networkPaths := c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
 		for _, conn := range conns.Conns {
 			srcIP, err := netip.ParseAddr(conn.Laddr.GetIp())
@@ -244,6 +248,7 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) []npmod
 				Source:            src,
 				Dest:              dest,
 				TranslatedDest:    transDest,
+				SourceHostname:    sourceHostname,
 				SourceContainerID: conn.Laddr.GetContainerId(),
 				Domain:            getDNSNameForIP(conns, conn.Raddr.GetIp()),
 				Type:              conn.Type,
@@ -265,6 +270,9 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) []npmod
 		}
 		scheduledConns[i].NetworkPath = &model.NetworkPath{
 			HasTest: networkPath.HasTest,
+		}
+		if networkPath.HasTest {
+			scheduledConns[i].NetworkPath.TestIdentity = networkPath.TestIdentity
 		}
 	}
 

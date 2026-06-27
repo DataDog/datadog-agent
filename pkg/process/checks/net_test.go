@@ -948,23 +948,30 @@ func TestScheduleNetworkPathSetsConnectionMetadata(t *testing.T) {
 	collector := &decidingNPCollector{
 		networkPaths: []npmodel.NetworkPath{
 			{HasTest: false},
-			{HasTest: true},
+			{HasTest: true, TestIdentity: "test-identity"},
 		},
 	}
-	check := &ConnectionsCheck{npCollector: collector}
+	check := &ConnectionsCheck{
+		hostInfo:    &HostInfo{HostName: "agent-hostname"},
+		npCollector: collector,
+	}
 
 	networkPaths := check.scheduleNetworkPath(conns)
 
 	require.Equal(t, collector.networkPaths, networkPaths)
 	require.Len(t, collector.conns, 2)
+	assert.Equal(t, "agent-hostname", collector.conns[0].SourceHostname)
 	assert.Equal(t, "container-a", collector.conns[0].SourceContainerID)
+	assert.Equal(t, "agent-hostname", collector.conns[1].SourceHostname)
 	assert.Equal(t, "api.example.com", collector.conns[1].Domain)
 
 	require.NotNil(t, connWithoutTest.NetworkPath)
 	assert.False(t, connWithoutTest.NetworkPath.HasTest)
+	assert.Empty(t, connWithoutTest.NetworkPath.TestIdentity)
 	assert.Nil(t, invalidConn.NetworkPath)
 	require.NotNil(t, connWithTest.NetworkPath)
 	assert.True(t, connWithTest.NetworkPath.HasTest)
+	assert.Equal(t, "test-identity", connWithTest.NetworkPath.TestIdentity)
 }
 
 func TestRemoteServiceTags(t *testing.T) {

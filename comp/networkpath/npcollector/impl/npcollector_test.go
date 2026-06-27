@@ -1190,11 +1190,12 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests_ReturnsNetworkPaths(t *testin
 			Type:      model.ConnectionType_tcp,
 		},
 		{
-			Source:    netip.MustParseAddrPort("10.0.0.1:30001"),
-			Dest:      netip.MustParseAddrPort("10.0.0.3:443"),
-			Direction: model.ConnectionDirection_outgoing,
-			Family:    model.ConnectionFamily_v4,
-			Type:      model.ConnectionType_tcp,
+			Source:         netip.MustParseAddrPort("10.0.0.1:30001"),
+			Dest:           netip.MustParseAddrPort("10.0.0.3:443"),
+			SourceHostname: "agent-hostname",
+			Direction:      model.ConnectionDirection_outgoing,
+			Family:         model.ConnectionFamily_v4,
+			Type:           model.ConnectionType_tcp,
 		},
 		{
 			Source:    netip.MustParseAddrPort("10.0.0.1:30002"),
@@ -1211,7 +1212,7 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests_ReturnsNetworkPaths(t *testin
 
 	assert.Equal(t, []npmodel.NetworkPath{
 		{HasTest: false},
-		{HasTest: true},
+		{HasTest: true, TestIdentity: "067b2968737abab8922970ba6726a26d"},
 		{HasTest: false},
 	}, networkPaths)
 
@@ -1235,11 +1236,12 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests_HasTestIgnoresEnqueueFailure(
 		"network_path.collector.filters":                   []map[string]any{},
 	}
 	conn := npmodel.NetworkPathConnection{
-		Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
-		Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
-		Direction: model.ConnectionDirection_outgoing,
-		Family:    model.ConnectionFamily_v4,
-		Type:      model.ConnectionType_tcp,
+		Source:         netip.MustParseAddrPort("10.0.0.1:30000"),
+		Dest:           netip.MustParseAddrPort("10.0.0.2:80"),
+		SourceHostname: "agent-hostname",
+		Direction:      model.ConnectionDirection_outgoing,
+		Family:         model.ConnectionFamily_v4,
+		Type:           model.ConnectionType_tcp,
 	}
 
 	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
@@ -1247,7 +1249,7 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests_HasTestIgnoresEnqueueFailure(
 
 	networkPaths := npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{conn}))
 
-	assert.Equal(t, []npmodel.NetworkPath{{HasTest: true}}, networkPaths)
+	assert.Equal(t, []npmodel.NetworkPath{{HasTest: true, TestIdentity: "fa57bb897ca01d9e63fab1d2159b3846"}}, networkPaths)
 }
 
 func Test_npCollectorImpl_ScheduleNetworkPathTests_DisabledReturnsNoNetworkPaths(t *testing.T) {

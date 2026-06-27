@@ -285,6 +285,7 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 				Source:            src,
 				Dest:              dest,
 				TranslatedDest:    transDest,
+				SourceHostname:    d.hostname,
 				SourceContainerID: srcContainerID,
 				Type:              networkProtocolToModel[conn.Type],
 				Direction:         formatDirection(conn.Direction),
