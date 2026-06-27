@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -193,7 +192,7 @@ func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterfa
 	p := &Payload{
 		Os:            osName,
 		AgentFlavor:   flavor.GetFlavor(),
-		PythonVersion: python.GetPythonInfo(),
+		PythonVersion: getPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      hosttags.Get(ctx, false, conf),

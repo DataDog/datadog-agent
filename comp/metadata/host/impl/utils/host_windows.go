@@ -12,7 +12,6 @@ package utils
 import (
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
@@ -40,7 +39,7 @@ func getSystemStats() *systemStats {
 				Platform:  runtime.GOOS,
 				Processor: modelName,
 				CPUCores:  c32,
-				Pythonv:   python.GetPythonVersion(),
+				Pythonv:   getPythonVersion(),
 			}
 
 			hostInfo := hostinfoutils.GetInformation()
