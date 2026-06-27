@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/nacl/box"
 
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -293,6 +294,31 @@ func newTestInstaller(t *testing.T) *testInstaller {
 
 func (i *testInstaller) Stop() {
 	i.daemonImpl.Stop(context.Background())
+}
+
+func TestResolveFIPSMode(t *testing.T) {
+	// BuiltForFIPS is a compile-time fact and is false in the non-FIPS test
+	// binary, so these cases exercise the explicit DD_FIPS_MODE request path.
+	// The build-flavor path is covered by env.resolveFIPSMode's tests and the
+	// goexperiment.systemcrypto build tag.
+	require.False(t, pkgfips.BuiltForFIPS(), "test binary is expected to be non-FIPS")
+
+	t.Run("DD_FIPS_MODE=true", func(t *testing.T) {
+		t.Setenv("DD_FIPS_MODE", "true")
+		assert.True(t, resolveFIPSMode())
+	})
+	t.Run("DD_FIPS_MODE is case-insensitive", func(t *testing.T) {
+		t.Setenv("DD_FIPS_MODE", "TRUE")
+		assert.True(t, resolveFIPSMode())
+	})
+	t.Run("DD_FIPS_MODE=false", func(t *testing.T) {
+		t.Setenv("DD_FIPS_MODE", "false")
+		assert.False(t, resolveFIPSMode())
+	})
+	t.Run("DD_FIPS_MODE unset", func(t *testing.T) {
+		t.Setenv("DD_FIPS_MODE", "")
+		assert.False(t, resolveFIPSMode())
+	})
 }
 
 func TestInstall(t *testing.T) {

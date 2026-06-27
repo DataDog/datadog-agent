@@ -280,17 +280,27 @@ func (e *Env) HTTPClient() *http.Client {
 	return client
 }
 
+// resolveFIPSMode reports whether the installer should operate on FIPS packages.
+// FIPS mode is on when the caller explicitly requested it (DD_FIPS_MODE=true) or
+// when the installer was built as the FIPS flavor.
+func resolveFIPSMode(fipsRequested, builtForFIPS bool) bool {
+	return fipsRequested || builtForFIPS
+}
+
 // FromEnv returns an Env struct with values from the environment.
 func FromEnv() *Env {
 	splitFunc := func(c rune) bool {
 		return c == ','
 	}
-	// thisBinaryIsFips is true when the installer is running as the FIPS-compiled agent binary
-	// (embedded/bin/installer is a symlink to the agent binary in DEB/RPM packages).
-	thisBinaryIsFips, _ := pkgfips.Enabled()
-	// fipsIsRequested is true when the caller explicitly sets DD_FIPS_MODE=true,
+	// builtForFIPS is true when the installer was built as the FIPS flavor. We rely on the
+	// compile-time build flavor (BuiltForFIPS) rather than the runtime FIPS state (Enabled): a
+	// FIPS-flavor installer must always pull FIPS packages, but Enabled() can report false when
+	// the OpenSSL FIPS backend is not active in this short-lived process, which would otherwise
+	// cause it to download the non-FIPS variant.
+	builtForFIPS := pkgfips.BuiltForFIPS()
+	// fipsRequested is true when the caller explicitly sets DD_FIPS_MODE=true,
 	// which is the signal used by the fleet OCI install path.
-	fipsIsRequested := strings.ToLower(os.Getenv(envFIPSMode)) == "true"
+	fipsRequested := strings.ToLower(os.Getenv(envFIPSMode)) == "true"
 
 	return &Env{
 		APIKey:                getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
@@ -362,7 +372,7 @@ func FromEnv() *Env {
 
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
-		FIPSMode:     fipsIsRequested || thisBinaryIsFips,
+		FIPSMode:     resolveFIPSMode(fipsRequested, builtForFIPS),
 	}
 }
 

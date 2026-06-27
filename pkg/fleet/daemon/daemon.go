@@ -24,6 +24,7 @@ import (
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
@@ -108,6 +109,14 @@ func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
 	}
 }
 
+// resolveFIPSMode reports whether the daemon should operate on FIPS packages:
+// when the daemon was built as the FIPS flavor, or when FIPS mode is explicitly
+// requested via DD_FIPS_MODE. This mirrors env.FromEnv's resolution, which the
+// daemon does not go through since it builds its env by hand.
+func resolveFIPSMode() bool {
+	return pkgfips.BuiltForFIPS() || strings.ToLower(os.Getenv("DD_FIPS_MODE")) == "true"
+}
+
 // NewDaemon returns a new daemon.
 func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconfig.Reader) (Daemon, error) {
 	installerBin, err := exec.GetExecutable()
@@ -151,6 +160,11 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		IsCentos6:            env.DetectCentos6(),
 		IsFromDaemon:         true,
 		ConfigID:             configID,
+		// The daemon builds its env by hand rather than via env.FromEnv, so the
+		// FIPS-flavor detection there is not applied. A FIPS-flavor daemon must
+		// operate on FIPS packages, otherwise its in-process bootstrap download
+		// (bootstrap.InstallExperiment) would pull the non-FIPS package variant.
+		FIPSMode: resolveFIPSMode(),
 	}
 	installer := newInstaller(installerBin)
 	refreshInterval := config.GetDuration("installer.refresh_interval")

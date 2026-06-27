@@ -231,6 +231,42 @@ func (h *hooksCLI) extensionPackageType(pkg string) PackageType {
 	return PackageTypeDEB
 }
 
+// ensureAgentFIPSProvider generates the per-machine OpenSSL FIPS module configuration for the
+// agent package tree at pkgPath by running its bundled embedded/bin/fipsinstall.sh.
+//
+// FIPS-flavor agent binaries are built with the requirefips tag and panic at startup unless the
+// embedded OpenSSL FIPS provider has been self-tested and configured on this machine. The OpenSSL
+// security policy requires fipsmodule.cnf to be generated locally and forbids copying it between
+// machines, so it cannot be shipped pre-generated. The deb/rpm packages run fipsinstall.sh from
+// their postinst scripts; the installer flow has no equivalent, so it is run here, from the
+// (working) calling process, right before re-exec'ing into the tree's installer — that binary
+// would otherwise crash during init before it could configure itself.
+//
+// It is a no-op for non-FIPS packages (which do not ship fipsinstall.sh) and for trees already
+// configured: fipsinstall.sh consumes embedded/ssl/openssl.cnf.tmp, so its absence means FIPS is
+// already set up. This keeps it idempotent across install/experiment/promote and avoids clashing
+// with the deb/rpm postinst, which runs the same script.
+func ensureAgentFIPSProvider(ctx context.Context, pkgPath string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "ensure_fips_provider")
+	defer func() { span.Finish(err) }()
+
+	scriptPath := filepath.Join(pkgPath, "embedded", "bin", "fipsinstall.sh")
+	if info, statErr := os.Stat(scriptPath); statErr != nil || info.Mode()&0o111 == 0 {
+		return nil // not a FIPS package, or the script is not executable
+	}
+	if _, statErr := os.Stat(filepath.Join(pkgPath, "embedded", "ssl", "openssl.cnf.tmp")); statErr != nil {
+		return nil // openssl.cnf.tmp already consumed: FIPS provider already configured for this tree
+	}
+
+	cmd := telemetry.CommandContext(ctx, scriptPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err = cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run fipsinstall.sh: %w", err)
+	}
+	return nil
+}
+
 func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string, extension string) error {
 	hooksCLIPath, err := exec.GetExecutable()
 	if err != nil {
@@ -253,6 +289,14 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 		}
 		if !os.IsNotExist(err) {
 			hooksCLIPath = agentInstallerPath
+			// The agent installer we are about to re-exec into may be a FIPS build (requirefips),
+			// which panics during init unless the embedded OpenSSL FIPS provider has been configured
+			// for this package tree. Configure it now, from this already-running process, before the
+			// re-exec: the target binary cannot do it for itself because it crashes before any of its
+			// hook code runs.
+			if err := ensureAgentFIPSProvider(ctx, pkgPath); err != nil {
+				return fmt.Errorf("failed to configure FIPS provider for %s: %w", pkgPath, err)
+			}
 		}
 	}
 	hookCtx := HookContext{
