@@ -120,6 +120,9 @@ receivers:
         tsdb:
           outofordertimewindow: 0
           retention: {}
+    discovery_reload_on_startup: false
+    initial_scrape_offset: 0s
+    scrape_on_shutdown: false
     target_allocator: null
     trim_metric_suffixes: false
 service:
