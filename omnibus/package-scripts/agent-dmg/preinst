@@ -222,5 +222,6 @@ rm -vf /usr/local/bin/datadog-agent
 echo '# Deleting old datadog-agent files'
 rm -rf $INSTALL_DIR/agent || true
 rm -rf $INSTALL_DIR/checks.d || true
+rm -f "$INSTALL_DIR/embedded/bin/ai-prompt-logger-native-host" || true
 
 exit 0
