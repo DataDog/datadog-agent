@@ -61,6 +61,7 @@ core_defaults = {
     "additional_checksd": "${conf_path}/checks.d",
     "GUI_port": {
         "linux": -1,
+        "aix": -1,
         "other": 5002,
     },
     "log_file": "${log_path}/agent.log",
@@ -70,10 +71,12 @@ core_defaults = {
     "private_action_runner.log_file": "${log_path}/private-action-runner.log",
     "dogstatsd_socket": {
         "linux": "/var/run/datadog/dsd.socket",
+        "aix": "/var/run/datadog/dsd.socket",
         "other": "",
     },
     "apm_config.receiver_socket": {
         "linux": "/var/run/datadog/apm.socket",
+        "aix": "/var/run/datadog/apm.socket",
         "other": "",
     },
     "logs_config.streaming.streamlogs_log_file": "${log_path}/streamlogs_info/streamlogs.log",

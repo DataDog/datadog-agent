@@ -1301,6 +1301,7 @@ properties:
     - template_section:Agent
     platform_default:
       linux: -1
+      aix: -1
       other: 5002
     comment: Agent GUI access port
   GUI_session_expiration:
@@ -2285,6 +2286,7 @@ properties:
     - template_section:Dogstatsd
     platform_default:
       linux: /var/run/datadog/dsd.socket
+      aix: /var/run/datadog/dsd.socket
       other: ''
     comment: Only enabled on unix systems
   dogstatsd_origin_detection:
