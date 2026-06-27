@@ -757,7 +757,11 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: nil,
 		},
-		"missing namespace in store gets no tracers": {
+		// When the namespace is absent from the store, the namespace-label rule
+		// ("Enabled Prod Namespaces") cannot be evaluated and is skipped, so the
+		// pod falls through to the selector-less "Default" target rather than
+		// aborting all matching.
+		"missing namespace in store falls through to the default target": {
 			configPath: "testdata/filter.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -765,7 +769,11 @@ func TestGetTargetLibraries(t *testing.T) {
 					Labels:    map[string]string{},
 				},
 			},
-			expected: nil,
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(js, "v5"),
+				},
+			},
 		},
 		"unset tracer versions applies all tracers": {
 			configPath: "testdata/filter.yaml",
