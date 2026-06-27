@@ -22,7 +22,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/cenkalti/backoff/v6 v6.0.1
-	github.com/docker/cli v29.5.3+incompatible
+	github.com/docker/cli v29.6.0+incompatible
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
 	github.com/moby/moby/api v1.55.0
