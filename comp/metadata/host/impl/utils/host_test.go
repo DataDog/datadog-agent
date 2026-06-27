@@ -95,6 +95,16 @@ func TestGetInstallMethod(t *testing.T) {
 	assert.Equal(t, "datadog-cookbook-4.2.1", *installMethod.InstallerVersion)
 }
 
+func TestIsFipsProxyEnabled(t *testing.T) {
+	conf := configmock.New(t)
+
+	conf.SetWithoutSource("fips.enabled", false)
+	assert.False(t, isFipsProxyEnabled(conf))
+
+	conf.SetWithoutSource("fips.enabled", true)
+	assert.Equal(t, !getFipsMode(), isFipsProxyEnabled(conf))
+}
+
 func TestGetProxyMeta(t *testing.T) {
 	conf := configmock.New(t)
 	httputils.MockWarnings(t, nil, nil, nil)
