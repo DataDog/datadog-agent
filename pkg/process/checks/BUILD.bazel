@@ -246,6 +246,7 @@ go_test(
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
+        "//comp/networkpath/npcollector/model",
         "//comp/process/gpusubscriber/fx-mock",
         "//pkg/config/env",
         "//pkg/config/mock",
