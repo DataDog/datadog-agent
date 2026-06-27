@@ -139,6 +139,9 @@ ignore_provide_component_constructor_missing = [
     "comp/core/workloadmeta",
     "comp/trace/agent",
     "comp/core/configsync",
+    # fxinstrumentation uses fx.Invoke directly and intentionally omits ProvideComponentConstructor;
+    # the component is not a traditional constructor-based component.
+    "comp/core/fxinstrumentation",
 ]
 
 mock_definitions = [
