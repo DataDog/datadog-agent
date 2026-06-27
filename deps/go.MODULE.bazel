@@ -507,6 +507,7 @@ use_repo(
     "io_temporal_go_sdk",
     "net_pgregory_rapid",
     "org_cloudfoundry_code_bbs",
+    "org_cloudfoundry_code_bbs_models",
     "org_cloudfoundry_code_garden",
     "org_cloudfoundry_code_lager",
     "org_go4_intern",
