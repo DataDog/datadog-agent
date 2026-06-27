@@ -37,6 +37,15 @@ repos:
       language: system
       pass_filenames: false
       stages: [pre-commit, pre-push]
+    - id: taskmd-validate
+      name: taskmd-validate
+      description: Validate workticket filenames
+      entry: taskmd validate
+      language: python
+      language_version: python3.12
+      additional_dependencies: ["taskmd>=1.3.0"]
+      pass_filenames: false
+      files: ^worktickets/
     - id: copyright
       name: copyright
       description: copyright headers

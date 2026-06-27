@@ -41,6 +41,17 @@ lint_codeowners:
   script:
     - dda inv -- -e github.lint-codeowner
 
+validate_worktickets:
+  extends: .lint
+  rules:
+    - changes:
+        paths:
+          - worktickets/**/*
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+  script:
+    - uvx 'taskmd>=1.3.0' validate
+
 lint_components:
   extends: .lint
   script:
