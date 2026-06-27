@@ -1,0 +1,14 @@
+"""bpftool toolchain for CO-RE BTF minimization."""
+
+load(":bpftool.bzl", "bpftool_toolchain")
+
+toolchain_type(
+    name = "bpftool_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+bpftool_toolchain(
+    name = "no_bpftool",
+    version = "unavailable",
+    visibility = ["//visibility:public"],
+)

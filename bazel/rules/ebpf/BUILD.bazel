@@ -1,5 +1,6 @@
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("//bazel/rules/ebpf:cgo_godefs_test.bzl", "cgo_godefs_test_suite")
+load("//bazel/rules/ebpf:min_core_btf_test.bzl", "min_core_btf_test_suite")
 
 string_flag(
     name = "target_arch",
@@ -18,3 +19,5 @@ config_setting(
 )
 
 cgo_godefs_test_suite(name = "cgo_godefs_tests")
+
+min_core_btf_test_suite(name = "min_core_btf_tests")

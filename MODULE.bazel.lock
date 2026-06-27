@@ -267,6 +267,27 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "//bazel/toolchains/bpftool:bpftool_configure.bzl%bpftool_extension": {
+      "general": {
+        "bzlTransitiveDigest": "qDgY8Ue6TyhftZHIp8HCd32KOBE7cVOYBEBJLGxRVLY=",
+        "usagesDigest": "aEsSiHd9mgMRBaR508s1Q8iHN978iuHlPyguWYZTVCo=",
+        "recordedInputs": [],
+        "generatedRepoSpecs": {
+          "bpftool": {
+            "repoRuleId": "@@//bazel/toolchains/bpftool:bpftool_configure.bzl%download_bpftool",
+            "attributes": {
+              "base_url": "https://github.com/libbpf/bpftool/releases/download/v7.5.0",
+              "version": "v7.5.0",
+              "sha256s": {
+                "amd64": "6b81db78c797e63f13e644ceb2064e5236afaf904bbaaa367785170819768f0a",
+                "arm64": "80e0d5b59bfbc7ecce06985802babf4c2b4ff78be3640202a19e3d7278fceb7b"
+              },
+              "verbose": false
+            }
+          }
+        }
+      }
+    },
     "//bazel/toolchains/linux_headers:linux_headers.bzl%linux_headers_extension": {
       "general": {
         "bzlTransitiveDigest": "st+R/ulVqPkT0R/t3yLLAqOk8EAK4MzET2sMpfW8YB4=",
