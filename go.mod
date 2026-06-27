@@ -964,7 +964,7 @@ require (
 	go.etcd.io/etcd/client/v2 v2.305.31
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.155.0
 	go.temporal.io/api v1.62.14
-	go.temporal.io/sdk v1.39.0
+	go.temporal.io/sdk v1.45.0
 	go.uber.org/mock v0.6.0
 	mvdan.cc/sh/v3 v3.13.1
 )
