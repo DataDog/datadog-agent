@@ -15,11 +15,11 @@ import (
 
 type npCollectorMock struct{}
 
-func (s *npCollectorMock) ScheduleNetworkPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPathScheduleDecision {
+func (s *npCollectorMock) ScheduleNetworkPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	return nil
 }
 
-func (s *npCollectorMock) ScheduleNetflowPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPathScheduleDecision {
+func (s *npCollectorMock) ScheduleNetflowPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	return nil
 }
 

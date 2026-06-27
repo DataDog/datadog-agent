@@ -50,18 +50,18 @@ func makeConnections(n int) []*model.Connection {
 }
 
 type decidingNPCollector struct {
-	conns     []npmodel.NetworkPathConnection
-	decisions []npmodel.NetworkPathScheduleDecision
+	conns        []npmodel.NetworkPathConnection
+	networkPaths []npmodel.NetworkPath
 }
 
-func (c *decidingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPathScheduleDecision {
+func (c *decidingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	for conn := range conns {
 		c.conns = append(c.conns, conn)
 	}
-	return c.decisions
+	return c.networkPaths
 }
 
-func (c *decidingNPCollector) ScheduleNetflowPathTests(_ iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPathScheduleDecision {
+func (c *decidingNPCollector) ScheduleNetflowPathTests(_ iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	return nil
 }
 
@@ -946,16 +946,16 @@ func TestScheduleNetworkPathSetsConnectionMetadata(t *testing.T) {
 		},
 	}
 	collector := &decidingNPCollector{
-		decisions: []npmodel.NetworkPathScheduleDecision{
+		networkPaths: []npmodel.NetworkPath{
 			{HasTest: false},
 			{HasTest: true},
 		},
 	}
 	check := &ConnectionsCheck{npCollector: collector}
 
-	decisions := check.scheduleNetworkPath(conns)
+	networkPaths := check.scheduleNetworkPath(conns)
 
-	require.Equal(t, collector.decisions, decisions)
+	require.Equal(t, collector.networkPaths, networkPaths)
 	require.Len(t, collector.conns, 2)
 	assert.Equal(t, "container-a", collector.conns[0].SourceContainerID)
 	assert.Equal(t, "api.example.com", collector.conns[1].Domain)

@@ -17,9 +17,9 @@ import (
 // Component is the component type.
 type Component interface {
 	// ScheduleNetworkPathTests schedules dynamic Network Path tests for CNM
-	// connections and returns one decision per yielded connection.
-	ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPathScheduleDecision
+	// connections and returns one NetworkPath per yielded connection.
+	ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath
 	// ScheduleNetflowPathTests schedules dynamic Network Path tests for NetFlow
-	// connections and returns one decision per yielded connection.
-	ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPathScheduleDecision
+	// connections and returns one NetworkPath per yielded connection.
+	ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath
 }

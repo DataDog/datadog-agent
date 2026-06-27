@@ -57,14 +57,14 @@ type capturingNPCollector struct {
 	netflowConns        []npmodel.NetworkPathConnection
 }
 
-func (c *capturingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPathScheduleDecision {
+func (c *capturingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	for conn := range conns {
 		c.networkTrafficConns = append(c.networkTrafficConns, conn)
 	}
 	return nil
 }
 
-func (c *capturingNPCollector) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPathScheduleDecision {
+func (c *capturingNPCollector) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	for conn := range conns {
 		c.netflowConns = append(c.netflowConns, conn)
 	}

@@ -27,9 +27,9 @@ type NetworkPathConnection struct {
 	SystemProbeConn   bool
 }
 
-// NetworkPathScheduleDecision contains the per-input scheduling decision for
-// a NetworkPathConnection.
-type NetworkPathScheduleDecision struct {
+// NetworkPath contains the per-input Network Path metadata for a
+// NetworkPathConnection.
+type NetworkPath struct {
 	// HasTest is true when the connection maps to a dynamic Network Path test
 	// that the agent should maintain.
 	HasTest bool

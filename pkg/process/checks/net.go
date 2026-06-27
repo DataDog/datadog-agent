@@ -218,9 +218,9 @@ func (c *ConnectionsCheck) Cleanup() {
 	c.localresolver.Stop()
 }
 
-func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) []npmodel.NetworkPathScheduleDecision {
+func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) []npmodel.NetworkPath {
 	scheduledConns := make([]*model.Connection, 0, len(conns.Conns))
-	decisions := c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
+	networkPaths := c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
 		for _, conn := range conns.Conns {
 			srcIP, err := netip.ParseAddr(conn.Laddr.GetIp())
 			if err != nil {
@@ -259,16 +259,16 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) []npmod
 		}
 	})
 
-	for i, decision := range decisions {
+	for i, networkPath := range networkPaths {
 		if i >= len(scheduledConns) {
 			break
 		}
 		scheduledConns[i].NetworkPath = &model.NetworkPath{
-			HasTest: decision.HasTest,
+			HasTest: networkPath.HasTest,
 		}
 	}
 
-	return decisions
+	return networkPaths
 }
 
 func getDNSNameForIP(conns *model.Connections, ip string) string {

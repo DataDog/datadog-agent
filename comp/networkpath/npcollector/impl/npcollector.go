@@ -274,21 +274,21 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 	return vpcSubnets, nil
 }
 
-func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPathScheduleDecision {
+func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return nil
 	}
 	return s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns)
 }
 
-func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPathScheduleDecision {
+func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	if !s.collectorConfigs.netflowMonitoringEnabled {
 		return nil
 	}
 	return s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPathScheduleDecision {
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	var vpcSubnets []netip.Prefix
 	if origin == payload.PathOriginNetworkTraffic {
 		var err error
@@ -300,12 +300,12 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	}
 
 	startTime := s.TimeNowFn()
-	var decisions []npmodel.NetworkPathScheduleDecision
+	var networkPaths []npmodel.NetworkPath
 	connCount := 0
 	for conn := range conns {
 		connCount++
 		hasTest := s.shouldScheduleNetworkPathForConn(conn, origin, vpcSubnets)
-		decisions = append(decisions, npmodel.NetworkPathScheduleDecision{HasTest: hasTest})
+		networkPaths = append(networkPaths, npmodel.NetworkPath{HasTest: hasTest})
 		if !hasTest {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
@@ -318,7 +318,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	}
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
-	return decisions
+	return networkPaths
 }
 
 // scheduleOne schedules pathtests.

@@ -1170,7 +1170,7 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 	}
 }
 
-func Test_npCollectorImpl_ScheduleNetworkPathTests_ReturnsHasTestDecisions(t *testing.T) {
+func Test_npCollectorImpl_ScheduleNetworkPathTests_ReturnsNetworkPaths(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled":      true,
 		"network_path.collector.monitor_ip_without_domain": true,
@@ -1207,13 +1207,13 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests_ReturnsHasTestDecisions(t *te
 
 	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
 
-	decisions := npCollector.ScheduleNetworkPathTests(slices.Values(conns))
+	networkPaths := npCollector.ScheduleNetworkPathTests(slices.Values(conns))
 
-	assert.Equal(t, []npmodel.NetworkPathScheduleDecision{
+	assert.Equal(t, []npmodel.NetworkPath{
 		{HasTest: false},
 		{HasTest: true},
 		{HasTest: false},
-	}, decisions)
+	}, networkPaths)
 
 	select {
 	case pathtest := <-npCollector.pathtestInputChan:
@@ -1245,12 +1245,12 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests_HasTestIgnoresEnqueueFailure(
 	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
 	npCollector.pathtestInputChan = nil
 
-	decisions := npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{conn}))
+	networkPaths := npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{conn}))
 
-	assert.Equal(t, []npmodel.NetworkPathScheduleDecision{{HasTest: true}}, decisions)
+	assert.Equal(t, []npmodel.NetworkPath{{HasTest: true}}, networkPaths)
 }
 
-func Test_npCollectorImpl_ScheduleNetworkPathTests_DisabledReturnsNoDecisions(t *testing.T) {
+func Test_npCollectorImpl_ScheduleNetworkPathTests_DisabledReturnsNoNetworkPaths(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.collector.monitor_ip_without_domain": true,
 		"network_path.collector.filters":                   []map[string]any{},
