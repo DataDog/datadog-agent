@@ -517,7 +517,7 @@ def build_repackaged_agent(ctx, log_level="info"):
         ctx,
         "build",
         "agent",
-        base_dir=None,
+        base_dir=_resolve_omnibus_path_override(None, "OMNIBUS_BASE_DIR"),
         env=env,
         log_level=log_level,
         cache_dir=_resolve_omnibus_path_override(None, "OMNIBUS_CACHE_DIR"),
