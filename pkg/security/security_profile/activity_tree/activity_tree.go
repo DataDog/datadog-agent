@@ -1041,6 +1041,45 @@ func processSubtreeSizeBytes(pn *ProcessNode) int64 {
 	return total
 }
 
+// FinalizePatterns runs a merge pass on every FileNode map in the tree
+// using MinClusterSizeOnFinalize as the threshold. No-op when pattern
+// mining is disabled on the tree. Idempotent.
+func (at *ActivityTree) FinalizePatterns() {
+	if at == nil {
+		return
+	}
+	cfg := at.Stats.PathPatternConfig()
+	if !cfg.Enabled {
+		return
+	}
+	for _, pn := range at.ProcessNodes {
+		at.finalizePatternsOnProcess(pn, cfg.MinClusterSizeOnFinalize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnProcess(pn *ProcessNode, minClusterSize int) {
+	if pn == nil {
+		return
+	}
+	mergeChildren(pn.Files, minClusterSize, at.Stats)
+	for _, fn := range pn.Files {
+		at.finalizePatternsOnFile(fn, minClusterSize)
+	}
+	for _, child := range pn.Children {
+		at.finalizePatternsOnProcess(child, minClusterSize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnFile(fn *FileNode, minClusterSize int) {
+	if fn == nil || len(fn.Children) == 0 {
+		return
+	}
+	mergeChildren(fn.Children, minClusterSize, at.Stats)
+	for _, child := range fn.Children {
+		at.finalizePatternsOnFile(child, minClusterSize)
+	}
+}
+
 // EvictImageTag will remove every trace of the given image tag from the tree
 func (at *ActivityTree) EvictImageTag(imageTag string) {
 	// purge the cookies which todays are never set. TODO: once they'll get used, recompute them here
