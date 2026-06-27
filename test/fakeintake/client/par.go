@@ -29,7 +29,7 @@ func (c *Client) EnqueuePARTask(taskID, actionFQN string, inputs map[string]inte
 	if err != nil {
 		return fmt.Errorf("marshal enqueue request: %w", err)
 	}
-	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/par/enqueue", "application/json", bytes.NewReader(body))
+	resp, err := c.httpClient.Post(c.fakeIntakeURL+"/fakeintake/par/enqueue", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("enqueue PAR task: %w", err)
 	}
@@ -57,7 +57,7 @@ func (c *Client) GetPARTaskResult(taskID string, timeout time.Duration) (*api.PA
 
 // FlushPAR clears all queued PAR tasks and captured results from fakeintake.
 func (c *Client) FlushPAR() error {
-	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/par/flush", "", nil)
+	resp, err := c.httpClient.Post(c.fakeIntakeURL+"/fakeintake/par/flush", "", nil)
 	if err != nil {
 		return fmt.Errorf("flush PAR state: %w", err)
 	}
@@ -71,7 +71,7 @@ func (c *Client) FlushPAR() error {
 // GetPARDequeueCount returns how many times PAR has called the dequeue endpoint.
 // A non-zero value confirms PAR is actively polling fakeintake.
 func (c *Client) GetPARDequeueCount() (int, error) {
-	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/par/stats")
+	resp, err := c.httpClient.Get(c.fakeIntakeURL + "/fakeintake/par/stats")
 	if err != nil {
 		return 0, fmt.Errorf("get PAR stats: %w", err)
 	}
@@ -89,7 +89,7 @@ func (c *Client) GetPARDequeueCount() (int, error) {
 }
 
 func (c *Client) getPARResult(taskID string) (*api.PARTaskResult, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/par/result?taskID=%s", c.fakeIntakeURL, taskID))
+	resp, err := c.httpClient.Get(fmt.Sprintf("%s/fakeintake/par/result?taskID=%s", c.fakeIntakeURL, taskID))
 	if err != nil {
 		return nil, err
 	}
