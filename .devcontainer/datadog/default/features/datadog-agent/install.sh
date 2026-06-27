@@ -5,8 +5,11 @@ featureDir=$(cd "$(dirname "$0")"; pwd)
 # Get claude from the buildimages /root/.local/bin
 cp /root/.local/bin/claude /home/bits/.local/bin/claude
 
-# Add bits user to the docker group. This should probably be handled by the base feature. But not working for now.
-usermod -aG docker bits
+# Ensure bits is in the docker and build-shared groups. Both are pre-baked in the
+# dev-env-workspace image; these guards are a no-op in practice but make the feature
+# safe to apply on other bases where the groups may be absent.
+getent group docker >/dev/null && usermod -aG docker bits
+getent group build-shared >/dev/null && usermod -aG build-shared bits
 
 # Copy lifecycle scripts into the image
 install -d /opt/doghome/devcontainer/features/datadog-agent/lifecycle
