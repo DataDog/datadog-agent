@@ -14,11 +14,5 @@ const (
 	defaultGuiPort = 5002
 )
 
-// called by init in config.go, to ensure any os-specific config is done
-// in time
-func osinit() {
-}
-
 // FleetConfigOverride is a no-op on Darwin
-func FleetConfigOverride(_ pkgconfigmodel.Config) {
-}
+func FleetConfigOverride(_ pkgconfigmodel.Config) {}

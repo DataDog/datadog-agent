@@ -17,7 +17,11 @@ namespace Datadog.CustomActions
     public class ConfigCustomActions
     {
         private const string AiUsageNativeHostConfigName = "ai_usage_native_host.yaml";
-        private const string AiUsageNativeHostName = "com.datadoghq.ai_prompt_logger.native_host";
+        private const string AiUsageNativeHostName = "com.datadoghq.ai_usage_agent.native_host";
+        private static readonly string[] ObsoleteAiUsageNativeHostNames =
+        {
+            "com.datadoghq.ai_prompt_logger.native_host",
+        };
 
         /// <summary>
         /// Subset of the Datadog config file that we are going to read.
@@ -441,9 +445,25 @@ namespace Datadog.CustomActions
             var manifestDir = Path.Combine(projectLocation, "bin", "agent", "dist");
             Directory.CreateDirectory(manifestDir);
 
-            var hostExe = Path.Combine(projectLocation, "bin", "agent", "ai-prompt-logger-native-host.exe");
+            var hostExe = Path.Combine(projectLocation, "bin", "agent", "ai-usage-agent-native-host.exe");
             var extensionId = ReadAiUsageChromeExtensionId(configFolder, session);
             var manifestPath = Path.Combine(manifestDir, $"{AiUsageNativeHostName}.json");
+            foreach (var obsoleteHostName in ObsoleteAiUsageNativeHostNames)
+            {
+                var obsoleteManifestPath = Path.Combine(manifestDir, $"{obsoleteHostName}.json");
+                try
+                {
+                    if (File.Exists(obsoleteManifestPath))
+                    {
+                        session.Log($"Deleting obsolete AI usage native messaging manifest \"{obsoleteManifestPath}\"");
+                        File.Delete(obsoleteManifestPath);
+                    }
+                }
+                catch (Exception e)
+                {
+                    session.Log($"Failed to delete obsolete AI usage native messaging manifest \"{obsoleteManifestPath}\": {e}");
+                }
+            }
 
             var manifest = "{\n" +
                            $"  \"name\": \"{AiUsageNativeHostName}\",\n" +

@@ -10,23 +10,23 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
-	github.com/DataDog/datadog-api-client-go/v2 v2.60.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.61.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.307.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.308.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.58.4
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.83.0
-	github.com/aws/aws-sdk-go-v2/service/eks v1.86.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.85.0
+	github.com/aws/aws-sdk-go-v2/service/eks v1.87.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/cenkalti/backoff/v6 v6.0.1
-	github.com/docker/cli v29.5.3+incompatible
+	github.com/docker/cli v29.6.0+incompatible
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
-	github.com/moby/moby/api v1.54.2
-	github.com/moby/moby/client v0.4.1
+	github.com/moby/moby/api v1.55.0
+	github.com/moby/moby/client v0.5.0
 	github.com/pkg/sftp v1.13.10
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.34.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.6.0
@@ -98,7 +98,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.31.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.43.3 // indirect
-	github.com/aws/smithy-go v1.27.1 // indirect
+	github.com/aws/smithy-go v1.27.2 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
@@ -239,8 +239,8 @@ require (
 	github.com/zclconf/go-cty v1.15.1 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/featuregate v1.60.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.60.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.61.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.61.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.18.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect
@@ -280,6 +280,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20260330154417-16be699c7b31 // indirect
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
 	lukechampine.com/frand v1.5.1 // indirect
+	pgregory.net/rapid v1.3.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/kustomize/api v0.20.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.20.1 // indirect

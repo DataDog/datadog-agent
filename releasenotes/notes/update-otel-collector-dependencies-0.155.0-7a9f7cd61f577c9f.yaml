@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Update OpenTelemetry Collector dependencies to version 0.155.0.
+    Notable upstream changes included in this update:
+
+    - **Datadog extension**: Fixed ``tls.insecure_skip_verify`` being ignored.

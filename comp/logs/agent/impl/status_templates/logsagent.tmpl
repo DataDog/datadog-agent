@@ -22,16 +22,16 @@
   {{- end }}
 {{- end }}
 
-{{- if .BackpressureTable }}
-
-{{ .BackpressureTable }}
-{{- end }}
-
 {{- if .ProcessFileStats }}
   {{- range $metric_name, $metric_value := .ProcessFileStats }}
     {{$metric_name}}: {{$metric_value}}
   {{- end}}
 {{- end}}
+
+{{- if .BackpressureTable }}
+
+{{ .BackpressureTable }}
+{{- end }}
 
 {{- if .Errors }}
 

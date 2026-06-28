@@ -18,12 +18,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "ai-prompt-logger-native-host"
+name = "ai-usage-agent-native-host"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
  "hostname",
+ "libc",
  "serde",
  "serde_json",
  "serde_yaml",

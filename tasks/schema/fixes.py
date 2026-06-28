@@ -29,11 +29,8 @@ decided at runtime by the Agent, OS based description and more.
 #     windows: c:\programdata\datadog\logs
 
 core_defaults = {
-    "api_key": "",
     "container_cgroup_root": "/host/sys/fs/cgroup/",
     "container_proc_root": "/host/proc",
-    "sbom.cache_directory": "${run_path}/sbom-agent",
-    "agent_ipc.socket_path": "${run_path}/agent_ipc.socket",
     "logs_config.open_files_limit": {
         "darwin": 200,
         "other": 500,
@@ -48,25 +45,15 @@ core_defaults = {
         "windows": "\\\\.\\pipe\\kubelet-device-plugins",
         "other": "/var/lib/kubelet/device-plugins",
     },
-    "logs_config.run_path": "${run_path}",
-    "run_path": "${run_path}",
     "process_config.dd_agent_bin": {
         "linux": "${install_path}/bin/agent/agent",
         "darwin": "${install_path}/bin/agent/agent",
         "windows": "${install_path}/bin/agent.exe",
     },
-    "confd_path": "${conf_path}/conf.d",
-    "shared_library_check.library_folder_path": "${conf_path}/checks.d",
-    "additional_checksd": "${conf_path}/checks.d",
     "GUI_port": {
         "linux": -1,
         "other": 5002,
     },
-    "log_file": "${log_path}/agent.log",
-    "jmx_log_file": "${log_path}/jmxfetch.log",
-    "security_agent.log_file": "${log_path}/security-agent.log",
-    "process_config.log_file": "${log_path}/process-agent.log",
-    "private_action_runner.log_file": "${log_path}/private-action-runner.log",
     "dogstatsd_socket": {
         "linux": "/var/run/datadog/dsd.socket",
         "other": "",
@@ -75,8 +62,6 @@ core_defaults = {
         "linux": "/var/run/datadog/apm.socket",
         "other": "",
     },
-    "logs_config.streaming.streamlogs_log_file": "${log_path}/streamlogs_info/streamlogs.log",
-    "system_tray.log_file": "${conf_path}/logs/ddtray.log",
     # setting duplicated for some reasons between system-probe and core-agent config
     "runtime_security_config.socket": {
         "windows": "localhost:3335",
@@ -85,8 +70,6 @@ core_defaults = {
 }
 
 sysprobe_defaults = {
-    "log_file": "${log_path}/system-probe.log",
-    "system_probe_config.bpf_dir": "${install_path}/embedded/share/system-probe/ebpf",
     "system_probe_config.process_service_inference.enabled": {
         "windows": True,
         "other": False,
@@ -96,8 +79,6 @@ sysprobe_defaults = {
         "darwin": "/opt/datadog-agent/run/sysprobe.sock",
         "windows": "\\\\.\\pipe\\dd_system_probe",
     },
-    "runtime_security_config.security_profile.dir": "${run_path}/runtime-security/profiles",
-    "runtime_security_config.activity_dump.local_storage.output_directory": "${run_path}/runtime-security/profiles",
     "runtime_security_config.policies.dir": {
         "windows": "${conf_path}/runtime-security.d",
         "other": "/etc/datadog-agent/runtime-security.d",  # hardcoded for both, probably doesn't work on darwin

@@ -38,8 +38,16 @@ type Worker struct {
 	RequeueChan chan<- transaction.Transaction
 
 	stopped             chan struct{}
+	stopChan            chan struct{}
 	blockedList         *blockedEndpoints
 	pointCountTelemetry PointCountTelemetry
+
+	// waitForInflight controls Stop semantics. When true, Stop waits for all
+	// in-flight HTTP requests to complete before returning. When false,
+	// workerCtx is cancelled immediately on Stop, which aborts any in-flight
+	// requests mid-transfer. Sourced from the forwarder_stop_wait_for_inflight
+	// config key.
+	waitForInflight bool
 
 	// The maximum number of HTTP requests we can have inflight at any one time.
 	maxConcurrentRequests *semaphore.Weighted
@@ -84,9 +92,11 @@ func NewWorker(
 		LowPrio:               lowPrioChan,
 		RequeueChan:           requeueChan,
 		stopped:               make(chan struct{}),
+		stopChan:              make(chan struct{}),
 		Client:                httpClient,
 		blockedList:           blocked,
 		pointCountTelemetry:   pointCountTelemetry,
+		waitForInflight:       config.GetBool("forwarder_stop_wait_for_inflight"),
 		maxConcurrentRequests: semaphore.NewWeighted(maxConcurrentRequests),
 		workerCtx:             workerCtx,
 		cancel:                cancel,
@@ -94,30 +104,87 @@ func NewWorker(
 	return worker
 }
 
-// Stop stops the worker.
+// Stop stops the worker, dispatching to one of two implementations depending
+// on w.waitForInflight (sourced from forwarder_stop_wait_for_inflight).
 func (w *Worker) Stop(purgeHighPrio bool) {
-	// Cancel our context to kick out any transactions waiting
-	// on the maxConcurrentRequests semaphore.
+	if w.waitForInflight {
+		w.stopWaitingForInflight(purgeHighPrio)
+	} else {
+		w.stopWithoutWaitingForInflight(purgeHighPrio)
+	}
+}
+
+// stopWithoutWaitingForInflight cancels workerCtx first so any transactions
+// blocked on semaphore acquisition receive context.Canceled and are requeued,
+// then waits for the Start goroutine to exit. If purgeHighPrio is set, a fresh
+// workerCtx is installed so purge transactions can acquire the semaphore.
+func (w *Worker) stopWithoutWaitingForInflight(purgeHighPrio bool) {
 	w.cancel()
+	close(w.stopChan)
+	<-w.stopped
+	if purgeHighPrio {
+		w.drainHighPrioWithFreshContext()
+	}
+	w.requestWg.Wait()
+}
+
+// stopWaitingForInflight signals the Start goroutine via stopChan, allows
+// in-flight HTTP requests to complete, and cancels workerCtx last.
+// forwarder_stop_timeout (applied by the caller in DefaultForwarder.Stop) is
+// the outer bound on this wait; if that deadline fires, the goroutines spawned
+// by callProcess continue running with no independent cancellation and finish
+// on their own (or via HTTP timeout).
+//
+// The process is expected to exit shortly after Stop returns, so any in-flight
+// goroutines are reaped on exit. This path is only appropriate for that "Stop
+// is the last thing before process exit" shape — there is no codepath today
+// that calls forwarder.Stop and keeps running, but a future caller that does
+// would observe shutdown returning before HTTP requests complete rather than
+// cancelling them mid-flight.
+func (w *Worker) stopWaitingForInflight(purgeHighPrio bool) {
+	close(w.stopChan)
 
 	<-w.stopped
 
 	if purgeHighPrio {
-		// Need a new context to flush these high priority transactions.
-		w.workerCtx, w.cancel = context.WithCancel(context.Background())
-	L:
-		for {
-			select {
-			case t := <-w.HighPrio:
-				w.log.Debugf("Flushing one new transaction before stopping Worker")
-				w.callProcess(t) //nolint:errcheck
-			default:
-				break L
-			}
-		}
+		w.drainHighPrioWithExistingContext()
 	}
 
 	w.requestWg.Wait()
+
+	w.cancel()
+}
+
+// drainHighPrioWithExistingContext synchronously processes every transaction
+// currently buffered in HighPrio using the worker's current workerCtx.
+func (w *Worker) drainHighPrioWithExistingContext() {
+	w.drainHighPrio()
+}
+
+// drainHighPrioWithFreshContext replaces workerCtx with a fresh background
+// context, then drains HighPrio. Used when the caller has already cancelled
+// workerCtx and the drained transactions need a live context to acquire the
+// semaphore.
+func (w *Worker) drainHighPrioWithFreshContext() {
+	w.workerCtx, w.cancel = context.WithCancel(context.Background())
+	w.drainHighPrio()
+}
+
+// drainHighPrio synchronously processes every transaction currently buffered
+// in HighPrio. Returns once HighPrio is empty; transactions submitted
+// concurrently after the drain is invoked are not guaranteed to be picked up.
+// Callers should invoke one of the drainHighPrioWith* wrappers rather than
+// this method directly.
+func (w *Worker) drainHighPrio() {
+	for {
+		select {
+		case t := <-w.HighPrio:
+			w.log.Debugf("Flushing one new transaction before stopping Worker")
+			w.callProcess(t) //nolint:errcheck
+		default:
+			return
+		}
+	}
 }
 
 // Start starts a Worker.
@@ -134,7 +201,7 @@ func (w *Worker) Start() {
 					continue
 				}
 				return
-			case <-w.workerCtx.Done():
+			case <-w.stopChan:
 				return
 			default:
 			}
@@ -148,7 +215,7 @@ func (w *Worker) Start() {
 				if w.callProcess(t) != nil {
 					return
 				}
-			case <-w.workerCtx.Done():
+			case <-w.stopChan:
 				return
 			}
 		}
@@ -200,7 +267,9 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 	if w.blockedList.isBlockForSend(target, time.Now()) {
 		w.requeue(t)
 		w.log.Warnf("Too many errors for endpoint '%s': retrying later", target)
-	} else if err := t.Process(ctx, w.config, w.log, w.secrets, w.Client.GetClient(), w.pointCountTelemetry); err != nil {
+		return
+	}
+	if err := t.Process(ctx, w.config, w.log, w.secrets, w.Client.GetClient(), w.pointCountTelemetry); err != nil {
 		w.blockedList.close(target, time.Now())
 		w.requeue(t)
 		w.log.Errorf("Error while processing transaction: %v", err)

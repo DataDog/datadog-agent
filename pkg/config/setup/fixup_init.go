@@ -67,6 +67,7 @@ func fixupLogsAgent(config pkgconfigmodel.Config) {
 
 // always called, for both full-agent and serverless-init, after declaring settings
 func fixupInitCommonConfigComponents(config pkgconfigmodel.Config) {
+	pkgconfigmodel.AddOverrideFunc(FleetConfigOverride)
 	fixupContainerSyspath(config)
 	fixupLogsAgent(config)
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)

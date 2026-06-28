@@ -6,17 +6,9 @@
 package setup
 
 import (
-	"path/filepath"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
-
-// getDefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
-func getDefaultSecurityProfilesDir() string {
-	return filepath.Join(defaultpaths.GetDefaultRunPath(), "runtime-security", "profiles")
-}
 
 func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// CWS - general config
@@ -81,7 +73,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", "4500s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", getDefaultSecurityProfilesDir())
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", "${run_path}/runtime-security/profiles")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{"profile"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", "60s")
@@ -116,7 +108,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_image_tags", 20)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", getDefaultSecurityProfilesDir())
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", "${run_path}/runtime-security/profiles")
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)

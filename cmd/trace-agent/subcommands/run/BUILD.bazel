@@ -17,6 +17,8 @@ go_library(
         "//comp/core/agenttelemetry/def",
         "//comp/core/agenttelemetry/fx",
         "//comp/core/config",
+        "//comp/core/configstreamconsumer/def",
+        "//comp/core/configstreamconsumer/fx",
         "//comp/core/configsync/def",
         "//comp/core/configsync/fx",
         "//comp/core/delegatedauth/fx",

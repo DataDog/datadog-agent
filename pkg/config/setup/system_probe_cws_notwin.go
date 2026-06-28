@@ -8,13 +8,10 @@
 package setup
 
 import (
-	"path/filepath"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 func platformCWSConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
-	cfg.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(defaultpaths.GetInstallPath(), "run/runtime-security.sock"))
+	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "${install_path}/run/runtime-security.sock")
 }

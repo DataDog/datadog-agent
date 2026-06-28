@@ -194,7 +194,7 @@ New Features
 ------------
 
 - The Windows MSI installer now ships the AI usage Chrome native messaging
-  host (``ai-prompt-logger-native-host.exe``) under ``bin\agent``. The
+  host (``ai-usage-agent-native-host.exe``) under ``bin\agent``. The
   installer generates a Chrome Native Messaging Host
   manifest under ``bin\agent\dist`` and registers it machine-wide under
   ``HKLM\SOFTWARE\Google\Chrome\NativeMessagingHosts`` (including the

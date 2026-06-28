@@ -30,6 +30,7 @@ type RawSender interface {
 // checkSender implements Sender
 type checkSender struct {
 	id                      checkid.ID
+	metricSource            metrics.MetricSource
 	defaultHostname         string
 	defaultHostnameDisabled bool
 	metricStats             stats.SenderStats
@@ -105,6 +106,7 @@ func newCheckSender(
 ) *checkSender {
 	return &checkSender{
 		id:                      id,
+		metricSource:            metrics.CheckNameToMetricSource(checkid.IDToCheckName(id)),
 		defaultHostname:         defaultHostname,
 		itemsOut:                itemsOut,
 		serviceCheckOut:         serviceCheckOut,
@@ -203,7 +205,7 @@ func (s *checkSender) sendMetricSample(
 		Timestamp:       timestamp,
 		FlushFirstValue: flushFirstValue,
 		NoIndex:         s.noIndex || noIndex,
-		Source:          metrics.CheckNameToMetricSource(checkid.IDToCheckName(s.id)),
+		Source:          s.metricSource,
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
@@ -290,16 +292,18 @@ func (s *checkSender) OpenmetricsBucket(metric string, value int64, lowerBound, 
 func (s *checkSender) sendHistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue, multipleBuckets bool) {
 	tags = append(tags, s.checkTags...)
 
-	log.Tracef(
-		"Histogram Bucket %s submitted: %v [%f-%f] monotonic: %v for host %s tags: %v",
-		metric,
-		value,
-		lowerBound,
-		upperBound,
-		monotonic,
-		hostname,
-		tags,
-	)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef(
+			"Histogram Bucket %s submitted: %v [%f-%f] monotonic: %v for host %s tags: %v",
+			metric,
+			value,
+			lowerBound,
+			upperBound,
+			monotonic,
+			hostname,
+			tags,
+		)
+	}
 
 	histogramBucket := &metrics.HistogramBucket{
 		Name:            metric,
@@ -367,7 +371,9 @@ func (s *checkSender) SendRawServiceCheck(sc *servicecheck.ServiceCheck) {
 
 // ServiceCheck submits a service check
 func (s *checkSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
-	log.Trace("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Trace("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
+	}
 	serviceCheck := servicecheck.ServiceCheck{
 		CheckName: checkName,
 		Status:    status,
@@ -392,7 +398,9 @@ func (s *checkSender) ServiceCheck(checkName string, status servicecheck.Service
 func (s *checkSender) Event(e event.Event) {
 	e.Tags = append(e.Tags, s.checkTags...)
 
-	log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
+	}
 
 	if e.Host == "" && !s.defaultHostnameDisabled {
 		e.Host = s.defaultHostname

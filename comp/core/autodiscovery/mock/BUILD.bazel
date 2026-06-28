@@ -7,7 +7,6 @@ go_library(
         "mock.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/mock",
-    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/def",

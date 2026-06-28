@@ -8,7 +8,6 @@ package setup
 import (
 	"os"
 	"path"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -50,11 +49,6 @@ const (
 	defaultEnvoyPath = "/bin/envoy"
 )
 
-var (
-	// defaultSystemProbeBPFDir is the default path for eBPF programs
-	defaultSystemProbeBPFDir = filepath.Join(defaultpaths.GetInstallPath(), "embedded/share/system-probe/ebpf")
-)
-
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
 func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ignore_host_etc", false)
@@ -73,7 +67,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// logging
 	cfg.BindEnvAndSetDefault("system_probe_config.log_file", "")
 	cfg.BindEnvAndSetDefault("system_probe_config.log_level", "")
-	cfg.BindEnvAndSetDefault("log_file", defaultpaths.GetDefaultSystemProbeLogFile())
+	cfg.BindEnvAndSetDefault("log_file", "${log_path}/system-probe.log")
 	cfg.BindEnvAndSetDefault("log_level", "info", "DD_LOG_LEVEL", "LOG_LEVEL")
 	cfg.BindEnvAndSetDefault("syslog_uri", "")
 	cfg.BindEnvAndSetDefault("syslog_rfc", false)
@@ -130,7 +124,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// ebpf general settings
 	cfg.BindEnvAndSetDefault("system_probe_config.bpf_debug", false, "DD_SYSTEM_PROBE_CONFIG_BPF_DEBUG", "BPF_DEBUG")
-	cfg.BindEnvAndSetDefault("system_probe_config.bpf_dir", defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
+	cfg.BindEnvAndSetDefault("system_probe_config.bpf_dir", "${install_path}/embedded/share/system-probe/ebpf", "DD_SYSTEM_PROBE_BPF_DIR")
 	cfg.BindEnvAndSetDefault("system_probe_config.excluded_linux_versions", []string{})
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_tracepoints", false)
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_co_re", true, "DD_ENABLE_CO_RE")
