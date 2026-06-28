@@ -280,6 +280,30 @@ module Omnibus
 
   Packager::PKG.prepend PackagerPKGNotarizer
 
+  # Repackaged builds may extract external package files under OMNIBUS_BASE_DIR
+  # because non-root dev environments cannot write paths like /usr/bin. Keep the
+  # declared extra_package_file path as the final package path, but source missing
+  # absolute files from the staged root when available.
+  module PackagerExtraPackageFileStagedRoot
+    def copy_file(source, destination)
+      super(staged_extra_package_source(source), destination)
+    end
+
+    private
+
+    def staged_extra_package_source(source)
+      base_dir = ENV["OMNIBUS_BASE_DIR"]
+      source = source.to_s
+      return source if base_dir.nil? || base_dir.empty? || !source.start_with?("/") || File.exist?(source)
+
+      staged_source = File.join(base_dir, source.sub(%r{\A/+}, ""))
+      File.exist?(staged_source) ? staged_source : source
+    end
+  end
+
+  Packager::DEB.prepend PackagerExtraPackageFileStagedRoot
+  Packager::RPM.prepend PackagerExtraPackageFileStagedRoot
+
   # The legacy Omnibus RPM packager builds its file list by globbing the staging
   # tree. When Omnibus stages an external extra_package_file, it creates parent
   # directories in that tree as an implementation detail. Without filtering,
