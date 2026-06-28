@@ -26,6 +26,7 @@ build do
     staged_install_dir = File.join(destdir, install_dir.sub(%r{\A/+}, ""))
 
     block "Populate install directory from extracted package" do
+      FileUtils.chmod_R("u+rwX", staged_install_dir)
       FileUtils.mkdir_p(install_dir)
       FileUtils.cp_r("#{staged_install_dir}/.", install_dir)
     end
