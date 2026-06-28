@@ -11,6 +11,7 @@ go_library(
         "npcollector.go",
         "npcollector_mock.go",
         "npcollectorcomp.go",
+        "test_identity.go",
         "utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl",
@@ -50,6 +51,7 @@ dd_agent_go_test(
         "module_test.go",
         "npcollector_test.go",
         "npcollector_testutils_test.go",
+        "test_identity_test.go",
     ],
     embed = [":impl"],
     deps = [
