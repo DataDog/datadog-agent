@@ -42,12 +42,15 @@ func WriteADPProcmgrConfig(installRootResolved string) error {
 
 	installRootRepl := filepath.ToSlash(filepath.Clean(installRootResolved))
 	etcRootRepl := filepath.ToSlash(filepath.Clean(paths.DatadogDataDir))
-	log.Debugf("ADP processes.d: template replace __ADP_INSTALL_ROOT__=%q __ADP_ETC_ROOT__=%q",
-		installRootRepl, etcRootRepl)
+	fleetPolicies := paths.FleetPoliciesDirForManagedProcess()
+	fleetPoliciesRepl := filepath.ToSlash(filepath.Clean(fleetPolicies))
+	log.Debugf("ADP processes.d: template replace __ADP_INSTALL_ROOT__=%q __ADP_ETC_ROOT__=%q __ADP_FLEET_POLICIES_DIR__=%q",
+		installRootRepl, etcRootRepl, fleetPoliciesRepl)
 
 	config := embedded.ADPWindowsProcmgrConfig
 	config = strings.ReplaceAll(config, "__ADP_INSTALL_ROOT__", installRootRepl)
 	config = strings.ReplaceAll(config, "__ADP_ETC_ROOT__", etcRootRepl)
+	config = strings.ReplaceAll(config, "__ADP_FLEET_POLICIES_DIR__", fleetPoliciesRepl)
 
 	path := filepath.Join(processesDir, adpProcmgrConfigFileName)
 	log.Debugf("ADP processes.d: writing %q", path)
