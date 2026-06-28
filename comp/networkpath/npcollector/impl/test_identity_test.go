@@ -36,6 +36,21 @@ func TestMakeTestIdentityUsesScheduledPathtestFields(t *testing.T) {
 	assert.Equal(t, "05d7ac899163f6f3d9d3048d580edf19", got)
 }
 
+func TestMakeTestIdentityLengthPrefixesVariableFields(t *testing.T) {
+	left := makeTestIdentity("ab", common.Pathtest{
+		Hostname: "c",
+		Port:     443,
+		Protocol: payload.ProtocolTCP,
+	})
+	right := makeTestIdentity("a", common.Pathtest{
+		Hostname: "bc",
+		Port:     443,
+		Protocol: payload.ProtocolTCP,
+	})
+
+	assert.NotEqual(t, left, right)
+}
+
 func TestMakeTestIdentityEmptySourceHostname(t *testing.T) {
 	got := makeTestIdentity("", common.Pathtest{
 		Hostname: "api.internal.example.com",

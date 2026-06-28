@@ -947,7 +947,7 @@ func TestScheduleNetworkPathSetsConnectionMetadata(t *testing.T) {
 	}
 	collector := &decidingNPCollector{
 		networkPaths: []npmodel.NetworkPath{
-			{HasTest: false},
+			{HasTest: false, TestIdentity: "should-not-leak"},
 			{HasTest: true, TestIdentity: "test-identity"},
 		},
 	}

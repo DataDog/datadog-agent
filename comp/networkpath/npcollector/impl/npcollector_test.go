@@ -1252,6 +1252,27 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests_HasTestIgnoresEnqueueFailure(
 	assert.Equal(t, []npmodel.NetworkPath{{HasTest: true, TestIdentity: "fa57bb897ca01d9e63fab1d2159b3846"}}, networkPaths)
 }
 
+func Test_npCollectorImpl_ScheduleNetworkPathTests_EmptySourceHostnameOmitsTestIdentity(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+	conn := npmodel.NetworkPathConnection{
+		Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+		Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+		Direction: model.ConnectionDirection_outgoing,
+		Family:    model.ConnectionFamily_v4,
+		Type:      model.ConnectionType_tcp,
+	}
+
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
+
+	networkPaths := npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{conn}))
+
+	assert.Equal(t, []npmodel.NetworkPath{{HasTest: true}}, networkPaths)
+}
+
 func Test_npCollectorImpl_ScheduleNetworkPathTests_DisabledReturnsNoNetworkPaths(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.collector.monitor_ip_without_domain": true,
