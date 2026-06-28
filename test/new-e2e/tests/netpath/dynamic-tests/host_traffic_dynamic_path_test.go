@@ -167,6 +167,7 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 	s.startHostTrafficGenerator(4 * time.Minute)
 
 	var matched *aggregator.Netpath
+	var matchedTestIdentity string
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.schedule.pathtest_count")
 		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.flush.pathtest_count")
@@ -188,14 +189,21 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		require.NotEmpty(c, match.Traceroute.Runs, "matched network path has no traceroute runs")
 		assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")
 
+		conns, err := fakeintake.GetConnections()
+		require.NoError(c, err)
+		testIdentity, ok := findHostTrafficConnectionNetworkPath(conns)
+		require.True(c, ok, "no CNM connection payload had network path metadata")
+
 		matched = match
+		matchedTestIdentity = testIdentity
 	}, 5*time.Minute, 10*time.Second)
 
 	if matched != nil {
-		s.T().Logf("matched host traffic dynamic path destination=%s:%d test_run_id=%s",
+		s.T().Logf("matched host traffic dynamic path destination=%s:%d test_run_id=%s test_identity=%s",
 			matched.Destination.Hostname,
 			matched.Destination.Port,
 			matched.TestRunID,
+			matchedTestIdentity,
 		)
 	}
 }
@@ -341,6 +349,23 @@ func findHostTrafficNetworkPath(netpaths []*aggregator.Netpath) *aggregator.Netp
 		}
 	}
 	return nil
+}
+
+func findHostTrafficConnectionNetworkPath(conns *aggregator.ConnectionsAggregator) (string, bool) {
+	if conns == nil {
+		return "", false
+	}
+	for _, name := range conns.GetNames() {
+		for _, payload := range conns.GetPayloadsByName(name) {
+			for _, conn := range payload.Connections {
+				networkPath := conn.GetNetworkPath()
+				if networkPath.GetHasTest() && networkPath.GetTestIdentity() != "" {
+					return networkPath.GetTestIdentity(), true
+				}
+			}
+		}
+	}
+	return "", false
 }
 
 func hasTracerouteDestinationIP(np *aggregator.Netpath) bool {
