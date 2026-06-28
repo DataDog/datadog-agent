@@ -58,7 +58,6 @@ tests_linux-x64-py3:
     - .linux_x64
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
     - !reference [.upload_coverage_datadog]
   variables:
     CONDA_ENV: ddpy3
@@ -128,7 +127,6 @@ tests_linux-arm64-py3:
     - !reference [.retrieve_linux_go_tools_deps_arm64]
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
     - !reference [.upload_coverage_datadog]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
@@ -237,7 +235,6 @@ tests_gpu:
     - !reference [.retrieve_linux_go_tools_deps]
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
     - !reference [.upload_coverage_datadog]
   variables:
     FLAVORS: ''

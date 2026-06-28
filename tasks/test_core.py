@@ -113,7 +113,7 @@ def process_input_args(
     lint=False,
 ):
     """
-    Takes the input module, targets and flavor arguments from dda inv test and dda inv coverage.upload-to-codecov,
+    Takes the input module, targets and flavor arguments from dda inv test and dda inv coverage.upload-coverage-cache,
     sets default values for them & casts them to the expected types.
     """
     if only_modified_packages:
