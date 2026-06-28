@@ -204,6 +204,8 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 			return
 		}
 
+		body = stripCommandLineSecrets(r, body)
+
 		if accepted := forwarder.startRequest(int64(len(body))); !accepted {
 			writeEmptyJSON(w, http.StatusTooManyRequests)
 			return
