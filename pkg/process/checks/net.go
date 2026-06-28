@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"net/netip"
@@ -15,6 +16,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/benbjohnson/clock"
+	"github.com/gogo/protobuf/jsonpb"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -220,6 +222,7 @@ func (c *ConnectionsCheck) Cleanup() {
 
 func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) []npmodel.NetworkPath {
 	scheduledConns := make([]*model.Connection, 0, len(conns.Conns))
+	scheduledNetworkPathConns := make([]npmodel.NetworkPathConnection, 0, len(conns.Conns))
 	sourceHostname := ""
 	if c.hostInfo != nil {
 		sourceHostname = c.hostInfo.HostName
@@ -261,11 +264,12 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) []npmod
 				return
 			}
 			scheduledConns = append(scheduledConns, conn)
+			scheduledNetworkPathConns = append(scheduledNetworkPathConns, npc)
 		}
 	})
 
 	for i, networkPath := range networkPaths {
-		if i >= len(scheduledConns) {
+		if i >= len(scheduledConns) || i >= len(scheduledNetworkPathConns) {
 			break
 		}
 		scheduledConns[i].NetworkPath = &model.NetworkPath{
@@ -273,10 +277,29 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) []npmod
 		}
 		if networkPath.HasTest {
 			scheduledConns[i].NetworkPath.TestIdentity = networkPath.TestIdentity
+			logNetworkPathConnection(scheduledNetworkPathConns[i], networkPath)
 		}
 	}
 
 	return networkPaths
+}
+
+func logNetworkPathConnection(conn npmodel.NetworkPathConnection, networkPath npmodel.NetworkPath) {
+	if !log.ShouldLog(log.DebugLvl) {
+		return
+	}
+	log.Debugf(
+		"CNM flow with Network Path data: source_hostname=%s source=%s dest=%s translated_dest=%s domain=%s type=%s family=%s direction=%s test_identity=%s",
+		conn.SourceHostname,
+		conn.Source,
+		conn.Dest,
+		conn.TranslatedDest,
+		conn.Domain,
+		conn.Type,
+		conn.Family,
+		conn.Direction,
+		networkPath.TestIdentity,
+	)
 }
 
 func getDNSNameForIP(conns *model.Connections, ip string) string {
@@ -709,6 +732,7 @@ func batchConnections(
 			cc.CORETelemetryByAsset = coreTelemetry
 			cc.PrebuiltEBPFAssets = prebuiltAssets
 		}
+		logCollectorConnectionsPayload(cc)
 		batches = append(batches, cc)
 
 		cxs = cxs[batchSize:]
@@ -722,6 +746,32 @@ func groupSize(total, maxBatchSize int) int32 {
 		groupSize++
 	}
 	return int32(groupSize)
+}
+
+func logCollectorConnectionsPayload(conns *model.CollectorConnections) {
+	if !log.ShouldLog(log.DebugLvl) || !collectorConnectionsHasNetworkPathMetadata(conns) {
+		return
+	}
+
+	var payload bytes.Buffer
+	marshaler := jsonpb.Marshaler{EmitDefaults: true}
+	if err := marshaler.Marshal(&payload, conns); err != nil {
+		log.Debugf("failed to marshal CNM flows payload sent to intake: %v", err)
+		return
+	}
+	log.Debugf("CNM flows payload sent to intake with Network Path metadata: %s", payload.String())
+}
+
+func collectorConnectionsHasNetworkPathMetadata(conns *model.CollectorConnections) bool {
+	if conns == nil {
+		return false
+	}
+	for _, conn := range conns.GetConnections() {
+		if conn.GetNetworkPath() != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
