@@ -41,7 +41,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          }
+        ]
       }
     },
     "timestamp": "[ts]",
@@ -236,7 +242,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          }
+        ]
       }
     },
     "timestamp": "[ts]",
@@ -284,7 +296,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          }
+        ]
       }
     },
     "timestamp": "[ts]",
@@ -332,7 +350,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          }
+        ]
       }
     },
     "timestamp": "[ts]",
@@ -380,7 +404,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          }
+        ]
       }
     },
     "timestamp": "[ts]",
@@ -428,7 +458,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          }
+        ]
       }
     },
     "timestamp": "[ts]",

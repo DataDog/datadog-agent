@@ -72,6 +72,23 @@ type runtimeStats struct {
 	eventPairingCallMapFull       atomic.Uint64
 	eventPairingCallCountExceeded atomic.Uint64
 	eventPairingConditionFailed   atomic.Uint64
+	// conditionEvalErrorNilDeref counts events whose @when condition
+	// hit a nil pointer dereference. The BPF program fails-open and
+	// emits the snapshot as if the condition passed; this counter
+	// gives operators aggregate visibility into a class of probe
+	// misconfiguration that any single sampled snapshot might miss.
+	conditionEvalErrorNilDeref atomic.Uint64
+	// conditionEvalErrorOther counts events whose @when condition
+	// hit a non-nil-deref evaluation error (out-of-bounds index,
+	// kernel read failure, etc.). Same fail-open behavior.
+	conditionEvalErrorOther atomic.Uint64
+	// conditionIterationCapExhausted counts events whose @when
+	// condition included an any/all over a collection that ran past
+	// the 4096-element per-call iteration cap without a short-circuit
+	// result. Same fail-open behavior; the operator can adjust the
+	// predicate to short-circuit sooner or accept that very large
+	// collections can't be evaluated condition-side.
+	conditionIterationCapExhausted atomic.Uint64
 }
 
 func (s *runtimeStats) asStats() map[string]any {
@@ -80,6 +97,9 @@ func (s *runtimeStats) asStats() map[string]any {
 		"event_pairing_call_map_full":       s.eventPairingCallMapFull.Load(),
 		"event_pairing_call_count_exceeded": s.eventPairingCallCountExceeded.Load(),
 		"event_pairing_condition_failed":    s.eventPairingConditionFailed.Load(),
+		"condition_eval_error_nil_deref":    s.conditionEvalErrorNilDeref.Load(),
+		"condition_eval_error_other":        s.conditionEvalErrorOther.Load(),
+		"condition_iteration_cap_exhausted": s.conditionIterationCapExhausted.Load(),
 	}
 }
 

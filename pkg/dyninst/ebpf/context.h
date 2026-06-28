@@ -192,6 +192,14 @@ typedef struct stack_machine {
   // condition evaluation to abort. Used together with condition_eval_error
   // to distinguish nil-caused failures from other evaluation errors.
   bool condition_nil_deref;
+  // Set to true when an any/all iteration over a collection runs through
+  // COLLECTION_PREDICATE_MAX_ITERATIONS elements without a short-circuit
+  // result. The slice / swiss-map loop-end sites set this alongside
+  // condition_eval_error so event.c can pack a distinct
+  // header->condition_eval_error code (3) and userspace can render a
+  // specific message ("any/all iteration limit exceeded") instead of
+  // the generic "error evaluating condition".
+  bool iteration_cap_exhausted;
   // condition_state packs up to 8 per-leaf 2-bit statuses for a split-
   // event-kind condition. Bits [2*i, 2*i+1] hold leaf i's status (one of
   // the LEAF_STATUS_* values). Reset to 0 by SM_OP_CONDITION_STATE_INIT
@@ -234,10 +242,42 @@ typedef struct stack_machine {
   uint16_t last_submitted_seq;
   // Set true when a mid-chase flush failed: some fragments reached
   // userspace but a later fragment couldn't be written. probe_run checks
-  // this flag after chasing completes and, if set, sends a PARTIAL_*
+  // this flag after chasing completes and, if set, sends a drop
   // notification and skips the final submit rather than emit a fragment
   // with a gap.
   bool continuation_aborted;
+  // When continuation_aborted is true, this holds the flush_result_t
+  // (cast to uint8_t for compactness) describing *why* the flush failed:
+  // FLUSH_FRAGMENT_CAP or FLUSH_RING_BUFFER_FULL. The driver maps this
+  // (plus side) into the appropriate DropReason on the side-channel
+  // notification. Undefined when continuation_aborted is false.
+  uint8_t flush_failure_cause;
+
+  // Records the cause of the most recent abandoned pointer chase
+  // (sm_record_pointer returning false), as a data_item_reason_t value
+  // cast to uint8_t. Set at the abandonment site so callers that emit
+  // a placeholder data-item header can stamp the right reason.
+  // Overwritten on each abandonment; cleared to DATA_ITEM_REASON_NONE
+  // when a chase succeeds.
+  uint8_t last_chase_failure_cause;
+
+  // Set true when SM_OP_CALL overflows the PC stack
+  // (ENQUEUE_STACK_DEPTH exhausted) or when a data-stack push fails.
+  // The SM aborts execution; the driver reads this flag and stamps a
+  // side-level reason (CAPTURE_NESTING_TOO_DEEP) on the event before
+  // emission. Per-expression attribution is not possible at these
+  // sites because the SM doesn't track "current root expression".
+  bool sm_recursion_overflow;
+
+  // Peer-dedup flag for placeholder data-item emission. Cleared at
+  // each SM_OP_CHASE_POINTERS dequeue (the start of a new chase's
+  // sub-walk). When a pointer chase is abandoned in the current scope,
+  // sm_record_pointer emits a placeholder data-item header *only* if
+  // this flag is unset, then sets it so subsequent siblings in the
+  // same scope abandon silently. Bounds placeholder count to one per
+  // scope-that-hits-a-limit rather than one per missed pointee, which
+  // matters when a slice of many pointers all hit the same cap.
+  bool peer_scope_placeholder_emitted;
   // Original probe invocation timestamp, shared across all continuation
   // fragments for correlation.
   uint64_t start_ns;
@@ -493,6 +533,7 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->condition_failed = false;
   stack_machine->condition_eval_error = false;
   stack_machine->condition_nil_deref = false;
+  stack_machine->iteration_cap_exhausted = false;
   stack_machine->condition_state = 0;
   chased_pointers_trie_init(&stack_machine->chased);
   chased_slices_init(&stack_machine->chased_slices);
@@ -510,6 +551,10 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   // sm_filter_*_init from sm->di_0 every chase, so no hot-path reset
   // is needed for it.
   stack_machine->pending_expr_status = 0;
+  stack_machine->flush_failure_cause = 0;
+  stack_machine->last_chase_failure_cause = 0; // DATA_ITEM_REASON_NONE
+  stack_machine->sm_recursion_overflow = false;
+  stack_machine->peer_scope_placeholder_emitted = false;
   // start_ns and entry_ktime_ns are set explicitly by probe_run before use.
   return stack_machine;
 }

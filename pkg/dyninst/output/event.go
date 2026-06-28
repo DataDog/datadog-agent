@@ -54,13 +54,77 @@ const (
 	EventPairingExpectationReturnPanicUnwound EventPairingExpectation = 9
 )
 
+// The DataItemHeader.Type field is packed:
+//   - bit 31 (DataItemFailedReadMask): payload absent (kernel read failed,
+//     or SM emitted a placeholder for an omitted value with length == 0).
+//   - bits 27..30 (DataItemReasonMask): a 4-bit DataItemReason describing
+//     why the item is incomplete (placeholder) or truncated (real item).
+//     Zero = no reason set; 15 reserved for a future side-channel
+//     mechanism.
+//   - bits 0..26 (DataItemTypeMask): the type ID.
+//
+// Kept in sync with pkg/dyninst/ebpf/framing.h.
 const (
-	// DataItemFailedReadMask is a mask on the type field of a data item header that
-	// can be used to check if a data item was marked as a failed read.
+	// DataItemFailedReadMask is bit 31 on the type field of a data item
+	// header. Set when the payload is absent.
 	DataItemFailedReadMask = uint32(1 << 31)
-	// DataItemTypeMask is a mask on the type field of a data item header that can be
-	// used to get the type of a data item without the failed read mask.
-	DataItemTypeMask = ^DataItemFailedReadMask
+
+	// DataItemReasonShift / DataItemReasonMask cover the 4-bit reason
+	// field in bits 27..30.
+	DataItemReasonShift = 27
+	DataItemReasonMask  = uint32(0xF) << DataItemReasonShift
+
+	// DataItemTypeMask masks out both the failed-read bit and the reason
+	// bits, leaving only the type ID.
+	DataItemTypeMask = ^(DataItemFailedReadMask | DataItemReasonMask)
+)
+
+// DataItemReason classifies *why* a data item is incomplete (when emitted
+// as a placeholder with length == 0) or *why* its payload was clamped
+// (when emitted on a real, captured item). Kept in sync with
+// data_item_reason_t in pkg/dyninst/ebpf/framing.h.
+type DataItemReason uint8
+
+const (
+	// DataItemReasonNone is the default for items the SM emits without
+	// applying any limit.
+	DataItemReasonNone DataItemReason = 0
+
+	// Placeholder reasons (item has DataItemFailedReadMask set and
+	// Length == 0). These describe *why* a chased pointee was omitted
+	// from the capture entirely.
+
+	// DataItemReasonTooManyPointersInFlight: the in-flight pointers queue
+	// was full when this pointer needed to be followed.
+	DataItemReasonTooManyPointersInFlight DataItemReason = 1
+	// DataItemReasonTooManyUniquePointers: the per-event dedup table of
+	// seen pointer addresses was full.
+	DataItemReasonTooManyUniquePointers DataItemReason = 2
+	// DataItemReasonTooManySlicesCaptured: the per-event captured-slices
+	// table was full.
+	DataItemReasonTooManySlicesCaptured DataItemReason = 3
+	// DataItemReasonCaptureNestingTooDeep: the stack machine's recursion
+	// stack was full while capturing this value.
+	DataItemReasonCaptureNestingTooDeep DataItemReason = 4
+
+	// Real-item reasons (item carries actual bytes; reason describes
+	// how the payload was clamped).
+
+	// DataItemReasonValueTooLarge: serialize length was clamped to
+	// MaxDataItemSize (8 KiB).
+	DataItemReasonValueTooLarge DataItemReason = 5
+	// DataItemReasonStringSize: the configured string MaxLength clamped
+	// the payload.
+	DataItemReasonStringSize DataItemReason = 6
+	// DataItemReasonCollectionSize: the configured MaxCollectionSize
+	// clamped the element count.
+	DataItemReasonCollectionSize DataItemReason = 7
+
+	// 8..14 reserved.
+
+	// DataItemReasonExtended is reserved for a future side-channel
+	// reason-table mechanism. Not produced by current eBPF code.
+	DataItemReasonExtended DataItemReason = 15
 )
 
 const (
@@ -97,9 +161,16 @@ func (d *DataItem) IsFailedRead() bool {
 	return d.header.Type&DataItemFailedReadMask != 0
 }
 
-// Type returns the type of the data item without the failed read mask.
+// Type returns the type ID of the data item, with the failed-read and
+// reason bits stripped.
 func (d *DataItem) Type() uint32 {
 	return d.header.Type & DataItemTypeMask
+}
+
+// Reason returns the DataItemReason packed into bits 27..30 of the type
+// field. Returns DataItemReasonNone when no reason was set.
+func (d *DataItem) Reason() DataItemReason {
+	return DataItemReason((d.header.Type & DataItemReasonMask) >> DataItemReasonShift)
 }
 
 // Header returns the header of the data item.

@@ -94,8 +94,9 @@ struct {
 
 // drop_notify_prepare returns a pointer to the per-CPU drop notification
 // scratch slot, or NULL if the map lookup fails (should never happen).
-// Callers fill the struct fields, then call send_drop_notification() to
-// submit it to the side-channel ringbuf.
+// Callers fill the struct fields (including the new cause-explicit
+// drop_reason and side), then call send_drop_notification() to submit it
+// to the side-channel ringbuf.
 static inline di_drop_notification_t* drop_notify_prepare(void) {
   uint32_t zero = 0;
   return bpf_map_lookup_elem(&drop_notify_scratch, &zero);
@@ -175,27 +176,35 @@ static bool events_scratch_buf_submit(scratch_buf_t* scratch_buf,
   return bpf_ringbuf_output(&out_ringbuf, scratch_buf, len, 0) == 0;
 }
 
+// Result of an attempted scratch buffer flush. FLUSH_OK means the
+// fragment reached userspace and a fresh buffer is ready for the next
+// item. The non-OK values describe why the flush failed; probe_run
+// translates them (plus side) into the corresponding DropReason on the
+// side-channel notification.
+typedef enum flush_result {
+  FLUSH_OK              = 0,
+  FLUSH_FRAGMENT_CAP    = 1, // hit MAX_CONTINUATION_FRAGMENTS
+  FLUSH_RING_BUFFER_FULL = 2, // bpf_ringbuf_output rejected
+} flush_result_t;
+
 // Flush the current scratch buffer as a continuation fragment and reinitialize
-// for the next fragment. Returns true on success, false if the flush couldn't
-// be submitted — either because the ringbuf is full or because we've reached
-// MAX_CONTINUATION_FRAGMENTS. start_ns is the original probe invocation
-// timestamp, used to correlate all fragments of a single logical event.
-// last_submitted_seq is updated on success so probe_run can fill last_seq on
-// any subsequent drop notification.
-static bool scratch_buf_flush_and_continue(scratch_buf_t* scratch_buf,
-                                           uint16_t* continuation_seq,
-                                           uint16_t* last_submitted_seq,
-                                           uint64_t start_ns,
-                                           uint64_t entry_ktime_ns) {
-  // Reject flushes once we'd cross the per-invocation fragment cap. The
-  // caller will set continuation_aborted and probe_run will emit the
-  // appropriate PARTIAL_* / RETURN_LOST notification — userspace already
-  // has fragments [0..MAX_CONTINUATION_FRAGMENTS-1] and is told to
-  // finalize them as a truncated event.
+// for the next fragment. Returns FLUSH_OK on success. On failure, the caller
+// must set continuation_aborted and emit the appropriate drop notification —
+// userspace already has fragments [0..last_submitted_seq] (zero if no prior
+// fragments) and is told to finalize them as a truncated event.
+// start_ns is the original probe invocation timestamp, used to correlate all
+// fragments of a single logical event. last_submitted_seq is updated on
+// success so probe_run can fill last_seq on any subsequent drop notification.
+static flush_result_t scratch_buf_flush_and_continue(
+    scratch_buf_t* scratch_buf,
+    uint16_t* continuation_seq,
+    uint16_t* last_submitted_seq,
+    uint64_t start_ns,
+    uint64_t entry_ktime_ns) {
   if (*continuation_seq >= MAX_CONTINUATION_FRAGMENTS) {
     LOG(1, "flush: hit MAX_CONTINUATION_FRAGMENTS (%d), aborting continuation",
         MAX_CONTINUATION_FRAGMENTS);
-    return false;
+    return FLUSH_FRAGMENT_CAP;
   }
 
   di_event_header_t* header = (di_event_header_t*)scratch_buf;
@@ -203,7 +212,7 @@ static bool scratch_buf_flush_and_continue(scratch_buf_t* scratch_buf,
   header->continuation_flags = 1; // more fragments follow
 
   if (!events_scratch_buf_submit(scratch_buf, start_ns)) {
-    return false;
+    return FLUSH_RING_BUFFER_FULL;
   }
 
   *last_submitted_seq = *continuation_seq;
@@ -228,7 +237,7 @@ static bool scratch_buf_flush_and_continue(scratch_buf_t* scratch_buf,
   header->stack_hash = 0;
   header->panic_lo_depth = 0;
   header->panic_hi_depth = 0;
-  return true;
+  return FLUSH_OK;
 }
 
 typedef struct copy_stack_loop_ctx {
@@ -328,6 +337,36 @@ buf_offset_t scratch_buf_serialize_with_src_256(
     return 0;  // not supported by this fixed-size wrapper.
   }
   return scratch_buf_serialize_with_src_inner(scratch_buf, hdr, src_addr, 256);
+}
+
+// Write a 16-byte placeholder data-item header (no payload) into the
+// scratch buffer. When a pointer chase is abandoned because an
+// internal capacity limit fired, the SM emits a single placeholder
+// at the type+address it would have captured, with the failed-read
+// mask set and reason bits describing the cause. Length is 0;
+// address is the would-be pointee address. Returns true on success,
+// false if the scratch buffer is full (the placeholder is silently
+// dropped in that case — the value would have been missing anyway,
+// and the side-level fragment-limit / ringbuf reasons cover the
+// whole-event truncation that follows).
+static bool
+scratch_buf_emit_placeholder(scratch_buf_t* scratch_buf,
+                             uint32_t type_id,
+                             data_item_reason_t reason,
+                             target_ptr_t address) {
+  buf_offset_t offset = scratch_buf_len(scratch_buf);
+  if (!scratch_buf_bounds_check(&offset, sizeof(di_data_item_header_t))) {
+    return false;
+  }
+  di_data_item_header_t header = {
+      .type = (type_id & DATA_ITEM_TYPE_MASK) | DATA_ITEM_FAILED_READ_MASK |
+              (((uint32_t)reason) << DATA_ITEM_REASON_SHIFT),
+      .length = 0,
+      .address = address,
+  };
+  *(di_data_item_header_t*)(&(*scratch_buf)[offset]) = header;
+  scratch_buf_set_len(scratch_buf, offset + sizeof(di_data_item_header_t));
+  return true;
 }
 
 // Write the queue entry to the scratch buffer, and return the offset of the
@@ -567,7 +606,16 @@ buf_offset_t scratch_buf_serialize(scratch_buf_t* scratch_buf,
   offset &= ~FAILED_READ_OFFSET_BIT;
   offset -= sizeof(di_data_item_header_t);
   if (scratch_buf_bounds_check(&offset, sizeof(di_data_item_header_t))) {
-    ((di_data_item_header_t*)(&(*scratch_buf)[offset]))->type |= (1 << 31);
+    // The kernel read failed, so the item now stands in as a placeholder.
+    // Clear any real-item reason bits the SM stamped on the header
+    // (e.g. STRING_SIZE / VALUE_TOO_LARGE) — those describe a clamped
+    // payload, and there is no payload here. Leaving them set would
+    // violate the framing invariant that codes 5..7 only appear on
+    // items with FAILED_READ=0. Userspace then falls through to the
+    // scope-cause or shape-inferred fallback.
+    di_data_item_header_t* hdr =
+        (di_data_item_header_t*)(&(*scratch_buf)[offset]);
+    hdr->type = (hdr->type & DATA_ITEM_TYPE_MASK) | DATA_ITEM_FAILED_READ_MASK;
   }
   return 0;
 }

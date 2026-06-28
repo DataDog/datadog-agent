@@ -1608,6 +1608,46 @@ func TestDecoderNilPointerCaptureExpression(t *testing.T) {
 	require.True(t, found, "expected nil pointer evaluation error, got: %+v", e.Debugger.Snapshot.EvaluationErrors)
 }
 
+// TestDecoderIterationCapExhausted verifies that when the eBPF stack
+// machine packs Condition_eval_error == 3 (an any/all iteration cap
+// exhaustion), the decoder surfaces a distinct evaluationErrors[]
+// entry with the cap-specific message instead of the generic
+// "error evaluating condition" string.
+func TestDecoderIterationCapExhausted(t *testing.T) {
+	irProg := generateIrForProbes(t, "simple", goVersionHmap, "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	input := simpleStringArgEvent(t, irProg)
+
+	// Patch the Condition_eval_error byte in the EventHeader to 3
+	// (iteration cap exhausted). The field is at a fixed offset in
+	// the linux EventHeader layout; reconstruct the header in place.
+	header := (*output.EventHeader)(unsafe.Pointer(&input[0]))
+	header.Condition_eval_error = 3
+
+	buf, probe, err := decoder.Decode(Event{
+		EntryOrLine: output.SingleEvent(input),
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, nil, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, "stringArg", probe.GetID())
+
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+
+	require.NotEmpty(t, e.Debugger.Snapshot.EvaluationErrors)
+	found := false
+	for _, evalErr := range e.Debugger.Snapshot.EvaluationErrors {
+		if evalErr.Message == errIterationCapExhausted.Error() {
+			found = true
+			break
+		}
+	}
+	require.True(t, found,
+		"expected iteration-cap evaluation error, got: %+v",
+		e.Debugger.Snapshot.EvaluationErrors)
+}
+
 // TestDecoderNilPointerTemplateExpression tests that a nil pointer dereference
 // during template expression evaluation is formatted as an error in the message.
 func TestDecoderNilPointerTemplateExpression(t *testing.T) {

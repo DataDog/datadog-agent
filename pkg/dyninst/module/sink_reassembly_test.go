@@ -339,14 +339,16 @@ func TestEvictOlderThan_RaceWithDropNotification(t *testing.T) {
 	}})
 	require.NoError(t, s.HandleEvent(dispatcher.MakeTestingMessage(entry)))
 
-	// A real RETURN_LOST drop notification for this invocation. Applied
-	// synchronously, so the entry should be finalized immediately.
+	// A real FirstFlushFailed drop notification for the return side of
+	// this invocation. Applied synchronously, so the entry should be
+	// finalized immediately.
 	s.HandleDropNotification(output.DropNotification{
 		Prog_id:          0,
 		Probe_id:         0,
 		Goid:             42,
 		Stack_byte_depth: 100,
-		Drop_reason:      uint8(output.DropReasonReturnLost),
+		Drop_reason:      uint8(output.DropReasonFirstFlushFailed),
+		Side:             uint8(output.DropSideReturn),
 		Entry_ktime_ns:   1000,
 	})
 	require.Len(t, dec.calls, 1, "drop notification should have finalized the entry")

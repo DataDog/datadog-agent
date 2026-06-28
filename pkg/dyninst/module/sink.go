@@ -123,6 +123,25 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 	key := keyFromHeader(h)
 	expectation := output.EventPairingExpectation(h.Event_pairing_expectation)
 
+	// Aggregate per-probe condition-evaluation error counts. The BPF
+	// program fails open on these errors and emits the snapshot
+	// anyway, so the per-snapshot evaluationErrors field already
+	// surfaces the failure for emitted events. The counters add
+	// fleet-level visibility for the (common) case where individual
+	// snapshots are sampled, throttled, or pruned away.
+	//
+	// Encoding: 1 = generic eval error (OOB, kernel read fail);
+	// 2 = nil pointer dereference; 3 = any/all iteration cap
+	// exhausted. See condition_eval_error in ../ebpf/event.c.
+	switch h.Condition_eval_error {
+	case 1:
+		s.runtime.stats.conditionEvalErrorOther.Add(1)
+	case 2:
+		s.runtime.stats.conditionEvalErrorNilDeref.Add(1)
+	case 3:
+		s.runtime.stats.conditionIterationCapExhausted.Add(1)
+	}
+
 	switch expectation {
 	case output.EventPairingExpectationConditionFailed:
 		// BPF-sent signal: the return condition evaluated to false, so
@@ -175,12 +194,16 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 	case output.EventPairingExpectationCallMapFull:
 		// BPF ran out of room in the in_progress_calls map. The entry event
 		// is emitted standalone (no return will come) with an operator log.
+		// Record the expectation on the buffered entry so it survives
+		// multi-fragment finalize and ends up on the Ready, where the
+		// emit path renders it as an evaluationError for "@return".
 		s.recordEventPairingIssue(
 			&s.runtime.stats.eventPairingCallMapFull,
 			eventPairingCallMapFullLogLimiter,
 			"call map capacity exceeded",
 			h.Probe_id,
 		)
+		s.buffer.SetNoReturnExpectation(key, expectation)
 	case output.EventPairingExpectationCallCountExceeded:
 		s.recordEventPairingIssue(
 			&s.runtime.stats.eventPairingCallCountExceeded,
@@ -188,6 +211,7 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 			"maximum call count exceeded",
 			h.Probe_id,
 		)
+		s.buffer.SetNoReturnExpectation(key, expectation)
 	}
 
 	// Everything else carries fragment data. Route it through the buffer.
@@ -240,13 +264,33 @@ func (s *sink) HandleDropNotification(n output.DropNotification) {
 	}
 	var ready eventbuf.Ready
 	var done bool
+	side := output.DropSide(n.Side)
 	switch output.DropReason(n.Drop_reason) {
-	case output.DropReasonReturnLost:
+	case output.DropReasonFirstFlushFailed:
+		// No fragments reached userspace. Today eBPF only sends this for
+		// the return side (entry-side first-flush failure has no buffered
+		// userspace state to clean up). Treat any other side as a bug.
+		if side != output.DropSideReturn {
+			log.Errorf("unexpected FirstFlushFailed with side %d", n.Side)
+			return
+		}
 		ready, done = s.buffer.NoteReturnLost(key)
-	case output.DropReasonPartialEntry:
-		ready, done = s.buffer.NotePartial(key, eventbuf.Entry, n.Last_seq)
-	case output.DropReasonPartialReturn:
-		ready, done = s.buffer.NotePartial(key, eventbuf.Return, n.Last_seq)
+	case output.DropReasonFragmentLimit, output.DropReasonRingBufferFull:
+		// Partial-side truncation: fragments [0..Last_seq] reached
+		// userspace before the failure. Finalize the affected side.
+		// The fragment-limit / ringbuf-full distinction is logged for
+		// operators but does not affect the rendered snapshot — the
+		// captured values already carry their own per-value
+		// notCapturedReason when applicable.
+		switch side {
+		case output.DropSideEntry:
+			ready, done = s.buffer.NotePartial(key, eventbuf.Entry, n.Last_seq)
+		case output.DropSideReturn:
+			ready, done = s.buffer.NotePartial(key, eventbuf.Return, n.Last_seq)
+		default:
+			log.Errorf("unknown drop side %d for reason %d", n.Side, n.Drop_reason)
+			return
+		}
 	default:
 		log.Errorf("unknown drop reason %d", n.Drop_reason)
 		return
@@ -302,17 +346,25 @@ func (s *sink) emit(ready eventbuf.Ready) {
 		return
 	}
 
+	// Build synthetic evaluation errors for whole-side losses (return
+	// lost, in-progress-calls map full, etc.). These describe absences
+	// that don't correspond to any IR expression, so they don't fit
+	// the per-expression ExprStatus channel; the decoder appends them
+	// verbatim to the snapshot's evaluationErrors array.
+	syntheticErrs := buildSyntheticEvalErrors(ready)
+
 	// decodedBytes is a fresh slice for each call — the log uploader
 	// takes ownership of the returned bytes, so reusing a per-sink buffer
 	// would corrupt previously-enqueued events on the next overwrite.
 	var decodedBytes []byte
 	decoded, probe, err := s.decoder.Decode(decode.Event{
-		EntryOrLine:  entry,
-		Return:       ret,
-		ServiceName:  s.service,
-		ProcessTags:  s.processTags,
-		Truncated:    ready.EntryTruncated || ready.ReturnTruncated,
-		PanicUnwound: ready.PanicUnwound,
+		EntryOrLine:               entry,
+		Return:                    ret,
+		ServiceName:               s.service,
+		ProcessTags:               s.processTags,
+		Truncated:                 ready.EntryTruncated || ready.ReturnTruncated,
+		PanicUnwound:              ready.PanicUnwound,
+		SyntheticEvaluationErrors: syntheticErrs,
 	}, s.symbolicator, &s.missingTypes, decodedBytes)
 	if err != nil {
 		if probe != nil {
@@ -357,6 +409,48 @@ func (s *sink) recordEventPairingIssue(
 	} else {
 		log.Tracef(format, probeID, issueMsg)
 	}
+}
+
+// buildSyntheticEvalErrors translates whole-side losses recorded on a
+// finalized Ready into evaluation errors targeting the synthetic
+// "@return" expression name. The decoder appends these verbatim to
+// the snapshot's evaluationErrors array, where the live-debugger UI
+// renders them.
+//
+// Only *whole-side* losses produce synthetic errors:
+//   - ReturnLost: the return probe fired but the BPF program couldn't
+//     submit any return fragments (DropReasonFirstFlushFailed).
+//   - NoReturnExpectation: the entry's first fragment carried a
+//     CallMapFull / CallCountExceeded pairing expectation; no return
+//     event will ever be paired with this invocation.
+//
+// Partial-side truncations (Ready.EntryReason / Ready.ReturnReason)
+// do NOT produce a synthetic error. When a side is partial, the
+// operator-visible state is the captured values that did arrive, with
+// their own per-value notCapturedReason where applicable (pruned,
+// collectionSize, depth, …). Saying "and also the event was too
+// large" on top of those reasons is redundant noise.
+func buildSyntheticEvalErrors(ready eventbuf.Ready) []decode.SyntheticEvaluationError {
+	var out []decode.SyntheticEvaluationError
+	if ready.ReturnLost {
+		out = append(out, decode.SyntheticEvaluationError{
+			Expression: "@return",
+			Message:    "return event lost",
+		})
+	}
+	switch ready.NoReturnExpectation {
+	case output.EventPairingExpectationCallMapFull:
+		out = append(out, decode.SyntheticEvaluationError{
+			Expression: "@return",
+			Message:    "in-progress-calls map full",
+		})
+	case output.EventPairingExpectationCallCountExceeded:
+		out = append(out, decode.SyntheticEvaluationError{
+			Expression: "@return",
+			Message:    "per-goroutine call count exceeded",
+		})
+	}
+	return out
 }
 
 // fragmentedEvents returns the entry and return FragmentedEvent views to

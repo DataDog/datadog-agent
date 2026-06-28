@@ -12,6 +12,7 @@ import "github.com/go-json-experiment/json/jsontext"
 var (
 	tokenNotCapturedReason = jsontext.String("notCapturedReason")
 
+	// Existing tokens. Kept unchanged.
 	tokenNotCapturedReasonLength         = jsontext.String("length")
 	tokenNotCapturedReasonDepth          = jsontext.String("depth")
 	tokenNotCapturedReasonCollectionSize = jsontext.String("collectionSize")
@@ -22,7 +23,17 @@ var (
 	// This is used when we're missing the type information for a value
 	// underneath an interface.
 	tokenNotCapturedReasonMissingTypeInfo = jsontext.String("missing type information")
-	// tokenNotCapturedReasonFieldCount      = jsontext.String("fieldCount")
+
+	// Per-value reasons stamped by the eBPF side on the data-item
+	// header (either on a real captured item that got clamped, or on
+	// a placeholder item with Length == 0 standing in for an omitted
+	// chase).
+	tokenNotCapturedReasonTooManyPointersInFlight = jsontext.String("tooManyPointersInFlight")
+	tokenNotCapturedReasonTooManyUniquePointers   = jsontext.String("tooManyUniquePointers")
+	tokenNotCapturedReasonTooManySlicesCaptured   = jsontext.String("tooManySlicesCaptured")
+	tokenNotCapturedReasonCaptureNestingTooDeep   = jsontext.String("captureNestingTooDeep")
+	tokenNotCapturedReasonValueTooLarge           = jsontext.String("valueTooLarge")
+	tokenNotCapturedReasonStringSize              = jsontext.String("stringSize")
 
 	tokenTruncated = jsontext.String("truncated")
 )

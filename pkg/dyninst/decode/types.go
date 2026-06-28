@@ -170,6 +170,13 @@ type encodingContext struct {
 		index  int
 		status ir.ExprStatus
 	}
+	// currentPeerScope tracks the "presumed cause" for the current
+	// slice/array/map/struct iteration so absent peers can inherit the
+	// reason a placeholder peer carried. Saved-and-restored at each
+	// iteration boundary by the encoders so nested scopes are
+	// independent. Nil means "not currently iterating peers" — peer
+	// dedup is a no-op at root.
+	currentPeerScope *peerScope
 }
 
 // forEachOfType invokes fn for each data item whose IR type ID matches
@@ -181,6 +188,20 @@ func (e *encodingContext) forEachOfType(typeID ir.TypeID, fn func(output.DataIte
 			fn(item)
 		}
 	}
+}
+
+// withPeerScope saves the current peer scope, runs fn with a fresh
+// scope, and restores the previous scope on exit. Used by encoders
+// that iterate peers (struct fields, slice/array elements, map
+// entries) to give pickReason a per-iteration cause cache that does
+// not leak into sibling scopes.
+func (e *encodingContext) withPeerScope(fn func(*peerScope) error) error {
+	prev := e.currentPeerScope
+	scope := &peerScope{}
+	e.currentPeerScope = scope
+	err := fn(scope)
+	e.currentPeerScope = prev
+	return err
 }
 
 // ResolveTypeName implements encodingContext.
@@ -874,7 +895,7 @@ func (h *goHMapHeaderType) encodeValueFields(
 		return errors.New("data is too short to contain all fields")
 	}
 	count := binary.NativeEndian.Uint64(data[h.countOffset : h.countOffset+8])
-	return encodeMapEntries(enc, count, func() (int, error) {
+	return encodeMapEntriesWithScope(c, enc, count, func() (int, error) {
 		encodeBuckets := func(dataItem output.DataItem) (encodedItems int, err error) {
 			data, ok := dataItem.Data()
 			if !ok {
@@ -1021,14 +1042,33 @@ func encodeMapEntries(
 		return err
 	}
 	if uint64(encodedItems) < count {
+		// The block has captured peers in `entries`; the schema invariant
+		// is that notCapturedReason never appears in the same object as
+		// `entries` (or `elements`). The (size, truncated: true) pair
+		// plus the entries array already tells the consumer the original
+		// count and what was kept.
 		if err := writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonPruned,
+			tokenTruncated,
+			jsontext.Bool(true),
 		); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// encodeMapEntriesWithScope wraps encodeMapEntries in a peer scope so
+// placeholder reason bits seen on one absent map entry propagate to
+// the remaining absent entries in the same iteration.
+func encodeMapEntriesWithScope(
+	c *encodingContext,
+	enc *jsontext.Encoder,
+	count uint64,
+	iterateFn func() (encodedItems int, err error),
+) error {
+	return c.withPeerScope(func(_ *peerScope) error {
+		return encodeMapEntries(enc, count, iterateFn)
+	})
 }
 
 // formatMapEntries wraps the common pattern for formatting map entries:
@@ -1160,7 +1200,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	used := binary.NativeEndian.Uint64(data[s.usedOffset : s.usedOffset+uint32(s.usedSize)])
 	dirLen := int64(binary.NativeEndian.Uint64(data[s.dirLenOffset : s.dirLenOffset+uint32(s.dirLenSize)]))
 	dirPtr := binary.NativeEndian.Uint64(data[s.dirPtrOffset : s.dirPtrOffset+uint32(s.dirPtrSize)])
-	return encodeMapEntries(enc, used, func() (int, error) {
+	return encodeMapEntriesWithScope(c, enc, used, func() (int, error) {
 		if dirLen == 0 {
 			// Small swiss map with a single group.
 			groupDataItem, ok := c.getPtr(dirPtr, s.groupTypeID)
@@ -1168,7 +1208,8 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 				// Write not captured reason inside entries array.
 				if err := writeTokens(enc,
 					tokenNotCapturedReason,
-					tokenNotCapturedReasonDepth,
+					pickReasonForMissingItem(c.currentPeerScope,
+						tokenNotCapturedReasonDepth),
 				); err != nil {
 					return 0, err
 				}
@@ -1179,7 +1220,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 				// Write not captured reason inside entries array.
 				if err := writeTokens(enc,
 					tokenNotCapturedReason,
-					tokenNotCapturedReasonUnavailable,
+					pickReasonForFailedReadItem(c.currentPeerScope, groupDataItem),
 				); err != nil {
 					return 0, err
 				}
@@ -1193,7 +1234,8 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 			// Write not captured reason inside entries array.
 			if err := writeTokens(enc,
 				tokenNotCapturedReason,
-				tokenNotCapturedReasonDepth,
+				pickReasonForMissingItem(c.currentPeerScope,
+					tokenNotCapturedReasonDepth),
 			); err != nil {
 				return 0, err
 			}
@@ -1204,7 +1246,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 			// Write not captured reason inside entries array.
 			if err := writeTokens(enc,
 				tokenNotCapturedReason,
-				tokenNotCapturedReasonUnavailable,
+				pickReasonForFailedReadItem(c.currentPeerScope, tablePtrSliceDataItem),
 			); err != nil {
 				return 0, err
 			}
@@ -1433,7 +1475,8 @@ func encodePointer(
 	if !dataItemExists {
 		return writeTokens(enc,
 			tokenNotCapturedReason,
-			tokenNotCapturedReasonDepth,
+			pickReasonForMissingItem(c.currentPeerScope,
+				tokenNotCapturedReasonDepth),
 		)
 	}
 	if writeAddress {
@@ -1452,7 +1495,7 @@ func encodePointer(
 			if pointedData, ok = pointedValue.Data(); !ok {
 				return writeTokens(enc,
 					tokenNotCapturedReason,
-					tokenNotCapturedReasonUnavailable,
+					pickReasonForFailedReadItem(c.currentPeerScope, pointedValue),
 				)
 			}
 		}
@@ -1480,24 +1523,31 @@ func (s *structureType) encodeValueFields(
 		jsontext.BeginObject); err != nil {
 		return err
 	}
-	for field := range s.irType().(*ir.StructureType).Fields() {
-		if err := writeTokens(enc, jsontext.String(field.Name)); err != nil {
-			return err
+	// Struct fields are peers under the enclosing struct walk; a
+	// placeholder emitted for one absent field propagates the cause
+	// to subsequent absent fields via the peer scope.
+	if err := c.withPeerScope(func(_ *peerScope) error {
+		for field := range s.irType().(*ir.StructureType).Fields() {
+			if err := writeTokens(enc, jsontext.String(field.Name)); err != nil {
+				return err
+			}
+			fieldEnd := field.Offset + field.Type.GetByteSize()
+			if fieldEnd > uint32(len(data)) {
+				return fmt.Errorf(
+					"field %s extends beyond data bounds: need %d bytes, have %d",
+					field.Name, fieldEnd, len(data),
+				)
+			}
+			fieldData := data[field.Offset : field.Offset+field.Type.GetByteSize()]
+			if err := encodeValue(
+				c, enc, field.Type.GetID(), fieldData, field.Type.GetName(),
+			); err != nil {
+				return err
+			}
 		}
-		fieldEnd := field.Offset + field.Type.GetByteSize()
-		if fieldEnd > uint32(len(data)) {
-			return fmt.Errorf(
-				"field %s extends beyond data bounds: need %d bytes, have %d",
-				field.Name, fieldEnd, len(data),
-			)
-		}
-
-		fieldData := data[field.Offset : field.Offset+field.Type.GetByteSize()]
-		if err := encodeValue(
-			c, enc, field.Type.GetID(), fieldData, field.Type.GetName(),
-		); err != nil {
-			return err
-		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	return writeTokens(enc, jsontext.EndObject)
 }
@@ -1590,26 +1640,36 @@ func (a *arrayType) encodeValueFields(
 	var notCaptured = false
 	elementID := a.Element.GetID()
 	elementName := a.Element.GetName()
-	for i := range numElements {
-		offset := i * elementSize
-		endIdx := offset + elementSize
-		if endIdx > len(data) {
-			notCaptured = true
-			break
+	// Array elements are peers of each other; a placeholder emitted
+	// for one absent element propagates the cause to the rest of the
+	// iteration via the peer scope.
+	if err := c.withPeerScope(func(_ *peerScope) error {
+		for i := range numElements {
+			offset := i * elementSize
+			endIdx := offset + elementSize
+			if endIdx > len(data) {
+				notCaptured = true
+				return nil
+			}
+			if err := encodeValue(
+				c, enc, elementID, data[offset:endIdx], elementName,
+			); err != nil {
+				return err
+			}
 		}
-		if err := encodeValue(
-			c, enc, elementID, data[offset:endIdx], elementName,
-		); err != nil {
-			return err
-		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	if err := writeTokens(enc, jsontext.EndArray); err != nil {
 		return err
 	}
 	if notCaptured {
+		// See encodeMapEntries for the schema rule: no notCapturedReason
+		// in the same object as a captured `elements` array.
 		return writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonPruned,
+			tokenTruncated,
+			jsontext.Bool(true),
 		)
 	}
 	return nil
@@ -1720,14 +1780,15 @@ func (s *goSliceHeaderType) encodeValueFields(
 		if !ok {
 			return writeTokens(enc,
 				tokenNotCapturedReason,
-				tokenNotCapturedReasonPruned,
+				pickReasonForMissingItem(c.currentPeerScope,
+					tokenNotCapturedReasonPruned),
 			)
 		}
 		sliceData, ok = sliceDataItem.Data()
 		if !ok {
 			return writeTokens(enc,
 				tokenNotCapturedReason,
-				tokenNotCapturedReasonUnavailable,
+				pickReasonForFailedReadItem(c.currentPeerScope, sliceDataItem),
 			)
 		}
 		// We might have captured less data then the length, due to max capture limits.
@@ -1746,28 +1807,42 @@ func (s *goSliceHeaderType) encodeValueFields(
 	elementByteSize := int(s.Data.Element.GetByteSize())
 	elementName := s.Data.Element.GetName()
 	elementID := s.Data.Element.GetID()
-	for i := range int(displayLen) {
-		var elementData []byte
-		if elementSize > 0 {
-			elementData = sliceData[i*elementByteSize : (i+1)*elementByteSize]
+	// Each slice/array element is a peer of the others. Establish a
+	// peer scope so that when the eBPF side emits a placeholder for
+	// one absent element (e.g. tooManySlicesCaptured), subsequent
+	// absent elements in the same loop inherit the reason rather
+	// than falling back to the generic "depth".
+	if err := c.withPeerScope(func(_ *peerScope) error {
+		for i := range int(displayLen) {
+			var elementData []byte
+			if elementSize > 0 {
+				elementData = sliceData[i*elementByteSize : (i+1)*elementByteSize]
+			}
+			if err := encodeValue(
+				c, enc, elementID, elementData, elementName,
+			); err != nil {
+				return fmt.Errorf(
+					"could not encode %s slice element of %s: %w",
+					humanize.Ordinal(i+1), elementName, err,
+				)
+			}
 		}
-		if err := encodeValue(
-			c, enc, elementID, elementData, elementName,
-		); err != nil {
-			return fmt.Errorf(
-				"could not encode %s slice element of %s: %w",
-				humanize.Ordinal(i+1), elementName, err,
-			)
-		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	if err := writeTokens(enc, jsontext.EndArray); err != nil {
 		return err
 	}
 	if length > uint64(displayLen) {
+		// See encodeMapEntries for the schema rule: no notCapturedReason
+		// in the same object as a captured `elements` array. `size`
+		// already carries the original length; truncated says some
+		// elements are missing.
 		return writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonCollectionSize,
+			tokenTruncated,
+			jsontext.Bool(true),
 		)
 	}
 	return nil
@@ -1936,7 +2011,8 @@ func (s *goStringHeaderType) encodeValueFields(
 			jsontext.String("size"),
 			jsontext.String(strconv.FormatInt(int64(strLen), 10)),
 			tokenNotCapturedReason,
-			tokenNotCapturedReasonDepth,
+			pickReasonForMissingItem(c.currentPeerScope,
+				tokenNotCapturedReasonDepth),
 		)
 	}
 	// See notes about slice serialization for possible differences between captured and actual length.
@@ -1947,12 +2023,16 @@ func (s *goStringHeaderType) encodeValueFields(
 			jsontext.String("size"),
 			jsontext.String(strconv.FormatInt(int64(strLen), 10)),
 			tokenNotCapturedReason,
-			tokenNotCapturedReasonUnavailable,
+			pickReasonForFailedReadItem(c.currentPeerScope, stringValue),
 		)
 	}
 	length := stringValue.Header().Length
 	if strLen > uint64(length) {
-		// We captured partial data for the string, report truncation.
+		// We captured partial data for the string. The pair
+		// (size, truncated: true) plus the rendered value already
+		// tells the reader the original length and the captured
+		// prefix; notCapturedReason is reserved for values that
+		// have no captured bytes at all.
 		if err := writeTokens(enc,
 			jsontext.String("size"),
 			jsontext.String(strconv.FormatInt(int64(strLen), 10)),

@@ -408,8 +408,12 @@
         },
         "evaluationErrors": [
           {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          },
+          {
             "expr": "@when",
-            "message": "error evaluating condition"
+            "message": "any/all iteration limit exceeded (4096 elements)"
           }
         ]
       }
@@ -532,7 +536,7 @@
         "evaluationErrors": [
           {
             "expr": "@when",
-            "message": "error evaluating condition"
+            "message": "any/all iteration limit exceeded (4096 elements)"
           }
         ]
       }

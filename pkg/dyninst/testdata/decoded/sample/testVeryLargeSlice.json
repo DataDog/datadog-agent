@@ -316,7 +316,7 @@
                     "value": "63"
                   }
                 ],
-                "notCapturedReason": "collectionSize"
+                "truncated": true
               }
             }
           }

@@ -59,7 +59,7 @@
                 "type": "map[string][]main.structWithMap",
                 "size": "150",
                 "entries": "[redacted-entries]",
-                "notCapturedReason": "pruned"
+                "truncated": true
               }
             }
           }

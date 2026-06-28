@@ -14,15 +14,19 @@
 #include "swiss_map_hash.h"
 
 // Expression status values. Each expression gets EXPR_STATUS_BITS bits in the
-// expression status array at the start of event root data. Must stay in
-// sync with ir.ExprStatusBits / the ExprStatus* constants in
-// pkg/dyninst/ir/expression.go.
+// expression status array at the start of event root data. Must stay in sync
+// with ir.ExprStatus and ir.ExprStatusBits in pkg/dyninst/ir/expression.go.
 #define EXPR_STATUS_BITS      4
 #define EXPR_STATUS_ABSENT    0  // evaluation failed (unknown reason)
 #define EXPR_STATUS_PRESENT   1  // evaluation succeeded
 #define EXPR_STATUS_NIL_DEREF 2  // nil pointer dereference
 #define EXPR_STATUS_OOB       3  // index out of bounds
 #define EXPR_STATUS_TRUNCATED 4  // value present, but collection truncated (filter)
+// SM_OP_CALL overflow at root: no type+address to attach to a data item.
+#define EXPR_STATUS_RECURSION_STACK_FULL 5
+// SM aborted before any data item for this expression reached scratch.
+#define EXPR_STATUS_BUFFER_FULL          6
+// 7..15 reserved.
 
 // Sentinel value for expr_status_idx indicating no status should be written
 // (used by condition expressions which report errors via condition_eval_error).
@@ -106,24 +110,37 @@ static type_t lookup_go_interface(uint32_t go_runtime_type) {
   return *type_id;
 }
 
-static bool chased_pointers_trie_push(chased_pointers_trie_t* chased, target_ptr_t ptr,
-                                      type_t type) {
+// Result of chased_pointers_trie_push. INSERTED is "newly tracked,
+// proceed"; ALREADY_PRESENT is "silent skip, no placeholder"; FULL is
+// "capacity exhausted, placeholder reason TOO_MANY_UNIQUE_POINTERS".
+// Other errors collapse to FULL on the assumption that they signal a
+// failure to track and the safest user-visible signal is "we ran out
+// of room".
+typedef enum chased_pointers_push_result {
+  CHASED_POINTERS_PUSH_INSERTED       = 0,
+  CHASED_POINTERS_PUSH_ALREADY_PRESENT = 1,
+  CHASED_POINTERS_PUSH_FULL            = 2,
+} chased_pointers_push_result_t;
+
+static chased_pointers_push_result_t
+chased_pointers_trie_push(chased_pointers_trie_t* chased, target_ptr_t ptr,
+                          type_t type) {
   switch (chased_pointers_trie_insert(chased, ptr, type)) {
   case CHASED_POINTERS_TRIE_INSERTED:
-    return true;
+    return CHASED_POINTERS_PUSH_INSERTED;
   case CHASED_POINTERS_TRIE_ALREADY_EXISTS:
-    break;
+    return CHASED_POINTERS_PUSH_ALREADY_PRESENT;
   case CHASED_POINTERS_TRIE_FULL:
     LOG(3, "chased_pointers_push: full %lld %d\n", ptr, type);
-    break;
+    return CHASED_POINTERS_PUSH_FULL;
   case CHASED_POINTERS_TRIE_NULL:
     LOG(1, "chased_pointers_push: null %lld %d\n", ptr, type);
-    break;
+    return CHASED_POINTERS_PUSH_FULL;
   case CHASED_POINTERS_TRIE_ERROR:
     LOG(1, "chased_pointers_push: error %lld %d\n", ptr, type);
-    break;
+    return CHASED_POINTERS_PUSH_FULL;
   }
-  return false;
+  return CHASED_POINTERS_PUSH_FULL;
 }
 
 typedef struct zero_data_ctx {
@@ -258,6 +275,7 @@ static inline __attribute__((always_inline)) bool
 sm_data_stack_push(stack_machine_t* sm, uint32_t value) {
   if (sm->data_stack_pointer >= ENQUEUE_STACK_DEPTH) {
     LOG(2, "enqueue: push on full data stack");
+    sm->sm_recursion_overflow = true;
     return false;
   }
   sm->data_stack[sm->data_stack_pointer] = value;
@@ -325,6 +343,10 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
     goto enqueue_pc_jump;
   }
   uint32_t byte_len = info->byte_len;
+  // Track whether the configured per-string / per-collection limit was
+  // applied. Reason bits get stamped on the real data-item header below
+  // so userspace can render the right notCapturedReason on this value.
+  data_item_reason_t reason = DATA_ITEM_REASON_NONE;
   switch (info->dynamic_size_class) {
   case DYNAMIC_SIZE_CLASS_STATIC:
     break;
@@ -334,6 +356,7 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
     } else {
       // In this case the info stores byte len of a single element.
       byte_len = sm->collection_size_limit * info->byte_len;
+      reason = DATA_ITEM_REASON_COLLECTION_SIZE;
     }
     break;
   case DYNAMIC_SIZE_CLASS_STRING:
@@ -341,6 +364,7 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
       byte_len = defaultCollectionSizeBytesLimit;
     } else {
       byte_len = sm->string_size_limit;
+      reason = DATA_ITEM_REASON_STRING_SIZE;
     }
     break;
   case DYNAMIC_SIZE_CLASS_HASHMAP:
@@ -349,6 +373,7 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
     } else {
       // In this case the info stores byte len of a single element.
       byte_len = sm->collection_size_limit * info->byte_len * 4;
+      reason = DATA_ITEM_REASON_COLLECTION_SIZE;
     }
     break;
   case DYNAMIC_SIZE_CLASS_FILTER_DEFERRED:
@@ -360,10 +385,12 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   // configured upper limit (e.g. maxLength). Clamp it to the actual runtime
   // length so the size-class dispatch picks an appropriate class. Without
   // this, a large maxLength (e.g. 65536) would fail the size-class lookup
-  // even for short strings.
+  // even for short strings. If the actual length is smaller than the
+  // configured limit, the limit did not fire — clear the reason.
   uint32_t serialize_len = byte_len;
   if (item.di.length != ENQUEUE_LEN_SENTINEL && item.di.length < serialize_len) {
     serialize_len = item.di.length;
+    reason = DATA_ITEM_REASON_NONE;
   }
   // Clamp to the largest size class. scratch_buf_serialize_whole's
   // dispatch table tops out at MAX_DATA_ITEM_SIZE; without this clamp
@@ -371,8 +398,14 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   // collection_size_limit * elem_byte_len exceeds the ceiling) would
   // be silently skipped (serialize_whole returns 0 for any len above
   // the largest size class) instead of producing a truncated capture.
+  // valueTooLarge supersedes any per-type configured-limit reason: hitting
+  // the absolute 8 KiB per-item ceiling is the binding constraint.
   if (serialize_len > MAX_DATA_ITEM_SIZE) {
     serialize_len = MAX_DATA_ITEM_SIZE;
+    reason = DATA_ITEM_REASON_VALUE_TOO_LARGE;
+  }
+  if (reason != DATA_ITEM_REASON_NONE) {
+    item.di.type |= ((uint32_t)reason) << DATA_ITEM_REASON_SHIFT;
   }
   sm->offset = scratch_buf_serialize(ctx->buf, &item.di, serialize_len);
   if (!sm->offset) {
@@ -398,6 +431,7 @@ enqueue_pc_jump:
   }
   if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
     LOG(2, "enqueue: call stack limit reached");
+    sm->sm_recursion_overflow = true;
     return false;
   }
   sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
@@ -406,19 +440,73 @@ enqueue_pc_jump:
   return true;
 }
 
-// Returns false if the pointer has already been memoized.
+// Memoize a pointer. Returns true if newly memoized and the caller
+// should proceed to enqueue. Returns false if the chase should be
+// abandoned. When abandoning, *failure_cause is set to the appropriate
+// data_item_reason_t: NONE for "already seen" (silent skip, no
+// placeholder), TOO_MANY_UNIQUE_POINTERS for trie-full,
+// TOO_MANY_SLICES_CAPTURED for slices-table-full.
 static inline __attribute__((always_inline)) bool
 sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
-                   target_ptr_t addr, uint32_t maybe_len) {
-  // Check if address was already processed before.
+                   target_ptr_t addr, uint32_t maybe_len,
+                   uint8_t* failure_cause) {
   stack_machine_t* sm = ctx->stack_machine;
   if (maybe_len == ENQUEUE_LEN_SENTINEL) {
     // Statically sized object.
-    return chased_pointers_trie_push(&sm->chased, addr, type);
+    switch (chased_pointers_trie_push(&sm->chased, addr, type)) {
+    case CHASED_POINTERS_PUSH_INSERTED:
+      return true;
+    case CHASED_POINTERS_PUSH_ALREADY_PRESENT:
+      *failure_cause = DATA_ITEM_REASON_NONE;
+      return false;
+    case CHASED_POINTERS_PUSH_FULL:
+      *failure_cause = DATA_ITEM_REASON_TOO_MANY_UNIQUE_POINTERS;
+      return false;
+    }
+    *failure_cause = DATA_ITEM_REASON_NONE;
+    return false;
   }
   // Dynamically sized object, we may try to capture same address and type
   // multiple times, but with different lengths.
-  return chased_slices_push(&sm->chased_slices, addr, type, maybe_len);
+  switch (chased_slices_push(&sm->chased_slices, addr, type, maybe_len)) {
+  case CHASED_SLICES_PUSH_INSERTED:
+    return true;
+  case CHASED_SLICES_PUSH_ALREADY_PRESENT:
+    *failure_cause = DATA_ITEM_REASON_NONE;
+    return false;
+  case CHASED_SLICES_PUSH_FULL:
+    *failure_cause = DATA_ITEM_REASON_TOO_MANY_SLICES_CAPTURED;
+    return false;
+  }
+  *failure_cause = DATA_ITEM_REASON_NONE;
+  return false;
+}
+
+// sm_record_pointer_emit_placeholder emits a failed-read placeholder
+// data-item header for an abandoned chase, gated by the peer-dedup
+// flag on stack_machine_t. Idempotent per peer scope: the first
+// abandonment in a scope emits, subsequent ones in the same scope
+// return without writing. Reason NONE (silent-skip cases like
+// "already memoized" and TTL exhaustion) never emits.
+//
+// noinline: called from every chase-failure site in sm_record_pointer
+// (queue-push failure, memoize-cap variants), each of which inlines the
+// dedup-flag check + scratch write. Lifting the body out keeps the
+// verifier's per-site fanout shallow on older kernels.
+__attribute__((noinline)) static void
+sm_record_pointer_emit_placeholder(global_ctx_t* ctx, type_t type,
+                                   target_ptr_t addr,
+                                   data_item_reason_t reason) {
+  stack_machine_t* sm = ctx->stack_machine;
+  if (reason == DATA_ITEM_REASON_NONE) {
+    return;
+  }
+  if (sm->peer_scope_placeholder_emitted) {
+    return;
+  }
+  if (scratch_buf_emit_placeholder(ctx->buf, type, reason, addr)) {
+    sm->peer_scope_placeholder_emitted = true;
+  }
 }
 
 static inline __attribute__((always_inline)) bool
@@ -426,13 +514,21 @@ sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
                   bool decrease_ttl,
                   uint32_t maybe_len) {
   stack_machine_t* sm = ctx->stack_machine;
+  sm->last_chase_failure_cause = DATA_ITEM_REASON_NONE;
   if (addr == 0) {
     return true;
   }
   if (decrease_ttl && sm->pointer_chasing_ttl == 0) {
+    // S1: TTL exhaustion. Intentionally leaves last_chase_failure_cause
+    // as NONE so no placeholder is emitted — the decoder falls through
+    // to today's default "depth" rendering, which is exactly right.
     return true;
   }
-  if (!sm_memoize_pointer(ctx, type, addr, maybe_len)) {
+  uint8_t memo_cause = DATA_ITEM_REASON_NONE;
+  if (!sm_memoize_pointer(ctx, type, addr, maybe_len, &memo_cause)) {
+    sm->last_chase_failure_cause = memo_cause;
+    sm_record_pointer_emit_placeholder(ctx, type, addr,
+                                       (data_item_reason_t)memo_cause);
     return true;
   }
   pointers_queue_item_t* item;
@@ -443,6 +539,9 @@ sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
   }
   if (item == NULL) {
     LOG(3, "sm_record_pointer: pointers queue push failed");
+    sm->last_chase_failure_cause = DATA_ITEM_REASON_TOO_MANY_POINTERS_IN_FLIGHT;
+    sm_record_pointer_emit_placeholder(
+        ctx, type, addr, DATA_ITEM_REASON_TOO_MANY_POINTERS_IN_FLIGHT);
     return false;
   }
   *item = (pointers_queue_item_t){
@@ -2638,9 +2737,12 @@ sm_slice_loop_end(scratch_buf_t* buf, stack_machine_t* sm) {
     // If we exhausted the capped iteration budget without a short-circuit
     // result, the answer is inconclusive: trip eval_error and tell the
     // dispatcher to sm_return so the surrounding ConditionCheck doesn't
-    // clear the flag.
+    // clear the flag. iteration_cap_exhausted distinguishes this case
+    // from other generic eval errors so userspace can render a specific
+    // message.
     if (!exit_loop && sm->slice_loop_state.capped) {
       sm->condition_eval_error = true;
+      sm->iteration_cap_exhausted = true;
       return 3;
     }
     return 1;
@@ -3117,6 +3219,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     uint32_t next_pc = sm_read_program_uint32(sm);
     if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
       LOG(2, "enqueue: call stack limit reached");
+      sm->sm_recursion_overflow = true;
       return 1;
     }
     sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
@@ -3550,20 +3653,28 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       // Loop as long as there are more pointers to chase.
       LOG(4, "chasing pointer @%llx", item->di.address);
       sm->pc--;
+      // Each dequeued chase opens a fresh peer scope for placeholder
+      // dedup: any limit hit while walking the new pointee's fields
+      // produces at most one placeholder data-item header for the
+      // whole sub-walk.
+      sm->peer_scope_placeholder_emitted = false;
       sm_chase_pointer(ctx, *item);
 
       if (sm->buffer_full) {
         sm->buffer_full = false;
         // Scratch buffer is full. Flush it as a continuation fragment
         // and retry this item in the fresh buffer.
-        if (!scratch_buf_flush_and_continue(
-                ctx->buf, &sm->continuation_seq,
-                &sm->last_submitted_seq, sm->start_ns,
-                sm->entry_ktime_ns)) {
-          // Ringbuf is full during a mid-chase flush. probe_run will send
-          // a PARTIAL_ENTRY/PARTIAL_RETURN notification and skip the final
-          // submit so userspace can emit the fragments already in flight.
+        flush_result_t fr = scratch_buf_flush_and_continue(
+            ctx->buf, &sm->continuation_seq,
+            &sm->last_submitted_seq, sm->start_ns,
+            sm->entry_ktime_ns);
+        if (fr != FLUSH_OK) {
+          // Mid-chase flush failed. probe_run sends a drop notification
+          // and skips the final submit so userspace can emit the
+          // fragments already in flight as a truncated event. Stash the
+          // cause so the driver picks the right DropReason.
           sm->continuation_aborted = true;
+          sm->flush_failure_cause = (uint8_t)fr;
           return 1;
         }
         sm_chase_pointer(ctx, *item);
@@ -3790,6 +3901,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // Call: push return address and jump.
     if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
       LOG(2, "dict_call: call stack limit reached");
+      sm->sm_recursion_overflow = true;
       return 1;
     }
     sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
@@ -4905,6 +5017,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       if (sm->swissmap_loop_state.iterations > COLLECTION_PREDICATE_MAX_ITERATIONS) {
         sm->swissmap_loop_state.phase = 0;
         sm->condition_eval_error = true;
+        sm->iteration_cap_exhausted = true;
         sm->offset = sm->swissmap_loop_state.accumulator_off;
         scratch_buf_set_len(buf, sm->expr_results_end_offset);
         if (!sm_return(sm)) return 1;
@@ -4978,6 +5091,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       if (sm->swissmap_loop_state.iterations > COLLECTION_PREDICATE_MAX_ITERATIONS) {
         sm->swissmap_loop_state.phase = 0;
         sm->condition_eval_error = true;
+        sm->iteration_cap_exhausted = true;
         sm->offset = sm->swissmap_loop_state.accumulator_off;
         scratch_buf_set_len(buf, sm->expr_results_end_offset);
         if (!sm_return(sm)) return 1;

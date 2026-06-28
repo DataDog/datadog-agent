@@ -103,6 +103,10 @@
         },
         "evaluationErrors": [
           {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          },
+          {
             "expr": "items_2",
             "message": "index out of bounds"
           }

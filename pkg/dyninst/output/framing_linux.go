@@ -32,7 +32,7 @@ type DropNotification struct {
 	Goid             uint64
 	Stack_byte_depth uint32
 	Drop_reason      uint8
-	X__padding       [1]uint8
+	Side             uint8
 	Last_seq         uint16
 	Entry_ktime_ns   uint64
 	Panic_lo_depth   uint32

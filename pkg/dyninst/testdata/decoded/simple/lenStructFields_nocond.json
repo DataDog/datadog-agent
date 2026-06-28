@@ -250,7 +250,13 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          }
+        ]
       },
       "type": "snapshot"
     },

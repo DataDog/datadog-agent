@@ -120,40 +120,115 @@ typedef struct stack_pcs {
 } stack_pcs_t;
 
 // The header of a data item.
+//
+// The `type` field is packed:
+//   bit  31      — DATA_ITEM_FAILED_READ_MASK: payload is absent because
+//                  the kernel-side read failed, or because the SM emitted
+//                  a placeholder for an omitted value (length == 0).
+//   bits 27..30  — DATA_ITEM_REASON_MASK: a 4-bit data_item_reason_t code
+//                  describing why the item is incomplete (placeholder)
+//                  or truncated (real item). Zero means "no reason set"
+//                  and is the default for items the SM emits without
+//                  applying any limit. See data_item_reason_t below.
+//   bits 0..26   — type ID (ir.TypeID). 27 bits ≫ the IR's actual usage.
+//
+// Userspace must mask the type ID with DATA_ITEM_TYPE_MASK before
+// comparing to known TypeIDs.
 typedef struct di_data_item_header {
-  // The type of the data item.
+  // The type of the data item, packed as described above.
   uint32_t type;
-  // The length of the data item.
+  // The length of the data item. Zero for placeholders.
   uint32_t length;
   // The address of the data item in the user process's address space.
   uint64_t address;
 } __attribute__((aligned(8))) di_data_item_header_t;
 
-// Reasons a drop notification is sent on the side channel. Describe what
-// userspace state a drop affected, not which BPF failure site caused it.
+// Bit masks on di_data_item_header_t.type. Kept in sync with
+// pkg/dyninst/output/event.go.
+#define DATA_ITEM_FAILED_READ_MASK ((uint32_t)1 << 31)
+#define DATA_ITEM_REASON_SHIFT     27
+#define DATA_ITEM_REASON_MASK      (((uint32_t)0xF) << DATA_ITEM_REASON_SHIFT)
+#define DATA_ITEM_TYPE_MASK \
+    (~(DATA_ITEM_FAILED_READ_MASK | DATA_ITEM_REASON_MASK))
+
+// data_item_reason_t classifies *why* a data item is incomplete (when
+// emitted as a placeholder with length == 0) or *why* its payload was
+// clamped (when emitted on a real, captured item). Each code is one
+// nibble; 16 values, with 0 reserved for "no reason" and 15 reserved
+// for future expansion.
 //
-//  RETURN_LOST        — return-side submit failed with no fragments sent;
-//                       the matching entry sits in userspace's pairing
-//                       store. Userspace should emit the entry alone.
-//  PARTIAL_ENTRY      — entry submit succeeded for fragments [0..last_seq],
-//                       then subsequently failed. Userspace has or will
-//                       receive exactly last_seq+1 entry fragments; treat
-//                       them as a truncated complete entry.
-//  PARTIAL_RETURN     — same as PARTIAL_ENTRY, but for the return side.
-//  PANIC_UNWOUND_LOST — the runtime.recovery synthetic event for the
-//                       range (panic_lo_depth, panic_hi_depth] on goid
-//                       failed to submit. BPF already evicted the matching
-//                       in_progress_calls slots; userspace should range-
-//                       scan its buffer and emit every matching invocation
-//                       as a truncated panic-unwound capture. probe_id,
-//                       stack_byte_depth, last_seq and entry_ktime_ns are
-//                       not meaningful for this reason.
+// Placeholder reasons (emitted with DATA_ITEM_FAILED_READ_MASK set
+// and length == 0; the item exists only to carry the cause):
+//   TOO_MANY_POINTERS_IN_FLIGHT — the in-flight pointers queue was full
+//   TOO_MANY_UNIQUE_POINTERS    — the dedup table of seen addresses was full
+//   TOO_MANY_SLICES_CAPTURED    — the captured-slices table was full
+//   CAPTURE_NESTING_TOO_DEEP    — the SM's recursion stack was full
+//
+// Real-item reasons (emitted alongside captured bytes on the real
+// data-item header; the payload is present but clamped):
+//   VALUE_TOO_LARGE     — serialize_len was clamped to MAX_DATA_ITEM_SIZE
+//   STRING_SIZE         — the configured string MaxLength clamped the payload
+//   COLLECTION_SIZE     — the configured collection MaxCollectionSize
+//                         clamped the element count
+typedef enum data_item_reason {
+  DATA_ITEM_REASON_NONE                       = 0,
+  DATA_ITEM_REASON_TOO_MANY_POINTERS_IN_FLIGHT = 1,
+  DATA_ITEM_REASON_TOO_MANY_UNIQUE_POINTERS    = 2,
+  DATA_ITEM_REASON_TOO_MANY_SLICES_CAPTURED    = 3,
+  DATA_ITEM_REASON_CAPTURE_NESTING_TOO_DEEP    = 4,
+  DATA_ITEM_REASON_VALUE_TOO_LARGE             = 5,
+  DATA_ITEM_REASON_STRING_SIZE                 = 6,
+  DATA_ITEM_REASON_COLLECTION_SIZE             = 7,
+  // 8..14 reserved.
+  DATA_ITEM_REASON_EXTENDED                    = 15,
+} data_item_reason_t;
+
+// drop_reason_t classifies *why* a drop happened at the BPF emission
+// site. Pair with drop_side_t (which side of the entry/return pair was
+// affected) and last_seq (how many fragments reached userspace) to
+// derive the full picture in userspace.
+//
+// Invariants enforced at the eBPF emission sites in event.c:
+//
+//   FIRST_FLUSH_FAILED   No fragments reached userspace. Used for both
+//                        first-flush scratch failures and ringbuf
+//                        rejection on fragment 0. last_seq is unused
+//                        (set to 0 by convention).
+//
+//   FRAGMENT_LIMIT       Hit MAX_CONTINUATION_FRAGMENTS. Always
+//                        partial: fragments [0..last_seq] reached
+//                        userspace before the cap fired.
+//
+//   RING_BUFFER_FULL     bpf_ringbuf_output rejected a fragment
+//                        mid-stream. Always partial: fragments
+//                        [0..last_seq] reached userspace. Ringbuf
+//                        rejection of the first flush maps to
+//                        FIRST_FLUSH_FAILED, not RING_BUFFER_FULL.
+//
+//   PANIC_UNWOUND_LOST   The runtime.recovery synthetic event for the
+//                        range (panic_lo_depth, panic_hi_depth] on goid
+//                        failed to submit. BPF already evicted the
+//                        matching in_progress_calls slots; userspace
+//                        should range-scan its buffer and emit every
+//                        matching invocation as a truncated
+//                        panic-unwound capture. probe_id,
+//                        stack_byte_depth, last_seq and entry_ktime_ns
+//                        are not meaningful for this reason.
 typedef enum drop_reason {
-  DROP_REASON_RETURN_LOST        = 1,
-  DROP_REASON_PARTIAL_ENTRY      = 2,
-  DROP_REASON_PARTIAL_RETURN     = 3,
+  DROP_REASON_FIRST_FLUSH_FAILED = 1,
+  DROP_REASON_FRAGMENT_LIMIT     = 2,
+  DROP_REASON_RING_BUFFER_FULL   = 3,
   DROP_REASON_PANIC_UNWOUND_LOST = 4,
 } drop_reason_t;
+
+// drop_side_t indicates which side of the entry/return pair the drop
+// affected. Required because the same drop_reason can apply to either
+// side; userspace needs to know which buffered fragment(s) to finalize
+// or evict.
+typedef enum drop_side {
+  DROP_SIDE_ENTRY  = 1,
+  DROP_SIDE_RETURN = 2,
+} drop_side_t;
 
 // Side-channel message published to drop_notify_ringbuf to inform userspace
 // that a drop has affected buffered state for one invocation.
@@ -166,10 +241,12 @@ typedef struct di_drop_notification {
   uint32_t stack_byte_depth;
   // drop_reason_t value; stored as uint8_t for compactness.
   uint8_t drop_reason;
-  uint8_t __padding[1];
+  // drop_side_t value; stored as uint8_t for compactness.
+  uint8_t side;
   // continuation_seq of the last successfully submitted fragment. Ignored
-  // when drop_reason == DROP_REASON_RETURN_LOST (no fragments exist) or
-  // DROP_REASON_PANIC_UNWOUND_LOST (range applies to many invocations).
+  // when drop_reason == DROP_REASON_FIRST_FLUSH_FAILED (no fragments
+  // exist) or DROP_REASON_PANIC_UNWOUND_LOST (range applies to many
+  // invocations).
   uint16_t last_seq;
   // Invocation ID. For return-side drops, the entry's start_ns (pulled from
   // in_progress_calls). For entry-side drops, the entry's own start_ns. This

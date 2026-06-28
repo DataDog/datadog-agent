@@ -424,13 +424,30 @@ func TestMultiFragmentReassembly(t *testing.T) {
 		header: &DataItemHeader{Type: 2, Length: 4, Address: 0x200},
 		data:   []byte{10, 11, 12, 13},
 	}
+	// itemB lives in a continuation fragment and carries a real-item
+	// reason (StringSize) on its header. The reassembly path must keep
+	// the reason bits intact so the decoder can render the right
+	// notCapturedReason / surfacing later.
 	itemB := DataItem{
-		header: &DataItemHeader{Type: 3, Length: 8, Address: 0x300},
-		data:   []byte{20, 21, 22, 23, 24, 25, 26, 27},
+		header: &DataItemHeader{
+			Type: 3 |
+				uint32(DataItemReasonStringSize)<<DataItemReasonShift,
+			Length:  8,
+			Address: 0x300,
+		},
+		data: []byte{20, 21, 22, 23, 24, 25, 26, 27},
 	}
+	// itemC lives in the final fragment and is a placeholder for an
+	// abandoned chase: FailedRead set, length 0, reason bits carry the
+	// cause (TooManySlicesCaptured).
 	itemC := DataItem{
-		header: &DataItemHeader{Type: 4, Length: 4, Address: 0x400},
-		data:   []byte{30, 31, 32, 33},
+		header: &DataItemHeader{
+			Type: 4 | DataItemFailedReadMask |
+				uint32(DataItemReasonTooManySlicesCaptured)<<DataItemReasonShift,
+			Length:  0,
+			Address: 0x400,
+		},
+		data: nil,
 	}
 
 	stack := []uint64{0xdead, 0xbeef}
@@ -505,13 +522,13 @@ func TestMultiFragmentReassembly(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, stack, pcs)
 
-	// Verify all data items are present
+	// Verify all data items are present, including reason bits and the
+	// failed-read mask that live on items from continuation fragments.
 	var items []DataItem
 	for item, err := range ev.DataItems() {
 		require.NoError(t, err)
-		data, ok := item.Data()
-		require.True(t, ok)
 		hdr := *item.Header()
+		data, _ := item.Data()
 		items = append(items, DataItem{header: &hdr, data: data})
 	}
 	require.Len(t, items, len(allItems))
@@ -519,6 +536,17 @@ func TestMultiFragmentReassembly(t *testing.T) {
 		require.Equal(t, allItems[i].header, items[i].header, "item %d header", i)
 		require.Equal(t, allItems[i].data, items[i].data, "item %d data", i)
 	}
+
+	// Reason bits and the failed-read mask survive reassembly across
+	// fragment boundaries.
+	require.Equal(t, DataItemReasonStringSize, items[2].Reason(),
+		"itemB reason bits should round-trip through a continuation fragment")
+	require.False(t, items[2].IsFailedRead(),
+		"itemB is a real captured item, not a placeholder")
+	require.True(t, items[3].IsFailedRead(),
+		"itemC is a placeholder; FailedRead must round-trip")
+	require.Equal(t, DataItemReasonTooManySlicesCaptured, items[3].Reason(),
+		"itemC placeholder reason bits should round-trip")
 }
 
 func alignTo8(b []byte) []byte {
@@ -553,4 +581,121 @@ func buildEvent(
 	}
 
 	return b
+}
+
+func TestDataItemTypeFieldPacking(t *testing.T) {
+	const (
+		typeID = uint32(0x01234567) // 27-bit value: 0x01234567 < (1 << 27)
+	)
+	require.Less(t, typeID, uint32(1)<<27,
+		"test fixture typeID must fit in 27 bits")
+
+	cases := []struct {
+		name         string
+		rawType      uint32
+		wantType     uint32
+		wantReason   DataItemReason
+		wantFailRead bool
+	}{
+		{
+			name:         "plain type, no reason, real read",
+			rawType:      typeID,
+			wantType:     typeID,
+			wantReason:   DataItemReasonNone,
+			wantFailRead: false,
+		},
+		{
+			name:         "failed read placeholder, no reason",
+			rawType:      typeID | DataItemFailedReadMask,
+			wantType:     typeID,
+			wantReason:   DataItemReasonNone,
+			wantFailRead: true,
+		},
+		{
+			name: "failed read placeholder with reason",
+			rawType: typeID | DataItemFailedReadMask |
+				(uint32(DataItemReasonTooManyUniquePointers) << DataItemReasonShift),
+			wantType:     typeID,
+			wantReason:   DataItemReasonTooManyUniquePointers,
+			wantFailRead: true,
+		},
+		{
+			name: "real item with reason (e.g. valueTooLarge)",
+			rawType: typeID |
+				(uint32(DataItemReasonValueTooLarge) << DataItemReasonShift),
+			wantType:     typeID,
+			wantReason:   DataItemReasonValueTooLarge,
+			wantFailRead: false,
+		},
+		{
+			name: "extended reason sentinel",
+			rawType: typeID |
+				(uint32(DataItemReasonExtended) << DataItemReasonShift),
+			wantType:     typeID,
+			wantReason:   DataItemReasonExtended,
+			wantFailRead: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			item := DataItem{
+				header: &DataItemHeader{Type: tc.rawType},
+			}
+			require.Equal(t, tc.wantType, item.Type(),
+				"Type() should strip failed-read and reason bits")
+			require.Equal(t, tc.wantFailRead, item.IsFailedRead())
+			require.Equal(t, tc.wantReason, item.Reason())
+		})
+	}
+}
+
+func TestDataItemReasonBitsDoNotOverlapType(t *testing.T) {
+	// Sanity-check that the three masks tile the 32-bit Type field
+	// without overlap and cover all bits.
+	require.Equal(t, uint32(0),
+		DataItemFailedReadMask&DataItemReasonMask,
+		"failed-read and reason masks must not overlap")
+	require.Equal(t, uint32(0),
+		DataItemFailedReadMask&DataItemTypeMask,
+		"failed-read and type masks must not overlap")
+	require.Equal(t, uint32(0),
+		DataItemReasonMask&DataItemTypeMask,
+		"reason and type masks must not overlap")
+	require.Equal(t, ^uint32(0),
+		DataItemFailedReadMask|DataItemReasonMask|DataItemTypeMask,
+		"masks must cover all 32 bits")
+}
+
+func TestDataItemDataRespectsFailedRead(t *testing.T) {
+	// A real (non-failed-read) item with reason bits set must still
+	// expose its data: reason bits describe the payload's truncation,
+	// they do not imply absence.
+	clampedPayload := []byte{0xAA, 0xBB, 0xCC}
+	item := DataItem{
+		header: &DataItemHeader{
+			Type: 7 |
+				(uint32(DataItemReasonValueTooLarge) << DataItemReasonShift),
+			Length: uint32(len(clampedPayload)),
+		},
+		data: clampedPayload,
+	}
+	data, ok := item.Data()
+	require.True(t, ok, "real item with reason bits must expose Data()")
+	require.Equal(t, clampedPayload, data)
+
+	// A placeholder (failed-read) item must hide its data even when
+	// reason bits are set.
+	placeholder := DataItem{
+		header: &DataItemHeader{
+			Type: 7 | DataItemFailedReadMask |
+				(uint32(DataItemReasonTooManyPointersInFlight) << DataItemReasonShift),
+			Length: 0,
+		},
+	}
+	_, ok = placeholder.Data()
+	require.False(t, ok, "placeholder must hide Data() even with reason bits")
+	require.Equal(t,
+		DataItemReasonTooManyPointersInFlight,
+		placeholder.Reason())
 }

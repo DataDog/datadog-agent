@@ -18,9 +18,22 @@ const (
 	ExprStatusNilDeref  ExprStatus = 2 // nil pointer dereference
 	ExprStatusOOB       ExprStatus = 3 // index out of bounds
 	ExprStatusTruncated ExprStatus = 4 // value present, but collection was truncated to the iteration cap (filter only, today)
+	// ExprStatusRecursionStackFull is set when the stack machine's
+	// internal PC or data stack overflows at a site that has no
+	// specific type+address to attribute the failure to (e.g.
+	// SM_OP_CALL). The whole expression's evaluation aborts; the
+	// decoder reports it as an evaluation error rather than as a
+	// per-field notCapturedReason.
+	ExprStatusRecursionStackFull ExprStatus = 5
+	// ExprStatusBufferFull is set when the stack machine aborted before
+	// emitting any data item for this expression (continuation_aborted
+	// fired before the first useful item reached scratch).
+	ExprStatusBufferFull ExprStatus = 6
+	// 7..15 reserved for future use.
 )
 
 // ExprStatusBits is the number of bits per entry in the ExprStatusArray.
+// 4 bits per slot leaves room for the full ExprStatus enum (capacity 16).
 // Must stay in sync with EXPR_STATUS_BITS in pkg/dyninst/ebpf/stack_machine.h.
 const ExprStatusBits = 4
 

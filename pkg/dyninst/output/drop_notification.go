@@ -7,27 +7,35 @@
 
 package output
 
-// DropReason classifies the effect a ring-buffer drop had on userspace
-// buffered state. Values must be kept in sync with the drop_reason enum in
-// ../ebpf/framing.h.
+// DropReason classifies *why* a drop happened at the BPF emission site.
+// Pair with DropSide (which side of the entry/return pair was affected)
+// and Last_seq (how many fragments reached userspace) to derive the
+// full picture. Kept in sync with drop_reason_t in ../ebpf/framing.h.
+//
+// Invariants:
+//   - FirstFlushFailed implies no fragments reached userspace; Last_seq
+//     is unused.
+//   - FragmentLimit and RingBufferFull are partial-only; at least
+//     Last_seq+1 fragments reached userspace before the failure.
+//   - Ringbuf rejection of the *first* flush maps to FirstFlushFailed,
+//     not RingBufferFull.
 type DropReason uint8
 
 const (
-	// DropReasonReturnLost: the return event (or its condition-failed /
-	// throttle signal) could not be submitted, and no fragments of it were
-	// ever sent. The pairing store holds a fully assembled entry. Userspace
-	// should emit the entry alone.
-	DropReasonReturnLost DropReason = 1
+	// DropReasonFirstFlushFailed: no fragments reached userspace. Used
+	// for both first-flush scratch failures and ringbuf rejection on
+	// fragment 0. Last_seq is unused.
+	DropReasonFirstFlushFailed DropReason = 1
 
-	// DropReasonPartialEntry: fragments [0..Last_seq] of the entry event
-	// were submitted successfully; a subsequent submit failed. Userspace has
-	// or will receive exactly Last_seq+1 entry fragments and should treat
-	// them as a truncated complete entry.
-	DropReasonPartialEntry DropReason = 2
+	// DropReasonFragmentLimit: the SM hit MAX_CONTINUATION_FRAGMENTS.
+	// Always partial: fragments [0..Last_seq] reached userspace before
+	// the cap fired.
+	DropReasonFragmentLimit DropReason = 2
 
-	// DropReasonPartialReturn: same as DropReasonPartialEntry, but for the
-	// return side.
-	DropReasonPartialReturn DropReason = 3
+	// DropReasonRingBufferFull: bpf_ringbuf_output rejected a fragment
+	// mid-stream. Always partial: fragments [0..Last_seq] reached
+	// userspace.
+	DropReasonRingBufferFull DropReason = 3
 
 	// DropReasonPanicUnwoundLost: the runtime.recovery synthetic event for
 	// the unwound range (Panic_lo_depth, Panic_hi_depth] on Goid failed to
@@ -37,4 +45,17 @@ const (
 	// Stack_byte_depth, Last_seq and Entry_ktime_ns are not meaningful for
 	// this reason.
 	DropReasonPanicUnwoundLost DropReason = 4
+)
+
+// DropSide indicates which side of the entry/return pair a drop affected.
+// Kept in sync with drop_side_t in ../ebpf/framing.h.
+type DropSide uint8
+
+const (
+	// DropSideUnset is the zero value. eBPF always populates Side on
+	// emission, so observing DropSideUnset indicates either a bug or a
+	// notification produced by an older BPF build.
+	DropSideUnset  DropSide = 0
+	DropSideEntry  DropSide = 1
+	DropSideReturn DropSide = 2
 )

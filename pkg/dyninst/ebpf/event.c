@@ -71,7 +71,11 @@ struct {
 // event header. Probe_id, stack_byte_depth, last_seq and entry_ktime_ns
 // are zero — the notification applies to every buffered invocation on
 // header->goid whose depth falls in (panic_lo_depth, panic_hi_depth].
-static inline __attribute__((always_inline)) void
+//
+// noinline: this is a cold path called from two distinct sites in
+// probe_run. Inlining duplicates ~30 instructions and the post-call
+// state into both branches, doubling verifier work on a hot function.
+__attribute__((noinline)) static void
 notify_panic_unwound_lost(uint32_t prog_id, const di_event_header_t* header) {
   stats_t* stats = bpf_map_lookup_elem(&stats_buf, &zero_uint32);
   if (stats) {
@@ -258,7 +262,22 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
                                                 params->stack_machine_pc);
   }
-  header->condition_eval_error = global_ctx.stack_machine->condition_eval_error ? (global_ctx.stack_machine->condition_nil_deref ? 2 : 1) : 0;
+  // Pack the SM's condition-error state into a single byte:
+  //   0  no condition error
+  //   1  generic eval error (kernel read failure, OOB, etc.)
+  //   2  nil pointer dereference during condition evaluation
+  //   3  any/all iteration limit exceeded
+  // Cap-exhausted is checked first because it's a specific subcase of
+  // "an eval error happened"; the SM sets condition_eval_error
+  // alongside iteration_cap_exhausted at the loop-end sites.
+  if (global_ctx.stack_machine->iteration_cap_exhausted) {
+    header->condition_eval_error = 3;
+  } else if (global_ctx.stack_machine->condition_eval_error) {
+    header->condition_eval_error =
+        global_ctx.stack_machine->condition_nil_deref ? 2 : 1;
+  } else {
+    header->condition_eval_error = 0;
+  }
   if (global_ctx.stack_machine->condition_failed) {
     LOG(4, "probe_run: condition failed, skipping event");
     if (params->kind == EVENT_KIND_RETURN) {
@@ -281,7 +300,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
                 .goid = header->goid,
                 .stack_byte_depth = header->stack_byte_depth,
                 .entry_ktime_ns = global_ctx.stack_machine->entry_ktime_ns,
-                .drop_reason = DROP_REASON_RETURN_LOST,
+                .drop_reason = DROP_REASON_FIRST_FLUSH_FAILED,
+                .side = DROP_SIDE_RETURN,
             };
             (void)send_drop_notification();
           }
@@ -310,7 +330,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
                 .goid = header->goid,
                 .stack_byte_depth = header->stack_byte_depth,
                 .entry_ktime_ns = global_ctx.stack_machine->entry_ktime_ns,
-                .drop_reason = DROP_REASON_RETURN_LOST,
+                .drop_reason = DROP_REASON_FIRST_FLUSH_FAILED,
+                .side = DROP_SIDE_RETURN,
             };
             (void)send_drop_notification();
           }
@@ -362,14 +383,18 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       // evicted by SM_OP_PANIC_UNWIND_EVICT_SLOTS, so any fragments that
       // reached userspace cannot be re-paired with their entries. Tell
       // userspace to range-scan its buffer; the partial-fragment
-      // semantics of PARTIAL_ENTRY do not apply here.
+      // semantics of FRAGMENT_LIMIT / RING_BUFFER_FULL do not apply here.
       notify_panic_unwound_lost(prog_id, header);
     } else if (sm->last_submitted_seq != LAST_SUBMITTED_SEQ_NONE) {
+      uint8_t side = (params->kind == EVENT_KIND_RETURN)
+                         ? DROP_SIDE_RETURN
+                         : DROP_SIDE_ENTRY;
       // Earlier fragments reached userspace; tell it to emit them as
-      // truncated.
-      uint8_t reason = (params->kind == EVENT_KIND_RETURN)
-                           ? DROP_REASON_PARTIAL_RETURN
-                           : DROP_REASON_PARTIAL_ENTRY;
+      // truncated. The cause stashed by the SM tells us whether we
+      // hit the fragment cap or the ringbuf was full.
+      uint8_t reason = (sm->flush_failure_cause == (uint8_t)FLUSH_FRAGMENT_CAP)
+                           ? DROP_REASON_FRAGMENT_LIMIT
+                           : DROP_REASON_RING_BUFFER_FULL;
       {
         di_drop_notification_t* dn = drop_notify_prepare();
         if (dn) {
@@ -381,13 +406,17 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
               .last_seq = sm->last_submitted_seq,
               .entry_ktime_ns = sm->entry_ktime_ns,
               .drop_reason = reason,
+              .side = side,
           };
           (void)send_drop_notification();
         }
       }
     } else if (params->kind == EVENT_KIND_RETURN) {
       // The very first flush failed; no return fragments are in flight.
-      // Tell userspace to emit the matching entry alone.
+      // Tell userspace to emit the matching entry alone. First-flush
+      // ringbuf rejection maps to FIRST_FLUSH_FAILED (not RING_BUFFER_FULL)
+      // so userspace can distinguish "agent overloaded mid-stream" from
+      // "side never reached userspace".
       {
         di_drop_notification_t* dn = drop_notify_prepare();
         if (dn) {
@@ -397,7 +426,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
               .goid = header->goid,
               .stack_byte_depth = header->stack_byte_depth,
               .entry_ktime_ns = sm->entry_ktime_ns,
-              .drop_reason = DROP_REASON_RETURN_LOST,
+              .drop_reason = DROP_REASON_FIRST_FLUSH_FAILED,
+              .side = DROP_SIDE_RETURN,
           };
           (void)send_drop_notification();
         }
@@ -420,14 +450,15 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       // evicted by SM_OP_PANIC_UNWIND_EVICT_SLOTS, so any fragments that
       // reached userspace cannot be re-paired with their entries. Tell
       // userspace to range-scan its buffer; the partial-fragment
-      // semantics of PARTIAL_ENTRY do not apply here.
+      // semantics of FRAGMENT_LIMIT / RING_BUFFER_FULL do not apply here.
       notify_panic_unwound_lost(prog_id, header);
     } else if (sm->last_submitted_seq != LAST_SUBMITTED_SEQ_NONE) {
+      uint8_t side = (params->kind == EVENT_KIND_RETURN)
+                         ? DROP_SIDE_RETURN
+                         : DROP_SIDE_ENTRY;
       // Some fragments already reached userspace; this final fragment is
-      // lost. Notify userspace to emit the partial event as truncated.
-      uint8_t reason = (params->kind == EVENT_KIND_RETURN)
-                           ? DROP_REASON_PARTIAL_RETURN
-                           : DROP_REASON_PARTIAL_ENTRY;
+      // lost to a ringbuf rejection. Notify userspace to emit the partial
+      // event as truncated.
       {
         di_drop_notification_t* dn = drop_notify_prepare();
         if (dn) {
@@ -438,7 +469,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
               .stack_byte_depth = header->stack_byte_depth,
               .last_seq = sm->last_submitted_seq,
               .entry_ktime_ns = sm->entry_ktime_ns,
-              .drop_reason = reason,
+              .drop_reason = DROP_REASON_RING_BUFFER_FULL,
+              .side = side,
           };
           (void)send_drop_notification();
         }
@@ -446,6 +478,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     } else if (params->kind == EVENT_KIND_RETURN) {
       // No fragments were submitted; the return probe produced nothing in
       // userspace. Tell userspace to emit the matching entry alone.
+      // First-flush ringbuf rejection maps to FIRST_FLUSH_FAILED.
       {
         di_drop_notification_t* dn = drop_notify_prepare();
         if (dn) {
@@ -455,7 +488,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
               .goid = header->goid,
               .stack_byte_depth = header->stack_byte_depth,
               .entry_ktime_ns = sm->entry_ktime_ns,
-              .drop_reason = DROP_REASON_RETURN_LOST,
+              .drop_reason = DROP_REASON_FIRST_FLUSH_FAILED,
+              .side = DROP_SIDE_RETURN,
           };
           (void)send_drop_notification();
         }
