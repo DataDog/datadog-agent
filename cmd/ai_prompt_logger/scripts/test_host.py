@@ -6,7 +6,7 @@ Sends HEALTH_CHECK and SEND_USAGE_EVENT over the native messaging framing.
 Usage:
     python3 test_host.py <path_to_rust_exe> [--config=PATH ...]
 
-If no path is provided, defaults to <repo-root>/target/release/ai-prompt-logger-native-host
+If no path is provided, defaults to <repo-root>/target/release/ai-usage-agent-native-host
 (repo root is three parents above this script; .exe on Windows). Any extra arguments are forwarded
 to the host (e.g. --config=...).
 """
@@ -77,14 +77,14 @@ def main():
         host_path = Path(sys.argv[1])
         extra_args = sys.argv[2:]
     else:
-        exe_name = 'ai-prompt-logger-native-host.exe' if sys.platform == 'win32' else 'ai-prompt-logger-native-host'
+        exe_name = 'ai-usage-agent-native-host.exe' if sys.platform == 'win32' else 'ai-usage-agent-native-host'
         repo_root = Path(__file__).resolve().parents[3]
         host_path = repo_root / 'target' / 'release' / exe_name
         extra_args = []
 
     if not host_path.exists():
         print(f'ERROR: Host executable not found: {host_path}')
-        print('Build with: cargo build -p ai-prompt-logger-native-host --release')
+        print('Build with: cargo build -p ai-usage-agent-native-host --release')
         sys.exit(1)
 
     cmd = [str(host_path)] + extra_args
