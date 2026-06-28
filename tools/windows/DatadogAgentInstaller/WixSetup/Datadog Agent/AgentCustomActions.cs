@@ -52,6 +52,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction CleanupOnUninstall { get; }
 
+        public ManagedAction CleanupInstallDirAfterUninstall { get; }
+
         public ManagedAction ConfigureUser { get; }
 
         public ManagedAction ConfigureUserRollback { get; }
@@ -379,6 +381,20 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             };
+
+            CleanupInstallDirAfterUninstall = new CustomAction<CustomActions>(
+                    new Id(nameof(CleanupInstallDirAfterUninstall)),
+                    CustomActions.CleanupInstallDirAfterUninstall,
+                    Return.check,
+                    When.After,
+                    Step.RemoveFiles,
+                    Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             RunPreRemovePythonScript = new CustomAction<CustomActions>(
                     new Id(nameof(RunPreRemovePythonScript)),

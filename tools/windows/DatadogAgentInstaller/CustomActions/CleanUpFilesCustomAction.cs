@@ -18,6 +18,8 @@ namespace Datadog.CustomActions
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
                 Path.Combine(projectLocation, "python-scripts"),
+                // fleet postinst may create this before InstallFinalize
+                Path.Combine(projectLocation, "processes.d"),
             }
             // installation specific files
             .Concat(session.GeneratedPaths());
@@ -52,9 +54,49 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
+        private static ActionResult CleanupInstallDirAfterUninstall(ISession session)
+        {
+            TryRemoveEmptyInstallDir(session, session.Property("PROJECTLOCATION"));
+            return ActionResult.Success;
+        }
+
+        private static void TryRemoveEmptyInstallDir(ISession session, string projectLocation)
+        {
+            if (string.IsNullOrEmpty(projectLocation))
+            {
+                return;
+            }
+
+            try
+            {
+                if (!Directory.Exists(projectLocation))
+                {
+                    return;
+                }
+
+                if (Directory.EnumerateFileSystemEntries(projectLocation).Any())
+                {
+                    session.Log($"{projectLocation} is not empty, skip deletion.");
+                    return;
+                }
+
+                session.Log($"Deleting empty install directory \"{projectLocation}\"");
+                Directory.Delete(projectLocation);
+            }
+            catch (Exception e)
+            {
+                session.Log($"Error while deleting empty install directory: {e}");
+            }
+        }
+
         public static ActionResult CleanupFiles(Session session)
         {
             return CleanupFiles(new SessionWrapper(session));
+        }
+
+        public static ActionResult CleanupInstallDirAfterUninstall(Session session)
+        {
+            return CleanupInstallDirAfterUninstall(new SessionWrapper(session));
         }
     }
 }

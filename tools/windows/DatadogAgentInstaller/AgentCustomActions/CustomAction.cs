@@ -96,6 +96,12 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult CleanupInstallDirAfterUninstall(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.CleanupInstallDirAfterUninstall(session);
+        }
+
+        [CustomAction]
         public static ActionResult DecompressPythonDistributions(Session session)
         {
             return Datadog.CustomActions.PythonDistributionCustomAction.DecompressPythonDistributions(session);

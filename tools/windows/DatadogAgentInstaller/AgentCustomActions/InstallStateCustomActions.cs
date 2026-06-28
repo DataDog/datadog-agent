@@ -180,6 +180,7 @@ namespace Datadog.AgentCustomActions
                 "embedded3",
                 // embedded2 only exists in Agent 6, so an error will be logged, but install will continue
                 "embedded2",
+                "processes.d",
             };
             for (var i = 0; i < paths.Count; i++)
             {
