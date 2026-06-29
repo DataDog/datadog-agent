@@ -187,6 +187,15 @@ func (h *RunCommandHandler) Run(
 			log.Warnf("path %q not found, rshell may fail to execute commands", p)
 		}
 	}
+	// rshell treats allowed paths as read-only unless carrying a ":rw" suffix,
+	// so, unlike read-only mode, remediation mode must opt paths into writes.
+	effectiveAllowedPathsRW := effectiveAllowedPaths
+	if h.mode == interp.ModeRemediation {
+		effectiveAllowedPathsRW = make([]string, len(effectiveAllowedPaths))
+		for i, p := range effectiveAllowedPaths {
+			effectiveAllowedPathsRW[i] = p + ":rw"
+		}
+	}
 	var stdout, stderr bytes.Buffer
 	// Route sandbox diagnostics to a dedicated sink so they do not leak
 	// into the action's stderr field. We discard the streaming output and
@@ -194,7 +203,7 @@ func (h *RunCommandHandler) Run(
 	runner, err := interp.New(
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.WarningsWriter(io.Discard),
-		interp.AllowedPaths(effectiveAllowedPaths),
+		interp.AllowedPaths(effectiveAllowedPathsRW),
 		interp.ProcPath(resolveProcPath()),
 		interp.AllowedCommands(effectiveAllowedCommands),
 		interp.WithMode(h.mode),
