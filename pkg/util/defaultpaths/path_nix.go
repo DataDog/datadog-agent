@@ -18,6 +18,8 @@ import (
 // Private default path constants for reference. BindEnvAndSetDefault uses getter functions after init().
 // These are the raw, untransformed paths. Use getter functions for correct runtime transformed paths.
 const (
+	// defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty
+	defaultCommonRoot = "/opt/datadog-agent"
 	// defaultConfPath points to the folder containing datadog.yaml
 	defaultConfPath = "/etc/datadog-agent"
 	//defaultLogPath points to the default logs folder

@@ -16,6 +16,8 @@ import (
 // FreeBSD follows BSD conventions: configuration files live under /usr/local/etc, while runtime
 // and log files match the layout used on Linux.
 const (
+	// defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty
+	defaultCommonRoot = "/opt/datadog-agent"
 	// defaultConfPath points to the folder containing datadog.yaml
 	defaultConfPath = "/usr/local/etc/datadog-agent"
 	// defaultLogPath points to the log folder that will be used if not configured

@@ -5,9 +5,6 @@
 
 package defaultpaths
 
-// defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty
-const defaultCommonRoot = "/opt/datadog-agent"
-
 // commonRoot holds the common root path for the application package model.
 // When set, all path getters will return paths relative to this root.
 // This is set early in agent startup via SetCommonRoot() or automatically

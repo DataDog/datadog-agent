@@ -13,6 +13,8 @@ import (
 )
 
 const (
+	// defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty
+	defaultCommonRoot = "/opt/datadog-agent"
 	// defaultRunPath is the default runtime directory for the agent
 	defaultRunPath = "/opt/datadog-agent/run"
 	// defaultConfPath points to the folder containing datadog.yaml
