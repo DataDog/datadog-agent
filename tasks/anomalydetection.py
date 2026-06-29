@@ -961,6 +961,7 @@ def eval_bayesian(
         trial_logger.step(trial_label)
         for key, val in sorted(trial.params.items()):
             trial_logger.detail(f"{key}: {val}")
+        _log_trial_config(trial_logger, config_data)
 
         report_path = os.path.join(trial_dir, "report.json")
         scenario_output_dir = os.path.join(trial_dir, "scenarios")
@@ -1155,6 +1156,12 @@ def _ddeval_options_kwargs(options: _DDEvalOptions | None) -> dict[str, object]:
     }
 
 
+def _log_trial_config(logger: StepLogger, config: dict) -> None:
+    logger.detail("testbench config:")
+    for line in json.dumps(config, indent=2, sort_keys=True).splitlines():
+        logger.detail(f"  {line}")
+
+
 def _run_ddeval_trial(
     ctx,
     *,
@@ -1254,9 +1261,11 @@ def _ddeval_workflow_command(
     config_path: str,
     options: _DDEvalOptions,
 ) -> str:
+    # ddeval workflow run can prompt on test-drive drift and does not expose --yes
+    # in the current dd-source CLI.
     parts = [
         f"cd {shlex.quote(options.ddsource_dir)}",
-        "bzl run //domains/ai_platform/shared/libs/ddeval/cli:ddeval -- workflow run",
+        "printf 'y\\n' | bzl run //domains/ai_platform/shared/libs/ddeval/cli:ddeval -- workflow run",
         f"-s {shlex.quote(options.service)}",
         f"-p {shlex.quote(options.project)}",
         f"-d {shlex.quote(options.dataset)}",
@@ -1265,7 +1274,6 @@ def _ddeval_workflow_command(
         f"-f {shlex.quote(config_path)}",
         f"-j {int(options.jobs)}",
         f"--max-attempts {int(options.max_attempts)}",
-        "--yes",
     ]
     if options.limit:
         parts.append(f"--limit {int(options.limit)}")
