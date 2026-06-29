@@ -1,0 +1,41 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+
+_NON_WINDOWS = select({
+    "@platforms//os:windows": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
+# Static link target for the cgo sds-go binding, consumed as a `cdeps` dependency
+# (see //bazel/patches:sds-go-cdep.patch). Skipped on Windows.
+cc_library(
+    name = "dd_sds",
+    target_compatible_with = _NON_WINDOWS,
+    visibility = ["//visibility:public"],
+    deps = ["//deps/sds/rust:dd_sds_static"],
+)
+
+# Packages the shared library under embedded/lib for omnibus. Omnibus
+# (omnibus/config/software/sds.rb) runs `bazelisk run //deps/sds:install`.
+# dd_cc_packaged rpath-patches it (Linux) / rewrites its install name (macOS).
+dd_cc_packaged(
+    name = "dd_sds_pkg",
+    input = "//deps/sds/rust:dd_sds_shared",
+    visibility = ["//visibility:public"],
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [":dd_sds_pkg_packaged"],
+    prefix = "embedded",
+    target_compatible_with = _NON_WINDOWS,
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+    target_compatible_with = _NON_WINDOWS,
+)
