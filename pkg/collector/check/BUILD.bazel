@@ -43,8 +43,11 @@ dd_agent_go_test(
     embed = [":check"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/diagnose/def",
+        "//pkg/aggregator/sender",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stub",
+        "//pkg/collector/check/stats",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",

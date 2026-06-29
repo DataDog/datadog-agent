@@ -109,6 +109,11 @@ func (c *CheckWrapper) ID() checkid.ID {
 	return c.inner.ID()
 }
 
+// Unwrap returns the wrapped check.
+func (c *CheckWrapper) Unwrap() check.Check {
+	return c.inner
+}
+
 // GetWarnings implements Check#GetWarnings
 func (c *CheckWrapper) GetWarnings() []error {
 	return c.inner.GetWarnings()

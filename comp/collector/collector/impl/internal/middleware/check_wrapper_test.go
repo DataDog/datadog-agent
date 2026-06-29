@@ -11,7 +11,9 @@ import (
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/assert"
@@ -117,4 +119,19 @@ func TestCheckWrapperCreatesSpan(t *testing.T) {
 	// Verify a span was started
 	assert.True(t, mockTelemetry.spanStarted)
 	assert.Equal(t, "check.mock_check", mockTelemetry.spanName)
+}
+
+func TestCheckWrapperPreservesShadowIdentity(t *testing.T) {
+	inner := &mockCheck{}
+	shadow := check.NewShadowCheck(inner, check.ShadowID(checkid.ID("mock_check:abc123")), 0)
+
+	wrapper := NewCheckWrapper(
+		shadow,
+		aggregator.NewNoOpSenderManager(),
+		option.None[agenttelemetry.Component](),
+		option.None[healthplatformstore.Component](),
+	)
+
+	assert.True(t, check.IsShadow(wrapper))
+	assert.Same(t, shadow, wrapper.Unwrap())
 }
