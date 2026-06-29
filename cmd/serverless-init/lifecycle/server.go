@@ -101,6 +101,7 @@ type Server struct {
 	childHandle ChildHandle // production: *Child (init) or NewNoopChildHandle() (sidecar); always non-nil after lifecycle.SetupFromEnv. nil only in legacy unit tests; logs WARN if hit.
 	child       *Child      // non-nil only in init-container mode; nil in sidecar and unit tests. Derived from childHandle when it is a *Child.
 	fwd         *Forwarder  // nil = no opt-in; today's behavior preserved
+	heartbeat   *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
 
 	httpServer *http.Server
 }
@@ -117,6 +118,7 @@ func NewServer(
 	flushTimeout time.Duration,
 	childHandle ChildHandle, // may be nil
 	fwd *Forwarder, // may be nil
+	heartbeat *Heartbeat, // may be nil
 ) *Server {
 	s := &Server{
 		metricFlusher: metricFlusher,
@@ -129,6 +131,7 @@ func NewServer(
 		childHandle:   childHandle,
 		fwd:           fwd,
 		instanceID:    atomic.NewString(""),
+		heartbeat:     heartbeat,
 	}
 	// Derive the concrete *Child from the handle when possible so callers can
 	// reach it via Server.Child() without a separate return value.
@@ -172,11 +175,14 @@ func (s *Server) Serve(l net.Listener) {
 
 // Stop gracefully shuts down the lifecycle server, waiting for any in-flight
 // requests to complete up to ctx's deadline. Safe to call on a nil receiver
-// so callers can defer Stop unconditionally.
+// so callers can defer Stop unconditionally. Also stops the heartbeat
+// goroutine — defense-in-depth for shutdown paths that don't first hit
+// /suspend or /terminate (e.g., the platform SIGKILLs the process).
 func (s *Server) Stop(ctx context.Context) error {
 	if s == nil {
 		return nil
 	}
+	s.heartbeat.Stop()
 	return s.httpServer.Shutdown(ctx)
 }
 
@@ -190,6 +196,10 @@ func (s *Server) Child() *Child {
 	}
 	return s.child
 }
+
+// Heartbeat returns the Heartbeat wired into this server.
+// Exposed for white-box tests in external packages; not part of the stable API.
+func (s *Server) Heartbeat() *Heartbeat { return s.heartbeat }
 
 func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
@@ -329,10 +339,12 @@ func (s *Server) aliveCheckReady(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusServiceUnavailable)
 }
 
-// handleLaunch emits the launch metric and (when a forwarder is configured)
-// mirrors the user app's response. handleLaunch is the only hook that reads
-// r.Body — to parse the instance ID — and is therefore not collapsed into
-// dispatchHook directly.
+// handleLaunch emits the launch metric, captures the MicroVM instance ID
+// from the platform's request body, starts the periodic heartbeat, and
+// (when a forwarder is configured) mirrors the user app's response.
+// handleLaunch is the only hook that reads r.Body and is therefore not
+// collapsed into dispatchHook directly. The ID is captured before Start
+// so the first heartbeat emission already carries the correct microvm_id tag.
 func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: launch")
 	// Read the body once so we can parse the instance ID AND still forward the
@@ -344,20 +356,31 @@ func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
 	var body launchBody
 	if err := json.Unmarshal(bodyBytes, &body); err != nil {
 		log.Debugf("MicroVM lifecycle: could not parse launch body: %v", err)
-	} else if body.MicroVMID != "" {
-		s.instanceID.Store(body.MicroVMID)
 	}
+	if body.MicroVMID != "" {
+		s.instanceID.Store(body.MicroVMID)
+		s.heartbeat.SetMicroVMID(body.MicroVMID)
+	}
+	s.heartbeat.Start()
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	s.dispatchHook(launchMetricName, pathLaunch, false, w, r)
 }
 
+// handleResume emits the resume metric, restarts the heartbeat (stopped at
+// /suspend), and (when a forwarder is configured) mirrors the user app's response.
 func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: resume")
+	s.heartbeat.Start()
 	s.dispatchHook(resumeMetricName, pathResume, false, w, r)
 }
 
+// handleSuspend stops the heartbeat, flushes telemetry, and (when a forwarder
+// is configured) mirrors the user app's response. Heartbeat is stopped before
+// flushing so any in-flight tick finishes before the metric agent drains;
+// /resume restarts it.
 func (s *Server) handleSuspend(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: suspend — flushing telemetry")
+	s.heartbeat.Stop()
 	s.dispatchHook(suspendMetricName, pathSuspend, true, w, r)
 }
 
@@ -370,9 +393,11 @@ func (s *Server) handleSuspend(w http.ResponseWriter, r *http.Request) {
 // must not simulate a signal channel that the platform does not provide.
 // User apps that opt in receive /terminate via pass-through and own their
 // own graceful exit; users without a /terminate handler rely on the
-// platform's own termination of the VM.
+// platform's own termination of the VM. Heartbeat is stopped here so it
+// cannot fire after the VM is torn down.
 func (s *Server) handleTerminate(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: terminate — flushing telemetry")
+	s.heartbeat.Stop()
 	s.dispatchHook(terminateMetricName, pathTerminate, true, w, r)
 }
 
@@ -396,16 +421,22 @@ func (s *Server) dispatchHook(metricName, path string, withFlush bool, w http.Re
 	w.WriteHeader(http.StatusOK)
 }
 
-// emitLifecycleMetric records a lifecycle event with the timestamp captured
-// at the call site, so the metric reflects when AWS invoked the hook rather
-// than when the sample is later aggregated.
+// emitLifecycleMetric records a lifecycle event metric, appending the stored
+// MicroVM instance ID tag when one has been captured from the /launch body.
 func (s *Server) emitLifecycleMetric(name string) {
-	timestamp := float64(time.Now().UnixNano()) / float64(time.Second)
 	var extraTags []string
 	if id := s.instanceID.Load(); id != "" {
 		extraTags = []string{instanceIDTagPrefix + id}
 	}
-	s.metricEmitter.AddEnhancedMetric(name, 1.0, s.metricSource, timestamp, extraTags...)
+	emitMetric(s.metricEmitter, s.metricSource, name, extraTags...)
+}
+
+// emitMetric emits a count-1 enhanced metric with the current wall-clock
+// timestamp, so every caller uses the same precision and avoids the
+// metric-agent's 0-sentinel substitution.
+func emitMetric(emitter MetricEmitter, source metrics.MetricSource, name string, tags ...string) {
+	timestamp := float64(time.Now().UnixNano()) / float64(time.Second)
+	emitter.AddEnhancedMetric(name, 1.0, source, timestamp, tags...)
 }
 
 func (s *Server) waitForFlushes(flushCtx context.Context, flushDone <-chan struct{}) {

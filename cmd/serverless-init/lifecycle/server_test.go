@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -79,7 +80,7 @@ type mockMetricEmitter struct {
 func (m *mockMetricEmitter) AddEnhancedMetric(name string, _ float64, _ metrics.MetricSource, ts float64, tags ...string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.metrics = append(m.metrics, emittedMetric{name: name, timestamp: ts, extraTags: tags})
+	m.metrics = append(m.metrics, emittedMetric{name: name, timestamp: ts, extraTags: slices.Clone(tags)})
 }
 
 func (m *mockMetricEmitter) getEmitted() []string {
@@ -100,15 +101,27 @@ func (m *mockMetricEmitter) getEmittedMetrics() []emittedMetric {
 	return result
 }
 
+// lastTags returns the tag slice from the most recent emission, or nil if
+// nothing has been emitted yet.
+func (m *mockMetricEmitter) lastTags() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.metrics) == 0 {
+		return nil
+	}
+	return slices.Clone(m.metrics[len(m.metrics)-1].extraTags)
+}
+
 func newTestServer() (*Server, *mockFlusher, *mockFlusher, *mockLogsAgent, *mockMetricEmitter, *mockSampleDrainer) {
 	metric := &mockFlusher{}
 	trace := &mockFlusher{}
 	logs := &mockLogsAgent{}
 	emitter := &mockMetricEmitter{}
 	drainer := &mockSampleDrainer{}
-	// port 0 — handler-level tests don't bind. Tests that need a childHandle
-	// or forwarder assign srv.childHandle / srv.fwd after construction.
-	srv := NewServer(0, metric, trace, logs, emitter, drainer, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil)
+	// port 0 — handler-level tests don't bind. Tests that need a childHandle,
+	// forwarder, or heartbeat assign srv.childHandle / srv.fwd / srv.heartbeat
+	// after construction.
+	srv := NewServer(0, metric, trace, logs, emitter, drainer, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, nil)
 	return srv, metric, trace, logs, emitter, drainer
 }
 
@@ -733,7 +746,7 @@ func TestServeAndStopGracefulShutdown(t *testing.T) {
 // app that responds after the flush-only deadline.
 func TestNewServerConfiguresHTTPTimeouts(t *testing.T) {
 	flushTimeout := 5 * time.Second
-	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, nil)
+	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, nil, nil)
 	assert.Equal(t, 30*time.Second, srv.httpServer.ReadTimeout)
 	assert.Equal(t, flushTimeout+10*time.Second, srv.httpServer.WriteTimeout)
 }
@@ -749,7 +762,7 @@ func TestNewServerWithForwarderWriteTimeoutCoversForwardBudget(t *testing.T) {
 		client:               &http.Client{},
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
-	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, fwd)
+	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, flushTimeout, nil, fwd, nil)
 	assert.Equal(t, fwd.forwardTimeout+10*time.Second, srv.httpServer.WriteTimeout,
 		"WriteTimeout must cover forwardTimeout (30s), not just flushTimeout (5s)")
 }
@@ -891,11 +904,130 @@ func TestDispatchHook_WithForwarder_MirrorsUserAppResponse(t *testing.T) {
 // lifecycle server stalling — and blocking the MicroVM platform's suspend/terminate
 // handshake — when the metric aggregator worker is deadlocked or slow.
 func TestFlushAllDrainTimeoutDoesNotBlock(t *testing.T) {
-	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &neverDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 50*time.Millisecond, nil, nil)
+	srv := NewServer(0, &mockFlusher{}, &mockFlusher{}, &mockLogsAgent{}, &mockMetricEmitter{}, &neverDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 50*time.Millisecond, nil, nil, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), srv.flushTimeout)
 	defer cancel()
 	start := time.Now()
 	srv.flushAll(ctx)
 	assert.Less(t, time.Since(start), 500*time.Millisecond, "flushAll must return within flushTimeout even when drainer blocks")
+}
+
+// withFakeHeartbeat installs a real *Heartbeat with a long interval that
+// will never tick during the test, lets us observe Start/Stop side effects
+// via running goroutine count, and returns a teardown that ensures cleanup.
+// This indirection avoids re-testing heartbeat internals while still
+// exercising server.go's wiring with a production *Heartbeat type.
+func withFakeHeartbeat(t *testing.T, srv *Server) (started func() bool, teardown func()) {
+	t.Helper()
+	emitter := &mockMetricEmitter{}
+	hb := NewHeartbeat(time.Hour /* never ticks during the test */, emitter, metrics.MetricSourceAWSMicroVMEnhanced, nil)
+	srv.heartbeat = hb
+	started = func() bool {
+		hb.mu.Lock()
+		defer hb.mu.Unlock()
+		return hb.cancel != nil
+	}
+	teardown = func() { hb.Stop() }
+	return started, teardown
+}
+
+func TestHandleLaunch_StartsHeartbeat(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	started, teardown := withFakeHeartbeat(t, srv)
+	defer teardown()
+
+	rec := httptest.NewRecorder()
+	srv.handleLaunch(rec, httptest.NewRequest(http.MethodPost, pathLaunch, nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.True(t, started(), "/launch must start the heartbeat")
+}
+
+// /launch must extract the MicroVM ID from the JSON body and apply it to the
+// heartbeat before Start so the very first emission carries the correct
+// microvm_id. The test calls handleLaunch then inspects the tags that the
+// heartbeat would emit on its next tick.
+func TestHandleLaunch_AppliesMicroVMIDFromBody(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	_, teardown := withFakeHeartbeat(t, srv)
+	defer teardown()
+
+	body := strings.NewReader(`{"microVmId":"vm-from-body"}`)
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+
+	assert.Contains(t, srv.heartbeat.tagsForEmit(), "microvm_id:vm-from-body")
+	id := srv.instanceID.Load()
+	assert.Equal(t, "vm-from-body", id)
+}
+
+// When the platform body does not include microVmId, the heartbeat keeps the
+// "unknown" placeholder rather than crashing or emitting an empty value.
+func TestHandleLaunch_MissingBodyIDUsesUnknown(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	_, teardown := withFakeHeartbeat(t, srv)
+	defer teardown()
+
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, nil))
+
+	assert.Contains(t, srv.heartbeat.tagsForEmit(), "microvm_id:unknown")
+}
+
+func TestHandleSuspend_StopsHeartbeat(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	started, teardown := withFakeHeartbeat(t, srv)
+	defer teardown()
+	srv.heartbeat.Start() // simulate post-launch state
+
+	rec := httptest.NewRecorder()
+	srv.handleSuspend(rec, httptest.NewRequest(http.MethodPost, pathSuspend, nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.False(t, started(), "/suspend must stop the heartbeat")
+}
+
+func TestHandleResume_RestartsHeartbeat(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	started, teardown := withFakeHeartbeat(t, srv)
+	defer teardown()
+	// Simulate suspend (heartbeat stopped) before resume.
+	srv.heartbeat.Start()
+	srv.heartbeat.Stop()
+	require.False(t, started(), "precondition: heartbeat must be stopped before resume")
+
+	rec := httptest.NewRecorder()
+	srv.handleResume(rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.True(t, started(), "/resume must restart the heartbeat after suspend")
+}
+
+func TestHandleTerminate_StopsHeartbeat(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	started, teardown := withFakeHeartbeat(t, srv)
+	defer teardown()
+	srv.heartbeat.Start()
+
+	rec := httptest.NewRecorder()
+	srv.handleTerminate(rec, httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.False(t, started(), "/terminate must stop the heartbeat")
+}
+
+// Server.Stop is a defense-in-depth path for shutdowns that don't first
+// route through /suspend or /terminate — for example, the platform SIGKILLs
+// the agent or main.go's defer chain fires for an unrelated reason.
+func TestServerStop_AlsoStopsHeartbeat(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	started, teardown := withFakeHeartbeat(t, srv)
+	defer teardown()
+	srv.heartbeat.Start()
+	require.True(t, started())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	require.NoError(t, srv.Stop(ctx))
+
+	assert.False(t, started(), "Server.Stop must also stop the heartbeat")
 }
