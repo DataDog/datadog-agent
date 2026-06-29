@@ -11,6 +11,7 @@ go_library(
         "loader.go",
         "metadata.go",
         "retry.go",
+        "shadow.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/check",
     visibility = ["//visibility:public"],
@@ -36,6 +37,7 @@ dd_agent_go_test(
         "id_test.go",
         "jmx_test.go",
         "metadata_test.go",
+        "shadow_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":check"],
@@ -44,6 +46,7 @@ dd_agent_go_test(
         "//pkg/collector/check/id",
         "//pkg/collector/check/stub",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
