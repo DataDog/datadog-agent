@@ -13,6 +13,12 @@ import (
 )
 
 const (
+	// TemplateIssueName is the human-readable issue name for AD template resolution failure issues.
+	TemplateIssueName = "Autodiscovery Template Resolution Error"
+	// TemplateIssueID is the IssueID prefix for AD template resolution failure issues.
+	// External reporters append name, service-id, and digest: TemplateIssueID + ":" + name + ":" + serviceID + ":" + digest
+	TemplateIssueID = "ad-template"
+
 	templateIssueName = TemplateIssueName
 )
 

@@ -13,6 +13,14 @@ import (
 )
 
 const (
+	// AnnotationIssueName is the human-readable issue name for AD annotation misconfiguration issues.
+	AnnotationIssueName = "Autodiscovery Annotation Misconfiguration"
+	// AnnotationIssueID is the IssueID prefix for AD annotation misconfiguration issues.
+	// External reporters append a per-entity suffix: AnnotationIssueID + ":" + entityName
+	AnnotationIssueID = "ad-annotation"
+	// Source is the reporting component identifier used in health-platform issues.
+	Source = "autodiscovery"
+
 	annotationIssueName = AnnotationIssueName
 
 	category   = "autodiscovery"
