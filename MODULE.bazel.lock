@@ -331,19 +331,6 @@
         }
       }
     },
-    "//bazel/toolchains/patchelf:patchelf_configure.bzl%find_system_patchelf": {
-      "general": {
-        "bzlTransitiveDigest": "LycsDwhNSFStb20EW25ZzhzQ5zgmwMvzS7gxKN0tTo0=",
-        "usagesDigest": "sbh/OV5qDj0UnO59z1JQIBVtZdGEcUj1f7xDqQlvL+Y=",
-        "recordedInputs": [],
-        "generatedRepoSpecs": {
-          "patchelf_toolchains": {
-            "repoRuleId": "@@//bazel/toolchains/patchelf:patchelf_configure.bzl%build_repo_for_patchelf_toolchain",
-            "attributes": {}
-          }
-        }
-      }
-    },
     "//bazel/tools:bazelisk_check.bzl%bazelisk_check": {
       "general": {
         "bzlTransitiveDigest": "vIQYQXzy/Q+owB/yz0XcUOwOyn9G0aQIpTxYlBfiCcQ=",
