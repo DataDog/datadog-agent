@@ -254,7 +254,7 @@ func (tb *Bench) ListScenarios() ([]ScenarioInfo, error) {
 		return nil, fmt.Errorf("failed to read scenarios directory: %w", err)
 	}
 
-	var scenarios []ScenarioInfo
+	scenarios := []ScenarioInfo{}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
