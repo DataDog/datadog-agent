@@ -7,6 +7,7 @@ go_library(
         "epforwarder_mockgen.go",
         "pipelines_container.go",
         "pipelines_dataobservability.go",
+        "pipelines_datasecurity.go",
         "pipelines_datastreams.go",
         "pipelines_dbm.go",
         "pipelines_eventmanagement.go",
@@ -53,9 +54,7 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = [
-        "epforwarder_test.go",
-    ],
+    srcs = ["epforwarder_test.go"],
     embed = [":impl"],
     gotags = ["test"],
     deps = [
@@ -69,8 +68,6 @@ go_test(
         "//comp/serializer/logscompression/def",
         "//comp/serializer/logscompression/fx-mock",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
     ],
 )
