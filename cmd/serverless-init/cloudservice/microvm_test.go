@@ -149,6 +149,7 @@ func TestMicroVMShutdown_LiveServer_StopsCleanly(t *testing.T) {
 		time.Second,
 		lifecycle.NewNoopChildHandle(),
 		nil, // no forwarder
+		nil, // no heartbeat
 	)
 	l, err := srv.Listen()
 	require.NoError(t, err)

@@ -23,6 +23,9 @@ import (
 // MicroVMOrigin origin tag value
 const MicroVMOrigin = "lambda-microvm"
 
+// MicroVMImageARNEnvVar re-exports the env var name for use by callers in this package tree.
+const MicroVMImageARNEnvVar = serverlessenv.MicroVMImageARNEnvVar
+
 const (
 	microVMPrefix = "aws.lambda.microvm."
 
@@ -116,6 +119,16 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 	}
 	m.child = components.Child
 
+	arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar)
+	if arn == "" {
+		arn = "unknown"
+	}
+	heartbeat := lifecycle.NewHeartbeat(
+		lifecycle.DefaultHeartbeatInterval,
+		lc.MetricEmitter,
+		m.GetSource(),
+		[]string{"microvm_image_arn:" + arn},
+	)
 	m.server = lifecycle.NewServer(
 		lifecycle.DefaultPort,
 		lc.MetricFlusher,
@@ -127,6 +140,7 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 		lc.FlushTimeout,
 		components.Handle,
 		components.Forwarder,
+		heartbeat,
 	)
 	l, err := m.server.Listen()
 	if err != nil {
