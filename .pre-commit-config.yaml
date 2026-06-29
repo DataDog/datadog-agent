@@ -155,3 +155,10 @@ repos:
       language: system
       files: ^releasenotes(-dca)?/notes/.*\.yaml$
       pass_filenames: true
+    - id: releasenote-unique-ids
+      name: releasenote-unique-ids
+      description: Check that release note UIDs are unique (prevents MQ collisions)
+      entry: bash -c 'dda inv linter.releasenote-unique-ids --files="$(echo "$@" | tr " " ",")"' --
+      language: system
+      files: ^releasenotes(-dca)?/notes/.*\.yaml$
+      pass_filenames: true
