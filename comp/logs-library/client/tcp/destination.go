@@ -121,12 +121,11 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 
 		d.updateRetryState(nil, isRetrying)
 
-		metrics.LogsSent.Add(1)
-		metrics.TlmLogsSent.Inc()
-		metrics.BytesSent.Add(int64(payload.UnencodedSize))
-
 		// TCP is only used for logs data, so we always use "logs" as the source tag
 		sourceTag := "logs"
+		metrics.LogsSent.Add(1)
+		metrics.TlmLogsSent.Add(1, metrics.GetAgentIdentityTag(), sourceTag)
+		metrics.BytesSent.Add(int64(payload.UnencodedSize))
 		// Default Compression for TCP is none
 		compressionKind := "none"
 

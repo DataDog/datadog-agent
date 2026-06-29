@@ -6,6 +6,7 @@
 package http
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -87,8 +88,14 @@ func (d *SyncDestination) run(input chan *message.Payload, output chan *message.
 			senderDoneWg.Done()
 		}
 
+		var sourceTag string
+		if strings.Contains(d.destination.Metadata().TelemetryName(), "logs") {
+			sourceTag = "logs"
+		} else {
+			sourceTag = "epforwarder"
+		}
 		metrics.LogsSent.Add(p.Count())
-		metrics.TlmLogsSent.Add(float64(p.Count()))
+		metrics.TlmLogsSent.Add(float64(p.Count()), metrics.GetAgentIdentityTag(), sourceTag)
 		output <- p
 
 		inUse := float64(time.Since(startInUse) / time.Millisecond)

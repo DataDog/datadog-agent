@@ -29,8 +29,11 @@ var (
 	// LogsSent is the total number of sent logs.
 	LogsSent = expvar.Int{}
 	// TlmLogsSent is the total number of sent logs.
+	// The remote_agent tag identifies which agent sent the logs. Use GetAgentIdentityTag()
+	// to get the correct value for the current agent. This tag is used by COAT to partition
+	// log counts by agent type. The source tag distinguishes logs from epforwarder payloads.
 	TlmLogsSent = telemetryimpl.GetCompatComponent().NewCounter("logs", "sent",
-		nil, "Total number of sent logs")
+		[]string{"remote_agent", "source"}, "Total number of sent logs")
 	// DestinationErrors is the total number of network errors.
 	DestinationErrors = expvar.Int{}
 	// TlmDestinationErrors is the total number of network errors.
