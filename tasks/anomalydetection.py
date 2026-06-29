@@ -10,6 +10,7 @@ import re
 import shlex
 import shutil
 import time
+from dataclasses import dataclass
 
 from invoke import Exit, task
 
@@ -35,6 +36,29 @@ from tasks.libs.anomalydetection.eval import (
     random_component_combinations,
 )
 from tasks.libs.common.color import Color, color_message
+
+DEFAULT_DDEVAL_CONFIG_TEMPLATE = os.path.join(
+    os.path.dirname(__file__),
+    "anomalydetection",
+    "ddeval",
+    "observer-log-ad-experiment-config.json",
+)
+
+
+@dataclass(frozen=True)
+class _DDEvalOptions:
+    config_template: str
+    ddsource_dir: str
+    service: str
+    project: str
+    dataset: str
+    env: str
+    test_drive: str
+    jobs: int
+    max_attempts: int
+    limit: int
+    where_in: str
+
 
 # --- Build ---
 
@@ -656,17 +680,7 @@ def _run_bayesian_runs(
     scenarios: str,
     lock: str = "",
     eval_backend: str = "local",
-    ddeval_config_template: str = "",
-    ddeval_ddsource_dir: str = "",
-    ddeval_service: str = "eval_worker_observer_log_ad",
-    ddeval_project: str = "observer-log-ad",
-    ddeval_dataset: str = "observer-log-ad-gensim-store-working",
-    ddeval_env: str = "staging",
-    ddeval_test_drive: str = "observer-log-ad-ddeval-worker",
-    ddeval_jobs: int = 6,
-    ddeval_max_attempts: int = 1,
-    ddeval_limit: int = 0,
-    ddeval_where_in: str = "",
+    ddeval_options: _DDEvalOptions | None = None,
     run_logger: StepLogger | None = None,
     step_label_prefix: str = "",
 ) -> dict:
@@ -707,17 +721,7 @@ def _run_bayesian_runs(
             timeout=timeout,
             scenarios=scenarios,
             eval_backend=eval_backend,
-            ddeval_config_template=ddeval_config_template,
-            ddeval_ddsource_dir=ddeval_ddsource_dir,
-            ddeval_service=ddeval_service,
-            ddeval_project=ddeval_project,
-            ddeval_dataset=ddeval_dataset,
-            ddeval_env=ddeval_env,
-            ddeval_test_drive=ddeval_test_drive,
-            ddeval_jobs=ddeval_jobs,
-            ddeval_max_attempts=ddeval_max_attempts,
-            ddeval_limit=ddeval_limit,
-            ddeval_where_in=ddeval_where_in,
+            **_ddeval_options_kwargs(ddeval_options),
             _logger=trial_logger,
         )
 
@@ -896,35 +900,27 @@ def eval_bayesian(
     else:
         seed = random.randint(0, 2**32 - 1)
 
+    try:
+        eval_backend, ddeval_options = _resolve_ddeval_options(
+            eval_backend=eval_backend,
+            ddeval_config_template=ddeval_config_template,
+            ddeval_ddsource_dir=ddeval_ddsource_dir,
+            ddeval_service=ddeval_service,
+            ddeval_project=ddeval_project,
+            ddeval_dataset=ddeval_dataset,
+            ddeval_env=ddeval_env,
+            ddeval_test_drive=ddeval_test_drive,
+            ddeval_jobs=ddeval_jobs,
+            ddeval_max_attempts=ddeval_max_attempts,
+            ddeval_limit=ddeval_limit,
+            ddeval_where_in=ddeval_where_in,
+        )
+    except ValueError as e:
+        print(color_message(f"Error: {e}", Color.RED))
+        return
+
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
-
-    eval_backend = eval_backend.strip().lower()
-    if eval_backend not in {"local", "ddeval"}:
-        print(color_message(f"Error: unknown eval backend: {eval_backend}", Color.RED))
-        return
-
-    ddeval_config_template = (
-        ddeval_config_template
-        or os.environ.get("OBSERVER_LOG_AD_DDEVAL_CONFIG_TEMPLATE", "")
-        or "/private/tmp/observer-log-ad-bo-smoke-config.json"
-    )
-    ddeval_ddsource_dir = ddeval_ddsource_dir or os.environ.get("DDSOURCE_DIR") or os.environ.get("DD_SOURCE_DIR") or ""
-    if eval_backend == "ddeval":
-        if not ddeval_ddsource_dir:
-            print(
-                color_message(
-                    "Error: --ddeval-ddsource-dir or $DDSOURCE_DIR is required for --eval-backend=ddeval",
-                    Color.RED,
-                )
-            )
-            return
-        if not os.path.isdir(ddeval_ddsource_dir):
-            print(color_message(f"Error: dd-source directory not found: {ddeval_ddsource_dir}", Color.RED))
-            return
-        if not os.path.isfile(ddeval_config_template):
-            print(color_message(f"Error: ddeval config template not found: {ddeval_config_template}", Color.RED))
-            return
 
     if build and eval_backend == "local":
         build_testbench(ctx)
@@ -945,9 +941,9 @@ def eval_bayesian(
         print(color_message(f"  output_dir:  {output_dir}", Color.BLUE))
         print(color_message(f"  seed:        {seed}", Color.BLUE))
         print(color_message(f"  backend:     {eval_backend}", Color.BLUE))
-        if eval_backend == "ddeval":
-            print(color_message(f"  ddeval data: {ddeval_project}/{ddeval_dataset}", Color.BLUE))
-            print(color_message(f"  ddeval jobs: {ddeval_jobs}", Color.BLUE))
+        if ddeval_options:
+            print(color_message(f"  ddeval data: {ddeval_options.project}/{ddeval_options.dataset}", Color.BLUE))
+            print(color_message(f"  ddeval jobs: {ddeval_options.jobs}", Color.BLUE))
 
     completed_trials: list[dict] = []
     failed_trials: list[dict] = []
@@ -979,17 +975,7 @@ def eval_bayesian(
                     trial_config_path=config_path,
                     report_path=report_path,
                     trial_dir=trial_dir,
-                    config_template_path=ddeval_config_template,
-                    ddsource_dir=ddeval_ddsource_dir,
-                    service=ddeval_service,
-                    project=ddeval_project,
-                    dataset=ddeval_dataset,
-                    env=ddeval_env,
-                    test_drive=ddeval_test_drive,
-                    jobs=ddeval_jobs,
-                    max_attempts=ddeval_max_attempts,
-                    limit=ddeval_limit,
-                    where_in=ddeval_where_in,
+                    options=ddeval_options,
                     logger=trial_logger,
                 )
             else:
@@ -1101,29 +1087,90 @@ def eval_bayesian(
     return final_report
 
 
+def _resolve_ddeval_options(
+    *,
+    eval_backend: str,
+    ddeval_config_template: str,
+    ddeval_ddsource_dir: str,
+    ddeval_service: str,
+    ddeval_project: str,
+    ddeval_dataset: str,
+    ddeval_env: str,
+    ddeval_test_drive: str,
+    ddeval_jobs: int,
+    ddeval_max_attempts: int,
+    ddeval_limit: int,
+    ddeval_where_in: str,
+) -> tuple[str, _DDEvalOptions | None]:
+    eval_backend = eval_backend.strip().lower()
+    if eval_backend not in {"local", "ddeval"}:
+        raise ValueError(f"unknown eval backend: {eval_backend}")
+    if eval_backend == "local":
+        return eval_backend, None
+
+    config_template = (
+        ddeval_config_template
+        or os.environ.get("OBSERVER_LOG_AD_DDEVAL_CONFIG_TEMPLATE", "")
+        or DEFAULT_DDEVAL_CONFIG_TEMPLATE
+    )
+    ddsource_dir = ddeval_ddsource_dir or os.environ.get("DDSOURCE_DIR") or os.environ.get("DD_SOURCE_DIR") or ""
+
+    if not ddsource_dir:
+        raise ValueError("--ddeval-ddsource-dir or $DDSOURCE_DIR is required for --eval-backend=ddeval")
+    if not os.path.isdir(ddsource_dir):
+        raise ValueError(f"dd-source directory not found: {ddsource_dir}")
+    if not os.path.isfile(config_template):
+        raise ValueError(f"ddeval config template not found: {config_template}")
+
+    return eval_backend, _DDEvalOptions(
+        config_template=config_template,
+        ddsource_dir=ddsource_dir,
+        service=ddeval_service,
+        project=ddeval_project,
+        dataset=ddeval_dataset,
+        env=ddeval_env,
+        test_drive=ddeval_test_drive,
+        jobs=ddeval_jobs,
+        max_attempts=ddeval_max_attempts,
+        limit=ddeval_limit,
+        where_in=ddeval_where_in,
+    )
+
+
+def _ddeval_options_kwargs(options: _DDEvalOptions | None) -> dict[str, object]:
+    if options is None:
+        return {}
+    return {
+        "ddeval_config_template": options.config_template,
+        "ddeval_ddsource_dir": options.ddsource_dir,
+        "ddeval_service": options.service,
+        "ddeval_project": options.project,
+        "ddeval_dataset": options.dataset,
+        "ddeval_env": options.env,
+        "ddeval_test_drive": options.test_drive,
+        "ddeval_jobs": options.jobs,
+        "ddeval_max_attempts": options.max_attempts,
+        "ddeval_limit": options.limit,
+        "ddeval_where_in": options.where_in,
+    }
+
+
 def _run_ddeval_trial(
     ctx,
     *,
     trial_config_path: str,
     report_path: str,
     trial_dir: str,
-    config_template_path: str,
-    ddsource_dir: str,
-    service: str,
-    project: str,
-    dataset: str,
-    env: str,
-    test_drive: str,
-    jobs: int,
-    max_attempts: int,
-    limit: int,
-    where_in: str,
+    options: _DDEvalOptions | None,
     logger: StepLogger,
 ) -> dict[str, object]:
     """Run one Optuna trial through the remote ddeval workflow and return a local report."""
+    if options is None:
+        raise RuntimeError("ddeval options were not resolved")
+
     with open(trial_config_path) as f:
         trial_config = json.load(f)
-    with open(config_template_path) as f:
+    with open(options.config_template) as f:
         experiment_config = json.load(f)
 
     input_parameters = dict(experiment_config.get("input_parameters") or {})
@@ -1142,16 +1189,7 @@ def _run_ddeval_trial(
     result_log_path = os.path.join(trial_dir, "ddeval-workflow.log")
     cmd = _ddeval_workflow_command(
         config_path=trial_experiment_config_path,
-        ddsource_dir=ddsource_dir,
-        service=service,
-        project=project,
-        dataset=dataset,
-        env=env,
-        test_drive=test_drive,
-        jobs=jobs,
-        max_attempts=max_attempts,
-        limit=limit,
-        where_in=where_in,
+        options=options,
     )
     logger.detail(f"ddeval config: {trial_experiment_config_path}")
     logger.detail(f"ddeval log: {result_log_path}")
@@ -1214,33 +1252,25 @@ def _run_ddeval_trial(
 def _ddeval_workflow_command(
     *,
     config_path: str,
-    ddsource_dir: str,
-    service: str,
-    project: str,
-    dataset: str,
-    env: str,
-    test_drive: str,
-    jobs: int,
-    max_attempts: int,
-    limit: int,
-    where_in: str,
+    options: _DDEvalOptions,
 ) -> str:
     parts = [
-        f"cd {shlex.quote(ddsource_dir)}",
-        "printf 'y\\n' | bzl run //domains/ai_platform/shared/libs/ddeval/cli:ddeval -- workflow run",
-        f"-s {shlex.quote(service)}",
-        f"-p {shlex.quote(project)}",
-        f"-d {shlex.quote(dataset)}",
-        f"--env {shlex.quote(env)}",
-        f"--workflow-test-drive {shlex.quote(test_drive)}",
+        f"cd {shlex.quote(options.ddsource_dir)}",
+        "bzl run //domains/ai_platform/shared/libs/ddeval/cli:ddeval -- workflow run",
+        f"-s {shlex.quote(options.service)}",
+        f"-p {shlex.quote(options.project)}",
+        f"-d {shlex.quote(options.dataset)}",
+        f"--env {shlex.quote(options.env)}",
+        f"--workflow-test-drive {shlex.quote(options.test_drive)}",
         f"-f {shlex.quote(config_path)}",
-        f"-j {int(jobs)}",
-        f"--max-attempts {int(max_attempts)}",
+        f"-j {int(options.jobs)}",
+        f"--max-attempts {int(options.max_attempts)}",
+        "--yes",
     ]
-    if limit:
-        parts.append(f"--limit {int(limit)}")
-    if where_in:
-        parts.append(f"--where-in {shlex.quote(where_in)}")
+    if options.limit:
+        parts.append(f"--limit {int(options.limit)}")
+    if options.where_in:
+        parts.append(f"--where-in {shlex.quote(options.where_in)}")
     return " && ".join([parts[0], " ".join(parts[1:])])
 
 
@@ -1367,12 +1397,23 @@ def eval_pipeline(
         dda inv --dep optuna anomalydetection.eval-pipeline --force-disable cusum,scanwelch
         dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval --n-combos 3 --n-trials-search 2 --n-trials-tune 3
     """
-    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
-        return
-
-    eval_backend = eval_backend.strip().lower()
-    if eval_backend not in {"local", "ddeval"}:
-        print(color_message(f"Error: unknown eval backend: {eval_backend}", Color.RED))
+    try:
+        eval_backend, ddeval_options = _resolve_ddeval_options(
+            eval_backend=eval_backend,
+            ddeval_config_template=ddeval_config_template,
+            ddeval_ddsource_dir=ddeval_ddsource_dir,
+            ddeval_service=ddeval_service,
+            ddeval_project=ddeval_project,
+            ddeval_dataset=ddeval_dataset,
+            ddeval_env=ddeval_env,
+            ddeval_test_drive=ddeval_test_drive,
+            ddeval_jobs=ddeval_jobs,
+            ddeval_max_attempts=ddeval_max_attempts,
+            ddeval_limit=ddeval_limit,
+            ddeval_where_in=ddeval_where_in,
+        )
+    except ValueError as e:
+        print(color_message(f"Error: {e}", Color.RED))
         return
 
     if seed is not None:
@@ -1388,6 +1429,9 @@ def eval_pipeline(
     unknown = set(force_enable_list + force_disable_list) - set(all_known)
     if unknown:
         print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
+        return
+
+    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
     full_combo = _full_stack_combo(force_disable=force_disable_list)
@@ -1477,17 +1521,7 @@ def eval_pipeline(
             timeout=timeout,
             scenarios=scenarios,
             eval_backend=eval_backend,
-            ddeval_config_template=ddeval_config_template,
-            ddeval_ddsource_dir=ddeval_ddsource_dir,
-            ddeval_service=ddeval_service,
-            ddeval_project=ddeval_project,
-            ddeval_dataset=ddeval_dataset,
-            ddeval_env=ddeval_env,
-            ddeval_test_drive=ddeval_test_drive,
-            ddeval_jobs=ddeval_jobs,
-            ddeval_max_attempts=ddeval_max_attempts,
-            ddeval_limit=ddeval_limit,
-            ddeval_where_in=ddeval_where_in,
+            ddeval_options=ddeval_options,
             run_logger=run_logger,
             step_label_prefix=combo_label,
         )
@@ -1547,17 +1581,7 @@ def eval_pipeline(
         timeout=timeout,
         scenarios=scenarios,
         eval_backend=eval_backend,
-        ddeval_config_template=ddeval_config_template,
-        ddeval_ddsource_dir=ddeval_ddsource_dir,
-        ddeval_service=ddeval_service,
-        ddeval_project=ddeval_project,
-        ddeval_dataset=ddeval_dataset,
-        ddeval_env=ddeval_env,
-        ddeval_test_drive=ddeval_test_drive,
-        ddeval_jobs=ddeval_jobs,
-        ddeval_max_attempts=ddeval_max_attempts,
-        ddeval_limit=ddeval_limit,
-        ddeval_where_in=ddeval_where_in,
+        **_ddeval_options_kwargs(ddeval_options),
     )
 
     if not tune_result or tune_result.get("completed_trials", 0) == 0:

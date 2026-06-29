@@ -1,0 +1,31 @@
+{
+    "input_parameters": {
+        "eval_mode": "remote-simplebucket-s3-artifacts",
+        "campaign_id": "observer-log-ad-ddeval-ablation",
+        "testbench_config": {}
+    },
+    "executor_config": {
+        "binary_artifacts": {
+            "testbench": {
+                "s3_uri": "s3://observer-log-ad-eval-artifacts/observer-log-ad-binaries/69eae6f3f83/20260608T184310Z/linux-amd64/anomalydetection-testbench",
+                "filename": "anomalydetection-testbench"
+            },
+            "scorer": {
+                "s3_uri": "s3://observer-log-ad-eval-artifacts/observer-log-ad-binaries/69eae6f3f83/20260608T184310Z/linux-amd64/anomalydetection-scorer",
+                "filename": "anomalydetection-scorer"
+            }
+        },
+        "output_dir": "/tmp/observer-log-ad-ddeval",
+        "materialized_scenarios_dir": "/tmp/observer-log-ad-ddeval/scenarios",
+        "store_log_limit": null,
+        "store_page_size": 50000,
+        "store_rows_per_file": 50000,
+        "sigma": 30.0,
+        "build_binaries": false,
+        "logs_only": false,
+        "verbose": false,
+        "score_tp": false,
+        "score_timeout_as_zero": true
+    },
+    "evaluator_config": {}
+}
