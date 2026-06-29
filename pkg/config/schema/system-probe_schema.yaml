@@ -2711,6 +2711,11 @@ properties:
         node_type: setting
         type: string
         default: 60s
+      service_collection_batch_size:
+        node_type: setting
+        type: integer
+        default: 500
+        minimum: 0
       service_map:
         node_type: section
         type: object
