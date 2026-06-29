@@ -205,6 +205,8 @@ func (r *redisCollectorTestReader) Runtime() RuntimeType {
 	return RuntimeDocker
 }
 
+func (r *redisCollectorTestReader) Close() {}
+
 func (r *redisCollectorTestReader) ReadFile(_ context.Context, path string) (ConfigFile, error) {
 	r.readFileCalls = append(r.readFileCalls, path)
 	if r.readFileErr != nil {
