@@ -64,13 +64,10 @@ func (w *worker) run() {
 	for {
 		select {
 		case <-w.server.stopChan:
-			// On stop, optionally drain any still-queued packets and flush the
-			// batcher's pending samples into the time sampler before exiting.
-			// Gated by dogstatsd_flush_incomplete_buckets so that short-lived
-			// processes (serverless-init) report everything they have;
-			// long-running agents leave it off and simply exit. stop() waits on
-			// workerWg, so the drain and flush are guaranteed to complete before
-			// the demultiplexer is torn down.
+			// On stop, optionally drain still-queued packets and flush the
+			// batcher into the time sampler before exiting. Gated by
+			// dogstatsd_flush_incomplete_buckets; stop() waits on workerWg so
+			// the flush completes before the demultiplexer is torn down.
 			if w.server.config.GetBool("dogstatsd_flush_incomplete_buckets") {
 				w.drainAndFlush()
 			}
@@ -97,11 +94,7 @@ func (w *worker) handlePackets(ps packets.Packets) {
 }
 
 // drainAndFlush parses any packets still queued in packetsIn, then flushes the
-// batcher into the time sampler. Used on stop: stopping the listeners can leave
-// assembled packets in packetsIn, and the random select in run could otherwise
-// exit before they are parsed, dropping them. The listeners are already stopped
-// by the time stopChan is closed, so no new packets are produced and the
-// non-blocking drain terminates once the queue is empty.
+// batcher into the time sampler.
 func (w *worker) drainAndFlush() {
 	for {
 		select {
