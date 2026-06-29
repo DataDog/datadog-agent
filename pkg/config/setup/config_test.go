@@ -1704,6 +1704,7 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 		initialValue          bool
 		wantValue             bool
 		wantSource            pkgconfigmodel.Source
+		priorRuntimeLock      bool // simulate LoadDatadog lock before fleet merge
 	}{
 		{
 			name:         "linux preserves true",
@@ -1759,6 +1760,15 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
+			name:                  "windows clears runtime lock when procmgr enabled after fleet merge",
+			goos:                  "windows",
+			processManagerEnabled: boolPtr(true),
+			initialValue:          true,
+			wantValue:             true,
+			wantSource:            pkgconfigmodel.SourceFleetPolicies,
+			priorRuntimeLock:      true,
+		},
+		{
 			name:         "darwin preserves false",
 			goos:         "darwin",
 			initialValue: false,
@@ -1805,9 +1815,20 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := newTestConf(t)
+			if tt.priorRuntimeLock {
+				cfg.Set("process_manager.enabled", false, pkgconfigmodel.SourceFile)
+				cfg.Set("data_plane.enabled", tt.initialValue, pkgconfigmodel.SourceFleetPolicies)
+				sanitizeDataPlaneConfig(cfg, tt.goos, func(string) string { return "" })
+			}
 			cfg.Set("data_plane.enabled", tt.initialValue, pkgconfigmodel.SourceFile)
+			if tt.priorRuntimeLock {
+				cfg.Set("data_plane.enabled", tt.initialValue, pkgconfigmodel.SourceFleetPolicies)
+			}
 			if tt.processManagerEnabled != nil {
 				cfg.Set("process_manager.enabled", *tt.processManagerEnabled, pkgconfigmodel.SourceFile)
+				if tt.priorRuntimeLock {
+					cfg.Set("process_manager.enabled", *tt.processManagerEnabled, pkgconfigmodel.SourceFleetPolicies)
+				}
 			}
 
 			envLookup := func(key string) string {

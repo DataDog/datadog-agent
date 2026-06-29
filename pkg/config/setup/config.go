@@ -1191,6 +1191,12 @@ func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLooku
 		return
 	case goos == "windows":
 		if config.GetBool("process_manager.enabled") {
+			// LoadDatadog may have locked data_plane.enabled=false before fleet policies
+			// were merged; SourceAgentRuntime outranks SourceFleetPolicies, so clear the
+			// stale runtime override once process manager is enabled.
+			if config.GetSource(DataPlaneEnabled) == pkgconfigmodel.SourceAgentRuntime {
+				config.UnsetForSource(DataPlaneEnabled, pkgconfigmodel.SourceAgentRuntime)
+			}
 			return
 		}
 		if config.GetBool(DataPlaneEnabled) {
