@@ -60,6 +60,7 @@ go_test(
         "import_docker_test.go",
         "import_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":common"],
     gotags = ["test"],
     deps = [
