@@ -2707,6 +2707,13 @@ properties:
         type: integer
         default: 500
         minimum: 0
+      service_collection_min_process_age:
+        node_type: setting
+        type: string
+        default: 1m0s
+        format: duration
+        tags:
+        - golang_type:duration
       service_map:
         node_type: section
         type: object
