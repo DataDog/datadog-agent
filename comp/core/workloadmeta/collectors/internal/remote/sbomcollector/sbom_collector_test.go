@@ -693,8 +693,13 @@ func TestWorkloadmetaEventFromSBOMEventSet_FallsBackToRepoDigest(t *testing.T) {
 
 	got, ok := event.Entity.(*workloadmeta.ContainerImageMetadata)
 	require.True(t, ok)
-	// The event ID is the original (kubelet) image ID, not the config digest.
-	assert.Equal(t, repoDigest, got.ID)
+	// The enriched SBOM must be keyed by the resolved image entity's own
+	// (config-digest) ID, not the kubelet repo digest. Keying it by the repo
+	// digest would create a separate, metadata-less image entity that the SBOM
+	// check cannot ship; using the config digest lands it on the same entity the
+	// runtime collector populates so the two sources merge and the enriched SBOM
+	// is published.
+	assert.Equal(t, configDigest, got.ID)
 }
 
 func TestWorkloadmetaEventFromSBOMEventSet_PendingSBOMSkipped(t *testing.T) {

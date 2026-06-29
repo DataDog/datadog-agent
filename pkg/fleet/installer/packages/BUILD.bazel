@@ -66,6 +66,7 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/msi",
             "//pkg/fleet/installer/packages/exec",
+            "//pkg/fleet/installer/packages/processmanager",
             "//pkg/fleet/installer/packages/service/windows",
             "//pkg/fleet/installer/packages/ssi",
             "//pkg/fleet/installer/packages/user/windows",

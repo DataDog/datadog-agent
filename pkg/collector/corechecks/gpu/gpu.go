@@ -11,6 +11,7 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -54,6 +55,7 @@ type Check struct {
 	workloadTagCache   *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
 	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 	rateCalculator     *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
+	parallelCollectors bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
 }
 
 type checkTelemetry struct {
@@ -135,6 +137,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	c.disabledCollectors = pkgconfigsetup.Datadog().GetStringSlice("gpu.disabled_collectors")
 	for _, collectorName := range c.disabledCollectors {
 		log.Infof("Collector %s is disabled by configuration", collectorName)
+	}
+	c.parallelCollectors = pkgconfigsetup.Datadog().GetBool("gpu.parallel_collectors")
+	if c.parallelCollectors {
+		log.Infof("Enabled concurrent NVML collector collection")
 	}
 
 	if c.containerProvider == nil {
@@ -238,6 +244,18 @@ func (c *Check) Cancel() {
 	}
 
 	c.CheckBase.Cancel()
+}
+
+// Interval returns the scheduling interval for the check. When
+// gpu.collection_interval_override (DD_GPU_COLLECTION_INTERVAL_OVERRIDE) is set to
+// a positive number of seconds it overrides the cadence, taking precedence over
+// the instance's min_collection_interval. Otherwise the check falls back to the
+// instance's min_collection_interval / default.
+func (c *Check) Interval() time.Duration {
+	if iv := pkgconfigsetup.Datadog().GetInt("gpu.collection_interval_override"); iv > 0 {
+		return time.Duration(iv) * time.Second
+	}
+	return c.CheckBase.Interval()
 }
 
 // Run executes the check. Configure must have been called before and returned no errors, otherwise
@@ -349,6 +367,14 @@ type deviceMetricsCollection struct {
 	totalCount       int                                       // total number of metrics across all collectors
 }
 
+type collectorMetricsCollection struct {
+	name       nvidia.CollectorName
+	deviceUUID string
+	metrics    []*nvidia.Metric
+	err        error
+	duration   time.Duration
+}
+
 func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
@@ -357,31 +383,34 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 
 	perDeviceMetrics := make(map[string]*deviceMetricsCollection)
 
-	var multiErr []error
-	for _, collector := range c.collectors {
-		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
-		startTime := time.Now()
-		metrics, collectErr := collector.Collect()
-		collectTime := time.Since(startTime)
-		c.telemetry.collectorTelemetry.Time.Observe(float64(collectTime.Milliseconds()), string(collector.Name()))
+	var collectorResults []collectorMetricsCollection
+	if c.parallelCollectors {
+		collectorResults = collectMetrics(c.collectors)
+	} else {
+		collectorResults = collectMetricsSerial(c.collectors)
+	}
 
-		if collectErr != nil {
-			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, string(collector.Name()))
-			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
+	var multiErr []error
+	for _, collectorResult := range collectorResults {
+		c.telemetry.collectorTelemetry.Time.Observe(float64(collectorResult.duration.Milliseconds()), string(collectorResult.name))
+
+		if collectorResult.err != nil {
+			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, string(collectorResult.name))
+			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collectorResult.name, collectorResult.err))
 		}
 
-		if len(metrics) > 0 {
-			deviceUUID := collector.DeviceUUID()
+		if len(collectorResult.metrics) > 0 {
+			deviceUUID := collectorResult.deviceUUID
 			if perDeviceMetrics[deviceUUID] == nil {
 				perDeviceMetrics[deviceUUID] = &deviceMetricsCollection{
 					collectorMetrics: make(map[nvidia.CollectorName][]*nvidia.Metric),
 				}
 			}
-			perDeviceMetrics[deviceUUID].collectorMetrics[collector.Name()] = metrics
-			perDeviceMetrics[deviceUUID].totalCount += len(metrics)
+			perDeviceMetrics[deviceUUID].collectorMetrics[collectorResult.name] = collectorResult.metrics
+			perDeviceMetrics[deviceUUID].totalCount += len(collectorResult.metrics)
 		}
 
-		c.telemetry.metrics.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
+		c.telemetry.metrics.metricsSent.Add(float64(len(collectorResult.metrics)), string(collectorResult.name))
 	}
 
 	//iterate through devices to emit its metrics
@@ -403,6 +432,48 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 	}
 
 	return errors.Join(multiErr...)
+}
+
+func collectMetricsSerial(collectors []nvidia.Collector) []collectorMetricsCollection {
+	results := make([]collectorMetricsCollection, len(collectors))
+
+	for i, collector := range collectors {
+		results[i] = collectMetric(collector)
+	}
+
+	return results
+}
+
+func collectMetrics(collectors []nvidia.Collector) []collectorMetricsCollection {
+	results := make([]collectorMetricsCollection, len(collectors))
+
+	var wg sync.WaitGroup
+	wg.Add(len(collectors))
+	for i, collector := range collectors {
+		go func(i int, collector nvidia.Collector) {
+			defer wg.Done()
+			results[i] = collectMetric(collector)
+		}(i, collector)
+	}
+	wg.Wait()
+
+	return results
+}
+
+func collectMetric(collector nvidia.Collector) (result collectorMetricsCollection) {
+	defer func() {
+		if r := recover(); r != nil {
+			result.err = fmt.Errorf("collector panicked: %v", r)
+			log.Errorf("Recovered from panic in collector %s: %v", result.name, r)
+		}
+	}()
+	result.name = collector.Name()
+	log.Debugf("Collecting metrics from NVML collector: %s", result.name)
+	startTime := time.Now()
+	result.metrics, result.err = collector.Collect()
+	result.deviceUUID = collector.DeviceUUID()
+	result.duration = time.Since(startTime)
+	return
 }
 
 func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {

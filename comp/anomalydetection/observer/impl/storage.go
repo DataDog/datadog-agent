@@ -32,6 +32,21 @@ type StorageConfig struct {
 	// Points older than (latest timestamp - PointRetentionSecs) are trimmed
 	// on each Add. 0 disables trimming.
 	PointRetentionSecs int64
+
+	// MaxCorrelations caps how many unique correlation patterns are retained in
+	// the engine's accumulated-correlations map. 0 uses the built-in default
+	// (500). -1 disables the cap entirely (suitable for testbench replay where
+	// all patterns must be visible regardless of scenario length).
+	// Only meaningful when TrackCorrelationHistory is true.
+	MaxCorrelations int
+
+	// TrackCorrelationHistory enables the engine's accumulated-correlations map
+	// (accumulateCorrelations / AccumulatedCorrelations / CorrelationHistory).
+	// Default false — live production mode never reads this map, so the map
+	// write + eviction scan on every Advance is avoided. The testbench sets
+	// this to true alongside MaxCorrelations=-1 to retain the full history for
+	// replay analysis.
+	TrackCorrelationHistory bool
 }
 
 // DefaultStorageConfig returns the hard-coded production defaults.
@@ -40,6 +55,7 @@ func DefaultStorageConfig() StorageConfig {
 		MaxSeries:          storageMaxSeries,
 		EvictionFloorRatio: storageEvictionBandRatio,
 		PointRetentionSecs: storagePointRetentionSecs,
+		// TrackCorrelationHistory defaults to false: live agent incurs no overhead.
 	}
 }
 
