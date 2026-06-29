@@ -18,7 +18,7 @@ trace_agent_url: "http://127.0.0.1:8126"
 evp_proxy_api_version: 2
 
 # AI usage EVP intake subdomain header.
-ai_usage_evp_subdomain: "softinv-intake"
+ai_usage_evp_subdomain: "eudm-intake"
 
 # Standalone desktop monitoring settings. These are used only when the binary is
 # launched with --desktop-monitor; Chrome native messaging mode ignores them.
