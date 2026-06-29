@@ -4,16 +4,11 @@ go_library(
     name = "ad-misconfiguration",
     srcs = [
         "annotation_issue.go",
-        "annotation_module.go",
         "template_issue.go",
-        "template_module.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
-        "//comp/healthplatform/issues",
-        "//comp/healthplatform/runner/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//types/known/structpb",
     ],
