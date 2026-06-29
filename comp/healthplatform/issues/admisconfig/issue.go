@@ -17,7 +17,7 @@ const (
 	category   = "autodiscovery"
 	location   = "autodiscovery"
 	severity   = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
-	source     = "autodiscovery"
+	source     = Source
 	unknownVal = "unknown"
 	failedMsg  = "Autodiscovery misconfiguration error detected"
 	impactMsg  = "Metrics, and logs may not be collected due to misconfigured autodiscovery settings"

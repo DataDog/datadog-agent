@@ -93,7 +93,7 @@ func ignoreADTagsFromAnnotations(annotations map[string]string, prefix string) b
 // error on the given entity. The build and resolve paths must use the same id,
 // so both call this helper rather than inlining the string.
 func adAnnotationIssueID(entityName string) string {
-	return healthplatformdef.ADAnnotationIssueID + ":" + entityName
+	return admisconfig.AnnotationIssueID + ":" + entityName
 }
 
 // reportConfigurationError reports the AD configuration errors for an entity to
@@ -125,7 +125,7 @@ func reportConfigurationError(hp healthplatformdef.Component, entityName string,
 			Id:        issueID,
 			IssueName: admisconfig.IssueName,
 			Title:     "Autodiscovery Misconfiguration on '" + entityName + "'",
-			Source:    healthplatformdef.ADMisconfigurationSource,
+			Source:    admisconfig.Source,
 		}
 	} else {
 		issue.Id = issueID
