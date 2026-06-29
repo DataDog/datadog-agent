@@ -32,6 +32,6 @@ services:
         socketserver.TCPServer(("", 9090), Handler).serve_forever()
         EOF
     labels:
-      com.datadoghq.ad.identifiers: '["krakend"]'
+      com.datadoghq.ad.check.id: krakend
     expose:
       - "9090"
