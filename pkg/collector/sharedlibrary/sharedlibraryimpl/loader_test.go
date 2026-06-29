@@ -45,7 +45,7 @@ func TestLoad_FakeCheck(t *testing.T) {
 
 	assert.Equal(t, "fake_check", check.(*Check).name)
 	assert.Equal(t, "noop_version", check.(*Check).version)
-	assert.Equal(t, "fake_check:/path/to/conf/fake_check.yaml", check.(*Check).source)
+	assert.Equal(t, "fake_check:/path/to/conf/fake_check.yaml[1]", check.(*Check).source)
 
 	// Remove check finalizer that may trigger race condition while testing
 	runtime.SetFinalizer(check, nil)

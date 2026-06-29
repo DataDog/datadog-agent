@@ -26,7 +26,7 @@ var collectEUDMTagsFunc = collectEUDMHardwareTags
 // end_user_device infrastructure mode. Hardware/OS tags are only collected on
 // macOS and Windows to mirror the hostsysteminfo metadata gate.
 func getEUDMTags() []string {
-	tags := []string{"infrastructure_mode:" + infrastructureModeEndUserDevice}
+	tags := []string{"infra_mode:" + infrastructureModeEndUserDevice}
 	return append(tags, collectEUDMTagsFunc()...)
 }
 

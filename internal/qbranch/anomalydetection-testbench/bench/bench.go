@@ -511,11 +511,15 @@ func (m *parquetMetricView) GetRawTags() []string    { return m.tags }
 func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
 func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
 
-// unboundedStorageCfg returns a StorageConfig with no point-retention window,
-// so pre-loaded replay data stays in memory for the full replay run.
+// unboundedStorageCfg returns a StorageConfig for testbench replay:
+// no point-retention window (pre-loaded data stays in memory) and full
+// correlation history accumulation enabled (disabled in live mode to avoid
+// per-Advance overhead that production reporters never read).
 func unboundedStorageCfg() observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.PointRetentionSecs = 0
+	cfg.MaxCorrelations = -1           // unlimited — testbench must show all patterns
+	cfg.TrackCorrelationHistory = true // accumulate history for replay UI / output
 	return cfg
 }
 
