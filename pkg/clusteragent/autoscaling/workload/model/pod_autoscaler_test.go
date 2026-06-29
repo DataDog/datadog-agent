@@ -642,6 +642,93 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 		pai.UpdateFromProfile("high-cpu", template, targetRef, "hash1-v3", "")
 		assert.False(t, pai.IsBurstable())
 	})
+
+	t.Run("IsBurstable priority matrix", func(t *testing.T) {
+		specBurstable := func(v bool) *datadoghq.DatadogPodAutoscalerSpec {
+			return &datadoghq.DatadogPodAutoscalerSpec{
+				Options: &datadoghqcommon.DatadogPodAutoscalerOptions{Burstable: &v},
+			}
+		}
+		const burstableAnnot = `{"burstable":true}`
+		tests := []struct {
+			name  string
+			spec  *datadoghq.DatadogPodAutoscalerSpec
+			annot string
+			want  bool
+		}{
+			{"spec=true wins over annotation", specBurstable(true), burstableAnnot, true},
+			{"spec=false wins over annotation", specBurstable(false), burstableAnnot, false},
+			{"annotation enables when no spec", nil, burstableAnnot, true},
+			{"no spec, no annotation defaults to false", nil, "", false},
+			{"spec.Options without Burstable falls back to annotation", &datadoghq.DatadogPodAutoscalerSpec{Options: &datadoghqcommon.DatadogPodAutoscalerOptions{}}, burstableAnnot, true},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				pai := FakePodAutoscalerInternal{
+					Namespace:            "ns",
+					Name:                 "name",
+					Spec:                 tt.spec,
+					PreviewAnnotationKey: tt.annot,
+				}.Build()
+				assert.Equal(t, tt.want, pai.IsBurstable())
+			})
+		}
+	})
+
+	t.Run("BuildStatus options.burstable from spec", func(t *testing.T) {
+		burstable := true
+		pai := FakePodAutoscalerInternal{
+			Namespace: "ns",
+			Name:      "name",
+			Spec: &datadoghq.DatadogPodAutoscalerSpec{
+				Options: &datadoghqcommon.DatadogPodAutoscalerOptions{
+					Burstable: &burstable,
+				},
+			},
+		}.Build()
+		status := pai.BuildStatus(metav1.Now(), nil)
+		require.NotNil(t, status.Options)
+		require.NotNil(t, status.Options.Burstable)
+		assert.True(t, *status.Options.Burstable)
+	})
+
+	t.Run("BuildStatus options.burstable=false from spec is reported", func(t *testing.T) {
+		burstable := false
+		pai := FakePodAutoscalerInternal{
+			Namespace: "ns",
+			Name:      "name",
+			Spec: &datadoghq.DatadogPodAutoscalerSpec{
+				Options: &datadoghqcommon.DatadogPodAutoscalerOptions{
+					Burstable: &burstable,
+				},
+			},
+		}.Build()
+		status := pai.BuildStatus(metav1.Now(), nil)
+		require.NotNil(t, status.Options)
+		require.NotNil(t, status.Options.Burstable)
+		assert.False(t, *status.Options.Burstable)
+	})
+
+	t.Run("BuildStatus options.burstable from annotation", func(t *testing.T) {
+		pai := FakePodAutoscalerInternal{
+			Namespace:            "ns",
+			Name:                 "name",
+			PreviewAnnotationKey: `{"burstable":true}`,
+		}.Build()
+		status := pai.BuildStatus(metav1.Now(), nil)
+		require.NotNil(t, status.Options)
+		require.NotNil(t, status.Options.Burstable)
+		assert.True(t, *status.Options.Burstable)
+	})
+
+	t.Run("BuildStatus options nil when burstable not set", func(t *testing.T) {
+		pai := FakePodAutoscalerInternal{
+			Namespace: "ns",
+			Name:      "name",
+		}.Build()
+		status := pai.BuildStatus(metav1.Now(), nil)
+		assert.Nil(t, status.Options)
+	})
 }
 
 func TestContainerResourcesForStatus(t *testing.T) {
@@ -842,7 +929,8 @@ func TestContainerResourcesForStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := containerResourcesForStatus(tt.input)
+			v := &VerticalScalingValues{ContainerResources: tt.input}
+			got := v.ContainerResourcesForStatus()
 			assert.Equal(t, tt.expected, got)
 		})
 	}
@@ -874,4 +962,44 @@ func TestUpdateFromPodAutoscalerResyncsOnWatchedMetadata(t *testing.T) {
 	dpa.Annotations["unrelated"] = "x"
 	pai.UpdateFromPodAutoscaler(dpa)
 	assert.True(t, pai.IsBurstable())
+
+	// A tags annotation-only edit (no generation bump) must refresh the cached upstream CR.
+	dpa.Annotations["ad.datadoghq.com/tags"] = `{"team":"foo"}`
+	pai.UpdateFromPodAutoscaler(dpa)
+	assert.Equal(t, `{"team":"foo"}`, pai.UpstreamCR().Annotations["ad.datadoghq.com/tags"],
+		"ad.datadoghq.com/tags edit must be picked up without a generation bump")
+}
+
+// TestSetActiveScalingValues_NilSource_ClearsVertical verifies that a nil verticalActiveSource
+// (no backend recommendation yet) sets scalingValues.Vertical to nil instead of self-assigning
+// the previously-constrained value.  Self-assigning propagates the burstable sentinel, which
+// causes applyVerticalConstraints(burstable=false) to early-return and suppress the rollout.
+func TestSetActiveScalingValues_NilSource_ClearsVertical(t *testing.T) {
+	// Simulate a sentinel-containing constrained recommendation (from a previous burstable=true cycle).
+	constrainedRec := &VerticalScalingValues{
+		ResourcesHash: "burstable-hash",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{{
+			Name:   "app",
+			Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("-1")},
+		}},
+	}
+
+	// mainScalingValues.Vertical is nil (no backend recommendation yet).
+	pai := FakePodAutoscalerInternal{
+		Namespace: "ns",
+		Name:      "dpa",
+		// scalingValues carries the sentinel from the previous burstable cycle.
+		ScalingValues: ScalingValues{Vertical: constrainedRec},
+	}.Build()
+
+	// SetActiveScalingValues with nil verticalActiveSource.
+	pai.SetActiveScalingValues(time.Now(), nil, nil)
+
+	// scalingValues.Vertical must be nil — not the sentinel-containing constrained value.
+	// sync() will exit early (no recommendation), preventing a phantom rolloutDecisionComplete.
+	got := pai.ScalingValues().Vertical
+	assert.Nil(t, got,
+		"SetActiveScalingValues(nil source) must set scalingValues.Vertical to nil, not "+
+			"self-assign the sentinel-containing constrained value; the sentinel would cause "+
+			"applyVerticalConstraints(burstable=false) to early-return and suppress the rollout")
 }

@@ -196,7 +196,7 @@ go_e2e_test_binaries:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
     - pushd test/new-e2e
-    - go install github.com/DataDog/orchestrion@v1.4.0
+    - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
@@ -269,7 +269,8 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --run "TestK8S(CEL|Legacy)FilteringSuite"
-      - EXTRA_PARAMS: --skip "Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
+      - EXTRA_PARAMS: --run TestDDIAutodiscoverySuite
+      - EXTRA_PARAMS: --skip "Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering|DDIAutodiscovery)Suite"
 
 new-e2e-containers-k8s-latest:
   extends:
@@ -281,7 +282,7 @@ new-e2e-containers-k8s-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.35.1@sha256:05d7bcdefbda08b4e038f644c4df690cdac3fba8b06f8289f30e10026720a1ab"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"
 
 new-e2e-containers-eks-init:
   stage: e2e_init
@@ -670,6 +671,9 @@ new-e2e-sbom:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
+      - EXTRA_PARAMS: --run "TestSBOMKubeadmSuite"
+      - EXTRA_PARAMS: --run "TestSBOMKubeadmCrioSuite"
+      - EXTRA_PARAMS: --run "TestSBOMDockerHostSuite"
 
 new-e2e-usm:
   extends: .new_e2e_template
@@ -801,20 +805,46 @@ new-e2e-apm:
     MAX_RETRIES_FLAG: "--max-retries=3"
     TARGETS: ./tests/fleet
 
+# Fleet e2e jobs are split by platform group (linux/windows) via E2E_FLEET_PLATFORM_GROUP.
+# Linux platforms are fast, so all their tests run in a single job. Windows is the
+# wall-clock bottleneck (slow MSI install/uninstall on every test), so each Windows
+# suite's test methods are sharded across two jobs (two VMs per platform) to roughly
+# halve its duration. Shard 1 runs an explicit subset; shard 2 runs the complement
+# (whole suite minus shard 1), so any newly added test still runs on Windows via shard 2.
 new-e2e-fleet-config:
   extends: .new_e2e_fleet_template
-  variables:
-    EXTRA_PARAMS: --run TestFleetConfig
+  parallel:
+    matrix:
+      - E2E_FLEET_PLATFORM_GROUP: linux
+        EXTRA_PARAMS: --run "TestFleetConfig$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetConfig$" --skip "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
 
 new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
-  variables:
-    EXTRA_PARAMS: --run TestFleetUpgrade|TestFleetIntegrationPreservation
+  parallel:
+    matrix:
+      # TestFleetIntegrationPreservation is a separate Linux-only suite (provisions no
+      # Windows VMs), so it runs alongside TestFleetUpgrade only in the linux entry.
+      - E2E_FLEET_PLATFORM_GROUP: linux
+        EXTRA_PARAMS: --run "TestFleetUpgrade$|TestFleetIntegrationPreservation$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetUpgrade$" --skip "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
 
 new-e2e-fleet-extensions:
   extends: .new_e2e_fleet_template
-  variables:
-    EXTRA_PARAMS: --run TestFleetExtensions
+  parallel:
+    matrix:
+      - E2E_FLEET_PLATFORM_GROUP: linux
+        EXTRA_PARAMS: --run "TestFleetExtensions$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
+      - E2E_FLEET_PLATFORM_GROUP: windows
+        EXTRA_PARAMS: --run "TestFleetExtensions$" --skip "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
 
 new-e2e-installer-script:
   extends: .new_e2e_template
@@ -1148,7 +1178,7 @@ new-e2e-ssi-aks:
     E2E_STACK_NAME_SUFFIX: aks
     # Image volume is not supported on AKS in our current test setup.
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
-    
+
 new-e2e-ssi-gradual-rollout:
   extends: .new_e2e_template
   rules:
@@ -1222,7 +1252,7 @@ new-e2e-gpu:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/gpu # the target path where tests are
-    TEAM: ebpf-platform
+    TEAM: gpu-monitoring-agent
     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
     ON_NIGHTLY_FIPS: "true"
   needs: # list of required jobs. By default gitlab waits for any previous jobs.

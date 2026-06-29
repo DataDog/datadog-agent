@@ -94,6 +94,12 @@ type CommonTypes struct {
 	G *StructureType
 	// M corresponds to runtime.m, non-nil
 	M *StructureType
+	// Panic corresponds to runtime._panic. Nil if the type wasn't found
+	// in the binary's DWARF (e.g. stripped runtime, exotic toolchain).
+	// Loader treats absence as a signal to not attach the runtime.recovery
+	// probe; the rest of dyninst keeps working without panic-unwind
+	// handling.
+	Panic *StructureType
 }
 
 // InlinePCRanges represent the pc ranges for a single instance of an inlined subprogram.

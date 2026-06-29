@@ -280,7 +280,7 @@ properties:
           type: string
       expected_tags_duration:
         node_type: setting
-        type: number
+        type: string
         default: 30m0s
         env_vars:
         - DD_SYSTEM_PROBE_EXPECTED_TAGS_DURATION
@@ -320,7 +320,7 @@ properties:
             default: 0
           cpu_duration:
             node_type: setting
-            type: number
+            type: string
             default: 1m0s
             env_vars:
             - DD_SYSTEM_PROBE_INTERNAL_PROFILING_CPU_DURATION
@@ -378,7 +378,7 @@ properties:
             default: 0
           period:
             node_type: setting
-            type: number
+            type: string
             default: 5m0s
             env_vars:
             - DD_SYSTEM_PROBE_INTERNAL_PROFILING_PERIOD
@@ -511,7 +511,7 @@ properties:
       remote_config_btf_enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
         env_vars:
         - DD_SYSTEM_PROBE_REMOTE_CONFIG_BTF_ENABLED
         tags: []
@@ -580,6 +580,8 @@ properties:
     properties:
       enabled:
         node_type: setting
+        type: boolean
+        default: false
         env_vars:
         - DD_SYSTEM_PROBE_NETWORK_ENABLED
         visibility: public
@@ -588,10 +590,7 @@ properties:
 
           Please note that enabling the Network Module, on Windows, of the System
           Probe will result in a kernel driver being loaded.
-        example: 'false'
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        tags: []
       dns_monitoring_ports:
         node_type: setting
         type: array
@@ -609,7 +608,7 @@ properties:
         default: true
       cert_collection_map_cleaner_interval:
         node_type: setting
-        type: number
+        type: string
         default: 30s
         format: duration
         tags:
@@ -652,7 +651,7 @@ properties:
         - no-env
       conntrack_init_timeout:
         node_type: setting
-        type: number
+        type: string
         default: 10s
         format: duration
         tags:
@@ -721,11 +720,11 @@ properties:
         tags: []
       enable_https_monitoring:
         node_type: setting
+        type: boolean
+        default: false
         env_vars:
         - DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        tags: []
       enable_protocol_classification:
         node_type: setting
         type: boolean
@@ -765,13 +764,16 @@ properties:
         default: 512
       http_replace_rules:
         node_type: setting
+        type: array
+        default: []
         env_vars:
         - DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES
         env_parser: json
-        tags:
-        - golang_type:nil
-        - TODO:fix-missing-type
-        - TODO:fix-no-default
+        items:
+          additionalProperties:
+            type: string
+          type: object
+        tags: []
       ignore_conntrack_init_failure:
         node_type: setting
         type: boolean
@@ -844,18 +846,16 @@ properties:
         default: true
       enable_connection_rollup:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: boolean
+        default: false
       enable_event_stream:
         node_type: setting
         type: boolean
         default: true
       enable_go_tls_support:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: boolean
+        default: false
       enable_http2_monitoring:
         node_type: setting
         type: boolean
@@ -870,9 +870,8 @@ properties:
         default: false
       enable_quantization:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: boolean
+        default: false
       enable_ring_buffers:
         node_type: setting
         type: boolean
@@ -911,11 +910,13 @@ properties:
             default: 512
           replace_rules:
             node_type: setting
+            type: array
+            default: []
             env_parser: json
-            tags:
-            - golang_type:nil
-            - TODO:fix-missing-type
-            - TODO:fix-no-default
+            items:
+              additionalProperties:
+                type: string
+              type: object
           use_direct_consumer:
             node_type: setting
             type: boolean
@@ -954,11 +955,13 @@ properties:
         default: 512
       http_replace_rules:
         node_type: setting
+        type: array
+        default: []
         env_parser: json
-        tags:
-        - golang_type:nil
-        - TODO:fix-missing-type
-        - TODO:fix-no-default
+        items:
+          additionalProperties:
+            type: string
+          type: object
       kafka:
         node_type: section
         type: object
@@ -977,9 +980,8 @@ properties:
         default: 16
       max_concurrent_requests:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: integer
+        default: 0
       max_http_stats_buffered:
         node_type: setting
         type: integer
@@ -1014,18 +1016,18 @@ properties:
         properties:
           enabled:
             node_type: setting
+            type: boolean
+            default: false
             env_vars:
             - DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            tags: []
           use_windows_service_name:
             node_type: setting
+            type: boolean
+            default: false
             env_vars:
             - DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            tags: []
       redis:
         node_type: section
         type: object
@@ -1084,9 +1086,8 @@ properties:
             properties:
               enabled:
                 node_type: setting
-                tags:
-                - TODO:fix-no-default
-                - TODO:fix-missing-type
+                type: boolean
+                default: false
   ping:
     node_type: section
     title: System Probe Ping Configuration
@@ -1234,9 +1235,8 @@ properties:
             default: false
           cgroup_dump_timeout:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: integer
+            default: 900
           cgroup_wait_list_timeout:
             node_type: setting
             type: string
@@ -1848,6 +1848,10 @@ properties:
                 default: []
                 items:
                   type: string
+              max_dump_size:
+                node_type: setting
+                type: integer
+                default: 5120
           watch_dir:
             node_type: setting
             type: boolean
@@ -2427,12 +2431,12 @@ properties:
             tags: []
           max_processes_tracked:
             node_type: setting
+            type: integer
+            default: 1024
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_NETWORK_PROCESS_MAX_PROCESSES_TRACKED
             - DD_RUNTIME_SECURITY_CONFIG_NETWORK_PROCESS_MAX_PROCESSES_TRACKED
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            tags: []
       pid_cache_size:
         node_type: setting
         type: integer
@@ -2493,6 +2497,125 @@ properties:
             - DD_EVENT_MONITORING_CONFIG_SYSCALLS_MONITOR_ENABLED
             - DD_RUNTIME_SECURITY_CONFIG_SYSCALLS_MONITOR_ENABLED
             tags: []
+  gpu_monitoring:
+    node_type: section
+    title: System Probe GPU Monitoring module
+    type: object
+    visibility: public
+    description: |-
+      Configuration for the GPU Monitoring module, which uses eBPF probes to collect
+      per-process GPU metrics on Linux hosts (kernel 5.8+).
+      Required for GPU monitoring on non-containerized Linux hosts alongside
+      gpu.enabled: true in datadog.yaml.
+    tags: []
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to enable the GPU Monitoring module. This loads the eBPF programs
+          that collect per-process GPU utilization, memory, and performance metrics.
+          Must be used together with gpu.enabled: true in datadog.yaml.
+        tags: []
+      attacher_detailed_logs:
+        node_type: setting
+        type: boolean
+        default: false
+      cgroup_reapply_infinitely:
+        node_type: setting
+        type: boolean
+        default: false
+      cgroup_reapply_interval:
+        node_type: setting
+        type: string
+        default: 30s
+        format: duration
+        tags:
+        - golang_type:duration
+      configure_cgroup_perms:
+        node_type: setting
+        type: boolean
+        default: false
+      device_cache_refresh_interval:
+        node_type: setting
+        type: string
+        default: 5s
+        format: duration
+        tags:
+        - golang_type:duration
+      enable_ebpf_probes:
+        node_type: setting
+        type: boolean
+        default: true
+      enable_fatbin_parsing:
+        node_type: setting
+        type: boolean
+        default: false
+      fatbin_request_queue_size:
+        node_type: setting
+        type: integer
+        default: 100
+      initial_process_sync:
+        node_type: setting
+        type: boolean
+        default: true
+      nvml_lib_path:
+        node_type: setting
+        type: string
+        default: ''
+      prm_endpoint_enabled:
+        node_type: setting
+        type: boolean
+        default: true
+      process_scan_interval_seconds:
+        node_type: setting
+        type: integer
+        default: 5
+      ring_buffer_pages_per_device:
+        node_type: setting
+        type: integer
+        default: 32
+      ringbuffer_flush_interval:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        tags:
+        - golang_type:duration
+      ringbuffer_wakeup_size:
+        node_type: setting
+        type: integer
+        default: 3000
+      streams:
+        node_type: section
+        type: object
+        properties:
+          max_active:
+            node_type: setting
+            type: integer
+            default: 100
+          max_kernel_launches:
+            node_type: setting
+            type: integer
+            default: 1000
+          max_mem_alloc_events:
+            node_type: setting
+            type: integer
+            default: 1000
+          max_pending_kernel_spans:
+            node_type: setting
+            type: integer
+            default: 1000
+          max_pending_memory_spans:
+            node_type: setting
+            type: integer
+            default: 1000
+          timeout_seconds:
+            node_type: setting
+            type: integer
+            default: 30
   windows_crash_detection:
     node_type: section
     title: Datadog Agent Windows Crash Detection module
@@ -2535,9 +2658,8 @@ properties:
         default: 60
   bind_host:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: localhost
   ccm_network_config:
     node_type: section
     type: object
@@ -2614,14 +2736,14 @@ properties:
             - golang_type:float64
           interrupt_overhead:
             node_type: setting
-            type: number
+            type: string
             default: "2\xB5s"
             format: duration
             tags:
             - golang_type:duration
           interval:
             node_type: setting
-            type: number
+            type: string
             default: 1s
             format: duration
             tags:
@@ -2738,124 +2860,12 @@ properties:
         default: false
   fleet_policies_dir:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
   go_core_dump:
     node_type: setting
     type: boolean
     default: false
-  gpu_monitoring:
-    node_type: section
-    type: object
-    title: System Probe GPU Monitoring module
-    description: |-
-      Configuration for the GPU Monitoring module, which uses eBPF probes to collect
-      per-process GPU metrics on Linux hosts (kernel 5.8+).
-      Required for GPU monitoring on non-containerized Linux hosts alongside
-      gpu.enabled: true in datadog.yaml.
-    properties:
-      attacher_detailed_logs:
-        node_type: setting
-        type: boolean
-        default: false
-      cgroup_reapply_infinitely:
-        node_type: setting
-        type: boolean
-        default: false
-      cgroup_reapply_interval:
-        node_type: setting
-        type: number
-        default: 30s
-        format: duration
-        tags:
-        - golang_type:duration
-      configure_cgroup_perms:
-        node_type: setting
-        type: boolean
-        default: false
-      device_cache_refresh_interval:
-        node_type: setting
-        type: number
-        default: 5s
-        format: duration
-        tags:
-        - golang_type:duration
-      enable_ebpf_probes:
-        node_type: setting
-        type: boolean
-        default: true
-      enable_fatbin_parsing:
-        node_type: setting
-        type: boolean
-        default: false
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
-      fatbin_request_queue_size:
-        node_type: setting
-        type: integer
-        default: 100
-      initial_process_sync:
-        node_type: setting
-        type: boolean
-        default: true
-      nvml_lib_path:
-        node_type: setting
-        type: string
-        default: ''
-      prm_endpoint_enabled:
-        node_type: setting
-        type: boolean
-        default: true
-      process_scan_interval_seconds:
-        node_type: setting
-        type: integer
-        default: 5
-      ring_buffer_pages_per_device:
-        node_type: setting
-        type: integer
-        default: 32
-      ringbuffer_flush_interval:
-        node_type: setting
-        type: number
-        default: 1s
-        format: duration
-        tags:
-        - golang_type:duration
-      ringbuffer_wakeup_size:
-        node_type: setting
-        type: integer
-        default: 3000
-      streams:
-        node_type: section
-        type: object
-        properties:
-          max_active:
-            node_type: setting
-            type: integer
-            default: 100
-          max_kernel_launches:
-            node_type: setting
-            type: integer
-            default: 1000
-          max_mem_alloc_events:
-            node_type: setting
-            type: integer
-            default: 1000
-          max_pending_kernel_spans:
-            node_type: setting
-            type: integer
-            default: 1000
-          max_pending_memory_spans:
-            node_type: setting
-            type: integer
-            default: 1000
-          timeout_seconds:
-            node_type: setting
-            type: integer
-            default: 30
   ignore_host_etc:
     node_type: setting
     type: boolean

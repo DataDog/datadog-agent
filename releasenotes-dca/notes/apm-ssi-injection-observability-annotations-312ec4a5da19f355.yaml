@@ -1,0 +1,30 @@
+---
+features:
+  - |
+    The admission webhook now writes a set of APM Single Step Instrumentation
+    (SSI) observability annotations directly on mutated pods, making the full
+    injection outcome inspectable via ``kubectl get pod -o yaml`` without
+    requiring cluster-level access.
+
+    New annotations written by the webhook:
+
+    - ``internal.apm.datadoghq.com/injection-status``: overall outcome —
+      ``injected``, ``partial``, ``skipped``, or ``error``.
+    - ``internal.apm.datadoghq.com/injected-libraries``: JSON array listing
+      every component the webhook attempted to inject (injector + per-language
+      libraries), each with its name, image, and individual status.
+    - ``internal.apm.datadoghq.com/effective-injection-mode``: the injection
+      mode actually used (e.g. ``csi``, ``init_container``, ``csi (auto)``),
+      set immediately after provider selection so it is present even when
+      injection is subsequently skipped.
+    - ``internal.apm.datadoghq.com/injection-error``: human-readable reason
+      when injection was skipped or errored.
+    - ``internal.apm.datadoghq.com/csi-driver-status``: observed state of the
+      Datadog CSI driver at injection time — ``apm-enabled``, ``apm-disabled``
+      (driver present but APM SSI not advertised), or ``not-installed``. Set
+      independently of the configured injection mode.
+
+    Per-library failures (unsupported language, library injection error) no
+    longer prevent the webhook patch from being applied. The webhook now logs
+    a warning and reflects the partial outcome in the annotations instead of
+    discarding the entire mutation.

@@ -39,7 +39,7 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  bazel_flags = "--config=release --//:install_dir=#{install_dir}"
+  bazel_flags = "--//:install_dir=#{install_dir}"
 
   if linux_target?
     command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
@@ -47,10 +47,10 @@ build do
     copy 'bin/installer', "#{install_dir}/bin/"
 
     # Build both packages and dump them where gitlab will upload them.
-    command_on_repo_root "bazelisk build #{bazel_flags} //packages/installer/linux:whole_distro_tar_deb", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel build #{bazel_flags} //packages/installer/linux:whole_distro_tar_deb", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     # There are no convenience symlinks, so we need to do some path manipulations to get the absolute path.
-    command_on_repo_root "bazelisk cquery #{bazel_flags} --output=files //packages/installer/linux:whole_distro_tar_deb | sed -e 's@bazel-out/@@' >/tmp/installer_linux_tar_deb_file.txt"
-    command_on_repo_root "tar tvf $(bazelisk info output_path)/$(cat /tmp/installer_linux_tar_deb_file.txt)", :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel cquery #{bazel_flags} --output=files //packages/installer/linux:whole_distro_tar_deb | sed -e 's@bazel-out/@@' >/tmp/installer_linux_tar_deb_file.txt"
+    command "tar tvf $(bazel info output_path)/$(cat /tmp/installer_linux_tar_deb_file.txt)", :live_stream => Omnibus.logger.live_stream(:info)
 
     # Copy both the .deb and .rpm out to artifact outputs
     # In the package job, we'll compare these to the omnibus built packages and report the diffs
@@ -62,7 +62,8 @@ build do
       omnibus_package_dir = "#{ci_project_dir}/omnibus/pkg"
     end
     if omnibus_package_dir
-      command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/installer/linux:copy_out --destdir=#{omnibus_package_dir}"
+      command "bazel run #{bazel_flags} -- //packages/installer/linux:copy_out --destdir=#{omnibus_package_dir}",
+        :live_stream => Omnibus.logger.live_stream(:info)
     end
   elsif windows_target?
     command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)

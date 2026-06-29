@@ -11,20 +11,41 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
-// EventReporter sends Datadog events for new correlations via eventSender.
-// It tracks seen correlations and only fires when a correlation first appears
-// or reappears after going inactive.
+// defaultMaxRetryAttempts is the number of consecutive send failures after
+// which a pending CorrelationDetected entry is evicted from retryPending.
+const defaultMaxRetryAttempts = 5
+
+// retryEntry pairs a correlation with the number of send attempts made so far.
+type retryEntry struct {
+	correlation observerdef.ActiveCorrelation
+	attempts    int
+}
+
+// EventReporter sends Datadog events for correlator lifecycle events.
+// Deduplication and recurrence logic live inside each correlator via the
+// correlationEmitter helper. The reporter forwards each CorrelatorEvent to the
+// appropriate sender method.
+//
+// CorrelationDetected sends that fail transiently are buffered in retryPending
+// and retried at the start of the next Report call. This preserves the
+// pre-refactor behaviour where seenCorrelations was only marked after a
+// successful send, so transient forwarder/intake failures were automatically
+// retried on the next advance cycle. An entry is evicted after maxRetries
+// consecutive failures; a warning is logged at eviction time.
+//
+// Episode events (EpisodeStarted/EpisodeEnded) remain at-most-once; each
+// transition fires exactly once so there is nothing to retry.
+//
 // It implements reporterdef.StorageConsumer so the observer can inject engine
 // storage post-construction for windowed log-rate annotations in change messages.
 type EventReporter struct {
-	sender           *eventSender
-	logger           log.Component
-	seenCorrelations map[string]bool // pattern -> reported
-	// activeBefore tracks patterns observed in ActiveCorrelations on a prior
-	// advance. Only entries marked here are eligible for recurrence cleanup;
-	// patterns that only ever appear via CorrelationHistory (e.g. batch
-	// detector clusters) are emitted once and never deleted.
-	activeBefore map[string]bool
+	sender     *eventSender
+	logger     log.Component
+	maxRetries int
+	// retryPending holds CorrelationDetected entries whose last send attempt
+	// failed transiently. Retried at the start of each Report call; evicted
+	// after maxRetries consecutive failures.
+	retryPending []retryEntry
 }
 
 // Ensure EventReporter satisfies both interfaces at compile time.
@@ -43,57 +64,56 @@ func (r *EventReporter) SetStorage(storage observerdef.StorageReader) {
 	r.sender.storage = storage
 }
 
-// Report checks for new correlations and sends a Datadog change event for each one.
+// Report forwards all correlator events from this advance cycle.
 //
-// Emission is driven by output.CorrelationHistory so that batch-detector
-// clusters — whose changepoint timestamps may already be evicted from the
-// sliding window — still fire. Recurrence cleanup is driven by
-// output.ActiveCorrelations: a streaming pattern that leaves the active set
-// is removed from seenCorrelations so it fires again on the next activation.
-// Patterns that only ever appear via CorrelationHistory (no active phase) are
-// emitted once and stay seen for the lifetime of the agent.
-func (r *EventReporter) Report(output reporterdef.ReportOutput) {
-	if r.seenCorrelations == nil {
-		r.seenCorrelations = make(map[string]bool)
-	}
-	if r.activeBefore == nil {
-		r.activeBefore = make(map[string]bool)
-	}
+//   - EpisodeStarted / EpisodeEnded  → sendEpisodeEvent (scorer severity transitions, at-most-once)
+//   - CorrelationDetected            → send (cluster/pattern first-seen, emitter-deduplicated)
+//
+// CorrelationDetected sends that fail are queued in retryPending and retried
+// at the start of the next call. Each entry is evicted after r.maxRetries
+// consecutive failures. Episode events are at-most-once (no retry).
+func (r *EventReporter) Report(output reporterdef.ReportOutput) bool {
+	emitted := false
 
-	// Build the set of currently active patterns.
-	currentlyActive := make(map[string]bool, len(output.ActiveCorrelations))
-	for _, ac := range output.ActiveCorrelations {
-		currentlyActive[ac.Pattern] = true
+	// Retry CorrelationDetected sends that failed on a previous cycle.
+	var stillPending []retryEntry
+	for _, entry := range r.retryPending {
+		if err := r.sender.send(entry.correlation); err != nil {
+			entry.attempts++
+			if entry.attempts >= r.maxRetries {
+				r.logger.Warnf("[observer] dropping correlation event pattern=%s after %d failed attempts: %v",
+					entry.correlation.Pattern, entry.attempts, err)
+				continue // evict
+			}
+			r.logger.Errorf("[observer] retry %d/%d: failed to send correlation event pattern=%s: %v",
+				entry.attempts, r.maxRetries, entry.correlation.Pattern, err)
+			stillPending = append(stillPending, entry)
+			continue
+		}
+		emitted = true
 	}
+	r.retryPending = stillPending
 
-	// Send an event for each newly-seen correlation. Mark the pattern as
-	// seen only after a successful send: a transient forwarder error leaves
-	// the pattern unmarked so the next advance retries publication. A
-	// persistent failure will keep producing one error log per advance until
-	// either the forwarder recovers or the correlation goes inactive.
-	for _, ac := range output.CorrelationHistory {
-		if !r.seenCorrelations[ac.Pattern] {
-			if err := r.sender.send(ac); err != nil {
-				r.logger.Errorf("[observer] failed to send event for pattern %s: %v", ac.Pattern, err)
+	for _, ce := range output.CorrelatorEvents {
+		switch ce.Kind {
+		case observerdef.CorrelatorEventEpisodeStarted, observerdef.CorrelatorEventEpisodeEnded:
+			if err := r.sender.sendEpisodeEvent(ce); err != nil {
+				r.logger.Errorf("[observer] failed to send scorer episode event pattern=%s kind=%d: %v",
+					ce.Correlation.Pattern, ce.Kind, err)
 				continue
 			}
-			r.seenCorrelations[ac.Pattern] = true
+		case observerdef.CorrelatorEventCorrelationDetected:
+			if err := r.sender.send(ce.Correlation); err != nil {
+				r.logger.Errorf("[observer] failed to send correlation event pattern=%s: %v",
+					ce.Correlation.Pattern, err)
+				r.retryPending = append(r.retryPending, retryEntry{correlation: ce.Correlation, attempts: 1})
+				continue
+			}
+		default:
+			r.logger.Warnf("[observer] unknown correlator event kind %d, skipping", ce.Kind)
+			continue
 		}
+		emitted = true
 	}
-
-	// Recurrence cleanup: remove seenCorrelations entries for patterns that
-	// were previously active and are no longer active. This lets streaming
-	// patterns re-fire when they come back. Patterns that have never been in
-	// ActiveCorrelations (batch-only) are left alone — they fire once and
-	// stay marked.
-	for pattern := range r.activeBefore {
-		if !currentlyActive[pattern] {
-			delete(r.seenCorrelations, pattern)
-			delete(r.activeBefore, pattern)
-		}
-	}
-	// Carry the current active set forward for the next advance.
-	for pattern := range currentlyActive {
-		r.activeBefore[pattern] = true
-	}
+	return emitted
 }

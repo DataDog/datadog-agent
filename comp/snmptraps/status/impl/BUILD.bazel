@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "impl",
+    srcs = [
+        "mock.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/snmp.tmpl",
+        "status_templates/snmpHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/status",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/snmptraps/status/def",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["status_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/aggregator",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

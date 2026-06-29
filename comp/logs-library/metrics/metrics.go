@@ -88,15 +88,12 @@ var (
 	// TlmAutoMultilineStackTraceAggregatorFlush counts Go stack trace aggregation outcomes.
 	TlmAutoMultilineStackTraceAggregatorFlush = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_go_stack_trace_aggregator_flush", []string{"result"}, "Count of Go stack traces flushed from the stack trace aggregator")
 
-	// TlmUtilizationRatio is the utilization ratio of a component.
-	// Utilization ratio is calculated as the ratio of time spent in use to the total time.
-	// This metric is internally sampled and exposed as an ewma in order to produce a useable value.
-	TlmUtilizationRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component")
-	// TlmUtilizationItems is the capacity of a component by number of elements
-	// Both the number of items and the number of bytes are aggregated and exposed as a ewma.
-	TlmUtilizationItems = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and its buffers")
-	// TlmUtilizationBytes is the capacity of a component by number of bytes
-	TlmUtilizationBytes = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and its buffers")
+	// TlmUtilizationRatio is the N=15 EWMA utilization ratio of a component (~15s window).
+	TlmUtilizationRatio = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component (N=15 EWMA, ~15s window)")
+	// TlmUtilizationItems is the EWMA item count held in a component and its buffers.
+	TlmUtilizationItems = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and its buffers (N=15 EWMA, ~15s window)")
+	// TlmUtilizationBytes is the EWMA byte count held in a component and its buffers.
+	TlmUtilizationBytes = telemetryimpl.GetCompatComponent().NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and its buffers (N=15 EWMA, ~15s window)")
 	// TlmDestNumWorkers is the number of destination workers in use.
 	TlmDestNumWorkers = telemetryimpl.GetCompatComponent().NewGauge("logs_destination", "destination_workers", []string{"instance"}, "Gauge of the number of destination workers in use")
 	// TlmDestVirtualLatency is a moving average of the destination's latency.

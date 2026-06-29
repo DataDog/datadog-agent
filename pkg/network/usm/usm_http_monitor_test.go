@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 const (
@@ -233,6 +234,7 @@ func getHTTPUnixClientArray(size int, unixPath string) []*http.Client {
 }
 
 func TestGoTLSMapCleanup(t *testing.T) {
+	flake.MarkOnJobName(t, "amazon_6.12")
 	// This test reproduces the Go-TLS map leak by:
 	// 1. Creating proxy processes that make HTTPS requests (populates conn_tup_by_go_tls_conn map)
 	// 2. Abruptly terminating each proxy with cancel() (simulates SIGKILL)

@@ -204,15 +204,15 @@ func TestFromDDConfig(t *testing.T) {
 
 			// Set required configuration values
 			if tt.site != "" {
-				mockConfig.SetWithoutSource("site", tt.site)
+				mockConfig.SetInTest("site", tt.site)
 			}
 			if tt.ddURL != "" {
-				mockConfig.SetWithoutSource("dd_url", tt.ddURL)
+				mockConfig.SetInTest("dd_url", tt.ddURL)
 			}
 
 			// Set minimal required PAR config to avoid errors
-			mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-			mockConfig.SetWithoutSource(setup.PARUrn, "")
+			mockConfig.SetInTest(setup.PARPrivateKey, "")
+			mockConfig.SetInTest(setup.PARUrn, "")
 
 			// Call FromDDConfig
 			cfg, err := FromDDConfig(mockConfig)
@@ -234,8 +234,8 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		defer flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
-		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, true)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -253,8 +253,8 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
-		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, true)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -271,8 +271,8 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		defer flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
-		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, false)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, false)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -284,8 +284,8 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		defer flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
-		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, true)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -295,8 +295,8 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 	t.Run("explicit allowlist works without default actions", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
-		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, false)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, false)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -311,8 +311,8 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
 	// every backend-allowed path through containment matching. The
 	// transform returns it verbatim.
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
@@ -321,9 +321,9 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{"/var/log", "/tmp"})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{"/var/log", "/tmp"})
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
@@ -332,9 +332,9 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{})
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
@@ -348,8 +348,8 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
 	// sentinel that admits every backend command in the rshell namespace.
 	// The transform returns it verbatim.
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
@@ -358,9 +358,9 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{"cat", "ls"})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "ls"})
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
@@ -369,9 +369,9 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{})
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
@@ -423,9 +423,9 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *t
 	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
@@ -438,9 +438,9 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *tes
 	// logs a warning so a Windows-native path configured by mistake does
 	// not silently produce an empty intersection without feedback.
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
@@ -454,9 +454,9 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(
 	// here — the point of this test is that unnamespaced entries do not
 	// cause config load to fail.
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
