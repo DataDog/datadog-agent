@@ -988,6 +988,11 @@ new-e2e-anomalydetection:
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_x64
+  needs:
+    - !reference [.new_e2e_template_needs_deb_x64, needs]
+    # netpath dynamic-tests run the agent as a Docker container, pulling the
+    # agent-qa:<pipeline>-<sha>-linux image built by qa_agent_linux
+    - qa_agent_linux
   rules:
     - !reference [.on_netpath_or_e2e_changes]
     - !reference [.manual]
