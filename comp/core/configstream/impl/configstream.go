@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"github.com/google/uuid"
-	uberatomic "go.uber.org/atomic"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -50,7 +50,7 @@ type configStream struct {
 	subscribeChan   chan *subscription
 	unsubscribeChan chan string
 	stopChan        chan struct{}
-	stopped         *uberatomic.Bool
+	stopped         atomic.Bool
 
 	// Cached origin (set once at initialization to avoid lock contention)
 	origin string
@@ -78,7 +78,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		subscribeChan:   make(chan *subscription),
 		unsubscribeChan: make(chan string),
 		stopChan:        make(chan struct{}),
-		stopped:         uberatomic.NewBool(false),
 	}
 
 	cs.subscribersGauge = reqs.Telemetry.NewGauge("configstream", "subscribers", []string{}, "Number of active config stream subscribers")
