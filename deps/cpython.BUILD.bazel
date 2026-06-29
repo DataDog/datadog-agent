@@ -192,6 +192,7 @@ configure_make(
         "--with-dbmliborder=",
         "--with-openssl=$$EXT_BUILD_DEPS/openssl",
         "--with-openssl-rpath=yes",
+        "--disable-test-modules",
     ] + select({
         "@@//:macos_arm64": ["--with-universal-archs=universal2"],
         "@@//:macos_x86_64": ["--with-universal-archs=intel"],
