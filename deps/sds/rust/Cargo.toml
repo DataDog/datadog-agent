@@ -1,0 +1,13 @@
+[package]
+name = "dd_sds_ffi"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "dd_sds"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+dd-sensitive-data-scanner = { workspace = true, features = ["dd_sds_go"] }

@@ -84,6 +84,7 @@ GAZELLE_EXTRA_TAGS = set([
     "functionaltests",
     "manualtest",
     "private_runner_experimental",
+    "sds",
 ])
 
 # Tags in ALL_TAGS that we deliberately keep out of Gazelle's set, typically

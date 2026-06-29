@@ -172,6 +172,7 @@ use_repo(
     "com_github_datadog_datadog_go_v5",
     "com_github_datadog_datadog_operator_api",
     "com_github_datadog_datadog_traceroute",
+    "com_github_datadog_dd_sensitive_data_scanner_sds_go_go",
     "com_github_datadog_dd_trace_go_v2",
     "com_github_datadog_ddtrivy",
     "com_github_datadog_ebpf_manager",
@@ -569,6 +570,15 @@ go_deps.module_override(
 
 inject_repo(go_deps, "systemd")
 
+# The sds-go cgo binding declares `#cgo LDFLAGS: -L../../sds/target/release -ldd_sds`,
+# which bazel can't resolve in its sandbox. Patch the gazelle-generated BUILD
+# (module_override patches run *after* gazelle) to link libdd_sds through
+# //deps/sds:dd_sds instead, and skip the target on Windows where SDS is unsupported.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:sds-go-cdep.patch"],
+    path = "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go",
+)
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 
 use_repo_rule("//bazel/rules/go_sdk_overrides:repo.bzl", "go_sdk_overrides")(name = "go_sdk_overrides")

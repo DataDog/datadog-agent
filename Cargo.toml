@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "cmd/ai_prompt_logger",
     "comp/core/log/rust",
+    "deps/sds/rust",
     "pkg/discovery/module/rust",
     "pkg/procmgr/rust",
 ]
@@ -18,6 +19,7 @@ cap-std = "4.0"
 caps = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
+dd-sensitive-data-scanner = "=0.1.0-20260601-3c48e9fa5604"
 elf = "0.8.0"
 glob-match = "0.2"
 http-body-util = "0.1"
