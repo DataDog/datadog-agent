@@ -1846,13 +1846,9 @@
             "https://files.pythonhosted.org/packages/4a/c0/89fe6215b443b919cb98a5002e107cb5026854ed1ccb6b5833e0768419d1/docutils-0.22.2.tar.gz": "9fdb771707c8784c8f2728b67cb2c691305933d68137ef95a75db5f4dfbc213d",
             "https://files.pythonhosted.org/packages/66/dd/f95350e853a4468ec37478414fc04ae2d61dad7a947b3015c3dcc51a09b9/docutils-0.22.2-py3-none-any.whl": "b0e98d679283fc3bb0ead8a5da7f501baa632654e7056e9c5846842213d674d8"
           },
-          "editables": {
-            "https://files.pythonhosted.org/packages/82/f8/02a4e9a0cb961b0feeb431ac96b231c157ecdcbbeacafe9e2fdb4b1dde39/editables-0.6.tar.gz": "1163834902381c4613787951c5914800fdf155ae08848a373b8ea5006780977c",
-            "https://files.pythonhosted.org/packages/cc/0e/d095533037fc9468f947b19f2da53f869804632b508808de41e86e801797/editables-0.6-py3-none-any.whl": "d70e4698078a1d033e7786d9c64e5be070d058a67c21417024d38a58ac20aa43"
-          },
           "hatchling": {
-            "https://files.pythonhosted.org/packages/60/c5/97a0c443be91936900da8c263fcb808c43393cca5d1c7ed163c13b2d6d72/hatchling-0.25.1-py2.py3-none-any.whl": "c1280be9510685a18e2ccdd1484872113587f41762f78d690f16e2ce6931da99",
-            "https://files.pythonhosted.org/packages/7b/bf/10c79bff8c2eea1ffa58d170afe0eb4c7c59b3610877e88e7d3f493bd3f0/hatchling-0.25.1.tar.gz": "03e0f162df463823df404ccea55c05d3e5056178082ed0d59cc7c52a7fa84860"
+            "https://files.pythonhosted.org/packages/56/49/2797ec0ef88008a653a8867bb8d1e5c223cd2df8e40390dd5c6a0279cbc5/hatchling-1.30.1-py3-none-any.whl": "161eacafb3c6f91526e92116d21426369f2c36e98c36a864f11a96345ad4ee31",
+            "https://files.pythonhosted.org/packages/63/4c/8717ccb844b4fa5a5ba6352e97d743ed24e9a22cf90b7c109c17030a46a1/hatchling-1.30.1.tar.gz": "eee4fd45357f72ebb3d7a42e5d72cfb5e29ed426d79e8836288926c4258d5f2e"
           },
           "idna": {
             "https://files.pythonhosted.org/packages/76/c6/c88e154df9c4e1a2a66ccf0005a88dfb2650c1dffb6f5ce603dfbd452ce3/idna-3.10-py3-none-any.whl": "946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3",
@@ -2060,6 +2056,10 @@
           "secretstorage": {
             "https://files.pythonhosted.org/packages/53/a4/f48c9d79cb507ed1373477dbceaba7401fd8a23af63b837fa61f1dcd3691/SecretStorage-3.3.3.tar.gz": "2403533ef369eca6d2ba81718576c5e0f564d5cca1b58f73a8b23e7d4eeebd77",
             "https://files.pythonhosted.org/packages/54/24/b4293291fa1dd830f353d2cb163295742fa87f179fcc8a20a306a81978b7/SecretStorage-3.3.3-py3-none-any.whl": "f356e6628222568e3af06f2eba8df495efa13b3b63081dafd4f7d9a7b7bc9f99"
+          },
+          "trove-classifiers": {
+            "https://files.pythonhosted.org/packages/7c/a4/81502f486f01db95bc8320646a8a12511f5e556cb63d5e224d91816605c4/trove_classifiers-2026.6.1.19-py3-none-any.whl": "ab4c4ec93cc4a4e7815fa759906e05e6bb3f2fbd92ea0f897288c6a43efd15b3",
+            "https://files.pythonhosted.org/packages/c2/e3/7ca82ee24c82d344584abd5b8637b3bd056f2900226e8d82fc22f1184b92/trove_classifiers-2026.6.1.19.tar.gz": "c5132b4b61a829d11cfbd2d72e97f20a45ed6edb95e45c5efdeb5e00836b2745"
           },
           "twine": {
             "https://files.pythonhosted.org/packages/5d/ec/00f9d5fd040ae29867355e559a94e9a8429225a0284a3f5f091a3878bfc0/twine-5.1.1-py3-none-any.whl": "215dbe7b4b94c2c50a7315c0275d2258399280fbb7d04182c7e55e24b5f93997",
