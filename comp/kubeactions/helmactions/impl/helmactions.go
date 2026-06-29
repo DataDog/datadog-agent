@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -101,4 +102,7 @@ func (h *helmactionsImpl) start(ctx context.Context) error {
 func (h *helmactionsImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping helmactions component")
 	return nil
+}
+
+func (h *helmactionsImpl) OnRollback(job *batchv1.Job) {
 }

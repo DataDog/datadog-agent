@@ -9,12 +9,17 @@ package helmactions
 import (
 	"errors"
 	"fmt"
+
+	batchv1 "k8s.io/api/batch/v1"
 )
 
 // team: container-integrations
 
 // Component is the component type.
-type Component interface{}
+type Component interface {
+	// OnRollback is called when Job successfully scheduled
+	OnRollback(job *batchv1.Job)
+}
 
 // RollbackInputs describes a single `helm rollback` invocation.
 type RollbackInputs struct {
