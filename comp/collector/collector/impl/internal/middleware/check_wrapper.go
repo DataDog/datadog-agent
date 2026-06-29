@@ -13,6 +13,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -35,7 +36,12 @@ type CheckWrapper struct {
 }
 
 // NewCheckWrapper returns a wrapped check.
-func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agentTelemetry option.Option[agenttelemetry.Component]) *CheckWrapper {
+func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agentTelemetry option.Option[agenttelemetry.Component], issueReporter option.Option[healthplatformstore.Component]) *CheckWrapper {
+	if reporter, isSet := issueReporter.Get(); isSet {
+		if aware, ok := inner.(check.IssueAwareCheck); ok {
+			aware.SetIssueReporter(reporter)
+		}
+	}
 	return &CheckWrapper{
 		inner:          inner,
 		senderManager:  senderManager,

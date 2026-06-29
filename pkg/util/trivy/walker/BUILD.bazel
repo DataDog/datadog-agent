@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "walker",
@@ -13,7 +14,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "walker_test",
     srcs = [
         "testmain_test.go",
@@ -21,7 +22,10 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":walker"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "fips",
+    ],
     deps = [
         "@com_github_aquasecurity_trivy//pkg/fanal/analyzer",
         "@com_github_aquasecurity_trivy//pkg/fanal/walker",

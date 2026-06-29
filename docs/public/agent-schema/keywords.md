@@ -527,8 +527,6 @@ Existing tags:
 
 - `template_section`: controls the different flavor of the configuration example we generate. This is directly inherited
   from the way we used to generate example from Go templates.
-- `TODO:fix-no-default`: flag that this legacy setting has no default.
-- `TODO:fix-missing-type`: flag that this legacy setting has no type.
 - `golang_type`: flag that this setting should use a different type when generating go code. Usage of `golang_type` tag
   is often a sign of an issue. The agent code should be easily configurable from YAML types.
   - `golang_type:duration`: will use a `time.duration`.

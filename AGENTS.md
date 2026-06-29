@@ -202,6 +202,7 @@ mistakes across sessions.
 ```
 AGENTS.md                          ← repo-wide: architecture, workflow, review guidelines
 ├── bazel/AGENTS.md                ← Bazel build system: conventions, pitfalls, rule writing
+├── tasks/AGENTS.md                ← invoke tasks: categories, libs layout, Bazel migration idioms
 ├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
 ├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
 ├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls

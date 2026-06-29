@@ -45,14 +45,8 @@ func newTestComponentWithAC(t *testing.T, configs []integration.Config) *compone
 		log:           logmock.New(t),
 		ac:            newMockAutodiscovery(t, configs),
 		activeConfigs: make(map[string]activeConfigEntry),
+		managedBases:  make(map[string]*managedBaseEntry),
 	}
-}
-
-func TestIsSupportedIntegration(t *testing.T) {
-	assert.True(t, isSupportedIntegration("postgres"))
-	assert.False(t, isSupportedIntegration("mysql"))
-	assert.False(t, isSupportedIntegration("redis"))
-	assert.False(t, isSupportedIntegration(""))
 }
 
 func TestInstanceHasDOEnabled(t *testing.T) {
@@ -280,6 +274,7 @@ func newTestComponent(t *testing.T) *component {
 	return &component{
 		log:           logmock.New(t),
 		activeConfigs: make(map[string]activeConfigEntry),
+		managedBases:  make(map[string]*managedBaseEntry),
 	}
 }
 
@@ -313,81 +308,66 @@ func TestOnRCUpdate_EmptyConfigID(t *testing.T) {
 }
 
 func TestOnRCUpdate_EmptyQueriesDisables(t *testing.T) {
-	baseCfg := &integration.Config{Name: "postgres", Provider: "file", NodeName: "node1"}
-	pgInstance := map[string]any{"host": "localhost", "dbname": "mydb", "data_observability": map[string]any{"enabled": true}}
-	existing := activeConfigEntry{
-		checkConfig: integration.Config{Name: "postgres"},
-		baseCfg:     baseCfg,
-		instance:    pgInstance,
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		NodeName:  "node1",
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
-	c := newTestComponent(t)
-	c.activeConfigs["cfg-1"] = existing
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
 
-	updates := map[string]state.RawConfig{
-		"path/config": {Config: []byte(`{"config_id": "cfg-1", "queries": []}`)},
+	// First: schedule a DO config so the base config becomes managed.
+	enable := DOQueryPayload{
+		ConfigID:     "cfg-1",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
 	}
-	statuses, changes := collectStatuses(c, updates)
+	enableJSON, err := json.Marshal(enable)
+	require.NoError(t, err)
+	collectStatuses(c, map[string]state.RawConfig{"path/config": {Config: enableJSON}})
+	require.Contains(t, c.activeConfigs, "cfg-1")
+
+	// Now: empty queries disables the DO config and the original base config must be restored.
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/config": {Config: []byte(`{"config_id": "cfg-1", "queries": []}`)},
+	})
 
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["path/config"].State)
 	assert.Empty(t, c.activeConfigs)
-	require.Len(t, changes.Unschedule, 1, "should unschedule previous DO config")
+	require.Len(t, changes.Unschedule, 1, "should unschedule the DO config")
 	require.Len(t, changes.Schedule, 1, "should re-schedule original base config")
-	assert.Equal(t, *baseCfg, changes.Schedule[0], "scheduled config should be the original base config")
+	assert.Equal(t, postgresCfg, changes.Schedule[0], "scheduled config should be the original base config")
 }
 
 func TestOnRCUpdate_ReconcileDisablesStaleConfigs(t *testing.T) {
-	baseCfg := &integration.Config{Name: "postgres", Provider: "file"}
-	pgInstance := map[string]any{"host": "localhost", "dbname": "mydb", "data_observability": map[string]any{"enabled": true}}
-	existing := activeConfigEntry{
-		checkConfig: integration.Config{Name: "postgres"},
-		baseCfg:     baseCfg,
-		instance:    pgInstance,
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
-	c := newTestComponent(t)
-	c.activeConfigs["stale-config"] = existing
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	// First: schedule a DO config so the base config becomes managed.
+	enable := DOQueryPayload{
+		ConfigID:     "stale-config",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	enableJSON, err := json.Marshal(enable)
+	require.NoError(t, err)
+	collectStatuses(c, map[string]state.RawConfig{"path/stale": {Config: enableJSON}})
+	require.Contains(t, c.activeConfigs, "stale-config")
 
 	// Update snapshot contains only a config without config_id — stale-config should be disabled
-	updates := map[string]state.RawConfig{
+	// and the original base config restored.
+	_, changes := collectStatuses(c, map[string]state.RawConfig{
 		"path/other": {Config: []byte(`{"some_field": true}`)},
-	}
-	_, changes := collectStatuses(c, updates)
+	})
 
 	assert.Empty(t, c.activeConfigs)
-	require.Len(t, changes.Unschedule, 1, "should unschedule previous DO config")
+	require.Len(t, changes.Unschedule, 1, "should unschedule the DO config")
 	require.Len(t, changes.Schedule, 1, "should re-schedule original base config")
-	assert.Equal(t, *baseCfg, changes.Schedule[0])
-}
-
-// --- collectDisable tests ---
-
-func TestCollectDisable_NotFound(t *testing.T) {
-	c := newTestComponent(t)
-	changes := integration.ConfigChanges{}
-	c.collectDisable("nonexistent", &changes)
-	assert.Empty(t, changes.Schedule)
-	assert.Empty(t, changes.Unschedule)
-	assert.Empty(t, c.activeConfigs)
-}
-
-func TestCollectDisable_Found(t *testing.T) {
-	baseCfg := &integration.Config{Name: "postgres", Provider: "file"}
-	pgInstance := map[string]any{"host": "localhost", "dbname": "mydb", "data_observability": map[string]any{"enabled": true}}
-	doCheckConfig := integration.Config{Name: "postgres", Provider: "do_query_actions"}
-	c := newTestComponent(t)
-	c.activeConfigs["my-config"] = activeConfigEntry{
-		checkConfig: doCheckConfig,
-		baseCfg:     baseCfg,
-		instance:    pgInstance,
-	}
-	changes := integration.ConfigChanges{}
-
-	c.collectDisable("my-config", &changes)
-
-	assert.Empty(t, c.activeConfigs)
-	require.Len(t, changes.Unschedule, 1, "should unschedule previous DO config")
-	assert.Equal(t, doCheckConfig, changes.Unschedule[0])
-	require.Len(t, changes.Schedule, 1, "should re-schedule original base config")
-	assert.Equal(t, *baseCfg, changes.Schedule[0])
+	assert.Equal(t, postgresCfg, changes.Schedule[0])
 }
 
 // --- removeActiveConfig tests ---
@@ -407,7 +387,7 @@ func TestRemoveActiveConfig_Found(t *testing.T) {
 	c.activeConfigs["my-config"] = activeConfigEntry{
 		checkConfig: doCheckConfig,
 		baseCfg:     baseCfg,
-		instance:    map[string]any{"host": "localhost"},
+		matchHost:   "localhost",
 	}
 	changes := integration.ConfigChanges{}
 
@@ -510,12 +490,13 @@ func TestOnRCUpdate_UpdateReplacesExistingCheck(t *testing.T) {
 	require.Len(t, changes1.Unschedule, 1, "first update should unschedule base config")
 	require.Contains(t, c.activeConfigs, "cfg-update")
 
-	// Second update: same config_id, different query. Unschedules previous DO config + base config,
-	// schedules only the new DO config.
+	// Second update: same config_id, different query. The base config is already managed
+	// (unscheduled on the first update), so only the previous DO config is unscheduled and the
+	// new one scheduled — the base config is not touched again.
 	_, changes2 := collectStatuses(c, map[string]state.RawConfig{
 		"path/cfg": {Config: mkPayload("SELECT 2")},
 	})
-	require.Len(t, changes2.Unschedule, 2, "should unschedule previous DO config + base config")
+	require.Len(t, changes2.Unschedule, 1, "should unschedule only the previous DO config")
 	require.Len(t, changes2.Schedule, 1, "should schedule only the new DO check")
 
 	var instance map[string]any
@@ -526,6 +507,137 @@ func TestOnRCUpdate_UpdateReplacesExistingCheck(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, queries, 1)
 	assert.Equal(t, "SELECT 2", queries[0].(map[string]any)["query"])
+}
+
+// hostsOf parses every instance of a config and returns the set of host values, for asserting
+// which postgres instances a scheduled config covers.
+func hostsOf(t *testing.T, cfg integration.Config) map[string]bool {
+	t.Helper()
+	hosts := make(map[string]bool, len(cfg.Instances))
+	for _, instanceData := range cfg.Instances {
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(instanceData, &instance))
+		host, _ := instance["host"].(string)
+		hosts[host] = true
+	}
+	return hosts
+}
+
+// findScheduledWithHost returns the scheduled config that contains an instance with the given
+// host, failing the test if none is found.
+func findScheduledWithHost(t *testing.T, changes integration.ConfigChanges, host string) integration.Config {
+	t.Helper()
+	for _, cfg := range changes.Schedule {
+		if hostsOf(t, cfg)[host] {
+			return cfg
+		}
+	}
+	t.Fatalf("no scheduled config contains host %q", host)
+	return integration.Config{}
+}
+
+// TestOnRCUpdate_PreservesUnrelatedInstances is the regression test for the bug where a
+// do-query-actions config replaced the whole file-provider postgres config, dropping sibling
+// instances. A base config with two instances (localhost + an RDS endpoint) receives a DO config
+// targeting only localhost; the RDS instance must stay scheduled, and only localhost may carry
+// the DO queries.
+func TestOnRCUpdate_PreservesUnrelatedInstances(t *testing.T) {
+	const rdsHost = "iceberg-test-postgres-demo-rds.c0lma4q6o85w.us-east-1.rds.amazonaws.com"
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: localhost\nport: 5432\ndbname: testdb\ndata_observability:\n  enabled: true\ntags:\n  - env:demo\n"),
+			integration.Data("host: " + rdsHost + "\nport: 5432\ndbname: testdb\ndata_observability:\n  enabled: true\ntags:\n  - env:rds\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-local",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-local": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-local"].State)
+
+	// The original two-instance base config is unscheduled.
+	require.Len(t, changes.Unschedule, 1)
+	assert.Equal(t, map[string]bool{"localhost": true, rdsHost: true}, hostsOf(t, changes.Unschedule[0]))
+
+	// Two configs scheduled: the DO check for localhost and the remainder holding the RDS instance.
+	require.Len(t, changes.Schedule, 2)
+
+	doCfg := findScheduledWithHost(t, changes, "localhost")
+	require.Len(t, doCfg.Instances, 1, "DO config should carry only the targeted localhost instance")
+	var doInstance map[string]any
+	require.NoError(t, yaml.Unmarshal(doCfg.Instances[0], &doInstance))
+	_, hasDO := doInstance["data_observability"].(map[string]any)["queries"]
+	assert.True(t, hasDO, "localhost instance should carry DO queries")
+
+	remainder := findScheduledWithHost(t, changes, rdsHost)
+	require.Len(t, remainder.Instances, 1, "remainder should hold only the untargeted RDS instance")
+	assert.Equal(t, "file", remainder.Provider, "remainder keeps the base config provider")
+	var rdsInstance map[string]any
+	require.NoError(t, yaml.Unmarshal(remainder.Instances[0], &rdsInstance))
+	assert.Equal(t, rdsHost, rdsInstance["host"])
+	_, rdsHasQueries := rdsInstance["data_observability"].(map[string]any)["queries"]
+	assert.False(t, rdsHasQueries, "RDS instance must remain a plain DBM instance with no DO queries")
+}
+
+// TestOnRCUpdate_MultipleDOConfigsSameBase verifies that two DO configs targeting two different
+// instances of the same base config never leave an instance both in the remainder and as a DO
+// check (which would double-run it). With both instances targeted, no remainder is scheduled.
+func TestOnRCUpdate_MultipleDOConfigsSameBase(t *testing.T) {
+	const rdsHost = "rds.example.com"
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: localhost\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: " + rdsHost + "\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	mkPayload := func(configID, host string) []byte {
+		b, err := json.Marshal(DOQueryPayload{
+			ConfigID:     configID,
+			DBIdentifier: DBIdentifier{Type: "self-hosted", Host: host},
+			Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+		})
+		require.NoError(t, err)
+		return b
+	}
+
+	_, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/local": {Config: mkPayload("cfg-local", "localhost")},
+		"path/rds":   {Config: mkPayload("cfg-rds", rdsHost)},
+	})
+
+	// Both instances are DO-targeted, so the base config is unscheduled and there is no remainder.
+	require.Len(t, changes.Unschedule, 1, "only the original base config is unscheduled")
+	require.Len(t, changes.Schedule, 2, "two DO checks, no remainder")
+	for _, cfg := range changes.Schedule {
+		require.Len(t, cfg.Instances, 1, "each scheduled config is a single-instance DO check")
+	}
+
+	// Disabling one DO config restores a remainder holding the still-targeted other instance.
+	_, changes2 := collectStatuses(c, map[string]state.RawConfig{
+		"path/local": {Config: mkPayload("cfg-local", "localhost")},
+		"path/rds":   {Config: []byte(`{"config_id": "cfg-rds", "queries": []}`)},
+	})
+	assert.NotContains(t, c.activeConfigs, "cfg-rds")
+	require.Contains(t, c.activeConfigs, "cfg-local")
+	remainder := findScheduledWithHost(t, changes2, rdsHost)
+	require.Len(t, remainder.Instances, 1)
+	assert.Equal(t, map[string]bool{rdsHost: true}, hostsOf(t, remainder))
 }
 
 // TestOnRCUpdate_NoMatchingPostgres_ReportsError verifies that when no postgres instance

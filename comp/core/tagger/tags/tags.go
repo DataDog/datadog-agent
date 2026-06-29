@@ -237,6 +237,8 @@ const (
 	MesosTask = "mesos_task"
 	// TaskDefinitionARN is the tag for the task definition ARN (Amazon Resource Name)
 	TaskDefinitionARN = "task_definition_arn"
+	// DaemonTaskDefinitionARN is the tag for the daemon task definition ARN (Amazon Resource Name)
+	DaemonTaskDefinitionARN = "daemon_task_definition_arn"
 
 	// HIGH CARDINALITY
 

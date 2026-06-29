@@ -104,6 +104,7 @@ go_test(
         "cidr_test.go",
         "endpoint_test.go",
         "limiter_test.go",
+        "proc_linux_test.go",
         "proc_sid_test.go",
         "scrubber_test.go",
     ],
@@ -119,6 +120,7 @@ go_test(
             "//pkg/security/utils/cgroup",
             "//pkg/util/archive",
             "//pkg/util/kernel",
+            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
@@ -126,6 +128,7 @@ go_test(
             "//pkg/security/utils/cgroup",
             "//pkg/util/archive",
             "//pkg/util/kernel",
+            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
