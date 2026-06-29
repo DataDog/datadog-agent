@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	issueName  = IssueName
+	annotationIssueName = AnnotationIssueName
+
 	category   = "autodiscovery"
 	location   = "autodiscovery"
 	severity   = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
@@ -21,13 +22,8 @@ const (
 	unknownVal = "unknown"
 	failedMsg  = "Autodiscovery misconfiguration error detected"
 	impactMsg  = "Metrics, and logs may not be collected due to misconfigured autodiscovery settings"
-)
 
-// These constants match the string values of types.ErrorSource to avoid a
-// cross-package import. The values are passed as strings in the issue context.
-const (
 	containerLabelSource         = "container_label"
-	templateResolutionSource     = "template_resolution"
 	kubeServiceAnnotationSource  = "kube_service_annotation"
 	kubeEndpointAnnotationSource = "kube_endpoint_annotation"
 )
@@ -39,29 +35,27 @@ type issueContent struct {
 	steps       []*healthplatform.RemediationStep
 }
 
-// ADMisconfigurationIssue provides complete issue template for AD annotation misconfigurations
-type ADMisconfigurationIssue struct{}
+// ADAnnotationIssue provides the issue template for AD annotation misconfiguration issues.
+type ADAnnotationIssue struct{}
 
-// NewADMisconfigurationIssue creates a new AD annotation issue template
-func NewADMisconfigurationIssue() *ADMisconfigurationIssue {
-	return &ADMisconfigurationIssue{}
+// NewADAnnotationIssue creates a new AD annotation issue template.
+func NewADAnnotationIssue() *ADAnnotationIssue {
+	return &ADAnnotationIssue{}
 }
 
-// BuildIssue creates a complete issue with metadata and remediation for AD annotation errors
-func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+// BuildIssue creates a complete issue with metadata and remediation for AD annotation errors.
+func (t *ADAnnotationIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	entityName := context["entityName"]
 	if entityName == "" {
 		entityName = unknownVal
 	}
-
 	errorMessage := context["errorMessage"]
 	if errorMessage == "" {
 		errorMessage = failedMsg
 	}
-
 	errorSource := context["errorSource"]
 
-	content := buildSourceSpecificContent(errorMessage, errorSource)
+	content := buildAnnotationContent(errorMessage, errorSource)
 
 	extra, err := structpb.NewStruct(map[string]any{
 		"entity_name":   entityName,
@@ -74,7 +68,7 @@ func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*health
 	}
 
 	return &healthplatform.Issue{
-		IssueName:   issueName,
+		IssueName:   annotationIssueName,
 		Title:       content.title + " on '" + entityName + "'",
 		Description: content.description,
 		Category:    category,
@@ -91,20 +85,8 @@ func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*health
 	}, nil
 }
 
-// buildSourceSpecificContent returns title, description, remediation summary, and steps
-// tailored to the error source (container labels vs pod annotations).
-func buildSourceSpecificContent(errorMessage, errorSource string) issueContent {
+func buildAnnotationContent(errorMessage, errorSource string) issueContent {
 	switch errorSource {
-	case templateResolutionSource:
-		return issueContent{
-			title:       "Autodiscovery Template Resolution Error",
-			description: "Autodiscovery template resolution error: " + errorMessage,
-			summary:     "Verify that all template variables in the integration configuration are supported for this service",
-			steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Check that all template variables (%%var%%) in your integration configuration are supported for this service"},
-				{Order: 2, Text: "Run 'datadog-agent configcheck' to see all configuration resolution warnings"},
-			},
-		}
 	case containerLabelSource:
 		return issueContent{
 			title:       "Autodiscovery Container Label Misconfiguration",

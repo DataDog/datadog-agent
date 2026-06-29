@@ -119,11 +119,11 @@ func reportConfigurationError(hp healthplatformdef.Component, entityName string,
 		"errorMessage": errorMsg,
 		"errorSource":  string(errorSource),
 	}
-	issue, buildErr := admisconfig.NewADMisconfigurationIssue().BuildIssue(context)
+	issue, buildErr := admisconfig.NewADAnnotationIssue().BuildIssue(context)
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
-			IssueName: admisconfig.IssueName,
+			IssueName: admisconfig.AnnotationIssueName,
 			Title:     "Autodiscovery Misconfiguration on '" + entityName + "'",
 			Source:    admisconfig.Source,
 		}

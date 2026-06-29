@@ -490,11 +490,11 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 		"errorMessage": err.Error(),
 		"errorSource":  string(types.TemplateResolutionSource),
 	}
-	issue, buildErr := admisconfig.NewADMisconfigurationIssue().BuildIssue(context)
+	issue, buildErr := admisconfig.NewADTemplateIssue().BuildIssue(context)
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
-			IssueName: admisconfig.IssueName,
+			IssueName: admisconfig.TemplateIssueName,
 			Title:     "Autodiscovery Misconfiguration on '" + tpl.Name + " (" + svc.GetServiceID() + ")'",
 			Source:    admisconfig.Source,
 		}
