@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -108,6 +109,30 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 		t,
 		tlmData,
 		"checks__runs{check_name=\"checkString\",state=\"ok\"} 0",
+	)
+}
+
+func TestExecutionTimeFirstRunTag(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("telemetry.checks", "*")
+
+	stats := NewStats(newMockCheck(), healthplatformmock.Mock(t))
+	haagent := haagentmock.NewMockHaAgent()
+
+	stats.Add(100*time.Millisecond, nil, []error{}, SenderStats{}, haagent)
+
+	tlmData, err := getTelemetryData()
+	require.NoError(t, err)
+	assert.Contains(t, tlmData,
+		`checks__execution_time{check_loader="mockLoader",check_name="checkString",first_run="true"}`,
+	)
+
+	stats.Add(50*time.Millisecond, nil, []error{}, SenderStats{}, haagent)
+
+	tlmData, err = getTelemetryData()
+	require.NoError(t, err)
+	assert.Contains(t, tlmData,
+		`checks__execution_time{check_loader="mockLoader",check_name="checkString",first_run="false"}`,
 	)
 }
 

@@ -8,6 +8,7 @@ profiles:
         preserve_tags:
           - check_name
           - check_loader
+          - first_run
       - name: checks.delay
         preserve_tags:
           - check_name
