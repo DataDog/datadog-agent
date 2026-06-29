@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "helmactions",
+    srcs = [
+        "entrypoint.go",
+        "rollback.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/helmactions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+    ],
+)
