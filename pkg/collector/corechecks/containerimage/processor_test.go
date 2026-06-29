@@ -64,7 +64,7 @@ func TestProcessEvents(t *testing.T) {
 						Layers: []workloadmeta.ContainerImageLayer{
 							{
 								MediaType: "media",
-								Digest:    "digest_layer_1",
+								DiffID:    "digest_layer_1",
 								SizeBytes: 43,
 								URLs:      []string{"url"},
 								History: &v1.History{
@@ -73,7 +73,7 @@ func TestProcessEvents(t *testing.T) {
 							},
 							{
 								MediaType: "media",
-								Digest:    "digest_layer_2",
+								DiffID:    "digest_layer_2",
 								URLs:      []string{"url"},
 								SizeBytes: 44,
 								History: &v1.History{
@@ -283,7 +283,7 @@ func TestProcessEvents(t *testing.T) {
 						Layers: []workloadmeta.ContainerImageLayer{
 							{
 								MediaType: "media",
-								Digest:    "digest_layer_1",
+								DiffID:    "digest_layer_1",
 								SizeBytes: 43,
 								URLs:      []string{"url"},
 								History: &v1.History{
@@ -292,7 +292,7 @@ func TestProcessEvents(t *testing.T) {
 							},
 							{
 								MediaType: "media",
-								Digest:    "digest_layer_2",
+								DiffID:    "digest_layer_2",
 								URLs:      []string{"url"},
 								SizeBytes: 44,
 								History: &v1.History{

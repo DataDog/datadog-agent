@@ -73,9 +73,8 @@ type ManagerV2 struct {
 	profilePendingEventsLock sync.Mutex
 
 	// Metrics counters (gauges that need to be tracked)
-	queueSize            *atomic.Uint64 // total events currently queued (gauge)
-	pendingProfiles      *atomic.Uint64 // cgroups currently waiting for tags
-	eventsDroppedMaxSize *atomic.Uint64 // events dropped because profile at max size
+	queueSize       *atomic.Uint64 // total events currently queued (gauge)
+	pendingProfiles *atomic.Uint64 // cgroups currently waiting for tags
 
 	// Track cgroups with resolved tags (for cgroups_resolved gauge)
 	resolvedCgroups     map[containerutils.CGroupID]struct{}
@@ -139,7 +138,6 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
 		queueSize:                 atomic.NewUint64(0),
 		pendingProfiles:           atomic.NewUint64(0),
-		eventsDroppedMaxSize:      atomic.NewUint64(0),
 		pathsReducer:              activity_tree.NewPathsReducer(),
 		profiles:                  make(map[cgroupModel.WorkloadSelector]*profile.Profile),
 		localStorage:              localStorage,
@@ -280,11 +278,11 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 
 	now := time.Now()
 
-	m.pendingProfileRemovalsLock.Lock()
-	defer m.pendingProfileRemovalsLock.Unlock()
-
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
+
+	m.pendingProfileRemovalsLock.Lock()
+	defer m.pendingProfileRemovalsLock.Unlock()
 
 	for selector, queuedAt := range m.pendingProfileRemovals {
 		if now.Sub(queuedAt) < cleanupDelay {
@@ -331,6 +329,10 @@ func (m *ManagerV2) persistAllProfiles() {
 
 // persistProfile encodes and persists a single profile to all configured storage backends
 func (m *ManagerV2) persistProfile(p *profile.Profile) {
+	if !p.IsEnabled() {
+		return
+	}
+
 	format := config.Protobuf
 	requests := m.configuredStorageRequests[format]
 
@@ -582,9 +584,18 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
-	// Event processing counts (swap to 0 after reading)
-	if value := m.eventsDroppedMaxSize.Swap(0); value > 0 {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsDroppedMaxSize, int64(value), []string{}, 1.0); err != nil {
+	var tags [][]string
+	m.profilesLock.Lock()
+	for selector, prof := range m.profiles {
+		if prof.IsEnabled() {
+			continue
+		}
+		tags = append(tags, []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag})
+	}
+	m.profilesLock.Unlock()
+
+	for _, tag := range tags {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, tag, 1.0); err != nil {
 			return err
 		}
 	}
@@ -600,6 +611,48 @@ func (m *ManagerV2) SendStats() error {
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
 				return err
 			}
+		}
+	}
+
+	// Per-profile size (RAM and disk reported under the same metric, differentiated by storage tag).
+	// Snapshot the active-profiles map under the lock and then call ComputeHeapSize / statsd
+	// outside it — ComputeHeapSize takes the per-profile lock, and we don't want to hold
+	// profilesLock across that or across the statsd send.
+	type profileEntry struct {
+		selector cgroupModel.WorkloadSelector
+		profile  *profile.Profile
+	}
+	m.profilesLock.Lock()
+	ramEntries := make([]profileEntry, 0, len(m.profiles))
+	for selector, p := range m.profiles {
+		ramEntries = append(ramEntries, profileEntry{selector: selector, profile: p})
+	}
+	m.profilesLock.Unlock()
+
+	for _, entry := range ramEntries {
+		tags := []string{
+			"profile_image_name:" + entry.selector.Image,
+			"profile_image_tag:" + entry.selector.Tag,
+			"storage:ram",
+		}
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(entry.profile.ComputeHeapSize()), tags, 1.0); err != nil {
+			return err
+		}
+	}
+
+	for selector, size := range m.localStorage.SizesBySelector() {
+		// Skip entries with an unresolved selector: the on-disk file is tracked for cleanup
+		// but emitting metrics with empty image/tag tags pollutes cardinality without adding signal.
+		if !selector.IsReady() {
+			continue
+		}
+		tags := []string{
+			"profile_image_name:" + selector.Image,
+			"profile_image_tag:" + selector.Tag,
+			"storage:disk",
+		}
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(size), tags, 1.0); err != nil {
+			return err
 		}
 	}
 
@@ -632,6 +685,10 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	if err != nil {
 		return nil, false
 	}
+	if !secprof.IsEnabled() {
+		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
+		return nil, false
+	}
 
 	// Build workloadID for cache entry lookup
 	workloadID := getWorkloadIDFromEvent(event)
@@ -640,11 +697,19 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	workload := m.getOrCreateWorkload(event, selector, workloadID)
 	m.linkWorkloadToProfile(secprof, workload)
 
-	// Check if profile has reached max size
+	// Check if profile has reached max size. V2 uses its own knob evaluated against the
+	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
+	// semantics for ActivityDump/legacy Manager paths.
 	// TODO: we should handle this in a better way
-	if secprof.ActivityTree.Stats.ApproximateSize() >= int64(m.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
+	if !secprof.IsEnabled() {
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		m.eventsDroppedMaxSize.Inc()
+		return nil, false
+	}
+
+	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
+		secprof.Disable()
+		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
+		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		return nil, false
 	}
 
@@ -810,7 +875,8 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		return nil, false
 	}
 
-	// Profile was loaded successfully
+	// Profile was loaded successfully; recompute stats so SizeBytes reflects the loaded tree.
+	secprof.ActivityTree.ComputeActivityTreeStats()
 	secprof.SetTreeType(secprof, "security_profile")
 
 	// Update metadata with current event context for proper matching
@@ -984,6 +1050,9 @@ func (m *ManagerV2) evictUnusedNodes() {
 		}
 		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
+			if !profile.IsEnabled() && profile.ActivityTree.Stats.HeapSize() < int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
+				profile.Enable()
+			}
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
 

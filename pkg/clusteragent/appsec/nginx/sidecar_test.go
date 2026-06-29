@@ -42,6 +42,8 @@ func newTestNginxSidecarPattern(t *testing.T) (*nginxSidecarPattern, *dynamicfak
 			Nginx: appsecconfig.Nginx{
 				InitImage:       "datadog/ingress-nginx-injection",
 				ModuleMountPath: "/modules_mount",
+				InitRunAsUser:   101,
+				InitRunAsGroup:  82,
 			},
 		},
 		Injection: appsecconfig.Injection{
@@ -186,6 +188,17 @@ func TestMutatePod(t *testing.T) {
 	assert.Equal(t, initContainerName, ic.Name)
 	assert.Equal(t, "datadog/ingress-nginx-injection:v1.15.1", ic.Image)
 	assert.Equal(t, []string{"/bin/sh", "/datadog/init_module.sh", "/modules_mount"}, ic.Command)
+
+	// The injection image runs as root, so RunAsNonRoot must be paired with an
+	// explicit non-root UID/GID or the kubelet rejects the container with
+	// "container has runAsNonRoot and image will run as root".
+	require.NotNil(t, ic.SecurityContext)
+	require.NotNil(t, ic.SecurityContext.RunAsNonRoot)
+	assert.True(t, *ic.SecurityContext.RunAsNonRoot)
+	require.NotNil(t, ic.SecurityContext.RunAsUser, "RunAsUser must be set so kubelet accepts a root image under RunAsNonRoot")
+	assert.NotZero(t, *ic.SecurityContext.RunAsUser, "RunAsUser must be non-zero (non-root)")
+	require.NotNil(t, ic.SecurityContext.RunAsGroup)
+	assert.NotZero(t, *ic.SecurityContext.RunAsGroup)
 
 	// Verify volume was added
 	require.Len(t, pod.Spec.Volumes, 1)
@@ -672,4 +685,55 @@ func TestMutatePod_EmptyConfigMapNameRefused(t *testing.T) {
 	assert.False(t, mutated)
 	assert.Empty(t, pod.Spec.InitContainers)
 	assert.Empty(t, pod.Spec.Volumes)
+}
+
+func TestBuildInitContainerRunAsConfig(t *testing.T) {
+	tests := []struct {
+		name           string
+		runAsUser      int64
+		runAsGroup     int64
+		wantUserSet    bool
+		wantUserValue  int64
+		wantGroupSet   bool
+		wantGroupValue int64
+	}{
+		{
+			name:           "non-negative IDs are applied (root image needs explicit non-root UID)",
+			runAsUser:      101,
+			runAsGroup:     82,
+			wantUserSet:    true,
+			wantUserValue:  101,
+			wantGroupSet:   true,
+			wantGroupValue: 82,
+		},
+		{
+			name:         "negative IDs leave the fields unset so a custom image's USER is honored",
+			runAsUser:    -1,
+			runAsGroup:   -1,
+			wantUserSet:  false,
+			wantGroupSet: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := buildInitContainer("repo/image:tag", "/modules_mount", tt.runAsUser, tt.runAsGroup)
+			require.NotNil(t, c.SecurityContext)
+			assert.True(t, *c.SecurityContext.RunAsNonRoot, "RunAsNonRoot must always be enforced")
+
+			if tt.wantUserSet {
+				require.NotNil(t, c.SecurityContext.RunAsUser)
+				assert.Equal(t, tt.wantUserValue, *c.SecurityContext.RunAsUser)
+			} else {
+				assert.Nil(t, c.SecurityContext.RunAsUser)
+			}
+
+			if tt.wantGroupSet {
+				require.NotNil(t, c.SecurityContext.RunAsGroup)
+				assert.Equal(t, tt.wantGroupValue, *c.SecurityContext.RunAsGroup)
+			} else {
+				assert.Nil(t, c.SecurityContext.RunAsGroup)
+			}
+		})
+	}
 }

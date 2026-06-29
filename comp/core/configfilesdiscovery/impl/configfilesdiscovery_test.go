@@ -1,0 +1,511 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package configfilesdiscoveryimpl
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+)
+
+func TestResolveTargetDetectsRuntime(t *testing.T) {
+	tests := []struct {
+		name       string
+		setupStore func(t *testing.T) workloadmeta.Component
+		config     integration.Config
+		wantTarget target
+		wantOK     bool
+	}{
+		{
+			name: "host process",
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "process://1234",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantTarget: target{
+				runtime:  RuntimeHost,
+				entityID: "1234",
+			},
+			wantOK: true,
+		},
+		{
+			name: "standalone docker container",
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "docker://abc123",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantTarget: target{
+				runtime:  RuntimeDocker,
+				entityID: "abc123",
+			},
+			wantOK: true,
+		},
+		{
+			name: "standalone container service with docker runtime",
+			setupStore: func(t *testing.T) workloadmeta.Component {
+				store := newWorkloadMetaMock(t)
+				store.Set(&workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "abc123"},
+					Runtime:  workloadmeta.ContainerRuntimeDocker,
+				})
+				return store
+			},
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "container://abc123",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantTarget: target{
+				runtime:  RuntimeDocker,
+				entityID: "abc123",
+			},
+			wantOK: true,
+		},
+		{
+			name: "kubernetes pod service",
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "kubernetes_pod://pod-uid",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantTarget: target{
+				runtime:  RuntimeKubernetes,
+				entityID: "pod-uid",
+			},
+			wantOK: true,
+		},
+		{
+			name: "container service with kubernetes pod owner",
+			setupStore: func(t *testing.T) workloadmeta.Component {
+				store := newWorkloadMetaMock(t)
+				store.Set(&workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "abc123"},
+					Runtime:  workloadmeta.ContainerRuntimeContainerd,
+					Owner:    &workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+				})
+				store.Set(&workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "redis-0",
+						Namespace: "default",
+					},
+				})
+				return store
+			},
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "container://abc123",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantTarget: target{
+				runtime:  RuntimeKubernetes,
+				entityID: "abc123",
+			},
+			wantOK: true,
+		},
+		{
+			name: "unsupported standalone container service runtime",
+			setupStore: func(t *testing.T) workloadmeta.Component {
+				store := newWorkloadMetaMock(t)
+				store.Set(&workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "abc123"},
+					Runtime:  workloadmeta.ContainerRuntimeContainerd,
+				})
+				return store
+			},
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "container://abc123",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantOK: false,
+		},
+		{
+			name: "unsupported standalone container runtime",
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "containerd://abc123",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantOK: false,
+		},
+		{
+			name: "malformed service id",
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "not-an-ad-service-id",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantOK: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var store workloadmeta.Component
+			if tt.setupStore != nil {
+				store = tt.setupStore(t)
+			}
+			resolver := targetResolver{store: store}
+
+			got, ok := resolver.Resolve(tt.config)
+
+			assert.Equal(t, tt.wantOK, ok)
+			if tt.wantOK {
+				assert.Equal(t, tt.wantTarget, got)
+			}
+		})
+	}
+}
+
+func TestSchedulerDispatchesRegisteredIntegrationsOnly(t *testing.T) {
+	collector := &recordingConfigCollector{}
+	readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: RuntimeHost}}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build},
+		map[string]configCollector{"redis": collector},
+		nil,
+	)
+	defer s.Stop()
+
+	s.Schedule([]integration.Config{
+		checkConfig("redis", "process://1234"),
+		checkConfig("nginx", "process://5678"),
+		{Name: "", ServiceID: "process://9999", Instances: []integration.Data{[]byte("{}")}},
+		{Name: "redis", ServiceID: "process://9999", LogsConfig: []byte(`[{}]`)},
+		{Name: "redis", ServiceID: "process://9999", ClusterCheck: true, Instances: []integration.Data{[]byte("{}")}},
+	})
+
+	runs := collector.waitForRuns(t, 1)
+	assert.Equal(t, RuntimeHost, runs[0].reader.Runtime())
+	targets := readerFactory.recordedTargets()
+	require.Len(t, targets, 1)
+	assert.Equal(t, target{runtime: RuntimeHost, entityID: "1234"}, targets[0])
+}
+
+func TestSchedulerContinuesAfterInvalidConfigInBatch(t *testing.T) {
+	collector := &recordingConfigCollector{}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]configCollector{"redis": collector},
+		nil,
+	)
+	defer s.Stop()
+
+	s.Schedule([]integration.Config{
+		checkConfig("redis", "not-an-ad-service-id"),
+		checkConfig("redis", "docker://abc123"),
+	})
+
+	runs := collector.waitForRuns(t, 1)
+	assert.Equal(t, RuntimeDocker, runs[0].reader.Runtime())
+}
+
+func TestSchedulerRunsCollectorOutsideScheduleCallback(t *testing.T) {
+	collector := &recordingConfigCollector{
+		unblock: make(chan struct{}),
+	}
+	readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: RuntimeHost}}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build},
+		map[string]configCollector{"redis": collector},
+		nil,
+	)
+	defer s.Stop()
+
+	returned := make(chan struct{})
+	go func() {
+		s.Schedule([]integration.Config{
+			checkConfig("redis", "process://1234"),
+		})
+		close(returned)
+	}()
+
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		close(collector.unblock)
+		t.Fatal("Schedule blocked while collector was running")
+	}
+
+	close(collector.unblock)
+	collector.waitForRuns(t, 1)
+}
+
+func TestSchedulerReportsCollectedFiles(t *testing.T) {
+	reporter := &recordingConfigFileReporter{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{
+			{
+				Path:      "/etc/redis/redis.conf",
+				Content:   []byte("port 6379\n"),
+				Truncated: true,
+			},
+		},
+	}
+	s := newADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]configCollector{redisIntegrationName: collector},
+		reporter,
+	)
+	defer s.Stop()
+
+	s.Schedule([]integration.Config{
+		checkConfig(redisIntegrationName, "docker://abc123"),
+	})
+
+	reports := reporter.waitForReports(t, 1)
+	assert.Equal(t, configFileReportCall{
+		integration: redisIntegrationName,
+		file: ConfigFile{
+			Path:      "/etc/redis/redis.conf",
+			Content:   []byte("port 6379\n"),
+			Truncated: true,
+		},
+	}, reports[0])
+}
+
+func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
+	ac := &fakeAutodiscovery{}
+	lifecycle := &recordingLifecycle{}
+
+	NewComponent(Requires{
+		Lifecycle:     lifecycle,
+		Autodiscovery: ac,
+	})
+
+	require.NotNil(t, lifecycle.hook.OnStart)
+	require.NoError(t, lifecycle.hook.OnStart(context.Background()))
+	assert.Equal(t, schedulerName, ac.addedName)
+	assert.True(t, ac.replay)
+	require.Implements(t, (*scheduler.Scheduler)(nil), ac.scheduler)
+
+	require.NotNil(t, lifecycle.hook.OnStop)
+	require.NoError(t, lifecycle.hook.OnStop(context.Background()))
+	assert.Equal(t, schedulerName, ac.removedName)
+}
+
+func TestComponentRegistersRedisCollector(t *testing.T) {
+	c := newComponent(nil, targetResolver{})
+	adScheduler, ok := c.scheduler.(*adScheduler)
+	require.True(t, ok)
+
+	assert.Contains(t, adScheduler.collectors, redisIntegrationName)
+}
+
+func checkConfig(name string, serviceID string) integration.Config {
+	return integration.Config{
+		Name:      name,
+		ServiceID: serviceID,
+		Instances: []integration.Data{
+			[]byte("{}"),
+		},
+	}
+}
+
+type recordingLifecycle struct {
+	hook compdef.Hook
+}
+
+func (l *recordingLifecycle) Append(hook compdef.Hook) {
+	l.hook = hook
+}
+
+type recordingConfigCollector struct {
+	mu      sync.Mutex
+	runs    []runCall
+	unblock chan struct{}
+	files   []ConfigFile
+	err     error
+}
+
+type runCall struct {
+	reader ConfigReader
+}
+
+func (c *recordingConfigCollector) Collect(ctx context.Context, reader ConfigReader) ([]ConfigFile, error) {
+	if c.unblock != nil {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-c.unblock:
+		}
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.runs = append(c.runs, runCall{
+		reader: reader,
+	})
+	return c.files, c.err
+}
+
+type configFileReportCall struct {
+	integration string
+	file        ConfigFile
+}
+
+type recordingConfigFileReporter struct {
+	mu      sync.Mutex
+	reports []configFileReportCall
+	err     error
+}
+
+func (r *recordingConfigFileReporter) ReportConfigFile(_ context.Context, integration string, file ConfigFile) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.reports = append(r.reports, configFileReportCall{
+		integration: integration,
+		file:        file,
+	})
+	return r.err
+}
+
+func (r *recordingConfigFileReporter) waitForReports(t *testing.T, count int) []configFileReportCall {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return len(r.reports) >= count
+	}, time.Second, 10*time.Millisecond)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	reports := make([]configFileReportCall, len(r.reports))
+	copy(reports, r.reports)
+	return reports
+}
+
+func (c *recordingConfigCollector) waitForRuns(t *testing.T, count int) []runCall {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return len(c.runs) >= count
+	}, time.Second, 10*time.Millisecond)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	runs := make([]runCall, len(c.runs))
+	copy(runs, c.runs)
+	return runs
+}
+
+type fakeConfigReader struct {
+	runtime RuntimeType
+}
+
+func (r fakeConfigReader) Runtime() RuntimeType {
+	return r.runtime
+}
+
+func (r fakeConfigReader) ReadFile(context.Context, string) (ConfigFile, error) {
+	return ConfigFile{}, errors.New("not implemented")
+}
+
+func (r fakeConfigReader) ReadEnvVars(context.Context, []string) (map[string]string, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r fakeConfigReader) ReadCommandline(context.Context) (TargetCommandline, error) {
+	return TargetCommandline{}, errors.New("not implemented")
+}
+
+func fakeConfigReaderFactory(reader ConfigReader) configReaderFactory {
+	return func(target) (ConfigReader, error) {
+		return reader, nil
+	}
+}
+
+type recordingConfigReaderFactory struct {
+	mu      sync.Mutex
+	reader  ConfigReader
+	targets []target
+}
+
+func (f *recordingConfigReaderFactory) Build(target target) (ConfigReader, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.targets = append(f.targets, target)
+	return f.reader, nil
+}
+
+func (f *recordingConfigReaderFactory) recordedTargets() []target {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	targets := make([]target, len(f.targets))
+	copy(targets, f.targets)
+	return targets
+}
+
+func newWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
+	t.Helper()
+
+	return workloadmetaimpl.NewWorkloadMetaMock(workloadmetaimpl.Dependencies{
+		Lc:     compdef.NewTestLifecycle(t),
+		Log:    logmock.New(t),
+		Config: config.NewMock(t),
+		Params: workloadmeta.NewParams(),
+	})
+}
+
+type fakeAutodiscovery struct {
+	autodiscovery.Component
+
+	addedName   string
+	removedName string
+	scheduler   scheduler.Scheduler
+	replay      bool
+}
+
+func (a *fakeAutodiscovery) AddScheduler(name string, scheduler scheduler.Scheduler, replay bool) {
+	a.addedName = name
+	a.scheduler = scheduler
+	a.replay = replay
+}
+
+func (a *fakeAutodiscovery) RemoveScheduler(name string) {
+	a.removedName = name
+}

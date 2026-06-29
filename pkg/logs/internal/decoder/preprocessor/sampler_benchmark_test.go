@@ -63,7 +63,7 @@ func newBenchSampler(maxPatterns int) *AdaptiveSampler {
 		RateLimit:      1e9, // refills instantly at benchmark timescales
 		BurstSize:      math.MaxFloat64 / 2,
 		MatchThreshold: 0.75,
-	}, "bench")
+	}, "bench", 0)
 }
 
 // prefillSampler loads the sampler's entries directly, bypassing Process, so we can
@@ -199,7 +199,7 @@ func BenchmarkSampler_Adaptive_ImportantBypass(b *testing.B) {
 		BurstSize:            math.MaxFloat64 / 2,
 		MatchThreshold:       0.75,
 		ProtectImportantLogs: true,
-	}, "bench")
+	}, "bench", 0)
 	prefillSampler(s, benchFillPatterns, 100)
 	msg := benchMsg()
 	b.ResetTimer()

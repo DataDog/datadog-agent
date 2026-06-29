@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "priviledged",
+    srcs = [
+        "archive.go",
+        "archive_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/flare/priviledged",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/system-probe/api/client",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/system-probe/api/client",
+        ],
+        "//conditions:default": [],
+    }),
+)

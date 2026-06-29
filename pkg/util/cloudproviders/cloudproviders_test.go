@@ -115,7 +115,7 @@ func TestCloudProviderHostCCRID(t *testing.T) {
 
 func TestGetValidHostAliasesWithConfig(t *testing.T) {
 	config := configmock.New(t)
-	config.SetWithoutSource("host_aliases", []string{"foo", "-bar"})
+	config.SetInTest("host_aliases", []string{"foo", "-bar"})
 
 	val, err := getValidHostAliases(context.TODO())
 	require.NoError(t, err)

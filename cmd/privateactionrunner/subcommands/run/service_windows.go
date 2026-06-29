@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	defaultConfPath = filepath.Join(defaultpaths.ConfPath, "datadog.yaml")
+	defaultConfPath = filepath.Join(defaultpaths.GetDefaultConfPath(), "datadog.yaml")
 )
 
 type windowsService struct {
