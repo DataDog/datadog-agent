@@ -331,8 +331,7 @@ func (k *KubeASCheck) Run() error {
 	return nil
 }
 
-// startEventCollection builds a fresh informer factory and starts the event
-// informers. It is idempotent.
+// startEventCollection builds a new EventCollector and starts it. It is idempotent.
 func (k *KubeASCheck) startEventCollection() error {
 	if k.eventCollectorRunning {
 		return nil
@@ -340,11 +339,20 @@ func (k *KubeASCheck) startEventCollection() error {
 
 	k.informersStopCh = make(chan struct{})
 	k.eventCollection.EventCollector = k.ac.NewEventCollector(k.eventCollection.Filter, k.instance.EventCollectionBufferSize)
+
+	// Resume from the last persisted resourceVersion so events created while we
+	// were not the leader (or were restarting) are recovered rather than skipped.
+	if resVer, _, err := k.ac.GetTokenFromConfigmap(eventTokenKey); err != nil {
+		log.Warnf("Could not read persisted event resourceVersion, starting fresh: %s", err)
+	} else {
+		k.eventCollection.EventCollector.SetResourceVersion(resVer)
+	}
+
 	k.eventCollectorRunning = true
 	return k.eventCollection.EventCollector.Start(k.informersStopCh)
 }
 
-// stopEventCollection stops the running event informers by closing their stop
+// stopEventCollection stops the running EventCollector by closing its stop
 // channel. It is idempotent.
 func (k *KubeASCheck) stopEventCollection() {
 	if !k.eventCollectorRunning {
@@ -356,7 +364,7 @@ func (k *KubeASCheck) stopEventCollection() {
 	k.eventCollectorRunning = false
 }
 
-// Cancel stops the event informers when the check is unscheduled.
+// Cancel stops the EventCollector when the check is unscheduled.
 func (k *KubeASCheck) Cancel() {
 	k.stopEventCollection()
 }
@@ -365,6 +373,12 @@ func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Eve
 	events := k.eventCollection.EventCollector.Drain()
 
 	sender.Gauge("kubernetes_apiserver.events_dropped", float64(k.eventCollection.EventCollector.Dropped()), "", nil)
+
+	// Persist the high-water mark so a restart or leader failover resumes here.
+	if err := k.ac.UpdateTokenInConfigmap(eventTokenKey, k.eventCollection.EventCollector.ResourceVersion(), time.Now()); err != nil {
+		k.Warnf("Could not persist event resourceVersion: %s", err.Error())
+	}
+
 	ddevents, errs := k.eventCollection.Transformer.Transform(events)
 
 	for _, err := range errs {

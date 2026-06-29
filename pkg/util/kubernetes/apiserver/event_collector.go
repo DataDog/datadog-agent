@@ -9,7 +9,7 @@ package apiserver
 
 import (
 	"context"
-	"time"
+	"strconv"
 
 	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
@@ -22,12 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// EventCollector watches Kubernetes events through a client-go Reflector and
+// EventCollector watches Kubernetes events through a Reflector and
 // buffers them for a periodic consumer to drain.
 type EventCollector struct {
-	client  kubernetes.Interface
-	filter  string
-	startTS time.Time
+	client kubernetes.Interface
+	filter string
+
+	// lastRV is the highest resourceVersion forwarded so far
+	lastRV *atomic.Uint64
 
 	events  chan *v1.Event
 	dropped *atomic.Uint64
@@ -43,17 +45,26 @@ func (c *APIClient) NewEventCollector(filter string, bufferSize int) *EventColle
 	return &EventCollector{
 		client:  c.InformerCl,
 		filter:  filter,
+		lastRV:  atomic.NewUint64(0),
 		events:  make(chan *v1.Event, bufferSize),
 		dropped: atomic.NewUint64(0),
 	}
+}
+
+// SetResourceVersion sets the highest forwarded resourceVersion.
+func (ec *EventCollector) SetResourceVersion(rv string) {
+	ec.lastRV.Store(parseResourceVersion(rv))
+}
+
+// ResourceVersion returns the highest forwarded resourceVersion.
+func (ec *EventCollector) ResourceVersion() string {
+	return strconv.FormatUint(ec.lastRV.Load(), 10)
 }
 
 // Start builds the events Reflector and runs it until stopCh is closed. The
 // Reflector lists then watches events matching the field selector, forwarding
 // them to the buffer through eventReflectorStore.
 func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
-	ec.startTS = time.Now()
-
 	lw := &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = ec.filter
@@ -65,7 +76,8 @@ func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
 		},
 	}
 
-	reflector := cache.NewReflector(lw, &v1.Event{}, &eventReflectorStore{enqueue: ec.enqueue}, 0)
+	store := &eventReflectorStore{enqueue: ec.enqueue, watermark: ec.lastRV}
+	reflector := cache.NewReflector(lw, &v1.Event{}, store, 0)
 	go reflector.Run(stopCh)
 
 	return nil
@@ -89,27 +101,11 @@ func (ec *EventCollector) Dropped() uint64 {
 	return ec.dropped.Load()
 }
 
-// enqueue adds an event to the buffer. If the event's lastTimestamp and EventTime are before the startTS, it is not collected.
-// If the buffer is full, the event is dropped.
-func (ec *EventCollector) enqueue(obj interface{}) {
-	ev, ok := obj.(*v1.Event)
-	if !ok {
-		log.Errorf("Expected *v1.Event, got %T; skipping", obj)
-		return
-	}
-
-	if !ec.shouldCollect(ev) {
-		return
-	}
-
+// enqueue buffers an event, dropping it (and counting the drop) if the buffer is full.
+func (ec *EventCollector) enqueue(ev *v1.Event) {
 	select {
 	case ec.events <- ev:
 	default:
 		ec.dropped.Add(1)
 	}
-}
-
-// shouldCollect reports whether an event should be collected.
-func (ec *EventCollector) shouldCollect(ev *v1.Event) bool {
-	return ev.LastTimestamp.After(ec.startTS) || ev.EventTime.Time.After(ec.startTS)
 }

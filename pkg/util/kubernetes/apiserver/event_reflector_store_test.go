@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -19,11 +20,8 @@ import (
 func makeStore() (*eventReflectorStore, *[]*v1.Event) {
 	var captured []*v1.Event
 	s := &eventReflectorStore{
-		enqueue: func(obj interface{}) {
-			if ev, ok := obj.(*v1.Event); ok {
-				captured = append(captured, ev)
-			}
-		},
+		enqueue:   func(ev *v1.Event) { captured = append(captured, ev) },
+		watermark: atomic.NewUint64(0),
 	}
 	return s, &captured
 }
@@ -57,22 +55,22 @@ func TestForwardIfNew(t *testing.T) {
 		assert.Empty(t, *captured)
 	})
 
-	t.Run("RV at or below highestRV is not forwarded", func(t *testing.T) {
+	t.Run("RV at or below watermark is not forwarded", func(t *testing.T) {
 		s, captured := makeStore()
-		s.highestRV = 10
+		s.watermark.Store(10)
 		s.forwardIfNew(eventWithRV("10")) // boundary: equal
 		assert.Empty(t, *captured)
-		assert.Equal(t, uint64(10), s.highestRV)
+		assert.Equal(t, uint64(10), s.watermark.Load())
 	})
 
-	t.Run("RV above highestRV is forwarded and highestRV advances", func(t *testing.T) {
+	t.Run("RV above watermark is forwarded and watermark advances", func(t *testing.T) {
 		s, captured := makeStore()
-		s.highestRV = 10
+		s.watermark.Store(10)
 		ev := eventWithRV("20")
 		s.forwardIfNew(ev)
 		require.Len(t, *captured, 1)
 		assert.Same(t, ev, (*captured)[0])
-		assert.Equal(t, uint64(20), s.highestRV)
+		assert.Equal(t, uint64(20), s.watermark.Load())
 	})
 }
 
@@ -99,7 +97,7 @@ func TestAddUpdate(t *testing.T) {
 	t.Run("stale RV: event skipped", func(t *testing.T) {
 		for _, m := range methods {
 			s, captured := makeStore()
-			s.highestRV = 5
+			s.watermark.Store(5)
 			require.NoError(t, m.call(s, eventWithRV("3")))
 			assert.Empty(t, *captured, m.name)
 		}
@@ -113,25 +111,34 @@ func TestDelete(t *testing.T) {
 	assert.Empty(t, *captured)
 }
 
-// TestReplace verifies first-call seeding suppresses forwarding, and subsequent calls forward qualifying events without lowering highestRV.
+// TestReplace verifies cold-start seeding suppresses forwarding, a seeded watermark
+// (restart) forwards the backlog past it, and relists forward without lowering the watermark.
 func TestReplace(t *testing.T) {
-	t.Run("first call seeds highestRV from listRV and skips all events", func(t *testing.T) {
+	t.Run("cold start seeds watermark from listRV and skips all events", func(t *testing.T) {
 		s, captured := makeStore()
 		require.NoError(t, s.Replace([]interface{}{eventWithRV("5")}, "10"))
 		assert.Empty(t, *captured)
 		assert.True(t, s.seeded)
-		assert.Equal(t, uint64(10), s.highestRV)
+		assert.Equal(t, uint64(10), s.watermark.Load())
 	})
 
-	t.Run("subsequent call forwards new events and does not lower highestRV below its current value", func(t *testing.T) {
+	t.Run("restart from persisted watermark forwards events past it", func(t *testing.T) {
 		s, captured := makeStore()
-		require.NoError(t, s.Replace([]interface{}{}, "5")) // seed; highestRV=5
+		s.watermark.Store(4) // seeded from a persisted resourceVersion
+		require.NoError(t, s.Replace([]interface{}{eventWithRV("3"), eventWithRV("6")}, "6"))
+		require.Len(t, *captured, 1)
+		assert.Equal(t, uint64(6), s.watermark.Load())
+	})
+
+	t.Run("relist forwards new events and does not lower the watermark", func(t *testing.T) {
+		s, captured := makeStore()
+		require.NoError(t, s.Replace([]interface{}{}, "5")) // cold seed; watermark=5
 		ev := eventWithRV("10")
-		// listRV "3" is below highestRV after forwarding ev; highestRV must not drop.
+		// listRV "3" is below the watermark after forwarding ev; it must not drop.
 		require.NoError(t, s.Replace([]interface{}{ev, eventWithRV("3")}, "3"))
 		require.Len(t, *captured, 1)
 		assert.Same(t, ev, (*captured)[0])
-		assert.Equal(t, uint64(10), s.highestRV)
+		assert.Equal(t, uint64(10), s.watermark.Load())
 	})
 }
 
