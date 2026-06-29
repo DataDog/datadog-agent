@@ -267,7 +267,7 @@
     id: ''
 '@datadog/debugger-go':
   notification:
-    name: '#dynamic-instrumentation-go'
+    name: '#debugger-go'
     id: 'C04J1N8L2Q6'
   review:
     name: '#debugger-go'
