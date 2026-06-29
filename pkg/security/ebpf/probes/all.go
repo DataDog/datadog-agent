@@ -27,7 +27,6 @@ const (
 
 	minProcEntries = 16384
 	maxProcEntries = 131072
-
 )
 
 var (
