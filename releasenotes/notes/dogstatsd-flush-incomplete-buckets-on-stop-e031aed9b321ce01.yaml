@@ -9,8 +9,5 @@
 enhancements:
   - |
     When ``dogstatsd_flush_incomplete_buckets`` is enabled, the DogStatsD server
-    now also drains its per-worker batchers into the time sampler on stop before
-    the sampler flushes its final bucket. This ensures metrics buffered in the
-    server at shutdown are reported rather than dropped, which is useful for
-    short-lived processes. The setting remains ``false`` by default, so
-    long-running agents are unaffected.
+    now also finishes processing in-flight packets before sending metrics in the
+    current (incomplete) aggregation window.
