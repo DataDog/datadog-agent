@@ -5,11 +5,11 @@ build_windows_container_entrypoint:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: binary_build
-  tags: ["windows-v2:2019"]
+  tags: ["windows-v2:2022"]
   needs: ["lint_windows-x64"]
   variables:
     ARCH: "x64"
-    VARIANT: 1809
+    VARIANT: ltsc2022
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
@@ -23,7 +23,7 @@ build_windows_container_entrypoint:
       -e WINDOWS_BUILDER=true
       -e AWS_NETWORKING=true
       -e TARGET_ARCH="$ARCH"
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\Dockerfiles\agent\windows\entrypoint\build.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem build-out\${CI_JOB_ID}

@@ -5,9 +5,9 @@
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["go_deps", "go_tools_deps"]
-  tags: ["windows-v2:2019"]
+  tags: ["windows-v2:2022"]
   variables:
-    VARIANT: 1809
+    VARIANT: ltsc2022
   before_script:
     - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name $VCPKG_BLOB_SAS_URL_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
   script:
@@ -29,7 +29,7 @@
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
       -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\integrationtests.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 

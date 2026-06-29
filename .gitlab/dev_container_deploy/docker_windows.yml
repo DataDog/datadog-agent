@@ -8,14 +8,13 @@ dev_branch-a6-windows:
   rules:
     !reference [.manual]
   needs:
-    - docker_build_agent6_windows1809_core
     - docker_build_agent6_windows2022_core
   variables:
     IMG_REGISTRIES: dev
   parallel:
     matrix:
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6"
-        IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
+        IMG_SOURCES: "%BASE%-winltsc2022-servercore-amd64"
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py2-win-servercore
 
 dev_master-a6-windows:
@@ -24,14 +23,13 @@ dev_master-a6-windows:
   rules:
     !reference [.on_main]
   needs:
-    - docker_build_agent6_windows1809_core
     - docker_build_agent6_windows2022_core
   variables:
     IMG_REGISTRIES: dev
   parallel:
     matrix:
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6"
-        IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
+        IMG_SOURCES: "%BASE%-winltsc2022-servercore-amd64"
         IMG_DESTINATIONS: agent-dev:master-py2-win-servercore
 
 dev_nightly-a6-windows:
@@ -40,12 +38,11 @@ dev_nightly-a6-windows:
   rules:
     !reference [.on_deploy_nightly_repo_branch]
   needs:
-    - docker_build_agent6_windows1809_core
     - docker_build_agent6_windows2022_core
   variables:
     IMG_REGISTRIES: dev
   parallel:
     matrix:
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6"
-        IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
+        IMG_SOURCES: "%BASE%-winltsc2022-servercore-amd64"
         IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2-win-servercore
