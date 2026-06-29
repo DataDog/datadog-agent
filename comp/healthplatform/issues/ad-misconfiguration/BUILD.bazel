@@ -6,7 +6,7 @@ go_library(
         "issue.go",
         "module.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig",
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
