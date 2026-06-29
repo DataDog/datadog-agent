@@ -9,6 +9,11 @@
 package diagnose
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"strings"
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -19,8 +24,11 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -46,6 +54,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(core.WithSecrets()),
 				diagnosefx.Module(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -56,51 +65,37 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func run(cfg config.Component, diagnoseComponent diagnose.Component, cliParams *cliParams) error {
-	// Register both suites for diagnose subcommand
-	catalog := diagnose.GetCatalog()
-	catalog.Register(diagnose.AutodiscoveryConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
-		return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
-	})
-	catalog.Register(diagnose.CoreEndpointsConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
-		return connectivity.Diagnose(diagnose.Config{}, nil)
-	})
-
-	config := diagnose.Config{}
-	suites := diagnose.Suites{}
-	if len(cliParams.include) == 0 {
-		if fn, ok := catalog.Suites[diagnose.AutodiscoveryConnectivity]; ok {
-			suites[diagnose.AutodiscoveryConnectivity] = fn
-		}
-	} else {
-		for _, name := range cliParams.include {
-			if fn, ok := catalog.Suites[name]; ok {
-				suites[name] = fn
-			}
-		}
-	}
-	if len(suites) == 0 {
-		return format.Text(color.Output, config, &diagnose.Result{
-			Runs: []diagnose.Diagnoses{
-				{
-					Name: "Diagnose",
-					Diagnoses: []diagnose.Diagnosis{
-						{
-							Status:    diagnose.DiagnosisFail,
-							Name:      "Diagnose",
-							Category:  "All",
-							Diagnosis: "No diagnose suite were found",
-						},
-					},
-				},
-			},
-		})
-	}
-
-	result, err := diagnoseComponent.RunLocalSuite(suites, config)
+func run(_ config.Component, _ diagnose.Component, client ipc.HTTPClient, cliParams *cliParams) error {
+	cfg := diagnose.Config{Include: cliParams.include}
+	result, err := requestDiagnosesFromRunningAgent(client, cfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("diagnose requires the cluster-agent to be running: %w", err)
+	}
+	return format.Text(color.Output, cfg, result)
+}
+
+// requestDiagnosesFromRunningAgent POSTs to the running cluster-agent's /diagnose endpoint
+// so that the live health-platform store (and any other registered suites) is included.
+func requestDiagnosesFromRunningAgent(client ipc.HTTPClient, cfg diagnose.Config) (*diagnose.Result, error) {
+	port := pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")
+	diagnoseURL := fmt.Sprintf("https://localhost:%d/diagnose", port)
+
+	body, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("error serialising diagnose config: %w", err)
 	}
 
-	return format.Text(color.Output, config, result)
+	response, err := client.Post(diagnoseURL, "application/json", bytes.NewBuffer(body), ipchttp.WithCloseConnection)
+	if err != nil {
+		if response != nil && strings.TrimSpace(string(response)) != "" {
+			return nil, fmt.Errorf("cluster-agent returned: %s", strings.TrimSpace(string(response)))
+		}
+		return nil, err
+	}
+
+	var result diagnose.Result
+	if err := json.Unmarshal(response, &result); err != nil {
+		return nil, fmt.Errorf("error parsing response: %w", err)
+	}
+	return &result, nil
 }
