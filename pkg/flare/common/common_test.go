@@ -16,14 +16,14 @@ import (
 )
 
 func TestIncludeSystemProbeConfig(t *testing.T) {
-	configmock.NewFromFile(t, "./test/datadog-agent.yaml")
+	configmock.NewFromFile(t, "./testdata/datadog-agent.yaml")
 	// create system-probe.yaml file because it's in .gitignore
-	_, err := os.Create("./test/system-probe.yaml")
+	_, err := os.Create("./testdata/system-probe.yaml")
 	require.NoError(t, err, "couldn't create system-probe.yaml")
-	defer os.Remove("./test/system-probe.yaml")
+	defer os.Remove("./testdata/system-probe.yaml")
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	GetConfigFiles(mock, map[string]string{"": "./test/confd"})
+	GetConfigFiles(mock, map[string]string{"": "./testdata/confd"})
 
 	mock.AssertFileExists("etc", "datadog.yaml")
 	mock.AssertFileExists("etc", "system-probe.yaml")
@@ -33,7 +33,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 	configmock.New(t)
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	GetConfigFiles(mock, map[string]string{"": "./test/confd"})
+	GetConfigFiles(mock, map[string]string{"": "./testdata/confd"})
 
 	mock.AssertFileExists("etc/confd/test.yaml")
 	mock.AssertFileExists("etc/confd/test.Yml")
@@ -44,7 +44,7 @@ func TestIncludeConfigFilesWithPrefix(t *testing.T) {
 	configmock.New(t)
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	GetConfigFiles(mock, map[string]string{"prefix": "./test/confd"})
+	GetConfigFiles(mock, map[string]string{"prefix": "./testdata/confd"})
 
 	mock.AssertFileExists("etc/confd/prefix/test.yaml")
 	mock.AssertFileExists("etc/confd/prefix/test.Yml")
