@@ -13,4 +13,14 @@ const (
 	// ADMisconfigurationSource is the Source value reported when the
 	// autodiscovery component detects a misconfiguration.
 	ADMisconfigurationSource = "autodiscovery"
+
+	// ADAnnotationIssueID is the stable IssueID prefix for AD annotation misconfiguration issues.
+	// External reporters append a sanitized entity suffix separated by a colon:
+	//   ADAnnotationIssueID + ":" + sanitizedEntity
+	ADAnnotationIssueID = "ad-annotation"
+
+	// ADTemplateIssueID is the stable IssueID prefix for AD template resolution failure issues.
+	// External reporters append sanitized name, service-id, and digest segments separated by colons:
+	//   ADTemplateIssueID + ":" + name + ":" + sanitizedServiceID + ":" + digest
+	ADTemplateIssueID = "ad-template"
 )

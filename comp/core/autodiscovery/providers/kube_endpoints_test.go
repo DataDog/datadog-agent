@@ -297,7 +297,7 @@ func TestKubeEndpointsHealthPlatformReporting(t *testing.T) {
 		healthPlatform: hp,
 	}
 
-	issueID := "ad-annotation:" + apiserver.EntityForEndpoints("default", "withErrors", "")
+	issueID := "ad-annotation:" + sanitizeIssueIDSegment(apiserver.EntityForEndpoints("default", "withErrors", ""))
 
 	svc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{

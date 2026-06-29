@@ -503,7 +503,7 @@ func TestKubeServiceHealthPlatformReporting(t *testing.T) {
 		healthPlatform: hp,
 	}
 
-	const issueID = "ad-annotation:kube_service://default/withErrors"
+	const issueID = "ad-annotation:kube-service-default-witherrors"
 
 	svc := &v1.Service{
 		TypeMeta: metav1.TypeMeta{Kind: kubernetes.ServiceKind},
