@@ -7,7 +7,6 @@ package config
 
 import (
 	"crypto/ecdsa"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -241,31 +240,11 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 	return result
 }
 
-// NewMetricsClient builds a DogStatsD client from the Agent's configured endpoint.
-// Used by deployments that send metrics over a socket/UDP;
-// the Cluster Agent submits in-process instead.
-//
-// Endpoint selection mirrors the rest of the Agent (see the trace-agent's findAddr):
-// UDP if dogstatsd_port > 0, otherwise the Windows pipe, otherwise the Unix socket,
-// otherwise STATSD_URL, otherwise no-op. This avoids building a dead udp://host:0 client
-// when UDP is disabled (dogstatsd_port: 0) and DogStatsD is reachable only via socket/pipe.
-// STATSD_URL still wins over the chosen address when set.
+// NewMetricsClient builds a DogStatsD client from the Agent's configured
+// host/port endpoint.
 func NewMetricsClient(config config.Component, statsdComp statsdcomp.Component) (statsd.ClientInterface, error) {
-	var client statsd.ClientInterface
-	var err error
 	port := config.GetInt("dogstatsd_port")
-	switch {
-	case port > 0:
-		client, err = statsdComp.CreateForHostPort(configutils.GetBindHost(config), port)
-	case config.GetString("dogstatsd_pipe_name") != "":
-		client, err = statsdComp.CreateForAddr(`\\.\pipe\` + config.GetString("dogstatsd_pipe_name"))
-	case config.GetString("dogstatsd_socket") != "":
-		client, err = statsdComp.CreateForAddr("unix://" + config.GetString("dogstatsd_socket"))
-	case os.Getenv("STATSD_URL") != "":
-		client, err = statsdComp.Create()
-	default:
-		return &statsd.NoOpClient{}, errors.New("no DogStatsD endpoint configured (dogstatsd_port: 0, no socket/pipe); PAR metrics disabled")
-	}
+	client, err := statsdComp.CreateForHostPort(configutils.GetBindHost(config), port)
 	if err != nil {
 		return &statsd.NoOpClient{}, fmt.Errorf("failed to create DogStatsD client: %w", err)
 	}
