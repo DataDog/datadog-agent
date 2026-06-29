@@ -61,7 +61,7 @@ func (v *ec2VMWKitDirectSuite) BeforeTest(suiteName, testName string) {
 
 	// Verify that the connections check is not running
 	assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		status, err := v.execAgentCommand("process-agent.exe", "status")
+		status, err := v.execSubagentCommand("process-agent.exe", "status")
 		if assert.NoError(c, err) {
 			for line := range strings.SplitSeq(status, "\n") {
 				if strings.Contains(line, "Enabled Checks:") {
@@ -123,11 +123,11 @@ func (v *ec2VMWKitDirectSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 }
 
-func (v *ec2VMWKitDirectSuite) execAgentCommand(executable, command string, options ...client.ExecuteOption) (string, error) {
+func (v *ec2VMWKitDirectSuite) execSubagentCommand(executable, command string, options ...client.ExecuteOption) (string, error) {
 	host := v.Env().RemoteHost
 	v.Require().NotEmpty(v.installPath)
 
-	agentPath := filepath.Join(v.installPath, "bin", executable)
+	agentPath := filepath.Join(v.installPath, "bin", "agent", executable)
 	cmd := fmt.Sprintf(`& "%s" %s`, agentPath, command)
 	return host.Execute(cmd, options...)
 }
