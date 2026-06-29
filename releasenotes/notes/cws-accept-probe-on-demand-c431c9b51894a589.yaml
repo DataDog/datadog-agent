@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CWS: The ``accept`` probe is now attached only when ``accept`` events are requested,
+    instead of whenever network monitoring is enabled.
