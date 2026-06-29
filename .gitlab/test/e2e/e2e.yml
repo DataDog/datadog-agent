@@ -1046,6 +1046,7 @@ new-e2e-otel:
     - qa_dca
     - qa_agent_full
     - qa_ot_agent_standalone
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/otel
     EXTRA_PARAMS: --skip "TestOTelAgentIA(EKS|USTEKS)"
