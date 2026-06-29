@@ -90,6 +90,18 @@ var (
 	distPath = filepath.Join(_here, "dist")
 )
 
+func init() {
+	// Check DD_COMMON_ROOT environment variable early so that config defaults
+	// are correct when BindEnvAndSetDefault is called during config/setup init().
+	if envVal, found := os.LookupEnv("DD_COMMON_ROOT"); found {
+		if envVal == "" {
+			commonRoot = defaultCommonRoot
+		} else {
+			commonRoot = envVal
+		}
+	}
+}
+
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {
 	return distPath
@@ -280,4 +292,41 @@ func GetDefaultDDAgentBin() string {
 // GetDefaultDataPlaneLogFile returns the default log file used by the data-plane agent if not configured
 func GetDefaultDataPlaneLogFile() string {
 	return defaultDataPlaneLogFile
+}
+
+// CommonRootOrPath will optionally transform the path to use the common root path provided
+//
+//	/etc/datadog-agent/** -> {root}/etc/**
+//	/var/log/datadog/**   -> {root}/logs/**
+//	/var/run/datadog/**   -> {root}/run/**
+//	/opt/datadog-agent/** -> {root}/**
+func CommonRootOrPath(root, path string) string {
+	if root == "" {
+		return path
+	}
+
+	switch {
+	case strings.HasPrefix(path, "/var/log/datadog/"):
+		rest := strings.TrimPrefix(path, "/var/log/datadog/")
+		return filepath.Join(root, "logs", rest)
+	case path == "/var/log/datadog":
+		return filepath.Join(root, "logs")
+	case strings.HasPrefix(path, "/etc/datadog-agent/"):
+		rest := strings.TrimPrefix(path, "/etc/datadog-agent/")
+		return filepath.Join(root, "etc", rest)
+	case path == "/etc/datadog-agent":
+		return filepath.Join(root, "etc")
+	case strings.HasPrefix(path, "/var/run/datadog/"):
+		rest := strings.TrimPrefix(path, "/var/run/datadog/")
+		return filepath.Join(root, "run", rest)
+	case path == "/var/run/datadog":
+		return filepath.Join(root, "run")
+	case strings.HasPrefix(path, "/opt/datadog-agent/"):
+		rest := strings.TrimPrefix(path, "/opt/datadog-agent/")
+		return filepath.Join(root, rest)
+	case path == "/opt/datadog-agent":
+		return root
+	default:
+		return path
+	}
 }
