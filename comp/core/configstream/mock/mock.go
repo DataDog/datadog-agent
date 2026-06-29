@@ -110,6 +110,5 @@ func (mock *Component) Close() {
 		for _, ch := range subs {
 			close(ch)
 		}
-		// SubscribedC/UnsubscribedC not closed: send on closed channel panics even inside select.
 	})
 }
