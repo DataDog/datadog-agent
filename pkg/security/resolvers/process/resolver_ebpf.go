@@ -97,6 +97,7 @@ type EBPFResolver struct {
 	addedEntriesFromProcFS    *atomic.Int64
 	flushedEntries            *atomic.Int64
 	pathErrStats              *atomic.Int64
+	otelTLSErrStats           *atomic.Int64
 	argsTruncated             *atomic.Int64
 	argsSize                  *atomic.Int64
 	envsTruncated             *atomic.Int64
@@ -218,6 +219,12 @@ func (p *EBPFResolver) SendStats() error {
 	if count := p.pathErrStats.Swap(0); count > 0 {
 		if err := p.statsdClient.Count(metrics.MetricProcessResolverPathError, count, []string{}, 1.0); err != nil {
 			return fmt.Errorf("failed to send process_resolver path error metric: %w", err)
+		}
+	}
+
+	if count := p.otelTLSErrStats.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessResolverOTelTLSError, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver otel tls error metric: %w", err)
 		}
 	}
 
@@ -1264,6 +1271,7 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 	// Native: resolve OTel TLS symbol for TLSDESC-based span context.
 	if p.otelTLSMap != nil {
 		if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
+			p.otelTLSErrStats.Inc()
 			seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
 		}
 	}
@@ -1690,6 +1698,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		addedEntriesFromProcFS:    atomic.NewInt64(0),
 		flushedEntries:            atomic.NewInt64(0),
 		pathErrStats:              atomic.NewInt64(0),
+		otelTLSErrStats:           atomic.NewInt64(0),
 		argsTruncated:             atomic.NewInt64(0),
 		argsSize:                  atomic.NewInt64(0),
 		envsTruncated:             atomic.NewInt64(0),

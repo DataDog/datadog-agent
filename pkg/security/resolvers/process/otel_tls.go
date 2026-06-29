@@ -621,7 +621,9 @@ func buildOTelTLSModuleSet(modules []otelMappedELF, candidate otelTLSCandidate) 
 		}
 	}
 
-	return otelTLSModuleSet{}, 0, fmt.Errorf("could not build TLS module membership table")
+	return otelTLSModuleSet{}, 0, fmt.Errorf(
+		"could not build collision-free TLS module membership table after %d seeds (%d TLS / %d total modules)",
+		otelTLSMaxSeedSearch, tlsModuleCount, len(modules))
 }
 
 func otelTLSHashSlot(loadBias uint64, seed uint64) uint32 {
