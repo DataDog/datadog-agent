@@ -14,7 +14,7 @@ load(
 )
 load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
 
-package(default_visibility = ["//packages:__subpackages__"])
+package(default_visibility = ["//packages/agent/iot:__subpackages__"])
 
 # systemd.service.in is shared between the debian/ and redhat/ subpackages.
 # Debian installs it to lib/systemd/system/; RedHat/SUSE to usr/lib/systemd/system/.
@@ -37,7 +37,6 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":dirs",
-        ":example_config",
         "//cmd/agent/dist/conf.d:all_files",
     ],
 )
