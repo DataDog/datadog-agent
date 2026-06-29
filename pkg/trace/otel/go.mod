@@ -17,10 +17,10 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
-	go.opentelemetry.io/collector/component/componenttest v0.154.0
-	go.opentelemetry.io/collector/consumer v1.60.0
-	go.opentelemetry.io/collector/pdata v1.60.0
-	go.opentelemetry.io/collector/processor/processortest v0.154.0
+	go.opentelemetry.io/collector/component/componenttest v0.153.0
+	go.opentelemetry.io/collector/consumer v1.59.0
+	go.opentelemetry.io/collector/pdata v1.59.0
+	go.opentelemetry.io/collector/processor/processortest v0.153.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/metric v1.44.0
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
@@ -147,19 +147,19 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/component v1.60.0 // indirect
-	go.opentelemetry.io/collector/component/componentstatus v0.154.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumertest v0.154.0 // indirect
-	go.opentelemetry.io/collector/consumer/xconsumer v0.154.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.60.0 // indirect
-	go.opentelemetry.io/collector/internal/componentalias v0.154.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.154.0 // indirect
-	go.opentelemetry.io/collector/pdata/testdata v0.154.0 // indirect
-	go.opentelemetry.io/collector/pipeline v1.60.0 // indirect
-	go.opentelemetry.io/collector/processor v1.60.0 // indirect
-	go.opentelemetry.io/collector/processor/processorhelper v0.154.0 // indirect
-	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.154.0 // indirect
-	go.opentelemetry.io/collector/processor/xprocessor v0.154.0 // indirect
+	go.opentelemetry.io/collector/component v1.59.0 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.153.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumertest v0.153.0 // indirect
+	go.opentelemetry.io/collector/consumer/xconsumer v0.153.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.59.0 // indirect
+	go.opentelemetry.io/collector/internal/componentalias v0.153.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.153.0 // indirect
+	go.opentelemetry.io/collector/pdata/testdata v0.153.0 // indirect
+	go.opentelemetry.io/collector/pipeline v1.59.0 // indirect
+	go.opentelemetry.io/collector/processor v1.59.0 // indirect
+	go.opentelemetry.io/collector/processor/processorhelper v0.152.0 // indirect
+	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.152.0 // indirect
+	go.opentelemetry.io/collector/processor/xprocessor v0.153.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.44.0 // indirect
@@ -187,6 +187,40 @@ require (
 )
 
 replace go.opentelemetry.io/otel/sdk/metric v1.43.1-0.20260514180605-442cdbdd9466 => go.opentelemetry.io/otel/sdk/metric v1.44.0
+
+replace go.opentelemetry.io/collector/component => github.com/truthbk/opentelemetry-collector/component v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/component/componentstatus => github.com/truthbk/opentelemetry-collector/component/componentstatus v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/component/componenttest => github.com/truthbk/opentelemetry-collector/component/componenttest v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/consumer => github.com/truthbk/opentelemetry-collector/consumer v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/consumer/consumertest => github.com/truthbk/opentelemetry-collector/consumer/consumertest v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/consumer/xconsumer => github.com/truthbk/opentelemetry-collector/consumer/xconsumer v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/featuregate => github.com/truthbk/opentelemetry-collector/featuregate v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/internal/componentalias => github.com/truthbk/opentelemetry-collector/internal/componentalias v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/pdata => github.com/truthbk/opentelemetry-collector/pdata v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/pdata/pprofile => github.com/truthbk/opentelemetry-collector/pdata/pprofile v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/pdata/testdata => github.com/truthbk/opentelemetry-collector/pdata/testdata v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/pipeline => github.com/truthbk/opentelemetry-collector/pipeline v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/processor => github.com/truthbk/opentelemetry-collector/processor v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/processor/processorhelper => github.com/truthbk/opentelemetry-collector/processor/processorhelper v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper => github.com/truthbk/opentelemetry-collector/processor/processorhelper/xprocessorhelper v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/processor/processortest => github.com/truthbk/opentelemetry-collector/processor/processortest v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/processor/xprocessor => github.com/truthbk/opentelemetry-collector/processor/xprocessor v0.0.0-20260619163650-4ae40fbc1ada
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

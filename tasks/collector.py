@@ -1,3 +1,4 @@
+import json
 import os
 import platform
 import re
@@ -28,9 +29,9 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.154.0"
+OCB_VERSION = "0.152.0"
 # The version the core collector and collector-contrib may or may not match
-OTEL_CONTRIB_VERSION = "0.154.0"
+OTEL_CONTRIB_VERSION = "0.152.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -594,3 +595,152 @@ def pull_request(ctx):
         )
     else:
         print("No changes detected, skipping PR creation.")
+
+
+# --- Fork-based collector builds (DDOT against a go.opentelemetry.io/collector fork) ---
+
+# Default fork used to build DDOT against a non-upstream collector. The fork keeps the
+# upstream module paths (e.g. `module go.opentelemetry.io/collector/component`), so we wire
+# it in with per-submodule `replace` directives pointing at the fork's VCS pseudoversion.
+OTEL_COLLECTOR_FORK_REPO = "github.com/truthbk/opentelemetry-collector"
+OTEL_COLLECTOR_FORK_REF = "path-y/codegen-migration"
+OTEL_COLLECTOR_MODULE_PREFIX = "go.opentelemetry.io/collector"
+
+
+def _fetch_module_set_versions(url):
+    """Fetches a collector `versions.yaml` and returns a {module_path: version} map."""
+    print(f"Fetching versions from {url}")
+    response = requests.get(url)
+    response.raise_for_status()
+    data = yaml.safe_load(response.content)
+    module_to_version = {}
+    for _, details in data.get("module-sets", {}).items():
+        version = details.get("version", "unknown")
+        for module in details.get("modules", []):
+            module_to_version[module] = version
+    return module_to_version
+
+
+def _fork_target_module(repo, module_path):
+    """Maps a collector module path to its path inside the fork repo.
+
+    go.opentelemetry.io/collector        -> <repo>
+    go.opentelemetry.io/collector/pdata  -> <repo>/pdata
+    """
+    sub = module_path[len(OTEL_COLLECTOR_MODULE_PREFIX) :]
+    return f"{repo}{sub}"
+
+
+def _resolve_fork_pseudoversion(ctx, repo, sha):
+    """Resolves the VCS pseudoversion for the fork at `sha`.
+
+    The fork carries no tags, so every submodule at a single commit resolves to the same
+    `v0.0.0-<commit-timestamp>-<short-sha>` pseudoversion; resolving the repo root is enough.
+    """
+    res = ctx.run(
+        f"go mod download -json {repo}@{sha}",
+        hide=True,
+        env={"GOFLAGS": "-mod=mod"},
+    )
+    return json.loads(res.stdout)["Version"]
+
+
+def _collector_requires(ctx, go_mod_path, fork_modules):
+    """Returns the collector module paths required by `go_mod_path` that exist in the fork."""
+    res = ctx.run(f"go mod edit -json {go_mod_path}", hide=True)
+    data = json.loads(res.stdout)
+    required = {r["Path"] for r in (data.get("Require") or [])}
+    return sorted(required & fork_modules)
+
+
+@task
+def use_fork(
+    ctx,
+    repo=OTEL_COLLECTOR_FORK_REPO,
+    ref=OTEL_COLLECTOR_FORK_REF,
+    contrib_version="0.152.0",
+    skip_tidy=False,
+):
+    """Build DDOT against a fork of go.opentelemetry.io/collector.
+
+    Aligns the agent's collector version pins to the fork's base release (read from the fork's
+    own versions.yaml), then injects `replace` directives pointing every required collector
+    submodule at the fork's VCS pseudoversion across all go.mod files, go.work and the OCB
+    manifest. Re-run to re-point at the current branch HEAD.
+
+    Example: dda inv collector.use-fork --ref=path-y/codegen-migration
+    """
+    https = f"https://{repo}.git"
+    sha = ctx.run(f"git ls-remote {https} {ref}", hide=True).stdout.split()[0]
+    if not sha:
+        raise Exit(color_message(f"Could not resolve {repo}@{ref}", Color.RED), code=1)
+    print(f"Using fork {repo}@{ref} ({sha})")
+
+    # 1. Build the module -> version map from the fork (core) + matching upstream contrib release.
+    raw_base = f"https://raw.githubusercontent.com/{repo[len('github.com/'):]}"
+    core_versions = _fetch_module_set_versions(f"{raw_base}/{sha}/versions.yaml")
+    contrib_versions = _fetch_module_set_versions(
+        f"https://raw.githubusercontent.com/{OTEL_COLLECTOR_CONTRIB_REPO}/refs/tags/v{contrib_version}/versions.yaml"
+    )
+    modules_version = {**core_versions, **contrib_versions}
+
+    # 2. Align version pins down to the fork's base across all go.mod files and the manifest.
+    old_version = read_old_version(MANIFEST_FILE)
+    new_version = core_versions[OTEL_COLLECTOR_MODULE_PREFIX][1:]  # beta line, e.g. "0.152.0"
+    update_all_go_mod(modules_version)
+    update_versions_in_ocb_yaml(MANIFEST_FILE, modules_version)
+    for filepath in [
+        MANIFEST_FILE,
+        "./comp/otelcol/collector/impl/collector.go",
+        "./comp/otelcol/collector-contrib/impl/components.go",
+        "./.gitlab/test/integration_test/otel.yml",
+    ]:
+        update_file(filepath, old_version, new_version)
+    update_variables_in_file(
+        "./tasks/collector.py", {"OCB_VERSION": new_version, "OTEL_CONTRIB_VERSION": contrib_version}
+    )
+    update_variables_in_file("./tasks/host_profiler.py", {"PPROFILE_MAX_VERSION": f"v{contrib_version}"})
+
+    # 3. Resolve the fork pseudoversion and inject replaces everywhere it's needed.
+    pseudo = _resolve_fork_pseudoversion(ctx, repo, sha)
+    print(f"Fork pseudoversion: {pseudo}")
+    fork_modules = set(core_versions.keys())
+
+    ignored = {os.path.normpath(p) for p in ["./pkg/dyninst/testprogs/progs/go.mod"]}
+    for root, _, files in os.walk("."):
+        if "go.mod" not in files:
+            continue
+        go_mod_path = os.path.join(root, "go.mod")
+        if os.path.normpath(go_mod_path) in ignored:
+            continue
+        needed = _collector_requires(ctx, go_mod_path, fork_modules)
+        for module in needed:
+            target = _fork_target_module(repo, module)
+            ctx.run(f"go mod edit -replace={module}={target}@{pseudo} {go_mod_path}", hide=True)
+        if needed:
+            print(f"Injected {len(needed)} fork replaces into {go_mod_path}")
+
+    # go.work: add replaces for every fork module (workspace builds; harmless if unused).
+    for module in sorted(fork_modules):
+        target = _fork_target_module(repo, module)
+        ctx.run(f"go work edit -replace={module}={target}@{pseudo}", hide=True)
+    print("Injected fork replaces into go.work")
+
+    # OCB manifest: the generated impl/go.mod inherits these replaces.
+    with open(MANIFEST_FILE) as f:
+        manifest = yaml.safe_load(f)
+    replaces = manifest.get("replaces") or []
+    existing = {r.split("=>")[0].strip() for r in replaces}
+    for module in sorted(fork_modules):
+        if module in existing:
+            continue
+        target = _fork_target_module(repo, module)
+        replaces.append(f"{module} => {target} {pseudo}")
+    manifest["replaces"] = replaces
+    with open(MANIFEST_FILE, "w") as f:
+        yaml.dump(manifest, f, default_flow_style=False, sort_keys=False, width=4096)
+    print(f"Injected fork replaces into {MANIFEST_FILE}")
+
+    if not skip_tidy:
+        tidy(ctx)
+    print(f"Done. DDOT is now wired to {repo}@{ref}.")

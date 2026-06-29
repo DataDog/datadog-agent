@@ -1,93 +1,93 @@
 connectors:
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector
-    v0.154.0
+    v0.152.0
 dist:
   description: Datadog OpenTelemetry Collector
   module: github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl
   name: otelcol-contrib
   output_path: ./comp/otelcol/collector-contrib/impl
-  version: 0.154.0
+  version: 0.152.0
 exporters:
-- gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.154.0
+- gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter
-    v0.154.0
-- gomod: go.opentelemetry.io/collector/exporter/nopexporter v0.154.0
-- gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.154.0
-- gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.154.0
+    v0.152.0
+- gomod: go.opentelemetry.io/collector/exporter/nopexporter v0.152.0
+- gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.152.0
+- gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.152.0
 extensions:
-- gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.154.0
+- gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage
-    v0.154.0
+    v0.152.0
 processors:
-- gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.154.0
-- gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.154.0
+- gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.152.0
+- gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor
-    v0.154.0
+    v0.152.0
 providers:
-- gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.60.0
-- gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.60.0
-- gomod: go.opentelemetry.io/collector/confmap/provider/httpprovider v1.60.0
-- gomod: go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.60.0
-- gomod: go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.60.0
+- gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.58.0
+- gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.58.0
+- gomod: go.opentelemetry.io/collector/confmap/provider/httpprovider v1.58.0
+- gomod: go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.58.0
+- gomod: go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.58.0
 receivers:
-- gomod: go.opentelemetry.io/collector/receiver/nopreceiver v0.154.0
-- gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.154.0
+- gomod: go.opentelemetry.io/collector/receiver/nopreceiver v0.152.0
+- gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator
-    v0.154.0
+    v0.152.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver
-    v0.154.0
+    v0.152.0
 replaces:
 - github.com/googleapis/gnostic v0.5.6 => github.com/googleapis/gnostic v0.5.5
 - github.com/docker/go-connections v0.4.1-0.20210727194412-58542c764a11 => github.com/docker/go-connections
@@ -95,3 +95,187 @@ replaces:
 - github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
 - github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
 - github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def
+- go.opentelemetry.io/collector => github.com/truthbk/opentelemetry-collector v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/client => github.com/truthbk/opentelemetry-collector/client
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/cmd/builder => github.com/truthbk/opentelemetry-collector/cmd/builder
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/cmd/mdatagen => github.com/truthbk/opentelemetry-collector/cmd/mdatagen
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/component => github.com/truthbk/opentelemetry-collector/component
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/component/componentstatus => github.com/truthbk/opentelemetry-collector/component/componentstatus
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/component/componenttest => github.com/truthbk/opentelemetry-collector/component/componenttest
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/configauth => github.com/truthbk/opentelemetry-collector/config/configauth
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/configcompression => github.com/truthbk/opentelemetry-collector/config/configcompression
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/configgrpc => github.com/truthbk/opentelemetry-collector/config/configgrpc
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/confighttp => github.com/truthbk/opentelemetry-collector/config/confighttp
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/confighttp/xconfighttp => github.com/truthbk/opentelemetry-collector/config/confighttp/xconfighttp
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/configmiddleware => github.com/truthbk/opentelemetry-collector/config/configmiddleware
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/confignet => github.com/truthbk/opentelemetry-collector/config/confignet
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/configopaque => github.com/truthbk/opentelemetry-collector/config/configopaque
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/configoptional => github.com/truthbk/opentelemetry-collector/config/configoptional
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/configretry => github.com/truthbk/opentelemetry-collector/config/configretry
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/configtelemetry => github.com/truthbk/opentelemetry-collector/config/configtelemetry
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/config/configtls => github.com/truthbk/opentelemetry-collector/config/configtls
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/confmap => github.com/truthbk/opentelemetry-collector/confmap
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/confmap/provider/envprovider => github.com/truthbk/opentelemetry-collector/confmap/provider/envprovider
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/confmap/provider/fileprovider => github.com/truthbk/opentelemetry-collector/confmap/provider/fileprovider
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/confmap/provider/httpprovider => github.com/truthbk/opentelemetry-collector/confmap/provider/httpprovider
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/confmap/provider/httpsprovider => github.com/truthbk/opentelemetry-collector/confmap/provider/httpsprovider
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/confmap/provider/yamlprovider => github.com/truthbk/opentelemetry-collector/confmap/provider/yamlprovider
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/confmap/xconfmap => github.com/truthbk/opentelemetry-collector/confmap/xconfmap
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/connector => github.com/truthbk/opentelemetry-collector/connector
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/connector/connectortest => github.com/truthbk/opentelemetry-collector/connector/connectortest
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/connector/forwardconnector => github.com/truthbk/opentelemetry-collector/connector/forwardconnector
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/connector/xconnector => github.com/truthbk/opentelemetry-collector/connector/xconnector
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/consumer => github.com/truthbk/opentelemetry-collector/consumer
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/consumer/consumererror => github.com/truthbk/opentelemetry-collector/consumer/consumererror
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/consumer/consumererror/xconsumererror => github.com/truthbk/opentelemetry-collector/consumer/consumererror/xconsumererror
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/consumer/consumertest => github.com/truthbk/opentelemetry-collector/consumer/consumertest
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/consumer/xconsumer => github.com/truthbk/opentelemetry-collector/consumer/xconsumer
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/exporter => github.com/truthbk/opentelemetry-collector/exporter
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/exporter/debugexporter => github.com/truthbk/opentelemetry-collector/exporter/debugexporter
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/exporter/exporterhelper => github.com/truthbk/opentelemetry-collector/exporter/exporterhelper
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper => github.com/truthbk/opentelemetry-collector/exporter/exporterhelper/xexporterhelper
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/exporter/exportertest => github.com/truthbk/opentelemetry-collector/exporter/exportertest
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/exporter/nopexporter => github.com/truthbk/opentelemetry-collector/exporter/nopexporter
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/exporter/otlpexporter => github.com/truthbk/opentelemetry-collector/exporter/otlpexporter
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/exporter/otlphttpexporter => github.com/truthbk/opentelemetry-collector/exporter/otlphttpexporter
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/exporter/xexporter => github.com/truthbk/opentelemetry-collector/exporter/xexporter
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/extension => github.com/truthbk/opentelemetry-collector/extension
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/extension/extensionauth => github.com/truthbk/opentelemetry-collector/extension/extensionauth
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/extension/extensionauth/extensionauthtest => github.com/truthbk/opentelemetry-collector/extension/extensionauth/extensionauthtest
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/extension/extensioncapabilities => github.com/truthbk/opentelemetry-collector/extension/extensioncapabilities
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/extension/extensionmiddleware => github.com/truthbk/opentelemetry-collector/extension/extensionmiddleware
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/extension/extensionmiddleware/extensionmiddlewaretest
+  => github.com/truthbk/opentelemetry-collector/extension/extensionmiddleware/extensionmiddlewaretest
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/extension/extensiontest => github.com/truthbk/opentelemetry-collector/extension/extensiontest
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/extension/memorylimiterextension => github.com/truthbk/opentelemetry-collector/extension/memorylimiterextension
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/extension/xextension => github.com/truthbk/opentelemetry-collector/extension/xextension
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/extension/zpagesextension => github.com/truthbk/opentelemetry-collector/extension/zpagesextension
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/featuregate => github.com/truthbk/opentelemetry-collector/featuregate
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/filter => github.com/truthbk/opentelemetry-collector/filter
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/internal/componentalias => github.com/truthbk/opentelemetry-collector/internal/componentalias
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/internal/fanoutconsumer => github.com/truthbk/opentelemetry-collector/internal/fanoutconsumer
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/internal/memorylimiter => github.com/truthbk/opentelemetry-collector/internal/memorylimiter
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/internal/schemagen => github.com/truthbk/opentelemetry-collector/internal/schemagen
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/internal/sharedcomponent => github.com/truthbk/opentelemetry-collector/internal/sharedcomponent
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/internal/telemetry => github.com/truthbk/opentelemetry-collector/internal/telemetry
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/internal/testutil => github.com/truthbk/opentelemetry-collector/internal/testutil
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/otelcol => github.com/truthbk/opentelemetry-collector/otelcol
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/otelcol/otelcoltest => github.com/truthbk/opentelemetry-collector/otelcol/otelcoltest
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/pdata => github.com/truthbk/opentelemetry-collector/pdata
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/pdata/pprofile => github.com/truthbk/opentelemetry-collector/pdata/pprofile
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/pdata/testdata => github.com/truthbk/opentelemetry-collector/pdata/testdata
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/pdata/xpdata => github.com/truthbk/opentelemetry-collector/pdata/xpdata
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/pipeline => github.com/truthbk/opentelemetry-collector/pipeline
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/pipeline/xpipeline => github.com/truthbk/opentelemetry-collector/pipeline/xpipeline
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/processor => github.com/truthbk/opentelemetry-collector/processor
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/processor/batchprocessor => github.com/truthbk/opentelemetry-collector/processor/batchprocessor
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/processor/memorylimiterprocessor => github.com/truthbk/opentelemetry-collector/processor/memorylimiterprocessor
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/processor/processorhelper => github.com/truthbk/opentelemetry-collector/processor/processorhelper
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper => github.com/truthbk/opentelemetry-collector/processor/processorhelper/xprocessorhelper
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/processor/processortest => github.com/truthbk/opentelemetry-collector/processor/processortest
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/processor/xprocessor => github.com/truthbk/opentelemetry-collector/processor/xprocessor
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/receiver => github.com/truthbk/opentelemetry-collector/receiver
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/receiver/nopreceiver => github.com/truthbk/opentelemetry-collector/receiver/nopreceiver
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/receiver/otlpreceiver => github.com/truthbk/opentelemetry-collector/receiver/otlpreceiver
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/receiver/receiverhelper => github.com/truthbk/opentelemetry-collector/receiver/receiverhelper
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/receiver/receivertest => github.com/truthbk/opentelemetry-collector/receiver/receivertest
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/receiver/xreceiver => github.com/truthbk/opentelemetry-collector/receiver/xreceiver
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/scraper => github.com/truthbk/opentelemetry-collector/scraper
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/scraper/scraperhelper => github.com/truthbk/opentelemetry-collector/scraper/scraperhelper
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/scraper/scraperhelper/xscraperhelper => github.com/truthbk/opentelemetry-collector/scraper/scraperhelper/xscraperhelper
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/scraper/scrapertest => github.com/truthbk/opentelemetry-collector/scraper/scrapertest
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/scraper/xscraper => github.com/truthbk/opentelemetry-collector/scraper/xscraper
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/service => github.com/truthbk/opentelemetry-collector/service
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/service/hostcapabilities => github.com/truthbk/opentelemetry-collector/service/hostcapabilities
+  v0.0.0-20260619163650-4ae40fbc1ada
+- go.opentelemetry.io/collector/service/telemetry/telemetrytest => github.com/truthbk/opentelemetry-collector/service/telemetry/telemetrytest
+  v0.0.0-20260619163650-4ae40fbc1ada

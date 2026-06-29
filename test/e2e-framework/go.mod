@@ -239,8 +239,8 @@ require (
 	github.com/zclconf/go-cty v1.15.1 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/featuregate v1.60.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.60.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.59.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.59.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.18.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect
@@ -287,6 +287,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace go.opentelemetry.io/collector/featuregate => github.com/truthbk/opentelemetry-collector/featuregate v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/pdata => github.com/truthbk/opentelemetry-collector/pdata v0.0.0-20260619163650-4ae40fbc1ada
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

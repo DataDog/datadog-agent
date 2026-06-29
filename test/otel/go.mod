@@ -14,17 +14,19 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/trace v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.77.0-devel.0.20260213154712-e02b9359151a
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.154.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.152.0
 )
 
-require go.opentelemetry.io/collector/extension/xextension v0.154.0 // indirect
+require go.opentelemetry.io/collector/extension/xextension v0.152.0 // indirect
 
-require go.opentelemetry.io/collector/extension/extensionauth v1.60.0 // indirect
+require go.opentelemetry.io/collector/extension/extensionauth v1.58.0 // indirect
 
-require go.opentelemetry.io/collector/config/configoptional v1.60.0 // indirect
+require go.opentelemetry.io/collector/config/configoptional v1.58.0 // indirect
 
 require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.153.0 // indirect
+	go.opentelemetry.io/collector/processor/processortest v0.153.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 )
 
@@ -32,28 +34,28 @@ require (
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20251226215517-609e4778396f // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
-	go.opentelemetry.io/collector/pdata/xpdata v0.154.0 // indirect
+	go.opentelemetry.io/collector/pdata/xpdata v0.153.0 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.81.0-devel.0.20260515214905-7c02565fb890 // indirect
-	go.opentelemetry.io/collector/config/configmiddleware v1.60.0 // indirect
-	go.opentelemetry.io/collector/confmap/xconfmap v0.154.0 // indirect
-	go.opentelemetry.io/collector/exporter/exporterhelper v0.154.0 // indirect
-	go.opentelemetry.io/collector/extension/extensionmiddleware v0.154.0 // indirect
+	go.opentelemetry.io/collector/config/configmiddleware v1.58.0 // indirect
+	go.opentelemetry.io/collector/confmap/xconfmap v0.153.0 // indirect
+	go.opentelemetry.io/collector/exporter/exporterhelper v0.152.0 // indirect
+	go.opentelemetry.io/collector/extension/extensionmiddleware v0.152.0 // indirect
 )
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
-	go.opentelemetry.io/collector/internal/componentalias v0.154.0 // indirect
-	go.opentelemetry.io/collector/pipeline/xpipeline v0.154.0 // indirect
+	go.opentelemetry.io/collector/internal/componentalias v0.153.0 // indirect
+	go.opentelemetry.io/collector/pipeline/xpipeline v0.152.0 // indirect
 )
 
 require (
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
-	go.opentelemetry.io/collector/featuregate v1.60.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.59.0 // indirect
 )
 
 require (
@@ -82,8 +84,8 @@ require (
 	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.27 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
-	go.opentelemetry.io/collector/consumer/consumererror v0.154.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.154.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumererror v0.153.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.153.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -199,21 +201,21 @@ require (
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/client v1.60.0 // indirect
-	go.opentelemetry.io/collector/component v1.60.0 // indirect
-	go.opentelemetry.io/collector/config/configauth v1.60.0 // indirect
-	go.opentelemetry.io/collector/config/configcompression v1.60.0 // indirect
-	go.opentelemetry.io/collector/config/confighttp v0.154.0 // indirect
-	go.opentelemetry.io/collector/config/confignet v1.60.0 // indirect
-	go.opentelemetry.io/collector/config/configopaque v1.60.0 // indirect
-	go.opentelemetry.io/collector/config/configretry v1.60.0 // indirect
-	go.opentelemetry.io/collector/config/configtls v1.60.0 // indirect
-	go.opentelemetry.io/collector/confmap v1.60.0 // indirect
-	go.opentelemetry.io/collector/consumer v1.60.0 // indirect
-	go.opentelemetry.io/collector/exporter v1.60.0 // indirect
-	go.opentelemetry.io/collector/extension v1.60.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.60.0 // indirect
-	go.opentelemetry.io/collector/pipeline v1.60.0 // indirect
+	go.opentelemetry.io/collector/client v1.58.0 // indirect
+	go.opentelemetry.io/collector/component v1.59.0 // indirect
+	go.opentelemetry.io/collector/config/configauth v1.58.0 // indirect
+	go.opentelemetry.io/collector/config/configcompression v1.58.0 // indirect
+	go.opentelemetry.io/collector/config/confighttp v0.152.0 // indirect
+	go.opentelemetry.io/collector/config/confignet v1.58.0 // indirect
+	go.opentelemetry.io/collector/config/configopaque v1.58.0 // indirect
+	go.opentelemetry.io/collector/config/configretry v1.58.0 // indirect
+	go.opentelemetry.io/collector/config/configtls v1.58.0 // indirect
+	go.opentelemetry.io/collector/confmap v1.59.0 // indirect
+	go.opentelemetry.io/collector/consumer v1.59.0 // indirect
+	go.opentelemetry.io/collector/exporter v1.58.0 // indirect
+	go.opentelemetry.io/collector/extension v1.58.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.59.0 // indirect
+	go.opentelemetry.io/collector/pipeline v1.59.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
@@ -234,6 +236,62 @@ require (
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 )
+
+replace go.opentelemetry.io/collector/client => github.com/truthbk/opentelemetry-collector/client v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/component => github.com/truthbk/opentelemetry-collector/component v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/config/configauth => github.com/truthbk/opentelemetry-collector/config/configauth v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/config/configcompression => github.com/truthbk/opentelemetry-collector/config/configcompression v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/config/confighttp => github.com/truthbk/opentelemetry-collector/config/confighttp v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/config/configmiddleware => github.com/truthbk/opentelemetry-collector/config/configmiddleware v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/config/confignet => github.com/truthbk/opentelemetry-collector/config/confignet v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/config/configopaque => github.com/truthbk/opentelemetry-collector/config/configopaque v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/config/configoptional => github.com/truthbk/opentelemetry-collector/config/configoptional v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/config/configretry => github.com/truthbk/opentelemetry-collector/config/configretry v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/config/configtls => github.com/truthbk/opentelemetry-collector/config/configtls v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/confmap => github.com/truthbk/opentelemetry-collector/confmap v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/confmap/xconfmap => github.com/truthbk/opentelemetry-collector/confmap/xconfmap v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/consumer => github.com/truthbk/opentelemetry-collector/consumer v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/consumer/consumererror => github.com/truthbk/opentelemetry-collector/consumer/consumererror v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/exporter => github.com/truthbk/opentelemetry-collector/exporter v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/exporter/exporterhelper => github.com/truthbk/opentelemetry-collector/exporter/exporterhelper v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/extension => github.com/truthbk/opentelemetry-collector/extension v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/extension/extensionauth => github.com/truthbk/opentelemetry-collector/extension/extensionauth v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/extension/extensionmiddleware => github.com/truthbk/opentelemetry-collector/extension/extensionmiddleware v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/extension/xextension => github.com/truthbk/opentelemetry-collector/extension/xextension v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/featuregate => github.com/truthbk/opentelemetry-collector/featuregate v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/internal/componentalias => github.com/truthbk/opentelemetry-collector/internal/componentalias v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/pdata => github.com/truthbk/opentelemetry-collector/pdata v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/pdata/pprofile => github.com/truthbk/opentelemetry-collector/pdata/pprofile v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/pdata/xpdata => github.com/truthbk/opentelemetry-collector/pdata/xpdata v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/pipeline => github.com/truthbk/opentelemetry-collector/pipeline v0.0.0-20260619163650-4ae40fbc1ada
+
+replace go.opentelemetry.io/collector/pipeline/xpipeline => github.com/truthbk/opentelemetry-collector/pipeline/xpipeline v0.0.0-20260619163650-4ae40fbc1ada
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
