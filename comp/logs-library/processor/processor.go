@@ -290,6 +290,27 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 					break
 				}
 			}
+		case config.ExcludeAtVRLMatch:
+			if rule.VRLFilter == nil {
+				break
+			}
+			if matched, err := rule.VRLFilter(content); err == nil && matched {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				return false
+			}
+		case config.IncludeAtVRLMatch:
+			if rule.VRLFilter == nil {
+				break
+			}
+			matched, err := rule.VRLFilter(content)
+			if err != nil {
+				// Runtime error: pass message through unchanged.
+				break
+			}
+			if !matched {
+				return false
+			}
+			msg.RecordProcessingRule(rule.Type, rule.Name)
 		}
 	}
 

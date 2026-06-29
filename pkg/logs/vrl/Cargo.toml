@@ -1,0 +1,14 @@
+[workspace]
+
+[package]
+name = "vrl-filter"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+
+[lib]
+name = "vrl_filter"
+crate-type = ["staticlib"]
+
+[dependencies]
+vrl = { version = "0.33.1", default-features = false, features = ["compiler"] }

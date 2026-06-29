@@ -239,6 +239,8 @@ modules:
     used_by_otel: true
   pkg/logs/util/testutils:
     used_by_otel: true
+  pkg/logs/vrl:
+    should_test_condition: never
   pkg/metrics:
     used_by_otel: true
   pkg/network/driver: default

@@ -9,16 +9,20 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/vrl"
 )
 
 // Processing rule types
 const (
-	ExcludeAtMatch   = "exclude_at_match"
-	IncludeAtMatch   = "include_at_match"
-	MaskSequences    = "mask_sequences"
-	MultiLine        = "multi_line"
-	ExcludeTruncated = "exclude_truncated"
-	RemapSource      = "remap_source"
+	ExcludeAtMatch    = "exclude_at_match"
+	IncludeAtMatch    = "include_at_match"
+	MaskSequences     = "mask_sequences"
+	MultiLine         = "multi_line"
+	ExcludeTruncated  = "exclude_truncated"
+	RemapSource       = "remap_source"
+	ExcludeAtVRLMatch = "exclude_at_vrl_match"
+	IncludeAtVRLMatch = "include_at_vrl_match"
 )
 
 // SourceMatchEntry defines a single attribute-value-to-source match
@@ -39,6 +43,10 @@ type ProcessingRule struct {
 	Regex              *regexp.Regexp
 	Placeholder        []byte
 	Matching           []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
+	// VRLFilter is set for ExcludeAtVRLMatch and IncludeAtVRLMatch rules after compilation.
+	// Returns (true, nil) when the VRL expression is truthy, (false, nil) when falsy/abort,
+	// and (false, err) on a runtime error.
+	VRLFilter func(input []byte) (bool, error) `json:"-" yaml:"-" mapstructure:"-"`
 }
 
 // ValidateProcessingRules validates the rules and raises an error if one is misconfigured.
@@ -78,6 +86,10 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 					return fmt.Errorf("match %d has empty new_source in processing rule: %s", i, rule.Name)
 				}
 			}
+		case ExcludeAtVRLMatch, IncludeAtVRLMatch:
+			if rule.Pattern == "" {
+				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+			}
 		case "":
 			return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
 		default:
@@ -90,7 +102,15 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 // CompileProcessingRules compiles all processing rule regular expressions.
 func CompileProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
-		if rule.Type == ExcludeTruncated || rule.Type == RemapSource {
+		switch rule.Type {
+		case ExcludeTruncated, RemapSource:
+			continue
+		case ExcludeAtVRLMatch, IncludeAtVRLMatch:
+			prog, err := vrl.Compile(rule.Pattern)
+			if err != nil {
+				return fmt.Errorf("invalid VRL pattern %q for processing rule %s: %w", rule.Pattern, rule.Name, err)
+			}
+			rule.VRLFilter = prog.Filter
 			continue
 		}
 		re, err := regexp.Compile(rule.Pattern)

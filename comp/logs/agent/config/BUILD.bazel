@@ -23,6 +23,7 @@ go_library(
         "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/logs/types",
+        "//pkg/logs/vrl",
         "//pkg/util/log",
         "//pkg/util/scrubber",
         "@in_yaml_go_yaml_v3//:yaml",
