@@ -50,7 +50,6 @@ if arm_target?
   excluded_folders.push('ibm_mq')
 end
 
-final_constraints_file = 'final_constraints-py3.txt'
 agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
 agent_requirements_in = 'agent_requirements.in'
@@ -83,14 +82,10 @@ build do
   }
 
   # Install integration dependencies, datadog-checks-base, and datadog-checks-downloader
-  command_on_repo_root "bazelisk run " \
-                       "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
-                       "--//:install_dir=#{install_dir} " \
-                       "-- //deps/agent_integrations:install --destdir=#{install_dir}"
-
-  # Create a constraint file after installing all the core dependencies and before any integration
-  # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
-  command "#{python} -m pip freeze > #{install_dir}/#{final_constraints_file}"
+  command "bazel run " \
+          "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
+          "--//:install_dir=#{install_dir} " \
+          "-- //deps/agent_integrations:install --destdir=#{install_dir}"
 
   # Prepare build env for integrations
   wheel_build_dir = windows_safe_path(project_dir, ".wheels")
@@ -213,10 +208,6 @@ build do
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   command "#{python} -m pip check"
-
-  # Removing tests that don't need to be shipped in the embedded folder
-  # This dependency doesn't come from the integrations-core lockfiles, so its tests need to be removed here
-  delete "#{site_packages_path}/../idlelib/idle_test/"
 
   unless windows_target?
     block "Remove .exe files" do

@@ -8,7 +8,6 @@ package setup
 import (
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
@@ -17,7 +16,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PAREnabled, false)
 
 	// Log file
-	config.BindEnvAndSetDefault(PARLogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile())
+	config.BindEnvAndSetDefault(PARLogFile, "${log_path}/private-action-runner.log")
 
 	// Identity / enrollment configuration
 	config.BindEnvAndSetDefault(PARSelfEnroll, true)

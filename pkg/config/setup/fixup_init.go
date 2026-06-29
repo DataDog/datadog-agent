@@ -77,6 +77,7 @@ func fixupInitCommonConfigComponents(config pkgconfigmodel.Config) {
 	pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
 
 	// misc
+	pkgconfigmodel.AddOverrideFunc(FleetConfigOverride)
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
 	pkgconfigmodel.AddOverrideFunc(ApplyUseDogstatsdSuppression)

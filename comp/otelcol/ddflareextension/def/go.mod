@@ -2,11 +2,11 @@ module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def
 
 go 1.26.0
 
-require go.opentelemetry.io/collector/extension v1.60.0
+require go.opentelemetry.io/collector/extension v1.61.0
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	go.opentelemetry.io/collector/internal/componentalias v0.154.0 // indirect
+	go.opentelemetry.io/collector/internal/componentalias v0.155.0 // indirect
 )
 
 require (
@@ -16,9 +16,9 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	go.opentelemetry.io/collector/component v1.60.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.60.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.60.0 // indirect
+	go.opentelemetry.io/collector/component v1.61.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.61.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.61.0 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
@@ -37,6 +37,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../../comp/core/agenttelemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def => ../../../../comp/core/configstreamconsumer/def
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../../../comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ../../../../comp/core/delegatedauth/api/cloudauth/aws
@@ -126,7 +127,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../../pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface

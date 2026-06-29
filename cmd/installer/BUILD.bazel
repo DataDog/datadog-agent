@@ -24,23 +24,13 @@ dd_agent_go_binary(
         "@platforms//os:windows": ["//cmd/installer/windows_resources:rsrc"],
         "//conditions:default": [],
     }),
-    # For Windows we always need cgo to link the resource files.
-    # For FIPS we need cgo for the usual reasons.
-    # This behavior was determined by looking at the usage patterns of
-    # how the omnibus build and tasks/installer.py interacted.
-    # In the future, we may find it easier to always use cgo.
+    # FIPS requires cgo; Windows cgo is provided by dd_agent_go_binary default.
     cgo = select({
         "//packages/agent:fips_flavor": True,
         "@platforms//os:windows": True,
         "//conditions:default": False,
     }),
     embed = [":installer_lib"],
-    # TODO(agent-build): Perhaps the toolchain or the macro should select
-    # these based on debug or release builds.
-    gc_linkopts = [
-        "-s",
-        "-w",
-    ],
     gotags = sorted(COMMON_TAGS | INSTALLER_TAGS),
     visibility = ["//visibility:public"],
 )

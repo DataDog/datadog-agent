@@ -19,9 +19,12 @@ require gopkg.in/yaml.v3 v3.0.1 // indirect
 require (
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
@@ -30,6 +33,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
 
@@ -43,6 +47,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def => ../../../comp/core/configstreamconsumer/def
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../../comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ../../../comp/core/delegatedauth/api/cloudauth/aws
@@ -132,7 +137,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface
