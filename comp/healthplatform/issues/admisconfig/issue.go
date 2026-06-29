@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	issueName  = "Autodiscovery Misconfiguration"
+	issueName  = IssueName
 	category   = "autodiscovery"
 	location   = "autodiscovery"
 	severity   = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
@@ -75,7 +75,7 @@ func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*health
 
 	return &healthplatform.Issue{
 		IssueName:   issueName,
-		Title:       fmt.Sprintf("Autodiscovery Misconfiguration on '%s'", entityName),
+		Title:       content.title + " on '" + entityName + "'",
 		Description: content.description,
 		Category:    category,
 		Location:    location,

@@ -792,7 +792,7 @@ func TestKubeEndpointSlicesHealthPlatformReporting(t *testing.T) {
 		healthPlatform: hp,
 	}
 
-	const issueID = "ad-annotation:default-witherrors"
+	const issueID = "ad-annotation:default/withErrors"
 
 	svc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{

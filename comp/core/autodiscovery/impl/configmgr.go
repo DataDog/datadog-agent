@@ -8,7 +8,6 @@ package autodiscoveryimpl
 import (
 	"fmt"
 	"maps"
-	"strings"
 	"sync"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -480,33 +479,12 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	return resolvedConfig, true
 }
 
-// sanitizeIssueIDSegment maps every character outside [a-z0-9] to a hyphen,
-// collapses consecutive hyphens to one, and trims leading/trailing hyphens so
-// that the result conforms to the health-platform IssueID kebab-case convention.
-func sanitizeIssueIDSegment(s string) string {
-	var b strings.Builder
-	prevHyphen := false
-	for _, r := range s {
-		if r >= 'A' && r <= 'Z' {
-			r += 'a' - 'A'
-		}
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-			prevHyphen = false
-		} else if !prevHyphen {
-			b.WriteByte('-')
-			prevHyphen = true
-		}
-	}
-	return strings.Trim(b.String(), "-")
-}
-
 // reportTemplateResolutionFailure reports a template resolution failure to the health platform.
 func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integration.Config, svc listeners.Service, err error) {
 	if cm.healthPlatform == nil {
 		return
 	}
-	issueID := healthplatformdef.ADTemplateIssueID + ":" + tpl.Name + ":" + sanitizeIssueIDSegment(svc.GetServiceID()) + ":" + tpl.Digest()
+	issueID := healthplatformdef.ADTemplateIssueID + ":" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
 	context := map[string]string{
 		"entityName":   tpl.Name + " (" + svc.GetServiceID() + ")",
 		"errorMessage": err.Error(),
@@ -533,7 +511,7 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailure(tpl integrati
 	if cm.healthPlatform == nil {
 		return
 	}
-	issueID := healthplatformdef.ADTemplateIssueID + ":" + tpl.Name + ":" + sanitizeIssueIDSegment(svc.GetServiceID()) + ":" + tpl.Digest()
+	issueID := healthplatformdef.ADTemplateIssueID + ":" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
 	cm.healthPlatform.ResolveIssue(issueID)
 }
 
@@ -543,7 +521,7 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailureByID(tplName, 
 	if cm.healthPlatform == nil {
 		return
 	}
-	issueID := healthplatformdef.ADTemplateIssueID + ":" + tplName + ":" + sanitizeIssueIDSegment(svcID) + ":" + tplDigest
+	issueID := healthplatformdef.ADTemplateIssueID + ":" + tplName + ":" + svcID + ":" + tplDigest
 	cm.healthPlatform.ResolveIssue(issueID)
 }
 

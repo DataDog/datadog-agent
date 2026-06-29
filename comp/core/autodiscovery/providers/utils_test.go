@@ -14,28 +14,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
-func TestSanitizeIssueIDSegment(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"kube_service://default/withErrors", "kube-service-default-witherrors"},
-		{"kube_endpoint_uid://default/withErrors/", "kube-endpoint-uid-default-witherrors"},
-		{"default/withErrors", "default-witherrors"},
-		{"docker://abc123", "docker-abc123"},
-		{"containerd://d5c06ca2-208f-444f-a7eb-6c935fa1cb47", "containerd-d5c06ca2-208f-444f-a7eb-6c935fa1cb47"},
-		{"datadog-agent/pod-name (some-uid)", "datadog-agent-pod-name-some-uid"},
-		{"already-valid", "already-valid"},
-		{"", ""},
-		{"///", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			assert.Equal(t, tt.expected, sanitizeIssueIDSegment(tt.input))
-		})
-	}
-}
-
 func TestBuildStoreKey(t *testing.T) {
 	res := buildStoreKey()
 	assert.Equal(t, "/datadog/check_configs", res)

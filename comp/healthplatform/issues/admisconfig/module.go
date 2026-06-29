@@ -20,6 +20,12 @@ func init() {
 	issues.RegisterModuleFactory(NewModule)
 }
 
+const (
+	// IssueName is the human-readable issue name for autodiscovery misconfiguration issues,
+	// shared via store/def/constants.go so external reporters can reference it.
+	IssueName = storedef.ADMisconfigurationIssueName
+)
+
 // adMisconfigurationModule implements issues.Module
 type adMisconfigurationModule struct {
 	template *ADMisconfigurationIssue
@@ -33,7 +39,7 @@ func NewModule(config.Component) issues.Module {
 }
 
 func (m *adMisconfigurationModule) IssueName() string {
-	return storedef.ADMisconfigurationIssueName
+	return IssueName
 }
 
 func (m *adMisconfigurationModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {

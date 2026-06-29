@@ -89,32 +89,11 @@ func ignoreADTagsFromAnnotations(annotations map[string]string, prefix string) b
 	return ignoreAdForHybridScenariosTags
 }
 
-// sanitizeIssueIDSegment maps every character outside [a-z0-9] to a hyphen,
-// collapses consecutive hyphens to one, and trims leading/trailing hyphens so
-// that the result conforms to the health-platform IssueID kebab-case convention.
-func sanitizeIssueIDSegment(s string) string {
-	var b strings.Builder
-	prevHyphen := false
-	for _, r := range s {
-		if r >= 'A' && r <= 'Z' {
-			r += 'a' - 'A'
-		}
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-			prevHyphen = false
-		} else if !prevHyphen {
-			b.WriteByte('-')
-			prevHyphen = true
-		}
-	}
-	return strings.Trim(b.String(), "-")
-}
-
 // adAnnotationIssueID returns the health-platform issue id for an AD annotation
 // error on the given entity. The build and resolve paths must use the same id,
 // so both call this helper rather than inlining the string.
 func adAnnotationIssueID(entityName string) string {
-	return healthplatformdef.ADAnnotationIssueID + ":" + sanitizeIssueIDSegment(entityName)
+	return healthplatformdef.ADAnnotationIssueID + ":" + entityName
 }
 
 // reportConfigurationError reports the AD configuration errors for an entity to

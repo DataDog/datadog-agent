@@ -695,7 +695,7 @@ func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 
 	count, issues := hp.GetAllIssues()
 	assert.Equal(t, 1, count, "expected 1 health issue to be reported")
-	expectedIssueID := storedef.ADTemplateIssueID + ":postgres:docker-abc123:" + tpl.Digest()
+	expectedIssueID := storedef.ADTemplateIssueID + ":postgres:docker://abc123:" + tpl.Digest()
 	issue := issues[expectedIssueID]
 	require.NotNil(t, issue, "expected health issue at issue id %s", expectedIssueID)
 	assert.Equal(t, expectedIssueID, issue.Id)
@@ -722,7 +722,7 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 
 	// Pre-populate a health issue using the same IssueId format the code uses.
 	hp.ReportIssue(&healthplatformpayload.Issue{
-		Id:        storedef.ADTemplateIssueID + ":redis:docker-def456:" + tpl.Digest(),
+		Id:        storedef.ADTemplateIssueID + ":redis:docker://def456:" + tpl.Digest(),
 		IssueName: storedef.ADMisconfigurationIssueName,
 		Source:    storedef.ADMisconfigurationSource,
 	})
