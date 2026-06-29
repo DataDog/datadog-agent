@@ -10,11 +10,11 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
