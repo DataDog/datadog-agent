@@ -68,7 +68,7 @@ func (p *protocolMock) PostStart() error {
 
 func (p *protocolMock) Stop() {
 	if p.spec.stopFn != nil {
-		p.Stop()
+		p.spec.stopFn()
 	} else {
 		p.inner.Stop()
 	}
