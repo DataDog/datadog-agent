@@ -53,6 +53,7 @@ go_library(
     srcs = [
         "all_helpers.go",
         "asset.go",
+        "discovery-net.go",
         "helpers.go",
         "offsetguess.go",
         "protected_file.go",
