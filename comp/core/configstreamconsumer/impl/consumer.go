@@ -305,7 +305,7 @@ func (c *consumer) connectAndStream() error {
 		}
 
 		if err := c.handleConfigEvent(event); err != nil {
-			c.log.Errorf("Failed to handle config event: %v", err)
+			return fmt.Errorf("config event error: %w", err)
 		}
 	}
 }

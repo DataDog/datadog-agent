@@ -111,13 +111,18 @@ func (cs *configStream) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.Confi
 	subID := fmt.Sprintf("%s-%s", req.Name, uuid.New().String())
 	subChan := make(chan *pb.ConfigEvent, 100) // Buffered channel to avoid blocking
 
-	cs.subscribeChan <- &subscription{
-		id: subID,
-		ch: subChan,
+	select {
+	case cs.subscribeChan <- &subscription{id: subID, ch: subChan}:
+	case <-cs.stopChan:
+		close(subChan)
+		return subChan, func() {}
 	}
 
 	unsubscribeFunc := func() {
-		cs.unsubscribeChan <- subID
+		select {
+		case cs.unsubscribeChan <- subID:
+		case <-cs.stopChan:
+		}
 	}
 
 	return subChan, unsubscribeFunc
