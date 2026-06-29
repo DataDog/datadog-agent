@@ -38,7 +38,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: git fetch origin "refs/pull/${PR_NUMBER}/head"
       - name: Checkout releasenotes from PR
-        run: git checkout FETCH_HEAD -- releasenotes releasenotes-dca releasenotes-installscript 2>/dev/null || true
+        run: git checkout FETCH_HEAD -- releasenotes releasenotes-dca 2>/dev/null || true
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
