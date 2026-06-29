@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package ebpf
+// Package ksyms provides lookup of kernel symbol addresses from /proc/kallsyms.
+package ksyms
 
 import (
 	"bufio"

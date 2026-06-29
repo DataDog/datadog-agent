@@ -25,6 +25,7 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -88,7 +89,7 @@ type ebpfConntracker struct {
 var ebpfConntrackerCORECreator func(cfg *config.Config) (*manager.Manager, error) = getCOREConntracker
 var ebpfConntrackerRCCreator func(cfg *config.Config) (*manager.Manager, error) = getRCConntracker
 var ebpfConntrackerPrebuiltCreator func(cfg *config.Config) (*manager.Manager, error) = getPrebuiltConntracker
-var verifyKernelFuncs = ddebpf.VerifyKernelFuncs
+var verifyKernelFuncs = ksyms.VerifyKernelFuncs
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Component) (netlink.Conntracker, error) {
