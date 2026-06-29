@@ -3,8 +3,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "ad-misconfiguration",
     srcs = [
-        "issue.go",
-        "module.go",
+        "annotation_issue.go",
+        "annotation_module.go",
+        "template_issue.go",
+        "template_module.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration",
     visibility = ["//visibility:public"],
@@ -19,7 +21,10 @@ go_library(
 
 go_test(
     name = "ad-misconfiguration_test",
-    srcs = ["issue_test.go"],
+    srcs = [
+        "annotation_issue_test.go",
+        "template_issue_test.go",
+    ],
     embed = [":ad-misconfiguration"],
     gotags = ["test"],
     deps = [
