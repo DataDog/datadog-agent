@@ -15,6 +15,7 @@ go_library(
         "config_unix.go",
         "config_unsupported.go",
         "config_windows.go",
+        "config_windows_npm.go",
         "ns.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/system-probe/config",
