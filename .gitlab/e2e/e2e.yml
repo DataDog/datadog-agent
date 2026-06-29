@@ -7,6 +7,7 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
+    - go install gotest.tools/gotestsum@v1.11.0
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
