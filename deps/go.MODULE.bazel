@@ -49,6 +49,7 @@ go_deps.gazelle_default_attributes(
         "gazelle:resolve go github.com/DataDog/datadog-agent/comp/logs/agent/config @@//comp/logs/agent/config:config",
         "gazelle:resolve go github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient @@//comp/otelcol/otlp/components/metricsclient:metricsclient",
         "gazelle:resolve go github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil @@//comp/otelcol/otlp/testutil:testutil",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/create @@//pkg/config/create:create",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/model @@//pkg/config/model:model",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/setup @@//pkg/config/setup:setup",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/utils @@//pkg/config/utils:utils",
@@ -99,6 +100,16 @@ go_deps.gazelle_override(
 go_deps.gazelle_override(
     build_extra_args = ["-build_tags=trivy_no_javadb"],
     path = "github.com/aquasecurity/trivy",
+)
+go_deps.gazelle_override(
+    # strptime_cgo_testlib.go uses tm_gmtoff (GNU extension, absent in
+    # musl libc). Exclude the CGo test-helper files so Gazelle does not
+    # include them in the generated go_library BUILD rules.
+    build_extra_args = [
+        "-exclude=timeutils/strptime_cgo_testlib.go",
+        "-exclude=timeutils/strptime_cgo_test.go",
+    ],
+    path = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal",
 )
 use_repo(
     go_deps,
@@ -345,7 +356,7 @@ use_repo(
     "com_github_pulumi_pulumi_command_sdk",
     "com_github_pulumi_pulumi_docker_sdk_v4",
     "com_github_pulumi_pulumi_eks_sdk_v4",
-    "com_github_pulumi_pulumi_gcp_sdk_v7",
+    "com_github_pulumi_pulumi_gcp_sdk_v9",
     "com_github_pulumi_pulumi_kubernetes_sdk_v4",
     "com_github_pulumi_pulumi_libvirt_sdk",
     "com_github_pulumi_pulumi_random_sdk_v4",
