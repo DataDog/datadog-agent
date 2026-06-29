@@ -12,7 +12,7 @@ golang_deps_diff:
   needs: ["go_deps"]
   variables:
     KUBERNETES_CPU_REQUEST: 8
-    OVERRIDE_GIT_STRATEGY: "clone" # needed because this job uses `git merge-base`
+    GIT_STRATEGY: "clone" # needed because this job uses `git merge-base`
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
   before_script:
@@ -41,9 +41,9 @@ golang_deps_commenter:
     - !reference [.setup_github_token_comment_pr]
   script:
     - if [ ! -s deps-report.md ]; then
-        dda inv -- -e github.pr-commenter --title="Go Package Import Differences" --force-delete ;
+      dda inv -- -e github.pr-commenter --title="Go Package Import Differences" --force-delete ;
       else
-        dda inv -- -e github.pr-commenter --title="Go Package Import Differences" --body-file=deps-report.md ;
+      dda inv -- -e github.pr-commenter --title="Go Package Import Differences" --body-file=deps-report.md ;
       fi
 
 golang_deps_send_count_metrics:
