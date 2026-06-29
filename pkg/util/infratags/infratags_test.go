@@ -41,18 +41,17 @@ func TestIsTagged(t *testing.T) {
 	}
 }
 
-func TestResolveEnrichmentState(t *testing.T) {
+func TestNewTagger(t *testing.T) {
 	tests := []struct {
-		name             string
-		mode             string
-		taggedChecks     []string
-		wantTags         []string
-		wantTaggedChecks []string
+		name         string
+		mode         string
+		taggedChecks []string
+		wantNil      bool
 	}{
-		{"cloud_cost_only returns tags and empty list", "cloud_cost_only", []string{}, []string{InfraModeCloudCostTag}, []string{}},
-		{"cloud_cost_only returns tags and allow-list", "cloud_cost_only", []string{"cpu"}, []string{InfraModeCloudCostTag}, []string{"cpu"}},
-		{"full returns nil tags", "full", nil, nil, nil},
-		{"unknown mode returns nil tags", "some_future_mode", nil, nil, nil},
+		{"cloud_cost_only with empty allow-list returns non-nil", "cloud_cost_only", []string{}, false},
+		{"cloud_cost_only with allow-list returns non-nil", "cloud_cost_only", []string{"cpu"}, false},
+		{"full mode returns nil", "full", nil, true},
+		{"unknown mode returns nil", "some_future_mode", nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -61,42 +60,46 @@ func TestResolveEnrichmentState(t *testing.T) {
 			if tt.taggedChecks != nil {
 				cfg.Set("integration."+tt.mode+".tagged", tt.taggedChecks, pkgconfigmodel.SourceFile)
 			}
-			tags, taggedChecks := ResolveEnrichmentState(cfg)
-			assert.Equal(t, tt.wantTags, tags)
-			assert.Equal(t, tt.wantTaggedChecks, taggedChecks)
+			assert.Equal(t, tt.wantNil, NewTagger(cfg) == nil)
 		})
 	}
 }
 
-func TestAppendJMXDogstatsdInfraTags(t *testing.T) {
-	cloudCostTags := []string{InfraModeCloudCostTag}
+func TestTaggerAppendJMXDogstatsdTags(t *testing.T) {
+	newCloudCostTagger := func(taggedChecks []string) *Tagger {
+		cfg := configmock.New(t)
+		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+		cfg.Set("integration.cloud_cost_only.tagged", taggedChecks, pkgconfigmodel.SourceFile)
+		return NewTagger(cfg)
+	}
 
-	t.Run("empty infraModeTags is no-op", func(t *testing.T) {
-		tags := []string{"a:1"}
-		assert.Equal(t, tags, AppendJMXDogstatsdInfraTags(tags, "kafka", nil, nil))
-	})
 	t.Run("empty jmxCheckName is no-op", func(t *testing.T) {
+		tagger := newCloudCostTagger(nil)
 		tags := []string{"env:prod"}
-		assert.Equal(t, tags, AppendJMXDogstatsdInfraTags(tags, "", cloudCostTags, nil))
+		assert.Equal(t, tags, tagger.AppendJMXDogstatsdTags(tags, ""))
 	})
 	t.Run("eligible JMX check gets tags", func(t *testing.T) {
+		tagger := newCloudCostTagger([]string{"kafka"})
 		tags := []string{"env:prod"}
-		got := AppendJMXDogstatsdInfraTags(tags, "kafka", cloudCostTags, []string{"kafka"})
+		got := tagger.AppendJMXDogstatsdTags(tags, "kafka")
 		assert.Contains(t, got, InfraModeCloudCostTag)
 	})
-	t.Run("JMX check not in tagged list", func(t *testing.T) {
+	t.Run("JMX check not in allow-list is no-op", func(t *testing.T) {
+		tagger := newCloudCostTagger([]string{"kafka"})
 		tags := []string{"env:prod"}
-		got := AppendJMXDogstatsdInfraTags(tags, "tomcat", cloudCostTags, []string{"kafka"})
+		got := tagger.AppendJMXDogstatsdTags(tags, "tomcat")
 		assert.NotContains(t, got, InfraModeCloudCostTag)
 	})
-	t.Run("empty tagged list tags all checks", func(t *testing.T) {
+	t.Run("empty allow-list tags all checks", func(t *testing.T) {
+		tagger := newCloudCostTagger(nil)
 		tags := []string{"env:prod"}
-		got := AppendJMXDogstatsdInfraTags(tags, "kafka", cloudCostTags, nil)
+		got := tagger.AppendJMXDogstatsdTags(tags, "kafka")
 		assert.Contains(t, got, InfraModeCloudCostTag)
 	})
 	t.Run("custom_ JMX check name is not tagged", func(t *testing.T) {
+		tagger := newCloudCostTagger(nil)
 		tags := []string{"env:prod"}
-		got := AppendJMXDogstatsdInfraTags(tags, "custom_jmx", cloudCostTags, nil)
+		got := tagger.AppendJMXDogstatsdTags(tags, "custom_jmx")
 		assert.NotContains(t, got, InfraModeCloudCostTag)
 	})
 }

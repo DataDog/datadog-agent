@@ -263,7 +263,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	}
 	sort.UniqInPlace(extraTags)
 
-	infraModeTags, taggedChecks := infratags.ResolveEnrichmentState(cfg)
+	infraTagger := infratags.NewTagger(cfg)
 
 	entityIDPrecedenceEnabled := cfg.GetBool("dogstatsd_entity_id_precedence")
 
@@ -322,8 +322,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
-			infraModeTags:             infraModeTags,
-			taggedChecks:              taggedChecks,
+			infraTagger:               infraTagger,
 		},
 		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,

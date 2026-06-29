@@ -40,8 +40,7 @@ type enrichConfig struct {
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
-	infraModeTags             []string // pre-resolved infra_mode tags
-	taggedChecks              []string // pre-resolved allow-list; nil/empty = all checks tagged
+	infraTagger               *infratags.Tagger
 }
 
 // extractTagsMetadata returns tags (client tags + host tag), information needed to query the tagger
@@ -151,7 +150,9 @@ func tsToFloatForSamples(ts time.Time) float64 {
 func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource, jmxCheckName := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
-	tags = infratags.AppendJMXDogstatsdInfraTags(tags, jmxCheckName, conf.infraModeTags, conf.taggedChecks)
+	if conf.infraTagger != nil {
+		tags = conf.infraTagger.AppendJMXDogstatsdTags(tags, jmxCheckName)
+	}
 
 	if !isExcluded(metricName, conf.metricPrefix, conf.metricPrefixBlacklist) {
 		metricName = conf.metricPrefix + metricName

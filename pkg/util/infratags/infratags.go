@@ -38,16 +38,50 @@ func tagsForMode(infraMode string) (tags []string, ok bool) {
 	}
 }
 
-// ResolveEnrichmentState resolves the infra_mode tags and tagged-checks allow-list from cfg, to be
-// stored once at startup and passed to AppendJMXDogstatsdInfraTags on the hot path.
-// Returns (nil, nil) if the active infrastructure_mode does not trigger tagging.
-func ResolveEnrichmentState(cfg pkgconfigmodel.Reader) (infraModeTags []string, taggedChecks []string) {
+// Tagger holds the pre-resolved infra mode and tagged checks.
+type Tagger struct {
+	infraModeTags []string
+	taggedChecks  map[string]struct{} // nil = all non-custom checks eligible
+}
+
+// NewTagger resolves the infra mode tagging configuration from cfg.
+// Returns nil if the active infrastructure_mode does not trigger tagging.
+func NewTagger(cfg pkgconfigmodel.Reader) *Tagger {
 	infraMode := cfg.GetString("infrastructure_mode")
 	tags, ok := tagsForMode(infraMode)
 	if !ok {
-		return nil, nil
+		return nil
 	}
-	return tags, cfg.GetStringSlice("integration." + infraMode + ".tagged")
+	checks := cfg.GetStringSlice("integration." + infraMode + ".tagged")
+	if len(checks) == 0 {
+		return &Tagger{infraModeTags: tags}
+	}
+	set := make(map[string]struct{}, len(checks))
+	for _, c := range checks {
+		set[c] = struct{}{}
+	}
+	return &Tagger{infraModeTags: tags, taggedChecks: set}
+}
+
+// AppendJMXDogstatsdTags appends the pre-resolved infra_mode tags when jmxCheckName is eligible.
+// Zero config reads and zero allocations on the non-tagging path.
+func (t Tagger) AppendJMXDogstatsdTags(tags []string, jmxCheckName string) []string {
+	if len(t.infraModeTags) == 0 || !t.isCheckTagged(jmxCheckName) {
+		return tags
+	}
+	return append(tags, t.infraModeTags...)
+}
+
+func (t Tagger) isCheckTagged(checkName string) bool {
+	if checkName == "" || strings.HasPrefix(checkName, "custom_") {
+		return false
+	}
+	// nil = all checks eligible
+	if t.taggedChecks == nil {
+		return true
+	}
+	_, ok := t.taggedChecks[checkName]
+	return ok
 }
 
 // IsTagged reports whether checkName should receive infra_mode tags given a
@@ -58,16 +92,6 @@ func IsTagged(checkName string, taggedChecks []string) bool {
 		return false
 	}
 	return len(taggedChecks) == 0 || slices.Contains(taggedChecks, checkName)
-}
-
-// AppendJMXDogstatsdInfraTags appends the pre-resolved infra_mode tags when jmxCheckName is
-// eligible. infraModeTags and taggedChecks must be resolved once at startup via
-// ResolveEnrichmentState. Zero config reads and zero allocations on the non-tagging path.
-func AppendJMXDogstatsdInfraTags(tags []string, jmxCheckName string, infraModeTags []string, taggedChecks []string) []string {
-	if len(infraModeTags) == 0 || !IsTagged(jmxCheckName, taggedChecks) {
-		return tags
-	}
-	return append(tags, infraModeTags...)
 }
 
 // ApplySenderTags appends the infra_mode tags to the check sender's infra tags when the
