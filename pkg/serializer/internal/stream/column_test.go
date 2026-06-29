@@ -6,7 +6,9 @@
 package stream
 
 import (
+	"runtime"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +17,9 @@ import (
 )
 
 func TestColumn(t *testing.T) {
+	if strings.Contains(runtime.Version(), "rc") {
+		t.Skip("skipping: zlib compressed sizes differ in Go RC versions")
+	}
 	cs := zlib.New()
 	cc := NewColumnCompressor(cs, 10, 67, 128)
 

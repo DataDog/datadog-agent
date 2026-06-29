@@ -51,8 +51,8 @@ func TestUserAgent(t *testing.T) {
 		// Regex explained:
 		//   * ^datadog-agent\/ == must start with "datadog-agent/"
 		//   * (unknown|\d+\.\d+\.\d+) == either "unknown" or a semver string
-		//   * \(go\d+\.\d+\.\d+\)$ == ends in " (go1.2.3)" where 1.2.3 is a semver string
-		uaRegex := regexp.MustCompile(`^datadog-agent\/(.+) \(go\d+\.\d+\.\d+\)$`)
+		//   * \(go[\d.]+[\w.]*\)$ == ends in " (go1.2.3)" or "(go1.27rc1)" etc.
+		uaRegex := regexp.MustCompile(`^datadog-agent\/(.+) \(go[\d.]+[\w.]*\)$`)
 		parts := uaRegex.FindStringSubmatch(ua)
 		assert.Len(parts, 2) // Original string + the extracted group.
 
