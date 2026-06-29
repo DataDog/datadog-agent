@@ -209,6 +209,91 @@ func TestServer(t *testing.T) {
 		assert.Equal(t, expectedResponse, actualGETResponse)
 	})
 
+	t.Run("should support cursor-based incremental fetch on /fakeintake/payloads route", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, defaultOpts...)
+		defer fi.Stop()
+
+		// Post 3 payloads to /totoro
+		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+			{Endpoint: "/totoro", Data: "totoro|1|tag:valid"},
+			{Endpoint: "/totoro", Data: "totoro|2|tag:valid"},
+			{Endpoint: "/totoro", Data: "totoro|3|tag:valid"},
+		})
+
+		// First fetch with cursor=0: should return all 3 payloads and cursor=3
+		getResponse, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro&cursor=0")
+		require.NoError(t, err, "Error on GET request")
+		defer getResponse.Body.Close()
+		assert.Equal(t, http.StatusOK, getResponse.StatusCode, "unexpected code")
+
+		actualResponse := api.APIFakeIntakePayloadsRawGETResponse{}
+		body, err := io.ReadAll(getResponse.Body)
+		require.NoError(t, err, "Error reading GET response")
+		err = json.Unmarshal(body, &actualResponse)
+		require.NoError(t, err, "Error parsing response")
+
+		assert.Len(t, actualResponse.Payloads, 3, "should return all 3 payloads on first fetch")
+		assert.Equal(t, 3, actualResponse.Cursor, "cursor should be 3 after first fetch")
+
+		// Second fetch with cursor=3: should return 0 payloads and cursor=3
+		getResponse2, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro&cursor=3")
+		require.NoError(t, err, "Error on second GET request")
+		defer getResponse2.Body.Close()
+		assert.Equal(t, http.StatusOK, getResponse2.StatusCode, "unexpected code")
+
+		actualResponse2 := api.APIFakeIntakePayloadsRawGETResponse{}
+		body2, err := io.ReadAll(getResponse2.Body)
+		require.NoError(t, err, "Error reading second GET response")
+		err = json.Unmarshal(body2, &actualResponse2)
+		require.NoError(t, err, "Error parsing second response")
+
+		assert.Empty(t, actualResponse2.Payloads, "should return 0 payloads on second fetch")
+		assert.Equal(t, 3, actualResponse2.Cursor, "cursor should still be 3")
+
+		// Post 2 more payloads
+		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+			{Endpoint: "/totoro", Data: "totoro|4|tag:valid"},
+			{Endpoint: "/totoro", Data: "totoro|5|tag:valid"},
+		})
+
+		// Third fetch with cursor=3: should return 2 new payloads and cursor=5
+		getResponse3, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro&cursor=3")
+		require.NoError(t, err, "Error on third GET request")
+		defer getResponse3.Body.Close()
+
+		actualResponse3 := api.APIFakeIntakePayloadsRawGETResponse{}
+		body3, err := io.ReadAll(getResponse3.Body)
+		require.NoError(t, err, "Error reading third GET response")
+		err = json.Unmarshal(body3, &actualResponse3)
+		require.NoError(t, err, "Error parsing third response")
+
+		assert.Len(t, actualResponse3.Payloads, 2, "should return 2 new payloads on third fetch")
+		assert.Equal(t, 5, actualResponse3.Cursor, "cursor should be 5 after third fetch")
+	})
+
+	t.Run("should return empty cursor when no cursor query param is sent", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, defaultOpts...)
+		defer fi.Stop()
+
+		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+			{Endpoint: "/totoro", Data: "totoro|1|tag:valid"},
+		})
+
+		// Fetch without cursor param: should return all payloads, cursor=0 (omitted)
+		getResponse, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+		require.NoError(t, err, "Error on GET request")
+		defer getResponse.Body.Close()
+
+		actualResponse := api.APIFakeIntakePayloadsRawGETResponse{}
+		body, err := io.ReadAll(getResponse.Body)
+		require.NoError(t, err, "Error reading GET response")
+		err = json.Unmarshal(body, &actualResponse)
+		require.NoError(t, err, "Error parsing response")
+
+		assert.Len(t, actualResponse.Payloads, 1)
+		assert.Equal(t, 0, actualResponse.Cursor, "cursor should be 0 (omitted) when no cursor param sent")
+	})
+
 	t.Run("should store multiple payloads on any route and return them in json", func(t *testing.T) {
 		fi, clock := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()

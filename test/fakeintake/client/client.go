@@ -129,6 +129,14 @@ type Client struct {
 	getBackoffRetries uint
 	getBackoffDelay   time.Duration
 
+	// lastSeenPayloadCount tracks, per endpoint, the total number of payloads
+	// the client has already fetched and parsed. This enables incremental
+	// fetching: subsequent calls request only payloads appended after the
+	// cursor, avoiding re-fetching and re-parsing the full payload set on
+	// every poll. Reset by FlushServerAndResetAggregators.
+	lastSeenPayloadCount map[string]int
+	cursorMutex          sync.Mutex
+
 	metricAggregator               aggregator.MetricAggregator
 	sketchAggregator               aggregator.SketchAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
@@ -163,6 +171,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		getBackoffRetries:              4,
 		getBackoffDelay:                5 * time.Second,
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
+		lastSeenPayloadCount:           map[string]int{},
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		sketchAggregator:               aggregator.NewSketchAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
@@ -201,7 +210,7 @@ type PayloadFilter struct {
 }
 
 func (c *Client) getMetrics() error {
-	payloads, err := c.getFakePayloads(metricsEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("metrics", metricsEndpoint)
 	if err != nil {
 		return err
 	}
@@ -209,7 +218,7 @@ func (c *Client) getMetrics() error {
 }
 
 func (c *Client) getCheckRuns() error {
-	payloads, err := c.getFakePayloads(checkRunsEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("checkRuns", checkRunsEndpoint)
 	if err != nil {
 		return err
 	}
@@ -217,7 +226,7 @@ func (c *Client) getCheckRuns() error {
 }
 
 func (c *Client) getEvents() error {
-	payloads, err := c.getFakePayloads(intakeEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("events", intakeEndpoint)
 	if err != nil {
 		return err
 	}
@@ -225,7 +234,7 @@ func (c *Client) getEvents() error {
 }
 
 func (c *Client) getLogs() error {
-	payloads, err := c.getFakePayloads(logsEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("logs", logsEndpoint)
 	if err != nil {
 		return err
 	}
@@ -233,7 +242,7 @@ func (c *Client) getLogs() error {
 }
 
 func (c *Client) getConnections() error {
-	payloads, err := c.getFakePayloads(connectionsEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("connections", connectionsEndpoint)
 	if err != nil {
 		return err
 	}
@@ -241,7 +250,7 @@ func (c *Client) getConnections() error {
 }
 
 func (c *Client) getProcesses() error {
-	payloads, err := c.getFakePayloads(processesEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("processes", processesEndpoint)
 	if err != nil {
 		return err
 	}
@@ -249,7 +258,7 @@ func (c *Client) getProcesses() error {
 }
 
 func (c *Client) getContainers() error {
-	payloads, err := c.getFakePayloads(containersEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("containers", containersEndpoint)
 	if err != nil {
 		return err
 	}
@@ -257,7 +266,7 @@ func (c *Client) getContainers() error {
 }
 
 func (c *Client) getProcessDiscoveries() error {
-	payloads, err := c.getFakePayloads(processDiscoveryEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("processDiscoveries", processDiscoveryEndpoint)
 	if err != nil {
 		return err
 	}
@@ -265,7 +274,7 @@ func (c *Client) getProcessDiscoveries() error {
 }
 
 func (c *Client) getContainerImages() error {
-	payloads, err := c.getFakePayloads(containerImageEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("containerImages", containerImageEndpoint)
 	if err != nil {
 		return err
 	}
@@ -273,7 +282,7 @@ func (c *Client) getContainerImages() error {
 }
 
 func (c *Client) getContainerLifecycleEvents() error {
-	payloads, err := c.getFakePayloads(containerLifecycleEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("containerLifecycle", containerLifecycleEndpoint)
 	if err != nil {
 		return err
 	}
@@ -281,7 +290,7 @@ func (c *Client) getContainerLifecycleEvents() error {
 }
 
 func (c *Client) getSBOMs() error {
-	payloads, err := c.getFakePayloads(sbomEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("sboms", sbomEndpoint)
 	if err != nil {
 		return err
 	}
@@ -289,7 +298,7 @@ func (c *Client) getSBOMs() error {
 }
 
 func (c *Client) getTraces() error {
-	payloads, err := c.getFakePayloads(tracesEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("traces", tracesEndpoint)
 	if err != nil {
 		return err
 	}
@@ -297,7 +306,7 @@ func (c *Client) getTraces() error {
 }
 
 func (c *Client) getOrchestratorResources() error {
-	payloads, err := c.getFakePayloads(orchestratorEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("orchestratorResources", orchestratorEndpoint)
 	if err != nil {
 		return err
 	}
@@ -305,7 +314,7 @@ func (c *Client) getOrchestratorResources() error {
 }
 
 func (c *Client) getOrchestratorManifests() error {
-	payloads, err := c.getFakePayloads(orchestratorManifestEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("orchestratorManifests", orchestratorManifestEndpoint)
 	if err != nil {
 		return err
 	}
@@ -313,7 +322,7 @@ func (c *Client) getOrchestratorManifests() error {
 }
 
 func (c *Client) getAPMStats() error {
-	payloads, err := c.getFakePayloads(apmStatsEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("apmStats", apmStatsEndpoint)
 	if err != nil {
 		return err
 	}
@@ -321,7 +330,7 @@ func (c *Client) getAPMStats() error {
 }
 
 func (c *Client) getNDMPayloads() error {
-	payloads, err := c.getFakePayloads(ndmEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("ndm", ndmEndpoint)
 	if err != nil {
 		return err
 	}
@@ -329,7 +338,7 @@ func (c *Client) getNDMPayloads() error {
 }
 
 func (c *Client) getNDMFlows() error {
-	payloads, err := c.getFakePayloads(ndmflowEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("ndmflows", ndmflowEndpoint)
 	if err != nil {
 		return err
 	}
@@ -337,7 +346,7 @@ func (c *Client) getNDMFlows() error {
 }
 
 func (c *Client) getNetpathEvents() error {
-	payloads, err := c.getFakePayloads(netpathEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("netpath", netpathEndpoint)
 	if err != nil {
 		return err
 	}
@@ -345,7 +354,7 @@ func (c *Client) getNetpathEvents() error {
 }
 
 func (c *Client) getNCMEvents() error {
-	payloads, err := c.getFakePayloads(ncmEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("ncm", ncmEndpoint)
 	if err != nil {
 		return err
 	}
@@ -353,7 +362,7 @@ func (c *Client) getNCMEvents() error {
 }
 
 func (c *Client) getHostTags() error {
-	payloads, err := c.getFakePayloads(intakeEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("hostTags", intakeEndpoint)
 	if err != nil {
 		return err
 	}
@@ -362,7 +371,7 @@ func (c *Client) getHostTags() error {
 }
 
 func (c *Client) getSketches() error {
-	payloads, err := c.getFakePayloads(sketchesEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("sketches", sketchesEndpoint)
 	if err != nil {
 		return err
 	}
@@ -370,7 +379,7 @@ func (c *Client) getSketches() error {
 }
 
 func (c *Client) getAgentHealth() error {
-	payloads, err := c.getFakePayloads(agentHealthEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("agentHealth", agentHealthEndpoint)
 	if err != nil {
 		return err
 	}
@@ -465,6 +474,56 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 		return nil, err
 	}
 	return response.Payloads, nil
+}
+
+// getFakePayloadsIncremental fetches only payloads that were appended to the
+// endpoint after the last call by this consumer. It uses a server-side cursor
+// (the total number of payloads ever appended) so that cleanup of old payloads
+// does not cause missed or duplicate payloads. The returned payloads are merged
+// into the aggregator by the caller via UnmarshallPayloads.
+//
+// The consumerKey uniquely identifies the caller so that multiple aggregators
+// sharing the same endpoint (e.g. events and host tags both use the intake
+// endpoint) maintain independent cursors.
+//
+// If the server does not support the cursor query param (old fakeintake), the
+// response will have Cursor == 0 and the client falls back to slicing the full
+// payload set locally.
+func (c *Client) getFakePayloadsIncremental(consumerKey, endpoint string) (rawPayloads []api.Payload, err error) {
+	c.cursorMutex.Lock()
+	cursor := c.lastSeenPayloadCount[consumerKey]
+	c.cursorMutex.Unlock()
+
+	body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s&cursor=%d", endpoint, cursor))
+	if err != nil {
+		return nil, err
+	}
+	var response api.APIFakeIntakePayloadsRawGETResponse
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	payloads := response.Payloads
+	newCursor := response.Cursor
+
+	if newCursor == 0 {
+		// Server does not support cursor (old fakeintake) or no payloads
+		// have ever been appended. Fall back to client-side slicing.
+		allPayloads := response.Payloads
+		start := cursor
+		if start > len(allPayloads) {
+			start = len(allPayloads)
+		}
+		payloads = allPayloads[start:]
+		newCursor = len(allPayloads)
+	}
+
+	c.cursorMutex.Lock()
+	c.lastSeenPayloadCount[consumerKey] = newCursor
+	c.cursorMutex.Unlock()
+
+	return payloads, nil
 }
 
 // GetServerHealth fetches fakeintake health status and returns an error if
@@ -714,6 +773,12 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.logAggregator.Reset()
 	c.apmStatsAggregator.Reset()
 	c.traceAggregator.Reset()
+
+	// Reset all incremental-fetch cursors so the next fetch starts from scratch.
+	c.cursorMutex.Lock()
+	c.lastSeenPayloadCount = map[string]int{}
+	c.cursorMutex.Unlock()
+
 	return nil
 }
 
@@ -916,7 +981,7 @@ func (c *Client) FilterSBOMs(id string, options ...MatchOpt[*aggregator.SBOMPayl
 
 // GetMetadata fetches fakeintake on `/api/v1/metadata` endpoint and returns a list of metadata payloads
 func (c *Client) GetMetadata() ([]*aggregator.MetadataPayload, error) {
-	payloads, err := c.getFakePayloads(metadataEndpoint)
+	payloads, err := c.getFakePayloadsIncremental("metadata", metadataEndpoint)
 	if err != nil {
 		return nil, err
 	}

@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -535,11 +536,26 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	var jsonResp []byte
 	var err error
 	if req.URL.Query().Get("format") != "json" {
-		payloads := fi.store.GetRawPayloads(route)
+		// If a cursor query param is provided, return only payloads appended
+		// after that cursor (incremental fetch). Otherwise return all.
+		cursorStr := req.URL.Query().Get("cursor")
+		var payloads []api.Payload
+		var cursor int
+		if cursorStr != "" {
+			cursor, err = strconv.Atoi(cursorStr)
+			if err != nil {
+				writeHTTPResponse(w, buildErrorResponse(fmt.Errorf("invalid cursor query parameter: %w", err)))
+				return
+			}
+			payloads, cursor = fi.store.GetRawPayloadsAfter(route, cursor)
+		} else {
+			payloads = fi.store.GetRawPayloads(route)
+		}
 
 		// build response
 		resp := api.APIFakeIntakePayloadsRawGETResponse{
 			Payloads: payloads,
+			Cursor:   cursor,
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else if serverstore.IsRouteHandled(route) {

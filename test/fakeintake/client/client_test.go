@@ -8,6 +8,7 @@ package client
 import (
 	_ "embed"
 	"strconv"
+	"sync"
 	"time"
 
 	"encoding/base64"
@@ -732,4 +733,197 @@ func TestClient(t *testing.T) {
 		assert.Contains(t, issue.Tags, "docker:installed")
 	})
 
+}
+
+func TestClientIncrementalFetch(t *testing.T) {
+	t.Run("getFakePayloadsIncremental fetches only new payloads on second call", func(t *testing.T) {
+		var fetchCount int
+		var mu sync.Mutex
+		totalPayloads := [][]byte{
+			[]byte("payload-0"),
+			[]byte("payload-1"),
+			[]byte("payload-2"),
+			[]byte("payload-3"),
+			[]byte("payload-4"),
+		}
+
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			fetchCount++
+			mu.Unlock()
+
+			cursorStr := r.URL.Query().Get("cursor")
+			cursor, _ := strconv.Atoi(cursorStr)
+
+			// Return payloads after the cursor
+			var payloads []api.Payload
+			for i := cursor; i < len(totalPayloads); i++ {
+				payloads = append(payloads, api.Payload{Data: totalPayloads[i]})
+			}
+
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+				Payloads: payloads,
+				Cursor:   len(totalPayloads),
+			})
+			require.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+
+		// First fetch: cursor=0, should get all 5 payloads
+		payloads, err := client.getFakePayloadsIncremental("test", "/api/v1/metrics")
+		require.NoError(t, err)
+		assert.Len(t, payloads, 5)
+
+		// Second fetch: cursor=5, should get 0 new payloads
+		payloads, err = client.getFakePayloadsIncremental("test", "/api/v1/metrics")
+		require.NoError(t, err)
+		assert.Empty(t, payloads)
+
+		// Verify the server was hit twice (two HTTP requests)
+		mu.Lock()
+		assert.Equal(t, 2, fetchCount)
+		mu.Unlock()
+	})
+
+	t.Run("FlushServerAndResetAggregators resets cursor", func(t *testing.T) {
+		var fetchCount int
+		var mu sync.Mutex
+		totalPayloads := [][]byte{
+			[]byte("payload-0"),
+			[]byte("payload-1"),
+			[]byte("payload-2"),
+		}
+
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			fetchCount++
+			mu.Unlock()
+
+			cursorStr := r.URL.Query().Get("cursor")
+			cursor, _ := strconv.Atoi(cursorStr)
+
+			var payloads []api.Payload
+			for i := cursor; i < len(totalPayloads); i++ {
+				payloads = append(payloads, api.Payload{Data: totalPayloads[i]})
+			}
+
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+				Payloads: payloads,
+				Cursor:   len(totalPayloads),
+			})
+			require.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+
+		// First fetch: cursor=0, gets all 3
+		payloads, err := client.getFakePayloadsIncremental("test", "/api/v1/metrics")
+		require.NoError(t, err)
+		assert.Len(t, payloads, 3)
+
+		// Second fetch: cursor=3, gets 0
+		payloads, err = client.getFakePayloadsIncremental("test", "/api/v1/metrics")
+		require.NoError(t, err)
+		assert.Empty(t, payloads)
+
+		// Flush resets the cursor
+		err = client.FlushServerAndResetAggregators()
+		require.NoError(t, err)
+
+		// Third fetch: cursor=0 again, gets all 3
+		payloads, err = client.getFakePayloadsIncremental("test", "/api/v1/metrics")
+		require.NoError(t, err)
+		assert.Len(t, payloads, 3)
+	})
+
+	t.Run("incremental fetch with old server (no cursor support)", func(t *testing.T) {
+		totalPayloads := [][]byte{
+			[]byte("payload-0"),
+			[]byte("payload-1"),
+			[]byte("payload-2"),
+			[]byte("payload-3"),
+			[]byte("payload-4"),
+		}
+
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Old server: ignores cursor param, returns all payloads, no cursor field
+			var payloads []api.Payload
+			for _, data := range totalPayloads {
+				payloads = append(payloads, api.Payload{Data: data})
+			}
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+				Payloads: payloads,
+				// Cursor is 0 (not set) — old server behavior
+			})
+			require.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+
+		// First fetch: cursor=0, gets all 5 (client-side slicing: start=0)
+		payloads, err := client.getFakePayloadsIncremental("test", "/api/v1/metrics")
+		require.NoError(t, err)
+		assert.Len(t, payloads, 5)
+
+		// Second fetch: cursor=5, old server returns all 5, client slices to 0
+		payloads, err = client.getFakePayloadsIncremental("test", "/api/v1/metrics")
+		require.NoError(t, err)
+		assert.Empty(t, payloads)
+	})
+
+	t.Run("independent cursors per consumer", func(t *testing.T) {
+		var mu sync.Mutex
+		fetchCursors := map[string][]int{}
+
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			cursorStr := r.URL.Query().Get("cursor")
+			cursor, _ := strconv.Atoi(cursorStr)
+			endpoint := r.URL.Query().Get("endpoint")
+
+			mu.Lock()
+			fetchCursors[endpoint] = append(fetchCursors[endpoint], cursor)
+			mu.Unlock()
+
+			// Return 2 payloads per endpoint, cursor = 2
+			payloads := []api.Payload{{Data: []byte("a")}, {Data: []byte("b")}}
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+				Payloads: payloads,
+				Cursor:   2,
+			})
+			require.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+
+		// Fetch metrics (consumer "metrics")
+		_, err := client.getFakePayloadsIncremental("metrics", "/api/v2/series")
+		require.NoError(t, err)
+
+		// Fetch logs (consumer "logs")
+		_, err = client.getFakePayloadsIncremental("logs", "/api/v2/logs")
+		require.NoError(t, err)
+
+		// Second fetch for metrics: cursor should be 2 (from first metrics fetch)
+		_, err = client.getFakePayloadsIncremental("metrics", "/api/v2/series")
+		require.NoError(t, err)
+
+		// Second fetch for logs: cursor should be 2 (from first logs fetch)
+		_, err = client.getFakePayloadsIncremental("logs", "/api/v2/logs")
+		require.NoError(t, err)
+
+		// Verify cursors were independent per consumer
+		mu.Lock()
+		assert.Equal(t, []int{0, 2}, fetchCursors["/api/v2/series"])
+		assert.Equal(t, []int{0, 2}, fetchCursors["/api/v2/logs"])
+		mu.Unlock()
+	})
 }

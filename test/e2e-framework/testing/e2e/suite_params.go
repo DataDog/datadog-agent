@@ -22,6 +22,12 @@ type suiteParams struct {
 
 	skipDeleteOnFailure bool
 
+	// failFast, when true (the default), skips subsequent tests in the suite after
+	// the first test failure. This avoids burning cloud spend re-provisioning a
+	// known-broken environment for every remaining test. Disable with
+	// WithoutFailFast() for suites that want full cascade visibility.
+	failFast bool
+
 	disableCoverage bool
 
 	// coverageRequired holds per-agent overrides for the Required field of coverage targets.
@@ -55,6 +61,16 @@ func WithDevMode() SuiteOption {
 func WithSkipDeleteOnFailure() SuiteOption {
 	return func(options *suiteParams) {
 		options.skipDeleteOnFailure = true
+	}
+}
+
+// WithoutFailFast disables the fail-fast behavior so that all tests in the suite
+// continue to run (and re-provision the environment) even after a prior test has
+// failed. By default fail-fast is enabled: once a test fails, subsequent tests
+// are skipped to avoid wasting cloud spend on a known-broken environment.
+func WithoutFailFast() SuiteOption {
+	return func(options *suiteParams) {
+		options.failFast = false
 	}
 }
 

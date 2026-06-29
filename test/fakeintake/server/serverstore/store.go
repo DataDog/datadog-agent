@@ -30,6 +30,13 @@ type Store interface {
 	CleanUpPayloadsOlderThan(time.Time)
 	// GetRawPayloads returns all raw payloads for a given route
 	GetRawPayloads(route string) []api.Payload
+	// GetRawPayloadsAfter returns raw payloads for a given route that were appended
+	// after the given cursor. The cursor is the total number of payloads ever
+	// appended to the route (see the returned newCursor). This correctly handles
+	// cleanup: if old payloads have been removed, the cursor is adjusted so the
+	// client receives only payloads it has not yet seen. The returned newCursor
+	// is the new total-appended count the client should store for the next call.
+	GetRawPayloadsAfter(route string, cursor int) (payloads []api.Payload, newCursor int)
 	// GetRouteStats returns the number of payloads for each route
 	GetRouteStats() map[string]int
 	// Flush flushes the store

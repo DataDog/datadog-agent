@@ -312,6 +312,12 @@ func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
 
 // UpdateEnv updates the environment with new provisioners.
 func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...provisioners.Provisioner) {
+	// If a previous test failed and fail-fast is enabled, skip re-provisioning.
+	if bs.firstFailTest != "" && bs.params.failFast {
+		bs.T().Skipf("skipping UpdateEnv due to earlier failure: %s", bs.firstFailTest)
+		return
+	}
+
 	uniqueIDs := make(map[string]struct{})
 	targetProvisioners := make(provisioners.ProvisionerMap, len(newProvisioners))
 	for _, provisioner := range newProvisioners {
@@ -350,6 +356,9 @@ func (bs *BaseSuite[Env]) DatadogClient() *datadog.Client {
 }
 
 func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
+	// failFast defaults to true. Set it before applying options so that
+	// WithoutFailFast() can override it to false.
+	bs.params.failFast = true
 	for _, o := range options {
 		o(&bs.params)
 	}
@@ -689,6 +698,14 @@ func (bs *BaseSuite[Env]) getSuiteSessionSubdirectory() string {
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) BeforeTest(string, string) {
+	// If a previous test failed and fail-fast is enabled, skip this test to
+	// avoid burning cloud spend re-provisioning a known-broken environment.
+	// The skip message names the first failure so triage is easy.
+	if bs.firstFailTest != "" && bs.params.failFast {
+		bs.T().Skipf("skipping due to earlier failure: %s", bs.firstFailTest)
+		return
+	}
+
 	// Reset provisioners to original provisioners
 	// In `Test` scope we can `panic`, it will be recovered and `AfterTest` will be called.
 	// Next tests will be called as well
@@ -707,12 +724,11 @@ func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 	if bs.T().Failed() {
 		if bs.firstFailTest == "" {
-			// As far as I know, there is no way to prevent other tests from being
-			// run when a test fail. Even calling panic doesn't work.
-			// Instead, this code stores the name of the first fail test and prevents
-			// the environment to be updated.
-			// Note: using os.Exit(1) prevents other tests from being run but at the
-			// price of having no test output at all.
+			// Store the name of the first failing test. When fail-fast is enabled
+			// (the default), BeforeTest uses this to skip subsequent tests,
+			// avoiding the cost of re-provisioning a known-broken environment.
+			// Note: using os.Exit(1) prevents other tests from being run but at
+			// the price of having no test output at all.
 			bs.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
 		}
 

@@ -236,3 +236,90 @@ func TestTCleanupHookIsNoOpAfterNormalTeardown(t *testing.T) {
 	// re-run cleanup, Destroy would have been called twice.
 	p.AssertNumberOfCalls(t, "Destroy", 1)
 }
+
+// --- fail-fast (firstFailTest) tests ---
+
+// failFastSuite is a suite where the first test fails and subsequent tests
+// should be skipped by the fail-fast guard.
+type failFastSuite struct {
+	BaseSuite[testEnv]
+
+	provisioner *testProvisioner
+}
+
+func (s *failFastSuite) TestFailFirst() {
+	s.provisioner.AssertNumberOfCalls(s.T(), "Provision", 1)
+	s.T().Fail()
+}
+
+func (s *failFastSuite) TestShouldSkip1() {
+	// If fail-fast works, this test should be skipped and never reach this line.
+	s.T().Error("this test should have been skipped by fail-fast")
+}
+
+func (s *failFastSuite) TestShouldSkip2() {
+	s.T().Error("this test should have been skipped by fail-fast")
+}
+
+// TestFailFastSkipsSubsequentTests verifies that after the first test fails,
+// subsequent tests are skipped (not run) and the provisioner is not called again.
+func TestFailFastSkipsSubsequentTests(t *testing.T) {
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &failFastSuite{provisioner: p}
+	Run(t, s, WithProvisioner(p))
+
+	// Provision should be called exactly once: during SetupSuite for the first test.
+	// BeforeTest for subsequent tests should skip without calling reconcileEnv.
+	p.AssertNumberOfCalls(t, "Provision", 1)
+
+	// firstFailTest should be set to the first failing test
+	require.NotEmpty(t, s.firstFailTest, "firstFailTest should be set after first test failure")
+	require.Contains(t, s.firstFailTest, "TestFailFirst")
+
+	// TearDownSuite should still have run (Destroy called once)
+	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
+// noFailFastSuite is a suite where the first test fails but fail-fast is disabled.
+type noFailFastSuite struct {
+	BaseSuite[testEnv]
+
+	provisioner *testProvisioner
+}
+
+func (s *noFailFastSuite) TestFailFirst() {
+	s.provisioner.AssertNumberOfCalls(s.T(), "Provision", 1)
+	s.T().Fail()
+}
+
+func (s *noFailFastSuite) TestShouldRun() {
+	// With fail-fast disabled, this test should run (not be skipped).
+	// The provisioner set is unchanged so reconcileEnv's DeepEqual short-circuit
+	// skips re-provisioning, but the test body still executes.
+}
+
+// TestWithoutFailFastRunsAllTests verifies that with WithoutFailFast(),
+// subsequent tests still run after a failure.
+func TestWithoutFailFastRunsAllTests(t *testing.T) {
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &noFailFastSuite{provisioner: p}
+	Run(t, s, WithProvisioner(p), WithoutFailFast())
+
+	// With fail-fast disabled, the second test should have run (not been skipped).
+	// Provision is called once during SetupSuite; BeforeTest for the second test
+	// hits the DeepEqual short-circuit so no re-provisioning occurs.
+	p.AssertNumberOfCalls(t, "Provision", 1)
+	p.AssertNumberOfCalls(t, "Destroy", 1)
+
+	// firstFailTest should still be set (the first test failed), but the second
+	// test should have run anyway because fail-fast was disabled.
+	require.NotEmpty(t, s.firstFailTest)
+}
