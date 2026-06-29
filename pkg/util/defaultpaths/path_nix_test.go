@@ -52,13 +52,13 @@ func TestCommonRootOrPath(t *testing.T) {
 			expected: "/opt/datadog-agent/run/dsd.socket",
 		},
 		{
-			name:     "dogstatsd protocol log file is transformed",
-			path:     dogstatsDProtocolLogFile,
+			name:     "dogstatsd service log file is transformed",
+			path:     defaultDogstatsDServiceLogFile,
 			expected: "/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log",
 		},
 		{
-			name:     "pyChecksPath is transformed",
-			path:     pyChecksPath,
+			name:     "defaultPyChecksPath is transformed",
+			path:     defaultPyChecksPath,
 			expected: "/opt/datadog-agent/checks.d",
 		},
 		{

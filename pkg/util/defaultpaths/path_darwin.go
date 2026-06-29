@@ -6,6 +6,7 @@
 package defaultpaths
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
