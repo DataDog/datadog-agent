@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -129,14 +130,6 @@ type otelTLSModuleSet struct {
 
 type otelAuxvInfo struct {
 	atBase uint64
-}
-
-type otelMapEntry struct {
-	start  uint64
-	end    uint64
-	offset uint64
-	perms  string
-	path   string
 }
 
 type otelModuleImage struct {
@@ -271,7 +264,7 @@ func (p *otelTargetProcess) fsPath(path string) string {
 	return kernel.HostProc(p.pidStr, "root", path)
 }
 
-func (p *otelTargetProcess) maps() ([]otelMapEntry, error) {
+func (p *otelTargetProcess) maps() ([]procfs.MapsEntry, error) {
 	mapsPath := kernel.HostProc(p.pidStr, "maps")
 	file, err := os.Open(mapsPath)
 	if err != nil {
@@ -279,10 +272,10 @@ func (p *otelTargetProcess) maps() ([]otelMapEntry, error) {
 	}
 	defer file.Close()
 
-	var entries []otelMapEntry
+	var entries []procfs.MapsEntry
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		if entry, ok := parseOTelMapsLine(scanner.Text()); ok {
+		if entry, ok := procfs.ParseMapsLine(scanner.Bytes()); ok {
 			entries = append(entries, entry)
 		}
 	}
@@ -292,69 +285,37 @@ func (p *otelTargetProcess) maps() ([]otelMapEntry, error) {
 	return entries, nil
 }
 
-func (p *otelTargetProcess) groupedReadableFileMaps() (map[string][]otelMapEntry, []string, error) {
+func (p *otelTargetProcess) groupedReadableFileMaps() (map[string][]procfs.MapsEntry, []string, error) {
 	entries, err := p.maps()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	grouped := make(map[string][]otelMapEntry)
+	grouped := make(map[string][]procfs.MapsEntry)
 	var order []string
 	seen := make(map[string]struct{})
 	for _, entry := range entries {
-		if !entry.readableFileMapping() {
+		path, ok := otelReadableFileMappingPath(entry)
+		if !ok {
 			continue
 		}
-		grouped[entry.path] = append(grouped[entry.path], entry)
-		if _, ok := seen[entry.path]; !ok {
-			seen[entry.path] = struct{}{}
-			order = append(order, entry.path)
+		grouped[path] = append(grouped[path], entry)
+		if _, ok := seen[path]; !ok {
+			seen[path] = struct{}{}
+			order = append(order, path)
 		}
 	}
 	return grouped, order, nil
 }
 
-func parseOTelMapsLine(line string) (otelMapEntry, bool) {
-	fields := strings.Fields(line)
-	if len(fields) < 5 {
-		return otelMapEntry{}, false
+// otelReadableFileMappingPath returns the cleaned pathname of a readable,
+// file-backed mapping, or false for anonymous/special/non-readable mappings.
+func otelReadableFileMappingPath(e procfs.MapsEntry) (string, bool) {
+	path := stripDeletedMapsSuffix(e.Pathname)
+	if path == "" || path[0] != '/' || !strings.HasPrefix(e.Permissions, "r") {
+		return "", false
 	}
-
-	address := fields[0]
-	dash := strings.IndexByte(address, '-')
-	if dash <= 0 {
-		return otelMapEntry{}, false
-	}
-	start, err := strconv.ParseUint(address[:dash], 16, 64)
-	if err != nil {
-		return otelMapEntry{}, false
-	}
-	end, err := strconv.ParseUint(address[dash+1:], 16, 64)
-	if err != nil {
-		return otelMapEntry{}, false
-	}
-	offset, err := strconv.ParseUint(fields[2], 16, 64)
-	if err != nil {
-		return otelMapEntry{}, false
-	}
-
-	path := ""
-	if len(fields) > 5 {
-		path = strings.Join(fields[5:], " ")
-		path = stripDeletedMapsSuffix(path)
-	}
-
-	return otelMapEntry{
-		start:  start,
-		end:    end,
-		offset: offset,
-		perms:  fields[1],
-		path:   path,
-	}, true
-}
-
-func (e otelMapEntry) readableFileMapping() bool {
-	return e.path != "" && e.path[0] == '/' && strings.HasPrefix(e.perms, "r")
+	return path, true
 }
 
 func stripDeletedMapsSuffix(path string) string {
@@ -419,7 +380,7 @@ func (p *otelTargetProcess) hasMuslLoaderMapping() bool {
 		return false
 	}
 	for _, entry := range entries {
-		if strings.Contains(entry.path, "/ld-musl-") {
+		if strings.Contains(entry.Pathname, "/ld-musl-") {
 			return true
 		}
 	}
@@ -700,7 +661,7 @@ func elfPTTLSMemsz(elfFile *safeelf.File) (uint64, bool) {
 	return 0, false
 }
 
-func elfLoadBias(elfFile *safeelf.File, maps []otelMapEntry, pageSize uint64) (uint64, error) {
+func elfLoadBias(elfFile *safeelf.File, maps []procfs.MapsEntry, pageSize uint64) (uint64, error) {
 	if elfFile.Type == elf.ET_EXEC {
 		return 0, nil
 	}
@@ -710,7 +671,7 @@ func elfLoadBias(elfFile *safeelf.File, maps []otelMapEntry, pageSize uint64) (u
 
 	anchor := maps[0]
 	for _, entry := range maps[1:] {
-		if entry.start < anchor.start {
+		if entry.StartAddr < anchor.StartAddr {
 			anchor = entry
 		}
 	}
@@ -722,8 +683,8 @@ func elfLoadBias(elfFile *safeelf.File, maps []otelMapEntry, pageSize uint64) (u
 
 		phdrOffset := alignDown(prog.Off, pageSize)
 		phdrVaddr := alignDown(prog.Vaddr, pageSize)
-		if anchor.offset == phdrOffset && anchor.start >= phdrVaddr {
-			return anchor.start - phdrVaddr, nil
+		if anchor.Offset == phdrOffset && anchor.StartAddr >= phdrVaddr {
+			return anchor.StartAddr - phdrVaddr, nil
 		}
 	}
 
