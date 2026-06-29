@@ -145,10 +145,10 @@ const (
 	TracerMemfdSealEventType
 	// PivotRootEventType is sent when pivot_root completes successfully
 	PivotRootEventType
-	// SetSidEventType is sent when setsid completes successfully
-	SetSidEventType
 	// SampleRefreshEventType is sent when a dedup map detects a duplicate and refreshes a cookie timestamp
 	SampleRefreshEventType
+	// SetSidEventType is sent when setsid completes successfully
+	SetSidEventType
 	// NopEventType nop event
 	NopEventType
 	// SocketEventType is sent when a socket is created
@@ -350,6 +350,8 @@ func (t EventType) String() string {
 		return "pivot_root"
 	case SampleRefreshEventType:
 		return "sample_refresh"
+	case SetSidEventType:
+		return "setsid"
 	case NopEventType:
 		return "nop"
 	case SocketEventType:
