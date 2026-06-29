@@ -4,11 +4,20 @@
     "type": "object",
     "properties": {
         "dd": {
-            "span_id": {
-                "type": "string"
-            },
-            "trace_id": {
-                "type": "string"
+            "type": "object",
+            "properties": {
+                "span_id": {
+                    "type": "string"
+                },
+                "trace_id": {
+                    "type": "string"
+                },
+                "attributes": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
             },
             "required": [
                 "span_id",
@@ -16,11 +25,20 @@
             ]
         },
         "trace": {
-            "span_id": {
-                "type": "string"
-            },
-            "trace_id": {
-                "type": "string"
+            "type": "object",
+            "properties": {
+                "span_id": {
+                    "type": "string"
+                },
+                "trace_id": {
+                    "type": "string"
+                },
+                "attributes": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
             },
             "required": [
                 "span_id",
