@@ -120,12 +120,28 @@ func (g *GoStackTraceParser) AcceptLine(line []byte) bool {
 		return true
 
 	case goStateInChunk:
+		// A chunk-start line ends the current chunk just as a blank line would.
+		// Sources that strip the header's blank-line separator strip the
+		// separators between later chunks too, so without this a multi-goroutine
+		// dump would combine only its first chunk. Re-dispatch through
+		// betweenChunks (which resets uncommitted and counts the new chunk),
+		// yielding the same end-state as the blank-line path.
+		if _, ok := goDetectChunkStart(line); ok {
+			g.st = goStateBetweenChunks
+			return g.AcceptLine(line)
+		}
 		return g.validStackLine(line)
 
 	case goStateInRegDump:
 		if goValidRegisterLine(line) {
 			g.uncommitted = 0
 			return true
+		}
+		// As above: a chunk-start line directly after a register dump (no blank
+		// line) begins a new chunk rather than ending the trace.
+		if _, ok := goDetectChunkStart(line); ok {
+			g.st = goStateBetweenChunks
+			return g.AcceptLine(line)
 		}
 		return false
 	}

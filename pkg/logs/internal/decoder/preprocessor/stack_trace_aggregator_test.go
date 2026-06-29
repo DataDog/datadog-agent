@@ -219,6 +219,49 @@ func TestGoStackTrace_NoBlankLine_SignalContinuationThenGoroutine_Combines(t *te
 	assertCombined(t, msgs)
 }
 
+func TestGoStackTrace_NoBlankLine_MultipleGoroutines_Combines(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
+	// Real Go panics dump every goroutine; the sources that strip the header's
+	// blank line strip the separators between goroutines too. All chunks must
+	// still fold into a single combined message, not just the first.
+	input := "panic: boom\n" +
+		"goroutine 1 [running]:\n" +
+		"main.foo()\n" +
+		"\t/path/main.go:1 +0x1\n" +
+		"goroutine 2 [running]:\n" +
+		"main.bar()\n" +
+		"\t/path/main.go:2 +0x2\n" +
+		"goroutine 3 [chan receive]:\n" +
+		"main.baz()\n" +
+		"\t/path/main.go:3 +0x3\n"
+	msgs := feedLines(agg, input)
+	assertCombined(t, msgs)
+	content := string(msgs[0].GetContent())
+	assert.Contains(t, content, "goroutine 1 [running]:")
+	assert.Contains(t, content, "goroutine 2 [running]:", "later goroutines must be folded in, not emitted standalone")
+	assert.Contains(t, content, "goroutine 3 [chan receive]:")
+}
+
+func TestGoStackTrace_NoBlankLine_RegisterDumpThenGoroutine_Combines(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
+	// Register dump immediately followed by a goroutine chunk, no blank-line
+	// separators anywhere. The goroutine section must begin a new chunk rather
+	// than ending the trace at the register dump.
+	input := "SIGSEGV: segmentation violation\n" +
+		"PC=0x192bf82f4 m=0 sigcode=2 addr=0x0\n" +
+		"rax 0x7fffabcd1234\n" +
+		"rbx 0x0\n" +
+		"rip 0x192bf82f4\n" +
+		"goroutine 1 [running]:\n" +
+		"runtime.main()\n" +
+		"\t/usr/local/go/src/runtime/proc.go:267 +0x1\n"
+	msgs := feedLines(agg, input)
+	assertCombined(t, msgs)
+	content := string(msgs[0].GetContent())
+	assert.Contains(t, content, "rax 0x7fffabcd1234")
+	assert.Contains(t, content, "goroutine 1 [running]:", "the goroutine chunk after the register dump must be folded in")
+}
+
 // ---------------------------------------------------------------------------
 // Ported negative tests from parser_test.go — these should NOT combine
 // ---------------------------------------------------------------------------
