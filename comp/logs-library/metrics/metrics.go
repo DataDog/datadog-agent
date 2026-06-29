@@ -109,6 +109,17 @@ var (
 	TlmLogLineSizes = telemetryimpl.GetCompatComponent().NewHistogram("logs", "log_line_sizes",
 		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
 
+	// TlmSyslogMalformedBytes is the total number of malformed bytes seen by the syslog
+	// framer (bytes that do not form a valid RFC 6587 frame).
+	TlmSyslogMalformedBytes = telemetryimpl.GetCompatComponent().NewCounter("logs", "syslog_malformed_bytes",
+		nil, "Total number of malformed bytes seen by the syslog framer")
+
+	// TlmSyslogOversizedFrames counts syslog frames split because they exceeded the
+	// content length limit. Syslog lines are conventionally far below the limit, so a
+	// non-zero value signals a severe upstream framing error.
+	TlmSyslogOversizedFrames = telemetryimpl.GetCompatComponent().NewCounter("logs", "syslog_oversized_frames",
+		nil, "Count of syslog frames split because they exceeded the content length limit")
+
 	// TlmRotationsNix tracks file rotations detected on *nix platforms by rotation type (new_file vs truncated)
 	TlmRotationsNix = telemetryimpl.GetCompatComponent().NewCounter("logs", "rotations_nix",
 		[]string{"rotation_type"}, "Count of file rotations detected on *nix platforms, tagged by rotation_type (new_file or truncated)")
