@@ -311,9 +311,11 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			continue
 		}
 		pathtest := s.makePathtest(conn, origin)
+		testIdentity := makeTestIdentity(conn.SourceHostname, pathtest)
+		pathtest.TestIdentity = testIdentity
 		networkPaths = append(networkPaths, npmodel.NetworkPath{
 			HasTest:      true,
-			TestIdentity: makeTestIdentity(conn.SourceHostname, pathtest),
+			TestIdentity: testIdentity,
 		})
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
@@ -439,6 +441,9 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		path.SourceProduct = payload.SourceProductNetflow
 	}
 	path.CollectorType = payload.CollectorTypeAgent
+	if ptest.Pathtest.Origin == payload.PathOriginNetworkTraffic || ptest.Pathtest.Origin == payload.PathOriginNetflow {
+		path.TestIdentity = ptest.Pathtest.TestIdentity
+	}
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)

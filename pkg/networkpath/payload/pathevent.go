@@ -243,6 +243,7 @@ type NetworkPath struct {
 	TestConfigID  string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
 	TestResultID  string                 `json:"test_result_id"` // ID of specific test result (test run)
 	TestRunID     string                 `json:"test_run_id"`
+	TestIdentity  string                 `json:"test_identity,omitempty"`
 	Origin        PathOrigin             `json:"origin"`
 	TestRunType   TestRunType            `json:"test_run_type"`
 	SourceProduct SourceProduct          `json:"source_product"`

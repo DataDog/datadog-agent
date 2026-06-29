@@ -152,6 +152,26 @@ func Test_pathtestStore_add_when_full(t *testing.T) {
 	assert.Equal(t, *pt2, *pt2Ctx.Pathtest)
 }
 
+func Test_pathtestStore_add_updatesEmptyTestIdentity(t *testing.T) {
+	logger := logmock.New(t)
+
+	config := Config{
+		ContextsLimit: 10,
+		TTL:           10 * time.Minute,
+		Interval:      1 * time.Minute,
+	}
+	setMockTimeNow(mockTimeJan2)
+	store := NewPathtestStore(config, logger, &statsd.NoOpClient{}, mockTimeNow)
+
+	ptWithoutIdentity := &common.Pathtest{Hostname: "host1", Port: 53}
+	ptWithIdentity := &common.Pathtest{Hostname: "host1", Port: 53, TestIdentity: "test-identity"}
+	store.Add(ptWithoutIdentity)
+	store.Add(ptWithIdentity)
+
+	ptCtx := store.contexts[ptWithoutIdentity.GetHash()]
+	assert.Equal(t, "test-identity", ptCtx.Pathtest.TestIdentity)
+}
+
 func Test_pathtestStore_flush(t *testing.T) {
 	logger := logmock.New(t)
 	setMockTimeNow(mockTimeJan2)

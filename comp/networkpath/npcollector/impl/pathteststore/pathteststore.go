@@ -187,6 +187,9 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 		return
 	}
 	pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
+	if pathtestCtx.Pathtest.TestIdentity == "" && pathtestToAdd.TestIdentity != "" {
+		pathtestCtx.Pathtest.TestIdentity = pathtestToAdd.TestIdentity
+	}
 }
 
 // GetContextsCount returns pathtest contexts count
