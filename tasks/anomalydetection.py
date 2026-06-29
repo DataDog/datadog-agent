@@ -977,6 +977,7 @@ def eval_bayesian(
                     report_path=report_path,
                     trial_dir=trial_dir,
                     options=ddeval_options,
+                    sigma=sigma,
                     logger=trial_logger,
                 )
             else:
@@ -1169,6 +1170,7 @@ def _run_ddeval_trial(
     report_path: str,
     trial_dir: str,
     options: _DDEvalOptions | None,
+    sigma: float,
     logger: StepLogger,
 ) -> dict[str, object]:
     """Run one Optuna trial through the remote ddeval workflow and return a local report."""
@@ -1188,6 +1190,10 @@ def _run_ddeval_trial(
         "eval_source": "anomalydetection.eval-bayesian",
     }
     experiment_config["input_parameters"] = input_parameters
+
+    executor_config = dict(experiment_config.get("executor_config") or {})
+    executor_config["sigma"] = sigma
+    experiment_config["executor_config"] = executor_config
 
     trial_experiment_config_path = os.path.join(trial_dir, "ddeval-experiment-config.json")
     with open(trial_experiment_config_path, "w") as f:
