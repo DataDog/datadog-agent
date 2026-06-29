@@ -10,6 +10,8 @@ go_library(
         "loader.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl",
+    # Requires sharedlibrarycheck
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
