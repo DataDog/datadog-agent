@@ -30,7 +30,7 @@ require (
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
@@ -137,7 +137,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface
