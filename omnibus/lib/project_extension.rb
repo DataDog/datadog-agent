@@ -286,7 +286,12 @@ module Omnibus
   # absolute files from the staged root when available.
   module PackagerExtraPackageFileStagedRoot
     def copy_file(source, destination)
-      super(staged_extra_package_source(source), destination)
+      staged_source = staged_extra_package_source(source)
+      if staged_source != source.to_s && File.directory?(staged_source)
+        FileUtils.cp_r(staged_source.chomp("/"), destination)
+      else
+        super(staged_source, destination)
+      end
     end
 
     private
