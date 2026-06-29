@@ -604,9 +604,7 @@ pub fn kill_pid_force(pid: u32) {
 #[cfg(windows)]
 pub fn kill_pid_force(pid: u32) {
     use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::Threading::{
-        OpenProcess, PROCESS_TERMINATE, TerminateProcess,
-    };
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
 
     unsafe {
         let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
