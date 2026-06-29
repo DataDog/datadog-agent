@@ -124,6 +124,7 @@ nav:
   - Introduction: agent-schema/index.md
   - Keyword Reference: agent-schema/keywords.md
   - Examples: agent-schema/examples.md
+  - CLI Commands: agent-schema/cli.md
   - FAQ: agent-schema/faq.md
 - Architecture:
   - DogStatsD:
