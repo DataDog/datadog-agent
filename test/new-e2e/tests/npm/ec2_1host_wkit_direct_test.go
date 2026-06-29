@@ -6,6 +6,8 @@
 package npm
 
 import (
+	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,10 +16,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
 type ec2VMWKitDirectSuite struct {
 	e2e.BaseSuite[hostHttpbinEnvWindows]
+
+	installPath string
 }
 
 // TestEC2VMWKitDirectSuite will validate running the agent on a single EC2 VM in direct sender mode
@@ -39,6 +45,12 @@ func (v *ec2VMWKitDirectSuite) SetupSuite() {
 
 	v.Env().RemoteHost.MustExecute("Invoke-WebRequest -UseBasicParsing http://s3.amazonaws.com/dd-agent-mstesting/windows/pvt/nplanel/httpd-2.4.59-240404-win64-VS17.zip -OutFile httpd.zip")
 	v.Env().RemoteHost.MustExecute("Expand-Archive httpd.zip")
+
+	host := v.Env().RemoteHost
+	var err error
+
+	v.installPath, err = windowsAgent.GetInstallPathFromRegistry(host)
+	v.Require().NoError(err)
 }
 
 // BeforeTest will be called before each test
@@ -49,10 +61,12 @@ func (v *ec2VMWKitDirectSuite) BeforeTest(suiteName, testName string) {
 
 	// Verify that the connections check is not running
 	assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		status := v.Env().RemoteHost.MustExecuteOn(c, "sudo /opt/datadog-agent/embedded/bin/process-agent status")
-		for line := range strings.SplitSeq(status, "\n") {
-			if strings.Contains(line, "Enabled Checks:") {
-				assert.NotContains(c, line, "connections")
+		status, err := v.execAgentCommand("process-agent.exe", "status")
+		if assert.NoError(c, err) {
+			for line := range strings.SplitSeq(status, "\n") {
+				if strings.Contains(line, "Enabled Checks:") {
+					assert.NotContains(c, line, "connections")
+				}
 			}
 		}
 	}, 1*time.Minute, 5*time.Second)
@@ -107,4 +121,13 @@ func (v *ec2VMWKitDirectSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
 	v.Env().RemoteHost.MustExecute("Resolve-DnsName -Name www.google.ch -Server 8.8.8.8")
 
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
+}
+
+func (v *ec2VMWKitDirectSuite) execAgentCommand(executable, command string, options ...client.ExecuteOption) (string, error) {
+	host := v.Env().RemoteHost
+	v.Require().NotEmpty(v.installPath)
+
+	agentPath := filepath.Join(v.installPath, "bin", executable)
+	cmd := fmt.Sprintf(`& "%s" %s`, agentPath, command)
+	return host.Execute(cmd, options...)
 }
