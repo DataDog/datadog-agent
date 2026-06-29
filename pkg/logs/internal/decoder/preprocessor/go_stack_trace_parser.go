@@ -91,7 +91,18 @@ func (g *GoStackTraceParser) AcceptLine(line []byte) bool {
 			g.uncommitted = 0
 			return true
 		}
-		return false
+		// The Go runtime prints a blank line between the header and the first
+		// goroutine/stack chunk, and normally that blank line is what ends the
+		// header (handled by the empty-line case above). But many log sources
+		// (container runtimes, loggers) strip blank lines before they reach the
+		// aggregator, so the chunk-start line arrives directly after the header.
+		// Treat a chunk start as an implicit end of the header; otherwise the
+		// trace could never reach betweenChunks and would always be abandoned.
+		if _, ok := goDetectChunkStart(line); !ok {
+			return false
+		}
+		g.st = goStateBetweenChunks
+		fallthrough
 
 	case goStateBetweenChunks:
 		ct, ok := goDetectChunkStart(line)

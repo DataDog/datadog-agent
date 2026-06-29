@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fix Go stack trace aggregation in the auto multi-line log pipeline so that
+    crash dumps whose ``panic:``/``fatal error:`` header is immediately followed
+    by the ``goroutine``/``runtime stack:``/register-dump section are combined
+    into a single log entry. Previously the parser only ended the header on the
+    blank line the Go runtime prints before the first stack section; log sources
+    that strip blank lines (many container runtimes and loggers) prevented the
+    trace from ever being combined.
