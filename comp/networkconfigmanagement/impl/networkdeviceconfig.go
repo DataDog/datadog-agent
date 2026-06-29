@@ -90,24 +90,29 @@ func (n *networkDeviceConfigImpl) SetMaxReportInterval(interval time.Duration) {
 // necessary. The inventory report will be included if the device had new
 // configuration, or if more than n.inventoryMaxInterval has elapsed since the
 // last time inventory was reported.
-func (n *networkDeviceConfigImpl) ReportConfig(ctx context.Context, deviceID string) error {
-	return n.ReportConfigWithSender(ctx, deviceID, n.sender)
-}
-
-// ReportConfigWithSender runs the NCM check using the specified sender.
-func (n *networkDeviceConfigImpl) ReportConfigWithSender(ctx context.Context, deviceID string, baseSender sender.Sender) error {
+func (n *networkDeviceConfigImpl) ReportConfig(ctx context.Context, deviceID string, baseSender sender.Sender) error {
 	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
-
+	log.Debug("Running config check.")
 	ctx = WithLogger(ctx, log)
-	startTime := n.clock.Now()
 	dc, ok := n.devices.Load(deviceID)
 	if !ok {
 		return fmt.Errorf("unknown device: %q", deviceID)
 	}
 	// lock the device so that if two threads try to use the same device at the
 	// same time they won't collide.
+	log.Debug("Requesting device lock...")
 	dc.Lock()
+	log.Debug("Device lock acquired")
 	defer dc.Unlock()
+	return n.reportConfig(ctx, dc, baseSender)
+}
+
+// reportConfig implements the NCM check, applied to a device context that is
+// already locked.
+func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceContext, baseSender sender.Sender) error {
+	startTime := n.clock.Now()
+	log := LoggerFromContext(ctx)
+	deviceID := dc.device.DeviceID()
 	if dc.noMatchingProfile {
 		log.Debugf("All profiles tested on past runs with no matches.")
 		return fmt.Errorf("no matching NCM profile for device %s", deviceID)
@@ -202,7 +207,7 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 		return errors.New("rollback is disabled")
 	}
 	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
-
+	log.Infof("Rollback requested: Device %q to version %q", deviceID, configVersion)
 	ctx = WithLogger(ctx, log)
 	dc, ok := n.devices.Load(deviceID)
 	if !ok {
@@ -210,7 +215,9 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 	}
 	// lock the device so that if two threads try to use the same device at the
 	// same time they won't collide.
+	log.Debug("Requesting device lock...")
 	dc.Lock()
+	log.Debug("Device lock acquired")
 	defer dc.Unlock()
 
 	rawConfig, metadata, err := n.store.GetConfig(configVersion)
@@ -239,7 +246,7 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 
 	// TODO if this fails we should still return success so that the user knows
 	// the rollback itself happened.
-	return n.ReportConfig(ctx, deviceID)
+	return n.reportConfig(ctx, dc, n.sender)
 }
 
 // connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
