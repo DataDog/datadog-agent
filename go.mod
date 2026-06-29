@@ -924,6 +924,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/confmaputils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/util/sds v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
 	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
 	github.com/DataDog/rshell v0.0.22
@@ -995,6 +996,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20260601185219-3c48e9fa5604 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.9.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
@@ -1411,6 +1413,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/quantile => ./pkg/util/quantile
 	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest => ./pkg/util/quantile/sketchtest
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/sds => ./pkg/util/sds
 	github.com/DataDog/datadog-agent/pkg/util/sort => ./pkg/util/sort
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ./pkg/util/startstop
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ./pkg/util/statstracker
