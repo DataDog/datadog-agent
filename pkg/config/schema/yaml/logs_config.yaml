@@ -553,6 +553,15 @@ properties:
         tags:
         - golang_type:float64
         comment: Maximum burst allowance per pattern, measured in accumulated credits/logs.
+      disabled_sources:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        comment: Sources listed here will not have adaptive sampling or noisy log
+          detection applied, even if enabled globally. Matches against the configured
+          source tag of each log source.
       enabled:
         node_type: setting
         type: boolean

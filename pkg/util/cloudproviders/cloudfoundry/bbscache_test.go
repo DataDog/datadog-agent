@@ -14,18 +14,18 @@ import (
 
 	"code.cloudfoundry.org/bbs/events"
 	"code.cloudfoundry.org/bbs/models"
-	"code.cloudfoundry.org/lager"
+	"code.cloudfoundry.org/lager/v3"
 	"github.com/stretchr/testify/assert"
 )
 
 // testBBSClient implements bbs.Client for testing
 type testBBSClient struct{}
 
-func (t testBBSClient) ActualLRPs(lager.Logger, models.ActualLRPFilter) ([]*models.ActualLRP, error) {
+func (t testBBSClient) ActualLRPs(lager.Logger, string, models.ActualLRPFilter) ([]*models.ActualLRP, error) {
 	return []*models.ActualLRP{&BBSModelA1, &BBSModelA2}, nil
 }
 
-func (t testBBSClient) DesiredLRPs(lager.Logger, models.DesiredLRPFilter) ([]*models.DesiredLRP, error) {
+func (t testBBSClient) DesiredLRPs(lager.Logger, string, models.DesiredLRPFilter) ([]*models.DesiredLRP, error) {
 	return []*models.DesiredLRP{&BBSModelD1}, nil
 }
 
@@ -141,83 +141,95 @@ func TestBBSCache_GetAllLRPs(t *testing.T) {
 }
 
 // These methods ensure we implement the bbs.Client API, but are in fact unused by our functionality
-func (t testBBSClient) DesireTask(logger lager.Logger, guid, domain string, def *models.TaskDefinition) error {
+func (t testBBSClient) DesireTask(logger lager.Logger, traceID string, guid, domain string, def *models.TaskDefinition) error {
 	panic("implement me")
 }
 
-func (t testBBSClient) Tasks(logger lager.Logger) ([]*models.Task, error) {
+func (t testBBSClient) Tasks(logger lager.Logger, traceID string) ([]*models.Task, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) TasksWithFilter(logger lager.Logger, filter models.TaskFilter) ([]*models.Task, error) {
+func (t testBBSClient) TasksWithFilter(logger lager.Logger, traceID string, filter models.TaskFilter) ([]*models.Task, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) TasksByDomain(logger lager.Logger, domain string) ([]*models.Task, error) {
+func (t testBBSClient) TasksByDomain(logger lager.Logger, traceID string, domain string) ([]*models.Task, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) TasksByCellID(logger lager.Logger, cellID string) ([]*models.Task, error) {
+func (t testBBSClient) TasksByCellID(logger lager.Logger, traceID string, cellID string) ([]*models.Task, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) TaskByGuid(logger lager.Logger, guid string) (*models.Task, error) {
+func (t testBBSClient) TaskByGuid(logger lager.Logger, traceID string, guid string) (*models.Task, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) CancelTask(logger lager.Logger, taskGUID string) error {
+func (t testBBSClient) CancelTask(logger lager.Logger, traceID string, taskGUID string) error {
 	panic("implement me")
 }
 
-func (t testBBSClient) ResolvingTask(logger lager.Logger, taskGUID string) error {
+func (t testBBSClient) ResolvingTask(logger lager.Logger, traceID string, taskGUID string) error {
 	panic("implement me")
 }
 
-func (t testBBSClient) DeleteTask(logger lager.Logger, taskGUID string) error {
+func (t testBBSClient) DeleteTask(logger lager.Logger, traceID string, taskGUID string) error {
 	panic("implement me")
 }
 
-func (t testBBSClient) Domains(logger lager.Logger) ([]string, error) {
+func (t testBBSClient) Domains(logger lager.Logger, traceID string) ([]string, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) UpsertDomain(logger lager.Logger, domain string, ttl time.Duration) error {
+func (t testBBSClient) UpsertDomain(logger lager.Logger, traceID string, domain string, ttl time.Duration) error {
 	panic("implement me")
 }
 
-func (t testBBSClient) ActualLRPGroups(lager.Logger, models.ActualLRPFilter) ([]*models.ActualLRPGroup, error) {
+func (t testBBSClient) ActualLRPsByProcessGuids(logger lager.Logger, traceID string, processGuids []string) ([]*models.ActualLRP, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) ActualLRPGroupsByProcessGuid(logger lager.Logger, processGUID string) ([]*models.ActualLRPGroup, error) {
+func (t testBBSClient) ActualLRPGroups(lager.Logger, string, models.ActualLRPFilter) ([]*models.ActualLRPGroup, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) ActualLRPGroupByProcessGuidAndIndex(logger lager.Logger, processGUID string, index int) (*models.ActualLRPGroup, error) {
+func (t testBBSClient) ActualLRPGroupsByProcessGuid(logger lager.Logger, traceID string, processGUID string) ([]*models.ActualLRPGroup, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) RetireActualLRP(logger lager.Logger, key *models.ActualLRPKey) error {
+func (t testBBSClient) ActualLRPGroupByProcessGuidAndIndex(logger lager.Logger, traceID string, processGUID string, index int) (*models.ActualLRPGroup, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) DesiredLRPByProcessGuid(logger lager.Logger, processGUID string) (*models.DesiredLRP, error) {
+func (t testBBSClient) RetireActualLRP(logger lager.Logger, traceID string, key *models.ActualLRPKey) error {
 	panic("implement me")
 }
 
-func (t testBBSClient) DesiredLRPSchedulingInfos(lager.Logger, models.DesiredLRPFilter) ([]*models.DesiredLRPSchedulingInfo, error) {
+func (t testBBSClient) DesiredLRPByProcessGuid(logger lager.Logger, traceID string, processGUID string) (*models.DesiredLRP, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) DesireLRP(lager.Logger, *models.DesiredLRP) error {
+func (t testBBSClient) DesiredLRPSchedulingInfos(lager.Logger, string, models.DesiredLRPFilter) ([]*models.DesiredLRPSchedulingInfo, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) UpdateDesiredLRP(logger lager.Logger, processGUID string, update *models.DesiredLRPUpdate) error {
+func (t testBBSClient) DesiredLRPSchedulingInfoByProcessGuid(logger lager.Logger, traceID string, processGUID string) (*models.DesiredLRPSchedulingInfo, error) {
 	panic("implement me")
 }
 
-func (t testBBSClient) RemoveDesiredLRP(logger lager.Logger, processGUID string) error {
+func (t testBBSClient) DesiredLRPRoutingInfos(lager.Logger, string, models.DesiredLRPFilter) ([]*models.DesiredLRP, error) {
+	panic("implement me")
+}
+
+func (t testBBSClient) DesireLRP(lager.Logger, string, *models.DesiredLRP) error {
+	panic("implement me")
+}
+
+func (t testBBSClient) UpdateDesiredLRP(logger lager.Logger, traceID string, processGUID string, update *models.DesiredLRPUpdate) error {
+	panic("implement me")
+}
+
+func (t testBBSClient) RemoveDesiredLRP(logger lager.Logger, traceID string, processGUID string) error {
 	panic("implement me")
 }
 
@@ -241,10 +253,10 @@ func (t testBBSClient) SubscribeToInstanceEventsByCellID(logger lager.Logger, ce
 	panic("implement me")
 }
 
-func (t testBBSClient) Ping(logger lager.Logger) bool {
+func (t testBBSClient) Ping(logger lager.Logger, traceID string) bool {
 	panic("implement me")
 }
 
-func (t testBBSClient) Cells(logger lager.Logger) ([]*models.CellPresence, error) {
+func (t testBBSClient) Cells(logger lager.Logger, traceID string) ([]*models.CellPresence, error) {
 	panic("implement me")
 }

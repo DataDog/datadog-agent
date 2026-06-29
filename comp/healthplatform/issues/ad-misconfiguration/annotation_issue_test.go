@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildIssue(t *testing.T) {
+func TestBuildAnnotationIssue(t *testing.T) {
 	tests := []struct {
 		name              string
 		context           map[string]string
@@ -28,7 +28,7 @@ func TestBuildIssue(t *testing.T) {
 				"errorMessage": "annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier",
 				"errorSource":  "pod_annotation",
 			},
-			expectedTitle:     "Autodiscovery Misconfiguration on 'default/my-pod (abc123)'",
+			expectedTitle:     "Autodiscovery Pod Annotation Misconfiguration on 'default/my-pod (abc123)'",
 			expectedDescSub:   "pod annotation error",
 			expectedStepCount: 4,
 		},
@@ -39,32 +39,21 @@ func TestBuildIssue(t *testing.T) {
 				"errorMessage": "could not extract checks config: in checks: failed to unmarshal JSON",
 				"errorSource":  "container_label",
 			},
-			expectedTitle:     "Autodiscovery Misconfiguration on 'docker://abc123'",
+			expectedTitle:     "Autodiscovery Container Label Misconfiguration on 'docker://abc123'",
 			expectedDescSub:   "container label error",
 			expectedStepCount: 3,
 		},
 		{
-			name: "template resolution error",
-			context: map[string]string{
-				"entityName":   "postgres (docker://abc123)",
-				"errorMessage": "failed to get extra info for service docker://abc123, skipping config - extra config \"dbinstanceidentifier\" is not supported",
-				"errorSource":  "template_resolution",
-			},
-			expectedTitle:     "Autodiscovery Misconfiguration on 'postgres (docker://abc123)'",
-			expectedDescSub:   "template resolution error",
-			expectedStepCount: 2,
-		},
-		{
 			name:              "empty context defaults to pod annotation remediation",
 			context:           map[string]string{},
-			expectedTitle:     "Autodiscovery Misconfiguration on 'unknown'",
+			expectedTitle:     "Autodiscovery Pod Annotation Misconfiguration on 'unknown'",
 			expectedDescSub:   failedMsg,
 			expectedStepCount: 4,
 		},
 		{
 			name:              "nil context defaults to pod annotation remediation",
 			context:           nil,
-			expectedTitle:     "Autodiscovery Misconfiguration on 'unknown'",
+			expectedTitle:     "Autodiscovery Pod Annotation Misconfiguration on 'unknown'",
 			expectedDescSub:   failedMsg,
 			expectedStepCount: 4,
 		},
@@ -75,7 +64,7 @@ func TestBuildIssue(t *testing.T) {
 				"errorMessage": "could not extract checks config: in checks: failed to unmarshal JSON",
 				"errorSource":  "pod_annotation",
 			},
-			expectedTitle:     "Autodiscovery Misconfiguration on 'kube-system/nginx-pod (def456)'",
+			expectedTitle:     "Autodiscovery Pod Annotation Misconfiguration on 'kube-system/nginx-pod (def456)'",
 			expectedDescSub:   "failed to unmarshal JSON",
 			expectedStepCount: 4,
 		},
@@ -83,7 +72,7 @@ func TestBuildIssue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			template := NewADMisconfigurationIssue()
+			template := NewADAnnotationIssue()
 			issue, err := template.BuildIssue(tt.context)
 
 			if tt.expectErr {
@@ -95,7 +84,7 @@ func TestBuildIssue(t *testing.T) {
 			require.NotNil(t, issue)
 
 			assert.Empty(t, issue.Id, "Id is set by the caller (ReportIssue), not by the template")
-			assert.Equal(t, issueName, issue.IssueName)
+			assert.Equal(t, annotationIssueName, issue.IssueName)
 			assert.Equal(t, tt.expectedTitle, issue.Title)
 			assert.Contains(t, issue.Description, tt.expectedDescSub)
 			assert.Equal(t, category, issue.Category)
@@ -103,12 +92,10 @@ func TestBuildIssue(t *testing.T) {
 			assert.Equal(t, source, issue.Source)
 			assert.Equal(t, location, issue.Location)
 
-			// Verify remediation
 			require.NotNil(t, issue.Remediation)
 			assert.NotEmpty(t, issue.Remediation.Steps)
 			assert.Equal(t, tt.expectedStepCount, len(issue.Remediation.Steps))
 
-			// Verify extra fields
 			require.NotNil(t, issue.Extra)
 			fields := issue.Extra.GetFields()
 			assert.NotNil(t, fields["entity_name"])
@@ -116,7 +103,6 @@ func TestBuildIssue(t *testing.T) {
 			assert.NotNil(t, fields["error_source"])
 			assert.NotNil(t, fields["impact"])
 
-			// Verify tags
 			assert.Contains(t, issue.Tags, "autodiscovery")
 		})
 	}

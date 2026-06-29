@@ -31,7 +31,6 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the top
 4. **Target**: Which release notes directory?
    - `releasenotes/notes/` — Main agent (default, most common)
    - `releasenotes-dca/notes/` — Cluster Agent (DCA)
-   - `releasenotes-installscript/notes/` — Install script
 
 5. **APM-related?**: If the change affects `cmd/trace-agent` or `pkg/trace`, the content must be prefixed with `APM : ` and the topic should be prefixed with `apm-`.
 

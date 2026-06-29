@@ -7,7 +7,7 @@ go_library(
         "message_receiver.go",
         "noop_message_receiver.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/logs/diagnostic",
+    importpath = "github.com/DataDog/datadog-agent/comp/logs-library/diagnostic",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",

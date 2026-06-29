@@ -192,6 +192,17 @@ func NewComponent(deps Requires) (Provides, error) {
 		return Provides{Comp: &disabledObserver{}}, nil
 	}
 
+	// Off-by-default fast path: when neither analysis nor recording is active the
+	// live observer noops every handle (see handleFunc below) and installs no log
+	// tap, so skip building the catalog, engine, storage, 1000-cap channel, and
+	// dispatch goroutine — return the zero-allocation stub instead. The predicate
+	// mirrors the analysisEnabled/recorderEnabled gates used further down.
+	if !cfg.GetBool("anomaly_detection.enabled") {
+		if _, recorderEnabled := deps.Recorder.Get(); !recorderEnabled {
+			return Provides{Comp: &disabledObserver{}}, nil
+		}
+	}
+
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, rawScorer, extractors, _ := catalog.Instantiate(settings)

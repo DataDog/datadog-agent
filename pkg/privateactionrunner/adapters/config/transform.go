@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
@@ -25,7 +26,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-func FromDDConfig(config config.Component) (*Config, error) {
+// FromDDConfig builds the runner Config from the Agent config. The metrics client
+// is supplied by the caller (the standalone runner builds one with NewMetricsClient;
+// the Cluster Agent passes an in-process adapter; callers that emit no metrics, such
+// as the identity-rotation commands, may pass nil). A nil client defaults to no-op.
+func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface) (*Config, error) {
+	if metricsClient == nil {
+		metricsClient = &statsd.NoOpClient{}
+	}
 	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
 	ddHost := getDatadogHost(mainEndpoint)
 	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
@@ -83,7 +91,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
 		HeartbeatInterval:         heartbeatInterval,
 		Version:                   version.AgentVersion,
-		MetricsClient:             &statsd.NoOpClient{},
+		MetricsClient:             metricsClient,
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
@@ -230,4 +238,15 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 	}
 
 	return result
+}
+
+// NewMetricsClient builds a DogStatsD client from the Agent's configured
+// host/port endpoint.
+func NewMetricsClient(config config.Component, statsdComp statsdcomp.Component) (statsd.ClientInterface, error) {
+	port := config.GetInt("dogstatsd_port")
+	client, err := statsdComp.CreateForHostPort(configutils.GetBindHost(config), port)
+	if err != nil {
+		return &statsd.NoOpClient{}, fmt.Errorf("failed to create DogStatsD client: %w", err)
+	}
+	return client, nil
 }

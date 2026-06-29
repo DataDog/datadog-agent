@@ -259,11 +259,7 @@ class GithubAPI:
         """
         pr = self._repository.get_pull(int(pull_number))
         for file in pr.get_files():
-            if (
-                file.filename.startswith("releasenotes/notes/")
-                or file.filename.startswith("releasenotes-dca/notes/")
-                or file.filename.startswith("releasenotes-installscript/notes")
-            ):
+            if file.filename.startswith("releasenotes/notes/") or file.filename.startswith("releasenotes-dca/notes/"):
                 return True
         return False
 

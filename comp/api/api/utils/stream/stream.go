@@ -14,7 +14,7 @@ import (
 	"time"
 
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

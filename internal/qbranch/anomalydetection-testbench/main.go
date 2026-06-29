@@ -32,6 +32,7 @@ import (
 	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/bench"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -141,6 +142,18 @@ func main() {
 		fx.Supply(option.None[workloadfilterdef.Component]()),
 		fx.Supply(option.None[taggerdef.Component]()),
 		core.Bundle(),
+		// The testbench drives the engine directly via DebugView, so it needs the
+		// full observerImpl, not the disabled stub that NewComponent returns when
+		// anomaly detection is off. Force the feature on; replay is driven by
+		// DebugView.Reset with the testbench's own ComponentSettings, so this does
+		// not change scenario results. Keep the agent-internal log tap off so
+		// pkg/util/log messages (e.g. from parquet loading) are never ingested as
+		// scenario data — the testbench feeds the engine exclusively via DebugView.
+		fx.Decorate(func(c config.Component) config.Component {
+			c.Set("anomaly_detection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			return c
+		}),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(""),
 			LogParams:    log.ForOneShot("", "off", true),

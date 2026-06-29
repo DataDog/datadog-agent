@@ -24,7 +24,9 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
     ],
     deps = [
+        "//comp/logs-library/metrics",
         "//pkg/logs/message",
+        "//pkg/logs/status/utils",
         "@org_uber_go_atomic//:atomic",
     ],
 )
@@ -41,6 +43,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/logs/message",
+        "//pkg/logs/status/utils",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

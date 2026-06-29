@@ -92,6 +92,7 @@ go_test(
         "metrics_detector_scanwelch_test.go",
         "metrics_detector_tukey_biweight_test.go",
         "metrics_detector_util_test.go",
+        "observer_disabled_test.go",
         "observer_test.go",
         "profile_test.go",
         "rrcf_test.go",
@@ -106,6 +107,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/anomalydetection/observer/def",
+        "//comp/anomalydetection/recorder/def",
         "//comp/anomalydetection/reporter/def",
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
@@ -114,6 +116,7 @@ go_test(
         "//comp/def",
         "//pkg/config/mock",
         "//pkg/util/log",
+        "//pkg/util/option",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
