@@ -40,8 +40,8 @@ import (
 type ProfileData map[string][]byte
 
 // CreateDCAArchive packages up the files
-func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, statusComponent status.Component, diagnose diagnose.Component, ipc ipc.Component) (string, error) {
-	fb, err := flarehelpers.NewFlareBuilder(local, flaretypes.FlareArgs{})
+func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, flareArgs flaretypes.FlareArgs, statusComponent status.Component, diagnose diagnose.Component, ipc ipc.Component) (string, error) {
+	fb, err := flarehelpers.NewFlareBuilder(local, flareArgs)
 	if err != nil {
 		return "", err
 	}
@@ -107,6 +107,7 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return flarecommon.MarshalDatadogRuntimeConfigDumpYAML() }) //nolint:errcheck
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return remote.GetGoRoutineDump() })
 	getPerformanceProfileDCA(fb, pdata)
+	getProfilingDataDCA(fb)
 
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") {
 		getHPAStatus(ctx, fb) //nolint:errcheck
@@ -354,4 +355,40 @@ func getPerformanceProfileDCA(fb flaretypes.FlareBuilder, pdata ProfileData) {
 	for name, data := range pdata {
 		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data) //nolint:errcheck
 	}
+}
+
+// getProfilingDataDCA collects pprof data from the cluster agent when enable_profiling is set via RC.
+func getProfilingDataDCA(fb flaretypes.FlareBuilder) {
+	duration := fb.GetFlareArgs().ProfileDuration
+	if duration <= 0 {
+		return
+	}
+
+	seconds := int(duration.Seconds())
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt("metrics_port"))
+
+	for _, prof := range []struct{ name, path string }{
+		{name: "cluster-agent-1st-heap.pprof", path: "/heap"},
+		{name: "cluster-agent-cpu.pprof", path: fmt.Sprintf("/profile?seconds=%d", seconds)},
+		{name: "cluster-agent-2nd-heap.pprof", path: "/heap"},
+		{name: "cluster-agent-mutex.pprof", path: "/mutex"},
+		{name: "cluster-agent-block.pprof", path: "/block"},
+		{name: "cluster-agent.trace", path: fmt.Sprintf("/trace?seconds=%d", seconds)},
+	} {
+		b, err := dcaPprofGet(baseURL + prof.path)
+		if err != nil {
+			_ = fb.Logf("Error collecting pprof %s: %v", prof.name, err)
+			continue
+		}
+		fb.AddFileWithoutScrubbing(filepath.Join("profiles", prof.name), b) //nolint:errcheck
+	}
+}
+
+func dcaPprofGet(pprofURL string) ([]byte, error) {
+	r, err := http.Get(pprofURL) //nolint:noctx
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+	return io.ReadAll(r.Body)
 }
