@@ -232,13 +232,11 @@ func (e *ebpfProgram) Start() error {
 		func(protocol protocols.Protocol) { protocol.Stop() })
 
 	// We check again if there are protocols that could be enabled, and abort if
-	// it is not the case.
+	// it is not the case. Cleanup is handled by the caller (Monitor.Start), which
+	// calls Monitor.Stop -> ebpfProgram.Close on error, so we don't close here:
+	// closing twice would, e.g., close the direct consumer's event channel twice
+	// and panic.
 	if len(e.enabledProtocols) == 0 {
-		err = e.Close()
-		if err != nil {
-			log.Errorf("error during USM shutdown: %s", err)
-		}
-
 		return errNoProtocols
 	}
 
