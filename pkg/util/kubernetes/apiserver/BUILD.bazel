@@ -11,6 +11,7 @@ go_library(
         "endpoints.go",
         "endpointslices.go",
         "event_collector.go",
+        "event_reflector_store.go",
         "events.go",
         "hostname.go",
         "openshift.go",
