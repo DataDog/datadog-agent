@@ -494,7 +494,7 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
-			IssueName: healthplatformdef.ADMisconfigurationIssueName,
+			IssueName: admisconfig.IssueName,
 			Title:     "Autodiscovery Misconfiguration on '" + tpl.Name + " (" + svc.GetServiceID() + ")'",
 			Source:    healthplatformdef.ADMisconfigurationSource,
 		}

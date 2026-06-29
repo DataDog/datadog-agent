@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 func init() {
@@ -21,9 +20,8 @@ func init() {
 }
 
 const (
-	// IssueName is the human-readable issue name for autodiscovery misconfiguration issues,
-	// shared via store/def/constants.go so external reporters can reference it.
-	IssueName = storedef.ADMisconfigurationIssueName
+	// IssueName is the human-readable issue name for autodiscovery misconfiguration issues.
+	IssueName = "Autodiscovery Misconfiguration"
 )
 
 // adMisconfigurationModule implements issues.Module

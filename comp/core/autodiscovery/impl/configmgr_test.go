@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -723,7 +724,7 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	// Pre-populate a health issue using the same IssueId format the code uses.
 	hp.ReportIssue(&healthplatformpayload.Issue{
 		Id:        storedef.ADTemplateIssueID + ":redis:docker://def456:" + tpl.Digest(),
-		IssueName: storedef.ADMisconfigurationIssueName,
+		IssueName: admisconfig.IssueName,
 		Source:    storedef.ADMisconfigurationSource,
 	})
 	count, _ := hp.GetAllIssues()
