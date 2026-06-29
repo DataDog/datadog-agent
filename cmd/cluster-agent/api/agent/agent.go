@@ -13,8 +13,10 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -194,6 +196,12 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseComponent diagn
 				return
 			}
 		}
+	}
+
+	// Clear the server idle-timeout deadline before running suites — some checks (e.g. core
+	// endpoint connectivity on a disconnected cluster) can exceed cluster_agent.server.idle_timeout_seconds.
+	if conn, ok := apiutils.GetConnection(r); ok {
+		_ = conn.SetDeadline(time.Time{})
 	}
 
 	// Apply --include filter: if the caller specified a subset of suites, only run those.
