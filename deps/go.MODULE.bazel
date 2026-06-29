@@ -509,7 +509,7 @@ use_repo(
     "org_cloudfoundry_code_bbs",
     "org_cloudfoundry_code_bbs_models",
     "org_cloudfoundry_code_garden",
-    "org_cloudfoundry_code_lager",
+    "org_cloudfoundry_code_lager_v3",
     "org_go4_intern",
     "org_go4_mem",
     "org_go4_netipx",
