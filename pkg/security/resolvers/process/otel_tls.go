@@ -132,10 +132,29 @@ type otelAuxvInfo struct {
 	atBase uint64
 }
 
-type otelModuleImage struct {
+// otelMappedELF holds the metadata derived from a single open of one mapped
+// ELF object. It is computed once per resolveOTelTLS call by mappedELFs(), so
+// that each mapped file is read and parsed exactly once.
+type otelMappedELF struct {
 	path     string
 	loadBias uint64
 	hasTLS   bool
+	tlsMemsz uint64
+
+	// otelTLSSyms holds STT_TLS symbols named otelTLSSymbolName, if any.
+	otelTLSSyms []otelTLSSymbol
+
+	// The following fields are only populated for the main executable.
+	isMainExe    bool
+	interpreter  string
+	dtDebugVaddr uint64
+	hasDTDebug   bool
+	mainTLS      bool // musl static marker
+	builtinTLS   bool // musl static marker
+
+	// threadDB is populated for libc.so objects exposing thread_db descriptors.
+	threadDB    otelGlibcThreadDBLayout
+	hasThreadDB bool
 }
 
 type otelTLSSymbol struct {
@@ -158,6 +177,17 @@ type otelTargetProcess struct {
 	pidStr  string
 	exePath string
 	auxv    otelAuxvInfo
+
+	// Memoized state, each computed lazily exactly once per process so that
+	// /proc/<pid>/maps and each mapped ELF are read only a single time.
+	mapsGrouped map[string][]procfs.MapsEntry
+	mapsOrder   []string
+	mapsErr     error
+	mapsDone    bool
+
+	mappedELFs    []otelMappedELF
+	mappedELFsErr error
+	mappedELFDone bool
 }
 
 // resolveOTelTLS prepares the OTel TLS lookup metadata for a process by
@@ -174,18 +204,19 @@ func resolveOTelTLS(pid uint32, tracerLanguage string) (otelTLSResolution, error
 		return otelTLSResolution{}, err
 	}
 
-	loaderKind := target.detectLoaderKind()
-	modules, err := target.moduleImages()
+	modules, err := target.loadMappedELFs()
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
 
-	candidate, err := target.findTLSCandidate(otelTLSSymbolName)
-	if err != nil {
-		return otelTLSResolution{}, err
+	loaderKind := target.detectLoaderKind(modules)
+
+	candidate, ok := findOTelTLSCandidate(modules)
+	if !ok {
+		return otelTLSResolution{}, fmt.Errorf("TLS symbol %q not found in currently mapped readable ELF objects", otelTLSSymbolName)
 	}
 
-	linkMapMode := target.hasDynamicLoader()
+	linkMapMode := target.hasDynamicLoader(modules)
 	if !linkMapMode && !candidate.mainExecutable {
 		return otelTLSResolution{}, fmt.Errorf("no dynamic linker found and %q is not in the main executable", otelTLSSymbolName)
 	}
@@ -211,14 +242,14 @@ func resolveOTelTLS(pid uint32, tracerLanguage string) (otelTLSResolution, error
 	}
 
 	res.mode = otelTLSModeLinkMap
-	res.dtDebugValueAddr, err = target.dtDebugValueAddr()
+	res.dtDebugValueAddr, err = dtDebugValueAddr(modules)
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
 
 	if loaderKind == otelLoaderGlibc {
 		res.linkMapLRealOffset = glibcLinkMapLRealOffset
-		if threadDBLayout, ok := target.glibcThreadDBLayout(modules); ok {
+		if threadDBLayout, ok := glibcThreadDBLayout(modules); ok {
 			res.linkMapLTLSModIDOffset = threadDBLayout.linkMap.modIDOffset
 			res.linkMapLTLSTPOffsetOffset = threadDBLayout.linkMap.tlsOffsetOffset
 			res.tcbDTVOffset = threadDBLayout.dtv.tcbDTVOffset
@@ -286,6 +317,15 @@ func (p *otelTargetProcess) maps() ([]procfs.MapsEntry, error) {
 }
 
 func (p *otelTargetProcess) groupedReadableFileMaps() (map[string][]procfs.MapsEntry, []string, error) {
+	if p.mapsDone {
+		return p.mapsGrouped, p.mapsOrder, p.mapsErr
+	}
+	p.mapsDone = true
+	p.mapsGrouped, p.mapsOrder, p.mapsErr = p.computeGroupedReadableFileMaps()
+	return p.mapsGrouped, p.mapsOrder, p.mapsErr
+}
+
+func (p *otelTargetProcess) computeGroupedReadableFileMaps() (map[string][]procfs.MapsEntry, []string, error) {
 	entries, err := p.maps()
 	if err != nil {
 		return nil, nil, err
@@ -343,210 +383,172 @@ func readOTelAuxv(pidStr string) (otelAuxvInfo, error) {
 	return info, nil
 }
 
-func (p *otelTargetProcess) detectLoaderKind() otelLoaderKind {
-	if p.hasMuslInterpreter() || p.hasMuslLoaderMapping() || p.hasStaticMuslMarkers() {
-		return otelLoaderMusl
+// loadMappedELFs opens each readable file-backed mapping of the target process
+// exactly once and extracts every piece of metadata the resolver needs. The
+// result is memoized so repeated callers share a single /proc/<pid>/maps scan
+// and a single open+parse per mapped ELF.
+func (p *otelTargetProcess) loadMappedELFs() ([]otelMappedELF, error) {
+	if p.mappedELFDone {
+		return p.mappedELFs, p.mappedELFsErr
+	}
+	p.mappedELFDone = true
+
+	grouped, order, err := p.groupedReadableFileMaps()
+	if err != nil {
+		p.mappedELFsErr = err
+		return nil, err
+	}
+
+	pageSize := uint64(os.Getpagesize())
+	modules := make([]otelMappedELF, 0, len(order))
+	for _, path := range order {
+		elfFile, err := openOTelELF(p.fsPath(path))
+		if err != nil {
+			continue
+		}
+
+		loadBias, err := elfLoadBias(elfFile, grouped[path], pageSize)
+		if err != nil {
+			elfFile.Close()
+			continue
+		}
+
+		tlsMemsz, hasTLS := elfPTTLSMemsz(elfFile)
+		module := otelMappedELF{
+			path:      path,
+			loadBias:  loadBias,
+			hasTLS:    hasTLS,
+			tlsMemsz:  tlsMemsz,
+			isMainExe: path == p.exePath,
+		}
+		if hasTLS {
+			module.otelTLSSyms = tlsSymbolsInDynsym(elfFile, otelTLSSymbolName)
+		}
+		if module.isMainExe {
+			module.interpreter = elfInterpreter(elfFile)
+			module.dtDebugVaddr, module.hasDTDebug = elfDTDebugValueVaddr(elfFile)
+			_, module.mainTLS = symbolValueInDynsym(elfFile, "main_tls")
+			_, module.builtinTLS = symbolValueInDynsym(elfFile, "builtin_tls")
+		}
+		if strings.Contains(path, "libc.so") {
+			module.threadDB, module.hasThreadDB = readGlibcThreadDBLayout(elfFile)
+		}
+		elfFile.Close()
+
+		modules = append(modules, module)
+	}
+
+	p.mappedELFs = modules
+	return modules, nil
+}
+
+func (p *otelTargetProcess) detectLoaderKind(modules []otelMappedELF) otelLoaderKind {
+	// A mapped musl loader is conclusive on its own. Scan the maps order
+	// directly so detection does not depend on the loader ELF parsing cleanly.
+	for _, path := range p.mapsOrder {
+		if strings.Contains(path, "/ld-musl-") {
+			return otelLoaderMusl
+		}
+	}
+	// Otherwise rely on main-executable markers: a musl PT_INTERP, or the
+	// static-musl main_tls/builtin_tls symbol pair.
+	for _, module := range modules {
+		if !module.isMainExe {
+			continue
+		}
+		if strings.Contains(module.interpreter, "/ld-musl-") {
+			return otelLoaderMusl
+		}
+		if module.mainTLS && module.builtinTLS {
+			return otelLoaderMusl
+		}
 	}
 	return otelLoaderGlibc
 }
 
-func (p *otelTargetProcess) hasDynamicLoader() bool {
+func (p *otelTargetProcess) hasDynamicLoader(modules []otelMappedELF) bool {
 	if p.auxv.atBase != 0 {
 		return true
 	}
-
-	elfFile, err := openOTelELF(p.fsPath(p.exePath))
-	if err != nil {
-		return false
-	}
-	defer elfFile.Close()
-
-	return elfInterpreter(elfFile) != ""
-}
-
-func (p *otelTargetProcess) hasMuslInterpreter() bool {
-	elfFile, err := openOTelELF(p.fsPath(p.exePath))
-	if err != nil {
-		return false
-	}
-	defer elfFile.Close()
-
-	return strings.Contains(elfInterpreter(elfFile), "/ld-musl-")
-}
-
-func (p *otelTargetProcess) hasMuslLoaderMapping() bool {
-	entries, err := p.maps()
-	if err != nil {
-		return false
-	}
-	for _, entry := range entries {
-		if strings.Contains(entry.Pathname, "/ld-musl-") {
-			return true
+	for _, module := range modules {
+		if module.isMainExe {
+			return module.interpreter != ""
 		}
 	}
 	return false
 }
 
-func (p *otelTargetProcess) hasStaticMuslMarkers() bool {
-	elfFile, err := openOTelELF(p.fsPath(p.exePath))
-	if err != nil {
-		return false
-	}
-	defer elfFile.Close()
-
-	_, mainTLS := symbolValueInDynsym(elfFile, "main_tls")
-	_, builtinTLS := symbolValueInDynsym(elfFile, "builtin_tls")
-	return mainTLS && builtinTLS
-}
-
-func (p *otelTargetProcess) moduleImages() ([]otelModuleImage, error) {
-	grouped, order, err := p.groupedReadableFileMaps()
-	if err != nil {
-		return nil, err
-	}
-
-	pageSize := uint64(os.Getpagesize())
-	modules := make([]otelModuleImage, 0, len(order))
-	for _, path := range order {
-		elfFile, err := openOTelELF(p.fsPath(path))
-		if err != nil {
+func findOTelTLSCandidate(modules []otelMappedELF) (otelTLSCandidate, bool) {
+	for _, module := range modules {
+		if !module.hasTLS {
 			continue
 		}
-
-		loadBias, err := elfLoadBias(elfFile, grouped[path], pageSize)
-		if err != nil {
-			elfFile.Close()
-			continue
-		}
-		_, hasTLS := elfPTTLSMemsz(elfFile)
-		elfFile.Close()
-
-		modules = append(modules, otelModuleImage{
-			path:     path,
-			loadBias: loadBias,
-			hasTLS:   hasTLS,
-		})
-	}
-	return modules, nil
-}
-
-func (p *otelTargetProcess) findTLSCandidate(symbol string) (otelTLSCandidate, error) {
-	grouped, order, err := p.groupedReadableFileMaps()
-	if err != nil {
-		return otelTLSCandidate{}, err
-	}
-
-	pageSize := uint64(os.Getpagesize())
-	for _, path := range order {
-		elfFile, err := openOTelELF(p.fsPath(path))
-		if err != nil {
-			continue
-		}
-
-		tlsMemsz, hasTLS := elfPTTLSMemsz(elfFile)
-		if !hasTLS {
-			elfFile.Close()
-			continue
-		}
-
-		symbols := tlsSymbolsInDynsym(elfFile, symbol)
-		if len(symbols) == 0 {
-			elfFile.Close()
-			continue
-		}
-
-		loadBias, err := elfLoadBias(elfFile, grouped[path], pageSize)
-		if err != nil {
-			elfFile.Close()
-			continue
-		}
-		elfFile.Close()
-
-		for _, tlsSymbol := range symbols {
-			if !tlsSymbol.fitsInTLSSegment(tlsMemsz) {
+		for _, tlsSymbol := range module.otelTLSSyms {
+			if !tlsSymbol.fitsInTLSSegment(module.tlsMemsz) {
 				continue
 			}
-
 			return otelTLSCandidate{
-				path:           path,
-				loadBias:       loadBias,
+				path:           module.path,
+				loadBias:       module.loadBias,
 				symbolOffset:   tlsSymbol.offset,
 				symbolSize:     tlsSymbol.size,
-				tlsMemsz:       tlsMemsz,
-				mainExecutable: path == p.exePath,
-			}, nil
+				tlsMemsz:       module.tlsMemsz,
+				mainExecutable: module.isMainExe,
+			}, true
 		}
 	}
-
-	return otelTLSCandidate{}, fmt.Errorf("TLS symbol %q not found in currently mapped readable ELF objects", symbol)
+	return otelTLSCandidate{}, false
 }
 
-func (p *otelTargetProcess) dtDebugValueAddr() (uint64, error) {
-	grouped, _, err := p.groupedReadableFileMaps()
-	if err != nil {
-		return 0, err
-	}
-
-	maps, ok := grouped[p.exePath]
-	if !ok {
-		return 0, fmt.Errorf("main executable %q not found in /proc/%s/maps", p.exePath, p.pidStr)
-	}
-
-	elfFile, err := openOTelELF(p.fsPath(p.exePath))
-	if err != nil {
-		return 0, err
-	}
-	defer elfFile.Close()
-
-	loadBias, err := elfLoadBias(elfFile, maps, uint64(os.Getpagesize()))
-	if err != nil {
-		return 0, err
-	}
-	vaddr, ok := elfDTDebugValueVaddr(elfFile)
-	if !ok {
-		return 0, fmt.Errorf("DT_DEBUG entry not found in main executable %q", p.exePath)
-	}
-	return loadBias + vaddr, nil
-}
-
-func (p *otelTargetProcess) glibcThreadDBLayout(modules []otelModuleImage) (otelGlibcThreadDBLayout, bool) {
+func dtDebugValueAddr(modules []otelMappedELF) (uint64, error) {
 	for _, module := range modules {
-		if !strings.Contains(module.path, "libc.so") {
+		if !module.isMainExe {
 			continue
 		}
-
-		elfFile, err := openOTelELF(p.fsPath(module.path))
-		if err != nil {
-			continue
+		if !module.hasDTDebug {
+			return 0, fmt.Errorf("DT_DEBUG entry not found in main executable %q", module.path)
 		}
+		return module.loadBias + module.dtDebugVaddr, nil
+	}
+	return 0, fmt.Errorf("main executable not found among mapped readable ELF objects")
+}
 
-		modID, okModID := elfDBDesc(elfFile, "_thread_db_link_map_l_tls_modid")
-		tlsOffset, okTLSOffset := elfDBDesc(elfFile, "_thread_db_link_map_l_tls_offset")
-		pthreadDTVP, okPthreadDTVP := elfDBDesc(elfFile, "_thread_db_pthread_dtvp")
-		dtvDTV, okDTVDTV := elfDBDesc(elfFile, "_thread_db_dtv_dtv")
-		pointerVal, okPointerVal := elfDBDesc(elfFile, "_thread_db_dtv_t_pointer_val")
-		elfFile.Close()
-
-		if !okModID || !okTLSOffset || !okPthreadDTVP || !okDTVDTV || !okPointerVal {
-			continue
+func glibcThreadDBLayout(modules []otelMappedELF) (otelGlibcThreadDBLayout, bool) {
+	for _, module := range modules {
+		if module.hasThreadDB {
+			return module.threadDB, true
 		}
-		if dtvDTV.sizeBits == 0 || dtvDTV.sizeBits%8 != 0 {
-			continue
-		}
-
-		return otelGlibcThreadDBLayout{
-			linkMap: otelLinkMapTLSLayout{
-				modIDOffset:     uint64(modID.offset),
-				tlsOffsetOffset: uint64(tlsOffset.offset),
-			},
-			dtv: otelDTVLayout{
-				tcbDTVOffset:          int64(pthreadDTVP.offset),
-				dtvEntrySize:          uint64(dtvDTV.sizeBits / 8),
-				dtvEntryPointerOffset: uint64(pointerVal.offset),
-			},
-		}, true
 	}
 	return otelGlibcThreadDBLayout{}, false
+}
+
+// readGlibcThreadDBLayout reads the glibc thread_db descriptor symbols from an
+// already-open libc ELF object.
+func readGlibcThreadDBLayout(elfFile *safeelf.File) (otelGlibcThreadDBLayout, bool) {
+	modID, okModID := elfDBDesc(elfFile, "_thread_db_link_map_l_tls_modid")
+	tlsOffset, okTLSOffset := elfDBDesc(elfFile, "_thread_db_link_map_l_tls_offset")
+	pthreadDTVP, okPthreadDTVP := elfDBDesc(elfFile, "_thread_db_pthread_dtvp")
+	dtvDTV, okDTVDTV := elfDBDesc(elfFile, "_thread_db_dtv_dtv")
+	pointerVal, okPointerVal := elfDBDesc(elfFile, "_thread_db_dtv_t_pointer_val")
+
+	if !okModID || !okTLSOffset || !okPthreadDTVP || !okDTVDTV || !okPointerVal {
+		return otelGlibcThreadDBLayout{}, false
+	}
+	if dtvDTV.sizeBits == 0 || dtvDTV.sizeBits%8 != 0 {
+		return otelGlibcThreadDBLayout{}, false
+	}
+
+	return otelGlibcThreadDBLayout{
+		linkMap: otelLinkMapTLSLayout{
+			modIDOffset:     uint64(modID.offset),
+			tlsOffsetOffset: uint64(tlsOffset.offset),
+		},
+		dtv: otelDTVLayout{
+			tcbDTVOffset:          int64(pthreadDTVP.offset),
+			dtvEntrySize:          uint64(dtvDTV.sizeBits / 8),
+			dtvEntryPointerOffset: uint64(pointerVal.offset),
+		},
+	}, true
 }
 
 func defaultOTelDTVLayout(kind otelLoaderKind) otelDTVLayout {
@@ -574,7 +576,7 @@ func defaultOTelDTVLayout(kind otelLoaderKind) otelDTVLayout {
 	}
 }
 
-func buildOTelTLSModuleSet(modules []otelModuleImage, candidate otelTLSCandidate) (otelTLSModuleSet, uint32, error) {
+func buildOTelTLSModuleSet(modules []otelMappedELF, candidate otelTLSCandidate) (otelTLSModuleSet, uint32, error) {
 	var tlsModuleCount uint32
 	targetPresent := false
 	for _, module := range modules {
@@ -627,7 +629,7 @@ func (s otelTLSModuleSet) test(slot uint32) bool {
 	return (s.bits[slot>>6] & (uint64(1) << (slot & 63))) != 0
 }
 
-func (s otelTLSModuleSet) rejectsNonTLSModules(modules []otelModuleImage) bool {
+func (s otelTLSModuleSet) rejectsNonTLSModules(modules []otelMappedELF) bool {
 	for _, module := range modules {
 		if !module.hasTLS && s.test(otelTLSHashSlot(module.loadBias, s.seed)) {
 			return false
