@@ -238,7 +238,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	err = comp.ReportConfig(t.Context(), device.DeviceID())
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.NoError(t, err)
 	assert.True(t, reqs.connFactory.conn.Closed, "Remote client should be closed after run")
 	expectedTags := []string{
@@ -365,7 +365,7 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
 
-	err = comp.ReportConfig(t.Context(), device.DeviceID())
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
@@ -382,7 +382,7 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	assert.True(t, ok)
 	assert.Nil(t, dc.profile)
 
-	err = comp.ReportConfig(t.Context(), device.DeviceID())
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.ErrorContains(t, err, "no matching NCM profile for device default:10.0.0.1")
 	assert.Nil(t, dc.profile)
 	assert.True(t, reqs.connFactory.conn.Closed, "Remote client should be closed even on failure")
@@ -395,7 +395,7 @@ func TestCheck_Run_ConfigRetrievalFailure_BadProfile(t *testing.T) {
 	err := comp.RegisterDevice(device)
 	assert.ErrorContains(t, err, "nonexistent NCM profile \"not-a-profile\" specified for device default:10.0.0.1")
 
-	err = comp.ReportConfig(t.Context(), device.DeviceID())
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.ErrorContains(t, err, "unknown device", "Device should not be registered if profile lookup failed.")
 	assert.False(t, reqs.connFactory.conn.Opened, "Remote client should not be opened if config is faulty")
 }
@@ -418,7 +418,7 @@ func TestCheck_Run_ProfileMatch(t *testing.T) {
 	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	err = comp.ReportConfig(t.Context(), device.DeviceID())
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.NoError(t, err)
 	assert.True(t, reqs.connFactory.conn.Closed)
 
