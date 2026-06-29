@@ -22,11 +22,9 @@ import (
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -48,10 +46,6 @@ type Requires struct {
 	// so it receives advance events independently. StorageConsumer reporters receive
 	// storage for windowed log-rate annotations.
 	Reporters []reporterdef.Reporter `group:"anomalydetection_reporters"`
-
-	// Both are optional so the observer can start without them (e.g. the testbench).
-	EventPlatform eventplatform.Component `optional:"true"`
-	Hostname      hostname.Component      `optional:"true"`
 }
 
 // Provides defines the output of the observer component.
@@ -149,6 +143,10 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	}
 	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
+		// The anomaly_scorer has its own dedicated config prefix outside detectors.*.
+		if entry.name == "anomaly_scorer" {
+			continue
+		}
 		prefix := "anomaly_detection.detectors." + entry.name + "."
 		if cfg.IsConfigured(prefix + "enabled") {
 			settings.Enabled[entry.name] = cfg.GetBool(prefix + "enabled")
@@ -160,6 +158,19 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 			settings.configs[entry.name] = entry.readConfig(cfg, prefix)
 		}
 	}
+
+	// Dedicated scorer read path under anomaly_detection.anomaly_scorer.*
+	const scorerPrefix = "anomaly_detection.anomaly_scorer."
+	if cfg.IsConfigured(scorerPrefix + "enabled") {
+		settings.Enabled["anomaly_scorer"] = cfg.GetBool(scorerPrefix + "enabled")
+	}
+	if settings.Enabled["anomaly_scorer"] {
+		if settings.configs == nil {
+			settings.configs = make(map[string]any)
+		}
+		settings.configs["anomaly_scorer"] = readAnomalyScorerConfig(cfg, scorerPrefix)
+	}
+
 	return settings
 }
 
@@ -183,7 +194,7 @@ func NewComponent(deps Requires) Provides {
 
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, scorers, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, rawScorer, extractors, _ := catalog.Instantiate(settings)
 
 	storageCfg := DefaultStorageConfig()
 	if cfg != nil {
@@ -197,25 +208,37 @@ func NewComponent(deps Requires) Provides {
 			storageCfg.PointRetentionSecs = cfg.GetInt64("anomaly_detection.storage.point_retention_secs")
 		}
 	}
-	eng := newEngine(engineConfig{
-		storage:     newTimeSeriesStorageWith(storageCfg),
-		extractors:  extractors,
-		detectors:   detectors,
-		correlators: correlators,
-		scorers:     scorers,
-		scheduler:   &currentBehaviorPolicy{},
-	})
 
 	telemetryComp := deps.Telemetry
 	if telemetryComp == nil {
 		telemetryComp = noopsimpl.GetCompatComponent()
 	}
 	obsTelemetry := newObserverTelemetry(telemetryComp)
+
+	// Upgrade the raw scorer (no telemetry) to one with gauges. The catalog
+	// returns a plain *anomalyScorer; here we reconstruct it with the watcher
+	// enabled so the live observer gets full telemetry while the testbench
+	// replay keeps using the parameterless path.
+	var scorer *anomalyScorer
+	if rawScorer != nil {
+		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerState, obsTelemetry.scorerEwma)
+		pkglog.Infof("[observer] anomaly_scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
+			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
+	}
+
+	eng := newEngine(engineConfig{
+		storage:     newTimeSeriesStorageWith(storageCfg),
+		extractors:  extractors,
+		detectors:   detectors,
+		correlators: correlators,
+		scorer:      scorer,
+		scheduler:   &currentBehaviorPolicy{},
+	})
+
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	eng.onProcessingTime = obsTelemetry.recordProcessingTime
-	eng.onScorerEWMA = obsTelemetry.recordScorerEWMA
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
@@ -240,54 +263,12 @@ func NewComponent(deps Requires) Provides {
 		})
 	}
 
-	// Register the built-in anomalyScorerHelper when the scorer is present and
-	// helper.enabled is true (default). The helper logs every severity transition,
-	// sets the observer.scorer.state gauge, and — when helper.report_events is true
-	// and the event-platform forwarder is available — sends v2 change events tagged
-	// anomaly_scorer_source:helper to separate them from reporter correlation events.
-	// Build the helper subscription config before obs is constructed; stored
-	// below so Reset() can re-subscribe after a testbench replay reset.
-	var helperCfg *observerdef.AnomalyScorerConfiguration
-	if len(scorers) > 0 {
-		helperEnabled := !cfg.IsConfigured("anomaly_detection.detectors.anomaly_scorer.helper.enabled") ||
-			cfg.GetBool("anomaly_detection.detectors.anomaly_scorer.helper.enabled")
-		if helperEnabled {
-			scorer := scorers[0]
-			reportEvents := cfg.GetBool("anomaly_detection.detectors.anomaly_scorer.helper.report_events")
-
-			var sender *severityEventSender
-			if reportEvents {
-				if deps.EventPlatform == nil {
-					pkglog.Warn("[observer] anomaly_scorer_helper: report_events=true but event-platform component is absent (e.g. testbench); severity events will not be sent to the backend")
-				} else if fwd, ok := deps.EventPlatform.Get(); ok {
-					sender = &severityEventSender{
-						forwarder: fwd,
-						hostname:  deps.Hostname,
-					}
-				} else {
-					pkglog.Warn("[observer] anomaly_scorer_helper: report_events=true but event-platform forwarder is not running; severity events will not be sent to the backend")
-				}
-			}
-
-			helper := newAnomalyScorerHelper(scorer.Name(), obsTelemetry.scorerState, reportEvents, sender)
-			cooldownSecs := int64(cfg.GetInt("anomaly_detection.detectors.anomaly_scorer.cooldown_secs"))
-			c := observerdef.AnomalyScorerConfiguration{
-				Listener:     helper,
-				CooldownSecs: cooldownSecs,
-			}
-			scorer.Subscribe(c)
-			helperCfg = &c
-			pkglog.Infof("[observer] anomaly_scorer_helper registered for scorer %q (report_events=%v, cooldown=%ds)", scorer.Name(), reportEvents, cooldownSecs)
-		}
-	}
-
 	obs := &observerImpl{
 		engine:               eng,
 		catalog:              catalog,
 		obsCh:                make(chan observation, 1000),
 		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
-		scorerHelperCfg:      helperCfg,
 	}
 
 	if !obs.ingestMetricsEnabled {
@@ -350,7 +331,7 @@ func NewComponent(deps Requires) Provides {
 		maxRateHigh := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_high_priority")
 		maxRateMedium := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_medium_priority")
 		maxRateLow := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_low_priority")
-		agentLogsHandle := obs.GetHandle("agent-internal-logs")
+		agentLogsHandle := obs.GetHandle("agent_logs")
 		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
 			obsTelemetry.recordSamplerDropped("internal", priority)
 		})
@@ -409,12 +390,6 @@ type observerImpl struct {
 	// agent-internal-log observer (which can post to obsCh while run() is
 	// processing) and a concurrent IngestLogSync call.
 	replayMu sync.Mutex
-
-	// scorerHelperCfg is the AnomalyScorerConfiguration used to subscribe the
-	// built-in anomalyScorerHelper. Stored so Reset() can re-subscribe the same
-	// helper to the newly-instantiated scorer after a testbench replay reset.
-	// Nil when no scorer or helper is configured.
-	scorerHelperCfg *observerdef.AnomalyScorerConfiguration
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -671,15 +646,15 @@ func (o *observerImpl) DumpMetrics(path string) error {
 }
 
 // SubscribeScorer registers a scorer event listener described by cfg.
-// Delegates to the first (and currently only) engine scorer.
+// Delegates to the engine scorer when one is configured.
 func (o *observerImpl) SubscribeScorer(cfg observerdef.AnomalyScorerConfiguration) func() {
 	o.engine.mu.RLock()
-	scorers := o.engine.scorers
+	scorer := o.engine.scorer
 	o.engine.mu.RUnlock()
-	if len(scorers) == 0 {
+	if scorer == nil {
 		return func() {}
 	}
-	return scorers[0].Subscribe(cfg)
+	return scorer.Subscribe(cfg)
 }
 
 // --- DebugView implementation ---
@@ -717,17 +692,10 @@ func (o *observerImpl) Flush() {
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
 func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
 	o.Flush()
-	detectors, correlators, scorers, extractors, _ := o.catalog.Instantiate(settings)
+	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
 	o.replayMu.Lock()
-	o.engine.ResetForReplay(detectors, correlators, scorers, extractors, storageCfg)
+	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg)
 	o.replayMu.Unlock()
-
-	// Re-subscribe the built-in helper to the new scorer instance. Each replay
-	// creates a fresh scorer via catalog.Instantiate; without this the helper
-	// is silently detached from the live scorer after the first Reset call.
-	if o.scorerHelperCfg != nil && len(scorers) > 0 {
-		scorers[0].Subscribe(*o.scorerHelperCfg)
-	}
 }
 
 // GetReplayProgress returns lock-free replay progress counters. Implements DebugView.
@@ -819,12 +787,20 @@ func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView
 	o.replayMu.Unlock()
 }
 
+func normalizeMetricSource(name, source string) string {
+	if strings.HasPrefix(name, "datadog.") {
+		return observerdef.AgentNamespace
+	}
+	return source
+}
+
 // IngestMetricSync feeds a metric directly into the engine, bypassing the
 // dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
 // the non-blocking channel send. Implements DebugView.
 func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
 	name := sample.GetName()
-	if strings.HasPrefix(name, "datadog.") {
+	source = normalizeMetricSource(name, source)
+	if source == observerdef.AgentNamespace {
 		return
 	}
 	timestamp := sample.GetTimestampUnix()
@@ -872,13 +848,13 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 
 	name := sample.GetName()
 
-	// filter internal Datadog Agent telemetry
-	if strings.HasPrefix(name, "datadog.") {
+	source := normalizeMetricSource(name, h.source)
+	if source == observerdef.AgentNamespace {
 		return false
 	}
 
 	obs := observation{
-		source: h.source,
+		source: source,
 		metric: &metricObs{
 			name:      name,
 			value:     sample.GetValue(),
