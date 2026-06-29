@@ -112,7 +112,7 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	)
 }
 
-func TestExecutionTimeFirstRunTag(t *testing.T) {
+func TestFirstExecutionTimeMetric(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("telemetry.checks", "*")
 
@@ -124,15 +124,19 @@ func TestExecutionTimeFirstRunTag(t *testing.T) {
 	tlmData, err := getTelemetryData()
 	require.NoError(t, err)
 	assert.Contains(t, tlmData,
-		`checks__execution_time{check_loader="mockLoader",check_name="checkString",first_run="true"}`,
+		`checks__first_execution_time{check_loader="mockLoader",check_name="checkString"} 100`,
 	)
 
 	stats.Add(50*time.Millisecond, nil, []error{}, SenderStats{}, haagent)
 
 	tlmData, err = getTelemetryData()
 	require.NoError(t, err)
+	// first_execution_time must not be updated on subsequent runs
 	assert.Contains(t, tlmData,
-		`checks__execution_time{check_loader="mockLoader",check_name="checkString",first_run="false"}`,
+		`checks__first_execution_time{check_loader="mockLoader",check_name="checkString"} 100`,
+	)
+	assert.NotContains(t, tlmData,
+		`checks__first_execution_time{check_loader="mockLoader",check_name="checkString"} 50`,
 	)
 }
 
