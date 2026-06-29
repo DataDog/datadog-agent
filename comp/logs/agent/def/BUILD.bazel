@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/def",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/logs-library/diagnostic",
         "//comp/logs-library/pipeline",
-        "//pkg/logs/diagnostic",
         "//pkg/logs/schedulers",
         "//pkg/logs/sources",
     ],
