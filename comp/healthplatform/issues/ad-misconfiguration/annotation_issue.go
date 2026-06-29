@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package admisconfig provides issue types for autodiscovery misconfigurations.
+// It contains two Path-B issue types whose errors are detected and reported directly
+// by the container config provider (ad-annotation) and config manager (ad-template).
 package admisconfig
 
 import (
