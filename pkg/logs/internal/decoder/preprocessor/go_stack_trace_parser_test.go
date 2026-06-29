@@ -363,6 +363,21 @@ func TestGoStackTraceParser_HeaderEndsOnChunkStartWithoutBlankLine(t *testing.T)
 		assert.True(t, p.ShouldCombine())
 	})
 
+	t.Run("garbage after implicitly-started register dump is rejected", func(t *testing.T) {
+		p := NewGoStackTraceParser()
+		require.True(t, p.IsStart([]byte("SIGSEGV: segmentation violation")))
+		p.Reset()
+		require.True(t, p.AcceptLine([]byte("PC=0x192bf82f4 m=0 sigcode=2 addr=0x0")))
+		// Register dump entered directly from the header via the new
+		// fallthrough (no blank-line separator).
+		require.True(t, p.AcceptLine([]byte("rax 0x7fffabcd1234")))
+		// A structured log line is not a valid register line and must be
+		// rejected — the register-line validation still guards the dump even
+		// when it was reached through the implicit header-end path.
+		assert.False(t, p.AcceptLine([]byte("level=info ts=2026-01-01 msg=hi")),
+			"non-register line must not be absorbed into an implicitly-started register dump")
+	})
+
 	t.Run("non-chunk line after header is still rejected", func(t *testing.T) {
 		p := NewGoStackTraceParser()
 		require.True(t, p.IsStart([]byte("panic: boom")))
