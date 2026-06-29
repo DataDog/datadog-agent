@@ -75,19 +75,31 @@ The `def` packages (`runner/def`, `store/def`, etc.) contain only interfaces and
 
 ## Module file layout
 
-> This section applies when you want to use **Path A** (runner-mediated checks with `HealthCheckFunc`) or when you want a reusable `BuildIssue` template. **Path B direct reporters** that build proto `Issue` values inline and call `store.ReportIssue` directly have no mandatory file layout — no issue module is required.
+Issue packages live under `comp/healthplatform/issues/<pkgname>/`. The required files depend on which path the issue uses.
 
-Every issue module lives in its own sub-package under `comp/healthplatform/issues/<pkgname>/`.
+### Path A (runner-mediated) or reusable `BuildIssue` template
 
 | File | Purpose | Required? |
 |---|---|---|
-| `module.go` | Constants (`IssueName`, `IssueID`), `init()` registration, struct, interface impl | Always |
-| `issue.go` | `BuildIssue` implementation and template struct | Always |
+| `module.go` | Constants (`IssueName`, `IssueID`), `init()` registration, struct, interface impl | Yes |
+| `issue.go` | `BuildIssue` implementation and template struct | Yes |
 | `check.go` | Built-in detection logic (`HealthCheckFunc`) | Only if the module self-detects |
 | `check_noop.go` | No-op stub gated behind the opposite build tag | Required when `check.go` has a build constraint |
-| `BUILD.bazel` | Bazel build definition | Always |
+| `BUILD.bazel` | Bazel build definition | Yes |
 
 When `check.go` carries a build tag (e.g. `//go:build docker`), `check_noop.go` must exist with the negated tag and a stub `Check` function that returns `nil, nil`. Without it the package fails to compile on other platforms.
+
+### Path B (direct reporters with shared `BuildIssue`)
+
+When the issue is detected externally and the external component calls both `BuildIssue` and `store.ReportIssue` directly, a module registration is not required. Use this layout:
+
+| File | Purpose | Required? |
+|---|---|---|
+| `<type>_issue.go` | Exported constants (`IssueName`, `IssueID`), `BuildIssue` struct and implementation | Yes |
+| `BUILD.bazel` | Bazel build definition | Yes |
+| `module.go` / `init()` | Module registration | **No** — skip entirely |
+
+The package is **not** blank-imported in `bundle.go` (no `init()` to trigger). External reporters import the package directly to access `IssueName`, `IssueID`, and `BuildIssue`. Multiple issue types sharing a package (e.g. annotation + template errors in `ad-misconfiguration`) are supported — each gets its own `<type>_issue.go` file with its own constants and `BuildIssue` struct; shared helpers live in `<type>_issue.go` of the primary type or a dedicated shared file.
 
 ---
 
@@ -95,23 +107,22 @@ When `check.go` carries a build tag (e.g. `//go:build docker`), `check_noop.go` 
 
 Each issue module exposes three identity fields. Get them wrong and either the registry panics at startup or the UI groups issues incorrectly.
 
-### `IssueID` — kebab-case, unique per instance
+### `IssueID` — kebab-case base, entity-specific suffix
 
-- Format: lowercase letters, digits, and hyphens only
+- **Base constant** (the exported `IssueID` or `AnnotationIssueID` / `TemplateIssueID` etc.): lowercase letters, digits, and hyphens only — e.g. `"check-execution-failure"`, `"ad-annotation"`.
+- **Full instance ID** (base + colon-separated suffix): the suffix is appended by the caller and may contain entity-specific characters such as `/`, `://`, spaces, or parentheses that naturally appear in Kubernetes entity names, container IDs, or UUIDs — e.g. `"ad-annotation:kube_service://default/my-svc"`, `"ad-template:nginx:containerd://abc123:deadbeef"`. Do not sanitize these away; the full ID is only used as a store map key, not displayed directly.
 - Scope: unique per issue *instance* — used as the store's map key
-- Callers may append a suffix to distinguish instances of the same type:
-  `"check-execution-failure:nginx:abc123"`
-- Export as `const IssueID` in `module.go`
-- Never embed spaces or uppercase letters
+- Export the base as a `const` in the issue file (or `module.go` when a module exists)
+- Never embed spaces or uppercase letters **in the base**
 
 ### `IssueName` — Title Case, stable per type
 
 - Format: must match `^[A-Z][a-zA-Z0-9 -]*$`
 - Scope: unique per issue *type* — used as the template registry key
 - Must be *identical* for every instance of the same type; never vary it per-instance
-- Export as `const IssueName` in `module.go` and alias it as a package-private `const issueName = IssueName` in `issue.go`
+- Export as `const IssueName` in the issue file (or `module.go` when a module exists) and alias it as a package-private `const issueName = IssueName` in the `BuildIssue` file
 
-**Exception — shared `IssueName`:** when an external component (outside `issues/`) needs to reference the `IssueName` to file reports, define the constant in `store/def/constants.go` instead and import it from there. See `admisconfig` and `store/def/constants.go` for the pattern.
+**Shared `IssueName` for external reporters:** when an external component (outside `issues/`) needs to reference `IssueName` to file reports, define the constant in the issue package itself (e.g. `admisconfig.AnnotationIssueName`) — the external reporter already imports that package to call `BuildIssue`. There is no need to mirror the constant in `store/def`.
 
 ### `Title` — human sentence, instance-specific
 
@@ -169,7 +180,7 @@ Declare every context key your module reads as a package-private `const` at the 
       Text:  "Check known issues for version " + checkVersion,
   })
   ```
-- When the error type determines different remediation paths, use a helper (`buildSourceSpecificContent`) to keep `BuildIssue` readable — see `admisconfig/issue.go`
+- When the error type determines different remediation paths, use a helper (`buildAnnotationContent`, `buildSourceSpecificContent`, etc.) to keep `BuildIssue` readable — see `ad-misconfiguration/annotation_issue.go`
 
 ---
 
@@ -177,7 +188,9 @@ Declare every context key your module reads as a package-private `const` at the 
 
 ### No built-in check (externally reported)
 
-Use when detection happens in another component (the collector, autodiscovery). Both `BuiltInPeriodicHealthCheck()` and `BuiltInStartupHealthCheck()` return `nil`. Example: `checkfailure`, `admisconfig`.
+Use when detection happens in another component (the collector, autodiscovery). Both `BuiltInPeriodicHealthCheck()` and `BuiltInStartupHealthCheck()` return `nil`. Example: `checkfailure`.
+
+For the simplest externally-reported case where no runner template is needed at all, skip the module entirely and use Path B layout — see `ad-misconfiguration` for an example.
 
 ### Startup-only check
 
@@ -193,7 +206,9 @@ Use when the condition can change while the agent is running (connectivity, remo
 
 ---
 
-## Registration
+## Registration (Path A only)
+
+> Skip this section entirely for Path B issue packages — they have no `init()` and are not blank-imported in `bundle.go`.
 
 ```go
 func init() {
@@ -212,7 +227,7 @@ func init() {
   ```
 - Do **not** gate on config values inside `init()` — config is not available at init time
 
-After adding a new module, import its package (blank import) in the bundle file that aggregates all issue modules so `init()` fires.
+After adding a new Path A module, blank-import its package in `bundle.go` so `init()` fires.
 
 ---
 
@@ -307,6 +322,51 @@ dda inv new-e2e-tests.run --targets=./tests/agent-health/... --run=^Test<Module>
 
 ---
 
+## Code review checklist for AI agents
+
+When reviewing any PR that adds or modifies a health-platform issue, verify every item below before approving.
+
+### Was a new issue added or an existing one modified?
+
+Check whether the diff touches `comp/healthplatform/issues/` or any call site that calls `store.ReportIssue` or `BuildIssue`. If yes, apply the checklist below.
+
+### `IssueID` checks
+
+- [ ] The base `IssueID` constant is kebab-case: `[a-z0-9-]+` (e.g. `"ad-annotation"`, `"check-execution-failure"`)
+- [ ] The full instance ID (base + colon-separated suffix) is unique per issue instance and used consistently between the report and resolve call sites
+- [ ] No spaces or uppercase letters in the base constant
+- [ ] For Path B reporters: `issue.Id` is set to the full instance ID before calling `store.ReportIssue`
+
+### `IssueName` checks
+
+- [ ] `IssueName` matches `^[A-Z][a-zA-Z0-9 -]*$` (Title Case, no special characters)
+- [ ] `IssueName` is a `const`, not a string literal — identical at every report site for the same issue type
+- [ ] `IssueName` in the filed issue matches the one registered by the module (Path A) or the exported constant (Path B)
+- [ ] `issue.IssueName` is **not** set inside `BuildIssue` to a value derived from the context (it must be the fixed `issueName` const)
+
+### `Title` checks
+
+- [ ] `Title` is set inside `BuildIssue`, not as a constant
+- [ ] `Title` embeds at least one instance-specific value (entity name, check name, path) — a title identical for every instance is a red flag
+- [ ] `Title` does **not** simply repeat `IssueName`; it adds context (e.g. `IssueName + " on '" + entityName + "'"`)
+
+### Other required proto fields
+
+- [ ] `Description` includes the raw error message
+- [ ] `Category`, `Location`, `Severity`, `Source` are all populated
+- [ ] `Remediation.Summary` and at least one `Remediation.Steps` entry are present
+- [ ] `Extra` is a `structpb.Struct` containing all context keys
+- [ ] `Tags` contains at least the subsystem slug
+
+### Path / layout checks
+
+- [ ] If the issue uses Path A (runner-mediated): `module.go` exists with `init()` and the package is blank-imported in `bundle.go`
+- [ ] If the issue uses Path B (direct reporter): no `module.go`, no `init()`, no bundle blank import
+- [ ] `BuildIssue` does **not** set `issue.Id` (Path A) — the runner sets it. Path B callers set it before `store.ReportIssue`
+- [ ] Test file asserts `assert.Empty(t, issue.Id)` inside `BuildIssue` tests (Path A) or that `Id` is non-empty before `store.ReportIssue` (Path B)
+
+---
+
 ## Anti-patterns
 
 | Anti-pattern | Why it breaks |
@@ -316,6 +376,8 @@ dda inv new-e2e-tests.run --targets=./tests/agent-health/... --run=^Test<Module>
 | Gating the entire check at registration time rather than inside `Fn` | Stale issues from a prior run are never resolved when the check is disabled |
 | Setting `IssueNames` on `BuiltInHealthCheck` | Overwritten by `RegisterModule`; no effect but signals misunderstanding |
 | Indexing `context` without a default | Silently embeds empty strings in titles/descriptions |
-| Defining `IssueName` as a string literal in `issue.go` instead of referencing the `module.go` const | The two diverge silently; use `const issueName = IssueName` |
+| Defining `issueName` as a string literal instead of aliasing the exported const | The two diverge silently; use `const issueName = IssueName` |
+| Adding a module (`init()` + `bundle.go` blank import) for a pure Path B issue | Unnecessary boilerplate; the runner registry is never consulted for direct reporters |
+| Mirroring `IssueName` in `store/def/constants.go` when external reporters already import the issue package | Unnecessary indirection; reference the constant from the issue package directly (e.g. `admisconfig.AnnotationIssueName`) |
 | Omitting `check_noop.go` for a build-tag-constrained `check.go` | Package fails to compile on other platforms |
 | Hardcoding config values or secrets in context maps | Use `scrubber.ScrubYaml` if context might contain user-supplied config values |
