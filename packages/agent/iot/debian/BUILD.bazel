@@ -23,9 +23,9 @@ dd_agent_expand_template(
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        "//packages/agent/iot:example_config",
         ":systemd_gen",
         ":upstart_debian_conf_gen",
+        "//packages/agent/iot:example_config",
     ],
 )
 
