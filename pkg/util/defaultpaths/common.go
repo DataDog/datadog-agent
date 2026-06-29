@@ -5,8 +5,6 @@
 
 package defaultpaths
 
-import "os"
-
 // defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty
 const defaultCommonRoot = "/opt/datadog-agent"
 

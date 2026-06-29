@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build netbsd || openbsd || solaris || dragonfly || linux
+//go:build netbsd || openbsd || solaris || dragonfly || linux || aix
 
 package defaultpaths
 
@@ -70,14 +70,14 @@ func TestCommonRootOrPath(t *testing.T) {
 
 	// Test with empty root - should return original path
 	t.Run(tests[0].name, func(t *testing.T) {
-		result := CommonRootOrPath("", tests[0].path)
+		result := commonRootOrPath("", tests[0].path)
 		assert.Equal(t, tests[0].expected, result)
 	})
 
 	// Test remaining cases with root set
 	for _, tt := range tests[1:] {
 		t.Run(tt.name, func(t *testing.T) {
-			result := CommonRootOrPath(root, tt.path)
+			result := commonRootOrPath(root, tt.path)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
