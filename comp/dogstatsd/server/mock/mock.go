@@ -44,7 +44,6 @@ func newMock() MockProvides {
 	}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (s *serverMock) Start(_ aggregator.Demultiplexer) error {
 	s.isRunning = true
 	return nil
@@ -60,7 +59,6 @@ func (s *serverMock) IsRunning() bool {
 	return s.isRunning
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (s *serverMock) Capture(_ string, _ time.Duration, _ bool) (string, error) {
 	return "", nil
 }
