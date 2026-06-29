@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && !npm
+//go:build windows && npm
 
 package config
 
@@ -51,7 +51,7 @@ func ProcessEventDataStreamSupported() bool {
 
 // DirectSendSupported returns true if sending data CNM/USM directly from system-probe is supported
 func DirectSendSupported() bool {
-	return false
+	return true
 }
 
 // RedisMonitoringSupported returns false on windows as eBPF is not supported
