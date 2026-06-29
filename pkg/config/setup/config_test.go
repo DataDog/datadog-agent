@@ -1797,47 +1797,49 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 	}
 }
 
-func TestKubernetesConditionalDefaults(t *testing.T) {
-	// IsKubernetes() reads env vars at InitConfig time, so the environment must be
-	// set before newTestConf/confFromYAML build the config.
-	clearK8sEnv := func(t *testing.T) {
+func TestApplyKubernetesContainerDefaults(t *testing.T) {
+	keys := []string{"apm_config.apm_non_local_traffic", "jmx_use_container_support"}
+
+	t.Run("non-kubernetes leaves defaults false", func(t *testing.T) {
 		t.Setenv("KUBERNETES", "")
 		t.Setenv("KUBERNETES_SERVICE_PORT", "")
-	}
-
-	t.Run("non-kubernetes defaults to false", func(t *testing.T) {
-		clearK8sEnv(t)
 		config := newTestConf(t)
-		assert.False(t, config.GetBool("apm_config.apm_non_local_traffic"))
-		assert.False(t, config.GetBool("jmx_use_container_support"))
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.False(t, config.GetBool(k), k)
+		}
 	})
 
-	t.Run("kubernetes defaults to true", func(t *testing.T) {
-		clearK8sEnv(t)
+	t.Run("kubernetes enables defaults", func(t *testing.T) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
 		t.Setenv("KUBERNETES", "yes")
 		config := newTestConf(t)
-		assert.True(t, config.GetBool("apm_config.apm_non_local_traffic"))
-		assert.True(t, config.GetBool("jmx_use_container_support"))
-		// Set at SourceDefault so consumers relying on IsConfigured (e.g. the trace-agent
-		// containerized fallback) keep their existing behavior.
-		assert.False(t, config.IsConfigured("apm_config.apm_non_local_traffic"))
-		assert.False(t, config.IsConfigured("jmx_use_container_support"))
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.True(t, config.GetBool(k), k)
+			// Kept at SourceDefault so consumers relying on IsConfigured (e.g. the trace-agent
+			// containerized fallback) keep their existing behavior.
+			assert.False(t, config.IsConfigured(k), k)
+		}
+	})
+
+	t.Run("config file overrides kubernetes default", func(t *testing.T) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("KUBERNETES", "yes")
+		config := confFromYAML(t, "apm_config:\n  apm_non_local_traffic: false\njmx_use_container_support: false\n")
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.False(t, config.GetBool(k), k)
+		}
 	})
 
 	t.Run("env var overrides kubernetes default", func(t *testing.T) {
-		clearK8sEnv(t)
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
 		t.Setenv("KUBERNETES", "yes")
 		t.Setenv("DD_APM_NON_LOCAL_TRAFFIC", "false")
 		t.Setenv("DD_JMX_USE_CONTAINER_SUPPORT", "false")
 		config := newTestConf(t)
-		assert.False(t, config.GetBool("apm_config.apm_non_local_traffic"))
-		assert.False(t, config.GetBool("jmx_use_container_support"))
-	})
-
-	t.Run("config file overrides kubernetes default", func(t *testing.T) {
-		clearK8sEnv(t)
-		t.Setenv("KUBERNETES", "yes")
-		config := confFromYAML(t, "apm_config:\n  apm_non_local_traffic: false\njmx_use_container_support: false\n")
+		applyKubernetesContainerDefaults(config)
 		assert.False(t, config.GetBool("apm_config.apm_non_local_traffic"))
 		assert.False(t, config.GetBool("jmx_use_container_support"))
 	})

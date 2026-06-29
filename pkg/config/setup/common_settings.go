@@ -541,10 +541,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
 	config.BindEnvAndSetDefault("jmx_java_tool_options", "")
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
-	// Default to cgroup-aware JVM sizing in Kubernetes. Defaulting in the binary (instead of
-	// datadog-kubernetes.yaml) keeps it set when external tooling replaces datadog.yaml;
-	// file/env still override.
-	config.BindEnvAndSetDefault("jmx_use_container_support", pkgconfigenv.IsKubernetes())
+	// Defaults to true in Kubernetes via applyKubernetesContainerDefaults (in fixup_init.go).
+	config.BindEnvAndSetDefault("jmx_use_container_support", false)
 	config.BindEnvAndSetDefault("jmx_max_ram_percentage", float64(25.0))
 	config.BindEnvAndSetDefault("jmx_max_restarts", int64(3))
 	config.BindEnvAndSetDefault("jmx_restart_interval", int64(5))
