@@ -93,8 +93,6 @@ func init() {
 // queue. Each worker has its own serializer, but all workers share samplesChan
 // and metricSamplePool so batches are assigned by channel receive and returned
 // to the common pool after processing.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *metrics.MetricSamplePool,
 	samplesChan chan metrics.MetricSampleBatch,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,

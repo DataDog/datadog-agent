@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix a bug where the ``CELSelector`` field was not included in the Autodiscovery
+    config digest. Configs with different CEL selectors were incorrectly treated as
+    identical, which could cause the wrong workload filter rules to be applied.

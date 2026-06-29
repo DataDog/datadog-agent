@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/setup",
+        "//pkg/config/utils",
         "//pkg/util/cache",
         "//pkg/util/cloudproviders/gce",
         "//pkg/util/ec2",
@@ -23,6 +24,7 @@ go_test(
     embed = [":network"],
     gotags = ["test"],
     deps = [
+        "//pkg/config/mock",
         "//pkg/util/cache",
         "@com_github_stretchr_testify//require",
     ],

@@ -75,7 +75,7 @@ type runnerMock struct {
 
 func (r *runnerMock) run() {
 	for _, j := range r.jobs {
-		j.a.run(j.profiles)
+		j.Run()
 	}
 }
 
@@ -1169,6 +1169,25 @@ func TestSenderConfigDDUrlWithEmptyAdditionalPoint(t *testing.T) {
 	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
 	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
 	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry", url)
+}
+
+// TestSenderConfigLogsNoSSL verifies that logs_no_ssl: true causes buildURL to
+// produce an http:// URL. Previously buildURL hardcoded "https" and ignored
+// Endpoint.UseSSL(), silently dropping all telemetry in no-SSL environments.
+func TestSenderConfigLogsNoSSL(t *testing.T) {
+	c := `
+    api_key: foo
+    agent_telemetry:
+      enabled: true
+      logs_dd_url: "localhost:19999"
+      logs_no_ssl: true
+    `
+	sndr := makeSenderImpl(t, nil, c)
+	assert.NotNil(t, sndr)
+
+	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
+	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
+	assert.Equal(t, "http://localhost:19999/api/v2/apmtelemetry", url)
 }
 
 func TestGetAsJSONScrub(t *testing.T) {

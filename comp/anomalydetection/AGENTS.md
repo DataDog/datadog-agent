@@ -76,27 +76,45 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 
 | Source | Wired from |
 |--------|------------|
-| `all-metrics` | `pkg/aggregator/demultiplexer_agent.go` |
+| `dogstatsd` | `pkg/aggregator/demultiplexer_agent.go` (DogStatsD workers) |
+| `check` | `pkg/aggregator/demultiplexer_agent.go` (core check aggregator) |
 | `logs` | `logssource/impl/logssource.go` |
-| `agent-internal-logs` | `observer/impl/observer.go` (pkg/util/log tap) |
+| `agent_logs` | `observer/impl/observer.go` (pkg/util/log tap) |
 
 **Log ingestion split:**
 - **Container + kubelet logs** → `logssource` component
-- **Agent-internal logs** → `observer` taps `pkg/util/log` directly
+- **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
 Both paths share filtering primitives from `internal/logsfilter/`.
+
+Metrics with the `datadog.*` prefix are normalized as internal agent telemetry
+and dropped before they reach observer storage.
 
 ## Reporter Model
 
 Reporters register through the `anomalydetection_reporters` Fx group
-(`reporter/def`). The observer subscribes each injected `Reporter` after each
-advance cycle.
+(`reporter/def`). The observer calls each injected `Reporter.Report()` after
+every advance cycle.
 
-- **StdoutReporter** — always active in `reporter/fx`; logs correlations at
-  info on first-seen, debug for ongoing
-- **EventReporter** — created when `anomaly_detection.reporting.enabled=true`
-  AND the event-platform forwarder is available; publishes change events via
-  `reporter/impl/notify.go`
+**Reporters hold no deduplication state.** All first-seen and recurrence logic
+lives inside each correlator via the shared `correlationEmitter` helper
+(`observer/impl/correlation_emitter.go`). Reporters iterate
+`ReportOutput.CorrelatorEvents` and dispatch directly — no per-reporter seen-map.
+
+- **StdoutReporter** — always active in `reporter/fx`; logs
+  `CorrelationDetected` events at info and ongoing active correlations at debug
+- **EventReporter** — created when `anomaly_detection.reporting.events.enabled=true`
+  AND the event-platform forwarder is available; dispatches change events for
+  `CorrelationDetected` and scorer episode events via `reporter/impl/notify.go`.
+  Not fully stateless: it carries a `retryPending` queue of `CorrelationDetected`
+  sends that failed transiently; entries are retried each advance cycle and evicted
+  after `defaultMaxRetryAttempts` consecutive failures.
+
+`ReportOutput.CorrelatorEvents` carries three event kinds:
+- `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster`, `CrossSignal`,
+  `Passthrough` at first-seen (and again after a pattern goes inactive and recurs)
+- `CorrelatorEventEpisodeStarted` — emitted by `anomaly_scorer` on High entry
+- `CorrelatorEventEpisodeEnded` — emitted by `anomaly_scorer` on High exit
 
 See `reporter/reporter.allium` for the payload contract.
 
