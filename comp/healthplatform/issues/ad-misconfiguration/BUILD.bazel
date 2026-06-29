@@ -1,7 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "admisconfig",
+    name = "ad-misconfiguration",
     srcs = [
         "issue.go",
         "module.go",
@@ -18,9 +18,9 @@ go_library(
 )
 
 go_test(
-    name = "admisconfig_test",
+    name = "ad-misconfiguration_test",
     srcs = ["issue_test.go"],
-    embed = [":admisconfig"],
+    embed = [":ad-misconfiguration"],
     gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
