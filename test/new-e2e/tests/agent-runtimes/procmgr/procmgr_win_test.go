@@ -75,6 +75,9 @@ var winPlatform = platformConfig{
 	cliCmd: func(args string) string {
 		return fmt.Sprintf(`& "%s" %s`, winCLIBin, args)
 	},
+	killPIDCmd: func(pid uint32) string {
+		return fmt.Sprintf(`powershell -NoProfile -Command "Stop-Process -Id %d -Force"`, pid)
+	},
 }
 
 type procmgrWindowsSuite struct {
