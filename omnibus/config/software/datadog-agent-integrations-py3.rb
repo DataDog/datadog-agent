@@ -50,10 +50,10 @@ build do
   end
 
   # Install integration dependencies, datadog-checks-base, datadog-checks-downloader, and integration wheels
-  command_on_repo_root "bazelisk run " \
-                       "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
-                       "--//:install_dir=#{install_dir} " \
-                       "-- //deps/agent_integrations:install --destdir=#{install_dir}",
+  command "bazel run " \
+          "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
+          "--//:install_dir=#{install_dir} " \
+          "-- //deps/agent_integrations:install --destdir=#{install_dir}",
     :live_stream => Omnibus.logger.live_stream(:info)
 
   #
