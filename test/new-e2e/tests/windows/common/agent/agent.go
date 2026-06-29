@@ -39,6 +39,8 @@ func getCodeSignatureThumbprints() map[string]struct{} {
 		"ECAA21456723CB0911183255A683DC01A99392DB": {},
 		// EV Valid From: Jun 2024; To: Jun 2026
 		"59063C826DAA5B628B5CE8A2B32015019F164BF0": {},
+		// Cert nb 1397980425, EV, valid from Nov 26 2025 to Nov 28 2027
+		"A0FB7BEE153FE31431062731306903B3A5CB1824": {},
 	}
 }
 

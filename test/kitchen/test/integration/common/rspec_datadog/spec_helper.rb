@@ -471,11 +471,13 @@ def is_file_signed(fullpath)
     "ECAA21456723CB0911183255A683DC01A99392DB".upcase.strip,
     ## EV Valid From: Jun 2024; To: Jun 2026
     "59063C826DAA5B628B5CE8A2B32015019F164BF0".upcase.strip,
+    ## Cert nb 1397980425, EV, valid from Nov 26 2025 to Nov 28 2027
+    "A0FB7BEE153FE31431062731306903B3A5CB1824".upcase.strip,
   ]
 
   return true if signature_hashes.include?(output.upcase.strip)
 
-  puts("Acceptable hashes: #{signature_hashes.keys}, actual hash = #{output.upcase.strip}")
+  puts("Acceptable hashes: #{signature_hashes.to_a}, actual hash = #{output.upcase.strip}")
   return false
 end
 

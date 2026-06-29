@@ -14,6 +14,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// InstanceArgs defines the parameters for creating an EC2 instance.
 type InstanceArgs struct {
 	// Mandatory
 	AMI string
@@ -29,10 +30,21 @@ type InstanceArgs struct {
 	UserData           string
 	HTTPTokensRequired bool
 	HostID             pulumi.StringInput // For dedicated host tenancy
+	VolumeThroughput   int                // GP3 volume throughput in MiB/s (125-1000)
 }
 
+// NewInstance creates a new EC2 instance with the given parameters.
 func NewInstance(e aws.Environment, name string, args InstanceArgs, opts ...pulumi.ResourceOption) (*ec2.Instance, error) {
 	defaultInstanceArgs(e, &args)
+
+	rootBlockDevice := ec2.InstanceRootBlockDeviceArgs{
+		VolumeSize: pulumi.Int(args.StorageSize),
+	}
+	if args.VolumeThroughput > 0 {
+		// Only GP3 volumes support throughput
+		rootBlockDevice.VolumeType = pulumi.String("gp3")
+		rootBlockDevice.Throughput = pulumi.Int(args.VolumeThroughput)
+	}
 
 	instanceArgs := &ec2.InstanceArgs{
 		Ami:                     pulumi.StringPtr(args.AMI),
@@ -44,9 +56,7 @@ func NewInstance(e aws.Environment, name string, args InstanceArgs, opts ...pulu
 		UserData:                pulumi.StringPtr(args.UserData),
 		UserDataReplaceOnChange: pulumi.BoolPtr(true),
 		Tenancy:                 pulumi.StringPtr(args.Tenancy),
-		RootBlockDevice: ec2.InstanceRootBlockDeviceArgs{
-			VolumeSize: pulumi.Int(args.StorageSize),
-		},
+		RootBlockDevice:         rootBlockDevice,
 		Tags: pulumi.StringMap{
 			"Name": e.Namer.DisplayName(255, pulumi.String(name)),
 		},

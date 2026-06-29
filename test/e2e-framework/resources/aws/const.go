@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package aws provides AWS resource definitions and environment configuration for e2e tests.
 package aws
 
 import "github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+// Pulumi string constants for enabled/disabled states.
 var (
 	EnabledString  = pulumi.String("ENABLED")
 	DisabledString = pulumi.String("DISABLED")

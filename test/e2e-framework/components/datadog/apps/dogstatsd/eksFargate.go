@@ -19,6 +19,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// EksFargateAppDefinition creates the EKS Fargate resources for the DogStatsD test application.
 func EksFargateAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, clusterAgentToken pulumi.StringInput, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
 	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
 

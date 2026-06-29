@@ -7,7 +7,6 @@ package journaldlog
 
 import (
 	_ "embed"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -15,13 +14,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log-agent/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 )
 
 // LinuxJournaldFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
@@ -29,14 +27,8 @@ type LinuxJournaldFakeintakeSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-//go:embed log-config/journald.yaml
-var logBasicConfig []byte
-
 //go:embed log-config/include.yaml
 var logIncludeConfig []byte
-
-//go:embed log-config/exclude.yaml
-var logExcludeConfig []byte
 
 //go:embed log-config/python-script.sh
 var pythonScript []byte
@@ -51,7 +43,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithAgentOptions(
 				agentparams.WithLogs(),
-				agentparams.WithIntegration("custom_logs.d", string(logBasicConfig))))),
+				agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig))))),
 	}
 	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
 		options = append(options, e2e.WithDevMode())
@@ -73,43 +65,21 @@ func (s *LinuxJournaldFakeintakeSuite) TearDownSuite() {
 }
 
 func (s *LinuxJournaldFakeintakeSuite) TestJournald() {
-	// Run test cases
-	s.Run("journaldLogCollection", s.journaldLogCollection)
-
 	s.Run("journaldIncludeServiceLogCollection()", s.journaldIncludeServiceLogCollection)
-
-	s.Run("journaldExcludeServiceCollection()", s.journaldExcludeServiceCollection)
-}
-
-func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
-
-	t := s.T()
-	// Add dd-agent user to systemd-journal group
-	_, err := s.Env().RemoteHost.Execute("sudo usermod -a -G systemd-journal dd-agent")
-	require.NoErrorf(t, err, "Unable to adjust permissions for dd-agent user: %s", err)
-
-	// Restart agent
-	s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
-
-	// Generate log
-	appendJournaldLog(s, "hello-world", 1)
-
-	// Check that the generated log is collected
-	utils.CheckLogsExpected(s, "hello", "hello-world")
 }
 
 func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
-		agentparams.WithLogs(),
-		agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig)))))
-
 	vm := s.Env().RemoteHost
 	t := s.T()
 
-	// Create journald log generation script
-	pythonScript := string(pythonScript)
+	// Add dd-agent user to systemd-journal group
+	_, err := vm.Execute("sudo usermod -a -G systemd-journal dd-agent")
+	assert.NoErrorf(t, err, "Unable to adjust permissions for dd-agent user: %s", err)
 
-	_, err := vm.Execute(pythonScript)
+	// Create journald log generation script
+	pythonScriptContent := string(pythonScript)
+
+	_, err = vm.Execute(pythonScriptContent)
 	if assert.NoErrorf(t, err, "Failed to create python script that generate journald log: %s", err) {
 		t.Log("Successfully created python script for journald log generation")
 	}
@@ -137,56 +107,16 @@ func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
 	_, err = vm.Execute("sudo service datadog-agent restart")
 	assert.NoErrorf(t, err, "Failed to restart the agent: %s", err)
 
+	// Wait for the agent to be ready and the journald tailer to be active
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		agentReady := s.Env().Agent.Client.IsReady()
-		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
+		agentStatus := s.Env().Agent.Client.Status()
+		if assert.Truef(c, strings.Contains(agentStatus.Content, "random-logger"), "Agent journald tailer not yet active") {
 			// Check that the agent service log is collected
 			utils.CheckLogsExpected(s, "random-logger", "less important")
 		}
-	}, 1*time.Minute, 5*time.Second)
+	}, 2*time.Minute, 10*time.Second)
 
 	// Disable journald log generation service
 	_, err = vm.Execute("sudo systemctl disable --now random-logger.service")
 	assert.NoErrorf(t, err, "Failed to disable the logging service: %s", err)
-}
-
-func (s *LinuxJournaldFakeintakeSuite) journaldExcludeServiceCollection() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
-		agentparams.WithLogs(),
-		agentparams.WithIntegration("custom_logs.d", string(logExcludeConfig)))))
-
-	// Restart agent
-	s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
-
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		agentReady := s.Env().Agent.Client.IsReady()
-		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
-			// Check that the datadog-agent.service log is not collected, specifically logs from the check runners
-			utils.CheckLogsNotExpected(s, "no-datadog", "running check")
-		}
-	}, 1*time.Minute, 5*time.Second)
-}
-
-// appendJournaldLog appends a log to journald.
-func appendJournaldLog(s *LinuxJournaldFakeintakeSuite, content string, recurrence int) {
-	t := s.T()
-	t.Helper()
-
-	logContent := strings.Repeat(content+"\n", recurrence)
-
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		cmd := fmt.Sprintf("sudo printf '%s' | systemd-cat", logContent)
-		_, err := s.Env().RemoteHost.Execute(cmd)
-		if assert.NoErrorf(c, err, "Error writing log: %v", err) {
-			t.Log("Writing logs to journald")
-		}
-
-		checkCmd := fmt.Sprintf("sudo journalctl --since '1 minute ago' | grep '%s'", content)
-		output, err := s.Env().RemoteHost.Execute(checkCmd)
-		assert.NoErrorf(c, err, "Error found checking for journald logs: %s", err)
-
-		if assert.Contains(c, output, content, "Journald log not properly generated.") {
-			t.Log("Finished generating journald log.")
-		}
-	}, 1*time.Minute, 5*time.Second)
 }

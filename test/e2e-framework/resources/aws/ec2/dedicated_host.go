@@ -16,6 +16,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// DedicatedHostArgs defines the parameters for creating a dedicated host.
 type DedicatedHostArgs struct {
 	// Mandatory
 	InstanceType string // e.g., "mac1.metal", "mac2.metal"
