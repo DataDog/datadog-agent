@@ -19,8 +19,9 @@ import (
 // Component is a mock for the configstream component.
 type Component struct {
 	m           sync.Mutex
+	closeOnce   sync.Once
 	subscribers map[string]chan *pb.ConfigEvent
-	closedC     chan struct{} // closed by Close(); guards sends to SubscribedC/UnsubscribedC against close-after-close
+	closedC     chan struct{} // closed by Close(); aborts in-flight sends to SubscribedC/UnsubscribedC
 
 	// SubscribedC is a channel that receives the request of any new subscriber.
 	// Tests can use this to verify that a component has subscribed.
@@ -98,16 +99,17 @@ func (mock *Component) SendEvent(event *pb.ConfigEvent) {
 
 // Close cleans up the mock's resources.
 func (mock *Component) Close() {
-	close(mock.closedC)
+	mock.closeOnce.Do(func() {
+		close(mock.closedC)
 
-	mock.m.Lock()
-	subs := mock.subscribers
-	mock.subscribers = make(map[string]chan *pb.ConfigEvent)
-	mock.m.Unlock()
+		mock.m.Lock()
+		subs := mock.subscribers
+		mock.subscribers = make(map[string]chan *pb.ConfigEvent)
+		mock.m.Unlock()
 
-	for _, ch := range subs {
-		close(ch)
-	}
-	close(mock.SubscribedC)
-	close(mock.UnsubscribedC)
+		for _, ch := range subs {
+			close(ch)
+		}
+		// SubscribedC/UnsubscribedC not closed: send on closed channel panics even inside select.
+	})
 }
