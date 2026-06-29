@@ -178,7 +178,7 @@ build do
       block "Build cryptography library against Agent's OpenSSL" do
         cryptography_requirement = (shellout! "#{python} -B -m pip list --format=freeze").stdout[/cryptography==.*?$/]
 
-        shellout! "#{python} -m -B pip install --no-compile --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
+        shellout! "#{python} -B -m pip install --no-compile --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
                 env: {
                   "OPENSSL_LIB_DIR" => lib_folder,
                   "OPENSSL_INCLUDE_DIR" => include_folder,
