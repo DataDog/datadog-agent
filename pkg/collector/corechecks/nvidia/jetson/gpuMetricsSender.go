@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -57,9 +56,6 @@ func (gpuMetricSender *gpuMetricSender) SendMetrics(sender sender.Sender, field 
 
 	gpuFields := regexFindStringSubmatchMap(gpuMetricSender.gpuRegex, field)
 	if gpuFields == nil {
-		if strings.Contains(field, "GR3D_FREQ") {
-			return errors.New("could not parse GPU usage fields")
-		}
 		return nil
 	}
 
