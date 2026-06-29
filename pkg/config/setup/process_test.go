@@ -8,7 +8,6 @@ package setup
 import (
 	"fmt"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -371,9 +370,6 @@ func TestEnvVarOverride(t *testing.T) {
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
-			// internal configuration rely on a syncOnce so we have to reset if after each call
-			t.Cleanup(func() { processesAddOverrideOnce = *new(sync.Once) })
-
 			t.Setenv(tc.env, tc.value)
 
 			cfg := newTestConf(t)

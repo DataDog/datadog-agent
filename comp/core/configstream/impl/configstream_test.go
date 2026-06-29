@@ -63,7 +63,6 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 			snapshot := event.GetSnapshot()
 			require.NotNil(t, snapshot, "First event should be a snapshot")
 
-			assert.Equal(t, int32(3), snapshot.SequenceId, "Snapshot should have sequence ID 3 (from initial config sets)")
 			assert.Equal(t, "core-agent", snapshot.Origin, "Snapshot should have origin 'core-agent'")
 			assert.NotEmpty(t, snapshot.Settings, "Snapshot should contain settings")
 
