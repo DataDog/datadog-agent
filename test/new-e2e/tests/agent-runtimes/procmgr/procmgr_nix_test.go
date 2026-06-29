@@ -60,7 +60,7 @@ var linuxPlatform = platformConfig{
 	svcRunningOutput:  "active",
 	cliCmd:            func(args string) string { return linuxCLIBin + " " + args },
 	killPIDCmd: func(pid uint32) string {
-		return fmt.Sprintf("kill -9 %d", pid)
+		return fmt.Sprintf("sudo kill -9 %d", pid)
 	},
 }
 
