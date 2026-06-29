@@ -6,9 +6,11 @@
 // Package networkconfigmanagement provides types and utilities shared across NCM sub-packages.
 package networkconfigmanagement
 
-// TODO: register PinConfigHandler as the handler for the "pinConfig" PAR action
-// in the same place that the "rollbackConfig" action is registered (see
-// comp/networkconfigmanagement/impl/rollback_endpoint.go for the rollback pattern).
+// PinConfigHandler is invoked by the PAR action runner via POST /agent/ncm/pin,
+// which is wired up in comp/networkconfigmanagement/impl/pin_endpoint.go.
+// The Component.PinConfig method (impl/pin_config.go) owns hash verification
+// and the store.SetPinned call; this function is the package-level entry point
+// for callers that hold a store directly (e.g. tests).
 
 import (
 	"fmt"
