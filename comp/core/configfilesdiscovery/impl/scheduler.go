@@ -134,6 +134,7 @@ func (s *adScheduler) runCollection(work configCollectionWork) {
 		log.Warnf("failed to build config reader for integration %q service %q runtime %q: %v", work.config.Name, work.config.ServiceID, work.target.runtime, err)
 		return
 	}
+	defer reader.Close()
 
 	files, err := work.collector.Collect(s.ctx, reader)
 	if err != nil {

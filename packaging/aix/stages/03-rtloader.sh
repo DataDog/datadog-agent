@@ -44,7 +44,7 @@ fi
 cleanup() {
     if [ $? -ne 0 ]; then
         log "ERROR: $STAGE_NAME failed. Removing partial outputs."
-        rm -rf /opt/datadog-agent/rtloader/build
+        rm -rf "$AGENT_SRC/rtloader/build"
         rm -f "$STAGING/opt/datadog-agent/rtloader/libdatadog-agent-rtloader.so"
         rm -f "$STAGING/opt/datadog-agent/rtloader/libdatadog-agent-three.so"
     fi
@@ -54,8 +54,8 @@ trap cleanup EXIT
 # ─── Step 1: Clean and create rtloader build directory ────────────────────────
 
 log "Cleaning rtloader build directory"
-rm -rf /opt/datadog-agent/rtloader/build
-mkdir -p /opt/datadog-agent/rtloader/build
+rm -rf "$AGENT_SRC/rtloader/build"
+mkdir -p "$AGENT_SRC/rtloader/build"
 
 # ─── Step 2: CMake configure ──────────────────────────────────────────────────
 #
@@ -91,7 +91,7 @@ if [ "$_embedded_real" != "$_destdir_real" ]; then
 fi
 
 log "Running cmake for rtloader"
-cd /opt/datadog-agent/rtloader/build
+cd "$AGENT_SRC/rtloader/build"
 
 OBJECT_MODE=64 cmake \
     -DCMAKE_C_COMPILER="$CC" \
@@ -135,7 +135,7 @@ log "rtloader build complete."
 # The .a form (archive containing shr_64.o) is the canonical AIX shared library.
 
 log "Relinking libdatadog-agent-three.so to use libpython${PYTHON_MAJ_MIN}.a(shr_64.o)"
-cd /opt/datadog-agent/rtloader/build/three
+cd "$AGENT_SRC/rtloader/build/three"
 
 # Step 1: Re-run the cmake ExportImportList (export symbols file generation)
 EXPORT_CMD=$(head -1 CMakeFiles/datadog-agent-three.dir/link.txt)
@@ -192,7 +192,7 @@ log "Bundled libstdc++.a and libgcc_s.a into embedded/lib"
 # so the agent binary can find them at runtime via LIBPATH.
 
 log "Copying rtloader .so files to staging"
-cd /opt/datadog-agent/rtloader/build
+cd "$AGENT_SRC/rtloader/build"
 mkdir -p "$STAGING/opt/datadog-agent/rtloader"
 cp rtloader/libdatadog-agent-rtloader.so \
    three/libdatadog-agent-three.so \
@@ -210,11 +210,11 @@ log "Creating .a archive wrappers for rtloader .so files (AIX CGO requirement)"
 # On AIX, Go's compiler (lex.go) requires the archive member name to either end in
 # ".o" or contain ".so." (a version number). The conventional AIX name for the
 # 64-bit shared module inside an archive is "shr_64.o".
-cd /opt/datadog-agent/rtloader/build/rtloader
+cd "$AGENT_SRC/rtloader/build/rtloader"
 cp libdatadog-agent-rtloader.so shr_64.o
 ar -X64 -r libdatadog-agent-rtloader.a shr_64.o
 rm -f shr_64.o
-cd /opt/datadog-agent/rtloader/build/three
+cd "$AGENT_SRC/rtloader/build/three"
 cp libdatadog-agent-three.so shr_64.o
 ar -X64 -r libdatadog-agent-three.a shr_64.o
 rm -f shr_64.o
@@ -228,8 +228,8 @@ log "Archive wrappers created (member: shr_64.o in each .a)."
 # Both the .so and the .a must exist in the same directory in the package.
 
 log "Copying rtloader .a archive wrappers to staging"
-cp /opt/datadog-agent/rtloader/build/rtloader/libdatadog-agent-rtloader.a \
-   /opt/datadog-agent/rtloader/build/three/libdatadog-agent-three.a \
+cp "$AGENT_SRC/rtloader/build/rtloader/libdatadog-agent-rtloader.a" \
+   "$AGENT_SRC/rtloader/build/three/libdatadog-agent-three.a" \
    "$STAGING/opt/datadog-agent/rtloader/"
 log "Archive wrappers copied to staging."
 

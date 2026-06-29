@@ -1,6 +1,6 @@
 from invoke.collection import Collection
 
-from tasks.schema.generate import codegen, compress, generate
+from tasks.schema.generate import codegen, compress, generate, produce_embedded, produce_jsonschema
 from tasks.schema.lint import lint as lint_task
 from tasks.schema.locate import locate as locate_task
 from tasks.schema.template import template, template_all
@@ -13,3 +13,5 @@ collection.add_task(compress)
 collection.add_task(template)
 collection.add_task(template_all)
 collection.add_task(locate_task)
+collection.add_task(produce_embedded)
+collection.add_task(produce_jsonschema)

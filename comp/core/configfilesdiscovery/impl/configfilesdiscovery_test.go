@@ -88,7 +88,7 @@ func TestResolveTargetDetectsRuntime(t *testing.T) {
 			wantOK: true,
 		},
 		{
-			name: "kubernetes pod service",
+			name: "kubernetes pod service is unsupported",
 			config: integration.Config{
 				Name:      "redis",
 				ServiceID: "kubernetes_pod://pod-uid",
@@ -96,11 +96,7 @@ func TestResolveTargetDetectsRuntime(t *testing.T) {
 					[]byte("{}"),
 				},
 			},
-			wantTarget: target{
-				runtime:  RuntimeKubernetes,
-				entityID: "pod-uid",
-			},
-			wantOK: true,
+			wantOK: false,
 		},
 		{
 			name: "container service with kubernetes pod owner",
@@ -132,6 +128,64 @@ func TestResolveTargetDetectsRuntime(t *testing.T) {
 				entityID: "abc123",
 			},
 			wantOK: true,
+		},
+		{
+			name: "containerd service with kubernetes pod owner",
+			setupStore: func(t *testing.T) workloadmeta.Component {
+				store := newWorkloadMetaMock(t)
+				store.Set(&workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "abc123"},
+					Runtime:  workloadmeta.ContainerRuntimeContainerd,
+					Owner:    &workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+				})
+				store.Set(&workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "redis-0",
+						Namespace: "default",
+					},
+				})
+				return store
+			},
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "containerd://abc123",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantTarget: target{
+				runtime:  RuntimeKubernetes,
+				entityID: "abc123",
+			},
+			wantOK: true,
+		},
+		{
+			name: "container service with kubernetes pod owner and docker runtime",
+			setupStore: func(t *testing.T) workloadmeta.Component {
+				store := newWorkloadMetaMock(t)
+				store.Set(&workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "abc123"},
+					Runtime:  workloadmeta.ContainerRuntimeDocker,
+					Owner:    &workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+				})
+				store.Set(&workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "redis-0",
+						Namespace: "default",
+					},
+				})
+				return store
+			},
+			config: integration.Config{
+				Name:      "redis",
+				ServiceID: "container://abc123",
+				Instances: []integration.Data{
+					[]byte("{}"),
+				},
+			},
+			wantOK: false,
 		},
 		{
 			name: "unsupported standalone container service runtime",
@@ -190,6 +244,94 @@ func TestResolveTargetDetectsRuntime(t *testing.T) {
 			if tt.wantOK {
 				assert.Equal(t, tt.wantTarget, got)
 			}
+		})
+	}
+}
+
+func TestSchedulerDispatchesKubernetesOwnedContainerToKubernetesReader(t *testing.T) {
+	store := newWorkloadMetaMock(t)
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "abc123"},
+		Runtime:  workloadmeta.ContainerRuntimeContainerd,
+		Owner:    &workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+	})
+	store.Set(&workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "redis-0",
+			Namespace: "default",
+		},
+	})
+
+	collector := &recordingConfigCollector{}
+	readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: RuntimeKubernetes}}
+	s := newADScheduler(
+		targetResolver{store: store},
+		map[RuntimeType]configReaderFactory{RuntimeKubernetes: readerFactory.Build},
+		map[string]configCollector{"redis": collector},
+		nil,
+	)
+	defer s.Stop()
+
+	s.Schedule([]integration.Config{
+		checkConfig("redis", "containerd://abc123"),
+		checkConfig("redis", "containerd://standalone"),
+	})
+
+	runs := collector.waitForRuns(t, 1)
+	assert.Equal(t, RuntimeKubernetes, runs[0].reader.Runtime())
+	targets := readerFactory.recordedTargets()
+	require.Len(t, targets, 1)
+	assert.Equal(t, target{runtime: RuntimeKubernetes, entityID: "abc123"}, targets[0])
+}
+
+func TestSchedulerClosesReaderAfterCollection(t *testing.T) {
+	tests := []struct {
+		name         string
+		files        []ConfigFile
+		collectorErr error
+	}{
+		{
+			name:  "successful collection and report",
+			files: []ConfigFile{{Path: "/etc/redis/redis.conf"}},
+		},
+		{
+			name:         "collector error",
+			collectorErr: errors.New("collection failed"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			closed := make(chan struct{})
+			collector := &recordingConfigCollector{files: tt.files, err: tt.collectorErr}
+			readerFactory := fakeConfigReaderFactory(fakeConfigReader{
+				runtime: RuntimeDocker,
+				closeFunc: func() {
+					close(closed)
+				},
+			})
+			s := newADScheduler(
+				targetResolver{},
+				map[RuntimeType]configReaderFactory{RuntimeDocker: readerFactory},
+				map[string]configCollector{"redis": collector},
+				nil,
+			)
+			defer s.Stop()
+
+			s.Schedule([]integration.Config{
+				checkConfig("redis", "docker://abc123"),
+			})
+
+			collector.waitForRuns(t, 1)
+			require.Eventually(t, func() bool {
+				select {
+				case <-closed:
+					return true
+				default:
+					return false
+				}
+			}, time.Second, 10*time.Millisecond)
 		})
 	}
 }
@@ -333,6 +475,14 @@ func TestComponentRegistersRedisCollector(t *testing.T) {
 	assert.Contains(t, adScheduler.collectors, redisIntegrationName)
 }
 
+func TestComponentRegistersKubernetesConfigReader(t *testing.T) {
+	c := newComponent(nil, targetResolver{})
+	adScheduler, ok := c.scheduler.(*adScheduler)
+	require.True(t, ok)
+
+	assert.Contains(t, adScheduler.readers, RuntimeKubernetes)
+}
+
 func checkConfig(name string, serviceID string) integration.Config {
 	return integration.Config{
 		Name:      name,
@@ -434,11 +584,18 @@ func (c *recordingConfigCollector) waitForRuns(t *testing.T, count int) []runCal
 }
 
 type fakeConfigReader struct {
-	runtime RuntimeType
+	runtime   RuntimeType
+	closeFunc func()
 }
 
 func (r fakeConfigReader) Runtime() RuntimeType {
 	return r.runtime
+}
+
+func (r fakeConfigReader) Close() {
+	if r.closeFunc != nil {
+		r.closeFunc()
+	}
 }
 
 func (r fakeConfigReader) ReadFile(context.Context, string) (ConfigFile, error) {

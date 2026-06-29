@@ -15,6 +15,7 @@ from tasks.schema.add_comments import add_comments
 from tasks.schema.codegen_init_settings import run_codegen
 from tasks.schema.fixes import fix_schema
 from tasks.schema.merge_schema import resolve_schema
+from tasks.schema.produce_byproduct import produce_byproduct
 from tasks.schema.settings_source_analyzer import extract_imperative_code_hints
 from tasks.schema.template_parser import parse_template
 
@@ -194,6 +195,29 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     split_and_write_schema(sysprobe_schema, output_dir, None, "system-probe_schema")
 
     print("Schema generation complete.")
+
+
+@task
+def produce_embedded(ctx, input_path, output_path):
+    """
+    Produce the "embedded" schema byproduct from a (merged) schema.
+
+    Trims build-time-only data (documentation strings, ...) so the artifact that
+    gets compressed and embedded into the Go binary stays small. Output is YAML.
+    """
+    produce_byproduct("embedded", input_path, output_path)
+
+
+@task
+def produce_jsonschema(ctx, input_path, output_path):
+    """
+    Produce the pure JSON Schema byproduct from a (merged) schema.
+
+    Strips every Agent-specific extension so the result is 100% compatible with
+    https://json-schema.org/ and validates with any conforming library. Output
+    is JSON, for external consumers (e.g. SchemaStore).
+    """
+    produce_byproduct("json_schema", input_path, output_path)
 
 
 @task

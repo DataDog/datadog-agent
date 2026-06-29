@@ -14,10 +14,14 @@ py_binary(
 # Used by //pkg/config/schema to derive processed variants of the schema (e.g.
 # the "embedded" output, trimmed of build-time-only data before it is compressed
 # and embedded into the Go binary). What each output keeps or drops is decided in
-# process_schema.py; it never touches the YAML source files.
+# produce_byproduct.py; it never touches the YAML source files.
 py_binary(
-    name = "process_schema",
-    srcs = ["process_schema.py"],
+    name = "produce_byproduct",
+    srcs = [
+        "merge_schema.py",  # produce_byproduct imports resolve_schema to inline $refs
+        "produce_byproduct.py",
+    ],
+    main = "produce_byproduct.py",
     visibility = ["//pkg/config/schema:__pkg__"],
     deps = ["@py_dev_requirements//pyyaml"],
 )

@@ -48,8 +48,8 @@
       -e EXTRA_OPTS="${FAST_TESTS_FLAG}"
       -e TEST_WASHER=true
       -e GO_TEST_SKIP_FLAKE
-      -e API_KEY_ORG2
-      -e CODECOV_TOKEN
+      -e AGENT_API_KEY_ORG2
+      -e CODECOV
       -e S3_PERMANENT_ARTIFACTS_URI
       -e COVERAGE_CACHE_FLAG
       -e FLAKY_PATTERNS_CONFIG="\mnt\flaky-patterns-runtime.yaml"

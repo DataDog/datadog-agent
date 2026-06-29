@@ -16,6 +16,7 @@ exec > "$LOG" 2>&1
 log "=== Stage: $STAGE_NAME ==="
 
 # --- Input validation ---
+: "${AGENT_SRC:?AGENT_SRC must be set}"
 : "${BUILD_DIR:?BUILD_DIR must be set}"
 : "${STAGING:?STAGING must be set}"
 : "${INTEGRATIONS_CORE:?INTEGRATIONS_CORE must be set}"
@@ -36,28 +37,27 @@ trap cleanup EXIT
 # ─── Step 1: Validate agent source tree ───────────────────────────────────────
 #
 # The agent source is NOT cloned here — it must already be present at
-# /opt/datadog-agent, transferred from the build machine by the caller.
-# (The local clone contains AIX-specific changes not yet merged to main.)
+# $AGENT_SRC (resolved by env.sh from the script directory's .git ancestor), transferred from the build machine
+# by the caller. (The local clone contains AIX-specific changes not yet merged
+# to main.)
 #
 # Expected transfer method:
 #   tar czf /tmp/dd-agent-src.tar.gz --exclude='.git' --exclude='bin' ... .
 #   scp /tmp/dd-agent-src.tar.gz aix-host:/tmp/
-#   ssh aix-host 'mkdir -p /opt/datadog-agent && gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C /opt/datadog-agent'
-
-AGENT_SRC=/opt/datadog-agent
+#   ssh aix-host 'mkdir -p <agent-repo> && gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C <agent-repo>'
 
 if [ ! -f "$AGENT_SRC/go.mod" ]; then
     log "ERROR: agent source not found at $AGENT_SRC/go.mod"
     log "       Transfer the source tree to the AIX host first:"
     log "         On build machine: tar czf /tmp/dd-agent-src.tar.gz --exclude='.git' --exclude='bin' ."
     log "         scp /tmp/dd-agent-src.tar.gz aix-host:/tmp/"
-    log "         On AIX host:      mkdir -p /opt/datadog-agent"
-    log "                           gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C /opt/datadog-agent"
+    log "         On AIX host:      mkdir -p $AGENT_SRC"
+    log "                           gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C $AGENT_SRC"
     exit 1
 fi
 
 log "Agent source found at $AGENT_SRC"
-log "  go.mod: $(head -1 $AGENT_SRC/go.mod)"
+log "  go.mod: $(head -1 "$AGENT_SRC"/go.mod)"
 
 # ─── Step 2: Read INTEGRATIONS_CORE_VERSION from release.json ─────────────────
 
