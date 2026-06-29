@@ -14,12 +14,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewTaggedMetricsClientReturnsWrappedClientWhenTagsAreEmpty(t *testing.T) {
-	wrapped := &recordingTaggedStatsdClient{}
+func TestNewTaggedMetricsClient(t *testing.T) {
+	tests := []struct {
+		name        string
+		fixedTags   []string
+		wantWrapped bool
+	}{
+		{
+			name:        "returns wrapped client when tags are nil",
+			wantWrapped: true,
+		},
+		{
+			name:        "returns wrapped client when tags are empty",
+			fixedTags:   []string{},
+			wantWrapped: true,
+		},
+		{
+			name:      "returns tagged client when tags are provided",
+			fixedTags: []string{"runner_id:runner-1"},
+		},
+	}
 
-	got := NewTaggedMetricsClient(wrapped, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wrapped := &recordingTaggedStatsdClient{}
 
-	assert.Same(t, wrapped, got)
+			got := NewTaggedMetricsClient(wrapped, tt.fixedTags)
+
+			if tt.wantWrapped {
+				assert.Same(t, wrapped, got)
+			} else {
+				assert.NotSame(t, wrapped, got)
+			}
+		})
+	}
 }
 
 func TestTaggedMetricsClientAppendsFixedTagsToMetricMethods(t *testing.T) {

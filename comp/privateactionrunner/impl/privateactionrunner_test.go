@@ -15,42 +15,61 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStopFlushesAndClosesOwnedMetricsClient(t *testing.T) {
-	metricsClient := &recordingMetricsClient{}
-	runner := newStartedRunnerForStopTest(metricsClient, true)
-
-	err := runner.Stop(context.Background())
-
-	require.NoError(t, err)
-	assert.Equal(t, 1, metricsClient.flushCalls)
-	assert.Equal(t, 1, metricsClient.closeCalls)
-}
-
-func TestStopDoesNotFlushOrCloseUnownedMetricsClient(t *testing.T) {
-	metricsClient := &recordingMetricsClient{}
-	runner := newStartedRunnerForStopTest(metricsClient, false)
-
-	err := runner.Stop(context.Background())
-
-	require.NoError(t, err)
-	assert.Zero(t, metricsClient.flushCalls)
-	assert.Zero(t, metricsClient.closeCalls)
-}
-
-func TestStopReturnsMetricsClientCleanupErrors(t *testing.T) {
-	metricsClient := &recordingMetricsClient{
-		flushErr: errors.New("flush failed"),
-		closeErr: errors.New("close failed"),
+func TestStopCleansUpMetricsClient(t *testing.T) {
+	tests := []struct {
+		name           string
+		ownsClient     bool
+		flushErr       error
+		closeErr       error
+		wantErrs       []string
+		wantFlushCalls int
+		wantCloseCalls int
+	}{
+		{
+			name:           "flushes and closes owned metrics client",
+			ownsClient:     true,
+			wantFlushCalls: 1,
+			wantCloseCalls: 1,
+		},
+		{
+			name: "does not flush or close unowned metrics client",
+		},
+		{
+			name:       "returns metrics client cleanup errors",
+			ownsClient: true,
+			flushErr:   errors.New("flush failed"),
+			closeErr:   errors.New("close failed"),
+			wantErrs: []string{
+				"failed to flush metrics client: flush failed",
+				"failed to close metrics client: close failed",
+			},
+			wantFlushCalls: 1,
+			wantCloseCalls: 1,
+		},
 	}
-	runner := newStartedRunnerForStopTest(metricsClient, true)
 
-	err := runner.Stop(context.Background())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			metricsClient := &recordingMetricsClient{
+				flushErr: tt.flushErr,
+				closeErr: tt.closeErr,
+			}
+			runner := newStartedRunnerForStopTest(metricsClient, tt.ownsClient)
 
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "failed to flush metrics client: flush failed")
-	assert.ErrorContains(t, err, "failed to close metrics client: close failed")
-	assert.Equal(t, 1, metricsClient.flushCalls)
-	assert.Equal(t, 1, metricsClient.closeCalls)
+			err := runner.Stop(context.Background())
+
+			if len(tt.wantErrs) == 0 {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				for _, wantErr := range tt.wantErrs {
+					assert.ErrorContains(t, err, wantErr)
+				}
+			}
+			assert.Equal(t, tt.wantFlushCalls, metricsClient.flushCalls)
+			assert.Equal(t, tt.wantCloseCalls, metricsClient.closeCalls)
+		})
+	}
 }
 
 func newStartedRunnerForStopTest(metricsClient statsd.ClientInterface, ownsMetricsClient bool) *PrivateActionRunner {

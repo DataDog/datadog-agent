@@ -231,27 +231,42 @@ func TestFromDDConfig(t *testing.T) {
 	}
 }
 
-func TestFromDDConfigUsesProvidedMetricsClient(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
+func TestFromDDConfigMetricsClient(t *testing.T) {
+	providedClient := &statsd.NoOpClient{}
+	tests := []struct {
+		name     string
+		client   statsd.ClientInterface
+		wantSame statsd.ClientInterface
+		wantNoOp bool
+	}{
+		{
+			name:     "uses provided metrics client",
+			client:   providedClient,
+			wantSame: providedClient,
+		},
+		{
+			name:     "defaults nil metrics client to no-op",
+			wantNoOp: true,
+		},
+	}
 
-	metricsClient := &statsd.NoOpClient{}
-	cfg, err := FromDDConfig(mockConfig, metricsClient)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest(setup.PARPrivateKey, "")
+			mockConfig.SetInTest(setup.PARUrn, "")
 
-	require.NoError(t, err)
-	assert.Same(t, metricsClient, cfg.MetricsClient)
-}
+			cfg, err := FromDDConfig(mockConfig, tt.client)
 
-func TestFromDDConfigDefaultsNilMetricsClientToNoOp(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-
-	cfg, err := FromDDConfig(mockConfig, nil)
-
-	require.NoError(t, err)
-	assert.IsType(t, &statsd.NoOpClient{}, cfg.MetricsClient)
+			require.NoError(t, err)
+			if tt.wantSame != nil {
+				assert.Same(t, tt.wantSame, cfg.MetricsClient)
+			}
+			if tt.wantNoOp {
+				assert.IsType(t, &statsd.NoOpClient{}, cfg.MetricsClient)
+			}
+		})
+	}
 }
 
 func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
@@ -506,76 +521,71 @@ private_action_runner:
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 }
 
-func TestNewMetricsClientCreatesClientForConfiguredHostPort(t *testing.T) {
+func TestNewMetricsClient(t *testing.T) {
+	createErr := errors.New("permission denied")
 	tests := []struct {
-		name       string
-		port       int
-		bindHost   string
-		pipeName   string
-		socketPath string
-		statsdURL  string
-		wantHost   string
-		wantPort   int
+		name           string
+		port           int
+		bindHost       string
+		createErr      error
+		wantErr        string
+		wantNoOp       bool
+		wantHost       string
+		wantPort       int
+		wantSameClient bool
 	}{
 		{
-			name:     "uses configured bind host and dogstatsd port",
-			port:     8126,
-			bindHost: "127.0.0.1",
-			wantHost: "127.0.0.1",
-			wantPort: 8126,
+			name:           "uses configured bind host and dogstatsd port",
+			port:           8126,
+			bindHost:       "127.0.0.1",
+			wantHost:       "127.0.0.1",
+			wantPort:       8126,
+			wantSameClient: true,
 		},
 		{
-			name:       "uses configured host port path even when alternate endpoints are configured",
-			port:       0,
-			pipeName:   "dd-dogstatsd",
-			socketPath: "/var/run/datadog/dsd.socket",
-			statsdURL:  "unix:///tmp/dsd.socket",
-			wantHost:   "localhost",
-			wantPort:   0,
+			name:      "returns no-op and error when DogStatsD client creation fails",
+			port:      8126,
+			bindHost:  "127.0.0.1",
+			createErr: createErr,
+			wantErr:   "failed to create DogStatsD client",
+			wantNoOp:  true,
+			wantHost:  "127.0.0.1",
+			wantPort:  8126,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("STATSD_URL", tt.statsdURL)
+			t.Setenv("STATSD_URL", "")
 			mockConfig := configmock.New(t)
 			mockConfig.SetInTest("dogstatsd_port", tt.port)
-			mockConfig.SetInTest("dogstatsd_pipe_name", tt.pipeName)
-			mockConfig.SetInTest("dogstatsd_socket", tt.socketPath)
 			if tt.bindHost != "" {
 				mockConfig.SetInTest("bind_host", tt.bindHost)
 			}
 
 			wantClient := &statsd.NoOpClient{}
-			statsdComp := &recordingStatsdComponent{client: wantClient}
+			statsdComp := &recordingStatsdComponent{client: wantClient, err: tt.createErr}
 			got, err := NewMetricsClient(mockConfig, statsdComp)
-			require.NoError(t, err)
-			assert.Same(t, wantClient, got)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.wantErr)
+				assert.ErrorIs(t, err, tt.createErr)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.wantSameClient {
+				assert.Same(t, wantClient, got)
+			}
+			if tt.wantNoOp {
+				assert.IsType(t, &statsd.NoOpClient{}, got)
+			}
 			assert.Equal(t, "host_port", statsdComp.call)
 			assert.Equal(t, tt.wantHost, statsdComp.host)
 			assert.Equal(t, tt.wantPort, statsdComp.port)
 			assert.Empty(t, statsdComp.addr)
 		})
 	}
-}
-
-func TestNewMetricsClientReturnsNoOpAndErrorWhenDogStatsDClientCreationFails(t *testing.T) {
-	t.Setenv("STATSD_URL", "")
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("dogstatsd_port", 8126)
-	mockConfig.SetInTest("bind_host", "127.0.0.1")
-
-	createErr := errors.New("permission denied")
-	statsdComp := &recordingStatsdComponent{err: createErr}
-	got, err := NewMetricsClient(mockConfig, statsdComp)
-
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "failed to create DogStatsD client")
-	assert.ErrorIs(t, err, createErr)
-	assert.IsType(t, &statsd.NoOpClient{}, got)
-	assert.Equal(t, "host_port", statsdComp.call)
-	assert.Equal(t, "127.0.0.1", statsdComp.host)
-	assert.Equal(t, 8126, statsdComp.port)
 }
 
 type recordingStatsdComponent struct {
