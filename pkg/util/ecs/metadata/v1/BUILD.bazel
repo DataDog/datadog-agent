@@ -16,6 +16,12 @@ go_library(
     ],
 )
 
+filegroup(
+    name = "testdata",
+    srcs = glob(["testdata/**"]),
+    visibility = ["//pkg/util/ecs:__subpackages__"],
+)
+
 dd_agent_go_test(
     name = "metadata_test",
     srcs = ["client_test.go"],
