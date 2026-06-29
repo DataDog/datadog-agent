@@ -1893,6 +1893,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.include", []map[string]interface{}{})
 	// Exclude prevents adaptive sampling from applying to logs matching any rule when configured.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.exclude", []map[string]interface{}{})
+	// Sources listed here will not have adaptive sampling or noisy log detection applied, even if enabled globally.
+	// Useful for auto-discovered sources that cannot be configured via integration-level YAML.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.disabled_sources", []string{})
 	// Tag repetitive logs that would be dropped by the adaptive sampler with noisy_log:true
 	// without dropping them. Real adaptive sampling takes precedence when enabled.
 	config.BindEnvAndSetDefault("logs_config.experimental_noisy_log_detection", false)
