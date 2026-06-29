@@ -59,11 +59,13 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
 	if err != nil {
 		initErr := categorizeTracerError(err)
-		// Report the failure synchronously first, then resolve the kernel issue.
-		// The kernel IS supported, so the kernel issue should be cleared, but the
-		// report must land in the store before the resolve goroutine fires.
-		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
+		// Start the kernel-issue resolve goroutine before the blocking report so
+		// it has time to deliver while the process is alive. reportNetworkProbeInitFailure
+		// blocks for up to ReportMaxWait (30 s); the resolve goroutine fires after its
+		// 2 s initial backoff, giving it ~28 s before system-probe may exit.
+		// The two operations target different issue IDs so there is no store race.
 		resolveNetworkProbeKernelIssue(deps)
+		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
 		return nil, initErr
 	}
 	// Tracer fully initialized: resolve the kernel issue and check USM state.
