@@ -40,6 +40,7 @@ func TestOOMKill(t *testing.T) {
 	conf.WatchdogInterval = time.Millisecond
 	conf.MaxMemory = 0.1 * 1000 * 1000 // 100KB
 	conf.ReceiverPort = port
+	conf.MaxConnections = 1000 // default value of apm_config.max_connections
 
 	r := newTestReceiverFromConfig(conf)
 	r.Start()
