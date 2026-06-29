@@ -145,7 +145,7 @@ def _load_manifest_platform_overrides(rctx):
     if config == None:
         fail("Failed to parse {} as TOML".format(config_path))
 
-    return config.get("overrides", {}).get("manifest", {}).get("platforms", {}) or {}
+    return config.get("overrides", {}).get("manifest", {}).get("platforms", {})
 
 def _supported_platforms(rctx, entry, manifest_platform_overrides):
     """Returns the supported platforms for a package, using manifest.json or .ddev/config.toml overrides."""
