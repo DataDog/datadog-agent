@@ -32,7 +32,7 @@ and the testbench use the same engine.
 | File | Purpose |
 |------|---------|
 | `def/component.go` | Component interface (GetHandle, RecordSamplerDropped, DumpMetrics) |
-| `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, etc. |
+| `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, CorrelatorEvent, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
 | `impl/storage.go` | In-memory columnar time-series storage (1s buckets, read-time aggregation) |
 | `impl/scheduler.go` | Scheduling policy: when to advance analysis |
@@ -42,7 +42,9 @@ and the testbench use the same engine.
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
 | `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
 | `impl/anomaly_correlator_time_cluster.go` | Default time-proximity correlator |
+| `impl/anomaly_correlator_passthrough.go` | Passthrough correlator (one ActiveCorrelation per anomaly) |
 | `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay) |
+| `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
 | `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
 
 ### Component catalog (defaults)
@@ -105,6 +107,34 @@ When `anomaly_detection.metrics.enabled=false`, handles wrap with
 `metricDropHandle` so external metrics are dropped at the edge. `ObserveLog`
 still passes through; log-derived virtual metrics produced inside the engine
 are unaffected.
+
+### Correlator-owned deduplication (`correlationEmitter`)
+
+All correlation event deduplication lives **inside each correlator**, not in reporters.
+`correlationEmitter` (`impl/correlation_emitter.go`) is a shared helper embedded in
+every non-scorer correlator (`TimeCluster`, `CrossSignal`, `Passthrough`). It tracks
+first-seen / recurrence state and produces `CorrelatorEventCorrelationDetected` events
+via `PendingEvents()`. The engine collects pending events after each `Advance` call and
+forwards them to reporters via `ReportOutput.CorrelatorEvents`.
+
+**Recurrence rule:** a pattern that leaves the active set (evicted, timeout) is
+removed from the seen-set, so it re-fires on the next occurrence. This means
+`CorrelationDetected` fires at most once per active episode, and once more each time
+the pattern vanishes and comes back.
+
+**Usage in a correlator:**
+
+```go
+// 1. In Advance — observe BEFORE evicting so batch-evicted clusters still emit.
+e.emitter.observe(e.ActiveCorrelations(), dataTime)
+// 2. In PendingEvents — drain and return.
+return e.emitter.drain()
+// 3. In Reset — clear emitter state alongside correlator state.
+e.emitter.reset()
+```
+
+The scorer uses a different path (`EpisodeStarted` / `EpisodeEnded` events) and does
+not embed a `correlationEmitter`.
 
 ## Common Pitfalls
 
