@@ -112,7 +112,8 @@ func TestDelete(t *testing.T) {
 }
 
 // TestReplace verifies cold-start seeding suppresses forwarding, a seeded watermark
-// (restart) forwards the backlog past it, and relists forward without lowering the watermark.
+// (restart) forwards the backlog past it regardless of list order, and relists
+// advance the watermark to the collection resourceVersion.
 func TestReplace(t *testing.T) {
 	t.Run("cold start seeds watermark from listRV and skips all events", func(t *testing.T) {
 		s, captured := makeStore()
@@ -130,15 +131,23 @@ func TestReplace(t *testing.T) {
 		assert.Equal(t, uint64(6), s.watermark.Load())
 	})
 
-	t.Run("relist forwards new events and does not lower the watermark", func(t *testing.T) {
+	t.Run("unordered list forwards every event past the threshold", func(t *testing.T) {
+		// Regression: unordered list [9, 6, 3] with watermark 4 — both 9 and 6 must forward.
+		s, captured := makeStore()
+		s.watermark.Store(4)
+		_ = s.Replace([]interface{}{eventWithRV("9"), eventWithRV("6"), eventWithRV("3")}, "9")
+		require.Len(t, *captured, 2)
+		assert.ElementsMatch(t, []string{"9", "6"}, []string{(*captured)[0].ResourceVersion, (*captured)[1].ResourceVersion})
+	})
+
+	t.Run("relist forwards only events past the watermark and advances to listRV", func(t *testing.T) {
 		s, captured := makeStore()
 		require.NoError(t, s.Replace([]interface{}{}, "5")) // cold seed; watermark=5
-		ev := eventWithRV("10")
-		// listRV "3" is below the watermark after forwarding ev; it must not drop.
-		require.NoError(t, s.Replace([]interface{}{ev, eventWithRV("3")}, "3"))
+		// Relist at RV 10 with an already-seen event (5) and a new one (8).
+		require.NoError(t, s.Replace([]interface{}{eventWithRV("5"), eventWithRV("8")}, "10"))
 		require.Len(t, *captured, 1)
-		assert.Same(t, ev, (*captured)[0])
-		assert.Equal(t, uint64(10), s.watermark.Load())
+		assert.Equal(t, "8", (*captured)[0].ResourceVersion) // 5 <= threshold skipped, 8 forwarded
+		assert.Equal(t, uint64(10), s.watermark.Load())      // advanced once to listRV
 	})
 }
 

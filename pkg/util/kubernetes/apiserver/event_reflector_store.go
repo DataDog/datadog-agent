@@ -54,8 +54,17 @@ func (s *eventReflectorStore) Delete(_ interface{}) error { return nil }
 // Otherwise on a relist, or the first list after a restart, we only forward events past the watermark.
 func (s *eventReflectorStore) Replace(list []interface{}, resourceVersion string) error {
 	if s.seeded || s.watermark.Load() > 0 {
+		// Lists come in unordered, so we forward against a fixed threshold and
+		// update the high watermark only after the loop.
+		threshold := s.watermark.Load()
 		for _, obj := range list {
-			s.forwardIfNew(obj)
+			ev, ok := obj.(*v1.Event)
+			if !ok {
+				continue
+			}
+			if parseResourceVersion(ev.ResourceVersion) > threshold {
+				s.enqueue(ev)
+			}
 		}
 	}
 	s.seeded = true
