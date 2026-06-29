@@ -51,60 +51,63 @@ type Provides struct {
 	StatusProvider status.InformationProvider
 }
 
+// disabledServer is the zero-overhead stub returned when netflow is disabled.
+type disabledServer struct{}
+
 // NewComponent configures a netflow server.
 func NewComponent(deps Requires) (Provides, error) {
 	conf := deps.Config.Get()
 
+	if !conf.Enabled {
+		return Provides{
+			Comp:           &disabledServer{},
+			StatusProvider: status.NewInformationProvider(nil),
+		}, nil
+	}
+
+	sender, err := deps.Demultiplexer.GetDefaultSender()
+	if err != nil {
+		return Provides{}, err
+	}
+
+	// Note that multiple components can share the same rdnsQuerier instance.  If any of them have
+	// reverse DNS enrichment enabled then the deps.RDNSQuerier component passed here will be an
+	// active instance.  However, we also need to check here whether the netflow component has
+	// reverse DNS enrichment enabled to decide whether to use the passed instance or to override
+	// it with a noop implementation.
+	rdnsQuerier := deps.RDNSQuerier
+	if conf.ReverseDNSEnrichmentEnabled {
+		deps.Logger.Infof("Reverse DNS Enrichment is enabled for NDM NetFlow")
+	} else {
+		rdnsQuerier = rdnsquerierimplnone.NewNone().Comp
+		deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
+	}
+	networkPathEnabled := deps.AgentConfig.GetBool("network_path.netflow_monitoring.enabled")
+
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier, networkPathEnabled, deps.NPCollector)
+
 	srv := &Server{
-		config: conf,
-		logger: deps.Logger,
+		config:  conf,
+		FlowAgg: flowAgg,
+		logger:  deps.Logger,
 	}
 
-	var statusProvider status.Provider
-
-	// When netflow is disabled (the default), skip building the flow aggregator
-	// entirely: its 10k-cap input channel, accumulator, and filter would sit
-	// resident for a feature that never starts. FlowAgg is only dereferenced from
-	// Start/Stop/startFlowListener, which run solely via the enabled-only
-	// lifecycle hook below, so leaving it nil here is safe.
-	if conf.Enabled {
-		sender, err := deps.Demultiplexer.GetDefaultSender()
-		if err != nil {
-			return Provides{}, err
-		}
-
-		// Note that multiple components can share the same rdnsQuerier instance.  If any of them have
-		// reverse DNS enrichment enabled then the deps.RDNSQuerier component passed here will be an
-		// active instance.  However, we also need to check here whether the netflow component has
-		// reverse DNS enrichment enabled to decide whether to use the passed instance or to override
-		// it with a noop implementation.
-		rdnsQuerier := deps.RDNSQuerier
-		if conf.ReverseDNSEnrichmentEnabled {
-			deps.Logger.Infof("Reverse DNS Enrichment is enabled for NDM NetFlow")
-		} else {
-			rdnsQuerier = rdnsquerierimplnone.NewNone().Comp
-			deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
-		}
-		networkPathEnabled := deps.AgentConfig.GetBool("network_path.netflow_monitoring.enabled")
-
-		srv.FlowAgg = flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier, networkPathEnabled, deps.NPCollector)
-
-		statusProvider = Provider{
-			server: srv,
-		}
-
-		// netflow is enabled, so start the server
-		deps.Lc.Append(compdef.Hook{
-			OnStart: func(_ context.Context) error {
-				err := srv.Start()
-				return err
-			},
-			OnStop: func(context.Context) error {
-				srv.Stop()
-				return nil
-			},
-		})
+	statusProvider := Provider{
+		server: srv,
 	}
+
+	// netflow is enabled, so start the server
+	deps.Lc.Append(compdef.Hook{
+		OnStart: func(_ context.Context) error {
+			err := srv.Start()
+			return err
+		},
+		OnStop: func(context.Context) error {
+			srv.Stop()
+			return nil
+		},
+	})
+
 	return Provides{
 		Comp:           srv,
 		StatusProvider: status.NewInformationProvider(statusProvider),

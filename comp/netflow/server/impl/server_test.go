@@ -115,9 +115,9 @@ func TestStartServerAndStopServer(t *testing.T) {
 }
 
 // TestNewComponentSkipsAggregatorWhenDisabled verifies that with netflow
-// disabled (the default), NewComponent does not allocate the flow aggregator
-// (10k-cap input channel + accumulator + filter) and leaves FlowAgg nil. The
-// server must still be constructed and safe to expose.
+// disabled (the default), NewComponent returns the zero-allocation
+// disabledServer stub rather than building the flow aggregator (10k-cap
+// input channel + accumulator + filter).
 func TestNewComponentSkipsAggregatorWhenDisabled(t *testing.T) {
 	var component server.Component
 	fxtest.New(t, fx.Options(
@@ -133,8 +133,6 @@ func TestNewComponentSkipsAggregatorWhenDisabled(t *testing.T) {
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		fx.Populate(&component),
 	))
-	srv := component.(*Server)
-	require.NotNil(t, srv)
-	require.False(t, srv.config.Enabled, "precondition: default mock config must be disabled")
-	assert.Nil(t, srv.FlowAgg, "FlowAgg must be nil when netflow is disabled, avoiding the 10k-cap channel allocation")
+	_, ok := component.(*disabledServer)
+	require.Truef(t, ok, "expected *disabledServer when netflow is disabled, got %T", component)
 }
