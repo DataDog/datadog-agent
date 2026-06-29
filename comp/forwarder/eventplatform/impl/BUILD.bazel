@@ -53,7 +53,9 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = ["epforwarder_test.go"],
+    srcs = [
+        "epforwarder_test.go",
+    ],
     embed = [":impl"],
     gotags = ["test"],
     deps = [
@@ -67,6 +69,8 @@ go_test(
         "//comp/serializer/logscompression/def",
         "//comp/serializer/logscompression/fx-mock",
         "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
     ],
 )

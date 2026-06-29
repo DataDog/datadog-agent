@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "datasecurity.go",
+        "handler.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/datasecurity/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/datasecurity/def",
+        "//comp/def",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/remote-config/rcclient/def",
+        "//pkg/config/remote/data",
+        "//pkg/logs/message",
+        "//pkg/proto/pbgo/sds",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/sds",
+        "@com_github_jackc_pgx_v5//pgxpool",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@org_golang_google_protobuf//encoding/protojson",
+    ],
+)

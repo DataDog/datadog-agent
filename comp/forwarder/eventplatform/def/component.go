@@ -45,6 +45,8 @@ const (
 	EventTypeEventManagement = "event-management"
 	// EventTypeKubeActions represents a kubernetes action result event
 	EventTypeKubeActions = "kube-actions"
+	// EventTypeSDSResult represents a sensitive-data-scanner result event
+	EventTypeSDSResult = "sds-result"
 )
 
 // Component is the interface of the event platform forwarder component.
