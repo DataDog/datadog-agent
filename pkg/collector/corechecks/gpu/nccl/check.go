@@ -22,6 +22,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	pkgos "github.com/DataDog/datadog-agent/pkg/util/os"
@@ -35,6 +36,7 @@ type Check struct {
 	wmeta                      workloadmeta.Component
 	socketListener             *SocketListener
 	processTagger              *ProcessTagger
+	spanEmitter                *spanEmitter
 	containerProvider          proccontainers.ContainerProvider
 	containerProviderWarnLimit *log.Limit
 	checkTelemetry             *ncclCheckTelemetry
@@ -113,6 +115,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		c.socketListener = sl
 	}
 
+	// Initialize span emitter for APM trace delivery to the local trace agent.
+	// Non-fatal if APM is unavailable — metrics continue flowing regardless.
+	port := pkgconfigsetup.Datadog().GetInt("apm_config.receiver_port")
+	c.spanEmitter = newSpanEmitter(port)
+
 	// Initialize process tagger. containerProvider is acquired lazily in Run
 	// (single code path) since GetSharedContainerProvider can fail here due to
 	// component startup ordering.
@@ -174,7 +181,8 @@ func (c *Check) Run() error {
 		log.Warnf("NCCL check: dropped %d events due to in-memory buffer cap (%d). Increase check interval or investigate event volume.", n, maxPendingEvents)
 	}
 
-	// Process events and emit per-rank metrics
+	// Process events and emit per-rank metrics + APM spans.
+	var pendingTraces pb.Traces
 	for _, parsed := range events {
 		if parsed.Event.CollPerf != nil {
 			log.Tracef("NCCL coll_perf: rank=%d coll=%s exec_time_us=%.1f algobw=%.3f busbw=%.3f msg_bytes=%d timing=%s tags=%v",
@@ -182,12 +190,22 @@ func (c *Check) Run() error {
 				parsed.Event.CollPerf.AlgoBandwidthGB, parsed.Event.CollPerf.BusBandwidthGB,
 				parsed.Event.CollPerf.MsgSizeBytes, parsed.Event.CollPerf.TimingSource, c.buildTags(parsed))
 		}
-		if err := c.processEvent(snd, parsed); err != nil {
+		tags, err := c.processEvent(snd, parsed)
+		if err != nil {
 			log.Debugf("error processing NCCL event: %v", err)
+		}
+		if c.spanEmitter != nil && parsed.Event.CollPerf != nil {
+			pendingTraces = append(pendingTraces, pb.Trace{buildSpan(parsed.Event, tags)})
 		}
 		c.checkTelemetry.eventsProcessed.Inc()
 	}
 	log.Debugf("NCCL check: %d events", len(events))
+
+	if c.spanEmitter != nil && len(pendingTraces) > 0 {
+		if err := c.spanEmitter.emitTraces(pendingTraces); err != nil {
+			log.Debugf("NCCL span emit failed: %v", err)
+		}
+	}
 
 	// Hang detection: update last-seen timestamps and emit staleness metrics.
 	// Key by commID+rank so that concurrent jobs with overlapping rank numbers
@@ -202,11 +220,12 @@ func (c *Check) Run() error {
 }
 
 // processEvent emits metrics for a single NCCL collective event.
-func (c *Check) processEvent(snd sender.Sender, parsed ParsedEvent) error {
+// It returns the full tag slice so callers can reuse it (e.g. for span building).
+func (c *Check) processEvent(snd sender.Sender, parsed ParsedEvent) ([]string, error) {
 	event := parsed.Event
 	perf := event.CollPerf
 	if perf == nil {
-		return nil
+		return nil, nil
 	}
 
 	// Build tags from PID -> container -> pod correlation
@@ -262,7 +281,7 @@ func (c *Check) processEvent(snd sender.Sender, parsed ParsedEvent) error {
 		c.checkTelemetry.metricsSent.Inc("msg_size_bytes")
 	}
 
-	return nil
+	return tags, nil
 }
 
 // buildTags correlates PID to container/pod and builds tags.
