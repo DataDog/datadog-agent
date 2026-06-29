@@ -715,7 +715,7 @@ func TestConfigsForPod(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cfg := mock.New(t)
-			cfg.SetWithoutSource("prometheus_scrape.version", test.version)
+			cfg.SetInTest("prometheus_scrape.version", test.version)
 			test.check.Init(test.version)
 
 			wmeta := newMockWorkloadMeta(t)

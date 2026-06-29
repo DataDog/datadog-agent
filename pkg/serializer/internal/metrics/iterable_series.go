@@ -21,10 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
-// maxSeriesPointsPerPayload is the maximum number of series points in a single payload.
-// This value was chosen to be friendly to Datadog's intake.
-const maxSeriesPointsPerPayload = 10000
-
 // IterableSeries is a serializer for metrics.IterableSeries
 type IterableSeries struct {
 	source metrics.SerieSource
@@ -192,7 +188,7 @@ func (series *IterableSeries) NewPayloadsBuilder(
 
 		maxPayloadSize:      config.GetInt("serializer_max_series_payload_size"),
 		maxUncompressedSize: config.GetInt("serializer_max_series_uncompressed_payload_size"),
-		maxPointsPerPayload: maxSeriesPointsPerPayload,
+		maxPointsPerPayload: config.GetInt("serializer_max_series_points_per_payload"),
 
 		pipelineConfig:  pipelineConfig,
 		pipelineContext: pipelineContext,

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "certificate",
@@ -8,9 +9,12 @@ go_library(
     deps = ["@io_k8s_client_go//listers/core/v1:core"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "certificate_test",
     srcs = ["certificate_test.go"],
     embed = [":certificate"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "fips",
+    ],
 )

@@ -19,8 +19,6 @@ import (
 type NamedPipeListener struct{}
 
 // NewNamedPipeListener returns an named pipe Statsd listener
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func NewNamedPipeListener(_ string, _ chan packets.Packets,
 	_ *packets.PoolManager[packets.Packet], _ model.Reader, _ replay.Component, _ *TelemetryStore, _ *packets.TelemetryStore, _ telemetry.Component) (*NamedPipeListener, error) {
 

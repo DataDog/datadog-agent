@@ -109,7 +109,7 @@ cp "$SITECUSTOMIZE_SRC" "$PYTHON_LIB_DIR/sitecustomize.py"
 # Remove any stale .pyc that may have been compiled against an older version of
 # this file in a previous build. The .pyc is not needed in the BFF — Python
 # regenerates it on first import on the target host.
-rm -f "$PYTHON_LIB_DIR/__pycache__/sitecustomize.cpython-313.pyc"
+rm -f "$PYTHON_LIB_DIR/__pycache__"/sitecustomize.*.pyc
 log "sitecustomize.py installed to $PYTHON_LIB_DIR/sitecustomize.py"
 
 # ─── Step 3: Create required empty directories ────────────────────────────────

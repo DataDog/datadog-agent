@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sender",
+    srcs = ["sender.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/aggregator/sender",
+        "//pkg/networkconfigmanagement/profile",
+        "//pkg/networkconfigmanagement/report",
+        "//pkg/networkconfigmanagement/types",
+        "//pkg/networkdevice/integrations",
+        "//pkg/networkdevice/metadata",
+        "//pkg/networkdevice/utils",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+go_test(
+    name = "sender_test",
+    srcs = ["sender_test.go"],
+    embed = [":sender"],
+    gotags = ["test"],
+    deps = [
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/aggregator/mocksender",
+        "//pkg/networkconfigmanagement/profile",
+        "//pkg/networkconfigmanagement/report",
+        "//pkg/networkconfigmanagement/types",
+        "//pkg/networkdevice/integrations",
+        "//pkg/version",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

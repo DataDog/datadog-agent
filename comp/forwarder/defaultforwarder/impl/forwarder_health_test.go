@@ -289,7 +289,7 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 		ts2.URL: keysAfter,
 	}
 	// Setting the config will send the change to the resolver, which updates the health check
-	cfg.SetWithoutSource("additional_endpoints", endpoints)
+	cfg.SetInTest("additional_endpoints", endpoints)
 
 	// Ensure that keysPerAPIEndpoint has the new API Key
 	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
@@ -315,7 +315,7 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 		ts2.URL: keysBefore,
 	}
 	// Setting the config will send the change to the resolver, which updates the health check
-	cfg.SetWithoutSource("additional_endpoints", endpoints)
+	cfg.SetInTest("additional_endpoints", endpoints)
 
 	// Ensure that keysPerAPIEndpoint are restored to previous
 	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
@@ -508,11 +508,11 @@ func TestUpdateAPIKeyAfterSetBaseDomain(t *testing.T) {
 	resolvers[originalDomain].SetForwarderHealth(&fh)
 	resolver.OnUpdateConfig(resolvers[originalDomain], log, cfg)
 
-	// seed the config so the next SetWithoutSource has a valid oldValue
-	cfg.SetWithoutSource("api_key", "old_key")
+	// seed the config so the next SetInTest has a valid oldValue
+	cfg.SetInTest("api_key", "old_key")
 
 	// trigger rotation rotation through the real config update path
-	cfg.SetWithoutSource("api_key", "new_key")
+	cfg.SetInTest("api_key", "new_key")
 
 	// health cache should contain only new_key
 	fh.keyMapMutex.Lock()

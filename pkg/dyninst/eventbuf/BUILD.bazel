@@ -6,6 +6,7 @@ go_library(
         "buffer.go",
         "doc.go",
         "message.go",
+        "sharedmessage.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf",
     visibility = ["//visibility:public"],

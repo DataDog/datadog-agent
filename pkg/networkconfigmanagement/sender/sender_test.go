@@ -99,38 +99,55 @@ func TestNCMSender_SendNCMCheckMetrics(t *testing.T) {
 		startTime       time.Time
 		lastCheckTime   time.Time
 		tags            []string
+		success         bool
 		expectedMetrics []expectedMetric
 	}{
 		{
 			name:          "Submit NCM check metrics successfully",
 			startTime:     time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC),
 			lastCheckTime: time.Date(2025, 8, 1, 10, 05, 0, 0, time.UTC), // 15 minutes before
+			success:       true,
 			tags:          []string{"device_ip:10.0.0.1"},
 			expectedMetrics: []expectedMetric{
 				{
 					submissionType: "Gauge",
 					name:           ncmCheckDurationMetric,
 					value:          5,
-					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion},
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, "status:ok"},
 				},
 				{
 					submissionType: "Gauge",
 					name:           ncmCheckIntervalMetric,
 					value:          900, // 15 minutes in seconds
-					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion},
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, "status:ok"},
 				},
 			},
 		},
 		{
 			name:      "Last check time is zero (first run), no interval metric sent",
 			startTime: time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC),
+			success:   true,
 			tags:      []string{"device_ip:10.0.0.1"},
 			expectedMetrics: []expectedMetric{
 				{
 					submissionType: "Gauge",
 					name:           ncmCheckDurationMetric,
 					value:          5,
-					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion},
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, "status:ok"},
+				},
+			},
+		},
+		{
+			name:      "Failure",
+			startTime: time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC),
+			success:   false,
+			tags:      []string{"device_ip:10.0.0.1"},
+			expectedMetrics: []expectedMetric{
+				{
+					submissionType: "Gauge",
+					name:           ncmCheckDurationMetric,
+					value:          5,
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, "status:error"},
 				},
 			},
 		},
@@ -148,7 +165,7 @@ func TestNCMSender_SendNCMCheckMetrics(t *testing.T) {
 			sender := NewNCMSender(mockSender, "test-namespace", mockClock, "test-agent-host")
 			sender.SetDeviceTags(tt.tags)
 
-			sender.SendNCMCheckMetrics(tt.startTime, tt.lastCheckTime)
+			sender.SendNCMCheckMetrics(tt.startTime, tt.lastCheckTime, tt.success)
 
 			for _, metric := range tt.expectedMetrics {
 				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "test-agent-host", metric.tags)

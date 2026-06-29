@@ -203,6 +203,37 @@ func patcherTestStoreWithData() *store {
 		},
 	}.Build(), "")
 
+	// ns1/autoscaler-burstable-follower simulates a FOLLOWER replica: the stored recommendation has
+	// NO removeLimitSentinel (it never ran the leader sync and the status strips negatives), yet
+	// ApplyRecommendations must still remove the CPU limit by re-deriving burstable from the spec.
+	store.Set("ns1/autoscaler-burstable-follower", model.FakePodAutoscalerInternal{
+		Namespace:            "ns1",
+		Name:                 "autoscaler-burstable-follower",
+		PreviewAnnotationKey: `{"burstable":true}`,
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind:       "Deployment",
+				APIVersion: "apps/v1",
+				Name:       "burstable-follower-deployment",
+			},
+			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
+				Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
+					{Name: "*", Enabled: pointer.Ptr(true)},
+				},
+			},
+		},
+		ScalingValues: model.ScalingValues{
+			Vertical: &model.VerticalScalingValues{
+				Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				ResourcesHash: "version1-burstable-follower",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					// No CPU limit entry: the status strips the sentinel, so the follower never sees it.
+					{Name: "app", Limits: corev1.ResourceList{"memory": resource.MustParse("512Mi")}, Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")}},
+				},
+			},
+		},
+	}.Build(), "")
+
 	return store
 }
 
@@ -848,6 +879,108 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 				},
 			},
 		},
+		// Follower replica: stored reco has no sentinel; the CPU limit must still be removed.
+		{
+			name: "burstable follower: CPU limit removed even though stored reco has no sentinel",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "burstable-follower-pod",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "burstable-follower-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "app",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+							Requests: corev1.ResourceList{"cpu": resource.MustParse("100m")},
+						},
+					}},
+				},
+			},
+			wantInjected: true,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "burstable-follower-pod",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "burstable-follower-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version1-burstable-follower",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler-burstable-follower",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "app",
+						Resources: corev1.ResourceRequirements{
+							// CPU limit removed; memory limit and CPU request still applied.
+							Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+							Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+						},
+					}},
+				},
+			},
+		},
+		{
+			name: "burstable follower: idempotent when CPU limit already absent",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "burstable-follower-pod",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "burstable-follower-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version1-burstable-follower",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler-burstable-follower",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "app",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+							Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+						},
+					}},
+				},
+			},
+			wantInjected: false,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "burstable-follower-pod",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "burstable-follower-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version1-burstable-follower",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler-burstable-follower",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "app",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+							Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+						},
+					}},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1133,6 +1266,42 @@ func TestPatchContainerResources(t *testing.T) {
 			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")},
 			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
 		},
+		{
+			name: "CPURequestsRemoveLimitsMemoryRequestsAndLimits removes existing CPU limit",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+				Limits:   corev1.ResourceList{"cpu": removeLimitSentinel, "memory": resource.MustParse("512Mi")},
+			},
+			container: &corev1.Container{
+				Name: "test-container",
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("256Mi")},
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("100m"), "memory": resource.MustParse("128Mi")},
+				},
+			},
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+		},
+		{
+			name: "CPURequestsRemoveLimitsMemoryRequestsAndLimits is idempotent when CPU limit already absent",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+				Limits:   corev1.ResourceList{"cpu": removeLimitSentinel, "memory": resource.MustParse("512Mi")},
+			},
+			container: &corev1.Container{
+				Name: "test-container",
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+				},
+			},
+			expectedPatched:  false,
+			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1274,6 +1443,30 @@ func TestPatchPod(t *testing.T) {
 				},
 			},
 			expectedPatched: false,
+		},
+		{
+			name: "CPURequestsRemoveLimitsMemoryRequestsAndLimits removes CPU limit from pod container",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "app-container",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("300m"), "memory": resource.MustParse("256Mi")},
+				Limits:   corev1.ResourceList{"cpu": removeLimitSentinel, "memory": resource.MustParse("512Mi")},
+			},
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "app-container",
+							Resources: corev1.ResourceRequirements{
+								Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("256Mi")},
+								Requests: corev1.ResourceList{"cpu": resource.MustParse("100m"), "memory": resource.MustParse("128Mi")},
+							},
+						},
+					},
+				},
+			},
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("300m"), "memory": resource.MustParse("256Mi")},
 		},
 	}
 

@@ -37,6 +37,14 @@ func PersistIdentity(ctx context.Context, cfg configModel.Reader, result *Result
 	return persistIdentityToFile(cfg, result)
 }
 
+// RotateIdentity persists a new identity for explicit rotation.
+func RotateIdentity(ctx context.Context, cfg configModel.Reader, result *Result) error {
+	if cfg.GetBool(setup.PARIdentityUseK8sSecret) && flavor.GetFlavor() == flavor.ClusterAgent {
+		return persistIdentityToK8sSecretNoLeader(ctx, cfg, result)
+	}
+	return persistIdentityToFile(cfg, result)
+}
+
 // getIdentityFromFile returns the identity of the private action runner from the identity file. Returns nil if the identity file does not exist
 func getIdentityFromFile(cfg configModel.Reader) (*PersistedIdentity, error) {
 	filePath := getIdentityFilePath(cfg)
