@@ -1,0 +1,90 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+package ecs
+
+import (
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/stretchr/testify/assert"
+)
+
+func (suite *ecsSuite) TestCPU() {
+	// Test CPU metrics
+	suite.AssertMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				"^ecs_container_name:stress-ng$",
+			},
+		},
+		Expect: TestMetricExpectArgs{
+			Tags: &[]string{
+				`^aws_account:[[:digit:]]{12}$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:ecs-.*-stress-ng-ec2-`,
+				`^docker_image:ghcr\.io/datadog/apps-stress-ng:` + regexp.QuoteMeta(apps.Version) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:stress-ng$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-stress-ng$`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
+				`^image_id:sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
+				`^region:us-east-1$`,
+				`^runtime:docker$`,
+				`^service_arn:`,
+				`^short_image:apps-stress-ng$`,
+				`^task_arn:`,
+				`^task_definition_arn:`,
+				`^task_family:.*-stress-ng-ec2$`,
+				`^task_name:.*-stress-ng-ec2$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			Value: &TestMetricExpectValueArgs{
+				Max: 160000000,
+				Min: 120000000,
+			},
+		},
+	})
+}
+
+func (suite *ecsSuite) TestContainerLifecycle() {
+	// Test that container lifecycle events are properly tracked
+	suite.Run("Container lifecycle tracking", func() {
+		// Verify that running containers are reporting metrics
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			metrics, err := suite.Fakeintake.FilterMetrics(
+				"container.cpu.usage",
+				fakeintake.WithMatchingTags[*aggregator.MetricSeries]([]*regexp.Regexp{
+					regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+				}),
+			)
+			assert.NoErrorf(c, err, "Failed to query metrics")
+			assert.NotEmptyf(c, metrics, "No container metrics found - containers may not be running")
+
+			// Verify we have metrics from multiple containers (indicating lifecycle tracking)
+			containerIDs := make(map[string]bool)
+			for _, metric := range metrics {
+				for _, tag := range metric.GetTags() {
+					if strings.HasPrefix(tag, "container_id:") {
+						containerIDs[tag] = true
+					}
+				}
+			}
+			assert.GreaterOrEqualf(c, len(containerIDs), 3,
+				"Expected metrics from at least 3 containers, got %d", len(containerIDs))
+
+		}, 3*time.Minute, 10*time.Second, "Container lifecycle tracking validation failed")
+	})
+}

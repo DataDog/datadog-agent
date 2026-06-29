@@ -21,6 +21,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	resourcesEcs "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 )
@@ -28,8 +29,7 @@ import (
 // isEC2ProviderSet checks whether at least one EC2 capacity provider is set in the given params
 // An EC2 provider is considered set if at least one of its node groups is enabled.
 func isEC2ProviderSet(params *Params) bool {
-	return params.LinuxNodeGroup || params.LinuxARMNodeGroup || params.WindowsNodeGroup || params.LinuxBottleRocketNodeGroup
-
+	return params.LinuxNodeGroup || params.LinuxARMNodeGroup || params.WindowsNodeGroup || params.LinuxBottleRocketNodeGroup || params.ManagedInstanceNodeGroup
 }
 
 // Run is the entry point for the scenario when run via pulumi.
@@ -105,31 +105,40 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 		env.DisableFakeIntake()
 	}
 
+	// Wait for container instances to be ready before deploying EC2 workloads.
+	// The wait output returns the cluster ARN after instances are registered,
+	// creating an implicit Pulumi dependency for downstream resources.
+	ec2ClusterArn := cluster.ClusterArn
+	if isEC2ProviderSet(clusterParams) {
+		ctx.Log.Info("Waiting for EC2 container instances to register with the cluster...", nil)
+		ec2ClusterArn = resourcesEcs.WaitForContainerInstances(awsEnv, cluster.ClusterArn, 1)
+	}
+
 	// Testing workload if at least one EC2 node group is present
 	if params.testingWorkload && isEC2ProviderSet(clusterParams) {
-		if _, err := nginx.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := nginx.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
-		if _, err := redis.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := redis.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
-		if _, err := cpustress.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := cpustress.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
-		if _, err := dogstatsd.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := dogstatsd.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
-		if _, err := prometheus.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := prometheus.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
-		if _, err := tracegen.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := tracegen.EcsAppDefinition(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
 	}
 
 	// User-defined EC2 apps
 	for _, appFunc := range params.workloadAppFuncs {
-		if _, err := appFunc(awsEnv, cluster.ClusterArn); err != nil {
+		if _, err := appFunc(awsEnv, ec2ClusterArn); err != nil {
 			return err
 		}
 	}

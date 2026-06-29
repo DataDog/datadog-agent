@@ -46,6 +46,29 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 							Name:  pulumi.StringPtr("DD_TRACE_AGENT_URL"),
 							Value: pulumi.StringPtr("unix:///var/run/datadog/apm.socket"),
 						},
+						ecs.TaskDefinitionKeyValuePairArgs{
+							Name:  pulumi.StringPtr("DD_SERVICE"),
+							Value: pulumi.StringPtr("tracegen-test-service"),
+						},
+						ecs.TaskDefinitionKeyValuePairArgs{
+							Name:  pulumi.StringPtr("DD_ENV"),
+							Value: pulumi.StringPtr("e2e-test"),
+						},
+						ecs.TaskDefinitionKeyValuePairArgs{
+							Name:  pulumi.StringPtr("DD_VERSION"),
+							Value: pulumi.StringPtr("1.0"),
+						},
+						ecs.TaskDefinitionKeyValuePairArgs{
+							Name:  pulumi.StringPtr("DD_LOGS_INJECTION"),
+							Value: pulumi.StringPtr("true"),
+						},
+					},
+					DockerLabels: pulumi.StringMap{
+						"com.datadoghq.ad.tags":      pulumi.String("[\"ecs_launch_type:ec2\"]"),
+						"com.datadoghq.ad.logs":      pulumi.String("[{\"source\":\"tracegen\",\"service\":\"tracegen-test-service\"}]"),
+						"com.datadoghq.tags.service": pulumi.String("tracegen-test-service"),
+						"com.datadoghq.tags.env":     pulumi.String("e2e-test"),
+						"com.datadoghq.tags.version": pulumi.String("1.0"),
 					},
 					Cpu:    pulumi.IntPtr(10),
 					Memory: pulumi.IntPtr(32),
@@ -92,6 +115,29 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 							Name:  pulumi.StringPtr("ECS_AGENT_HOST"),
 							Value: pulumi.StringPtr("true"),
 						},
+						ecs.TaskDefinitionKeyValuePairArgs{
+							Name:  pulumi.StringPtr("DD_SERVICE"),
+							Value: pulumi.StringPtr("tracegen-test-service"),
+						},
+						ecs.TaskDefinitionKeyValuePairArgs{
+							Name:  pulumi.StringPtr("DD_ENV"),
+							Value: pulumi.StringPtr("e2e-test"),
+						},
+						ecs.TaskDefinitionKeyValuePairArgs{
+							Name:  pulumi.StringPtr("DD_VERSION"),
+							Value: pulumi.StringPtr("1.0"),
+						},
+						ecs.TaskDefinitionKeyValuePairArgs{
+							Name:  pulumi.StringPtr("DD_LOGS_INJECTION"),
+							Value: pulumi.StringPtr("true"),
+						},
+					},
+					DockerLabels: pulumi.StringMap{
+						"com.datadoghq.ad.tags":      pulumi.String("[\"ecs_launch_type:ec2\"]"),
+						"com.datadoghq.ad.logs":      pulumi.String("[{\"source\":\"tracegen\",\"service\":\"tracegen-test-service\"}]"),
+						"com.datadoghq.tags.service": pulumi.String("tracegen-test-service"),
+						"com.datadoghq.tags.env":     pulumi.String("e2e-test"),
+						"com.datadoghq.tags.version": pulumi.String("1.0"),
 					},
 					Cpu:    pulumi.IntPtr(10),
 					Memory: pulumi.IntPtr(32),
