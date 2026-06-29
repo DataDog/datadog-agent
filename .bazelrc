@@ -29,13 +29,14 @@ common --repo_env=GOCACHE # https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
 common --repo_env=GOMODCACHE # https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
 common --repo_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/rules_go/pull/3660 to Go SDK patching rules
 common --repo_env=PACKAGE_VERSION # Keep in sync with env_vars in MODULE.bazel
+common --repo_env=REPIN=1 # Reduce MODULE.bazel.lock churn when --lockfile_mode=[update|refresh] trigger
 common --repo_env=SIGN_MAC # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=XDG_CACHE_HOME # https://wiki.archlinux.org/title/XDG_Base_Directory
 # Variables to override release.json values
 common --repo_env=INTEGRATIONS_CORE_VERSION
 common --repo_env=INTEGRATIONS_WHEELS_STORAGE
-
-common --run_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/rules_go/pull/3660 to `bazel run //:go
+common --run_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/rules_go/pull/3660 to `bazel run //:go`
+common --run_env=RULES_PYTHON_ADDITIONAL_INTERPRETER_ARGS=-I # Prevent user env, path, and site from shadowing runfiles
 common --skip_incompatible_explicit_targets # Let target_compatible_with skip rather than fail
 common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures
@@ -114,6 +115,9 @@ import %workspace%/bazel/configs/rust.bazelrc
 common:release --config=rust-release
 common:release --//:release
 common --config=release
+
+test --@rules_go//go/config:race
+test --test_env=GORACE=atexit_sleep_ms=50
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc

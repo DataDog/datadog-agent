@@ -129,7 +129,6 @@ func (m *MockSender) SetCheckService(service string) {
 	m.Called(service)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockSender) SetNoIndex(noIndex bool) {
 	m.Called(noIndex)
 }

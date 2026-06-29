@@ -54,7 +54,6 @@ type Sender interface {
 	OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 type SenderManager interface {
 	GetSender(id checkid.ID) (Sender, error)
 	SetSender(Sender, checkid.ID) error

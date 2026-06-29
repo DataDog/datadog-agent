@@ -237,7 +237,7 @@ func (t *observerTelemetry) inFlightCounter(logSource string) *atomic.Int64 {
 }
 
 func classifyLogSource(source string, tags []string) string {
-	if source == "agent-internal-logs" {
+	if source == "agent_logs" {
 		return "internal"
 	}
 	for _, tag := range tags {
@@ -250,8 +250,4 @@ func classifyLogSource(source string, tags []string) string {
 
 func (t *observerTelemetry) recordProcessingTime(detectorTag string, durationNs float64) {
 	t.processingTime.Set(durationNs, detectorTag)
-}
-
-func (t *observerTelemetry) recordScorerEWMA(scorerName string, score float64) {
-	t.scorerEwma.Set(score, scorerName)
 }
