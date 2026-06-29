@@ -69,7 +69,7 @@ go_library(
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/util/workloadmeta",
         "//comp/core/workloadmeta/def",
-        "//comp/healthplatform/issues/ad-misconfiguration:admisconfig",
+        "//comp/healthplatform/issues/ad-misconfiguration",
         "//comp/healthplatform/store/def",
         "//pkg/clusteragent/clusterchecks/types",
         "//pkg/collector/corechecks/discovery",
