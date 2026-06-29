@@ -54,6 +54,13 @@ const (
 
 const (
 	// 64-bit glibc/musl public loader layouts used by the tls-modid-bpf sample.
+	//
+	// WARNING: only the glibc layout is exercised by the test suite. musl's
+	// debug link_map is assumed to share the same public field offsets
+	// (l_addr at 0, l_next at 24) but this has not been validated against a
+	// real musl process, and musl link-map mode additionally always takes the
+	// reconstructModuleIDs fallback (see resolveOTelTLS). Treat musl support as
+	// best-effort until a musl fixture is added to TestOTelSpan.
 	rDebugRMapOffset        uint64 = 8
 	linkMapLAddrOffset      uint64 = 0
 	linkMapLNextOffset      uint64 = 24
@@ -259,6 +266,13 @@ func resolveOTelTLS(pid uint32, tracerLanguage string) (otelTLSResolution, error
 		}
 	}
 
+	// Fallback path: reconstruct the runtime TLS module ID in eBPF by counting
+	// PT_TLS modules in loader order rather than reading l_tls_modid directly.
+	// glibc reaches here only when its thread_db descriptors are missing, but
+	// musl ALWAYS reaches here (no thread_db). This reconstruction can diverge
+	// from the real module ID when TLS modules are assigned non-sequentially
+	// (e.g. after dlclose reuse), and the musl link-map walk it depends on is
+	// not covered by tests. See the loader-offset constants above.
 	res.reconstructModuleIDs = 1
 	moduleSet, tlsModuleCount, err := buildOTelTLSModuleSet(modules, candidate)
 	if err != nil {
