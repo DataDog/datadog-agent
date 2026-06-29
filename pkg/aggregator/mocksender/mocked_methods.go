@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 )
 
 func (m *MockSender) tagsWithCheckTags(tags []string) []string {
@@ -116,12 +117,10 @@ func (m *MockSender) SetCheckCustomTags(tags []string) {
 	m.Called(tags)
 }
 
-// AppendInfraTags appends to stored infrastructure tags (mirrors checkSender.AppendInfraTags).
-func (m *MockSender) AppendInfraTags(tags []string) {
-	if len(tags) > 0 {
-		m.infraTags = append(m.infraTags, tags...)
-	}
-	m.Called(tags)
+// SetInfraTagger sets the infra mode tagger on the mock sender.
+func (m *MockSender) SetInfraTagger(tagger *infratags.Tagger) {
+	m.infraTagger = tagger
+	m.Called(tagger)
 }
 
 // SetCheckService enables the setting of check service mock call.

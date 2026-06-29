@@ -210,7 +210,13 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-				infratags.ApplySenderTags(s.senderManager, c.ID(), config.Name, setup.Datadog())
+				if tagger := infratags.NewTagger(setup.Datadog()); tagger != nil && tagger.IsCheckEligible(config.Name) {
+					if chkSender, senderErr := s.senderManager.GetSender(c.ID()); senderErr == nil {
+						chkSender.SetInfraTagger(tagger)
+					} else {
+						log.Debugf("infra mode tags: skipping %s (%s): %v", config.Name, c.ID(), senderErr)
+					}
+				}
 				checks = append(checks, c)
 				break
 			}

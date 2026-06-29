@@ -19,6 +19,7 @@ import (
 	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -70,7 +71,7 @@ type MockSender struct {
 	mock.Mock
 	senderManager sender.SenderManager
 	checkTags     []string
-	infraTags     []string
+	infraTagger   *infratags.Tagger
 }
 
 // GetSenderManager returns the instance of sender.SenderManager
@@ -133,7 +134,7 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("GetSenderStats", mock.AnythingOfType("stats.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
-	m.On("AppendInfraTags", mock.AnythingOfType("[]string")).Return()
+	m.On("SetInfraTagger", mock.Anything).Return()
 	m.On("SetCheckService", mock.AnythingOfType("string")).Return()
 	m.On("FinalizeCheckServiceTag").Return()
 	m.On("SetNoIndex", mock.AnythingOfType("bool")).Return()

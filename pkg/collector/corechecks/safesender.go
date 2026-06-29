@@ -8,6 +8,7 @@ package corechecks
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 )
 
 // SafeSender implements sender.Sender, wrapping the methods to provide
@@ -99,7 +100,7 @@ func (ss *safeSender) SetCheckCustomTags(tags []string) {
 	ss.Sender.SetCheckCustomTags(cloneTags(tags))
 }
 
-// AppendInfraTags delegates to AppendInfraTags on the underlying sender.
-func (ss *safeSender) AppendInfraTags(tags []string) {
-	ss.Sender.AppendInfraTags(cloneTags(tags))
+// SetInfraTagger delegates to SetInfraTagger on the underlying sender.
+func (ss *safeSender) SetInfraTagger(tagger *infratags.Tagger) {
+	ss.Sender.SetInfraTagger(tagger)
 }

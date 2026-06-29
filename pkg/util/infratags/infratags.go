@@ -7,19 +7,15 @@
 // integration.Config (which would break autodiscovery digest alignment).
 //
 // Production paths:
-//   - CheckScheduler.getChecks calls ApplySenderTags after a successful loader.Load.
+//   - CheckScheduler.getChecks calls sender.SetInfraTagger after a successful loader.Load.
 //   - DogStatsD server enriches JMX metrics (dd.internal.jmx_check_name) when the JMX check
 //     is eligible; custom checks (custom_*) and plain DogStatsD metrics are not tagged.
 package infratags
 
 import (
-	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // InfraModeCloudCostTag is the tag appended to eligible integration metrics in cloud_cost_only mode.
@@ -27,8 +23,6 @@ const InfraModeCloudCostTag = "infra_mode:cloud_cost_only"
 
 // tagsForMode returns the infra_mode tags for the given infrastructure_mode value,
 // or (nil, false) if the mode does not trigger metric tagging.
-// To add a new taggable mode, add a case here and register its
-// integration.<mode>.tagged config key in pkg/config/setup.
 func tagsForMode(infraMode string) (tags []string, ok bool) {
 	switch infraMode {
 	case "cloud_cost_only":
@@ -38,7 +32,8 @@ func tagsForMode(infraMode string) (tags []string, ok bool) {
 	}
 }
 
-// Tagger holds the pre-resolved infra mode and tagged checks.
+// Tagger holds the pre-resolved infra mode tagging state.
+// A nil *Tagger disables tagging.
 type Tagger struct {
 	infraModeTags []string
 	taggedChecks  map[string]struct{} // nil = all non-custom checks eligible
@@ -56,27 +51,24 @@ func NewTagger(cfg pkgconfigmodel.Reader) *Tagger {
 	if len(checks) == 0 {
 		return &Tagger{infraModeTags: tags}
 	}
-	set := make(map[string]struct{}, len(checks))
+	taggedChecks := make(map[string]struct{}, len(checks))
 	for _, c := range checks {
-		set[c] = struct{}{}
+		taggedChecks[c] = struct{}{}
 	}
-	return &Tagger{infraModeTags: tags, taggedChecks: set}
+	return &Tagger{infraModeTags: tags, taggedChecks: taggedChecks}
 }
 
-// AppendJMXDogstatsdTags appends the pre-resolved infra_mode tags when jmxCheckName is eligible.
-// Zero config reads and zero allocations on the non-tagging path.
-func (t Tagger) AppendJMXDogstatsdTags(tags []string, jmxCheckName string) []string {
-	if len(t.infraModeTags) == 0 || !t.isCheckTagged(jmxCheckName) {
-		return tags
+// IsCheckEligible reports whether checkName should receive infra mode tags.
+func (t *Tagger) IsCheckEligible(checkName string) bool {
+	// nil = no infra mode tagging
+	if t == nil {
+		return false
 	}
-	return append(tags, t.infraModeTags...)
-}
-
-func (t Tagger) isCheckTagged(checkName string) bool {
+	// empty check name or custom check = never eligible
 	if checkName == "" || strings.HasPrefix(checkName, "custom_") {
 		return false
 	}
-	// nil = all checks eligible
+	// empty taggedChecks = all non-custom checks eligible
 	if t.taggedChecks == nil {
 		return true
 	}
@@ -84,31 +76,11 @@ func (t Tagger) isCheckTagged(checkName string) bool {
 	return ok
 }
 
-// IsTagged reports whether checkName should receive infra_mode tags given a
-// pre-resolved allow-list. Custom checks (custom_ prefix) are always excluded.
-// An empty taggedChecks means all non-custom checks are eligible.
-func IsTagged(checkName string, taggedChecks []string) bool {
-	if checkName == "" || strings.HasPrefix(checkName, "custom_") {
-		return false
+// AppendTags appends the pre-resolved infra_mode tags unconditionally.
+func (t *Tagger) AppendTags(tags []string) []string {
+	if t == nil || len(t.infraModeTags) == 0 {
+		return tags
 	}
-	return len(taggedChecks) == 0 || slices.Contains(taggedChecks, checkName)
-}
 
-// ApplySenderTags appends the infra_mode tags to the check sender's infra tags when the
-// integration is eligible for tagging under the active infrastructure mode.
-func ApplySenderTags(senderManager sender.SenderManager, id checkid.ID, integrationName string, cfg pkgconfigmodel.Reader) {
-	infraMode := cfg.GetString("infrastructure_mode")
-	tags, ok := tagsForMode(infraMode)
-	if !ok {
-		return
-	}
-	if !IsTagged(integrationName, cfg.GetStringSlice("integration."+infraMode+".tagged")) {
-		return
-	}
-	s, err := senderManager.GetSender(id)
-	if err != nil {
-		log.Debugf("infra mode tags: skipping %s (%s): %v", integrationName, id, err)
-		return
-	}
-	s.AppendInfraTags(tags)
+	return append(tags, t.infraModeTags...)
 }

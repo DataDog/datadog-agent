@@ -150,8 +150,8 @@ func tsToFloatForSamples(ts time.Time) float64 {
 func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource, jmxCheckName := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
-	if conf.infraTagger != nil {
-		tags = conf.infraTagger.AppendJMXDogstatsdTags(tags, jmxCheckName)
+	if conf.infraTagger.IsCheckEligible(jmxCheckName) {
+		tags = conf.infraTagger.AppendTags(tags)
 	}
 
 	if !isExcluded(metricName, conf.metricPrefix, conf.metricPrefixBlacklist) {
