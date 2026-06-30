@@ -4,11 +4,11 @@ profiles:
     exclude:
       zero_metric: true
     metrics:
-      - name: execution_time
+      - name: checks.execution_time
         preserve_tags:
           - check_name
           - check_loader
-      - name: first_execution_time
+      - name: checks.first_execution_time
         preserve_tags:
           - check_name
           - check_loader
