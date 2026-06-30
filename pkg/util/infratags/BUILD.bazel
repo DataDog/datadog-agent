@@ -6,10 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/infratags",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/collector/check/id",
         "//pkg/config/model",
-        "//pkg/util/log",
-        "@//pkg/aggregator/sender",
     ],
 )
 
@@ -19,14 +16,8 @@ go_test(
     embed = [":infratags"],
     gotags = ["test"],
     deps = [
-        "//pkg/collector/check/id",
-        "//pkg/collector/check/stats",
         "//pkg/config/mock",
         "//pkg/config/model",
-        "//pkg/metrics/event",
-        "//pkg/metrics/servicecheck",
-        "//pkg/serializer/types",
-        "@//pkg/aggregator/sender",
         "@com_github_stretchr_testify//assert",
     ],
 )
