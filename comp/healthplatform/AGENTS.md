@@ -9,21 +9,18 @@ Two paths lead issues into the store:
 ```
 Path A — built-in checks (runner-mediated)
 
-HealthCheckFunc (detect)
-        │
-        ▼
-  IssueReport  ──►  Runner  ──►  Registry.BuildIssue (optional)  ──►  Store
-                                        │ fallback if no template              │
-                                   minimal proto ────────────────────────────►┘
-                                                                               │
-Path B — external reporters (direct)                                           │
-                                                                               │
-  component calls store.ReportIssue(issue) ───────────────────────────────────┘
-                                                                               │
-                                                                            Egress  ──►  Forwarder
-                                                                                            │
-                                                          POST /api/v2/agenthealth  ▼
-                                                                         agenthealth-intake.<site>
+  Runner  ──►  HealthCheckFunc (detect)  ──►  IssueReport  ──►  Registry.BuildIssue (optional)  ──►  Store
+                                                                         │ fallback if no template       │
+                                                                    minimal proto ──────────────────────►┘
+                                                                                                         │
+Path B — external reporters (direct)                                                                     │
+                                                                                                         │
+  component calls store.ReportIssue(issue) ──────────────────────────────────────────────────────────────┘
+                                                                                                         │
+                                                                                      Egress  ──►  Forwarder
+                                                                                                        │
+                                                                    POST /api/v2/agenthealth  ▼
+                                                                                   agenthealth-intake.<site>
 ```
 
 Use **Path A** when you want to delegate detection logic and evaluation scheduling to the health platform component. Use **Path B** when an existing component (the collector, autodiscovery) already detects the condition and should call `store.ReportIssue` directly with a fully-built proto `Issue`, or when reporting from another process (system-probe).
