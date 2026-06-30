@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = ["testutil.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/eventmonitor",
+            "//pkg/eventmonitor/config",
+            "//pkg/security/config",
+            "//pkg/security/module",
+            "//pkg/system-probe/config",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/eventmonitor",
+            "//pkg/eventmonitor/config",
+            "//pkg/security/config",
+            "//pkg/security/module",
+            "//pkg/system-probe/config",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

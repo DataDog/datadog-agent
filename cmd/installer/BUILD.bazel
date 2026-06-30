@@ -9,9 +9,9 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//cmd/installer/command",
+        "//cmd/installer/subcommands",
         "//pkg/fleet/installer/commands",
         "//pkg/fleet/installer/errors",
-        "@//cmd/installer/subcommands",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_dig//:dig",
     ],
@@ -19,14 +19,18 @@ go_library(
 
 dd_agent_go_binary(
     name = "installer",
-    cgo = False,
+    # keep
+    srcs = select({
+        "@platforms//os:windows": ["//cmd/installer/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
+    # FIPS requires cgo; Windows cgo is provided by dd_agent_go_binary default.
+    cgo = select({
+        "//packages/agent:fips_flavor": True,
+        "@platforms//os:windows": True,
+        "//conditions:default": False,
+    }),
     embed = [":installer_lib"],
-    # TODO(agent-build): Perhaps the toolchain or the macro should select
-    # these based on debug or release builds.
-    gc_linkopts = [
-        "-s",
-        "-w",
-    ],
     gotags = sorted(COMMON_TAGS | INSTALLER_TAGS),
     visibility = ["//visibility:public"],
 )
