@@ -36,12 +36,12 @@ const (
 // construct and start the lifecycle hook server. Populated by main.go before
 // calling CloudService.Init; nil (and ignored) for all non-MicroVM services.
 type LifecycleContext struct {
-	MetricFlusher lifecycle.Flusher
-	LogsFlusher   lifecycle.LogsFlusher
-	MetricEmitter lifecycle.MetricEmitter
-	SampleDrainer lifecycle.SampleDrainer
-	FlushTimeout  time.Duration
-	SidecarMode   bool
+	MetricFlusher  lifecycle.Flusher
+	LogsFlusher    lifecycle.LogsFlusher
+	MetricEmitter  lifecycle.MetricEmitter
+	SampleDrainer  lifecycle.SampleDrainer
+	FlushTimeout   time.Duration
+	SidecarMode    bool
 	LogsTagSetter  lifecycle.LogsTagSetter  // nil-safe; applied via server.SetLogsTagSetter after /launch
 	BaseTags       []string                 // startup log tag snapshot passed alongside LogsTagSetter
 	TraceTagSetter lifecycle.TraceTagSetter // nil-safe; applied via server.SetTraceTagSetter after /launch
@@ -131,7 +131,7 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 		lifecycle.DefaultHeartbeatInterval,
 		lc.MetricEmitter,
 		m.GetSource(),
-		arn,
+		[]string{"microvm_image_arn:" + arn},
 	)
 	m.server = lifecycle.NewServer(
 		components.Port,
