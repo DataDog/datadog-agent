@@ -236,7 +236,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/logs/launchers/file/*.go
 # gazelle:exclude pkg/logs/launchers/integration
 # gazelle:exclude pkg/logs/launchers/journald
-# gazelle:exclude pkg/logs/tailers/container
 # gazelle:exclude pkg/logs/tailers/journald
 # gazelle:exclude pkg/network/containers
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/luts.go
