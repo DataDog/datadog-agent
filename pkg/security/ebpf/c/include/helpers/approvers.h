@@ -113,7 +113,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(str
                     if (event_sampling_bind_rate > 0 && !global_limiter_allow(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, 1)) {
                         return DISCARDED;
                     }
-                    existing->cookie = bpf_get_prandom_u32();
+                    existing->cookie = bpf_get_prandom_u32() | 1;
                     existing->last_refresh_ns = now;
                     *out_cookie = existing->cookie;
                     monitor_event_sample_sampled(EVENT_BIND);
@@ -212,7 +212,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(
                     if (event_sampling_connect_rate > 0 && !global_limiter_allow(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, 1)) {
                         return DISCARDED;
                     }
-                    existing->cookie = bpf_get_prandom_u32();
+                    existing->cookie = bpf_get_prandom_u32() | 1;
                     existing->last_refresh_ns = now;
                     syscall->sample_cookie = existing->cookie;
                     monitor_event_sample_sampled(EVENT_CONNECT);
@@ -561,7 +561,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
                     if (event_sampling_open_rate > 0 && !global_limiter_allow(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, 1)) {
                         return DISCARDED;
                     }
-                    existing->cookie = bpf_get_prandom_u32();
+                    existing->cookie = bpf_get_prandom_u32() | 1;
                     existing->last_refresh_ns = now;
                     syscall->sample_cookie = existing->cookie;
                     monitor_event_sample_sampled(EVENT_OPEN);

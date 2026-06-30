@@ -49,6 +49,7 @@ type pendingProfile struct {
 	events    *list.List
 }
 
+// sampleCookieEntry maps a kernel dedup cookie to the profile and tree nodes it refreshes.
 type sampleCookieEntry struct {
 	profile       *profile.Profile
 	processNode   *activity_tree.ProcessNode
@@ -325,6 +326,7 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 		}
 
 		seclog.Infof("removing profile [%s] after cleanup delay", selector.String())
+		m.purgeCookiesForProfile(prof)
 		delete(m.profiles, selector)
 		delete(m.pendingProfileRemovals, selector)
 
@@ -580,9 +582,6 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 		}
 		imageTag = utils.GetTagValue("version", tags)
 	}
-	if imageTag == "" {
-		imageTag = "latest"
-	}
 
 	if workloadID != nil {
 		m.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
@@ -762,9 +761,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 	// Insert the event into the profile's activity tree
 	imageTag := secprof.GetTagValue("image_tag")
-	if imageTag == "" {
-		imageTag = "latest"
-	}
 	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
@@ -1334,6 +1330,14 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
 	entry.processNode.AppendImageTagID(imageTagID, now)
 	if entry.eventNodeBase != nil {
 		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
+	}
+}
+
+func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
+	for _, key := range m.sampleCookieMap.Keys() {
+		if entry, ok := m.sampleCookieMap.Peek(key); ok && entry.profile == prof {
+			m.sampleCookieMap.Remove(key)
+		}
 	}
 }
 

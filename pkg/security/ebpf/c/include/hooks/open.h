@@ -234,13 +234,6 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
         send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
     }
 
-    // emit a sample refresh if the dedup map flagged one
-    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
-        struct sample_refresh_event_t ev = {};
-        ev.cookie = syscall->sample_cookie;
-        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
-    }
-
     apply_dentry_resolution_outcome(syscall, EVENT_OPEN);
     if (syscall->state == DISCARDED) {
         return 0;
