@@ -44,17 +44,19 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 		if !slices.Contains(enabledFeatures, extension.Name) || extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
+		// The datadog extension requires an API key; without one we add nothing for
+		// it (neither reuse an existing definition nor create a new one).
+		if extension.Name == datadogName && (c.coreConfig == nil || c.coreConfig.GetString("api_key") == "") {
+			continue
+		}
+		// User already defined this extension but forgot to wire it into
+		// service.extensions — reuse their definition instead of creating a
+		// second <name>/dd-autoconfigured.
+		if existingID := findExistingExtensionID(conf, extension.Name); existingID != "" {
+			wireExtensionIDToPipeline(conf, existingID)
+			continue
+		}
 		if extension.Name == datadogName {
-			if c.coreConfig == nil || c.coreConfig.GetString("api_key") == "" {
-				continue
-			}
-			// User already defined a datadog extension but forgot to wire it into
-			// service.extensions — reuse their definition instead of creating a
-			// second datadog/dd-autoconfigured.
-			if existingID := findExistingExtensionID(conf, datadogName); existingID != "" {
-				wireExtensionIDToPipeline(conf, existingID)
-				continue
-			}
 			site := defaultSite
 			if c.coreConfig.GetString("site") != "" {
 				site = c.coreConfig.GetString("site")
