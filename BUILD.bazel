@@ -182,7 +182,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/oracle/config
 # gazelle:exclude pkg/collector/corechecks/orchestrator/ecs
 # gazelle:exclude pkg/collector/corechecks/orchestrator/pod
-# gazelle:exclude pkg/collector/corechecks/sbom
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/test
 # gazelle:exclude pkg/collector/corechecks/system/disk/diskv2
 # gazelle:exclude pkg/collector/corechecks/system/wincrashdetect/*.go
