@@ -23,10 +23,11 @@ import (
 
 func newTestForwarder(target string) *Forwarder {
 	return &Forwarder{
-		target:         target,
-		client:         &http.Client{},
-		forwardTimeout: 200 * time.Millisecond,
-		readyTimeout:   200 * time.Millisecond,
+		target:          target,
+		client:          &http.Client{},
+		forwardTimeout:  200 * time.Millisecond,
+		readyTimeout:    200 * time.Millisecond,
+		validateTimeout: 200 * time.Millisecond,
 	}
 }
 
@@ -135,12 +136,14 @@ func TestNewForwarder_DisableKeepAlives_OpensNewConnectionPerRequest(t *testing.
 
 // NewForwarder defaults must match the AWS Lambda MicroVM platform-bound
 // analysis: 30s for the four lifecycle hooks (well under /terminate's 60s
-// platform bound) and 2s for the readiness loop. Bumping these defaults is
-// a behavior change worth a deliberate test failure.
+// platform bound), 60s for /ready and /validate (matching the platform's
+// hook timeouts per AWS guidance). Bumping these defaults is a behavior
+// change worth a deliberate test failure.
 func TestNewForwarder_Defaults(t *testing.T) {
 	f := NewForwarder(8080)
 	assert.Equal(t, 30*time.Second, f.forwardTimeout, "forwardTimeout default must be 30s")
-	assert.Equal(t, 2*time.Second, f.readyTimeout, "readyTimeout default must be 2s")
+	assert.Equal(t, 60*time.Second, f.readyTimeout, "readyTimeout default must be 60s (matches platform /ready hook timeout)")
+	assert.Equal(t, 60*time.Second, f.validateTimeout, "validateTimeout default must be 60s (matches platform /validate hook timeout)")
 	assert.Equal(t, defaultMaxResponseBodyBytes, f.maxResponseBodyBytes, "maxResponseBodyBytes default must be 1 MiB")
 	tr, ok := f.client.Transport.(*http.Transport)
 	require.True(t, ok, "transport must be *http.Transport")
@@ -183,11 +186,10 @@ func TestForwarder_PassThrough_ForwardsContentType(t *testing.T) {
 	}
 }
 
-// PassThroughReady mirrors the user-app's status, Content-Type, and body
-// just like PassThrough. /ready is a separate code path (different timeout),
-// so its mirror semantics need a dedicated pin — the platform expects the
-// user-app's actual readiness signal, not an agent-synthesized response.
-func TestForwarder_PassThroughReady_MirrorsStatusAndBody(t *testing.T) {
+// PassThroughWaiting mirrors the user-app's status, Content-Type, and body.
+// The platform expects the user-app's actual signal, not an agent-synthesized
+// response — this pins the mirror contract shared by /ready and /validate.
+func TestForwarder_PassThroughWaiting_MirrorsStatusAndBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/x-ready")
 		w.WriteHeader(200)
@@ -196,7 +198,7 @@ func TestForwarder_PassThroughReady_MirrorsStatusAndBody(t *testing.T) {
 	defer srv.Close()
 
 	f := newTestForwarder(srv.URL)
-	resp := f.PassThroughReady("/ready", nil, nil)
+	resp := f.PassThroughWaiting(200*time.Millisecond, "/ready", nil, nil)
 	require.NotNil(t, resp)
 	defer resp.Body.Close()
 	assert.Equal(t, 200, resp.StatusCode)
@@ -205,31 +207,23 @@ func TestForwarder_PassThroughReady_MirrorsStatusAndBody(t *testing.T) {
 	assert.Equal(t, `{"ready":true}`, string(body))
 }
 
-// /ready uses a tighter timeout than the four lifecycle hooks because the
-// platform's readiness loop is hot. PassThroughReady MUST honor readyTimeout,
-// not forwardTimeout. A buggy implementation that called PassThrough's path
-// would let /ready block for the full 30s forward budget, hanging the
-// platform's retry loop. This test sets readyTimeout=50ms and
-// forwardTimeout=5s with a 200ms upstream delay: only the readyTimeout path
-// times out (504); a leak to forwardTimeout would return 200 instead.
-func TestForwarder_PassThroughReady_HonorsReadyTimeoutNotForwardTimeout(t *testing.T) {
+// PassThroughWaiting must honor the timeout it receives. The caller (server.go)
+// passes readyTimeout or validateTimeout — PassThroughWaiting must not apply
+// any other field. This test uses a 50ms timeout against a 200ms upstream: the
+// context expires and the call returns 504.
+func TestForwarder_PassThroughWaiting_HonorsProvidedTimeout(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(200 * time.Millisecond)
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()
 
-	f := &Forwarder{
-		target:         srv.URL,
-		client:         &http.Client{},
-		forwardTimeout: 5 * time.Second,       // would NOT trip
-		readyTimeout:   50 * time.Millisecond, // MUST trip
-	}
-	resp := f.PassThroughReady("/ready", nil, nil)
+	f := newTestForwarder(srv.URL)
+	resp := f.PassThroughWaiting(50*time.Millisecond, "/ready", nil, nil)
 	require.NotNil(t, resp)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusGatewayTimeout, resp.StatusCode,
-		"PassThroughReady must time out on readyTimeout, not forwardTimeout")
+		"PassThroughWaiting must time out on the provided timeout")
 }
 
 // On the happy path the response body is wrapped by cancelOnCloseReader.
@@ -276,4 +270,48 @@ func TestWrapResponseBody_CapZero_DisablesCap(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, payload, string(got),
 		"cap=0 must read the full body — LimitReader must NOT be applied")
+}
+
+// PassThroughWaiting retries TCP dials until the context expires when the port
+// is unbound, so the response is always 504 (deadline exceeded) — never 503.
+// This is distinct from PassThrough which returns 503 on the very first
+// connect-refused error. The behavioral difference is intentional: /ready and
+// /validate must wait for the user app to start, not fail-fast on a transient
+// dial error.
+func TestForwarder_PassThroughWaiting_UnboundPort_RetriesUntilTimeout504(t *testing.T) {
+	f := &Forwarder{
+		target: "http://127.0.0.1:1", // unbound — every dial attempt is refused
+		client: &http.Client{},
+	}
+	resp := f.PassThroughWaiting(150*time.Millisecond, "/ready", nil, nil)
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusGatewayTimeout, resp.StatusCode,
+		"unbound port must retry until timeout (504), not immediately 503 like PassThrough")
+}
+
+// passThroughWaiting buffers the request body before the TCP wait so it is
+// still available after waitForUserApp returns. Without buffering, the body
+// reader would be exhausted during the wait loop and f.do would send an empty
+// body to the user app. This pins the buffer-then-forward contract.
+func TestForwarder_PassThroughWaiting_ForwardsBodyAfterTCPWait(t *testing.T) {
+	received := make(chan []byte, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		received <- b
+	}))
+	defer srv.Close()
+
+	f := newTestForwarder(srv.URL)
+	payload := []byte(`{"checksum":"abc123"}`)
+	resp := f.PassThroughWaiting(200*time.Millisecond, "/ready", nil, bytes.NewReader(payload))
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+
+	select {
+	case got := <-received:
+		assert.Equal(t, payload, got, "body must survive the TCP wait and arrive at the user app intact")
+	case <-time.After(time.Second):
+		t.Fatal("user app handler never invoked")
+	}
 }

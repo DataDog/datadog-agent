@@ -11,8 +11,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -29,7 +31,8 @@ type Forwarder struct {
 	target               string        // e.g. "http://127.0.0.1:8080"
 	client               *http.Client  // shared; no client-level Timeout (per-call deadlines via ctx)
 	forwardTimeout       time.Duration // default 30s, used for suspend/terminate/launch/resume
-	readyTimeout         time.Duration // default 2s, used for /ready
+	readyTimeout         time.Duration // default 60s, used for /ready
+	validateTimeout      time.Duration // default 60s, used for /validate
 	maxResponseBodyBytes int64         // default defaultMaxResponseBodyBytes; cap on user-app body surfaced to platform
 }
 
@@ -51,19 +54,59 @@ func NewForwarder(port int) *Forwarder {
 			Transport: &http.Transport{DisableKeepAlives: true},
 		},
 		forwardTimeout:       30 * time.Second,
-		readyTimeout:         2 * time.Second,
+		readyTimeout:         60 * time.Second,
+		validateTimeout:      60 * time.Second,
 		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
 }
 
-// PassThroughReady forwards a /ready request to the user app and returns the
-// user-app response. Bounded by readyTimeout (default 2s) — the platform's
-// readiness loop is hot, so this budget is intentionally tight regardless of
-// AWS's 60-minute image-build bound. Dial errors map to 503; deadline
-// exceeded maps to 504. Body wrapping and Close contract are documented on
-// PassThrough.
-func (f *Forwarder) PassThroughReady(path string, headers http.Header, body io.Reader) *http.Response {
-	return f.passThroughWith(f.readyTimeout, path, headers, body)
+// PassThroughWaiting waits for the user app to accept TCP connections bounded
+// by timeout, then forwards the request and mirrors the response. Used for:
+//   - /ready    ("I am booted and ready to be snapshotted"): the platform
+//     retries on non-200, so the TCP wait absorbs the startup race.
+//   - /validate ("I was resumed from a snapshot and everything is good"): the
+//     TCP wait handles a crash-then-restart between resume and this
+//     call.
+//
+// Body is buffered before the TCP wait so the bytes survive waitForUserApp.
+// Deadline exceeded maps to 504. Body Close contract documented on PassThrough.
+func (f *Forwarder) PassThroughWaiting(timeout time.Duration, path string, headers http.Header, body io.Reader) *http.Response {
+	var bodyBytes []byte
+	if body != nil {
+		bodyBytes, _ = io.ReadAll(body)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	if err := f.waitForUserApp(ctx); err != nil {
+		cancel()
+		return statusOnlyResponse(mapErrToStatus(err))
+	}
+	resp, err := f.do(ctx, path, headers, bytes.NewReader(bodyBytes))
+	if err != nil {
+		cancel()
+		return statusOnlyResponse(mapErrToStatus(err))
+	}
+	resp.Body = wrapResponseBody(resp.Body, f.maxResponseBodyBytes, cancel)
+	return resp
+}
+
+// waitForUserApp polls the user app's TCP port until a connection succeeds or
+// ctx is cancelled. Returns nil when the port is reachable, ctx.Err() when
+// the deadline is exceeded. Polls every 50ms.
+func (f *Forwarder) waitForUserApp(ctx context.Context) error {
+	addr := strings.TrimPrefix(f.target, "http://")
+	dialer := &net.Dialer{}
+	for {
+		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 }
 
 // PassThrough forwards a per-MicroVM lifecycle hook (/launch, /resume,

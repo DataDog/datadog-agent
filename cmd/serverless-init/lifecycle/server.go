@@ -5,19 +5,33 @@
 
 // Package lifecycle implements the AWS Lambda MicroVM lifecycle hook server.
 // The MicroVM platform calls POST endpoints on port 9000 at key points in
-// the MicroVM lifecycle: ready, launch, resume, suspend, terminate. This
-// server handles those hooks in two modes:
+// the MicroVM lifecycle: ready, validate, launch, resume, suspend, terminate.
 //
-//   - When DD_SERVERLESS_MICROVM_USER_APP_PORT is unset: the agent
-//     responds to each hook itself (200), emitting an enhanced metric and,
-//     for /suspend and /terminate, flushing telemetry before responding.
+// Hook semantics:
+//   - /ready    — "I am booted and ready to be snapshotted." The platform
+//     sends this once after cold start; a 200 triggers snapshot.
+//   - /validate — "I was resumed from a snapshot and everything is good."
+//     The platform sends this after each resume from snapshot.
+//   - /launch   — VM is starting (cold start or from snapshot).
+//   - /resume   — VM is resuming from a suspended snapshot.
+//   - /suspend  — VM is about to be snapshotted/frozen.
+//   - /terminate — VM is being torn down permanently.
+//
+// This server handles those hooks in two modes:
+//
+//   - When DD_SERVERLESS_MICROVM_USER_APP_PORT is unset: the agent responds
+//     to each hook itself. /ready checks child-process liveness; /validate
+//     returns 200 directly; /launch, /resume, /suspend, and /terminate emit
+//     an enhanced metric and, for /suspend and /terminate, flush telemetry
+//     before responding.
 //
 //   - When the env var is set: the agent forwards each hook to
-//     127.0.0.1:<user-app-port> on the same path and mirrors the user
-//     app's response (status, body, Content-Type) back to the platform.
-//     The agent's own work — metric emission, /suspend and /terminate
-//     telemetry flush — runs in a goroutine in parallel with the
-//     pass-through.
+//     127.0.0.1:<user-app-port> on the same path and mirrors the user app's
+//     response (status, body, Content-Type) back to the platform. /ready and
+//     /validate wait for TCP reachability before forwarding. For /launch,
+//     /resume, /suspend, and /terminate the agent's own work — metric
+//     emission, /suspend and /terminate telemetry flush — runs in a goroutine
+//     in parallel with the pass-through.
 //
 // /terminate does NOT synthesize SIGTERM. The platform owns process
 // termination via OS signals delivered independently of this HTTP event.
@@ -32,6 +46,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"go.uber.org/atomic"
@@ -45,6 +60,7 @@ const DefaultPort = 9000
 
 const (
 	pathReady     = "/aws/lambda-microvms/runtime/beta/v1/ready"
+	pathValidate  = "/aws/lambda-microvms/runtime/beta/v1/validate"
 	pathLaunch    = "/aws/lambda-microvms/runtime/beta/v1/launch"
 	pathSuspend   = "/aws/lambda-microvms/runtime/beta/v1/suspend"
 	pathResume    = "/aws/lambda-microvms/runtime/beta/v1/resume"
@@ -138,16 +154,19 @@ func NewServer(
 	if c, ok := childHandle.(*Child); ok {
 		s.child = c
 	}
-	// WriteTimeout must cover the full handler wall-clock: for flush-only paths
-	// (no forwarder) that is flushTimeout; for pass-through paths the forwarder
-	// can hold the connection open for up to forwardTimeout (default 30s), which
-	// exceeds flushTimeout (default 5s). Use the larger of the two so the HTTP
-	// server does not close the platform-facing connection before the handler
-	// can write the mirrored response.
-	writeTimeout := s.flushTimeout + 10*time.Second
-	if s.fwd != nil && s.fwd.forwardTimeout+10*time.Second > writeTimeout {
-		writeTimeout = s.fwd.forwardTimeout + 10*time.Second
+	// WriteTimeout must cover the full handler wall-clock for every path:
+	//   - No forwarder: flushTimeout (flush budget + write headroom)
+	//   - /launch, /resume, /suspend, /terminate: forwardTimeout (default 30s)
+	//   - /ready: readyTimeout (default 60s, matching platform /ready timeout)
+	//   - /validate: validateTimeout (default 60s, matching platform /validate timeout)
+	// Use the largest of all applicable budgets so the HTTP server does not
+	// close the platform-facing connection before the handler writes the
+	// mirrored response.
+	maxTimeout := s.flushTimeout
+	if s.fwd != nil {
+		maxTimeout = max(maxTimeout, s.fwd.forwardTimeout, s.fwd.readyTimeout, s.fwd.validateTimeout)
 	}
+	writeTimeout := maxTimeout + 10*time.Second
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      s.handler(),
@@ -204,6 +223,7 @@ func (s *Server) Heartbeat() *Heartbeat { return s.heartbeat }
 func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(pathReady, s.handleReady)
+	mux.HandleFunc(pathValidate, s.handleValidate)
 	mux.HandleFunc(pathLaunch, s.handleLaunch)
 	mux.HandleFunc(pathSuspend, s.handleSuspend)
 	mux.HandleFunc(pathResume, s.handleResume)
@@ -211,13 +231,13 @@ func (s *Server) handler() http.Handler {
 	return mux
 }
 
-// handleReady signals to the platform whether the agent (and, optionally,
-// the user app) is ready. No telemetry is flushed here; it is a readiness
-// signal only.
+// handleReady answers the platform's "are you booted and ready to snapshot?"
+// signal. A 200 tells the platform it may take a snapshot of the VM; non-200
+// causes a retry (the platform does not treat /ready failures as fatal).
 //
 // Dispatcher:
-//   - If a Forwarder is configured (env-var opt-in), strict pass-through to
-//     the user app: dial errors map to 503, deadline to 504.
+//   - If a Forwarder is configured (env-var opt-in), pass-through to the user
+//     app with TCP-wait: dial errors map to 503, deadline to 504.
 //   - Otherwise, alive-check via ChildHandle: child alive → 200, anything
 //     else (not yet started, already exited, or nil handle) → 503. The
 //     pre-spawn race is absorbed by the platform's /ready retry behavior;
@@ -233,7 +253,31 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) passThroughReady(w http.ResponseWriter, r *http.Request) {
-	resp := s.fwd.PassThroughReady(pathReady, r.Header, r.Body)
+	resp := s.fwd.PassThroughWaiting(s.fwd.readyTimeout, pathReady, r.Header, r.Body)
+	defer resp.Body.Close()
+	mirrorResponse(w, resp)
+}
+
+// handleValidate answers the platform's "you were resumed from a snapshot —
+// is everything good?" signal. The platform sends /validate after each resume
+// from snapshot; a 200 confirms the restored VM is healthy.
+//
+// When a Forwarder is configured (DD_SERVERLESS_MICROVM_USER_APP_PORT set):
+// pass-through to the user app with TCP-wait, mirroring the response. The
+// TCP-wait handles the rare crash-then-restart window between resume and this
+// call. Without a forwarder the agent returns 200 directly; the user app is
+// not required to implement /validate in that mode.
+func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
+	log.Info("MicroVM lifecycle: validate")
+	if s.fwd != nil {
+		s.passThroughValidate(w, r)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) passThroughValidate(w http.ResponseWriter, r *http.Request) {
+	resp := s.fwd.PassThroughWaiting(s.fwd.validateTimeout, pathValidate, r.Header, r.Body)
 	defer resp.Body.Close()
 	mirrorResponse(w, resp)
 }
@@ -291,7 +335,8 @@ func (s *Server) flushAll(flushCtx context.Context) {
 // response back to the platform.
 //
 // Used for /launch and /resume (withFlush=false) and for /suspend and
-// /terminate (withFlush=true). /ready uses passThroughReady directly.
+// /terminate (withFlush=true). /ready and /validate use passThroughReady
+// and passThroughValidate directly (TCP-wait path, not this function).
 //
 // Wall-clock is bounded by max(forwardTimeout, flushTimeout)+ε. flushCtx is
 // deliberately NOT derived from r.Context(): if the platform disconnects
@@ -363,6 +408,12 @@ func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
 	}
 	s.heartbeat.Start()
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	// Go strips Content-Length from server request headers into r.ContentLength
+	// so the forwarder's header-based Content-Length path in do() sees an empty
+	// string. Put it back now that we know the exact buffered length, so the
+	// forwarded /launch request carries a fixed Content-Length rather than
+	// chunked encoding (which some user-app HTTP servers reject).
+	r.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
 	s.dispatchHook(launchMetricName, pathLaunch, false, w, r)
 }
 
