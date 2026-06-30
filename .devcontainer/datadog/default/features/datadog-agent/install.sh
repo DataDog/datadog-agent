@@ -7,7 +7,7 @@ featureDir=$(cd "$(dirname "$0")"; pwd)
 
 # Add bits user to the docker group. This should probably be handled by the base feature. But not working for now.
 usermod -aG docker bits
-usermod -aG shared-build bits
+usermod -aG build-shared bits
 
 # Copy lifecycle scripts into the image
 install -d /opt/doghome/devcontainer/features/datadog-agent/lifecycle
