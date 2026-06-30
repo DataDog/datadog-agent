@@ -8,16 +8,17 @@ package check
 import (
 	"time"
 
-	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 const shadowIDSuffix = ":shadow"
 
-// ShadowAware is an optional interface implemented by wrappers that preserve
-// shadow identity.
-type ShadowAware interface {
-	IsShadow() bool
+type shadowMarker interface {
+	isShadowCheck()
+}
+
+type checkUnwrapper interface {
+	Unwrap() Check
 }
 
 // ShadowCheck wraps a normally loaded check so collector plumbing can route it
@@ -43,7 +44,7 @@ func ShadowID(sourceID checkid.ID) checkid.ID {
 
 // ID returns the shadow check ID.
 func (c *ShadowCheck) ID() checkid.ID {
-	return c.Check.ID() + shadowIDSuffix
+	return ShadowID(c.Check.ID())
 }
 
 // Interval returns the shadow collection interval.
@@ -51,20 +52,37 @@ func (c *ShadowCheck) Interval() time.Duration {
 	return c.interval
 }
 
-// SetIssueReporter forwards issue reporter injection to issue-aware checks.
-func (c *ShadowCheck) SetIssueReporter(reporter healthplatformstore.Component) {
-	if aware, ok := c.Check.(IssueAwareCheck); ok {
-		aware.SetIssueReporter(reporter)
-	}
+// Unwrap returns the wrapped check.
+func (c *ShadowCheck) Unwrap() Check {
+	return c.Check
 }
 
-// IsShadow returns true for shadow checks.
-func (*ShadowCheck) IsShadow() bool {
-	return true
+func (*ShadowCheck) isShadowCheck() {}
+
+// As finds the first check in c's unwrap chain that implements T.
+func As[T any](c Check) (T, bool) {
+	var zero T
+	for c != nil {
+		if typed, ok := any(c).(T); ok {
+			return typed, true
+		}
+
+		unwrapper, ok := c.(checkUnwrapper)
+		if !ok {
+			return zero, false
+		}
+
+		next := unwrapper.Unwrap()
+		if next == nil || next == c {
+			return zero, false
+		}
+		c = next
+	}
+	return zero, false
 }
 
 // IsShadow returns true when c is a shadow check wrapper.
 func IsShadow(c Check) bool {
-	shadow, ok := c.(ShadowAware)
-	return ok && shadow.IsShadow()
+	_, ok := As[shadowMarker](c)
+	return ok
 }

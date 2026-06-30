@@ -32,6 +32,7 @@ func TestNewShadowCheckOverridesIdentityAndInterval(t *testing.T) {
 	assert.False(t, IsShadow(inner))
 	assert.Equal(t, checkid.ID("cpu:abc123:shadow"), shadow.ID())
 	assert.Equal(t, time.Second, shadow.Interval())
+	assert.Same(t, inner, shadow.Unwrap())
 }
 
 func TestShadowCheckIDTracksInnerCheckID(t *testing.T) {
@@ -104,12 +105,14 @@ func TestShadowIDAppendsShadowSuffix(t *testing.T) {
 	assert.Equal(t, checkid.ID("ntp:def456:shadow"), ShadowID(checkid.ID("ntp:def456")))
 }
 
-func TestShadowCheckForwardsIssueReporter(t *testing.T) {
+func TestAsFindsWrappedCheckCapability(t *testing.T) {
 	reporter := &recordingIssueReporter{}
 	inner := &issueAwareRecordingCheck{}
 	shadow := NewShadowCheck(inner, time.Second)
 
-	shadow.SetIssueReporter(reporter)
+	aware, ok := As[IssueAwareCheck](shadow)
+	require.True(t, ok)
+	aware.SetIssueReporter(reporter)
 
 	assert.Equal(t, reporter, inner.reporter)
 }

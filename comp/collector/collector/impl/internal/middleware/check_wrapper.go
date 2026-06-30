@@ -38,7 +38,7 @@ type CheckWrapper struct {
 // NewCheckWrapper returns a wrapped check.
 func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agentTelemetry option.Option[agenttelemetry.Component], issueReporter option.Option[healthplatformstore.Component]) *CheckWrapper {
 	if reporter, isSet := issueReporter.Get(); isSet {
-		if aware, ok := inner.(check.IssueAwareCheck); ok {
+		if aware, ok := check.As[check.IssueAwareCheck](inner); ok {
 			aware.SetIssueReporter(reporter)
 		}
 	}
@@ -109,9 +109,9 @@ func (c *CheckWrapper) ID() checkid.ID {
 	return c.inner.ID()
 }
 
-// IsShadow returns true when the wrapped check is a shadow check.
-func (c *CheckWrapper) IsShadow() bool {
-	return check.IsShadow(c.inner)
+// Unwrap returns the wrapped check.
+func (c *CheckWrapper) Unwrap() check.Check {
+	return c.inner
 }
 
 // GetWarnings implements Check#GetWarnings

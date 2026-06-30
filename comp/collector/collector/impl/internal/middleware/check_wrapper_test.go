@@ -147,4 +147,5 @@ func TestCheckWrapperPreservesShadowIdentity(t *testing.T) {
 	)
 
 	assert.True(t, check.IsShadow(wrapper))
+	assert.Same(t, shadow, wrapper.Unwrap())
 }
