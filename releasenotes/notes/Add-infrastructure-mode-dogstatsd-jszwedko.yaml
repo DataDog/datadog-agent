@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add ``infrastructure_mode: "dogstatsd"`` to support a DogStatsD-only mode that mirrors the standalone DogStatsD flavor. When running in this mode, the Agent receives, enriches, and forwards DogStatsD/StatsD metrics only: checks, APM, logs, process and container collection, orchestrator exploration, and SBOM are disabled, while the DogStatsD server and host/inventory metadata remain enabled. This mode provides a path to consolidate the standalone DogStatsD flavor into the main Agent with mode-based runtime restrictions.

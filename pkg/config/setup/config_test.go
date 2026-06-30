@@ -697,6 +697,29 @@ infrastructure_mode: none
 	assert.False(t, config.GetBool("integration.enabled"))
 }
 
+func TestInfrastructureModeDogstatsdDisablesNonDogstatsdFeatures(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: dogstatsd
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	// DogStatsD intake stays on (default true, untouched by the override).
+	assert.True(t, config.GetBool("use_dogstatsd"))
+
+	// Everything the standalone DogStatsD flavor omits is disabled.
+	assert.False(t, config.GetBool("integration.enabled"))
+	assert.False(t, config.GetBool("apm_config.enabled"))
+	assert.False(t, config.GetBool("logs_enabled"))
+	assert.False(t, config.GetBool("process_config.process_collection.enabled"))
+	assert.False(t, config.GetBool("process_config.container_collection.enabled"))
+	assert.False(t, config.GetBool("orchestrator_explorer.enabled"))
+	assert.False(t, config.GetBool("container_image.enabled"))
+	assert.False(t, config.GetBool("container_lifecycle.enabled"))
+	assert.False(t, config.GetBool("sbom.enabled"))
+	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
+}
+
 func TestInfrastructureModeLegacyAliases(t *testing.T) {
 	// Test that legacy allowed_additional_checks is aliased to mode-specific
 	// key via applyInfrastructureModeOverrides

@@ -1444,6 +1444,26 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
+	} else if infraMode == "dogstatsd" {
+		// Mirror the standalone DogStatsD flavor: receive, enrich, and forward
+		// DogStatsD/StatsD metrics only. The DogStatsD server (use_dogstatsd,
+		// default true) and host/inventory metadata stay on; everything the
+		// standalone DogStatsD binary omits is disabled. Tag enrichment via
+		// workloadmeta/tagger is left untouched so incoming metrics keep their
+		// container/k8s tags.
+		//
+		// Set via SourceInfraMode, consistent with other infrastructure modes:
+		// user config file or environment variables take precedence.
+		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("apm_config.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("logs_enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("process_config.process_collection.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("process_config.container_collection.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("orchestrator_explorer.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("container_image.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("container_lifecycle.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("sbom.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
 	} else if infraMode == "none" {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)

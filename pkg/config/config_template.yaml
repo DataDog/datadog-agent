@@ -38,6 +38,7 @@ api_key:
 ##   - full: default server/host-monitoring behavior (all checks allowed).
 ##   - basic: minimal host-level metrics only.
 ##   - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+##   - dogstatsd: receive, enrich, and forward DogStatsD/StatsD metrics only (no checks, APM, or logs).
 ##   - none: disables infrastructure checks.
 #
 # infrastructure_mode: "full"
