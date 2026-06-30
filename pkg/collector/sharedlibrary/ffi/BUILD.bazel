@@ -12,6 +12,7 @@ go_library(
     cdeps = ["//rtloader:rtloader_dynamic"],
     cgo = True,
     copts = ["-I pkg/collector/sharedlibrary/ffi/rtloader/include"],
+    cppopts = ["-Irtloader/include"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi",
     # Sources require sharedlibrarycheck; without it no Go files are active and
     # compilation fails. Mark manual so //... expansion skips this target; tests

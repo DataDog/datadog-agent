@@ -42,7 +42,10 @@ go_library(
         "version_nopy.go",
         "version_python.go",
     ],
-    cdeps = ["//rtloader:rtloader_dynamic"],
+    cdeps = select({
+        "@rules_go//go/platform:windows": ["//rtloader:rtloader"],
+        "//conditions:default": ["//rtloader:rtloader_dynamic"],
+    }),
     cgo = True,
     clinkopts = select({
         "@rules_go//go/platform:aix": [
@@ -106,8 +109,8 @@ go_library(
             "-ldatadog-agent-rtloader -ldl",
         ],
         "@rules_go//go/platform:windows": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static",
-            "-ldatadog-agent-rtloader -lstdc++ -static",
+            "-Wl,--allow-multiple-definition -lstdc++ -static",
+            "-Wl,--allow-multiple-definition -lstdc++ -static",
         ],
         "//conditions:default": [],
     }),
