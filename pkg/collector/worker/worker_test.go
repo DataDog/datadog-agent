@@ -611,6 +611,45 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 3)
 }
 
+func TestShadowWorkerDoesNotSendServiceCheck(t *testing.T) {
+	expvars.Reset()
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("hostname", "myhost")
+	mockConfig.SetInTest("integration_check_status_enabled", "true")
+
+	checksTracker := tracker.NewRunningChecksTracker()
+	pendingChecksChan := make(chan check.Check, 1)
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+
+	pendingChecksChan <- newCheck(t, "shadowcheck:123:shadow", false, nil)
+	close(pendingChecksChan)
+
+	mockSender := mocksender.NewMockSender("")
+
+	worker, err := newWorkerWithOptionsAndShadow(
+		100,
+		200,
+		pendingChecksChan,
+		checksTracker,
+		mockShouldAddStatsFunc,
+		func() (sender.Sender, error) {
+			return mockSender, nil
+		},
+		haagentmock.NewMockHaAgent(),
+		healthplatformmock.Mock(t),
+		pollingInterval,
+		10*time.Second,
+		true,
+	)
+	require.NoError(t, err)
+
+	worker.Run(context.Background())
+
+	assert.Equal(t, 1, int(expvars.GetRunsCount()))
+	mockSender.AssertNumberOfCalls(t, "Commit", 0)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
+}
+
 func TestWorkerSenderNil(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()

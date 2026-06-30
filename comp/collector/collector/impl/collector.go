@@ -176,7 +176,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	defer c.m.Unlock()
 
 	run := runner.NewRunner(c.senderManager, c.haAgent, c.healthPlatform)
-	sched := scheduler.NewScheduler(run.GetChan())
+	sched := scheduler.NewScheduler(run.GetChan(), run.GetShadowChan())
 
 	// let the runner some visibility into the scheduler
 	run.SetScheduler(sched)
@@ -229,15 +229,20 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
-	// Track the total number of checks running in order to have an appropriate number of workers
-	c.checkInstances++
 	if ch.Interval() == 0 {
+		// Track the total number of checks running in order to have an appropriate number of workers
+		c.checkInstances++
 		// Adding a temporary runner for long running check in case the
 		// number of runners is lower than the number of long running
 		// checks.
 		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
 		c.runner.AddWorker()
+	} else if check.IsShadow(ch) {
+		c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
+		c.runner.AddShadowWorker()
 	} else {
+		// Track the total number of checks running in order to have an appropriate number of workers
+		c.checkInstances++
 		c.runner.UpdateNumWorkers(c.checkInstances)
 	}
 

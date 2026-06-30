@@ -20,6 +20,7 @@ import (
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
@@ -113,7 +114,7 @@ func newCheck(t *testing.T, id string, doErr bool, runFunc func(checkid.ID)) *te
 }
 
 func newScheduler() *scheduler.Scheduler {
-	return scheduler.NewScheduler(nil)
+	return scheduler.NewScheduler(nil, nil)
 }
 
 func assertAsyncWorkerCount(t *testing.T, count int) {
@@ -257,6 +258,32 @@ func TestRunner(t *testing.T) {
 	for idx := 0; idx < numChecks; idx++ {
 		require.Equal(t, 1, checks[idx].RunCount())
 	}
+}
+
+func TestRunnerShadowWorkerUsesShadowChannel(t *testing.T) {
+	mockConfig := testSetUp(t)
+	mockConfig.SetInTest("check_runners", "1")
+
+	inner := newCheck(t, "mycheck:123", false, nil)
+	shadow := check.NewShadowCheck(inner, time.Second)
+
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	assertAsyncWorkerCount(t, 1)
+	require.Len(t, r.workers, 1)
+	require.Empty(t, r.shadowWorkers)
+
+	r.AddShadowWorker()
+	assertAsyncWorkerCount(t, 2)
+	require.Len(t, r.workers, 1)
+	require.Len(t, r.shadowWorkers, 1)
+
+	r.GetShadowChan() <- shadow
+	require.Eventually(t, func() bool {
+		return inner.RunCount() == 1
+	}, 750*time.Millisecond, 10*time.Millisecond)
 }
 
 func TestRunnerStop(t *testing.T) {
