@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 // ProfileData maps (pprof) profile names to the profile data
@@ -359,12 +360,25 @@ func getPerformanceProfileDCA(fb flaretypes.FlareBuilder, pdata ProfileData) {
 
 // getProfilingDataDCA collects pprof data from the cluster agent when enable_profiling is set via RC.
 func getProfilingDataDCA(fb flaretypes.FlareBuilder) {
-	duration := fb.GetFlareArgs().ProfileDuration
-	if duration <= 0 {
+	args := fb.GetFlareArgs()
+	if args.ProfileDuration <= 0 {
 		return
 	}
 
-	seconds := int(duration.Seconds())
+	// Apply blocking and mutex rates before collecting so the profiles contain data.
+	// Go keeps both disabled at rate 0 by default; restore previous values when done.
+	if args.ProfileBlockingRate > 0 {
+		oldRate := profiling.GetBlockProfileRate()
+		profiling.SetBlockProfileRate(args.ProfileBlockingRate)
+		defer profiling.SetBlockProfileRate(oldRate)
+	}
+	if args.ProfileMutexFraction > 0 {
+		oldFraction := profiling.GetMutexProfileFraction()
+		profiling.SetMutexProfileFraction(args.ProfileMutexFraction)
+		defer profiling.SetMutexProfileFraction(oldFraction)
+	}
+
+	seconds := int(args.ProfileDuration.Seconds())
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt("metrics_port"))
 
 	for _, prof := range []struct{ name, path string }{
