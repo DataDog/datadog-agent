@@ -77,6 +77,7 @@ def build(
     rtloader_root=None,
     python_home_3=None,
     exclude_rtloader=False,
+    include_sds=False,
     go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
@@ -114,6 +115,7 @@ def build(
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
+        include_sds=include_sds,
     )
 
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
@@ -141,6 +143,7 @@ def build(
             flavor=flavor,
             build_include=build_include,
             build_exclude=build_exclude,
+            include_sds=include_sds,
         )
 
     if not glibc:
@@ -390,6 +393,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
         "signed_pull": doc.signed_pull,
         "arch": doc.arch,
         "development": doc.development,
+        "include_sds": doc.include_sds,
     }
 )
 def hacky_dev_image_build(
@@ -408,6 +412,7 @@ def hacky_dev_image_build(
     arch=None,
     development=True,
     build_exclude=None,
+    include_sds=False,
 ):
     """
     Builds the agent or cluster-agent Docker image.
@@ -447,11 +452,16 @@ def hacky_dev_image_build(
         os.environ["LD_LIBRARY_PATH"] = (
             os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
         )
+        if include_sds:
+            from tasks.sds import build_library as sds_build_library
+
+            sds_build_library(ctx)
         build(
             ctx,
             race=race,
             development=development,
             build_exclude=build_exclude,
+            include_sds=include_sds,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
             enable_bazel=False,
         )
@@ -490,6 +500,22 @@ def hacky_dev_image_build(
         privateactionrunner_build(ctx)
         copy_extra_agents += (
             "COPY bin/privateactionrunner/privateactionrunner /opt/datadog-agent/embedded/bin/privateactionrunner\n"
+        )
+
+    copy_sds_lib = ""
+    copy_sds_lib_final = ""
+    patch_sds_lib = ""
+    if include_sds:
+        # `sds.build-library` stages libdd_sds.so under dev/lib so the agent (built
+        # with the `sds` tag) can link against it. Ship it next to the other
+        # embedded libs and rpath-patch it so the agent finds it at runtime.
+        copy_sds_lib = "COPY dev/lib/libdd_sds.so /opt/datadog-agent/embedded/lib/libdd_sds.so\n"
+        patch_sds_lib = (
+            "RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib " "/opt/datadog-agent/embedded/lib/libdd_sds.so\n"
+        )
+        copy_sds_lib_final = (
+            "COPY --from=bin /opt/datadog-agent/embedded/lib/libdd_sds.so "
+            "/opt/datadog-agent/embedded/lib/libdd_sds.so\n"
         )
 
     copy_ebpf_assets = ""
@@ -540,11 +566,13 @@ COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/age
 COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+{copy_sds_lib}
 {copy_ebpf_assets}
 
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+{patch_sds_lib}
 
 FROM golang:latest AS dlv
 
@@ -574,6 +602,7 @@ COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+{copy_sds_lib_final}
 COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
 {copy_extra_agents}
 {copy_ebpf_assets_final}

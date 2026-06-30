@@ -200,6 +200,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/quantile => ../../../pkg/util/quantile
 	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest => ../../../pkg/util/quantile/sketchtest
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/sds => ../../../pkg/util/sds
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../../../pkg/util/sort
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../../pkg/util/startstop
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../../pkg/util/statstracker

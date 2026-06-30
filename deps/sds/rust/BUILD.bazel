@@ -1,0 +1,34 @@
+load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_static_library")
+
+# Builds libdd_sds from the `dd-sensitive-data-scanner` crate (dd_sds_go FFI).
+# SDS is unsupported on Windows; the incompatibility propagates through the
+# //deps/sds:dd_sds cdeps edge so the whole sds chain is skipped there.
+_SDS_COMPAT = select({
+    "@platforms//os:windows": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
+# Static archive (libdd_sds.a): linked into the cgo binding via //deps/sds:dd_sds.
+rust_static_library(
+    name = "dd_sds_static",
+    srcs = ["src/lib.rs"],
+    crate_name = "dd_sds",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    target_compatible_with = _SDS_COMPAT,
+    visibility = ["//visibility:public"],
+    deps = ["@crates//:dd-sensitive-data-scanner"],
+)
+
+# Shared library (libdd_sds.so / .dylib): staged by `dda inv sds.build-library`
+# and shipped by omnibus (//deps/sds:install).
+rust_shared_library(
+    name = "dd_sds_shared",
+    srcs = ["src/lib.rs"],
+    crate_name = "dd_sds",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    target_compatible_with = _SDS_COMPAT,
+    visibility = ["//visibility:public"],
+    deps = ["@crates//:dd-sensitive-data-scanner"],
+)

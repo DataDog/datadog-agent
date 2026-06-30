@@ -650,6 +650,7 @@ write_source_files(
         "//pkg/proto/pbgo/process:write_pb_go",
         "//pkg/proto/pbgo/procmgr:write_pb_go",
         "//pkg/proto/pbgo/sbom:write_pb_go",
+        "//pkg/proto/pbgo/sds:write_pb_go",
         "//pkg/proto/pbgo/trace/idx:write_pb_go",
         "//pkg/proto/pbgo/trace:agent_payload_gen",
         "//pkg/proto/pbgo/trace:span_gen",

@@ -225,6 +225,17 @@ def get_repo_root():
     return Path(tasks.__file__).parent.parent
 
 
+def get_sds_library_dir():
+    """
+    Directory under which `sds.build-library` stages libdd_sds (the dev lib dir).
+
+    The cgo sds-go binding hardcodes a relative `-L../../sds/target/release`
+    that no real build layout satisfies, so builds carrying the `sds` tag rely
+    on this directory being added to the linker search path and rpath instead.
+    """
+    return os.path.join(get_repo_root(), "dev", "lib")
+
+
 def get_xcode_version(ctx):
     """
     Get the version of XCode used depending on how it's installed.
@@ -255,6 +266,7 @@ def get_build_flags(
     python_home_3=None,
     headless_mode=False,
     arch: Arch | None = None,
+    include_sds=False,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -285,6 +297,14 @@ def get_build_flags(
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
     if not python_home_3:
         python_home_3 = get_bazel_python_home(rtloader_lib)
+
+    # Builds carrying the `sds` tag link against libdd_sds, which `sds.build-library`
+    # stages in dev/lib. That directory is not necessarily where rtloader resolves
+    # (e.g. bazel installs rtloader under dev/embedded/lib), so add it explicitly to
+    # the linker search path / rpath. Appended after the python-home inference above
+    # so it never shadows the rtloader entry.
+    if include_sds and sys.platform != 'win32':
+        rtloader_lib.append(get_sds_library_dir())
 
     # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:

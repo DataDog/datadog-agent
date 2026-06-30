@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# Hand-maintained: the cgo dep and srcs are behind the `sds` build tag, which
+# Gazelle can't see, so they're marked # keep.
+go_library(
+    name = "sds",
+    srcs = [
+        "scanner.go",  # keep
+        "scanner_nosds.go",  # keep
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/sds",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_datadog_dd_sensitive_data_scanner_sds_go_go//:go"],  # keep
+)
+
+# Built with the `sds` tag: real cgo scanner linked against libdd_sds.
+go_test(
+    name = "sds_test",
+    srcs = ["sds_test.go"],  # keep
+    embed = [":sds"],
+    gotags = ["sds"],  # keep
+    deps = ["@com_github_stretchr_testify//require"],
+)
+
+# Built without the `sds` tag: no-op scanner path.
+go_test(
+    name = "sds_nosds_test",
+    srcs = ["sds_nosds_test.go"],  # keep
+    embed = [":sds"],
+    deps = ["@com_github_stretchr_testify//require"],
+)
