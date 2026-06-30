@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Add internal foundation infrastructure for AWS Lambda MicroVM support in ``serverless-init``. This is not yet user-facing.
