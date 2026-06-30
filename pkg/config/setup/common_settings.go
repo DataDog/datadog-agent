@@ -1405,7 +1405,7 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.no_tls_validation", false)
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
-	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", time.Duration(0))
+	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", "0s")
 	config.BindEnvAndSetDefault("remote_configuration.org_status_refresh_interval", 1*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 2*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
