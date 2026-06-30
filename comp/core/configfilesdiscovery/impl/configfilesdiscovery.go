@@ -42,7 +42,8 @@ func newComponent(
 	resolver targetResolver,
 ) *component {
 	readers := map[RuntimeType]configReaderFactory{
-		RuntimeDocker: newDockerConfigReader,
+		RuntimeDocker:     newDockerConfigReader,
+		RuntimeKubernetes: newKubernetesConfigReader,
 	}
 	collectors := map[string]configCollector{
 		redisIntegrationName: newRedisConfigCollector(),
