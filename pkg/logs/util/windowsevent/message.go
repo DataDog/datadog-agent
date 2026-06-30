@@ -46,6 +46,13 @@ func (m *Message) SetContent(content []byte) {
 	_ = m.data.SetMessage(string(content))
 }
 
+// GetAttribute retrieves a dot-delimited attribute. Windows Event Log messages
+// do not expose attribute lookups (used by syslog source remapping), so this
+// always returns ("", false).
+func (m *Message) GetAttribute(string) (string, bool) {
+	return "", false
+}
+
 // Checks at the beginning and end of string for truncated flag
 func hasTruncatedFlag(m string) bool {
 	if len(m) < len(truncatedFlag) {
