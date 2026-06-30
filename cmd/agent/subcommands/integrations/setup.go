@@ -12,9 +12,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -22,6 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/integrations/setup"
 )
+
+// setupModule is the integration's setup entry point, run as a module via the
+// embedded Python interpreter. The DBM setup logic lives in the Postgres
+// integration (integrations-core) so it can reuse the integration's connection
+// and database-navigation code; this Go command is only the tunnel to it.
+const setupModule = "datadog_checks.postgres.setup"
 
 type setupParams struct {
 	datadogUser     string
@@ -96,37 +102,7 @@ of the DBM setup docs for self-hosted Postgres, RDS, Aurora, Cloud SQL, and Azur
 	return setupCmd
 }
 
-// findSetupScript locates postgres_setup.py by walking up from the running
-// binary (works for both dev builds and installed agents) or via the
-// DD_DBM_SETUP_SCRIPT env var override.
-func findSetupScript() string {
-	if v := os.Getenv("DD_DBM_SETUP_SCRIPT"); v != "" {
-		return v
-	}
-	exe, err := os.Executable()
-	if err != nil {
-		return ""
-	}
-	dir := filepath.Dir(exe)
-	for {
-		candidate := filepath.Join(dir, "cmd", "agent", "dist", "setup", "postgres_setup.py")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-		// Also check installed-agent layout: dist/setup/postgres_setup.py
-		candidate = filepath.Join(dir, "dist", "setup", "postgres_setup.py")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
-}
-
-func callPython(ctx context.Context, pythonPath, scriptPath, uri string, databases []string, params *setupParams, applyOptionalRestart bool) (*setup.SetupResult, error) {
+func callPython(ctx context.Context, pythonPath, uri string, databases []string, params *setupParams, applyOptionalRestart bool) (*setup.SetupResult, error) {
 	argsPayload := map[string]interface{}{
 		"connection_uri": uri,
 		"config": map[string]interface{}{
@@ -144,7 +120,7 @@ func callPython(ctx context.Context, pythonPath, scriptPath, uri string, databas
 		return nil, fmt.Errorf("marshaling setup args: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, pythonPath, scriptPath)
+	cmd := exec.CommandContext(ctx, pythonPath, "-m", setupModule)
 	cmd.Stdin = strings.NewReader(string(argsJSON))
 	cmd.Stderr = os.Stderr
 
@@ -191,19 +167,27 @@ func defaultOrCurrent(current string) string {
 	return current
 }
 
+// defaultDatabaseFromURI extracts the database to configure from the connection
+// URI's path component. Parsing the path (rather than splitting on the last '/')
+// avoids treating slashes inside query parameters — e.g. ?sslrootcert=/etc/ssl/ca.pem
+// or ?host=/var/run/postgresql — as the database name. Falls back to "postgres"
+// when the URI has no database path.
+func defaultDatabaseFromURI(uri string) string {
+	if u, err := url.Parse(uri); err == nil {
+		if db := strings.TrimPrefix(u.Path, "/"); db != "" {
+			return db
+		}
+	}
+	return "postgres"
+}
+
 func runPostgresSetup(ctx context.Context, params *setupParams, uri string, useSysPython bool) error {
-	var pythonPath, scriptPath string
+	var pythonPath string
 
 	if useSysPython {
-		// Use the Python binary on PATH (dev / --use-sys-python mode).
+		// Use the Python binary on PATH (dev / --use-sys-python mode). The Postgres
+		// integration must be importable from it (e.g. `pip install -e`).
 		pythonPath = pythonBin
-		scriptPath = findSetupScript()
-		if scriptPath == "" {
-			return fmt.Errorf(
-				"unable to locate postgres_setup.py — " +
-					"run from the repo root or set DD_DBM_SETUP_SCRIPT to its path",
-			)
-		}
 	} else {
 		if err := loadPythonInfo(); err != nil {
 			return fmt.Errorf("unable to locate agent Python environment: %w", err)
@@ -213,36 +197,14 @@ func runPostgresSetup(ctx context.Context, params *setupParams, uri string, useS
 		if err != nil {
 			return fmt.Errorf("unable to find embedded Python: %w", err)
 		}
-		scriptPath = findSetupScript()
-		if scriptPath == "" {
-			return fmt.Errorf(
-				"unable to locate postgres_setup.py — ensure the agent is properly installed",
-			)
-		}
-	}
-
-	if _, err := os.Stat(scriptPath); err != nil {
-		return fmt.Errorf("setup script not found at %s — ensure the agent is properly installed", scriptPath)
 	}
 
 	databases := params.databases
 	if len(databases) == 0 && !params.allDatabases {
-		// Parse the default database from the URI (everything after the last '/').
-		if idx := strings.LastIndex(uri, "/"); idx >= 0 {
-			db := uri[idx+1:]
-			if q := strings.Index(db, "?"); q >= 0 {
-				db = db[:q]
-			}
-			if db != "" {
-				databases = []string{db}
-			}
-		}
-		if len(databases) == 0 {
-			databases = []string{"postgres"}
-		}
+		databases = []string{defaultDatabaseFromURI(uri)}
 	}
 
-	result, err := callPython(ctx, pythonPath, scriptPath, uri, databases, params, false)
+	result, err := callPython(ctx, pythonPath, uri, databases, params, false)
 	if err != nil {
 		return err
 	}
@@ -252,8 +214,7 @@ func runPostgresSetup(ctx context.Context, params *setupParams, uri string, useS
 	}
 
 	if result.Outcome == "failure" {
-		fmt.Fprintln(os.Stderr, "\nSetup did not complete — check the output above for details.")
-		os.Exit(1)
+		return fmt.Errorf("setup did not complete — check the output above for details")
 	}
 	if result.RestartNeeded {
 		fmt.Fprintln(os.Stderr, "\nNext steps: restart PostgreSQL, then re-run to apply remaining settings.")
@@ -268,7 +229,7 @@ func runPostgresSetup(ctx context.Context, params *setupParams, uri string, useS
 	if len(result.OptionalRestartPending) > 0 && !params.dryRun {
 		applyOptional := params.yes || promptOptional(result.OptionalRestartPending)
 		if applyOptional {
-			optResult, err := callPython(ctx, pythonPath, scriptPath, uri, databases, params, true)
+			optResult, err := callPython(ctx, pythonPath, uri, databases, params, true)
 			if err != nil {
 				return err
 			}

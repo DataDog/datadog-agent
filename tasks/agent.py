@@ -228,12 +228,6 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             ignore=shutil.ignore_patterns("BUILD.bazel"),
             dirs_exist_ok=True,
         )
-        shutil.copytree(
-            "./cmd/agent/dist/setup/",
-            os.path.join(dist_folder, "setup"),
-            ignore=shutil.ignore_patterns("BUILD.bazel"),
-            dirs_exist_ok=True,
-        )
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
     if not flavor.is_iot():
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))

@@ -71,7 +71,8 @@ type OptionalRestartSetting struct {
 	Description string `json:"description"`
 }
 
-// PythonResult is the top-level JSON envelope written by postgres_setup.py.
+// PythonResult is the top-level JSON envelope written by the integration's
+// datadog_checks.postgres.setup module.
 type PythonResult struct {
 	Success bool         `json:"success"`
 	Error   string       `json:"error,omitempty"`
