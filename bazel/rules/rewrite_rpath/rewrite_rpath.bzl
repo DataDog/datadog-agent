@@ -40,14 +40,16 @@ def otool_file_action(ctx, input_file, output_file, rpath):
       output_file: the output File to write.
       rpath: the rpath string to set.
     """
-    toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
+    otool = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
     args = ctx.actions.args()
-    args.add(toolchain.path)
+    args.add(ctx.executable._install_name_tool.path)
+    args.add(otool.path)
     args.add(rpath)
     args.add(input_file.path)
     args.add(output_file.path)
     ctx.actions.run(
         inputs = [input_file],
+        tools = [ctx.executable._install_name_tool],
         outputs = [output_file],
         executable = ctx.file._script,
         arguments = [args],
@@ -93,15 +95,17 @@ def otool_dir_action(ctx, input_dir, output_dir, rpath):
       output_dir: the output directory artifact to write.
       rpath: the rpath string to set.
     """
-    toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
+    otool = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
     args = ctx.actions.args()
     args.add(ctx.file._script.path)
-    args.add(toolchain.path)
+    args.add(ctx.executable._install_name_tool.path)
+    args.add(otool.path)
     args.add(rpath)
     args.add(input_dir.path)
     args.add(output_dir.path)
     ctx.actions.run(
         inputs = [input_dir, ctx.file._script],
+        tools = [ctx.executable._install_name_tool],
         outputs = [output_dir],
         executable = ctx.file._dir_script,
         arguments = [args],
@@ -150,6 +154,11 @@ rewrite_rpath = rule(
         "_script": attr.label(
             default = "@@//bazel/rules/rewrite_rpath:macos.sh",
             allow_single_file = True,
+            cfg = "exec",
+        ),
+        "_install_name_tool": attr.label(
+            default = "@llvm_toolchain_llvm//:install-name-tool",
+            executable = True,
             cfg = "exec",
         ),
         "_install_dir": attr.label(
