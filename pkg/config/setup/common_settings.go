@@ -1265,9 +1265,16 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("integration.end_user_device.allowed", []string{})
 
 	// Infrastructure iot mode section
-	// Mirrors the legacy IoT Agent flavor: only the lightweight Go corechecks
-	// (IOT_AGENT_CORECHECKS) are permitted. Python/JMX/container checks are
-	// excluded by virtue of not being in the allowlist.
+	// Mirrors the check set of the legacy IoT Agent flavor. Only the listed
+	// check names are permitted by IsCheckAllowed; any check name not in the
+	// list (or integration.additional) is skipped at schedule time.
+	//
+	// Limitation: enforcement is name-only. Checks whose names start with
+	// "custom_" are always allowed (consistent with other modes), and a Python
+	// implementation of an allowed name (e.g. a custom disk.py) would still
+	// run on a full Agent binary since the allowlist does not gate the loader.
+	// True Python exclusion requires the IoT Agent build (which omits the
+	// python build tag); this mode provides runtime-functional parity only.
 	config.BindEnvAndSetDefault("integration.iot.allowed", []string{
 		"cpu",
 		"disk",
