@@ -255,7 +255,7 @@ require (
 	github.com/invopop/jsonschema v0.14.0
 	github.com/itchyny/gojq v0.12.19 // indirect
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/jellydator/ttlcache/v3 v3.4.0
+	github.com/jellydator/ttlcache/v3 v3.4.1
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/json-iterator/go v1.1.12
 	github.com/judwhite/go-svc v1.2.1
@@ -270,7 +270,7 @@ require (
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.1
-	github.com/mattn/go-sqlite3 v1.14.46
+	github.com/mattn/go-sqlite3 v1.14.47
 	github.com/mdlayher/netlink v1.11.2
 	github.com/miekg/dns v1.1.72
 	github.com/moby/sys/mountinfo v0.7.2
