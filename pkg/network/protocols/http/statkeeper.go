@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -54,6 +56,19 @@ type StatKeeper struct {
 	buffer []byte
 
 	oversizedLogLimit *log.Limit
+
+	// LLMO PoC: eBPF maps used to capture decrypted LLM request bodies.
+	// nil unless EnableLLMO has been called (only wired up for HTTP/2).
+	llmConnMap *ebpf.Map
+	llmBodyMap *ebpf.Map
+}
+
+// EnableLLMO wires up the eBPF maps used to capture decrypted LLM request
+// bodies. When set, LLM-detected transactions are enriched with the model and
+// prompt parsed from the captured body.
+func (h *StatKeeper) EnableLLMO(connMap, bodyMap *ebpf.Map) {
+	h.llmConnMap = connMap
+	h.llmBodyMap = bodyMap
 }
 
 // NewStatkeeper returns a new StatKeeper.
@@ -169,6 +184,15 @@ func (h *StatKeeper) add(tx Transaction) {
 		return
 	}
 
+	// LLMO PoC: detect LLM API traffic by path (USM does not capture the
+	// Host/:authority header) and remember the un-quantized full path so we
+	// can emit it as the span resource below.
+	llmTraffic := isLLMPath(rawPath)
+	var llmPath string
+	if llmTraffic {
+		llmPath = string(rawPath)
+	}
+
 	// Quantize HTTP path
 	// (eg. this turns /orders/123/view` into `/orders/*/view`)
 	if h.quantizer != nil {
@@ -208,6 +232,15 @@ func (h *StatKeeper) add(tx Transaction) {
 			log.Warnf("invalid status code: %s", tx.String())
 		}
 		return
+	}
+
+	// LLMO PoC: emit one span per LLM request (no aggregation) before the
+	// transaction gets collapsed into the per-endpoint stats below. When the
+	// LLMO maps are wired up, also flag the connection and parse the captured
+	// request body to enrich the span with the model and prompt.
+	if llmTraffic {
+		model, prompt := h.captureLLMBody(tx.ConnTuple())
+		emitLLMSpan(llmPath, tx.Method(), statusCode, tx.ConnTuple(), latency, model, prompt)
 	}
 
 	key := NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
