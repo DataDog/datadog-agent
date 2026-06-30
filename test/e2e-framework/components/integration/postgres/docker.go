@@ -5,7 +5,7 @@
 
 // Package postgres provides an Agent E2E integration component that runs a
 // PostgreSQL 16 server plus a continuous SQL workload generator via Docker
-// Compose on a remote host. It is used by the aws/postgres scenario to give the
+// Compose on a remote host. It is used by the aws/integrations/postgres scenario to give the
 // host-installed Datadog Agent's postgres check a live backend to monitor over
 // TCP at localhost:5432.
 package postgres

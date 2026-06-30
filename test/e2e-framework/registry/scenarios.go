@@ -11,19 +11,15 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/gke"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/openshiftvm"
 
-	awsneuron "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/aws_neuron"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
-	awsetcd "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/etcd"
 	awsgensimeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/gensim-eks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/installer"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kafka"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/microvms"
-	awspostgres "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/postgres"
-	awsredisdb "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/redisdb"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/aks"
 	computerun "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/compute/run"
 	gcpcompute "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/compute/run"
@@ -35,13 +31,8 @@ import (
 type ScenarioRegistry map[string]pulumi.RunFunc
 
 func Scenarios() ScenarioRegistry {
-	return ScenarioRegistry{
+	scenarios := ScenarioRegistry{
 		"aws/vm":          ec2.VMRun,
-		"aws/redisdb":     awsredisdb.Run,
-		"aws/postgres":    awspostgres.VMRun,
-		"aws/kafka":       kafka.VMRun,
-		"aws/etcd":        awsetcd.Run,
-		"aws/aws_neuron":  awsneuron.Run,
 		"aws/dockervm":    ec2docker.DockerRun,
 		"aws/ecs":         ecs.Run,
 		"aws/eks":         eks.Run,
@@ -56,6 +47,13 @@ func Scenarios() ScenarioRegistry {
 		"gcp/openshiftvm": openshiftvm.Run,
 		"localpodman/vm":  localpodmanrun.VMRun,
 	}
+	// Integration labs (agint:generate-lab) register themselves from their dedicated
+	// subfolder, keyed "aws/integrations/<integration>", so adding a lab never edits
+	// this file.
+	for name, run := range integrations.Scenarios() {
+		scenarios[name] = run
+	}
+	return scenarios
 }
 
 func (s ScenarioRegistry) Get(name string) pulumi.RunFunc {
