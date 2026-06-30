@@ -46,6 +46,7 @@ go_test(
         "events_test.go",
         "iterable_series_test.go",
         "iterable_series_v3_test.go",
+        "origin_mapping_test.go",
         "pipeline_test.go",
         "series_benchmark_test.go",
         "service_checks_test.go",
