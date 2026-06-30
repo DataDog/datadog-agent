@@ -31,10 +31,8 @@ type factory struct {
 
 // NewFactory creates a factory for the Datadog connector for use in the OTel Agent.
 //
-// Unlike the upstream connector/datadogconnector factory, this one accepts the
-// Agent's tagger, hostname provider, and (optionally) an existing stats Concentrator
-// so the connector can reuse the Agent's internals. The connector implementation is
-// a local copy of opentelemetry-collector-contrib's pkg/datadog/apmstats package.
+// It accepts the Agent's tagger, hostname provider, and (optionally) an existing
+// stats Concentrator so the connector can reuse the Agent's internals.
 func NewFactory(tagger types.TaggerClient, hostGetter SourceProviderFunc, concentrator *stats.Concentrator) connector.Factory {
 	f := &factory{
 		tagger:       tagger,

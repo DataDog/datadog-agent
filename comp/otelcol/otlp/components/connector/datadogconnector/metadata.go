@@ -12,12 +12,10 @@ var Type = component.MustNewType("datadog")
 
 const (
 	// TracesToMetricsStability is the stability level of the traces-to-metrics connector.
-	//
-	// Upstream marks this beta, but the embedded collector intentionally keeps it at
-	// development stability to preserve the connector's historical registration behavior
-	// in the Agent.
+	// It is kept at development stability to preserve the connector's registration
+	// behavior in the Agent.
 	TracesToMetricsStability = component.StabilityLevelDevelopment
 	// TracesToTracesStability is the stability level of the traces-to-traces connector.
-	// See TracesToMetricsStability for why this is development rather than beta.
+	// See TracesToMetricsStability for why this is development.
 	TracesToTracesStability = component.StabilityLevelDevelopment
 )

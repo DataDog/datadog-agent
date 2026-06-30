@@ -11,8 +11,8 @@ import "go.opentelemetry.io/collector/connector"
 //
 // The signature intentionally differs from the non-AIX NewFactory: the embedded
 // (DDOT) Collector that injects the Agent dependencies is not built on AIX, and
-// keeping this stub import-minimal avoids pulling in apmstats, which does not
-// build on AIX. This mirrors the upstream connector/datadogconnector stub.
+// keeping this stub import-minimal avoids pulling in the connector
+// implementation, which depends on packages that do not build on AIX.
 func NewFactory() connector.Factory {
 	panic("aix is not supported")
 }
