@@ -121,7 +121,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/netflow/server/impl
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
 # gazelle:exclude comp/otelcol/collector/impl-pipeline
-# gazelle:exclude comp/otelcol/otlp/integrationtest
 # gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/process/agent/*.go
 # gazelle:exclude comp/process/agent/fx
