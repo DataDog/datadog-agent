@@ -16,20 +16,6 @@ Released on: 2026-06-24
 Pinned to datadog-agent v7.80.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7803>`_.
 
 
-.. _Release Notes_7.80.3_Enhancement Notes:
-
-Enhancement Notes
------------------
-
-- Cluster check stickiness is now enabled by default. When assigning checks to
-  runners, the dispatcher biases placement toward the runner where a check
-  previously ran, reducing unnecessary check migrations. The behavior can be
-  tuned or disabled via ``cluster_checks.stickiness_enabled``,
-  ``cluster_checks.stickiness_factor``,
-  ``cluster_checks.stickiness_upper_limit``, and
-  ``cluster_checks.stickiness_lower_limit``.
-
-
 .. _Release Notes_7.80.2:
 
 7.80.2
