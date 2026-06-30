@@ -95,6 +95,9 @@ type Profile struct {
 
 // IsEnabled returns true if the profile is enabled
 func (p *Profile) IsEnabled() bool {
+	p.Lock()
+	defer p.Unlock()
+
 	return p.isEnabled
 }
 
