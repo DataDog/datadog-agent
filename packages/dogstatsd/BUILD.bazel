@@ -20,12 +20,11 @@ package_name_variables(
 # TODO: Add the dogstatsd binary and component targets here, analogous to
 # //packages/agent/dependencies:all_files and //packages/install_dir:embedded.
 # The main build dependency from dogstatsd.rb is 'datadog-dogstatsd'.
-# Linux-specific content (dirs, init scripts) lives in //packages/dogstatsd/linux.
 pkg_filegroup(
     name = "dogstatsd_components",
     srcs = [
-        # TODO (phase 3): binary via @dogstatsd_binary//:dogstatsd
-        # TODO (phase 3): config example via genrule for dogstatsd.yaml
+        # TODO: //packages/dogstatsd/dependencies:all_files
+        # TODO: //packages/install_dir:embedded (dogstatsd-specific variant)
     ],
     prefix = "/opt/datadog-dogstatsd",
 )
