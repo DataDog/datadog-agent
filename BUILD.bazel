@@ -185,7 +185,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/sbom
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/test
 # gazelle:exclude pkg/collector/corechecks/system/disk/diskv2
-# gazelle:exclude pkg/collector/corechecks/system/filehandles
 # gazelle:exclude pkg/collector/corechecks/system/wincrashdetect/*.go
 # gazelle:exclude pkg/collector/runner/*.go
 # gazelle:exclude pkg/commonchecks
