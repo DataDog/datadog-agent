@@ -109,9 +109,9 @@ func (c *CheckWrapper) ID() checkid.ID {
 	return c.inner.ID()
 }
 
-// Unwrap returns the wrapped check.
-func (c *CheckWrapper) Unwrap() check.Check {
-	return c.inner
+// IsShadow returns true when the wrapped check is a shadow check.
+func (c *CheckWrapper) IsShadow() bool {
+	return check.IsShadow(c.inner)
 }
 
 // GetWarnings implements Check#GetWarnings

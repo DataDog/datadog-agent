@@ -32,7 +32,6 @@ func TestNewShadowCheckOverridesIdentityAndInterval(t *testing.T) {
 	assert.False(t, IsShadow(inner))
 	assert.Equal(t, checkid.ID("cpu:abc123:shadow"), shadow.ID())
 	assert.Equal(t, time.Second, shadow.Interval())
-	assert.Same(t, inner, shadow.Unwrap())
 }
 
 func TestShadowCheckIDTracksInnerCheckID(t *testing.T) {

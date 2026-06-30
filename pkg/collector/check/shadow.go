@@ -18,8 +18,10 @@ type shadowMarker interface {
 	isShadowCheck()
 }
 
-type checkUnwrapper interface {
-	Unwrap() Check
+// ShadowAware is an optional interface implemented by wrappers that preserve
+// shadow identity.
+type ShadowAware interface {
+	IsShadow() bool
 }
 
 // ShadowCheck wraps a normally loaded check so collector plumbing can route it
@@ -53,11 +55,6 @@ func (c *ShadowCheck) Interval() time.Duration {
 	return c.interval
 }
 
-// Unwrap returns the wrapped check.
-func (c *ShadowCheck) Unwrap() Check {
-	return c.Check
-}
-
 // SetIssueReporter forwards issue reporter injection to issue-aware checks.
 func (c *ShadowCheck) SetIssueReporter(reporter healthplatformstore.Component) {
 	if aware, ok := c.Check.(IssueAwareCheck); ok {
@@ -67,23 +64,13 @@ func (c *ShadowCheck) SetIssueReporter(reporter healthplatformstore.Component) {
 
 func (*ShadowCheck) isShadowCheck() {}
 
+// IsShadow returns true for shadow checks.
+func (*ShadowCheck) IsShadow() bool {
+	return true
+}
+
 // IsShadow returns true when c is a shadow check wrapper.
 func IsShadow(c Check) bool {
-	for c != nil {
-		if _, ok := c.(shadowMarker); ok {
-			return true
-		}
-
-		unwrapper, ok := c.(checkUnwrapper)
-		if !ok {
-			return false
-		}
-
-		next := unwrapper.Unwrap()
-		if next == nil || next == c {
-			return false
-		}
-		c = next
-	}
-	return false
+	shadow, ok := c.(ShadowAware)
+	return ok && shadow.IsShadow()
 }

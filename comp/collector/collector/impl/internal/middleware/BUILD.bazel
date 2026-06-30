@@ -29,7 +29,6 @@ go_test(
     deps = [
         "//comp/core/agenttelemetry/def",
         "//comp/healthplatform/store/def",
-        "//pkg/aggregator",
         "//pkg/collector/check",
         "//pkg/fleet/installer/telemetry",
         "//pkg/util/option",

@@ -11,7 +11,6 @@ import (
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -142,11 +141,10 @@ func TestCheckWrapperPreservesShadowIdentity(t *testing.T) {
 
 	wrapper := NewCheckWrapper(
 		shadow,
-		aggregator.NewNoOpSenderManager(),
+		nil,
 		option.None[agenttelemetry.Component](),
 		option.None[healthplatformstore.Component](),
 	)
 
 	assert.True(t, check.IsShadow(wrapper))
-	assert.Same(t, shadow, wrapper.Unwrap())
 }
