@@ -1277,6 +1277,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"network",
 		"ntp",
 		"uptime",
+		"system_swap",
 		"systemd",
 		"jetson",
 	})

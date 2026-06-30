@@ -1447,9 +1447,18 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	} else if infraMode == "iot" {
 		// Mirror the legacy IoT Agent flavor: lightweight host monitoring only.
 		// The integration.iot.allowed allowlist restricts checks to the IoT
-		// corecheck set; here we also disable container/orchestrator collection
-		// which the IoT flavor never shipped.
+		// corecheck set. Here we also disable the default-on features that the
+		// IoT Agent build omits via its reduced build-tag set (IOT_AGENT_TAGS):
+		// APM, container collection (docker/containerd/cri/crio/podman), and
+		// Kubernetes orchestration (orchestrator/kubelet/kubeapiserver).
+		// Features that are already off by default (live process collection,
+		// SBOM/trivy, NPM, GPU/nvml, OTLP) need no override.
+		config.Set("apm_config.enabled", false, pkgconfigmodel.SourceInfraMode)
 		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("process_config.container_collection.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("container_image.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("container_lifecycle.enabled", false, pkgconfigmodel.SourceInfraMode)
+		config.Set("orchestrator_explorer.enabled", false, pkgconfigmodel.SourceInfraMode)
 	} else if infraMode == "none" {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
