@@ -78,7 +78,7 @@ Tune these values when needed:
 
 - **Cluster policies or reserved capacity**: set nonzero requests if your cluster requires them, or if you want the scheduler to reserve capacity for the profiler.
 - **Dense nodes or many processes**: increase limits based on observed usage.
-- **Large native binaries**: increase the memory limit when the profiler uploads large debug symbols.
+- **Large native binaries**: increase the memory limit when the profiler uploads large debug symbols. During upload, the profiler copies and prepares symbol data before sending it to Datadog, so it needs working memory at least as large as the largest debug symbol file it processes, in addition to normal profiler usage. Set the limit above that file size with headroom for temporary processing overhead.
 - **Guaranteed QoS**: set requests equal to limits for every container in the pod, including init containers. In bundled Agent deployments, the Agent containers also affect the pod QoS class.
 
 ## Do I need debug symbols?
