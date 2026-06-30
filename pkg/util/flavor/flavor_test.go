@@ -47,6 +47,20 @@ func TestIotHostOverridePromotesDefaultAgent(t *testing.T) {
 	assert.Equal(t, IotAgent, GetFlavor(), "iot_host=true must promote a default agent to report as iot_agent")
 }
 
+// TestInfrastructureModeIotPromotesToIotAgent verifies that setting
+// infrastructure_mode=iot on a default agent binary makes GetFlavor return IotAgent.
+func TestInfrastructureModeIotPromotesToIotAgent(t *testing.T) {
+	mockConfig := configmock.New(t)
+
+	originalFlavor := agentFlavor
+	t.Cleanup(func() { agentFlavor = originalFlavor })
+
+	agentFlavor = DefaultAgent
+	mockConfig.SetInTest("infrastructure_mode", "iot")
+
+	assert.Equal(t, IotAgent, GetFlavor(), "infrastructure_mode=iot must promote a default agent to report as iot_agent")
+}
+
 func TestGetHumanReadableFlavor(t *testing.T) {
 	// NOTE: This constructor is required to setup the global config as
 	// a "mock" config that is using the "dynamic schema". Otherwise the function

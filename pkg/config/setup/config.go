@@ -1444,6 +1444,12 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
+	} else if infraMode == "iot" {
+		// Mirror the legacy IoT Agent flavor: lightweight host monitoring only.
+		// The integration.iot.allowed allowlist restricts checks to the IoT
+		// corecheck set; here we also disable container/orchestrator collection
+		// which the IoT flavor never shipped.
+		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
 	} else if infraMode == "none" {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)

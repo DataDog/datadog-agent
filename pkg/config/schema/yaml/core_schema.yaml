@@ -54,13 +54,14 @@ properties:
         - full: default server/host-monitoring behavior (all checks allowed).
         - basic: minimal host-level metrics only.
         - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+        - iot: lightweight host monitoring mirroring the legacy IoT Agent flavor.
         - none: disables infrastructure checks.
     tags:
     - template_section:Common
     comment: |-
       Infrastructure mode
       The infrastructure mode is used to determine the features that are available to the agent.
-      The possible values are: full, basic, end_user_device, none.
+      The possible values are: full, basic, end_user_device, iot, none.
   dd_url:
     node_type: setting
     type: string

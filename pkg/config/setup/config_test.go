@@ -686,6 +686,17 @@ func TestHealthPlatformDefaults(t *testing.T) {
 	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
 }
 
+func TestInfrastructureModeIoTDisablesECSTaskCollection(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: iot
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
+	assert.True(t, config.GetBool("integration.enabled"))
+}
+
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
 	datadogYaml := `
 infrastructure_mode: none

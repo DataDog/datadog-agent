@@ -38,6 +38,7 @@ api_key:
 ##   - full: default server/host-monitoring behavior (all checks allowed).
 ##   - basic: minimal host-level metrics only.
 ##   - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+##   - iot: lightweight host monitoring mirroring the legacy IoT Agent flavor.
 ##   - none: disables infrastructure checks.
 #
 # infrastructure_mode: "full"

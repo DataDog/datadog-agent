@@ -99,6 +99,26 @@ func TestIsCheckAllowed(t *testing.T) {
 			wantResult: true,
 		},
 		{
+			name:      "iot mode allows only iot checks",
+			checkName: "cpu",
+			setupCfg: func(cfg pkgconfigmodel.Config) {
+				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "iot", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.iot.allowed", []string{"cpu", "disk", "memory"}, pkgconfigmodel.SourceFile)
+			},
+			wantResult: true,
+		},
+		{
+			name:      "iot mode rejects non-iot checks",
+			checkName: "postgres",
+			setupCfg: func(cfg pkgconfigmodel.Config) {
+				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "iot", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.iot.allowed", []string{"cpu", "disk", "memory"}, pkgconfigmodel.SourceFile)
+			},
+			wantResult: false,
+		},
+		{
 			name:      "excluded takes precedence over allowed",
 			checkName: "disk",
 			setupCfg: func(cfg pkgconfigmodel.Config) {

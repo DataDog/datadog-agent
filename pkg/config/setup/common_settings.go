@@ -1253,7 +1253,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
-	// The possible values are: full, basic, end_user_device, none.
+	// The possible values are: full, basic, end_user_device, iot, none.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Infrastructure full mode section (default mode, allows all checks)
@@ -1263,6 +1263,23 @@ func agent(config pkgconfigmodel.Setup) {
 	// Infrastructure end_user_device mode section
 	// integration.end_user_device.allowed: empty means all checks are allowed
 	config.BindEnvAndSetDefault("integration.end_user_device.allowed", []string{})
+
+	// Infrastructure iot mode section
+	// Mirrors the legacy IoT Agent flavor: only the lightweight Go corechecks
+	// (IOT_AGENT_CORECHECKS) are permitted. Python/JMX/container checks are
+	// excluded by virtue of not being in the allowlist.
+	config.BindEnvAndSetDefault("integration.iot.allowed", []string{
+		"cpu",
+		"disk",
+		"io",
+		"load",
+		"memory",
+		"network",
+		"ntp",
+		"uptime",
+		"systemd",
+		"jetson",
+	})
 
 	// Infrastructure basic mode section [UNDOCUMENTED]
 	// Note: All checks starting with "custom_" are always allowed.
