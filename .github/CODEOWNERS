@@ -631,7 +631,7 @@
 /pkg/flare/*_windows.go                 @DataDog/windows-products @DataDog/agent-configuration
 /pkg/flare/*_windows_test.go            @DataDog/windows-products @DataDog/agent-configuration
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-jobs-monitoring
+/pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-observability
 /pkg/inventory/                         @DataDog/windows-products
 /pkg/inventory/software/                @DataDog/windows-products
 /pkg/inventory/systeminfo/              @DataDog/windows-products
@@ -955,7 +955,7 @@
 /test/new-e2e/tests/ssi-gradual-rollout       @DataDog/apm-release-platform
 /test/new-e2e/tests/fleet                     @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer                 @DataDog/fleet @DataDog/windows-products
-/test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-jobs-monitoring
+/test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-observability
 /test/new-e2e/tests/sbom                      @DataDog/agent-security
 # windows-products primary owner for windows tests so we get failure notifications
 /test/new-e2e/tests/installer/windows         @DataDog/windows-products @DataDog/fleet
