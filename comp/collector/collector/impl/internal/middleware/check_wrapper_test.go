@@ -78,6 +78,22 @@ func TestCheckWrapperInjectsIssueReporter(t *testing.T) {
 	assert.Equal(t, reporter, inner.reporter, "reporter should be injected at construction")
 }
 
+func TestCheckWrapperInjectsIssueReporterThroughShadowCheck(t *testing.T) {
+	reporter := &mockIssueReporter{}
+	inner := &issueAwareCheck{}
+	shadow := check.NewShadowCheck(inner, check.ShadowID(checkid.ID("mock_check:abc123")), 0)
+
+	wrapper := NewCheckWrapper(
+		shadow,
+		nil,
+		option.None[agenttelemetry.Component](),
+		option.New[healthplatformstore.Component](reporter),
+	)
+
+	require.NotNil(t, wrapper)
+	assert.Equal(t, reporter, inner.reporter, "reporter should be injected through the shadow wrapper")
+}
+
 func TestCheckWrapperSkipsNonIssueAwareCheck(t *testing.T) {
 	reporter := &mockIssueReporter{}
 	inner := &mockCheck{}

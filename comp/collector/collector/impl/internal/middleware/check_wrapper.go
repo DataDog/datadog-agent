@@ -38,7 +38,7 @@ type CheckWrapper struct {
 // NewCheckWrapper returns a wrapped check.
 func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agentTelemetry option.Option[agenttelemetry.Component], issueReporter option.Option[healthplatformstore.Component]) *CheckWrapper {
 	if reporter, isSet := issueReporter.Get(); isSet {
-		if aware, ok := inner.(check.IssueAwareCheck); ok {
+		if aware, ok := findIssueAwareCheck(inner); ok {
 			aware.SetIssueReporter(reporter)
 		}
 	}
@@ -47,6 +47,26 @@ func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agen
 		senderManager:  senderManager,
 		agentTelemetry: agentTelemetry,
 	}
+}
+
+func findIssueAwareCheck(c check.Check) (check.IssueAwareCheck, bool) {
+	for c != nil {
+		if aware, ok := c.(check.IssueAwareCheck); ok {
+			return aware, true
+		}
+
+		unwrapper, ok := c.(interface{ Unwrap() check.Check })
+		if !ok {
+			return nil, false
+		}
+
+		next := unwrapper.Unwrap()
+		if next == nil || next == c {
+			return nil, false
+		}
+		c = next
+	}
+	return nil, false
 }
 
 // Run implements Check#Run
