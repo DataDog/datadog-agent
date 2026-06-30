@@ -54,7 +54,7 @@ On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store 
 | Package | `id` | `issue_name` | `title` |
 |---|---|---|---|
 | `admisconfig` | set by caller | `Autodiscovery Misconfiguration` | `"Autodiscovery Misconfiguration on '<entityName>'"` |
-| `invalidconfig` | `invalid-config` | `Invalid Config` | `"Datadog Agent Configuration Has <N> Schema Violation(s)"` |
+| `invalidconfig` | `invalid-config` | `Invalid Config` | `"Datadog Agent Configuration Has Schema Violations"` |
 | `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `"Agent cannot write to: <directories>"` |
 | `checkfailure` | `check-execution-failure` | `Check Execution Failure` | `"Check '<checkName>' Failed"` |
 | `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `"Admission Controller Unreachable"` |

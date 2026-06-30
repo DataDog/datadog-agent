@@ -104,8 +104,7 @@ const (
 
 	// persistedStateVersion is the on-disk schema version written by this binary.
 	// loadFromDisk refuses to load files with a different version (no migration).
-	// Bumped from 2→3: state vocabulary changed (new/ongoing → active).
-	persistedStateVersion = 3
+	persistedStateVersion = 2
 )
 
 var issueStateToString = map[IssueState]string{
@@ -114,10 +113,7 @@ var issueStateToString = map[IssueState]string{
 }
 
 func issueStateFromString(s string) IssueState {
-	switch s {
-	case "active", "new", "ongoing": // "new"/"ongoing" are legacy aliases from schema v2
-		return IssueStateActive
-	case "resolved":
+	if s == "resolved" {
 		return IssueStateResolved
 	}
 	return IssueStateActive
