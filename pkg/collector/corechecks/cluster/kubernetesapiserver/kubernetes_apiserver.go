@@ -403,9 +403,7 @@ func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Eve
 
 	sender.Gauge("kubernetes_apiserver.events_dropped", float64(ec.DrainDropped()), "", nil)
 
-	// Persist the max RV of the events we actually drained, not ec.ResourceVersion().
-	// The reflector can advance lastRV between Drain() and ResourceVersion(), so using
-	// lastRV could skip buffered events on restart.
+	// Persist the max RV of the drained batch; lastRV can be ahead if new events arrived during the drain.
 	if len(events) > 0 {
 		var maxRV uint64
 		for _, ev := range events {
