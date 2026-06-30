@@ -12,6 +12,7 @@ package kubernetesapiserver
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -402,9 +403,19 @@ func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Eve
 
 	sender.Gauge("kubernetes_apiserver.events_dropped", float64(ec.DrainDropped()), "", nil)
 
-	// Persist the high-water mark so a restart or leader failover resumes here.
-	if err := k.ac.UpdateTokenInConfigmap(eventTokenKey, ec.ResourceVersion(), time.Now()); err != nil {
-		k.Warnf("Could not persist event resourceVersion: %s", err.Error())
+	// Persist the max RV of the events we actually drained, not ec.ResourceVersion().
+	// The reflector can advance lastRV between Drain() and ResourceVersion(), so using
+	// lastRV could skip buffered events on restart.
+	if len(events) > 0 {
+		var maxRV uint64
+		for _, ev := range events {
+			if rv, err := strconv.ParseUint(ev.ResourceVersion, 10, 64); err == nil && rv > maxRV {
+				maxRV = rv
+			}
+		}
+		if err := k.ac.UpdateTokenInConfigmap(eventTokenKey, strconv.FormatUint(maxRV, 10), time.Now()); err != nil {
+			k.Warnf("Could not persist event resourceVersion: %s", err.Error())
+		}
 	}
 
 	ddevents, errs := k.eventCollection.Transformer.Transform(events)
