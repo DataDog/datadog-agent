@@ -3,16 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
+//go:build !(linux && pcap && cgo)
 
 package rules
 
 import "errors"
 
 func init() {
-	DefaultValidateBPFFilter = validateNetworkFilterBPFFilterUnsupported
+	DefaultValidateBPFFilter = validateNetworkFilterBPFFilterFallback
 }
 
-func validateNetworkFilterBPFFilterUnsupported(_ string) error {
-	return errors.New("BPF Filters are supported on this platform")
+func validateNetworkFilterBPFFilterFallback(_ string) error {
+	return errors.New("BPF Filters are not supported")
 }

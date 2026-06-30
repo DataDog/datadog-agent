@@ -1,8 +1,9 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
-# The `pcap`-tagged file (bpf_filter_validator_pcap.go) is intentionally omitted:
-# the default Bazel build does not enable the `pcap` build tag.
+# The `pcap`-tagged files are intentionally omitted: the default Bazel build does
+# not enable the `pcap` build tag.
 # gazelle:exclude bpf_filter_validator_pcap.go
+# gazelle:exclude bpf_filter_validator_test.go
 
 go_library(
     name = "rules",
@@ -10,8 +11,7 @@ go_library(
         "actions.go",
         "approvers.go",
         "bpf_filter_validator.go",
-        "bpf_filter_validator_linux_stub.go",
-        "bpf_filter_validator_others.go",
+        "bpf_filter_validator_stub.go",
         "bucket.go",
         "capabilities.go",
         "collected_events.go",

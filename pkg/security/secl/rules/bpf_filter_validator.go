@@ -6,8 +6,7 @@
 package rules
 
 // DefaultValidateBPFFilter validates network_filter BPF expressions.
-// The implementation is platform-specific and may be a no-op when BPF
-// compilation is unavailable in the current build environment.
+// The implementation requires a Linux build with pcap and cgo enabled.
 var DefaultValidateBPFFilter func(bpfFilter string) error
 
 func validateBPFFilterWithDefault(opts PolicyLoaderOpts, bpfFilter string) error {
