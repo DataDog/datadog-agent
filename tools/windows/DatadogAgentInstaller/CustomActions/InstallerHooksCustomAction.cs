@@ -9,6 +9,17 @@ namespace Datadog.CustomActions
 {
     public class InstallerHooksCustomAction
     {
+        private static readonly (string MsiProperty, string EnvKey)[] InstallerHookEnvProps =
+        {
+            ("PROJECTLOCATION", "DD_PROJECTLOCATION"),
+            ("APPLICATIONDATADIRECTORY", "DD_APPLICATIONDATADIRECTORY"),
+            ("DD_INSTALLER_REGISTRY_URL", "DD_INSTALLER_REGISTRY_URL"),
+            ("DD_INSTALLER_REGISTRY_AUTH", "DD_INSTALLER_REGISTRY_AUTH"),
+            ("DD_INSTALLER_REGISTRY_USERNAME", "DD_INSTALLER_REGISTRY_USERNAME"),
+            ("DD_INSTALLER_REGISTRY_PASSWORD", "DD_INSTALLER_REGISTRY_PASSWORD"),
+            ("DD_OTELCOLLECTOR_ENABLED", "DD_OTELCOLLECTOR_ENABLED"),
+        };
+
         private readonly ISession _session;
         private readonly string _installerExecutable;
 
@@ -34,32 +45,12 @@ namespace Datadog.CustomActions
         private Dictionary<string, string> InstallerEnvironmentVariables()
         {
             var env = new Dictionary<string, string>();
-            var projectLocation = _session.Property("PROJECTLOCATION");
-            if (!string.IsNullOrEmpty(projectLocation))
+            foreach (var (msiProperty, envKey) in InstallerHookEnvProps)
             {
-                env["DD_PROJECTLOCATION"] = projectLocation;
-            }
-            var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
-            if (!string.IsNullOrEmpty(configRoot))
-            {
-                env["DD_APPLICATIONDATADIRECTORY"] = configRoot;
-            }
-            var registryProps = new[]
-            {
-                // registry props
-                "DD_INSTALLER_REGISTRY_URL",
-                "DD_INSTALLER_REGISTRY_AUTH",
-                "DD_INSTALLER_REGISTRY_USERNAME",
-                "DD_INSTALLER_REGISTRY_PASSWORD",
-                // extensions props
-                "DD_OTELCOLLECTOR_ENABLED",
-            };
-            foreach (var prop in registryProps)
-            {
-                var value = _session.Property(prop);
+                var value = _session.Property(msiProperty);
                 if (!string.IsNullOrEmpty(value))
                 {
-                    env[prop] = value;
+                    env[envKey] = value;
                 }
             }
             return env;
