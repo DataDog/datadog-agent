@@ -109,11 +109,13 @@ go_library(
             "-ldatadog-agent-rtloader -ldl",
         ],
         "@rules_go//go/platform:windows": [
-            "-Wl,--allow-multiple-definition -lstdc++ -static",
+            # we cannot use dynamic library on Windows, so we simply
+            # replicate the same approach as what we do currently in
+            # the legacy build.
             "-Wl,--allow-multiple-definition -lstdc++ -static",
         ],
         "//conditions:default": [],
-    }),
+    }),  # keep
     copts = ["-I pkg/collector/python/rtloader/include -I pkg/collector/python/rtloader/common"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/python",
     tags = ["manual"],
