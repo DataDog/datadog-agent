@@ -173,11 +173,15 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
 		packagePath = resolved
 	}
-	if err := processmanager.RemoveADPProcmgrConfig(packagePath); err != nil {
-		log.Warnf("failed to remove ADP process manager config: %v", err)
-	}
-	if env.FromEnv().ProcessManagerEnabled {
-		processmanager.ReloadOrRestartProcmgr()
+	// ADP processes.d YAML is not an MSI component; keep it across upgrade prerm so a rolled-back
+	// install still has supervision config until postinst rewrites it. Full uninstall removes it.
+	if !ctx.Upgrade {
+		if err := processmanager.RemoveADPProcmgrConfig(packagePath); err != nil {
+			log.Warnf("failed to remove ADP process manager config: %v", err)
+		}
+		if env.FromEnv().ProcessManagerEnabled {
+			processmanager.ReloadOrRestartProcmgr()
+		}
 	}
 
 	if ctx.PackageType == PackageTypeMSI {

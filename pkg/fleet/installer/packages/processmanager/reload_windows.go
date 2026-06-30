@@ -54,10 +54,20 @@ func validatedDDProcmgrCLI() (string, error) {
 
 // ReloadOrRestartProcmgr tells dd-procmgrd to re-read processes.d from disk (e.g. after DDOT
 // processes.d removal). Prefer `dd-procmgr reload` over an SCM service restart; fall back to
-// restarting dd-procmgr-service when the CLI is absent or reload fails.
+// restarting dd-procmgr-service when the CLI is absent or reload fails. No-op when the service
+// is already stopped (e.g. MSI prerm runs after StopDDServices).
 func ReloadOrRestartProcmgr() {
 	if paths.DatadogProgramFilesDir == "" {
 		log.Warnf("DDOT: DatadogProgramFilesDir is empty; cannot reload or restart %s", ddProcmgrServiceName)
+		return
+	}
+	running, err := winutil.IsServiceRunning(ddProcmgrServiceName)
+	if err != nil {
+		log.Warnf("DDOT: could not query %s state before reload: %v", ddProcmgrServiceName, err)
+		return
+	}
+	if !running {
+		log.Debugf("DDOT: skip reload/restart; %s is not running", ddProcmgrServiceName)
 		return
 	}
 	cli, pathErr := validatedDDProcmgrCLI()
