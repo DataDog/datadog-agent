@@ -113,6 +113,7 @@ go_library(
     }),
     copts = ["-I pkg/collector/python/rtloader/include -I pkg/collector/python/rtloader/common"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/python",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/common",

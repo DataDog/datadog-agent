@@ -16,7 +16,7 @@ go_library(
     # Sources require sharedlibrarycheck; without it no Go files are active and
     # compilation fails. Mark manual so //... expansion skips this target; tests
     # embedding this library supply the right gotags via their flavor tags.
-    tags = ["manual"],    
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/aggregator",
