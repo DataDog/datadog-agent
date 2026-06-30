@@ -38,6 +38,8 @@ spec:
               # Drop default capabilities and add only the ones the Host Profiler needs.
               drop: ["ALL"]
               add: ["BPF", "PERFMON", "SYS_PTRACE", "SYS_RESOURCE", "DAC_READ_SEARCH", "SYSLOG", "CHECKPOINT_RESTORE", "IPC_LOCK"]
+          # Explicit zero requests avoid reserving CPU or memory on every node,
+          # while limits cap runaway usage.
           resources:
             requests:
               cpu: "0"

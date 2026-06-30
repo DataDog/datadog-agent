@@ -83,17 +83,14 @@ DD_BETA_COMMANDS_ENABLED=1 datadog-ci elf-symbols upload /path/to/build/symbols/
 
 ## How do I configure resource requests and limits?
 
-| QoS class | Requests | Limits | Trade-off |
-|---|---|---|---|
-| Best-effort | none | none | No reservation, no cap; first to be evicted under node memory pressure |
-| Burstable (default) | 0 | set | No reservation; usage capped to protect the node |
-| Guaranteed | = limits | set | Reserves capacity on every node; best eviction stability and resource visibility |
+The provided manifests set Host Profiler container requests to `0` and limits to `500m` CPU and `1Gi` memory. This caps profiler usage without reserving CPU or memory on every node.
 
-The provided manifests set requests to zero and limits of 500m CPU and 1 GiB memory, which fit most deployments. These values can be tuned:
+Tune these values when needed:
 
-- **Large clusters or dense nodes**: consider adjusting limits based on observed usage, as overhead scales with the number of running processes.
-- **Large native binaries**: increase the memory limit when running workloads with large debug symbols, as symbol processing requires additional working memory.
-- **Guaranteed QoS**: set requests equal to limits if your cluster's observability tools assume they are equal, or if you need predictable eviction behavior.
+- **Cluster policies or reserved capacity**: set nonzero requests if your cluster requires them, or if you want the scheduler to reserve capacity for the profiler.
+- **Dense nodes or many processes**: increase limits based on observed usage.
+- **Large native binaries**: increase the memory limit when the profiler uploads large debug symbols.
+- **Guaranteed QoS**: set requests equal to limits for every container in the pod, including init containers. In bundled Agent deployments, the Agent containers also affect the pod QoS class.
 
 ## What security privileges does the Host Profiler require?
 

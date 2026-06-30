@@ -24,6 +24,8 @@ datadog:
 agents:
   containers:
     hostProfiler:
+      # Explicit zero requests avoid reserving CPU or memory on every node,
+      # while limits cap runaway usage.
       resources:
         requests:
           cpu: "0"
