@@ -203,7 +203,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/orchestrator/pod
 # gazelle:exclude pkg/collector/corechecks/sbom
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/test
-# gazelle:exclude pkg/collector/corechecks/system/disk/disk
 # gazelle:exclude pkg/collector/corechecks/system/filehandles
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance/cli
