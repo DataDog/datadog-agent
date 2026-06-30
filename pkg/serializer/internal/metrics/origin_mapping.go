@@ -30,7 +30,10 @@ func metricSourceToOriginProduct(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAzureAppServiceRuntime,
 		metrics.MetricSourceGoogleCloudRunCustom,
 		metrics.MetricSourceGoogleCloudRunEnhanced,
-		metrics.MetricSourceGoogleCloudRunRuntime:
+		metrics.MetricSourceGoogleCloudRunRuntime,
+		metrics.MetricSourceAWSMicroVMCustom,
+		metrics.MetricSourceAWSMicroVMEnhanced,
+		metrics.MetricSourceAWSMicroVMRuntime:
 		return serieMetadataOriginOriginProductServerlessType
 	}
 	return serieMetadataOriginOriginProductAgentType
@@ -387,6 +390,10 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAzureContainerAppEnhanced,
 		metrics.MetricSourceAzureContainerAppRuntime:
 		return 37
+	case metrics.MetricSourceAWSMicroVMCustom,
+		metrics.MetricSourceAWSMicroVMEnhanced,
+		metrics.MetricSourceAWSMicroVMRuntime:
+		return 38
 	default:
 		return 0
 	}
@@ -838,8 +845,6 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 235
 	case metrics.MetricSourceOpenTelemetryCollectorOracledbReceiver:
 		return 236
-	case metrics.MetricSourceOpenTelemetryCollectorPodmanReceiver:
-		return 521
 	case metrics.MetricSourceOpenTelemetryCollectorPostgresqlReceiver:
 		return 237
 	case metrics.MetricSourceOpenTelemetryCollectorPrometheusReceiver:
@@ -1155,6 +1160,14 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 517
 	case metrics.MetricSourceVersa:
 		return 519
+	case metrics.MetricSourceAWSMicroVMCustom:
+		return 520
+	case metrics.MetricSourceOpenTelemetryCollectorPodmanReceiver:
+		return 521
+	case metrics.MetricSourceAWSMicroVMRuntime:
+		return 522
+	case metrics.MetricSourceAWSMicroVMEnhanced:
+		return 523
 	default:
 		return 0
 	}

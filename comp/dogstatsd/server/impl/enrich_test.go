@@ -1603,3 +1603,25 @@ func TestEnrichMetricSampleJMXInfraTag(t *testing.T) {
 		assert.NotContains(t, s.Tags, "infra_mode:cloud_cost_only")
 	})
 }
+
+// serverlessSourceCustomToRuntime runs on every metric sample in serverless mode;
+// a missing case silently mis-attributes customer metrics.
+func TestServerlessSourceCustomToRuntime(t *testing.T) {
+	tests := []struct {
+		name string
+		in   metrics.MetricSource
+		want metrics.MetricSource
+	}{
+		{"AWSMicroVMCustom remaps to runtime", metrics.MetricSourceAWSMicroVMCustom, metrics.MetricSourceAWSMicroVMRuntime},
+		{"GoogleCloudRunCustom remaps to runtime", metrics.MetricSourceGoogleCloudRunCustom, metrics.MetricSourceGoogleCloudRunRuntime},
+		{"AzureContainerAppCustom remaps to runtime", metrics.MetricSourceAzureContainerAppCustom, metrics.MetricSourceAzureContainerAppRuntime},
+		{"AzureAppServiceCustom remaps to runtime", metrics.MetricSourceAzureAppServiceCustom, metrics.MetricSourceAzureAppServiceRuntime},
+		{"AWSMicroVMRuntime is not double-remapped", metrics.MetricSourceAWSMicroVMRuntime, metrics.MetricSourceAWSMicroVMRuntime},
+		{"non-serverless source is unchanged", metrics.MetricSourceJmxCustom, metrics.MetricSourceJmxCustom},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, serverlessSourceCustomToRuntime(tt.in))
+		})
+	}
+}
