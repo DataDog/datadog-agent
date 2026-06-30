@@ -218,9 +218,10 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
 	cs.TotalRuns++
 	if cs.Telemetry {
-		tlmExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
 		if cs.TotalRuns == 1 {
 			tlmFirstExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
+		} else {
+			tlmExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
 		}
 	}
 	var totalExecutionTime int64

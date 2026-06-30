@@ -123,20 +123,22 @@ func TestFirstExecutionTimeMetric(t *testing.T) {
 
 	tlmData, err := getTelemetryData()
 	require.NoError(t, err)
+	// first run goes only to checks.first_execution_time
 	assert.Contains(t, tlmData,
 		`checks__first_execution_time{check_loader="mockLoader",check_name="checkString"} 100`,
 	)
+	assert.NotContains(t, tlmData, `checks__execution_time{check_loader="mockLoader",check_name="checkString"}`)
 
 	stats.Add(50*time.Millisecond, nil, []error{}, SenderStats{}, haagent)
 
 	tlmData, err = getTelemetryData()
 	require.NoError(t, err)
-	// first_execution_time must not be updated on subsequent runs
+	// subsequent runs go only to checks.execution_time, first_execution_time stays frozen
+	assert.Contains(t, tlmData,
+		`checks__execution_time{check_loader="mockLoader",check_name="checkString"} 50`,
+	)
 	assert.Contains(t, tlmData,
 		`checks__first_execution_time{check_loader="mockLoader",check_name="checkString"} 100`,
-	)
-	assert.NotContains(t, tlmData,
-		`checks__first_execution_time{check_loader="mockLoader",check_name="checkString"} 50`,
 	)
 }
 
