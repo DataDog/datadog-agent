@@ -9,6 +9,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -156,7 +157,7 @@ func validateContainerEndpoint(endpoint string) error {
 	}
 	host := parsed.Hostname()
 	if host == "" {
-		return fmt.Errorf("invalid container credentials URI: missing host")
+		return errors.New("invalid container credentials URI: missing host")
 	}
 	if parsed.Scheme != "http" {
 		return nil
