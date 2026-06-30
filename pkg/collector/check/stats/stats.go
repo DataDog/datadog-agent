@@ -73,9 +73,9 @@ var (
 		[]string{"check_name"}, "Service checks count")
 	tlmHistogramBuckets = telemetryimpl.GetCompatComponent().NewCounter("checks", "histogram_buckets",
 		[]string{"check_name"}, "Histogram buckets count")
-	tlmExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("checks", "execution_time",
+	tlmExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("", "execution_time",
 		[]string{"check_name", "check_loader"}, "Check execution time")
-	tlmFirstExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("checks", "first_execution_time",
+	tlmFirstExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("", "first_execution_time",
 		[]string{"check_name", "check_loader"}, "Check first execution time")
 	tlmCheckDelay = telemetryimpl.GetCompatComponent().NewGauge("checks",
 		"delay",
