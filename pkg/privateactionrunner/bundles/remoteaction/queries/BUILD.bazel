@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "queries",
+    srcs = [
+        "entrypoint.go",
+        "execute.go",
+        "ipc_client.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/api/security/cert",
+        "//pkg/config/setup",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "//pkg/util/system",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+go_test(
+    name = "queries_test",
+    srcs = ["execute_test.go"],
+    embed = [":queries"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/core",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)

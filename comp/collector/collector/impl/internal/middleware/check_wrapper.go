@@ -49,6 +49,11 @@ func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agen
 	}
 }
 
+// Unwrap returns the wrapped check.
+func (c *CheckWrapper) Unwrap() check.Check {
+	return c.inner
+}
+
 // Run implements Check#Run
 func (c *CheckWrapper) Run() (err error) {
 	c.runM.Lock()
