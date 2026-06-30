@@ -402,6 +402,9 @@ const (
 	MetricSourceGoogleCloudRunCustom
 	MetricSourceGoogleCloudRunEnhanced
 	MetricSourceGoogleCloudRunRuntime
+	MetricSourceAWSMicroVMCustom
+	MetricSourceAWSMicroVMEnhanced
+	MetricSourceAWSMicroVMRuntime
 )
 
 // String returns a string representation of MetricSource
@@ -1135,6 +1138,12 @@ func (ms MetricSource) String() string {
 		return "google_cloud_run_enhanced"
 	case MetricSourceGoogleCloudRunRuntime:
 		return "google_cloud_run_runtime"
+	case MetricSourceAWSMicroVMCustom:
+		return "aws_microvm_custom"
+	case MetricSourceAWSMicroVMEnhanced:
+		return "aws_microvm_enhanced"
+	case MetricSourceAWSMicroVMRuntime:
+		return "aws_microvm_runtime"
 	case MetricSourceWlan:
 		return "wlan"
 	case MetricSourceWindowsCertificateStore:
