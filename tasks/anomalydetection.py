@@ -1119,6 +1119,9 @@ def _resolve_ddeval_options(
 
     if not ddsource_dir:
         raise ValueError("--ddeval-ddsource-dir or $DDSOURCE_DIR is required for --eval-backend=ddeval")
+    ddsource_dir = os.path.abspath(ddsource_dir)
+    config_template = os.path.abspath(config_template)
+
     if not os.path.isdir(ddsource_dir):
         raise ValueError(f"dd-source directory not found: {ddsource_dir}")
     if not os.path.isfile(config_template):
@@ -1195,11 +1198,11 @@ def _run_ddeval_trial(
     executor_config["sigma"] = sigma
     experiment_config["executor_config"] = executor_config
 
-    trial_experiment_config_path = os.path.join(trial_dir, "ddeval-experiment-config.json")
+    trial_experiment_config_path = os.path.abspath(os.path.join(trial_dir, "ddeval-experiment-config.json"))
     with open(trial_experiment_config_path, "w") as f:
         json.dump(experiment_config, f, indent=4)
 
-    result_log_path = os.path.join(trial_dir, "ddeval-workflow.log")
+    result_log_path = os.path.abspath(os.path.join(trial_dir, "ddeval-workflow.log"))
     cmd = _ddeval_workflow_command(
         config_path=trial_experiment_config_path,
         options=options,
