@@ -645,9 +645,37 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 				Ddtags:  datadog.PtrString("otel_source:test"),
 				Message: *datadog.PtrString("hello world"),
 				AdditionalProperties: map[string]interface{}{
-					"status":        "debug",
-					otelSeverityNumber: "5",
-					otelScopeName:  "go.opentelemetry.io/contrib/bridges/otelslog",
+					"status":             "debug",
+					otelSeverityNumber:   "5",
+					otelScopeName:        "go.opentelemetry.io/contrib/bridges/otelslog",
+				},
+			},
+		},
+		{
+			name: "scope version",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.Body().SetStr("hello world")
+					l.SetSeverityNumber(5)
+					return l
+				}(),
+				res: pcommon.NewResource(),
+				scope: func() pcommon.InstrumentationScope {
+					s := pcommon.NewInstrumentationScope()
+					s.SetName("go.opentelemetry.io/contrib/bridges/otelslog")
+					s.SetVersion("v1.2.3")
+					return s
+				}(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString("hello world"),
+				AdditionalProperties: map[string]interface{}{
+					"status":             "debug",
+					otelSeverityNumber:   "5",
+					otelScopeName:        "go.opentelemetry.io/contrib/bridges/otelslog",
+					otelScopeVersion:     "v1.2.3",
 				},
 			},
 		},
