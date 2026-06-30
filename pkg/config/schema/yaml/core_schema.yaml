@@ -2522,6 +2522,124 @@ properties:
     tags:
     - template_section:Dogstatsd
     comment: How many workers are used by the no-aggregation pipeline.
+  metric_lookback:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Configure the local metric lookback ring. The first supported DogStatsD use
+      case captures selected normal DogStatsD bucketed points and final
+      no-aggregation points by exact name. An optional monitor can forward retained
+      high-resolution ranges while a watched metric's window range is above a configured
+      epsilon or until it has proven healthy.
+    tags:
+    - template_section:Dogstatsd
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Enable metric lookback globally. For shadow checks, this enables shadowing for checks allowed by enabled_checks.
+        tags:
+        - template_section:Dogstatsd
+      enabled_checks:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        visibility: public
+        description: Optional check-name allowlist for metric lookback shadow checks. When empty, all supported checks are eligible.
+        tags:
+        - template_section:Dogstatsd
+      collection_interval:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        visibility: public
+        description: Collection interval for selected metric lookback shadow checks.
+        tags:
+        - golang_type:duration
+        - template_section:Dogstatsd
+      capacity:
+        node_type: setting
+        type: integer
+        default: 262144
+        visibility: public
+        description: Total number of point records retained across all lookback ring shards.
+        tags:
+        - template_section:Dogstatsd
+      shard_count:
+        node_type: setting
+        type: integer
+        default: 16
+        visibility: public
+        description: Number of independent shards used by the lookback ring.
+        tags:
+        - template_section:Dogstatsd
+      dogstatsd:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configure exact-name DogStatsD admission into metric lookback.
+        tags:
+        - template_section:Dogstatsd
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Enable retaining selected DogStatsD metrics.
+            tags:
+            - template_section:Dogstatsd
+          metric_names:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            visibility: public
+            description: Exact DogStatsD metric names to retain in the lookback ring.
+            tags:
+            - template_section:Dogstatsd
+      monitor:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configure a metric lookback monitor for egress.
+        tags:
+        - template_section:Dogstatsd
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Enable the metric lookback monitor.
+            tags:
+            - template_section:Dogstatsd
+          metric_name:
+            node_type: setting
+            type: string
+            default: ''
+            visibility: public
+            description: Exact metric name watched by the monitor.
+            tags:
+            - template_section:Dogstatsd
+          range_epsilon:
+            node_type: setting
+            type: number
+            default: 0
+            visibility: public
+            description: |-
+              Monitor range threshold. Egress forwards retained ranges while the watched metric's window range is
+              greater than this epsilon or has not proven healthy.
+            tags:
+            - golang_type:float64
+            - template_section:Dogstatsd
   statsd_forward_host:
     node_type: setting
     type: string
@@ -9382,34 +9500,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    tags:
-    - full-agent-only:true
-  metric_lookback:
-    node_type: section
-    type: object
-    properties:
-      collection_interval:
-        node_type: setting
-        type: string
-        default: 1s
-        format: duration
-        tags:
-        - golang_type:duration
-        - full-agent-only:true
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
-        tags:
-        - full-agent-only:true
-      enabled_checks:
-        node_type: setting
-        type: array
-        default: []
-        items:
-          type: string
-        tags:
-        - full-agent-only:true
     tags:
     - full-agent-only:true
   metric_tag_filterlist:

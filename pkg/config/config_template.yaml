@@ -2663,6 +2663,80 @@ api_key:
 #
 # dogstatsd_no_aggregation_pipeline_workers_count: 1
 
+## @param metric_lookback - custom object - optional
+## Configure the local metric lookback ring. The first supported DogStatsD use
+## case captures selected normal DogStatsD bucketed points and final
+## no-aggregation points by exact name. An optional monitor can forward retained
+## high-resolution ranges while a watched metric's window range is above a configured
+## epsilon or until it has proven healthy.
+#
+# metric_lookback:
+
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_METRIC_LOOKBACK_ENABLED - boolean - optional - default: false
+#   # Enable metric lookback globally. For shadow checks, this enables shadowing for checks allowed by enabled_checks.
+#
+#   enabled: false
+
+#   # @param enabled_checks - list of strings - optional - default: []
+#   # @env DD_METRIC_LOOKBACK_ENABLED_CHECKS - space-separated list of strings - optional - default: []
+#   # Optional check-name allowlist for metric lookback shadow checks. When empty, all supported checks are eligible.
+#
+#   enabled_checks: []
+
+#   # @param capacity - integer - optional - default: 262144
+#   # @env DD_METRIC_LOOKBACK_CAPACITY - integer - optional - default: 262144
+#   # Total number of point records retained across all lookback ring shards.
+#
+#   capacity: 262144
+
+#   # @param shard_count - integer - optional - default: 16
+#   # @env DD_METRIC_LOOKBACK_SHARD_COUNT - integer - optional - default: 16
+#   # Number of independent shards used by the lookback ring.
+#
+#   shard_count: 16
+
+#   # @param dogstatsd - custom object - optional
+#   # Configure exact-name DogStatsD admission into metric lookback.
+#
+#   dogstatsd:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_METRIC_LOOKBACK_DOGSTATSD_ENABLED - boolean - optional - default: false
+#     # Enable retaining selected DogStatsD metrics.
+#
+#     enabled: false
+
+#     # @param metric_names - list of strings - optional - default: []
+#     # @env DD_METRIC_LOOKBACK_DOGSTATSD_METRIC_NAMES - space-separated list of strings - optional - default: []
+#     # Exact DogStatsD metric names to retain in the lookback ring.
+#
+#     metric_names: []
+
+#   # @param monitor - custom object - optional
+#   # Configure a DogStatsD metric monitor for lookback egress.
+#
+#   monitor:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_METRIC_LOOKBACK_MONITOR_ENABLED - boolean - optional - default: false
+#     # Enable the DogStatsD lookback monitor.
+#
+#     enabled: false
+
+#     # @param metric_name - string - optional - default: ""
+#     # @env DD_METRIC_LOOKBACK_MONITOR_METRIC_NAME - string - optional - default: ""
+#     # Exact DogStatsD metric name watched by the monitor.
+#
+#     metric_name: ""
+
+#     # @param range_epsilon - float - optional - default: 0
+#     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - float - optional - default: 0
+#     # Monitor range threshold. Egress forwards retained ranges while the watched metric's window range is
+#     # greater than this epsilon or has not proven healthy.
+#
+#     range_epsilon: 0
+
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
