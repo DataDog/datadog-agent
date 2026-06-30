@@ -7,28 +7,30 @@ package lifecycle
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSetupComponents_EnvUnsetInitMode_HandleAlive_NoForwarder(t *testing.T) {
-	got, err := setupComponents("", false /*sidecar*/)
+	got, err := setupComponents(setupInput{})
 	require.NoError(t, err)
 	assert.Nil(t, got.Forwarder)
 	require.NotNil(t, got.Child) // production handle, mutable by mode
 	assert.Equal(t, ChildHandle(got.Child), got.Handle)
+	assert.Equal(t, DefaultPort, got.Port)
 }
 
 func TestSetupComponents_EnvSetInitMode_ForwarderEnabled(t *testing.T) {
-	got, err := setupComponents("8080", false)
+	got, err := setupComponents(setupInput{userAppPort: "8080"})
 	require.NoError(t, err)
 	require.NotNil(t, got.Forwarder)
 	require.NotNil(t, got.Child)
 }
 
 func TestSetupComponents_EnvSetSidecarMode_ForwarderDisabledWithWarn(t *testing.T) {
-	got, err := setupComponents("8080", true)
+	got, err := setupComponents(setupInput{userAppPort: "8080", sidecarMode: true})
 	require.NoError(t, err)
 	assert.Nil(t, got.Forwarder, "sidecar mode must disable the forwarder")
 	assert.Nil(t, got.Child, "sidecar mode uses noop child")
@@ -36,7 +38,7 @@ func TestSetupComponents_EnvSetSidecarMode_ForwarderDisabledWithWarn(t *testing.
 }
 
 func TestSetupComponents_EnvUnsetSidecarMode_NoForwarderNoopHandle(t *testing.T) {
-	got, err := setupComponents("", true)
+	got, err := setupComponents(setupInput{sidecarMode: true})
 	require.NoError(t, err)
 	assert.Nil(t, got.Forwarder)
 	assert.Nil(t, got.Child)
@@ -45,8 +47,51 @@ func TestSetupComponents_EnvUnsetSidecarMode_NoForwarderNoopHandle(t *testing.T)
 
 func TestSetupComponents_EnvInvalid_ReturnsError(t *testing.T) {
 	for _, raw := range []string{"abc", "0", "65536", "9000"} {
-		_, err := setupComponents(raw, false)
+		_, err := setupComponents(setupInput{userAppPort: raw})
 		assert.Error(t, err, "raw=%q should fail", raw)
+	}
+}
+
+func TestSetupComponents_CustomLifecyclePort(t *testing.T) {
+	got, err := setupComponents(setupInput{lifecyclePort: "9001"})
+	require.NoError(t, err)
+	assert.Equal(t, 9001, got.Port)
+}
+
+func TestSetupComponents_InvalidLifecyclePort_ReturnsError(t *testing.T) {
+	for _, raw := range []string{"abc", "0", "65536", "-1"} {
+		_, err := setupComponents(setupInput{lifecyclePort: raw})
+		assert.Error(t, err, "lifecycle port %q should fail", raw)
+	}
+}
+
+func TestSetupComponents_UserAppPortCollidesWithCustomLifecyclePort_ReturnsError(t *testing.T) {
+	// Both ports set to 9001 — must be rejected regardless of the default (9000).
+	_, err := setupComponents(setupInput{lifecyclePort: "9001", userAppPort: "9001"})
+	assert.Error(t, err, "user-app port equal to a non-default lifecycle port must be rejected")
+}
+
+func TestSetupComponents_UserAppPortOnDefaultWhenLifecycleMoved_IsAccepted(t *testing.T) {
+	// Lifecycle moved to 9001; user app on 9000 is now free.
+	got, err := setupComponents(setupInput{lifecyclePort: "9001", userAppPort: "9000"})
+	require.NoError(t, err)
+	assert.Equal(t, 9001, got.Port)
+	require.NotNil(t, got.Forwarder)
+}
+
+func TestSetupComponents_CustomTimeouts(t *testing.T) {
+	got, err := setupComponents(setupInput{userAppPort: "8080", forwardMs: "5000", readyMs: "10000", validateMs: "15000"})
+	require.NoError(t, err)
+	require.NotNil(t, got.Forwarder)
+	assert.Equal(t, 5*time.Second, got.Forwarder.forwardTimeout)
+	assert.Equal(t, 10*time.Second, got.Forwarder.readyTimeout)
+	assert.Equal(t, 15*time.Second, got.Forwarder.validateTimeout)
+}
+
+func TestSetupComponents_InvalidTimeoutMs_ReturnsError(t *testing.T) {
+	for _, raw := range []string{"abc", "0", "-1"} {
+		_, err := setupComponents(setupInput{userAppPort: "8080", forwardMs: raw})
+		assert.Error(t, err, "forward timeout %q should fail", raw)
 	}
 }
 

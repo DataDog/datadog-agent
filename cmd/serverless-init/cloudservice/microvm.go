@@ -130,7 +130,7 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 		[]string{"microvm_image_arn:" + arn},
 	)
 	m.server = lifecycle.NewServer(
-		lifecycle.DefaultPort,
+		components.Port,
 		lc.MetricFlusher,
 		ctx.TraceAgent, // satisfies lifecycle.Flusher via TraceAgent.Flush()
 		lc.LogsFlusher,
