@@ -19,6 +19,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -1570,6 +1571,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	//   other tests specific for the configsDistribution struct that test more
 	//   complex scenarios.
 
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -1666,6 +1668,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 // configs are stacked on node1 alongside a lightweight config on node2, the
 // utilization rebalancer moves one heavy config to node2, spreading the load.
 func TestRebalanceUsingUtilization_GroupsAndSpreadsMultiInstanceConfigs(t *testing.T) {
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -1866,6 +1869,7 @@ func TestRebalanceUsingUtilization_PinsChecksWithoutExecutionTime(t *testing.T) 
 // first while both runners still look empty, which anchors it to its current
 // (overloaded) runner.
 func TestRebalanceUsingUtilization_PinnedLoadAccountedBeforeGreedyPlacement(t *testing.T) {
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
