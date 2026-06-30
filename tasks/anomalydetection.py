@@ -49,6 +49,7 @@ DEFAULT_DDEVAL_CONFIG_TEMPLATE = os.path.join(
 class _DDEvalOptions:
     config_template: str
     ddsource_dir: str
+    command: str
     service: str
     project: str
     dataset: str
@@ -777,6 +778,7 @@ def eval_bayesian(
     eval_backend: str = "local",
     ddeval_config_template: str = "",
     ddeval_ddsource_dir: str = "",
+    ddeval_command: str = "",
     ddeval_service: str = "eval_worker_observer_log_ad",
     ddeval_project: str = "observer-log-ad",
     ddeval_dataset: str = "observer-log-ad-gensim-store-working",
@@ -822,7 +824,9 @@ def eval_bayesian(
         ddeval_config_template: JSON experiment config template for ddeval. The trial's
             sampled testbench config is injected into input_parameters.testbench_config.
         ddeval_ddsource_dir: dd-source checkout containing the ddeval Bazel target.
-            Defaults to $DDSOURCE_DIR or $DD_SOURCE_DIR.
+            Defaults to $DDSOURCE_DIR or $DD_SOURCE_DIR when --ddeval-command is not set.
+        ddeval_command: Installed ddeval command or wrapper. When set, this is used
+            instead of running the ddeval Bazel target from dd-source.
         ddeval_service: ddeval executor service name.
         ddeval_project: LLMObs/ddEval project name.
         ddeval_dataset: ddEval dataset name.
@@ -838,7 +842,7 @@ def eval_bayesian(
         dda inv --dep optuna anomalydetection.eval-bayesian --components bocpd,rrcf,time_cluster
         dda inv --dep optuna anomalydetection.eval-bayesian --only bocpd
         dda inv --dep optuna anomalydetection.eval-bayesian --n-trials 100 --seed 42
-        dda inv --dep optuna anomalydetection.eval-bayesian --eval-backend ddeval --n-trials 3
+        dda inv --dep optuna anomalydetection.eval-bayesian --eval-backend ddeval --ddeval-command ddeval --n-trials 3
     """
     import pickle
 
@@ -905,6 +909,7 @@ def eval_bayesian(
             eval_backend=eval_backend,
             ddeval_config_template=ddeval_config_template,
             ddeval_ddsource_dir=ddeval_ddsource_dir,
+            ddeval_command=ddeval_command,
             ddeval_service=ddeval_service,
             ddeval_project=ddeval_project,
             ddeval_dataset=ddeval_dataset,
@@ -1094,6 +1099,7 @@ def _resolve_ddeval_options(
     eval_backend: str,
     ddeval_config_template: str,
     ddeval_ddsource_dir: str,
+    ddeval_command: str,
     ddeval_service: str,
     ddeval_project: str,
     ddeval_dataset: str,
@@ -1115,14 +1121,22 @@ def _resolve_ddeval_options(
         or os.environ.get("OBSERVER_LOG_AD_DDEVAL_CONFIG_TEMPLATE", "")
         or DEFAULT_DDEVAL_CONFIG_TEMPLATE
     )
-    ddsource_dir = ddeval_ddsource_dir or os.environ.get("DDSOURCE_DIR") or os.environ.get("DD_SOURCE_DIR") or ""
+    command = (ddeval_command or os.environ.get("DDEVAL_COMMAND", "")).strip()
+    if command:
+        ddsource_dir = os.path.abspath(ddeval_ddsource_dir) if ddeval_ddsource_dir else ""
+    else:
+        ddsource_dir = ddeval_ddsource_dir or os.environ.get("DDSOURCE_DIR") or os.environ.get("DD_SOURCE_DIR") or ""
 
-    if not ddsource_dir:
-        raise ValueError("--ddeval-ddsource-dir or $DDSOURCE_DIR is required for --eval-backend=ddeval")
-    ddsource_dir = os.path.abspath(ddsource_dir)
+    if not command and not ddsource_dir:
+        raise ValueError(
+            "--ddeval-command, $DDEVAL_COMMAND, --ddeval-ddsource-dir, or $DDSOURCE_DIR is required for "
+            "--eval-backend=ddeval"
+        )
+    if ddsource_dir:
+        ddsource_dir = os.path.abspath(ddsource_dir)
     config_template = os.path.abspath(config_template)
 
-    if not os.path.isdir(ddsource_dir):
+    if ddsource_dir and not os.path.isdir(ddsource_dir):
         raise ValueError(f"dd-source directory not found: {ddsource_dir}")
     if not os.path.isfile(config_template):
         raise ValueError(f"ddeval config template not found: {config_template}")
@@ -1130,6 +1144,7 @@ def _resolve_ddeval_options(
     return eval_backend, _DDEvalOptions(
         config_template=config_template,
         ddsource_dir=ddsource_dir,
+        command=command,
         service=ddeval_service,
         project=ddeval_project,
         dataset=ddeval_dataset,
@@ -1148,6 +1163,7 @@ def _ddeval_options_kwargs(options: _DDEvalOptions | None) -> dict[str, object]:
     return {
         "ddeval_config_template": options.config_template,
         "ddeval_ddsource_dir": options.ddsource_dir,
+        "ddeval_command": options.command,
         "ddeval_service": options.service,
         "ddeval_project": options.project,
         "ddeval_dataset": options.dataset,
@@ -1272,9 +1288,16 @@ def _ddeval_workflow_command(
 ) -> str:
     # ddeval workflow run can prompt on test-drive drift and does not expose --yes
     # in the current dd-source CLI.
+    if options.command:
+        command = _quote_command(options.command)
+        prefix = f"printf 'y\\n' | {command} workflow run"
+        cd_part = ""
+    else:
+        prefix = "printf 'y\\n' | bzl run //domains/ai_platform/shared/libs/ddeval/cli:ddeval -- workflow run"
+        cd_part = f"cd {shlex.quote(options.ddsource_dir)}"
+
     parts = [
-        f"cd {shlex.quote(options.ddsource_dir)}",
-        "printf 'y\\n' | bzl run //domains/ai_platform/shared/libs/ddeval/cli:ddeval -- workflow run",
+        prefix,
         f"-s {shlex.quote(options.service)}",
         f"-p {shlex.quote(options.project)}",
         f"-d {shlex.quote(options.dataset)}",
@@ -1288,7 +1311,13 @@ def _ddeval_workflow_command(
         parts.append(f"--limit {int(options.limit)}")
     if options.where_in:
         parts.append(f"--where-in {shlex.quote(options.where_in)}")
-    return " && ".join([parts[0], " ".join(parts[1:])])
+    command = " ".join(parts)
+    return " && ".join([cd_part, command]) if cd_part else command
+
+
+def _quote_command(command: str) -> str:
+    """Quote a command string while preserving intentional wrapper arguments."""
+    return " ".join(shlex.quote(part) for part in shlex.split(command))
 
 
 def _parse_ddeval_workflow_result(stdout: str) -> dict[str, object]:
@@ -1353,6 +1382,7 @@ def eval_pipeline(
     eval_backend: str = "local",
     ddeval_config_template: str = "",
     ddeval_ddsource_dir: str = "",
+    ddeval_command: str = "",
     ddeval_service: str = "eval_worker_observer_log_ad",
     ddeval_project: str = "observer-log-ad",
     ddeval_dataset: str = "observer-log-ad-gensim-store-working",
@@ -1397,6 +1427,8 @@ def eval_pipeline(
         eval_backend: Evaluation backend for each Bayesian trial ("local" or "ddeval").
         ddeval_config_template: JSON experiment config template for ddeval.
         ddeval_ddsource_dir: dd-source checkout containing the ddeval Bazel target.
+        ddeval_command: Installed ddeval command or wrapper. When set, this is used
+            instead of running the ddeval Bazel target from dd-source.
         ddeval_service: ddeval executor service name.
         ddeval_project: LLMObs/ddEval project name.
         ddeval_dataset: ddEval dataset name.
@@ -1412,13 +1444,14 @@ def eval_pipeline(
         dda inv --dep optuna anomalydetection.eval-pipeline --n-combos 20 --n-trials-search 10 --n-trials-tune 50 --seed 42
         dda inv --dep optuna anomalydetection.eval-pipeline --force-enable scanmw
         dda inv --dep optuna anomalydetection.eval-pipeline --force-disable cusum,scanwelch
-        dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval --n-combos 3 --n-trials-search 2 --n-trials-tune 3
+        dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval --ddeval-command ddeval --n-combos 3 --n-trials-search 2 --n-trials-tune 3
     """
     try:
         eval_backend, ddeval_options = _resolve_ddeval_options(
             eval_backend=eval_backend,
             ddeval_config_template=ddeval_config_template,
             ddeval_ddsource_dir=ddeval_ddsource_dir,
+            ddeval_command=ddeval_command,
             ddeval_service=ddeval_service,
             ddeval_project=ddeval_project,
             ddeval_dataset=ddeval_dataset,
