@@ -66,9 +66,14 @@ The long-term goal is to make these benefits available with upstream OpenTelemet
 
 The Host Profiler is designed to run continuously on every supported node.
 
-In Datadog's internal deployments, the Host Profiler runs on thousands of hosts in densely packed Kubernetes clusters. In that environment, we observe average usage of about `15m` CPU (15 millicores) and about `350 MB` of memory per Host Profiler container.
+In Datadog's internal deployments, the Host Profiler runs on thousands of hosts in densely packed Kubernetes clusters. In that environment, average usage per Host Profiler container is:
 
-Actual usage depends on node density, process churn, and debug symbol processing. The provided manifests set limits of `500m` CPU and `1Gi` memory to cap usage while leaving room for temporary spikes, such as symbol upload for large native binaries. If you observe sustained usage considerably above these averages, contact Datadog Support so we can help review your workload characteristics and tune the deployment.
+- **CPU**: about `15m` (15 millicores)
+- **Memory**: about `350 MB`
+
+Actual usage depends on node density, process churn, and debug symbol processing.
+
+The provided manifests set limits of `500m` CPU and `1Gi` memory to cap usage while leaving room for temporary spikes. If you observe sustained usage considerably above these averages, contact Datadog Support so we can help review your workload characteristics and tune the deployment.
 
 ## How do I configure resource requests and limits?
 
@@ -76,10 +81,10 @@ The provided manifests set Host Profiler container requests to `0` and limits to
 
 Tune these values when needed:
 
-- **Cluster policies or reserved capacity**: set nonzero requests if your cluster requires them, or if you want the scheduler to reserve capacity for the profiler.
-- **Dense nodes or many processes**: increase limits based on observed usage.
-- **Large native binaries**: increase the memory limit when the profiler uploads large debug symbols. During upload, the profiler copies and prepares symbol data before sending it to Datadog, so it needs working memory at least as large as the largest debug symbol file it processes, in addition to normal profiler usage. Set the limit above that file size with headroom for temporary processing overhead.
-- **Guaranteed QoS**: set requests equal to limits for every container in the pod, including init containers. In bundled Agent deployments, the Agent containers also affect the pod QoS class.
+- **Resource requests**: set nonzero requests if your cluster requires them, or if you want the scheduler to reserve capacity for the profiler.
+- **Dense nodes**: increase limits on nodes with many running processes.
+- **Large debug symbols**: set the memory limit above the size of the largest debug symbol file, with headroom. During upload, the profiler copies and prepares symbol data before sending it to Datadog.
+- **Guaranteed QoS**: set requests equal to limits for every container in the pod, including init containers. In bundled Agent deployments, Agent containers also affect pod QoS.
 
 ## Do I need debug symbols?
 
