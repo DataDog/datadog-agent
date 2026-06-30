@@ -33,8 +33,9 @@ serializable boundary.
 1. **Define once.** A scenario's parameters, provisioning logic, and actions are
    declared a single time, in Go. No hand-maintained re-declaration anywhere.
 2. **Right source of truth.** Go is authoritative; other consumers introspect it.
-3. **Low boilerplate.** Authoring a new scenario is one Go definition plus a tiny
-   amount of generated glue — no cross-language sync files.
+3. **Low boilerplate.** Authoring a new scenario is one Go definition plus a small
+   per-scenario mapping from the tagged struct to the existing typed options — no
+   cross-language sync files.
 4. **Service-ready.** The shape extends cleanly to a remote service via a stable,
    versioned, serializable contract.
 
@@ -52,8 +53,8 @@ serializable boundary.
 | Decision | Choice |
 |---|---|
 | Source of truth | **Go-native, introspected** (not codegen-first, not schema-first, not Python) |
-| Parameter model | **Tagged Go struct is canonical**; functional-options helpers layered on top |
-| Functional-options helpers | **Generated via `go generate`** from the same tags |
+| Parameter model | **Tagged Go struct is the CLI/service projection**; maps to the existing typed options |
+| Test provisioning | **Existing typed `With…` options + existing provisioner, unchanged — zero migration** |
 | Local CLI bridge | **The Go binary IS the CLI** (dynamic cobra from the registry); `dda` thinly forwards to it |
 | Composable params | **Reusable tagged param components** (agent, fakeintake, …) embed into scenarios |
 | Actions | **In scope**; receive the fully-hydrated typed env with all component clients (ai-sandbox style) |
@@ -80,8 +81,8 @@ registry; a shared reflection module is the one piece all three lean on.
         ┌──────────────┴───┐  ┌───────┴────────┐  ┌────┴───────────────┐
         │ E2E tests (Go)   │  │ Go CLI binary  │  │ Service (Go)       │
         │ BaseSuite[Env]   │  │ dynamic cobra  │  │ long-running;      │
-        │ via gen'd opt-   │  │ cmds+flags from│  │ builds & drives    │
-        │ helpers          │  │ reflected tags │  │ per-commit binaries│
+        │ via EXISTING     │  │ cmds+flags from│  │ builds & drives    │
+        │ typed With opts  │  │ reflected tags │  │ per-commit binaries│
         └──────────────────┘  └───────┬────────┘  └────────────────────┘
                                        │
                               ┌────────┴────────┐
@@ -214,26 +215,43 @@ before dispatching the action. Tests get the same `*Env` from `BaseSuite[Env]` a
 can call the very same action handlers — no divergence between what tests do and
 what the CLI/service do.
 
-## Functional-options helpers (generated)
+## Two convergent provisioning paths (zero test migration)
 
-The canonical struct is the data; a functional option is `func(*Params)`. Helpers
-are **generated** by a small `go generate` tool that reuses the same tag-parser the
-reflection module uses:
+The existing typed `With…` functions are opaque (functional options can't be
+introspected) — which is exactly why the CLI/service need a tagged struct. But that
+struct has no reason to be imposed on Go tests. So provisioning has **two convergent
+paths** that meet at the existing provisioner and the existing typed options:
 
-```go
-//go:generate scenariogen options ./...
+1. **Typed path (tests) — unchanged, zero migration.** Tests keep passing the
+   existing typed `With…` functions to the existing provisioner:
 
-// params_options.gen.go (generated)
-type EC2HostOption func(*EC2HostParams)
-func WithOS(v string) EC2HostOption   { return func(p *EC2HostParams){ p.OS = v } }
-func WithArch(v string) EC2HostOption { return func(p *EC2HostParams){ p.Arch = v } }
-func (p *EC2HostParams) Apply(opts ...EC2HostOption) *EC2HostParams { /* … */ }
-```
+   ```go
+   e2e.Run(t, &suite{}, e2e.WithProvisioner(
+       awshost.Provisioner(awshost.WithRunOptions(
+           ec2.WithOS(e2eos.Ubuntu2204),
+           ec2.WithAgentOptions(agentparams.WithAgentConfig(cfg)),
+       )),
+   ))
+   ```
 
-Adding a field+tag → regenerate → the `WithX` helper, the CLI flag, and the
-service schema all appear from that one edit. No drift. The only hand-written
-helpers are for the Go-only composite escape-hatch fields (e.g.
-`WithAgentAdvancedOptions(agentparams.Option...)`), which aren't introspectable.
+2. **String path (CLI/service) — additive.** A scenario declares the tagged
+   canonical struct and a mapping that decodes flags into the **same existing typed
+   options**, fed to the **same provisioner**:
+
+   ```
+   flags → EC2HostParams → []ec2.Option / []agentparams.Option → awshost.Provisioner(...)
+   ```
+
+The tagged struct is therefore purely the **CLI projection**. There are no generated
+functional-options helpers and no `go generate` step — the canonical struct is only
+ever built by CLI/service flag-decoding; Go callers use the existing typed options.
+
+**Honest tradeoff:** a CLI-exposed option (`--os`) and its typed counterpart
+(`ec2.WithOS`) both exist, and the mapping between them lives in one small `ToOptions`
+function per scenario/component. That localized mapping is the cost; in exchange,
+**every existing test changes nothing**, which is the migration pain we are explicitly
+avoiding. The "define once" guarantee now means: the *CLI-exposed surface* is defined
+once (the tagged struct) and maps onto the existing typed options.
 
 ## The Go CLI binary + `dda` integration
 
@@ -266,15 +284,13 @@ forwarder, and PR #51650's per-scenario `scenario.py` disappears.
 
 ## E2E test integration
 
-- The scenario's `Provision` func is the Pulumi run logic that already lives in
-  `scenarios/aws/ec2/run.go`. A thin adapter exposes it as the existing
-  `TypedProvisioner[Env]`, so `e2e.Run(t, &suite{}, e2e.WithProvisioner(...))` works
-  unchanged.
-- Tests set options through the **generated functional-options helpers** built on
-  the canonical struct, so the option set a test can use and the option set the CLI
-  exposes are guaranteed identical (same struct, same source).
+- Tests use the **existing typed provisioner and typed `With…` options**, unchanged
+  (`awshost.Provisioner(awshost.WithRunOptions(ec2.WithOS(...), ec2.WithAgentOptions(...)))`).
+  The new scenario model does not touch this path — **existing tests require no changes**.
+- A scenario's CLI/service `Provisioner(params)` adapter maps the tagged struct onto
+  those **same typed options** and the **same provisioner**, so the two paths converge.
 - Tests can invoke the **same action handlers** the CLI/service use
-  (`scenario.Actions["restart-agent"].Run(ctx, s.Env(), p)`).
+  (`ec2host.Scenario().Actions["restart-agent"].Run(ctx, s.Env(), p)`).
 
 **Dependency hygiene:** the registry and reflection module live in
 `test/e2e-framework/` and depend only on the framework (and the existing
@@ -334,12 +350,13 @@ streaming, GC of orphaned stacks.
 
 - Canonical `EC2HostParams` (tagged `os`, `arch`; embedded `AgentParams` and
   `FakeintakeParams`; Go-only `InstanceOptions` escape hatch).
-- `Provision` = the existing `scenarios/aws/ec2/run.go` logic, adapted to the
-  canonical struct.
+- A `Provisioner(params)` adapter mapping the canonical struct onto the existing
+  `ec2`/`agentparams` typed options and the existing `awshost.Provisioner`. Tests keep
+  using `awshost.Provisioner` directly — unchanged.
 - Two sample **actions** exercising client reuse against `environments.Host`:
   `restart-agent` (agent client) and `run-command` (SSH client).
-- Generated functional-options helpers; binds to `environments.Host`.
-- Validated through all three consumers: an E2E test, the CLI
+- Binds to `environments.Host`.
+- Validated through all three consumers: an E2E test (existing typed path), the CLI
   (`dda lab create/action/destroy`), and the service stub
   (`POST /runs` with a commit).
 
@@ -361,8 +378,6 @@ streaming, GC of orphaned stacks.
 - **Reflection module** — unit tests (highest value, everything depends on it):
   struct+tags → schema, args → struct, defaults/enums/required, embedded components,
   `scenario:"-"` skipping.
-- **Generator** — golden-file test: struct → generated `WithX` helpers compile and
-  round-trip.
 - **CLI** — table tests over the dynamic command tree (flags present, defaults
   applied, validation errors) using a fake in-memory scenario; no real provisioning.
 - **Service stub** — handler tests with a fake builder/registry (no real Pulumi),
@@ -378,7 +393,6 @@ streaming, GC of orphaned stacks.
 | Reflection module | tagged struct ⇄ JSON Schema ⇄ flags; decode + validate | std lib, pflag |
 | Param components (`AgentParams`, `FakeintakeParams`, …) | curated tagged surface + `ToOptions()` | respective `*params` packages |
 | Scenario registry | hold/look up `Scenario[Env]` values | reflection module, framework |
-| `go generate` helper tool | emit `WithX` + `Apply()` from tags | reflection module's tag parser |
 | CLI (`scenariorun`) | dynamic cobra; `create/action/destroy/describe/list` | registry, reflection module |
 | `dda lab` forwarder | build-if-needed + passthrough | the built binary |
 | Service | per-commit build + protocol orchestration | the built binary (out of process) |

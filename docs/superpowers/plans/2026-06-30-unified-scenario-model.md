@@ -4,7 +4,7 @@
 
 **Goal:** Define E2E scenarios once in Go (canonical tagged params + reusable param components + provisioner + actions) and drive that single definition from E2E tests, a dynamic Go CLI fronted by `dda`, and a per-commit long-running service stub.
 
-**Architecture:** A new `scenario` package in the `test/e2e-framework` Go module provides a reflection layer (tagged struct ⇄ schema ⇄ flags + decode/validate), a generic `Scenario[Env]` authoring type, and a type-erased `Runnable` registry. Reusable param components (`AgentParams`, `FakeintakeParams`) embed into a scenario's canonical struct and convert to existing `agentparams.Option`/`fakeintake.Option`. A `go generate` tool emits functional-options helpers. A cobra CLI (`scenariorun`) builds its command tree from the registry by reflection; `dda lab` forwards to it. A service stub builds-and-drives the `scenariorun` binary from a caller-specified commit via its stable `describe`/`create`/`action`/`destroy` protocol. The AWS EC2 host scenario is the reference implementation.
+**Architecture:** A new `scenario` package in the `test/e2e-framework` Go module provides a reflection layer (tagged struct ⇄ schema ⇄ flags + decode/validate), a generic `Scenario[Env]` authoring type, and a type-erased `Runnable` registry. Reusable param components (`AgentParams`, `FakeintakeParams`) embed into a scenario's canonical struct and convert to existing `agentparams.Option`/`fakeintake.Option`. Provisioning has two convergent paths: Go tests keep the existing typed `With…` options and the existing provisioner unchanged (zero migration), while the CLI/service decode flags into the tagged struct and map them onto those same typed options and provisioner. A cobra CLI (`scenariorun`) builds its command tree from the registry by reflection; `dda lab` forwards to it. A service stub builds-and-drives the `scenariorun` binary from a caller-specified commit via its stable `describe`/`create`/`action`/`destroy` protocol. The AWS EC2 host scenario is the reference implementation.
 
 **Tech Stack:** Go (module `github.com/DataDog/datadog-agent/test/e2e-framework`), `spf13/cobra` + `spf13/pflag` (already vendored, indirect → promote to direct), Pulumi provisioning via the existing `testing/standalone` driver, Python `invoke`/`dda` for the forwarder.
 
@@ -22,7 +22,7 @@
 - **`scenario` tag grammar:** comma-separated `key=value` pairs in a `scenario:"…"` struct tag. Keys: `name`, `default`, `help`, `enum` (pipe-separated values), `required` (bare key = true). A lone `-` (`scenario:"-"`) means "not introspectable — Go-only escape hatch; skip in schema/flags". **Help text and defaults must not contain commas** (parser splits on commas); document this on the tag helper.
 - **Protocol version:** the CLI's `describe --json` output includes `"protocolVersion": 1`. Bump only on breaking protocol changes.
 - **No real cloud in unit tests:** unit tests must never call real Pulumi/AWS. Use the in-memory fakes defined in Task 4.
-- **Naming:** CLI binary = `scenariorun`; user-facing command = `dda lab` (forwarder); generator = `scenariogen`; service binary = `scenario-service`.
+- **Naming:** CLI binary = `scenariorun`; user-facing command = `dda lab` (forwarder); service binary = `scenario-service`.
 - **Deviation from spec (documented):** the spec tentatively located the CLI at `test/new-e2e/run` ("evolving PR #51650"). That PR is unmerged and used an untyped `pulumi.RunFunc` registry. This plan instead places the binary at `test/e2e-framework/cmd/scenariorun` (same module as everything it imports, beside `cmd/ai-sandbox`), wrapped by a `dda` task mirroring `tasks/ai_sandbox.py`.
 
 ---
@@ -42,12 +42,8 @@
 - `agent.go` — `AgentParams` + `ToOptions()`.
 - `fakeintake.go` — `FakeintakeParams` + `ToOptions()`.
 
-**Generator** (`test/e2e-framework/cmd/scenariogen/`)
-- `main.go` — emits `*_options.gen.go` from tagged structs.
-
 **Reference scenario** (`test/e2e-framework/scenario/scenarios/ec2host/`)
-- `params.go` — `EC2HostParams` (embeds components), hand-written escape-hatch helpers.
-- `params_options.gen.go` — generated `WithX` + `Apply`.
+- `params.go` — `EC2HostParams` (embeds components) + hand-written escape-hatch option helpers.
 - `scenario.go` — provisioner adapter (→ `awshost.Provisioner`), actions, `Register`.
 
 **CLI** (`test/e2e-framework/cmd/scenariorun/`)
@@ -1197,259 +1193,10 @@ git commit --no-gpg-sign -m "feat(scenario): reusable FakeintakeParams component
 
 ---
 
-## Task 7: Options generator (`scenariogen`)
-
-**Files:**
-- Create: `test/e2e-framework/cmd/scenariogen/main.go`
-- Create: `test/e2e-framework/cmd/scenariogen/main_test.go`
-- Create: `test/e2e-framework/cmd/scenariogen/testdata/sample.go`
-- Create: `test/e2e-framework/cmd/scenariogen/testdata/sample_options.gen.golden`
-
-**Interfaces:**
-- Consumes: `scenario.BuildSchema` (Task 1) is NOT importable for arbitrary external structs at generate-time, so the generator parses Go source with `go/ast` to find a named struct and its `scenario` tags. To stay DRY with the tag grammar, reuse `scenario.ParseTagExported` — **promote** `parseTag` to an exported `ParseTag(tag string) TagInfo` (and `TagInfo` with exported fields) in `schema.go`.
-- Produces: a CLI `scenariogen options -type <Name> -pkg <dir>` that writes `<file>_options.gen.go` next to the source, defining `type <Name>Option func(*<Name>)`, one `With<GoField>(v T) <Name>Option` per tagged field, and `func (p *<Name>) Apply(opts ...<Name>Option) *<Name>`.
-
-- [ ] **Step 1: Write the failing golden test**
-
-```go
-// test/e2e-framework/cmd/scenariogen/main_test.go
-package main
-
-import (
-	"os"
-	"testing"
-)
-
-func TestGenerateMatchesGolden(t *testing.T) {
-	got, err := generate("testdata/sample.go", "SampleParams")
-	if err != nil {
-		t.Fatalf("generate: %v", err)
-	}
-	want, err := os.ReadFile("testdata/sample_options.gen.golden")
-	if err != nil {
-		t.Fatalf("read golden: %v", err)
-	}
-	if string(got) != string(want) {
-		t.Errorf("generated output mismatch.\n--- got ---\n%s\n--- want ---\n%s", got, want)
-	}
-}
-```
-
-```go
-// test/e2e-framework/cmd/scenariogen/testdata/sample.go
-package testdata
-
-type SampleParams struct {
-	OS      string `scenario:"name=os,default=ubuntu-22.04"`
-	Verbose bool   `scenario:"name=verbose"`
-	Hidden  string `scenario:"-"`
-}
-```
-
-```text
-// test/e2e-framework/cmd/scenariogen/testdata/sample_options.gen.golden
-// Code generated by scenariogen; DO NOT EDIT.
-
-package testdata
-
-// SampleParamsOption configures SampleParams.
-type SampleParamsOption func(*SampleParams)
-
-// WithOS sets OS.
-func WithOS(v string) SampleParamsOption { return func(p *SampleParams) { p.OS = v } }
-
-// WithVerbose sets Verbose.
-func WithVerbose(v bool) SampleParamsOption { return func(p *SampleParams) { p.Verbose = v } }
-
-// Apply applies opts to p and returns p.
-func (p *SampleParams) Apply(opts ...SampleParamsOption) *SampleParams {
-	for _, o := range opts {
-		o(p)
-	}
-	return p
-}
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `cd test/e2e-framework && go test ./cmd/scenariogen/ -run TestGenerateMatchesGolden -v`
-Expected: FAIL — `undefined: generate`.
-
-- [ ] **Step 3: Write minimal implementation**
-
-```go
-// test/e2e-framework/cmd/scenariogen/main.go
-// <license header>
-
-// Command scenariogen generates functional-options helpers for a tagged params
-// struct. Invoke via `//go:generate scenariogen options -type <Name>`.
-package main
-
-import (
-	"bytes"
-	"flag"
-	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"log"
-	"os"
-	"path/filepath"
-	"strings"
-)
-
-func main() {
-	if len(os.Args) < 2 || os.Args[1] != "options" {
-		log.Fatal("usage: scenariogen options -type <Name> [-src <file>]")
-	}
-	fs := flag.NewFlagSet("options", flag.ExitOnError)
-	typeName := fs.String("type", "", "struct type name")
-	src := fs.String("src", os.Getenv("GOFILE"), "source file containing the struct")
-	_ = fs.Parse(os.Args[2:])
-	if *typeName == "" || *src == "" {
-		log.Fatal("scenariogen: -type and -src (or GOFILE) are required")
-	}
-	out, err := generate(*src, *typeName)
-	if err != nil {
-		log.Fatalf("scenariogen: %v", err)
-	}
-	dst := strings.TrimSuffix(*src, ".go") + "_options.gen.go"
-	if err := os.WriteFile(dst, out, 0o644); err != nil {
-		log.Fatalf("scenariogen: write %s: %v", dst, err)
-	}
-	fmt.Printf("scenariogen: wrote %s\n", filepath.Base(dst))
-}
-
-type genField struct {
-	GoName string
-	GoType string
-}
-
-func generate(srcFile, typeName string) ([]byte, error) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, srcFile, nil, parser.ParseComments)
-	if err != nil {
-		return nil, err
-	}
-	var fields []genField
-	var pkg = f.Name.Name
-	found := false
-	ast.Inspect(f, func(n ast.Node) bool {
-		ts, ok := n.(*ast.TypeSpec)
-		if !ok || ts.Name.Name != typeName {
-			return true
-		}
-		st, ok := ts.Type.(*ast.StructType)
-		if !ok {
-			return true
-		}
-		found = true
-		for _, fld := range st.Fields.List {
-			if fld.Tag == nil || len(fld.Names) == 0 {
-				continue
-			}
-			tag := strings.Trim(fld.Tag.Value, "`")
-			val, ok := lookupTag(tag, "scenario")
-			if !ok || strings.TrimSpace(val) == "-" {
-				continue
-			}
-			goType, ok := simpleType(fld.Type)
-			if !ok {
-				continue // only scalar-typed fields get helpers
-			}
-			fields = append(fields, genField{GoName: fld.Names[0].Name, GoType: goType})
-		}
-		return false
-	})
-	if !found {
-		return nil, fmt.Errorf("type %s not found in %s", typeName, srcFile)
-	}
-
-	var b bytes.Buffer
-	fmt.Fprintf(&b, "// Code generated by scenariogen; DO NOT EDIT.\n\npackage %s\n\n", pkg)
-	fmt.Fprintf(&b, "// %sOption configures %s.\ntype %sOption func(*%s)\n", typeName, typeName, typeName, typeName)
-	for _, fld := range fields {
-		fmt.Fprintf(&b, "\n// With%s sets %s.\nfunc With%s(v %s) %sOption { return func(p *%s) { p.%s = v } }\n",
-			fld.GoName, fld.GoName, fld.GoName, fld.GoType, typeName, typeName, fld.GoName)
-	}
-	fmt.Fprintf(&b, "\n// Apply applies opts to p and returns p.\nfunc (p *%s) Apply(opts ...%sOption) *%s {\n\tfor _, o := range opts {\n\t\to(p)\n\t}\n\treturn p\n}\n", typeName, typeName, typeName)
-	return b.Bytes(), nil
-}
-
-func simpleType(e ast.Expr) (string, bool) {
-	id, ok := e.(*ast.Ident)
-	if !ok {
-		return "", false
-	}
-	switch id.Name {
-	case "string", "bool", "int", "int64":
-		return id.Name, true
-	default:
-		return "", false
-	}
-}
-
-func lookupTag(structTag, key string) (string, bool) {
-	// minimal reflect.StructTag-style lookup
-	for structTag != "" {
-		i := 0
-		for i < len(structTag) && structTag[i] == ' ' {
-			i++
-		}
-		structTag = structTag[i:]
-		if structTag == "" {
-			break
-		}
-		j := 0
-		for j < len(structTag) && structTag[j] != ':' {
-			j++
-		}
-		if j >= len(structTag) {
-			break
-		}
-		name := structTag[:j]
-		structTag = structTag[j+1:]
-		if len(structTag) == 0 || structTag[0] != '"' {
-			break
-		}
-		k := 1
-		for k < len(structTag) && structTag[k] != '"' {
-			if structTag[k] == '\\' {
-				k++
-			}
-			k++
-		}
-		val := structTag[1:k]
-		structTag = structTag[k+1:]
-		if name == key {
-			return val, true
-		}
-	}
-	return "", false
-}
-```
-
-> Implementer note: the golden file expects **gofmt-style** output. After building the byte buffer, run it through `format.Source` (`go/format`) before returning, and regenerate the golden with the formatter applied so they match exactly. Add `"go/format"` import and `formatted, err := format.Source(b.Bytes())`.
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `cd test/e2e-framework && go test ./cmd/scenariogen/ -run TestGenerateMatchesGolden -v`
-Expected: PASS. (If the formatter changes spacing, update the golden file to the formatted output and re-run.)
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add test/e2e-framework/cmd/scenariogen/ test/e2e-framework/scenario/schema.go
-git commit --no-gpg-sign -m "feat(scenario): scenariogen options generator"
-```
-
----
-
-## Task 8: Reference scenario — AWS EC2 host
+## Task 7: Reference scenario — AWS EC2 host
 
 **Files:**
 - Create: `test/e2e-framework/scenario/scenarios/ec2host/params.go`
-- Create: `test/e2e-framework/scenario/scenarios/ec2host/params_options.gen.go` (generated)
 - Create: `test/e2e-framework/scenario/scenarios/ec2host/scenario.go`
 - Test: `test/e2e-framework/scenario/scenarios/ec2host/scenario_test.go`
 
@@ -1460,6 +1207,8 @@ git commit --no-gpg-sign -m "feat(scenario): scenariogen options generator"
   - `func Provisioner(p *EC2HostParams) (provisioners.TypedProvisioner[environments.Host], error)`.
   - `func Scenario() scenario.Scenario[environments.Host]` and `func Register()` (calls `scenario.Register(Scenario())`).
   - Actions: `restart-agent` (no params), `run-command` (`RunCommandParams{ Command string }`).
+
+> **Two-path note:** existing tests keep using `awshost.Provisioner(...)` with typed `With…` options unchanged — they do not use `EC2HostParams`. `Provisioner(p *EC2HostParams)` is the CLI/service adapter that maps the tagged struct onto the same `ec2`/`agentparams` typed options and the same `awshost.Provisioner`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1530,8 +1279,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenario/params"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
-
-//go:generate go run ../../../cmd/scenariogen options -type EC2HostParams
 
 // EC2HostParams is the canonical, introspectable parameter set for the ec2-host scenario.
 type EC2HostParams struct {
@@ -1652,13 +1399,10 @@ func Register() { scenario.Register(Scenario()) }
 > - `env.RemoteHost.Execute(cmd)` returns `(string, error)` per the standalone docs.
 > - `ec2.WithEC2InstanceOptions`, `ec2.WithOS`, `ec2.WithAgentOptions`, `ec2.WithFakeIntakeOptions`, `ec2.WithoutFakeIntake` are in `scenarios/aws/ec2/run_args.go` / `vm.go` — confirm exact names.
 
-- [ ] **Step 4: Generate the options file, then run tests**
+- [ ] **Step 4: Run tests**
 
-Run:
-```bash
-cd test/e2e-framework && go generate ./scenario/scenarios/ec2host/ && go test ./scenario/scenarios/ec2host/ -v
-```
-Expected: `params_options.gen.go` created; tests PASS.
+Run: `cd test/e2e-framework && go test ./scenario/scenarios/ec2host/ -v`
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -1669,13 +1413,13 @@ git commit --no-gpg-sign -m "feat(scenario): ec2-host reference scenario with ac
 
 ---
 
-## Task 9: E2E test driving the reference scenario
+## Task 8: E2E test driving the reference scenario
 
 **Files:**
 - Create: `test/new-e2e/tests/scenario-model/ec2host_test.go`
 
 **Interfaces:**
-- Consumes: `ec2host.Provisioner`, `ec2host.Scenario`, `ec2host.EC2HostParams`, `ec2host.RunCommandParams` (Task 8); `e2e.BaseSuite`, `e2e.Run`, `e2e.WithProvisioner`; `environments.Host`.
+- Consumes: `ec2host.Provisioner`, `ec2host.Scenario`, `ec2host.EC2HostParams`, `ec2host.RunCommandParams` (Task 7); `e2e.BaseSuite`, `e2e.Run`, `e2e.WithProvisioner`; `environments.Host`.
 - Produces: an E2E suite proving (a) the scenario's provisioner works through `e2e.Run`, and (b) an action handler runs against the live `s.Env()`.
 
 > This test provisions real cloud infra; it runs only under the E2E gating (`dda inv new-e2e-tests.run`), not in unit-test CI.
@@ -1736,7 +1480,7 @@ git commit --no-gpg-sign -m "test(scenario): e2e suite driving ec2-host scenario
 
 ---
 
-## Task 10: CLI binary (`scenariorun`) + `dda lab` forwarder
+## Task 9: CLI binary (`scenariorun`) + `dda lab` forwarder
 
 **Files:**
 - Create: `test/e2e-framework/cmd/scenariorun/main.go`
@@ -1746,7 +1490,7 @@ git commit --no-gpg-sign -m "test(scenario): e2e suite driving ec2-host scenario
 - Modify: `tasks/__init__.py` (register the collection)
 
 **Interfaces:**
-- Consumes: `scenario` (Tasks 1-4), `ec2host.Register` (Task 8), `spf13/cobra`, `testing/standalone` (`NewContext`).
+- Consumes: `scenario` (Tasks 1-4), `ec2host.Register` (Task 7), `spf13/cobra`, `testing/standalone` (`NewContext`).
 - Produces:
   - `func rootCmd() *cobra.Command` building `list`, `describe`, `create <scenario>`, `action <scenario> <action>`, `destroy <scenario>`, with per-scenario flags registered from the schema.
   - `dda lab` invoke task that builds `bin/scenariorun` (plain `go build` inside the module, mirroring `tasks/ai_sandbox.py:120-126`) and forwards argv to it.
@@ -2033,7 +1777,7 @@ git commit --no-gpg-sign -m "feat(scenario): dynamic scenariorun CLI + dda lab f
 
 ---
 
-## Task 11: Service stub (per-commit build + drive)
+## Task 10: Service stub (per-commit build + drive)
 
 **Files:**
 - Create: `test/e2e-framework/cmd/scenario-service/main.go`
@@ -2311,7 +2055,7 @@ git commit --no-gpg-sign -m "feat(scenario): per-commit build-and-drive service 
 
 ---
 
-## Task 12: Documentation
+## Task 11: Documentation
 
 **Files:**
 - Modify: `test/e2e-framework/AGENTS.md`
@@ -2336,8 +2080,6 @@ components), and `scenario/scenarios/ec2host/` (reference scenario).
   `scenario:"-"` = Go-only escape hatch). Build the schema with `scenario.BuildSchema`.
 - Reusable components (agent, fakeintake) embed into the canonical struct and expose
   `ToOptions()`.
-- Functional-options helpers are generated by `scenariogen` (`//go:generate go run
-  ../../../cmd/scenariogen options -type <Name>`).
 - Actions receive the fully-hydrated typed env (same clients as `s.Env()`), hydrated
   via `testing/standalone`.
 - CLI: `dda inv lab --args="create ec2-host --os debian-12"`. The CLI command tree
@@ -2359,22 +2101,22 @@ git commit --no-gpg-sign -m "docs(scenario): document the unified scenario model
 ## Self-Review
 
 **1. Spec coverage:**
-- Define-once / tagged-struct canonical → Tasks 1, 8. ✓
+- Define-once / tagged-struct canonical (CLI projection) → Tasks 1, 7. ✓
 - Go-native introspection → Tasks 1-4 (schema/decode/flags/describe). ✓
-- Generated functional-options helpers → Task 7 (`scenariogen`), used in Task 8. ✓
-- Reusable param components (agent + fakeintake) → Tasks 5, 6, embedded in Task 8. ✓ (covers the "same for fakeintake" requirement)
+- Two convergent provisioning paths (tests keep existing typed options; CLI maps onto them, zero migration) → Task 7 (`Provisioner(p)` adapter over `awshost.Provisioner`), Task 8 (E2E parity). ✓
+- Reusable param components (agent + fakeintake) → Tasks 5, 6, embedded in Task 7. ✓ (covers the "same for fakeintake" requirement)
 - Agent config at least as good as `create-vm` → Task 5 field set mirrors `create-vm` flags. ✓
-- Actions with hydrated typed-env client reuse → Tasks 4 (`RunAction` via `standalone.Provision`), 8 (`restart-agent`/`run-command`), 9 (test calls action against `s.Env()`). ✓
-- Go-is-the-CLI + `dda` thin forwarder → Task 10. ✓
-- E2E test parity through the same provisioner → Task 9. ✓
-- Long-running, version-agnostic, per-commit build+drive service via stable protocol + `protocolVersion` → Tasks 4 (`ProtocolVersion`), 11. ✓
-- Reference scenario = AWS EC2 host → Task 8. ✓
-- Error handling (registration-time, validation-before-provision, runtime, service build-vs-scenario) → Tasks 2 (validation), 4 (unknown action), 11 (build vs run error paths). ✓
-- Testing strategy (reflection unit tests highest value; generator golden; CLI table tests with fake; service handler tests with fake; reference E2E parity) → Tasks 1-4, 7, 10, 11, 9. ✓
-- Docs → Task 12. ✓
+- Actions with hydrated typed-env client reuse → Tasks 4 (`RunAction` via `standalone.Provision`), 7 (`restart-agent`/`run-command`), 8 (test calls action against `s.Env()`). ✓
+- Go-is-the-CLI + `dda` thin forwarder → Task 9. ✓
+- E2E test parity through the existing typed provisioner → Task 8. ✓
+- Long-running, version-agnostic, per-commit build+drive service via stable protocol + `protocolVersion` → Tasks 4 (`ProtocolVersion`), 10. ✓
+- Reference scenario = AWS EC2 host → Task 7. ✓
+- Error handling (registration-time, validation-before-provision, runtime, service build-vs-scenario) → Tasks 2 (validation), 4 (unknown action), 10 (build vs run error paths). ✓
+- Testing strategy (reflection unit tests highest value; CLI table tests with fake; service handler tests with fake; reference E2E parity) → Tasks 1-4, 9, 10, 8. ✓
+- Docs → Task 11. ✓
 
 **2. Placeholder scan:** No "TBD"/"implement later". Two spots intentionally flag follow-on handlers (service `GET`/`DELETE`/action endpoints) and richer `dda lab` argv UX — both are explicitly out of the stub's critical path per the spec's "design-for, deferred" list, and the core handler is fully implemented. The Task 4 `runnable.go` first `Create` sketch is explicitly marked broken and replaced with a clean version in the same task.
 
-**3. Type consistency:** `Schema`/`Field`/`Kind` consistent across Tasks 1-4, 10. `Runnable` methods (`Create`/`RunAction`/`Destroy`/`ParamsSchema`/`ActionSchemas`) consistent between Task 4 definition and Task 10 usage. `Scenario[Env]`/`Action[Env]` fields (`NewParams`, `Provisioner`, `Run`) consistent between Tasks 4 and 8. `AgentParams.ToOptions`/`FakeintakeParams.ToOptions` consistent between Tasks 5/6 and 8. `Driver` methods consistent between Task 11 definition and test. `Provisioner(p *EC2HostParams)` signature consistent between Tasks 8 and 9.
+**3. Type consistency:** `Schema`/`Field`/`Kind` consistent across Tasks 1-4, 9. `Runnable` methods (`Create`/`RunAction`/`Destroy`/`ParamsSchema`/`ActionSchemas`) consistent between Task 4 definition and Task 9 usage. `Scenario[Env]`/`Action[Env]` fields (`NewParams`, `Provisioner`, `Run`) consistent between Tasks 4 and 7. `AgentParams.ToOptions`/`FakeintakeParams.ToOptions` consistent between Tasks 5/6 and 7. `Driver` methods consistent between Task 10 definition and test. `Provisioner(p *EC2HostParams)` signature consistent between Tasks 7 and 8.
 
 **Known verification points for the implementer** (flagged inline; not plan gaps): exact `agentparams`/`ec2`/`fakeintake` option names, `components/os` descriptor symbols, the `environments.Host` agent-client method name, the `common.Context` method set, the module's Go version for the `net/http` method-pattern mux, and the `tasks/__init__.py` collection-registration idiom. Each is a small, local confirmation against named files.
