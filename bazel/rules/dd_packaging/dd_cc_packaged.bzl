@@ -70,6 +70,11 @@ _dd_packaged_files_rule = rule(
             allow_single_file = True,
             cfg = "exec",
         ),
+        "_install_name_tool": attr.label(
+            default = "@llvm_toolchain_llvm//:install-name-tool",
+            executable = True,
+            cfg = "exec",
+        ),
         "_install_dir": attr.label(default = "@@//:install_dir"),
     },
     toolchains = [

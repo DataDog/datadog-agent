@@ -105,19 +105,24 @@ def _foreign_cc_runnable_impl(ctx):
         patchelf_path = patchelf.executable.path
         patchelf_tools = [patchelf]
 
+    install_name_tool = ctx.executable._install_name_tool if is_macos else None
+
     args = ctx.actions.args()
     args.add("linux" if is_linux else "darwin")
     args.add(patchelf_path)
+    args.add(install_name_tool.path if install_name_tool else "")
     args.add(input_tree.path)
     args.add(output_tree.path)
     args.add(manifest.path)
     args.add_all(rpath_dirs)
 
+    tools = patchelf_tools + ([install_name_tool] if install_name_tool else [])
+
     ctx.actions.run(
         executable = ctx.file._script,
         arguments = [args],
         inputs = [input_tree, manifest],
-        tools = patchelf_tools,
+        tools = tools,
         outputs = [output_tree],
         mnemonic = "ForeignCcRunnable",
         progress_message = "Rewriting rpaths for %{label}",
@@ -167,6 +172,11 @@ foreign_cc_runnable = rule(
             allow_single_file = True,
             cfg = "exec",
             executable = True,
+        ),
+        "_install_name_tool": attr.label(
+            default = "@llvm_toolchain_llvm//:install-name-tool",
+            executable = True,
+            cfg = "exec",
         ),
         "_linux_constraint": attr.label(
             default = "@platforms//os:linux",

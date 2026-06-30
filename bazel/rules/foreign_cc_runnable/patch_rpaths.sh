@@ -12,10 +12,11 @@ set -euo pipefail
 
 PLATFORM="$1"
 PATCHELF="$2"
-INPUT="$3"
-OUTPUT="$4"
-MANIFEST="$5"
-shift 5
+INSTALL_NAME_TOOL="$3"
+INPUT="$4"
+OUTPUT="$5"
+MANIFEST="$6"
+shift 6
 RPATH_DIRS=("$@")
 
 # `cp -rL` materializes a real copy and dereferences any symlinks that
@@ -36,8 +37,9 @@ patch_file() {
     done
 
     if [[ "$PLATFORM" == "darwin" ]]; then
+        "$INSTALL_NAME_TOOL" -delete_all_rpaths "$f"
         for dir in "${RPATH_DIRS[@]}"; do
-            install_name_tool -add_rpath "@loader_path/${ups}${dir}" "$f"
+            "$INSTALL_NAME_TOOL" -add_rpath "@loader_path/${ups}${dir}" "$f"
         done
         # Re-sign with an ad-hoc signature; install_name_tool invalidates any existing code signature.
         codesign --sign - --force "$f" 2>/dev/null

@@ -108,6 +108,14 @@ single_version_override(
     ],
 )
 
+# Temporary until https://github.com/bazel-contrib/toolchains_llvm/pull/790 lands in a release
+archive_override(
+    module_name = "toolchains_llvm",
+    sha256 = "addeebfa8fdcf9fbc1c339e451cbb285e1c0d4c078c3718e42bd1791d0d96d4e",
+    strip_prefix = "toolchains_llvm-ffe407ca2423f4d171b7a0f3897c23bbb7e40310",
+    urls = ["https://github.com/bazel-contrib/toolchains_llvm/archive/ffe407ca2423f4d171b7a0f3897c23bbb7e40310.tar.gz"],
+)
+
 #########################
 ## Prebuilt binaries   ##
 #########################
