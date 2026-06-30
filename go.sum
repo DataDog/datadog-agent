@@ -2415,8 +2415,16 @@ cloud.google.com/go/workflows v1.13.1/go.mod h1:xNdYtD6Sjoug+khNCAtBMK/rdh8qkjyL
 cloud.google.com/go/workflows v1.13.2/go.mod h1:l5Wj2Eibqba4BsADIRzPLaevLmIuYF2W+wfFBkRG3vU=
 code.cloudfoundry.org/bbs v1.3.0 h1:2s1NuiqCfDYVIWfZ+Q1B8KVfBZkDpLNZW+6qp4i39uU=
 code.cloudfoundry.org/bbs v1.3.0/go.mod h1:UsPjKnObp2ahylweF8B0cWtPuRJAJEfGQwiQ8AslBEE=
+code.cloudfoundry.org/bbs v1.10.0 h1:haYR2oLGK8vgYRk7pYw8Iya4LAmH2kvOFUldHmrmlqY=
+code.cloudfoundry.org/bbs v1.10.0/go.mod h1:d/i5/wbuPiQPxpgiuLl+ERs8Y7xedTSLYuilsTm6w54=
+code.cloudfoundry.org/bbs/encryption v1.9.0 h1:1IiWKO4nqJonCi0JeoIVobPsTE8FRhbB9Fq1MRTikEA=
+code.cloudfoundry.org/bbs/encryption v1.9.0/go.mod h1:4o0NH8H9O19jmxSe7bV032LR7crwgZOfjPYwU8sSsAM=
+code.cloudfoundry.org/bbs/format v1.9.0 h1:VR52K4jo/UD9ryiPEM8Y2JnC4PEPW7OYT4pyTpmOEJc=
+code.cloudfoundry.org/bbs/format v1.9.0/go.mod h1:iheQ6y6V5iK+hfYKWbjJwLreBbZ9hoJWoaclcyWB3lA=
 code.cloudfoundry.org/bbs/models v0.0.0-20260618205254-dc4b9f8d5bc9 h1:a9ADcSvpkZe80hSa4JHQJy3C+qe+b2LNvuRw9uUz9ew=
 code.cloudfoundry.org/bbs/models v0.0.0-20260618205254-dc4b9f8d5bc9/go.mod h1:W3q+deVTv2UDi80ZnpJdIonlV/yg+6vh4A8/FZ/GYAI=
+code.cloudfoundry.org/bbs/models v1.7.0 h1:Tqip2Q4Is0rsCWJD+Wd6zI8Q+2oyaB8BBBydSeCsQuc=
+code.cloudfoundry.org/bbs/models v1.7.0/go.mod h1:NlBOq23o68bIv1fn0Ji+D4PwKqKIEKx12C3O6dgQg5w=
 code.cloudfoundry.org/cfhttp/v2 v2.82.0 h1:BVUG+3m1kOFPnJdHRlO29NDDFAHzbvuo+kyLRRnyqMc=
 code.cloudfoundry.org/cfhttp/v2 v2.82.0/go.mod h1:plmN3zxVuQfIVhy4j0G3yakQjvxEv8BneS1VMolfMn8=
 code.cloudfoundry.org/clock v1.75.0 h1:3j+bs2xW5d/MRbzICzzaXYnlWTSczbFXmczPYRrXrtg=
