@@ -197,16 +197,22 @@ instances:
     ##     certificate_serial_number serial number in hex
     ##     subject_CN                Common Name
     ##     subject_O                 Organization
-    ##   Opt-in (requires the corresponding *_tag: true flag):
-    ##     subject_alt_name_dns      DNS SAN entry
-    ##     subject_alt_name_ip       IP SAN entry
-    ##     subject_alt_name_email    email SAN entry
-    ##     friendly_name             Windows friendly name
-    ##     enhanced_key_usage        EKU short name or OID
-    ##     certificate_template_name template display name
-    ##     certificate_template_oid  template OID (V2 certs)
-    ##     issuer_CN                 issuer Common Name
-    ##     signature_algorithm       e.g. "SHA256-RSA"
+    ##   Opt-in (requires the corresponding *_tag: true flag to be enabled):
+    ##     subject_alt_name_dns      DNS SAN entry  (subject_alternative_names_tag: true)
+    ##     subject_alt_name_ip       IP SAN entry   (subject_alternative_names_tag: true)
+    ##     subject_alt_name_email    email SAN entry (subject_alternative_names_tag: true)
+    ##     friendly_name             Windows friendly name (friendly_name_tag: true)
+    ##     enhanced_key_usage        EKU short name or OID (enhanced_key_usage_tag: true)
+    ##     certificate_template_name template display name (certificate_template_tag: true)
+    ##     certificate_template_oid  template OID (V2 certs) (certificate_template_tag: true)
+    ##     issuer_CN                 issuer Common Name (issuer_tag: true)
+    ##     signature_algorithm       e.g. "SHA256-RSA" (signature_algorithm_tag: true)
+    ##
+    ## IMPORTANT: Filters operate only on tags that are actually collected.
+    ## If you filter by an opt-in tag key without enabling its *_tag flag,
+    ## no tags with that key will be present and the include rule will exclude
+    ## all certificates (resulting in no metrics). Always enable the corresponding
+    ## *_tag flag alongside any filter that references its keys.
     ##
     ## Note: `certificate_store` and `server` are NOT available as filter keys.
     ## They are appended to metrics after collection and are not visible to the
