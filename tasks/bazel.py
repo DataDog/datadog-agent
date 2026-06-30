@@ -9,7 +9,6 @@ from pathlib import Path
 from invoke import task
 
 from tasks.flavor import AgentFlavor
-from tasks.libs.common.color import color_message
 from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX
 
 _IMPORT_PREFIX = AGENT_MODULE_PATH_PREFIX.rstrip("/")
@@ -20,9 +19,15 @@ def _label_to_import_path(label: str) -> str:
     return _IMPORT_PREFIX if not pkg_part else f"{_IMPORT_PREFIX}/{pkg_part}"
 
 
-def _parse_bep_cache_status(bep_path: Path) -> dict[str, bool]:
-    """Return a map of import_path → was_cached parsed from a BEP JSON file."""
-    status: dict[str, bool] = {}
+def _parse_bep(bep_path: Path) -> tuple[list[Path], dict[str, bool]]:
+    """Parse a BEP JSON file in one pass.
+
+    Returns (xml_paths, cache_status) where xml_paths are the test.xml files
+    produced by this specific invocation, and cache_status maps import_path →
+    was_cached.
+    """
+    xml_paths: list[Path] = []
+    cache_status: dict[str, bool] = {}
     with bep_path.open() as f:
         for line in f:
             line = line.strip()
@@ -40,8 +45,13 @@ def _parse_bep_cache_status(bep_path: Path) -> dict[str, bool]:
                 continue
             import_path = _label_to_import_path(label)
             cached = bool(tr.get("cachedLocally") or tr.get("executionInfo", {}).get("cachedRemotely"))
-            status[import_path] = cached
-    return status
+            cache_status[import_path] = cached
+            for output in tr.get("testActionOutput", []):
+                if output.get("name") == "test.xml":
+                    uri = output.get("uri", "")
+                    if uri.startswith("file://"):
+                        xml_paths.append(Path(uri[len("file://") :]))
+    return xml_paths, cache_status
 
 
 def _annotate_junit_cache_status(xml_path: Path, cache_status: dict[str, bool]) -> None:
@@ -71,37 +81,14 @@ def _annotate_junit_cache_status(xml_path: Path, cache_status: dict[str, bool]) 
     tree.write(str(xml_path))
 
 
-def _get_testlogs_dir(ctx) -> Path:
-    # `bazel info bazel-testlogs` does not account for configuration transitions,
-    # so locate the directory from output_path instead.
-    output_path = Path(ctx.run("bazel info output_path", hide=True).stdout.strip())
-    candidates = sorted(output_path.glob("*/testlogs"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not candidates:
-        raise RuntimeError(f"no testlogs directory found under {output_path}")
-    if len(candidates) > 1:
-        others = [str(c) for c in candidates[1:]]
-        print(
-            color_message("warning", "yellow")
-            + f": multiple testlogs directories found, using most recent: {candidates[0]}\n  others: {others}",
-            file=sys.stderr,
-        )
-    return candidates[0]
-
-
-@task
-def testlogs_dir(ctx):
-    """Print the absolute path to Bazel's testlogs directory."""
-    print(_get_testlogs_dir(ctx))
-
-
 @task(
     help={
         "flavor": f"Agent flavor ({', '.join(f.name for f in AgentFlavor)}). Embedded in each JUnit XML.",
         "output_tgz": "Destination path for the output tgz (e.g. junit-bazel-base.tgz).",
-        "bep_file": "Path to a Bazel BEP JSON file; when provided, annotates each testsuite with bazel.cached.",
+        "bep_file": "Path to a Bazel BEP JSON file (--build_event_json_file); drives test.xml discovery and annotates each testsuite with bazel.cached.",
     },
 )
-def collect_junit(ctx, flavor, output_tgz, bep_file=None):
+def collect_junit(ctx, flavor, output_tgz, bep_file):
     """Collect Bazel test results and package them for junit_upload.
 
     Merges the test.xml files produced by the rules_go test runner (one per
@@ -111,11 +98,13 @@ def collect_junit(ctx, flavor, output_tgz, bep_file=None):
     """
     from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 
-    tl_dir = _get_testlogs_dir(ctx)
-
-    xml_files = [p for p in tl_dir.rglob("test.xml") if p.is_file()]
+    # BEP is the authoritative source: it lists exactly the test.xml files
+    # produced by this invocation, avoiding stale results from previous runs
+    # with a different Bazel configuration.
+    xml_paths, cache_status = _parse_bep(Path(bep_file))
+    xml_files = [p for p in xml_paths if p.is_file()]
     if not xml_files:
-        print(f"error: no test.xml files found under {tl_dir}", file=sys.stderr)
+        print("error: no test.xml files found in BEP output", file=sys.stderr)
         sys.exit(1)
 
     agent_flavor = AgentFlavor[flavor]
@@ -153,12 +142,8 @@ def collect_junit(ctx, flavor, output_tgz, bep_file=None):
 
         enrich_junitxml(str(merged_path), agent_flavor)
 
-        if bep_file:
-            bep_path = Path(bep_file)
-            if bep_path.is_file():
-                _annotate_junit_cache_status(merged_path, _parse_bep_cache_status(bep_path))
-            else:
-                print(f"warning: BEP file not found: {bep_file}", file=sys.stderr)
+        if cache_status:
+            _annotate_junit_cache_status(merged_path, cache_status)
 
         produce_junit_tar([str(merged_path)], output_tgz)
 
