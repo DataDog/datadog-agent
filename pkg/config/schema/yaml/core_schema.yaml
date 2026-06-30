@@ -1709,10 +1709,11 @@ properties:
       log_file:
         node_type: setting
         type: string
-        default: ${conf_path}/logs/ddtray.log
+        default: ${log_path}/ddtray.log
         visibility: public
         description: The full path to the file where Datadog Agent Manager System
           Tray logs are written.
+        example: '"c:\\programdata\\datadog\\logs\\ddtray.log"'
         tags:
         - template_section:Agent
         comment: Datadog Agent Manager System Tray
@@ -1917,6 +1918,10 @@ properties:
                 type: string
               type: array
           disable_intra_vpc_collection:
+            node_type: setting
+            type: boolean
+            default: false
+          disable_source_public_ip_collection:
             node_type: setting
             type: boolean
             default: false
@@ -6072,68 +6077,74 @@ properties:
             node_type: setting
             type: string
             default: ''
-      detectors:
+      anomaly_scorer:
         node_type: section
         type: object
         properties:
-          anomaly_scorer:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          alpha:
+            node_type: setting
+            type: number
+            default: 0.014
+            tags:
+            - golang_type:float64
+          saturation_k:
+            node_type: setting
+            type: number
+            default: 5
+            tags:
+            - golang_type:float64
+          window_secs:
+            node_type: setting
+            type: integer
+            default: 15
+            comment: Sliding deduplication window in seconds. An anomaly series is counted at most once per window.
+          low_threshold:
+            node_type: setting
+            type: number
+            golang_type: float64
+            default: 0.15
+          high_threshold:
+            node_type: setting
+            type: number
+            golang_type: float64
+            default: 0.40
+          margin_pct:
+            node_type: setting
+            type: number
+            golang_type: float64
+            default: 0.20
+          output:
             node_type: section
             type: object
             properties:
-              alpha:
-                node_type: setting
-                type: number
-                default: 0.014
-                tags:
-                - golang_type:float64
-              enabled:
+              correlation_events:
                 node_type: setting
                 type: boolean
                 default: false
-              saturation_k:
+                comment: Emit closed High-severity periods as v2 change events.
+              logs:
                 node_type: setting
-                type: number
-                default: 5
-                tags:
-                - golang_type:float64
-              window_secs:
-                node_type: setting
-                type: integer
-                default: 15
-                comment: Sliding deduplication window in seconds. An anomaly series
-                  is counted at most once per window.
-              low_threshold:
-                node_type: setting
-                type: number
-                golang_type: float64
-                default: 0.040
-              high_threshold:
-                node_type: setting
-                type: number
-                golang_type: float64
-                default: 0.060
-              margin_pct:
-                node_type: setting
-                type: number
-                golang_type: float64
-                default: 0.20
+                type: boolean
+                default: false
+                comment: Log every severity transition via pkglog.
               cooldown_secs:
                 node_type: setting
                 type: integer
                 default: 300
-                comment: "Minimum seconds before the built-in helper subscription can de-escalate. Only used when helper.enabled is true."
-              helper:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
-                  report_events:
-                    node_type: setting
-                    type: boolean
-                    default: false
+                comment: Minimum seconds before a de-escalation callback can fire.
+              max_anomalies:
+                node_type: setting
+                type: integer
+                default: 50
+                comment: Maximum anomalies tracked per High-severity episode.
+      detectors:
+        node_type: section
+        type: object
+        properties:
           bocpd:
             node_type: section
             type: object
@@ -6374,6 +6385,42 @@ properties:
               Metrics ingestion gate. When false, externally-ingested metrics
               (DogStatsD, check samplers) are dropped at the handle factory.
               Log-derived virtual metrics are unaffected.
+          processing_rules:
+            node_type: setting
+            type: array
+            default: []
+            description: |-
+              Ordered metric processing rules applied at the observer handle boundary.
+              Rules are evaluated in sequence and the first match wins. Metrics that
+              do not match any rule are allowed. Metrics from `log_metrics_extractor`
+              are always allowed. Because unmatched metrics are already allowed,
+              `include_at_match` rules are mainly useful as earlier exceptions to
+              later excludes, including the built-in internal agent metric exclude.
+            example: |2-
+
+                - type: exclude_at_match
+                  name: drop_dev_dogstatsd
+                  source: dogstatsd
+                  tags: ["env:dev"]
+                - type: include_at_match
+                  name: keep_prod_kubernetes
+                  name_pattern: kubernetes.*
+                  tags: ["env:prod"]
+            items:
+              type: object
+              properties:
+                type:
+                  type: string
+                name:
+                  type: string
+                name_pattern:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                source:
+                  type: string
       recording:
         node_type: section
         type: object
@@ -6446,6 +6493,26 @@ properties:
             node_type: setting
             type: integer
             default: 120
+      baseline_analysis:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          mute_noisy_metrics:
+            node_type: setting
+            type: boolean
+            default: true
+          duration:
+            node_type: setting
+            type: string
+            default: 10m
+          verbose:
+            node_type: setting
+            type: boolean
+            default: false
   appsec:
     node_type: section
     type: object
@@ -6880,7 +6947,7 @@ properties:
   conf_path:
     node_type: setting
     type: string
-    default: /etc/datadog-agent
+    default: ${conf_path}
   config_files_discovery:
     node_type: section
     type: object
@@ -7106,7 +7173,7 @@ properties:
       log_file:
         node_type: setting
         type: string
-        default: /var/log/datadog/agent-data-plane.log
+        default: ${log_path}/agent-data-plane.log
       otlp:
         node_type: section
         type: object
@@ -7796,7 +7863,7 @@ properties:
   dogstatsd_log_file:
     node_type: setting
     type: string
-    default: /var/log/datadog/dogstatsd_info/dogstatsd-stats.log
+    default: ${log_path}/dogstatsd_info/dogstatsd-stats.log
     comment: Control how dogstatsd-stats logs can be generated
   dogstatsd_log_file_max_rolls:
     node_type: setting
@@ -8375,7 +8442,7 @@ properties:
   forwarder_storage_path:
     node_type: setting
     type: string
-    default: /opt/datadog-agent/run/transactions_to_retry
+    default: ${run_path}/transactions_to_retry
     comment: Forwarder storage on disk
   genresources:
     node_type: section

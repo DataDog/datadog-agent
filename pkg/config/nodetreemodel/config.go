@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -593,6 +594,17 @@ func (c *ntmConfig) BuildSchema() {
 }
 
 func (c *ntmConfig) buildSchema() {
+	// First resolve all relative path in the defaults (ie: path like '${conf_path}/datadog.yaml'
+	err := c.resolveRelativePath(
+		defaultpaths.GetDefaultConfPath(),
+		defaultpaths.GetInstallPath(),
+		defaultpaths.GetDefaultRunPath(),
+		defaultpaths.GetDefaultLogPath(),
+	)
+	if err != nil {
+		log.Errorf("error resolving default relative path: %s", err)
+	}
+
 	c.buildEnvVars()
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {

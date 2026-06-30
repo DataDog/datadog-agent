@@ -24,6 +24,7 @@ go_library(
         "//pkg/fleet/installer/telemetry",
         "//pkg/util/hostinfo",
         "//pkg/util/http",
+        "//pkg/util/log/errortracking",
         "//pkg/util/scrubber",
         "//pkg/version",
         "@com_github_datadog_zstd//:zstd",
