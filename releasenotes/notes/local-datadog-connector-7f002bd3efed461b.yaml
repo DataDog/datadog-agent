@@ -8,7 +8,6 @@
 ---
 enhancements:
   - |
-    The embedded OpenTelemetry Collector now uses an in-tree copy of the
-    Datadog connector rather than the implementation from
+    Migrate to a local version of the Datadog connector rather than the implementation from
     opentelemetry-collector-contrib. The connector's configuration and behavior
-    are unchanged.
+    are currently unchanged.
