@@ -269,8 +269,7 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --run "TestK8S(CEL|Legacy)FilteringSuite"
-      - EXTRA_PARAMS: --run TestDDIAutodiscoverySuite
-      - EXTRA_PARAMS: --skip "Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering|DDIAutodiscovery)Suite"
+      - EXTRA_PARAMS: --skip "Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
 
 new-e2e-containers-k8s-latest:
   extends:
@@ -998,6 +997,11 @@ new-e2e-anomalydetection:
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_x64
+  needs:
+    - !reference [.new_e2e_template_needs_deb_x64, needs]
+    # netpath dynamic-tests run the agent as a Docker container, pulling the
+    # agent-qa:<pipeline>-<sha>-linux image built by qa_agent_linux
+    - qa_agent_linux
   rules:
     - !reference [.on_netpath_or_e2e_changes]
     - !reference [.manual]
@@ -1056,6 +1060,7 @@ new-e2e-otel:
     - qa_dca
     - qa_agent_full
     - qa_ot_agent_standalone
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/otel
     EXTRA_PARAMS: --skip "TestOTelAgentIA(EKS|USTEKS)"
