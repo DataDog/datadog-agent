@@ -69,6 +69,7 @@ import (
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrationsfxnoop "github.com/DataDog/datadog-agent/comp/logs/integrations/fx-noop"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	inventorychecksfx "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
@@ -213,7 +214,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 				// in others commands such as run.
 				fx.Supply(option.None[logagent.Component]()),
-				fx.Supply(option.None[integrations.Component]()),
+				// Provide a print-only integrations receiver so that Python checks
+				// calling send_log() display the log instead of returning a "no receiver" error.
+				integrationsfxnoop.Module(),
 
 				getPlatformModules(),
 				jmxloggerfx.Module(),

@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "fx-noop",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/integrations/fx-noop",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/logs/integrations/def",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+    ],
+)
+
+go_test(
+    name = "fx-noop_test",
+    srcs = ["fx_test.go"],
+    embed = [":fx-noop"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
