@@ -247,7 +247,6 @@ func (s *Server) Listen() (net.Listener, error) {
 // Call in a goroutine after a successful Listen.
 func (s *Server) Serve(l net.Listener) {
 	log.Infof("MicroVM lifecycle server listening on %s", l.Addr())
-	log.Warnf("Port %s is reserved for the MicroVM lifecycle server — ensure your application does not bind this port", l.Addr())
 	if err := s.httpServer.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Errorf("MicroVM lifecycle server error: %v", err)
 	}

@@ -25,6 +25,62 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestDetectMode_Sidecar_HasRunnerSet verifies that sidecar mode (no args)
+// sets Runner to RunSidecar so main.go can call it directly.
+func TestDetectMode_Sidecar_HasRunnerSet(t *testing.T) {
+	saved := os.Args
+	defer func() { os.Args = saved }()
+	os.Args = []string{"datadog-init"}
+
+	conf := DetectMode()
+	assert.True(t, conf.SidecarMode)
+	assert.NotNil(t, conf.Runner, "sidecar mode must set Runner to RunSidecar")
+}
+
+// TestDetectMode_Init_RunnerIsNil verifies that init mode (args present) leaves
+// Runner nil. main.go delegates to cloudService.Run(modeConf, logConfig) which
+// each CloudService implements directly, so modeConf.Runner is not used in
+// init-container mode.
+func TestDetectMode_Init_RunnerIsNil(t *testing.T) {
+	saved := os.Args
+	defer func() { os.Args = saved }()
+	os.Args = []string{"datadog-init", "sh", "-c", "exit 0"}
+
+	conf := DetectMode()
+	assert.False(t, conf.SidecarMode)
+	assert.Nil(t, conf.Runner, "init mode Runner must be nil; main.go builds the closure with child")
+}
+
+
+// TestHandleTerminationSignals_SIGTERM and _SIGINT exercise handleTerminationSignals
+// via its injectable notify parameter, avoiding real OS signals and verifying
+// that either signal unblocks stopCh.
+func TestHandleTerminationSignals_SIGTERM(t *testing.T) {
+	stopCh := make(chan struct{}, 1)
+	notify := func(c chan<- os.Signal, _ ...os.Signal) {
+		go func() { c <- syscall.SIGTERM }()
+	}
+	handleTerminationSignals(stopCh, notify)
+	select {
+	case <-stopCh:
+	default:
+		t.Fatal("stopCh must be closed after SIGTERM")
+	}
+}
+
+func TestHandleTerminationSignals_SIGINT(t *testing.T) {
+	stopCh := make(chan struct{}, 1)
+	notify := func(c chan<- os.Signal, _ ...os.Signal) {
+		go func() { c <- syscall.SIGINT }()
+	}
+	handleTerminationSignals(stopCh, notify)
+	select {
+	case <-stopCh:
+	default:
+		t.Fatal("stopCh must be closed after SIGINT")
+	}
+}
+
 func TestBuildCommandParamWithArgs(t *testing.T) {
 	name, args := buildCommandParam([]string{"superCmd", "--verbose", "path", "-i", "."})
 	assert.Equal(t, "superCmd", name)
@@ -52,43 +108,43 @@ func TestPropagateChildError(t *testing.T) {
 	})
 }
 
-// When cmd.Start fails (e.g. binary not found), execute must return the
-// error and leave the ChildHandle in the not-alive state — the user app
-// never ran, so /ready must keep returning 503.
-func TestExecute_StartFailure_LeavesChildNotAlive(t *testing.T) {
-	child := lifecycle.NewChild()
-	err := execute(&serverlessLog.Config{}, []string{"/nonexistent/binary/that/cannot/be/found"}, child)
+// When cmd.Start fails (e.g. binary not found), execute must return the error
+// and never invoke OnAlive — the user app never ran.
+func TestExecute_StartFailure_NeverCallsOnAlive(t *testing.T) {
+	var onAliveCalled bool
+	hooks := &ProcessHooks{
+		OnAlive: func() { onAliveCalled = true },
+		OnDead:  func() {},
+	}
+	err := execute(&serverlessLog.Config{}, []string{"/nonexistent/binary/that/cannot/be/found"}, hooks)
 	assert.Error(t, err, "cmd.Start must fail for a missing binary")
-	assert.False(t, child.IsAlive(), "child must remain not-alive when cmd.Start fails")
+	assert.False(t, onAliveCalled, "OnAlive must not be called when cmd.Start fails")
 }
 
-// On a successful run, execute must mark the child alive between cmd.Start
-// and cmd.Wait, then mark it dead via the deferred MarkDead once cmd.Wait
-// returns. The mid-run probe pins the alive→dead ordering — without it, a
-// buggy implementation that skipped MarkAlive entirely would still pass a
-// post-run-only assertion.
-func TestExecute_SuccessfulRun_MarksChildAliveThenDead(t *testing.T) {
+// On a successful run, execute must call OnAlive after cmd.Start and OnDead
+// via defer after cmd.Wait. The mid-run probe pins the ordering.
+func TestExecute_SuccessfulRun_InvokesHooksInOrder(t *testing.T) {
 	child := lifecycle.NewChild()
+	hooks := &ProcessHooks{
+		OnAlive: child.MarkAlive,
+		OnDead:  child.MarkDead,
+	}
 	var midRunAlive atomic.Bool
 	probeDone := make(chan struct{})
 	go func() {
 		defer close(probeDone)
-		// Generous offset (~10× fork+exec time) so MarkAlive has fired.
 		time.Sleep(100 * time.Millisecond)
 		midRunAlive.Store(child.IsAlive())
 	}()
-	err := execute(&serverlessLog.Config{}, []string{"sh", "-c", "sleep 0.5"}, child)
+	err := execute(&serverlessLog.Config{}, []string{"sh", "-c", "sleep 0.5"}, hooks)
 	<-probeDone
 	assert.NoError(t, err)
-	assert.True(t, midRunAlive.Load(), "child must be marked alive while cmd.Wait is blocked")
-	assert.False(t, child.IsAlive(), "child must be marked dead after cmd.Wait returns")
+	assert.True(t, midRunAlive.Load(), "OnAlive must fire before cmd.Wait returns")
+	assert.False(t, child.IsAlive(), "OnDead must fire after cmd.Wait returns")
 }
 
-// MicroVM init-container mode: RunInit is given a non-nil *lifecycle.Child
-// and must thread it through execute so /ready can observe liveness. The
-// mid-run probe pins both transitions through the public entry point —
-// IsAlive=true while the child is running, IsAlive=false after RunInit
-// returns (deferred MarkDead).
+// MicroVM init-container mode: ProcessHooks drive liveness tracking through
+// the public RunInit entry point. Pins the alive→dead transition.
 func TestRunInit_MicroVM_ChildSupplied_TracksLiveness(t *testing.T) {
 	saved := os.Args
 	defer func() { os.Args = saved }()
@@ -99,20 +155,19 @@ func TestRunInit_MicroVM_ChildSupplied_TracksLiveness(t *testing.T) {
 	probeDone := make(chan struct{})
 	go func() {
 		defer close(probeDone)
-		// Generous offset (~10× fork+exec time) so MarkAlive has fired.
 		time.Sleep(100 * time.Millisecond)
 		midRunAlive.Store(child.IsAlive())
 	}()
-	err := RunInit(&serverlessLog.Config{}, child)
+	err := RunInit(&serverlessLog.Config{}, &ProcessHooks{OnAlive: child.MarkAlive, OnDead: child.MarkDead})
 	<-probeDone
 	assert.NoError(t, err)
-	assert.True(t, midRunAlive.Load(), "child must be marked alive while RunInit is blocked on the child")
+	assert.True(t, midRunAlive.Load(), "child must be marked alive while RunInit is blocked")
 	assert.False(t, child.IsAlive(), "child must be marked dead after RunInit returns")
 }
 
-// Non-MicroVM mode: child is nil. RunInit must still execute the user app
-// without panicking on the nil guard. Pins the `if child != nil` branch.
-func TestRunInit_NonMicroVM_NoChild_StillExecutes(t *testing.T) {
+// Non-MicroVM mode: nil hooks. RunInit must execute the user app without
+// panicking. Pins the `if hooks != nil` guard.
+func TestRunInit_NonMicroVM_NoHooks_StillExecutes(t *testing.T) {
 	saved := os.Args
 	defer func() { os.Args = saved }()
 	os.Args = []string{"datadog-init", "sh", "-c", "exit 0"}
@@ -121,13 +176,27 @@ func TestRunInit_NonMicroVM_NoChild_StillExecutes(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// On a non-zero exit, the deferred MarkDead must still fire so /ready
-// reflects reality. Pins the defer-on-error path.
-func TestExecute_NonZeroExit_MarksChildDeadAfterExit(t *testing.T) {
+// On a non-zero exit, OnDead must still fire. Pins the defer-on-error path.
+func TestExecute_NonZeroExit_OnDeadFiresAfterExit(t *testing.T) {
 	child := lifecycle.NewChild()
-	err := execute(&serverlessLog.Config{}, []string{"sh", "-c", "exit 7"}, child)
+	// Simulate MicroVM wiring: OnAlive fires first so child is alive, then
+	// OnDead fires on defer.
+	hooks := &ProcessHooks{OnAlive: child.MarkAlive, OnDead: child.MarkDead}
+	err := execute(&serverlessLog.Config{}, []string{"sh", "-c", "exit 7"}, hooks)
 	assert.Error(t, err, "non-zero exit must surface as an error")
-	assert.False(t, child.IsAlive(), "child must be marked dead after non-zero exit")
+	assert.False(t, child.IsAlive(), "OnDead must fire after non-zero exit")
+}
+
+// ProcessHooks with OnAlive set but OnDead nil must not panic. Pins the
+// nil-guard on hooks.OnDead added to execute().
+func TestExecute_OnAliveSetOnDeadNil_DoesNotPanic(t *testing.T) {
+	hooks := &ProcessHooks{
+		OnAlive: func() {},
+		OnDead:  nil, // intentionally absent
+	}
+	assert.NotPanics(t, func() {
+		_ = execute(&serverlessLog.Config{}, []string{"sh", "-c", "exit 0"}, hooks)
+	})
 }
 
 func TestForwardSignalToChild(t *testing.T) {
