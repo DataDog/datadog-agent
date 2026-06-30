@@ -18,8 +18,6 @@ namespace Datadog.CustomActions
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
                 Path.Combine(projectLocation, "python-scripts"),
-                // fleet postinst may create this before InstallFinalize
-                Path.Combine(projectLocation, "processes.d"),
             }
             // installation specific files
             .Concat(session.GeneratedPaths());
