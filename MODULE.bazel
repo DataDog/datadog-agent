@@ -159,11 +159,8 @@ register_toolchains(
     dev_dependency = True,
 )
 
-find_system_patchelf = use_extension("//bazel/toolchains/patchelf:patchelf_configure.bzl", "find_system_patchelf", dev_dependency = True)
-use_repo(find_system_patchelf, "patchelf_toolchains")
-
 register_toolchains(
-    "@patchelf_toolchains//:all",
+    "//bazel/toolchains/patchelf:patchelf_built_toolchain",
     dev_dependency = True,
 )
 
