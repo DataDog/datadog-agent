@@ -84,6 +84,7 @@ go_library(
         "//pkg/util/sort",
         "//pkg/util/strings",
         "//pkg/version",
+        "@//pkg/util/infratags",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_fatih_color//:color",
         "@org_uber_go_atomic//:atomic",

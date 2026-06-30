@@ -62,6 +62,7 @@ type CheckScheduler struct {
 	loaders        []check.Loader
 	collector      option.Option[collectorcomp.Component]
 	senderManager  sender.SenderManager
+	infraTagger    *infratags.Tagger // nil = no infra mode tagging
 	m              sync.RWMutex
 }
 
@@ -72,6 +73,7 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
+		infraTagger:    infratags.NewTagger(setup.Datadog()),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
@@ -210,9 +212,9 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-				if tagger := infratags.NewTagger(setup.Datadog()); tagger != nil && tagger.IsCheckEligible(config.Name) {
+				if s.infraTagger != nil && s.infraTagger.IsCheckEligible(config.Name) {
 					if chkSender, senderErr := s.senderManager.GetSender(c.ID()); senderErr == nil {
-						chkSender.SetInfraTagger(tagger)
+						chkSender.SetInfraTagger(s.infraTagger)
 					} else {
 						log.Debugf("infra mode tags: skipping %s (%s): %v", config.Name, c.ID(), senderErr)
 					}
