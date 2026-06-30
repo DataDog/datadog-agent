@@ -199,7 +199,12 @@ variables:
     # skip known flaky tests by default
     GO_TEST_SKIP_FLAKE: "true"
 
-    # List of parameters retrieved from AWS SSM
+    # Vault path identifiers for secret retrieval via tools/ci/fetch_secret.sh
+    AGENT_QA_E2E: agent-qa-e2e # agent-devx
+    AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
+    DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
+
+    # List of parameters retrieved from AWS SSM (kept for non-migrated jobs)
     # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
     AGENT_QA_PROFILE_SSM_NAME: ci.datadog-agent.agent-qa-profile # agent-ci-experience
     API_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_api_key_org2 # agent-ci-experience
