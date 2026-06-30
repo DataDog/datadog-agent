@@ -27,7 +27,7 @@ go_library(
         "//pkg/util/containers/cri",
         "//pkg/util/docker",
         "//pkg/util/log",
-        "@com_github_containerd_containerd//oci",
+        "@com_github_containerd_containerd_v2//pkg/oci",
     ],
 )
 
@@ -65,7 +65,7 @@ go_test(
         "//comp/core/workloadmeta/impl",
         "//comp/core/workloadmeta/mock",
         "//comp/def",
-        "@com_github_containerd_containerd//oci",
+        "@com_github_containerd_containerd_v2//pkg/oci",
         "@com_github_opencontainers_runtime_spec//specs-go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
@@ -82,7 +82,7 @@ go_test(
         "test",
     ],
     deps = [
-        "@com_github_containerd_containerd//oci",
+        "@com_github_containerd_containerd_v2//pkg/oci",
         "@com_github_opencontainers_runtime_spec//specs-go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

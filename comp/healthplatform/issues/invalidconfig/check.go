@@ -9,7 +9,6 @@ package invalidconfig
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -56,11 +55,16 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 			IssueID:   IssueID,
 			IssueName: IssueName,
 			Source:    "agent",
-			Context: map[string]string{
-				contextKeyConfigPath: c.cfg.ConfigFileUsed(),
-				contextKeyErrorCount: strconv.Itoa(len(errs)),
-				contextKeyErrors:     strings.Join(errs, "\n"),
-			},
+			Context: func() map[string]string {
+				ctx := map[string]string{
+					contextKeyConfigPath: c.cfg.ConfigFileUsed(),
+					contextKeyErrorCount: strconv.Itoa(len(errs)),
+				}
+				for i, e := range errs {
+					ctx[contextErrorKey(i)] = e
+				}
+				return ctx
+			}(),
 		},
 	}, nil
 }
