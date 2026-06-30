@@ -138,10 +138,10 @@ spec:
           processors: [resourcedetection, k8s_attributes]
           exporters: [otlp_http]
 
-  # Resource limits for the Host Profiler container. Setting only limits (no requests)
-  # keeps the container in the Burstable QoS class: no capacity is reserved on the node,
-  # but runaway usage is capped. Increase the memory limit if the Host Profiler uploads
-  # debug symbols for large binaries. For more options, see FAQ.
+  # Resource defaults for the Host Profiler container. Explicit zero requests avoid
+  # reserving CPU or memory on every node, while limits cap runaway usage. Set
+  # nonzero requests if your cluster policy requires them or you want reserved capacity.
+  # Increase the memory limit if the Host Profiler uploads debug symbols for large binaries.
   resources:
     requests:
       cpu: "0"

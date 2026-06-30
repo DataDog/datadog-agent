@@ -24,6 +24,8 @@ datadog:
 agents:
   containers:
     hostProfiler:
+      # Explicit zero requests avoid reserving CPU or memory on every node,
+      # while limits cap runaway usage.
       resources:
         requests:
           cpu: "0"
@@ -35,7 +37,7 @@ agents:
 
 The preview image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
 
-For more details on resource configuration, including Guaranteed QoS and when to increase memory, see [Resource requests and limits](../faq.md).
+For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
 
 2. Upgrade your existing Datadog Agent Helm release with the updated values. Adapt this command to your Helm or GitOps workflow, and include any existing values files you already use for the release:
 
