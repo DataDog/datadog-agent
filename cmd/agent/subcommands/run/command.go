@@ -581,7 +581,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsfx.Module(),
 		agenttelemetryfx.Module(),
-		// AGTHEAL-15: errortracking submitter wire — atel owns buffer/flush/recursion.
+		// errortracking submitter wire — atel owns buffer/flush/recursion.
 		fx.Invoke(installErrortrackingHandler),
 		remotetraceroute.Module(),
 		networkpath.Bundle(),
