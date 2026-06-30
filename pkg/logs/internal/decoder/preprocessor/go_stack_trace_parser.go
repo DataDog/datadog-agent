@@ -91,7 +91,18 @@ func (g *GoStackTraceParser) AcceptLine(line []byte) bool {
 			g.uncommitted = 0
 			return true
 		}
-		return false
+		// The Go runtime prints a blank line between the header and the first
+		// goroutine/stack chunk, and normally that blank line is what ends the
+		// header (handled by the empty-line case above). But many log sources
+		// (container runtimes, loggers) strip blank lines before they reach the
+		// aggregator, so the chunk-start line arrives directly after the header.
+		// Treat a chunk start as an implicit end of the header; otherwise the
+		// trace could never reach betweenChunks and would always be abandoned.
+		if _, ok := goDetectChunkStart(line); !ok {
+			return false
+		}
+		g.st = goStateBetweenChunks
+		fallthrough
 
 	case goStateBetweenChunks:
 		ct, ok := goDetectChunkStart(line)
@@ -109,12 +120,28 @@ func (g *GoStackTraceParser) AcceptLine(line []byte) bool {
 		return true
 
 	case goStateInChunk:
+		// A chunk-start line ends the current chunk just as a blank line would.
+		// Sources that strip the header's blank-line separator strip the
+		// separators between later chunks too, so without this a multi-goroutine
+		// dump would combine only its first chunk. Re-dispatch through
+		// betweenChunks (which resets uncommitted and counts the new chunk),
+		// yielding the same end-state as the blank-line path.
+		if _, ok := goDetectChunkStart(line); ok {
+			g.st = goStateBetweenChunks
+			return g.AcceptLine(line)
+		}
 		return g.validStackLine(line)
 
 	case goStateInRegDump:
 		if goValidRegisterLine(line) {
 			g.uncommitted = 0
 			return true
+		}
+		// As above: a chunk-start line directly after a register dump (no blank
+		// line) begins a new chunk rather than ending the trace.
+		if _, ok := goDetectChunkStart(line); ok {
+			g.st = goStateBetweenChunks
+			return g.AcceptLine(line)
 		}
 		return false
 	}

@@ -153,6 +153,116 @@ func TestGoStackTrace_NoTrailingNewline(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Regression: missing blank line between the header and the first chunk
+// (AGNTLOG-663)
+//
+// The Go runtime prints a blank line between the crash header and the first
+// "goroutine N [running]:" / "runtime stack:" / register-dump chunk, and that
+// blank line is normally what ends the header. Many log sources (container
+// runtimes, loggers) strip blank lines before they reach the aggregator, so the
+// chunk-start line arrives directly after the header. Before the fix the parser
+// could never leave the header state without the blank line, so every such
+// trace was abandoned and the fleet-wide "combined" count was stuck at zero.
+// These cases reproduce the real captured shapes and assert they now combine.
+// ---------------------------------------------------------------------------
+
+func TestGoStackTrace_NoBlankLine_PanicThenGoroutine_Combines(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
+	// Captured from service:koutris-intake — no blank line between the panic
+	// header and the goroutine section.
+	input := "panic: lookup koutris-storage-distributions-az1.fabric.dog on 169.254.20.10:53: no such host\n" +
+		"goroutine 213 [running]:\n" +
+		"github.com/DataDog/dd-go/alerting/koutris/apps/koutris-intake/intake.(*DataSender).run(0xc002a0c700, 0xc002a9ed30)\n" +
+		"\t/go/src/github.com/DataDog/dd-go/alerting/koutris/apps/koutris-intake/intake/sender.go:371 +0x2cb\n" +
+		"created by github.com/DataDog/dd-go/alerting/koutris/apps/koutris-intake/intake.NewDataSender in goroutine 1\n" +
+		"\t/go/src/github.com/DataDog/dd-go/alerting/koutris/apps/koutris-intake/intake/sender.go:286 +0x119f\n"
+	msgs := feedLines(agg, input)
+	assertCombined(t, msgs)
+	assert.Contains(t, string(msgs[0].GetContent()), "goroutine 213 [running]:",
+		"the goroutine chunk must be folded into the combined message")
+}
+
+func TestGoStackTrace_NoBlankLine_RuntimeStackChunk_Combines(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
+	// fatal error header followed directly by a "runtime stack:" chunk.
+	input := "fatal error: concurrent map writes\n" +
+		"runtime stack:\n" +
+		"runtime.throw({0x104ebbfb2?, 0x104f980b0?})\n" +
+		"\t/usr/local/go/src/runtime/panic.go:1229 +0x38\n"
+	msgs := feedLines(agg, input)
+	assertCombined(t, msgs)
+}
+
+func TestGoStackTrace_NoBlankLine_RegisterDumpChunk_Combines(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
+	// SIGSEGV header + PC line (valid header continuation), then a register dump
+	// chunk arrives with no blank-line separator.
+	input := "SIGSEGV: segmentation violation\n" +
+		"PC=0x192bf82f4 m=0 sigcode=2 addr=0x0\n" +
+		"rax 0x7fffabcd1234\n" +
+		"rbx 0x0\n" +
+		"rip 0x192bf82f4\n"
+	msgs := feedLines(agg, input)
+	assertCombined(t, msgs)
+}
+
+func TestGoStackTrace_NoBlankLine_SignalContinuationThenGoroutine_Combines(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
+	// Header has a valid [signal ...] continuation, then the goroutine chunk
+	// arrives with no blank-line separator.
+	input := "panic: runtime error: invalid memory address or nil pointer dereference\n" +
+		"[signal SIGSEGV: segmentation violation code=0x1 addr=0x0 pc=0x10436ffd0]\n" +
+		"goroutine 1 [running]:\n" +
+		"main.main()\n" +
+		"\t/path/main.go:50 +0x3b4\n"
+	msgs := feedLines(agg, input)
+	assertCombined(t, msgs)
+}
+
+func TestGoStackTrace_NoBlankLine_MultipleGoroutines_Combines(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
+	// Real Go panics dump every goroutine; the sources that strip the header's
+	// blank line strip the separators between goroutines too. All chunks must
+	// still fold into a single combined message, not just the first.
+	input := "panic: boom\n" +
+		"goroutine 1 [running]:\n" +
+		"main.foo()\n" +
+		"\t/path/main.go:1 +0x1\n" +
+		"goroutine 2 [running]:\n" +
+		"main.bar()\n" +
+		"\t/path/main.go:2 +0x2\n" +
+		"goroutine 3 [chan receive]:\n" +
+		"main.baz()\n" +
+		"\t/path/main.go:3 +0x3\n"
+	msgs := feedLines(agg, input)
+	assertCombined(t, msgs)
+	content := string(msgs[0].GetContent())
+	assert.Contains(t, content, "goroutine 1 [running]:")
+	assert.Contains(t, content, "goroutine 2 [running]:", "later goroutines must be folded in, not emitted standalone")
+	assert.Contains(t, content, "goroutine 3 [chan receive]:")
+}
+
+func TestGoStackTrace_NoBlankLine_RegisterDumpThenGoroutine_Combines(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
+	// Register dump immediately followed by a goroutine chunk, no blank-line
+	// separators anywhere. The goroutine section must begin a new chunk rather
+	// than ending the trace at the register dump.
+	input := "SIGSEGV: segmentation violation\n" +
+		"PC=0x192bf82f4 m=0 sigcode=2 addr=0x0\n" +
+		"rax 0x7fffabcd1234\n" +
+		"rbx 0x0\n" +
+		"rip 0x192bf82f4\n" +
+		"goroutine 1 [running]:\n" +
+		"runtime.main()\n" +
+		"\t/usr/local/go/src/runtime/proc.go:267 +0x1\n"
+	msgs := feedLines(agg, input)
+	assertCombined(t, msgs)
+	content := string(msgs[0].GetContent())
+	assert.Contains(t, content, "rax 0x7fffabcd1234")
+	assert.Contains(t, content, "goroutine 1 [running]:", "the goroutine chunk after the register dump must be folded in")
+}
+
+// ---------------------------------------------------------------------------
 // Ported negative tests from parser_test.go — these should NOT combine
 // ---------------------------------------------------------------------------
 
@@ -589,8 +699,10 @@ func TestGoStackTrace_Overflow_SmallBuffer(t *testing.T) {
 	assert.Empty(t, out)
 	// Next line triggers overflow
 	out = agg.Process(makeMsg("goroutine 1 [running]:"))
-	// "goroutine 1..." is not a valid header continuation, so it triggers rejection
-	// with chunkCount==0 -> abandoned, NOT overflow
+	// "goroutine 1..." ends the header implicitly (the blank-line separator may
+	// be stripped upstream) and is accepted as a chunk start, but appending it
+	// would exceed maxContentSize, so the buffer is abandoned with the overflow
+	// tag. Either way, no combined (IsMultiLine) message is produced.
 	for _, m := range out {
 		assert.False(t, m.ParsingExtra.IsMultiLine)
 	}

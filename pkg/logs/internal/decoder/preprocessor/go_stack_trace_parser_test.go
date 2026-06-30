@@ -323,3 +323,103 @@ func TestGoStackTraceParser_RegDumpInjectionRejected(t *testing.T) {
 	require.True(t, p2.AcceptLine([]byte("rbx 0xee")))
 	require.True(t, p2.AcceptLine([]byte("rip 0xdead")))
 }
+
+// TestGoStackTraceParser_HeaderEndsOnChunkStartWithoutBlankLine is a focused
+// regression for AGNTLOG-663. The Go runtime prints a blank line between the
+// crash header and the first chunk, and that blank line normally ends the
+// header. Many log sources strip blank lines before they reach the parser, so
+// the parser must also treat a chunk-start line as an implicit end of the
+// header — otherwise it can never reach a chunk and every trace is abandoned.
+func TestGoStackTraceParser_HeaderEndsOnChunkStartWithoutBlankLine(t *testing.T) {
+	t.Run("goroutine directly after panic header", func(t *testing.T) {
+		p := NewGoStackTraceParser()
+		require.True(t, p.IsStart([]byte("panic: boom")))
+		p.Reset()
+		// No blank line: the goroutine chunk follows the header immediately.
+		require.True(t, p.AcceptLine([]byte("goroutine 1 [running]:")))
+		require.True(t, p.AcceptLine([]byte("main.main()")))
+		require.True(t, p.AcceptLine([]byte("\t/path/main.go:1 +0x1")))
+		assert.True(t, p.ShouldCombine())
+	})
+
+	t.Run("runtime stack directly after fatal error header", func(t *testing.T) {
+		p := NewGoStackTraceParser()
+		require.True(t, p.IsStart([]byte("fatal error: oom")))
+		p.Reset()
+		require.True(t, p.AcceptLine([]byte("runtime stack:")))
+		require.True(t, p.AcceptLine([]byte("runtime.throw(...)")))
+		require.True(t, p.AcceptLine([]byte("\t/usr/local/go/src/runtime/panic.go:1229 +0x38")))
+		assert.True(t, p.ShouldCombine())
+	})
+
+	t.Run("register dump directly after header continuation", func(t *testing.T) {
+		p := NewGoStackTraceParser()
+		require.True(t, p.IsStart([]byte("SIGSEGV: segmentation violation")))
+		p.Reset()
+		require.True(t, p.AcceptLine([]byte("PC=0x192bf82f4 m=0 sigcode=2 addr=0x0")))
+		// No blank line before the register dump chunk.
+		require.True(t, p.AcceptLine([]byte("rax 0x7fffabcd1234")))
+		require.True(t, p.AcceptLine([]byte("rbx 0x0")))
+		assert.True(t, p.ShouldCombine())
+	})
+
+	t.Run("garbage after implicitly-started register dump is rejected", func(t *testing.T) {
+		p := NewGoStackTraceParser()
+		require.True(t, p.IsStart([]byte("SIGSEGV: segmentation violation")))
+		p.Reset()
+		require.True(t, p.AcceptLine([]byte("PC=0x192bf82f4 m=0 sigcode=2 addr=0x0")))
+		// Register dump entered directly from the header via the new
+		// fallthrough (no blank-line separator).
+		require.True(t, p.AcceptLine([]byte("rax 0x7fffabcd1234")))
+		// A structured log line is not a valid register line and must be
+		// rejected — the register-line validation still guards the dump even
+		// when it was reached through the implicit header-end path.
+		assert.False(t, p.AcceptLine([]byte("level=info ts=2026-01-01 msg=hi")),
+			"non-register line must not be absorbed into an implicitly-started register dump")
+	})
+
+	t.Run("non-chunk line after header is still rejected", func(t *testing.T) {
+		p := NewGoStackTraceParser()
+		require.True(t, p.IsStart([]byte("panic: boom")))
+		p.Reset()
+		// A normal log line that is neither a header continuation nor a chunk
+		// start must still be rejected — no false combine.
+		assert.False(t, p.AcceptLine([]byte("some normal log line")))
+		assert.False(t, p.ShouldCombine())
+	})
+}
+
+// TestGoStackTraceParser_ChunkBoundaryWithoutBlankLine is a regression for the
+// inter-chunk case of AGNTLOG-663. Sources that strip the header's blank-line
+// separator strip the separators between later chunks too, so a chunk-start
+// line arriving mid-trace must end the current chunk and begin a new one rather
+// than being mistaken for a frame (which would combine only the first chunk).
+func TestGoStackTraceParser_ChunkBoundaryWithoutBlankLine(t *testing.T) {
+	t.Run("goroutine boundary directly after a frame", func(t *testing.T) {
+		p := NewGoStackTraceParser()
+		require.True(t, p.IsStart([]byte("panic: boom")))
+		p.Reset()
+		require.True(t, p.AcceptLine([]byte("goroutine 1 [running]:")))
+		require.True(t, p.AcceptLine([]byte("main.foo()")))
+		require.True(t, p.AcceptLine([]byte("\t/path/main.go:1 +0x1")))
+		// No blank line before the next goroutine.
+		require.True(t, p.AcceptLine([]byte("goroutine 2 [running]:")))
+		require.True(t, p.AcceptLine([]byte("main.bar()")))
+		require.True(t, p.AcceptLine([]byte("\t/path/main.go:2 +0x2")))
+		assert.True(t, p.ShouldCombine())
+	})
+
+	t.Run("goroutine boundary directly after a register dump", func(t *testing.T) {
+		p := NewGoStackTraceParser()
+		require.True(t, p.IsStart([]byte("SIGSEGV: segmentation violation")))
+		p.Reset()
+		require.True(t, p.AcceptLine([]byte("PC=0x192bf82f4 m=0 sigcode=2 addr=0x0")))
+		require.True(t, p.AcceptLine([]byte("rax 0x7fffabcd1234")))
+		require.True(t, p.AcceptLine([]byte("rbx 0x0")))
+		// No blank line before the goroutine chunk.
+		require.True(t, p.AcceptLine([]byte("goroutine 1 [running]:")))
+		require.True(t, p.AcceptLine([]byte("runtime.main()")))
+		require.True(t, p.AcceptLine([]byte("\t/usr/local/go/src/runtime/proc.go:267 +0x1")))
+		assert.True(t, p.ShouldCombine())
+	})
+}
