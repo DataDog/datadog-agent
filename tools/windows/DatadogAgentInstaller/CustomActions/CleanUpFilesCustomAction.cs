@@ -24,9 +24,12 @@ namespace Datadog.CustomActions
                 return ActionResult.Success;
             }
 
-            // Fresh-install rollback: fleet postinst may have written processes.d YAML that MSI does
-            // not track. Upgrade rollback passes UPGRADINGPRODUCTCODE so prerm-retained yaml is kept.
-            if (session.Property("ROLLBACK") == "1" && string.IsNullOrEmpty(session.Property("UPGRADINGPRODUCTCODE")))
+            // Fresh-install rollback only: fleet postinst may have written processes.d YAML that MSI
+            // does not track. Upgrade rollback passes UPGRADINGPRODUCTCODE; repair/change (maintenance)
+            // rollbacks have Installed set because the Agent was already on the machine.
+            if (session.Property("ROLLBACK") == "1"
+                && string.IsNullOrEmpty(session.Property("UPGRADINGPRODUCTCODE"))
+                && string.IsNullOrEmpty(session.Property("INSTALLED")))
             {
                 TryRemoveFleetProcmgrConfigFiles(session, projectLocation);
             }

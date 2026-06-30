@@ -275,6 +275,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "ROLLBACK=1, " +
+                    "INSTALLED=[Installed], " +
                     "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
