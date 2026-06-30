@@ -162,6 +162,8 @@ instrumentation_crd_controller:
 func TestDiscoverComponentsFromConfigForSnmp(t *testing.T) {
 	configmock.SetDefaultConfigType(t, "yaml")
 
+	// The static config listener is always enabled, independently of any
+	// configuration, so it is expected in every result below.
 	cfg := configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
@@ -169,27 +171,28 @@ network_devices:
       - network: 127.0.0.1/30
 `)
 	_, configListeners := DiscoverComponentsFromConfig(cfg)
-	require.Len(t, configListeners, 1)
-	assert.Equal(t, "snmp", configListeners[0].Name)
+	assert.True(t, containsListener(configListeners, "static config"))
+	assert.True(t, containsListener(configListeners, "snmp"))
 
-	configmock.NewFromYAML(t, `
+	cfg = configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     configs:
 `)
 	_, configListeners = DiscoverComponentsFromConfig(cfg)
-	assert.Empty(t, len(configListeners))
+	assert.True(t, containsListener(configListeners, "static config"))
+	assert.False(t, containsListener(configListeners, "snmp"))
 
-	configmock.NewFromYAML(t, `
+	cfg = configmock.NewFromYAML(t, `
 snmp_listener:
   configs:
     - network: 127.0.0.1/30
 `)
 	_, configListeners = DiscoverComponentsFromConfig(cfg)
-	require.Len(t, configListeners, 1)
-	assert.Equal(t, "snmp", configListeners[0].Name)
+	assert.True(t, containsListener(configListeners, "static config"))
+	assert.True(t, containsListener(configListeners, "snmp"))
 
-	configmock.NewFromYAML(t, `
+	cfg = configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     configs:
@@ -198,6 +201,6 @@ network_devices:
           - 127.0.0.3
 `)
 	_, configListeners = DiscoverComponentsFromConfig(cfg)
-	require.Len(t, configListeners, 1)
-	assert.Equal(t, "snmp", configListeners[0].Name)
+	assert.True(t, containsListener(configListeners, "static config"))
+	assert.True(t, containsListener(configListeners, "snmp"))
 }

@@ -6385,6 +6385,42 @@ properties:
               Metrics ingestion gate. When false, externally-ingested metrics
               (DogStatsD, check samplers) are dropped at the handle factory.
               Log-derived virtual metrics are unaffected.
+          processing_rules:
+            node_type: setting
+            type: array
+            default: []
+            description: |-
+              Ordered metric processing rules applied at the observer handle boundary.
+              Rules are evaluated in sequence and the first match wins. Metrics that
+              do not match any rule are allowed. Metrics from `log_metrics_extractor`
+              are always allowed. Because unmatched metrics are already allowed,
+              `include_at_match` rules are mainly useful as earlier exceptions to
+              later excludes, including the built-in internal agent metric exclude.
+            example: |2-
+
+                - type: exclude_at_match
+                  name: drop_dev_dogstatsd
+                  source: dogstatsd
+                  tags: ["env:dev"]
+                - type: include_at_match
+                  name: keep_prod_kubernetes
+                  name_pattern: kubernetes.*
+                  tags: ["env:prod"]
+            items:
+              type: object
+              properties:
+                type:
+                  type: string
+                name:
+                  type: string
+                name_pattern:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                source:
+                  type: string
       recording:
         node_type: section
         type: object
@@ -6457,6 +6493,26 @@ properties:
             node_type: setting
             type: integer
             default: 120
+      baseline_analysis:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          mute_noisy_metrics:
+            node_type: setting
+            type: boolean
+            default: true
+          duration:
+            node_type: setting
+            type: string
+            default: 10m
+          verbose:
+            node_type: setting
+            type: boolean
+            default: false
   appsec:
     node_type: section
     type: object
