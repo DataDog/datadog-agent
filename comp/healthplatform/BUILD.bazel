@@ -39,7 +39,10 @@ go_library(
 
 dd_agent_go_test(
     name = "healthplatform_test",
-    srcs = ["bundle_test.go"],
+    srcs = [
+        "bundle_test.go",
+        "invalidconfig_integration_test.go",
+    ],
     embed = [":healthplatform"],
     deps = [
         "//comp/core/config",
@@ -51,6 +54,7 @@ dd_agent_go_test(
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/scheduler/def",
         "//comp/healthplatform/store/def",
+        "//pkg/config/schema",
         "//pkg/util/fxutil",
         "//test/fakeintake/client",
         "//test/fakeintake/server",
