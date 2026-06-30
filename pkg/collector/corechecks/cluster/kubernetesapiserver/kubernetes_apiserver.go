@@ -12,7 +12,6 @@ package kubernetesapiserver
 import (
 	"context"
 	"errors"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -358,12 +357,8 @@ func (k *KubeASCheck) startEventCollection() error {
 
 	// ConfigMap I/O outside the lock: resume from the last persisted resourceVersion
 	// so events created while we were not the leader are recovered rather than skipped.
-	if resVer, _, err := k.ac.GetTokenFromConfigmap(eventTokenKey); err != nil {
-		log.Warnf("Could not read persisted event resourceVersion, starting fresh: %s", err)
-	} else {
-		ec.SetResourceVersion(resVer)
-	}
-
+	// Re-list the full backlog on (re)start (no persisted checkpoint) and let the
+	// bundling transformer dedup by UID; the in-memory watermark dedups relists.
 	return ec.Start(stopCh)
 }
 
@@ -402,19 +397,6 @@ func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Eve
 	events := ec.Drain()
 
 	sender.Gauge("kubernetes_apiserver.events_dropped", float64(ec.DrainDropped()), "", nil)
-
-	// Persist the max RV of the drained batch; lastRV can be ahead if new events arrived during the drain.
-	if len(events) > 0 {
-		var maxRV uint64
-		for _, ev := range events {
-			if rv, err := strconv.ParseUint(ev.ResourceVersion, 10, 64); err == nil && rv > maxRV {
-				maxRV = rv
-			}
-		}
-		if err := k.ac.UpdateTokenInConfigmap(eventTokenKey, strconv.FormatUint(maxRV, 10), time.Now()); err != nil {
-			k.Warnf("Could not persist event resourceVersion: %s", err.Error())
-		}
-	}
 
 	ddevents, errs := k.eventCollection.Transformer.Transform(events)
 

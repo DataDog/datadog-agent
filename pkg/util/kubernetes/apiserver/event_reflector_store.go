@@ -14,19 +14,16 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// eventReflectorStore is the cache.Store the events Reflector writes into. It
-// keeps no objects: Add/Update/Replace forward events through enqueue and the
-// read methods are inert. The watermark, shared with the owning EventCollector,
-// is the highest resourceVersion forwarded; it dedups relists (where Replace
-// re-delivers the full live set) and is persisted for restart recovery.
+// eventReflectorStore is a cache.Store that retains nothing: it forwards events
+// through enqueue. The watermark (highest resourceVersion forwarded) dedups
+// relists within the collector's lifetime.
 type eventReflectorStore struct {
 	enqueue   func(*v1.Event)
 	watermark *atomic.Uint64
 }
 
-// forwardIfNew forwards an object if it is an *v1.Event whose resourceVersion
-// exceeds the watermark, advancing the mark. The Reflector serializes all store
-// calls (resync is disabled), so the Load-then-Store needs no lock: one writer.
+// forwardIfNew forwards an *v1.Event whose resourceVersion exceeds the watermark,
+// advancing it. The Reflector serializes store calls, so no lock is needed.
 func (s *eventReflectorStore) forwardIfNew(obj interface{}) {
 	ev, ok := obj.(*v1.Event)
 	if !ok {
@@ -49,9 +46,8 @@ func (s *eventReflectorStore) Update(obj interface{}) error { s.forwardIfNew(obj
 // Delete drops a removed event. Removals are never forwarded to Datadog.
 func (s *eventReflectorStore) Delete(_ interface{}) error { return nil }
 
-// Replace handles the initial list and every relist. Lists come in unordered,
-// so we forward against a fixed threshold and advance the watermark only after
-// the loop. On cold start the threshold is 0, so all events are forwarded.
+// Replace handles the initial list and every relist. Lists are unordered, so we
+// forward against a fixed threshold and advance the watermark after the loop.
 func (s *eventReflectorStore) Replace(list []interface{}, resourceVersion string) error {
 	threshold := s.watermark.Load()
 	for _, obj := range list {

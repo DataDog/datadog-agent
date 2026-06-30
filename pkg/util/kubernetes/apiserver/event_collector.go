@@ -9,7 +9,6 @@ package apiserver
 
 import (
 	"context"
-	"strconv"
 
 	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
@@ -51,16 +50,6 @@ func (c *APIClient) NewEventCollector(filter string, bufferSize int) *EventColle
 	}
 }
 
-// SetResourceVersion sets the highest forwarded resourceVersion.
-func (ec *EventCollector) SetResourceVersion(rv string) {
-	ec.lastRV.Store(parseResourceVersion(rv))
-}
-
-// ResourceVersion returns the highest forwarded resourceVersion.
-func (ec *EventCollector) ResourceVersion() string {
-	return strconv.FormatUint(ec.lastRV.Load(), 10)
-}
-
 // Start builds the events Reflector and runs it until stopCh is closed. The
 // Reflector lists then watches events matching the field selector, forwarding
 // them to the buffer through eventReflectorStore.
@@ -83,7 +72,7 @@ func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
 	}
 
 	store := &eventReflectorStore{enqueue: ec.enqueue, watermark: ec.lastRV}
-	reflector := cache.NewReflector(lw, &v1.Event{}, store, 0)
+	reflector := cache.NewReflector(noWatchListLW{lw}, &v1.Event{}, store, 0)
 	go reflector.Run(stopCh)
 
 	return nil
@@ -106,6 +95,15 @@ func (ec *EventCollector) Drain() []*v1.Event {
 func (ec *EventCollector) DrainDropped() uint64 {
 	return ec.dropped.Swap(0)
 }
+
+// noWatchListLW opts the events Reflector out of WatchList, forcing a
+// deterministic List+Watch initial sync instead of a bookmark-terminated stream.
+type noWatchListLW struct {
+	*cache.ListWatch
+}
+
+// IsWatchListSemanticsUnSupported is read structurally by client-go's reflector.
+func (noWatchListLW) IsWatchListSemanticsUnSupported() bool { return true }
 
 // enqueue buffers an event, dropping it (and counting the drop) if the buffer is full.
 func (ec *EventCollector) enqueue(ev *v1.Event) {
