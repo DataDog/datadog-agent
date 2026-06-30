@@ -67,13 +67,13 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		// Injects APM injector + language-specific library init containers, volumes, and env vars
 		m.apmInjectionMutator(config, autoDetected, injectionType),
 		// Injects DD_VERSION and DD_ENV from pod labels/annotations
-		m.ustEnvVarsPodMutator(),
+		m.ustEnvVarsPodMutator(config.usesSSI),
 		// Injects language detection annotations
 		m.languageDetectionMutator(config),
 		// Injects library config from annotations (admission.datadoghq.com/all-lib.config.v1)
 		m.libConfigFromAnnotationsMutator(config, autoDetected, injectionType),
 		// Injects default library config for SSI-eligible namespaces
-		m.defaultLibConfigMutator(pod.Namespace),
+		m.defaultLibConfigMutator(config.usesSSI),
 	} {
 		if err := mutator.mutatePod(pod); err != nil {
 			lastError = err
@@ -245,12 +245,12 @@ func (m *mutatorCore) libConfigFromAnnotationsMutator(config extractedPodLibInfo
 }
 
 // defaultLibConfigMutator returns a mutator that injects default library configuration
-// for namespaces eligible to Single Step Instrumentation.
+// for Single Step Instrumentation mutations.
 // Defaults: DD_TRACE_ENABLED=true, DD_LOGS_INJECTION=true,
 // DD_TRACE_HEALTH_METRICS_ENABLED=true, DD_RUNTIME_METRICS_ENABLED=true.
-func (m *mutatorCore) defaultLibConfigMutator(namespace string) podMutator {
+func (m *mutatorCore) defaultLibConfigMutator(usesSSI bool) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		if !m.filter.IsNamespaceEligible(namespace) {
+		if !usesSSI {
 			return nil
 		}
 
@@ -259,9 +259,9 @@ func (m *mutatorCore) defaultLibConfigMutator(namespace string) podMutator {
 }
 
 // ustEnvVarsPodMutator returns a mutator that injects UST env vars (DD_VERSION, DD_ENV) to filtered containers.
-func (m *mutatorCore) ustEnvVarsPodMutator() podMutator {
+func (m *mutatorCore) ustEnvVarsPodMutator(usesSSI bool) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		return m.mutatePodContainers(pod, m.ustEnvVarMutator(pod), true)
+		return m.mutatePodContainers(pod, m.ustEnvVarMutator(pod, usesSSI), true)
 	})
 }
 
@@ -300,9 +300,9 @@ func (m *mutatorCore) serviceNameMutator(pod *corev1.Pod) containerMutator {
 // This is used to inject the version and env tags into the pods containers.
 //
 // The service tag/name is handled separately in the serviceNameMutator for legacy reasons.
-func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
+func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod, usesSSI bool) containerMutator {
 	var mutators containerMutators
-	if !m.filter.IsNamespaceEligible(pod.Namespace) {
+	if !usesSSI {
 		return mutators
 	}
 
@@ -322,7 +322,7 @@ func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
 	return mutators
 }
 
-func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
+func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod, targetUsesSSI bool) extractedPodLibInfo {
 	// it's possible to get here without single step being enabled, and the pod having
 	// annotations on it to opt it into pod mutation, we disambiguate those two cases.
 	var (
@@ -330,7 +330,8 @@ func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo 
 		languageDetection *libInfoLanguageDetection
 	)
 
-	if m.filter.IsNamespaceEligible(pod.Namespace) {
+	usesSSI := targetUsesSSI || m.filter.IsNamespaceEligible(pod.Namespace)
+	if usesSSI {
 		source = libInfoSourceSingleStepInstrumentation
 		languageDetection = m.getLibrariesLanguageDetection(pod)
 	}
@@ -338,6 +339,7 @@ func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo 
 	return extractedPodLibInfo{
 		source:            source,
 		languageDetection: languageDetection,
+		usesSSI:           usesSSI,
 	}
 }
 
@@ -497,6 +499,8 @@ type extractedPodLibInfo struct {
 	languageDetection *libInfoLanguageDetection
 	// source is where we got the data from, used for telemetry later.
 	source libInfoSource
+	// usesSSI is true when the pod should receive SSI-specific defaults and UST env vars.
+	usesSSI bool
 }
 
 func (e extractedPodLibInfo) withLibs(l []libInfo) extractedPodLibInfo {

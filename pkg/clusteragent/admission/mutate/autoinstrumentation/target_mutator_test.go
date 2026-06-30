@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -29,7 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -88,7 +91,7 @@ func TestNewTargetMutator(t *testing.T) {
 			))
 
 			// Create the mutator.
-			_, err = NewTargetMutator(config, wmeta, imageResolver, nil)
+			_, err = NewTargetMutator(config, wmeta, imageResolver, nil, nil)
 
 			// Validate the output.
 			if test.shouldErr {
@@ -103,8 +106,10 @@ func TestNewTargetMutator(t *testing.T) {
 func TestMutatePod(t *testing.T) {
 	tests := map[string]struct {
 		configPath                  string
+		configOverrides             map[string]any
 		in                          *corev1.Pod
 		namespaces                  []workloadmeta.KubernetesMetadata
+		crdAPMEntries               map[crstore.WorkloadTarget]crstore.APMConfig
 		expectedEnv                 map[string]string
 		expectedAnnotations         map[string]string
 		expectedInitContainerImages []string
@@ -235,13 +240,72 @@ func TestMutatePod(t *testing.T) {
 				"DD_SERVICE": "best-service",
 			},
 		},
+		"CRD target gets SSI defaults when static instrumentation is disabled": {
+			configOverrides: map[string]any{
+				"apm_config.instrumentation.enabled": false,
+			},
+			in: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "web-bcdfg",
+			}.Create(),
+			crdAPMEntries: map[crstore.WorkloadTarget]crstore.APMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "web"}: {
+					CR:             types.NamespacedName{Namespace: "default", Name: "ddi-web"},
+					Enabled:        true,
+					TracerVersions: map[string]string{"python": "v4"},
+					TracerConfigs:  []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+				},
+			},
+			expectedInitContainerImages: []string{
+				"registry/apm-inject:0",
+				"registry/dd-lib-python-init:v4",
+			},
+			expectedEnv: map[string]string{
+				"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+				"DD_LOGS_INJECTION":               "true",
+				"DD_RUNTIME_METRICS_ENABLED":      "true",
+				"DD_SERVICE":                      "web",
+				"DD_TRACE_ENABLED":                "true",
+				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+				AppliedTargetEnvVar:               "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
+			},
+			expectedAnnotations: map[string]string{
+				annotation.AppliedTarget: "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
+			},
+		},
+		"CRD target in disabled namespace does not mutate pod": {
+			configOverrides: map[string]any{
+				"apm_config.instrumentation.disabled_namespaces": []string{"application"},
+			},
+			in: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "web-bcdfg",
+			}.Create(),
+			crdAPMEntries: map[crstore.WorkloadTarget]crstore.APMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "web"}: {
+					Enabled:        true,
+					TracerVersions: map[string]string{"python": "v4"},
+				},
+			},
+			expectNoChange: true,
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
-			mockConfig := configmock.NewFromFile(t, test.configPath)
+			var mockConfig model.BuildableConfig
+			if test.configPath == "" {
+				mockConfig = configmock.New(t)
+			} else {
+				mockConfig = configmock.NewFromFile(t, test.configPath)
+			}
 			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
+			for key, value := range test.configOverrides {
+				mockConfig.SetInTest(key, value)
+			}
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -258,8 +322,16 @@ func TestMutatePod(t *testing.T) {
 				wmeta.Set(&ns)
 			}
 
+			var store *crstore.Store
+			if len(test.crdAPMEntries) > 0 {
+				store = crstore.New()
+				for workload, entry := range test.crdAPMEntries {
+					store.UpsertAPM(workload, entry)
+				}
+			}
+
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, store)
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -364,7 +436,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -450,7 +522,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
 			require.NoError(t, err)
 
 			// Determine if the namespace is eligible.
@@ -617,7 +689,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -638,6 +710,159 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetTargetFromCRD(t *testing.T) {
+	tests := map[string]struct {
+		pod      *corev1.Pod
+		workload crstore.WorkloadTarget
+		entry    crstore.APMConfig
+		expected *targetInternal
+	}{
+		"deployment owned pod gets CRD target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "web-bcdfg",
+			}.Create(),
+			workload: crstore.WorkloadTarget{Kind: "Deployment", Namespace: "application", Name: "web"},
+			entry: crstore.APMConfig{
+				Enabled:        true,
+				TracerVersions: map[string]string{"python": "v4"},
+				TracerConfigs:  []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{defaultLibInfoWithVersion(python, "v4")},
+				envVars:     []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+			},
+		},
+		"statefulset owned pod gets CRD target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "statefulset",
+				ParentName: "db",
+			}.Create(),
+			workload: crstore.WorkloadTarget{Kind: "StatefulSet", Namespace: "application", Name: "db"},
+			entry: crstore.APMConfig{
+				Enabled:        true,
+				TracerVersions: map[string]string{"java": "v1"},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{defaultLibInfoWithVersion(java, "v1")},
+			},
+		},
+		"job owned pod gets CRD target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "job",
+				ParentName: "batch-job",
+			}.Create(),
+			workload: crstore.WorkloadTarget{Kind: "Job", Namespace: "application", Name: "batch-job"},
+			entry: crstore.APMConfig{
+				Enabled:        true,
+				TracerVersions: map[string]string{"dotnet": "v3"},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{defaultLibInfoWithVersion(dotnet, "v3")},
+			},
+		},
+		"cronjob owned job pod gets CRD target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "job",
+				ParentName: "nightly-28104120",
+			}.Create(),
+			workload: crstore.WorkloadTarget{Kind: "CronJob", Namespace: "application", Name: "nightly"},
+			entry: crstore.APMConfig{
+				Enabled:        true,
+				TracerVersions: map[string]string{"ruby": "v2"},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{defaultLibInfoWithVersion(ruby, "v2")},
+			},
+		},
+		"disabled CRD target stops resolution": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "daemonset",
+				ParentName: "node-agent",
+			}.Create(),
+			workload: crstore.WorkloadTarget{Kind: "DaemonSet", Namespace: "application", Name: "node-agent"},
+			entry:    crstore.APMConfig{Enabled: false},
+			expected: nil,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
+			config, err := NewConfig(mockConfig)
+			require.NoError(t, err)
+			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Supply(coreconfig.Params{}),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
+			store := crstore.New()
+			store.UpsertAPM(test.workload, test.entry)
+			mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, store)
+			require.NoError(t, err)
+
+			actual := mutator.getTargetFromCRD(test.pod)
+			require.False(t, actual.shouldContinue)
+			if test.expected == nil {
+				require.Nil(t, actual.target)
+				return
+			}
+
+			require.NotNil(t, actual.target)
+			require.Equal(t, test.expected.libVersions, actual.target.libVersions)
+			require.Equal(t, test.expected.envVars, actual.target.envVars)
+			require.True(t, actual.target.usesSSI)
+		})
+	}
+}
+
+func TestGetTargetPrecedenceWithCRD(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
+	mockConfig.SetInTest("apm_config.instrumentation.enabled", true)
+	config, err := NewConfig(mockConfig)
+	require.NoError(t, err)
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Supply(coreconfig.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store := crstore.New()
+	workload := crstore.WorkloadTarget{Kind: "Deployment", Namespace: "application", Name: "web"}
+	store.UpsertAPM(workload, crstore.APMConfig{Enabled: true, TracerVersions: map[string]string{"python": "v4"}})
+	mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, store)
+	require.NoError(t, err)
+
+	pod := mutatecommon.FakePodSpec{
+		NS:         "application",
+		ParentKind: "replicaset",
+		ParentName: "web-bcdfg",
+		Labels:     map[string]string{common.EnabledLabelKey: "false"},
+	}.Create()
+	require.Nil(t, mutator.getTarget(pod), "annotation opt-out should win over CRD")
+
+	pod = mutatecommon.FakePodSpec{
+		NS:         "application",
+		ParentKind: "replicaset",
+		ParentName: "web-bcdfg",
+	}.Create()
+	target := mutator.getTarget(pod)
+	require.NotNil(t, target)
+	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, target.libVersions)
+
+	store.UpsertAPM(workload, crstore.APMConfig{Enabled: false})
+	require.Nil(t, mutator.getTarget(pod), "CRD opt-out should block static config fallback")
 }
 
 func TestGetTargetLibraries(t *testing.T) {
@@ -886,7 +1111,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageResolver, nil)
+			f, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
 			require.NoError(t, err)
 
 			// Filter the pod.
@@ -1004,7 +1229,7 @@ func TestLanguageDetection(t *testing.T) {
 			wmeta := mutatecommon.FakeStoreWithDeployment(t, test.deployments)
 
 			// Create the mutator.
-			m, err := NewTargetMutator(config, wmeta, imageResolver, nil)
+			m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate the pod.

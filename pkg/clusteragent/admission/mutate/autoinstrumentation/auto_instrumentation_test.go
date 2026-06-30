@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/utils/ptr"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 )
 
@@ -88,12 +90,13 @@ func TestAutoinstrumentation(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		config       map[string]any
-		pod          *corev1.Pod
-		namespaces   []workloadmeta.KubernetesMetadata
-		deployments  []common.MockDeployment
-		shouldMutate bool
-		expected     *expected
+		config        map[string]any
+		pod           *corev1.Pod
+		namespaces    []workloadmeta.KubernetesMetadata
+		deployments   []common.MockDeployment
+		crdAPMEntries map[crstore.WorkloadTarget]crstore.APMConfig
+		shouldMutate  bool
+		expected      *expected
 	}{
 		"default configuration should not mutate": {
 			pod: common.FakePodSpec{
@@ -1270,6 +1273,135 @@ func TestAutoinstrumentation(t *testing.T) {
 			deployments:  defaultDeployments,
 			namespaces:   defaultNamespaces,
 			shouldMutate: false,
+		},
+		"CRD target mutates pod when static instrumentation is disabled": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			crdAPMEntries: map[crstore.WorkloadTarget]crstore.APMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: {
+					CR:             types.NamespacedName{Namespace: "default", Name: "ddi-deployment"},
+					Enabled:        true,
+					TracerVersions: map[string]string{"python": "v4"},
+					TracerConfigs:  []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+				},
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"python": "v4",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+					"DD_LOGS_INJECTION":               "true",
+					"DD_RUNTIME_METRICS_ENABLED":      "true",
+					"DD_SERVICE":                      "web",
+					"DD_TRACE_ENABLED":                "true",
+					"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+				},
+				expectedAnnotations: map[string]string{
+					"internal.apm.datadoghq.com/applied-target": `{"name":"datadoginstrumentation:default/ddi-deployment","workload":{"Kind":"Deployment","Namespace":"application","Name":"deployment"},"ddTraceVersions":{"python":"v4"},"ddTraceConfigs":[{"name":"DD_SERVICE","value":"web"}]}`,
+				},
+			},
+		},
+		"annotation takes precedence over CRD target": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			crdAPMEntries: map[crstore.WorkloadTarget]crstore.APMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: {
+					CR:             types.NamespacedName{Namespace: "default", Name: "ddi-deployment"},
+					Enabled:        true,
+					TracerVersions: map[string]string{"python": "v4"},
+				},
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_lib_injection",
+				},
+				unsetEnvs: []string{
+					"DD_TRACE_ENABLED",
+					"DD_LOGS_INJECTION",
+				},
+			},
+		},
+		"CRD target takes precedence over static target": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.targets": []autoinstrumentation.Target{
+					{
+						Name: "test-target",
+						TracerVersions: map[string]string{
+							"ruby": "v2",
+						},
+						NamespaceSelector: &autoinstrumentation.NamespaceSelector{
+							MatchNames: []string{
+								"application",
+							},
+						},
+					},
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			crdAPMEntries: map[crstore.WorkloadTarget]crstore.APMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "deployment"}: {
+					CR:             types.NamespacedName{Namespace: "default", Name: "ddi-deployment"},
+					Enabled:        true,
+					TracerVersions: map[string]string{"python": "v4"},
+				},
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"python": "v4",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+				},
+				expectedAnnotations: map[string]string{
+					"internal.apm.datadoghq.com/applied-target": `{"name":"datadoginstrumentation:default/ddi-deployment","workload":{"Kind":"Deployment","Namespace":"application","Name":"deployment"},"ddTraceVersions":{"python":"v4"}}`,
+				},
+			},
 		},
 		"targets with matching rule and local sdk injection favors local sdk version": {
 			config: map[string]any{
@@ -2776,7 +2908,15 @@ func TestAutoinstrumentation(t *testing.T) {
 				mockMeta.(workloadmetamock.Mock).Set(&ns)
 			}
 
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+			var apmStore *crstore.Store
+			if len(test.crdAPMEntries) > 0 {
+				apmStore = crstore.New()
+				for workload, entry := range test.crdAPMEntries {
+					apmStore.UpsertAPM(workload, entry)
+				}
+			}
+
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, apmStore)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2844,7 +2984,7 @@ func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTar
 		mockMeta.(workloadmetamock.Mock).Set(&ns)
 	}
 
-	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil)
 	require.NoError(t, err)
 
 	pod := common.FakePodSpec{
@@ -3007,7 +3147,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -3206,7 +3346,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.

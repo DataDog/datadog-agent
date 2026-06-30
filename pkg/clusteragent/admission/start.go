@@ -24,6 +24,7 @@ import (
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,6 +49,7 @@ type ControllerContext struct {
 	FilterStore                  workloadfilter.Component
 	InstrumentationHandlers      []instrumentation.Handler
 	CSIDriverWatcher             libraryinjection.CSIDriverWatcher
+	APMStore                     *crstore.Store
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -113,6 +115,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		ctx.InstrumentationHandlers,
 		ctx.DynamicInformer,
 		ctx.CSIDriverWatcher,
+		ctx.APMStore,
 	)
 
 	go secretController.Run(ctx.StopCh)
