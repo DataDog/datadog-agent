@@ -28,7 +28,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -65,19 +65,73 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func run(_ config.Component, _ diagnose.Component, client ipc.HTTPClient, cliParams *cliParams) error {
+func run(agentCfg config.Component, diagnoseComponent diagnose.Component, client ipc.HTTPClient, cliParams *cliParams) error {
 	cfg := diagnose.Config{Include: cliParams.include}
-	result, err := requestDiagnosesFromRunningAgent(client, cfg)
+
+	// Try to contact the running cluster-agent first so the live health-platform store is included.
+	result, err := requestDiagnosesFromRunningAgent(agentCfg, client, cfg)
 	if err != nil {
-		return fmt.Errorf("diagnose requires the cluster-agent to be running: %w", err)
+		// Agent not running — fall back to running connectivity suites in-process.
+		// Health-platform issues are not available without a live store.
+		fmt.Fprintf(color.Error, "Warning: cluster-agent not reachable (%v); running connectivity suites locally (health-platform issues unavailable).\n", err)
+		result, err = runLocalSuites(diagnoseComponent, cfg)
+		if err != nil {
+			return err
+		}
 	}
 	return format.Text(color.Output, cfg, result)
 }
 
+// runLocalSuites runs the connectivity diagnose suites in-process, matching the
+// original cluster-agent diagnose behaviour before IPC was introduced.
+func runLocalSuites(diagnoseComponent diagnose.Component, cfg diagnose.Config) (*diagnose.Result, error) {
+	catalog := diagnose.GetCatalog()
+	catalog.Register(diagnose.AutodiscoveryConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
+	})
+	catalog.Register(diagnose.CoreEndpointsConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return connectivity.Diagnose(diagnose.Config{}, nil)
+	})
+
+	suites := diagnose.Suites{}
+	if len(cfg.Include) == 0 {
+		// Default: only run autodiscovery connectivity (original default behaviour).
+		if fn, ok := catalog.Suites[diagnose.AutodiscoveryConnectivity]; ok {
+			suites[diagnose.AutodiscoveryConnectivity] = fn
+		}
+	} else {
+		for _, name := range cfg.Include {
+			if fn, ok := catalog.Suites[name]; ok {
+				suites[name] = fn
+			}
+		}
+	}
+
+	if len(suites) == 0 {
+		return &diagnose.Result{
+			Runs: []diagnose.Diagnoses{
+				{
+					Name: "Diagnose",
+					Diagnoses: []diagnose.Diagnosis{
+						{
+							Status:    diagnose.DiagnosisFail,
+							Name:      "Diagnose",
+							Category:  "All",
+							Diagnosis: "No diagnose suite were found",
+						},
+					},
+				},
+			},
+		}, nil
+	}
+
+	return diagnoseComponent.RunLocalSuite(suites, cfg)
+}
+
 // requestDiagnosesFromRunningAgent POSTs to the running cluster-agent's /diagnose endpoint
 // so that the live health-platform store (and any other registered suites) is included.
-func requestDiagnosesFromRunningAgent(client ipc.HTTPClient, cfg diagnose.Config) (*diagnose.Result, error) {
-	port := pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")
+func requestDiagnosesFromRunningAgent(agentCfg config.Component, client ipc.HTTPClient, cfg diagnose.Config) (*diagnose.Result, error) {
+	port := agentCfg.GetInt("cluster_agent.cmd_port")
 	diagnoseURL := fmt.Sprintf("https://localhost:%d/diagnose", port)
 
 	body, err := json.Marshal(cfg)

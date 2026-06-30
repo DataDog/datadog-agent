@@ -12,11 +12,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"slices"
-	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -67,9 +64,7 @@ func SetupHandlers(r *http.ServeMux, wmeta workloadmeta.Component, ac autodiscov
 	})
 	r.HandleFunc("GET /metadata/cluster-agent", dcametadataComp.WritePayloadAsJSON)
 	r.HandleFunc("GET /metadata/cluster-checks", clusterChecksMetadataComp.WritePayloadAsJSON)
-	r.HandleFunc("POST /diagnose", func(w http.ResponseWriter, r *http.Request) {
-		getDiagnose(w, r, diagnoseComponent)
-	})
+	r.HandleFunc("POST /diagnose", diagnoseComponent.GetDiagnose())
 
 	// Special handler to compute running agent Code coverage
 	coverage.SetupCoverageHandler(r)
@@ -180,55 +175,6 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		return
 	}
 	w.Write([]byte(filePath))
-}
-
-func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseComponent diagnose.Component) {
-	cfg := diagnose.Config{}
-	if r.Body != http.NoBody {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), http.StatusBadRequest)
-			return
-		}
-		if len(body) > 0 {
-			if err := json.Unmarshal(body, &cfg); err != nil {
-				http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), http.StatusBadRequest)
-				return
-			}
-		}
-	}
-
-	// Clear the server idle-timeout deadline before running suites — some checks (e.g. core
-	// endpoint connectivity on a disconnected cluster) can exceed cluster_agent.server.idle_timeout_seconds.
-	if conn, ok := apiutils.GetConnection(r); ok {
-		_ = conn.SetDeadline(time.Time{})
-	}
-
-	// Apply --include filter: if the caller specified a subset of suites, only run those.
-	catalog := diagnose.GetCatalog()
-	suites := diagnose.Suites{}
-	for name, fn := range catalog.Suites {
-		if len(cfg.Include) > 0 && !slices.Contains(cfg.Include, name) {
-			continue
-		}
-		suites[name] = fn
-	}
-
-	result, err := diagnoseComponent.RunLocalSuite(suites, cfg)
-	if err != nil {
-		http.Error(w, log.Errorf("Error running diagnose suites: %s", err).Error(), http.StatusInternalServerError)
-		return
-	}
-
-	data, err := json.Marshal(result)
-	if err != nil {
-		http.Error(w, log.Errorf("Error serialising diagnose result: %s", err).Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write(data); err != nil {
-		log.Warnf("Error writing diagnose response: %s", err)
-	}
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
