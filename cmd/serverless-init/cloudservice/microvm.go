@@ -9,6 +9,7 @@ import (
 	"context"
 	"maps"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -121,8 +122,17 @@ func (m *MicroVM) GetSource() metrics.MetricSource {
 	return metrics.MetricSourceAWSMicroVMEnhanced
 }
 
+// isSupportedArch reports whether arch is supported by MicroVM.
+// MicroVM supports both amd64 and arm64; all other cloud services are amd64-only.
+func isSupportedArch(arch string) bool {
+	return arch == archAMD64 || arch == archARM64
+}
+
 // Init starts the MicroVM lifecycle hook server.
 func (m *MicroVM) Init(ctx *TracingContext) error {
+	if arch := runtime.GOARCH; !isSupportedArch(arch) {
+		log.Fatalf(unsupportedArchMsg, arch)
+	}
 	if ctx == nil || ctx.LifecycleCtx == nil {
 		return nil
 	}

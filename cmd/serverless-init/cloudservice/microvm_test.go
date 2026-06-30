@@ -382,3 +382,14 @@ func TestMicroVMInit_InitMode_ExposesChild(t *testing.T) {
 type noopLogsFlusher struct{}
 
 func (n *noopLogsFlusher) Flush(_ context.Context) {}
+
+// TestIsSupportedArch pins the MicroVM arch allowlist — lives here because
+// isSupportedArch is defined in microvm.go.
+func TestIsSupportedArch(t *testing.T) {
+	for _, arch := range []string{archAMD64, archARM64} {
+		assert.True(t, isSupportedArch(arch), "%s must be supported for MicroVM", arch)
+	}
+	for _, arch := range []string{"386", "mips", "mips64", "riscv64", "s390x", ""} {
+		assert.False(t, isSupportedArch(arch), "%s must be unsupported", arch)
+	}
+}

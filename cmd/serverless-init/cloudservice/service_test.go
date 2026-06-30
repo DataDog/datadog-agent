@@ -14,24 +14,6 @@ import (
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 )
 
-// TestIsSupportedArch pins the MicroVM arch allowlist: amd64 and arm64 must
-// return true; everything else must return false.
-func TestIsSupportedArch(t *testing.T) {
-	for _, arch := range []string{archAMD64, archARM64} {
-		assert.True(t, isSupportedArch(arch), "%s must be considered supported for MicroVM", arch)
-	}
-	for _, arch := range []string{"386", "mips", "mips64", "riscv64", "s390x", ""} {
-		assert.False(t, isSupportedArch(arch), "%s must be considered unsupported", arch)
-	}
-}
-
-// TestGetCloudServiceType_MicroVM_AllowsArm64 verifies that MicroVM is returned
-// on arm64 without triggering the unsupported-arch error path.
-func TestGetCloudServiceType_MicroVM_AllowsArm64(t *testing.T) {
-	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, testImageARN)
-	assert.Equal(t, MicroVMOrigin, GetCloudServiceType().GetOrigin())
-}
-
 func TestGetCloudServiceType(t *testing.T) {
 	assert.Equal(t, "local", GetCloudServiceType().GetOrigin())
 
