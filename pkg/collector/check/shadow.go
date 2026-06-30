@@ -14,10 +14,6 @@ import (
 
 const shadowIDSuffix = ":shadow"
 
-type shadowMarker interface {
-	isShadowCheck()
-}
-
 // ShadowAware is an optional interface implemented by wrappers that preserve
 // shadow identity.
 type ShadowAware interface {
@@ -61,8 +57,6 @@ func (c *ShadowCheck) SetIssueReporter(reporter healthplatformstore.Component) {
 		aware.SetIssueReporter(reporter)
 	}
 }
-
-func (*ShadowCheck) isShadowCheck() {}
 
 // IsShadow returns true for shadow checks.
 func (*ShadowCheck) IsShadow() bool {
