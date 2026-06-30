@@ -183,7 +183,7 @@ func TestGoPCLnTabExtraction(t *testing.T) {
 						cmd := exec.CommandContext(t.Context(), "go", buildArgs...) // #nosec G204
 						cmd.Args = append(cmd.Args, srcFile)
 						cmd.Dir = testDataDir
-						cmd.Env = append(cmd.Environ(), getGoToolChain(goMinorVersion), "GO111MODULE=off")
+						cmd.Env = append(cmd.Environ(), getGoToolChain(goMinorVersion), "GOWORK=off")
 						out, err := cmd.CombinedOutput()
 						require.NoError(t, err, "failed to build test binary with `%v`: %s\n%s", cmd.String(), err, out)
 
