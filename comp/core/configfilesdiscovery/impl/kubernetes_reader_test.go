@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	containerdoci "github.com/containerd/containerd/oci"
+	containerdoci "github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

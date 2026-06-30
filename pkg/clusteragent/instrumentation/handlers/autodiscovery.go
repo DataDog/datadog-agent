@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
@@ -79,35 +80,31 @@ func (h *AutodiscoveryHandler) Validate(cr *datadoghq.DatadogInstrumentation) []
 	var errs []instrumentation.ValidationError
 	for i, check := range cr.Spec.Config.Checks {
 		if strings.TrimSpace(check.Integration) == "" {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidIntegration",
-				Message:     "integration name must not be empty",
-				Field:       fmt.Sprintf("spec.config.checks[%d].integration", i),
-				HandlerName: h.Name(),
-			})
+			errs = append(errs, h.checkValidationError(i, "integration", "InvalidIntegration", "integration name must not be empty"))
 		}
 		if len(check.Instances) == 0 && len(check.Logs) == 0 {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidInstances",
-				Message:     "at least one instance or log config is required",
-				Field:       fmt.Sprintf("spec.config.checks[%d].instances", i),
-				HandlerName: h.Name(),
-			})
+			errs = append(errs, h.checkValidationError(i, "instances", "InvalidInstances", "at least one instance or log config is required"))
 		}
 
-		if len(check.ContainerImage) == 0 && !isService(cr) {
-			errs = append(errs, instrumentation.ValidationError{
-				Type:        checksReadyConditionType,
-				Reason:      "InvalidContainerImage",
-				Message:     "at least one container image is required",
-				Field:       fmt.Sprintf("spec.config.checks[%d].containerImage", i),
-				HandlerName: h.Name(),
-			})
+		if !isService(cr) && !hasContainerName(check) {
+			errs = append(errs, h.checkValidationError(i, "containerName", "InvalidContainerTarget", "container name is required"))
 		}
 	}
 	return errs
+}
+
+func (h *AutodiscoveryHandler) checkValidationError(index int, field, reason, message string) instrumentation.ValidationError {
+	fieldPath := fmt.Sprintf("spec.config.checks[%d]", index)
+	if field != "" {
+		fieldPath += "." + field
+	}
+	return instrumentation.ValidationError{
+		Type:        checksReadyConditionType,
+		Reason:      reason,
+		Message:     message,
+		Field:       fieldPath,
+		HandlerName: h.Name(),
+	}
 }
 
 // Handle translates check configs on Create/Update, removes them on Delete,
@@ -179,9 +176,15 @@ func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadogh
 	if err != nil {
 		return integration.Config{}, err
 	}
+
+	var adIdentifiers []string
+	if hasContainerName(check) {
+		adIdentifiers = []string{adtypes.KubeContainerNameIdentifier(strings.TrimSpace(check.ContainerName))}
+	}
+
 	return integration.Config{
 		Name:          check.Integration,
-		ADIdentifiers: check.ContainerImage,
+		ADIdentifiers: adIdentifiers,
 		InitConfig:    initConfig,
 		Instances:     instances,
 		LogsConfig:    logsConfig,
@@ -256,10 +259,14 @@ func marshalLogs(logs []datadoghq.DatadogInstrumentationLogConfig) (integration.
 
 func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace string) workloadfilter.Rules {
 	expr := fmt.Sprintf(
-		`container.pod.rootowner.kind == %q && container.pod.rootowner.name == %q && container.pod.namespace == %q`,
+		`container.pod.rootowner.kind == %q && container.pod.rootowner.name == %q && container.pod.namespace == %q && container.image.reference != ""`,
 		ref.Kind, ref.Name, namespace,
 	)
 	return workloadfilter.Rules{
 		Containers: []string{expr},
 	}
+}
+
+func hasContainerName(check datadoghq.DatadogInstrumentationCheckConfig) bool {
+	return strings.TrimSpace(check.ContainerName) != ""
 }

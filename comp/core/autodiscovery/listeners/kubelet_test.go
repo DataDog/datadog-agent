@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -258,6 +259,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 					service: &WorkloadService{
 						entity: basicContainer,
 						adIdentifiers: []string{
+							adtypes.KubeContainerNameIdentifier(containerName),
 							"docker://foobarquux",
 							"gcr.io/foobar:latest",
 							"foobar",
@@ -292,6 +294,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 					service: &WorkloadService{
 						entity: recentlyStoppedContainer,
 						adIdentifiers: []string{
+							adtypes.KubeContainerNameIdentifier(containerName),
 							"docker://foobarquux",
 							"foobar",
 						},
@@ -349,6 +352,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 					service: &WorkloadService{
 						entity: runningContainerWithFinishedAtTime,
 						adIdentifiers: []string{
+							adtypes.KubeContainerNameIdentifier(containerName),
 							"docker://foobarquux",
 							"foobar",
 						},
@@ -382,6 +386,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 					service: &WorkloadService{
 						entity: multiplePortsContainer,
 						adIdentifiers: []string{
+							adtypes.KubeContainerNameIdentifier(containerName),
 							"docker://foobarquux",
 							"foobar",
 						},
@@ -425,6 +430,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						entity: customIDsContainer,
 						adIdentifiers: []string{
 							"customid",
+							adtypes.KubeContainerNameIdentifier(containerName),
 							"docker://foobarquux",
 							"foobar",
 						},
@@ -471,6 +477,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						entity: customIDsContainer,
 						adIdentifiers: []string{
 							"customid",
+							adtypes.KubeContainerNameIdentifier(containerName),
 							"docker://foobarquux",
 							"foobar",
 						},
@@ -507,6 +514,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						entity: customIDsContainer,
 						adIdentifiers: []string{
 							"customid",
+							adtypes.KubeContainerNameIdentifier(containerName),
 							"docker://foobarquux",
 							"foobar",
 						},
@@ -543,6 +551,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						entity: customIDsContainer,
 						adIdentifiers: []string{
 							"customid",
+							adtypes.KubeContainerNameIdentifier(containerName),
 							"docker://foobarquux",
 							"foobar",
 						},
@@ -633,6 +642,7 @@ func TestProcessPodWithEphemeralContainer(t *testing.T) {
 			service: &WorkloadService{
 				entity: container,
 				adIdentifiers: []string{
+					adtypes.KubeContainerNameIdentifier(ephemeralContainerName),
 					"docker://ephemeral-container-id",
 					"debug-image",
 				},

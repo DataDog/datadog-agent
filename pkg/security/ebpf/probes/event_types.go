@@ -41,7 +41,6 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 	ps := []manager.ProbesSelector{
 		// flow classification probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			hookFunc("hook_accept"),
 			hookFunc("hook_security_socket_bind"),
 			hookFunc("hook_security_socket_connect"),
 			hookFunc("hook_security_sk_classify_flow"),

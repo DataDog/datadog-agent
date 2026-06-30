@@ -309,8 +309,8 @@
     id: 'C0B7VF7LKGT'
 '@datadog/injection-platform':
   notification:
-    name: '#injection-platform'
-    id: 'C06UEUW9A75'
+    name: '#injection-platform-alerts'
+    id: 'C09LN4BCCP7'
   review:
     name: '#injection-platform'
     id: 'C06UEUW9A75'
