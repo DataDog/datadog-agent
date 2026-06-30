@@ -88,3 +88,22 @@ func ReloadOrRestartProcmgr() {
 		return
 	}
 }
+
+// removeEmptyProcessesDir drops installPF\processes.d after fleet prerm removed the last YAML.
+// MSI uninstall cleanup removes the empty directory before deleting the install root.
+func removeEmptyProcessesDir(installPF string) {
+	if installPF == "" {
+		return
+	}
+	processesDir := filepath.Join(installPF, "processes.d")
+	entries, err := os.ReadDir(processesDir)
+	if err != nil {
+		return
+	}
+	if len(entries) > 0 {
+		return
+	}
+	if err := os.Remove(processesDir); err != nil && !os.IsNotExist(err) {
+		log.Debugf("processes.d: remove empty dir %q: %v", processesDir, err)
+	}
+}

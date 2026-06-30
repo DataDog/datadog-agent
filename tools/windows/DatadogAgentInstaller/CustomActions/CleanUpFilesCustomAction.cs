@@ -72,6 +72,16 @@ namespace Datadog.CustomActions
                     return;
                 }
 
+                // Fleet prerm removes individual processes.d YAML files; drop the directory if empty
+                // so uninstall can remove an otherwise-empty install root (do not delete processes.d
+                // in CleanupFiles — that runs before install and on rollback).
+                var processesDir = Path.Combine(projectLocation, "processes.d");
+                if (Directory.Exists(processesDir) && !Directory.EnumerateFileSystemEntries(processesDir).Any())
+                {
+                    session.Log($"Deleting empty directory \"{processesDir}\"");
+                    Directory.Delete(processesDir);
+                }
+
                 if (Directory.EnumerateFileSystemEntries(projectLocation).Any())
                 {
                     session.Log($"{projectLocation} is not empty, skip deletion.");
