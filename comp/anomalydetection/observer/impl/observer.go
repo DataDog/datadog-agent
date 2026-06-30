@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -171,6 +172,21 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 		settings.configs["anomaly_scorer"] = readAnomalyScorerConfig(cfg, scorerPrefix)
 	}
 
+	settings.Baseline = DefaultBaselineConfig()
+	const basePrefix = "anomaly_detection.baseline_analysis."
+	if cfg.IsConfigured(basePrefix + "enabled") {
+		settings.Baseline.Enabled = cfg.GetBool(basePrefix + "enabled")
+	}
+	if cfg.IsConfigured(basePrefix + "mute_noisy_metrics") {
+		settings.Baseline.MuteNoisyMetrics = cfg.GetBool(basePrefix + "mute_noisy_metrics")
+	}
+	if cfg.IsConfigured(basePrefix + "duration") {
+		settings.Baseline.DurationSec = int64(cfg.GetDuration(basePrefix + "duration").Seconds())
+	}
+	if cfg.IsConfigured(basePrefix + "verbose") {
+		settings.Baseline.Verbose = cfg.GetBool(basePrefix + "verbose")
+	}
+
 	return settings
 }
 
@@ -249,6 +265,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		correlators: correlators,
 		scorer:      scorer,
 		scheduler:   &currentBehaviorPolicy{},
+		baseline:    settings.Baseline,
 	})
 
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
@@ -286,6 +303,13 @@ func NewComponent(deps Requires) (Provides, error) {
 		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 		metricFilter:         compiledMetricFilter,
+	}
+
+	// When baseline muting is enabled, subscribe a sink that publishes the mute
+	// hash set to the shared filter on window end. Handles on all goroutines share
+	// the same *metricsFilterRules pointer, so the atomic Store is visible to all.
+	if settings.Baseline.Enabled && settings.Baseline.MuteNoisyMetrics {
+		eng.Subscribe(&baselineEventSink{filter: compiledMetricFilter})
 	}
 
 	if !obs.ingestMetricsEnabled {
@@ -712,8 +736,70 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 	o.Flush()
 	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
 	o.replayMu.Lock()
-	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg)
+	o.metricFilter.muted.Store(nil)
+	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)
 	o.replayMu.Unlock()
+}
+
+// baselineEventSink publishes the mute hash set to the shared filter when the
+// baseline window ends.
+type baselineEventSink struct {
+	filter *metricsFilterRules
+}
+
+func (s *baselineEventSink) onEngineEvent(evt engineEvent) {
+	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil {
+		return
+	}
+	if len(evt.baselineCompleted.mutedHashes) > 0 {
+		s.filter.setMuted(evt.baselineCompleted.mutedHashes)
+	}
+}
+
+// Compile-time assertion: observerImpl satisfies the testbench-extended surface.
+// testbenchView in the bench package embeds DebugView and adds this method;
+// the assertion ensures it is never silently dropped from observerImpl.
+var _ interface{ DebugSubscribeBaselineCompleted(func(int64, []string)) } = (*observerImpl)(nil)
+
+// DebugSubscribeBaselineCompleted registers a one-time callback invoked when the
+// baseline window closes. Testbench-only — never called by the live agent.
+// The callback receives the freeze timestamp (Unix seconds) and sorted
+// "namespace/metricName" group keys for all muted series, resolved from
+// storage while series are still alive (before reclaim).
+func (o *observerImpl) DebugSubscribeBaselineCompleted(callback func(endSec int64, mutedGroups []string)) {
+	if o.engine.baseline == nil {
+		return
+	}
+	o.engine.Subscribe(&baselineCompletedCallbackSink{
+		engine:   o.engine,
+		callback: callback,
+	})
+}
+
+type baselineCompletedCallbackSink struct {
+	engine   *engine
+	callback func(int64, []string)
+}
+
+func (s *baselineCompletedCallbackSink) onEngineEvent(evt engineEvent) {
+	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil {
+		return
+	}
+	seen := make(map[string]struct{}, len(evt.baselineCompleted.mutedRefs))
+	var groups []string
+	for _, ref := range evt.baselineCompleted.mutedRefs {
+		meta := s.engine.storage.GetSeriesMeta(ref)
+		if meta == nil {
+			continue
+		}
+		key := meta.Namespace + "/" + meta.Name
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			groups = append(groups, key)
+		}
+	}
+	sort.Strings(groups)
+	s.callback(evt.timestamp, groups)
 }
 
 // GetReplayProgress returns lock-free replay progress counters. Implements DebugView.
@@ -820,9 +906,10 @@ type metricIngestDecision struct {
 func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.GetName()
 	normalizedSource := normalizeMetricSource(name, source)
-	tags := sample.GetRawTags()
-	allowed := filter.isAllowed(name, normalizedSource, tags)
-	if !allowed {
+	// Canonicalize once so the mute hash in isAllowed matches seriesKeyHash in
+	// storage, and downstream Add calls hit the tagsSorted fast path.
+	tags := canonicalizeTags(sample.GetRawTags())
+	if !filter.isAllowed(name, normalizedSource, tags) {
 		return metricIngestDecision{source: normalizedSource}
 	}
 
@@ -835,7 +922,7 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 		metric: &metricObs{
 			name:      name,
 			value:     sample.GetValue(),
-			tags:      copyTags(tags),
+			tags:      tags,
 			timestamp: timestamp,
 		},
 	}
