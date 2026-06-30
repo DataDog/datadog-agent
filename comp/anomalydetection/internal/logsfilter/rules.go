@@ -104,6 +104,7 @@ func LoadRules(cfg pkgconfigmodel.Reader, key string) (*Rules, error) {
 }
 
 // IsAllowed returns true if the log should be ingested.
+// tags must be sorted in ascending order.
 // A nil receiver always allows.
 func (r *Rules) IsAllowed(source string, tags []string) bool {
 	if r == nil {
@@ -117,16 +118,25 @@ func (r *Rules) IsAllowed(source string, tags []string) bool {
 	return true
 }
 
+// matches reports whether the rule applies to the given log.
+// tags must be sorted in ascending order (guaranteed by callers of IsAllowed).
 func (r compiledRule) matches(source string, tags []string) bool {
 	if r.source != "" && r.source != source {
 		return false
 	}
-	for _, ruleTag := range r.tags {
-		if !containsTag(tags, ruleTag) {
-			return false
+	return containsAllTagsSorted(tags, r.tags)
+}
+
+// containsAllTagsSorted reports whether all ruleTags appear in sampleTags.
+// Both slices must be sorted in ascending order.
+func containsAllTagsSorted(sampleTags, ruleTags []string) bool {
+	j := 0
+	for i := 0; i < len(sampleTags) && j < len(ruleTags); i++ {
+		if sampleTags[i] == ruleTags[j] {
+			j++
 		}
 	}
-	return true
+	return j == len(ruleTags)
 }
 
 func compileRuleTags(tags []string) ([]string, error) {
@@ -142,14 +152,6 @@ func compileRuleTags(tags []string) ([]string, error) {
 		compiled = append(compiled, trimmed)
 	}
 	slices.Sort(compiled)
+	compiled = slices.Compact(compiled)
 	return compiled, nil
-}
-
-func containsTag(tags []string, want string) bool {
-	for _, tag := range tags {
-		if tag == want {
-			return true
-		}
-	}
-	return false
 }
