@@ -274,6 +274,8 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties(
+                    "ROLLBACK=1, " +
+                    "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             DecompressPythonDistributions = new CustomAction<CustomActions>(
@@ -384,7 +386,7 @@ namespace WixSetup.Datadog_Agent
 
             CleanupInstallDirAfterUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupInstallDirAfterUninstall)),
-                    CustomActions.CleanupInstallDirAfterUninstall,
+                    CustomActions.CleanupFiles,
                     Return.check,
                     When.After,
                     Step.RemoveFiles,
@@ -394,7 +396,7 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
+                .SetProperties("CLEANUP_TAIL=1, PROJECTLOCATION=[PROJECTLOCATION]");
 
             RunPreRemovePythonScript = new CustomAction<CustomActions>(
                     new Id(nameof(RunPreRemovePythonScript)),

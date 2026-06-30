@@ -9,9 +9,28 @@ namespace Datadog.CustomActions
 {
     public class CleanUpFilesCustomAction
     {
+        private const string AdpProcmgrConfigFileName = "datadog-agent-data-plane.yaml";
+        private const string DdotProcmgrConfigFileName = "datadog-agent-ddot.yaml";
+
         private static ActionResult CleanupFiles(ISession session)
         {
             var projectLocation = session.Property("PROJECTLOCATION");
+
+            // Post-RemoveFiles tail: drop empty processes.d and empty install root after MSI components
+            // are gone (fleet prerm already removed processes.d YAML on full uninstall).
+            if (session.Property("CLEANUP_TAIL") == "1")
+            {
+                TryRemoveEmptyInstallDir(session, projectLocation);
+                return ActionResult.Success;
+            }
+
+            // Fresh-install rollback: fleet postinst may have written processes.d YAML that MSI does
+            // not track. Upgrade rollback passes UPGRADINGPRODUCTCODE so prerm-retained yaml is kept.
+            if (session.Property("ROLLBACK") == "1" && string.IsNullOrEmpty(session.Property("UPGRADINGPRODUCTCODE")))
+            {
+                TryRemoveFleetProcmgrConfigFiles(session, projectLocation);
+            }
+
             var toDelete = new[]
             {
                 // may contain python files created outside of install
@@ -49,13 +68,41 @@ namespace Datadog.CustomActions
                 }
             }
 
+            if (session.Property("ROLLBACK") == "1")
+            {
+                TryRemoveEmptyInstallDir(session, projectLocation);
+            }
+
             return ActionResult.Success;
         }
 
-        private static ActionResult CleanupInstallDirAfterUninstall(ISession session)
+        private static void TryRemoveFleetProcmgrConfigFiles(ISession session, string projectLocation)
         {
-            TryRemoveEmptyInstallDir(session, session.Property("PROJECTLOCATION"));
-            return ActionResult.Success;
+            if (string.IsNullOrEmpty(projectLocation))
+            {
+                return;
+            }
+
+            var processesDir = Path.Combine(projectLocation, "processes.d");
+            foreach (var fileName in new[] { AdpProcmgrConfigFileName, DdotProcmgrConfigFileName })
+            {
+                var path = Path.Combine(processesDir, fileName);
+                try
+                {
+                    if (!File.Exists(path))
+                    {
+                        session.Log($"{path} not found, skip deletion.");
+                        continue;
+                    }
+
+                    session.Log($"Deleting fleet process manager config \"{path}\"");
+                    File.Delete(path);
+                }
+                catch (Exception e)
+                {
+                    session.Log($"Error while deleting fleet process manager config {path}: {e}");
+                }
+            }
         }
 
         private static void TryRemoveEmptyInstallDir(ISession session, string projectLocation)
@@ -72,9 +119,6 @@ namespace Datadog.CustomActions
                     return;
                 }
 
-                // Fleet prerm removes individual processes.d YAML files; drop the directory if empty
-                // so uninstall can remove an otherwise-empty install root (do not delete processes.d
-                // in CleanupFiles — that runs before install and on rollback).
                 var processesDir = Path.Combine(projectLocation, "processes.d");
                 if (Directory.Exists(processesDir) && !Directory.EnumerateFileSystemEntries(processesDir).Any())
                 {
@@ -100,11 +144,6 @@ namespace Datadog.CustomActions
         public static ActionResult CleanupFiles(Session session)
         {
             return CleanupFiles(new SessionWrapper(session));
-        }
-
-        public static ActionResult CleanupInstallDirAfterUninstall(Session session)
-        {
-            return CleanupInstallDirAfterUninstall(new SessionWrapper(session));
         }
     }
 }
