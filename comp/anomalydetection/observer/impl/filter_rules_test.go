@@ -94,6 +94,21 @@ func requireNoCounterMetricForNameBySource(t *testing.T, metricName, source stri
 	}
 }
 
+func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
+	tags := []string{"env:prod"}
+	h := seriesKeyHash("check", "system.cpu.user", tags)
+	filter.setMuted(map[uint64]struct{}{h: {}})
+
+	assert.False(t, filter.isAllowed("system.cpu.user", "check", tags))
+	assert.True(t, filter.isAllowed("system.mem.used", "check", tags))
+	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", tags))
+	// LogMetricsExtractorName bypasses the mute check entirely
+	assert.True(t, filter.isAllowed("system.cpu.user", LogMetricsExtractorName, tags))
+}
+
 func TestMetricsFilterRulesAllowWithoutRules(t *testing.T) {
 	filter, err := newMetricsFilterRules(nil)
 	require.NoError(t, err)

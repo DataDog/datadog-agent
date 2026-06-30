@@ -17,6 +17,7 @@ const (
 	eventAdvanceCompleted engineEventKind = iota
 	eventAnomalyCreated
 	eventCorrelationUpdated
+	eventBaselineCompleted
 )
 
 // engineEvent represents a meaningful state transition in the engine.
@@ -30,6 +31,13 @@ type engineEvent struct {
 	advanceCompleted   *advanceCompletedEvent
 	anomalyCreated     *anomalyCreatedEvent
 	correlationUpdated *correlationUpdatedEvent
+	baselineCompleted  *baselineCompletedEvent
+}
+
+// baselineCompletedEvent carries the muted hash set produced at window end.
+type baselineCompletedEvent struct {
+	mutedHashes map[uint64]struct{}
+	mutedRefs   []observerdef.SeriesRef
 }
 
 // advanceCompletedEvent is emitted after the engine finishes an Advance call.

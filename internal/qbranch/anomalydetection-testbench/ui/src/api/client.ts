@@ -49,6 +49,14 @@ export interface StatusResponse {
   scenarioEnd?: number;
   episodeInfo?: EpisodeInfo;
   serverConfig: ServerConfig;
+  baseline?: {
+    enabled: boolean;
+    durationSec: number;
+    muteNoisyMetrics: boolean;
+    active: boolean;
+    windowEndSec?: number;
+    mutedSeries?: string[];
+  };
 }
 
 export interface ScenarioInfo {

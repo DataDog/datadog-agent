@@ -18,6 +18,24 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
+// baselineAnalysisDisabledYAML must be included in the agent config of any E2E
+// test that waits for anomaly output (reports, severity escalations, etc.).
+//
+// The default 10-minute baseline window (anomaly_detection.baseline_analysis.enabled=true)
+// silently drops all detector anomalies while it is active — tests will always time out
+// unless this snippet is embedded under the anomaly_detection: block.
+//
+// Usage:
+//
+//	agentConfig := `
+//	anomaly_detection:
+//	  enabled: true
+//	  ...
+//	` + baselineAnalysisDisabledYAML
+const baselineAnalysisDisabledYAML = `  baseline_analysis:
+    enabled: false
+`
+
 // Canonical observer telemetry names.
 const (
 	telemetrySeriesCount    = "observer.series.count"

@@ -62,6 +62,8 @@ anomaly_detection:
       enabled: true
     bocpd:
       enabled: false
+  baseline_analysis:
+    enabled: false
 `
 	e2e.Run(t, &metricsTriggeredSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -206,6 +208,8 @@ anomaly_detection:
   detectors:
     bocpd:
       warmup_points: 20
+  baseline_analysis:
+    enabled: false
 `
 	e2e.Run(t, &logTriggeredSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(

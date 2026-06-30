@@ -18,6 +18,7 @@ def patchelf_file_action(ctx, input_file, output_file, rpath):
       rpath: the rpath string to set.
     """
     toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
+    patchelf = toolchain.label[DefaultInfo].files_to_run
     args = ctx.actions.args()
     args.add("--set-rpath", rpath)
     args.add("--force-rpath")
@@ -27,7 +28,7 @@ def patchelf_file_action(ctx, input_file, output_file, rpath):
         inputs = [input_file],
         outputs = [output_file],
         arguments = [args],
-        executable = toolchain.path,
+        executable = patchelf,
     )
 
 def otool_file_action(ctx, input_file, output_file, rpath):
@@ -62,8 +63,10 @@ def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
       rpath: the rpath string to set.
     """
     toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
+    patchelf = toolchain.label[DefaultInfo].files_to_run
     ctx.actions.run_shell(
         inputs = [input_dir],
+        tools = [patchelf],
         outputs = [output_dir],
         # /. copies the contents of input rather than nesting it under output
         # (Bazel pre-creates output via declare_directory). chmod restores
@@ -76,7 +79,7 @@ def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
         ).format(
             input = input_dir.path,
             output = output_dir.path,
-            patchelf = toolchain.path,
+            patchelf = patchelf.executable.path,
             rpath = rpath,
         ),
     )

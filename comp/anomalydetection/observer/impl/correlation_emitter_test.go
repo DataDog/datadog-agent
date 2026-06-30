@@ -222,7 +222,7 @@ func TestTrackCorrelationHistory_Gating(t *testing.T) {
 	// Enable via ResetForReplay with TrackCorrelationHistory=true.
 	storageCfg := DefaultStorageConfig()
 	storageCfg.TrackCorrelationHistory = true
-	e.ResetForReplay(nil, []observer.Correlator{tc}, nil, nil, storageCfg)
+	e.ResetForReplay(nil, []observer.Correlator{tc}, nil, nil, storageCfg, BaselineConfig{})
 
 	tc.ProcessAnomaly(makeTestAnomaly("src_a", 2000))
 	_ = e.Advance(2000)

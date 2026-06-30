@@ -22,10 +22,17 @@ PREFIX="@loader_path/../../embedded/lib"
 
 FAILED=0
 while IFS= read -r outfile; do
-    if /usr/bin/otool -l "$outfile" | grep -q "$PREFIX"; then
-        echo "OK: $(basename "$outfile") has rpath $PREFIX"
+    rpaths=()
+    while IFS= read -r rpath; do
+        rpaths+=("$rpath")
+    done < <(/usr/bin/otool -l "$outfile" | awk '
+        $1 == "cmd" && $2 == "LC_RPATH" { in_rpath = 1; next }
+        in_rpath && $1 == "path" { print $2; in_rpath = 0 }
+    ')
+    if [ "${#rpaths[@]}" -eq 1 ] && [ "${rpaths[0]}" = "$PREFIX" ]; then
+        echo "OK: $(basename "$outfile") has only rpath $PREFIX"
     else
-        echo "FAIL: $(basename "$outfile") missing rpath $PREFIX"
+        echo "FAIL: $(basename "$outfile") rpaths: ${rpaths[*]:-<none>}"
         FAILED=1
     fi
 done < <(find "$OUTPUT_DIR" \( -name "*.dylib" -o -name "*.so" \))

@@ -218,7 +218,8 @@ func WaitForConfigsFromAD(ctx context.Context,
 	checkNames []string,
 	discoveryMinInstances int,
 	instanceFilter string,
-	ac autodiscovery.Component) (configs []integration.Config, lastError error) {
+	ac autodiscovery.Component,
+) (configs []integration.Config, lastError error) {
 	return waitForConfigsFromAD(ctx, false, checkNames, discoveryMinInstances, instanceFilter, ac)
 }
 
@@ -246,7 +247,8 @@ func waitForConfigsFromAD(ctx context.Context,
 	checkNames []string,
 	discoveryMinInstances int,
 	instanceFilter string,
-	ac autodiscovery.Component) (configs []integration.Config, returnErr error) {
+	ac autodiscovery.Component,
+) (configs []integration.Config, returnErr error) {
 	configChan := make(chan integration.Config)
 
 	// signal to the scheduler when we are no longer waiting, so we do not continue

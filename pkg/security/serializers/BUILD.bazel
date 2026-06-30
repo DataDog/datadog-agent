@@ -166,3 +166,14 @@ go_test(
         "//conditions:default": [],
     }),
 )
+
+# Expose all .go sources so //pkg/security/generators/backend_doc can read
+# them via AddGoComments when running as a Bazel run_binary tool.
+filegroup(
+    name = "serializers_sources",
+    srcs = glob(["*.go"]),
+    visibility = [
+        "//docs/cloud-workload-security:__pkg__",
+        "//pkg/security/generators/backend_doc:__pkg__",
+    ],
+)

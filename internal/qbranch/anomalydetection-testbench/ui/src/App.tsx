@@ -364,21 +364,26 @@ function App() {
 
   // Phase markers derived from episode info — dotted lines on all charts
   const phaseMarkers = useMemo<PhaseMarker[]>(() => {
-    if (!episodeInfo) return [];
-    const defs = [
-      { key: 'warmup',     label: 'Warmup',     phase: episodeInfo.warmup,     color: '#3b82f6' },
-      { key: 'baseline',   label: 'Baseline',   phase: episodeInfo.baseline,   color: '#22c55e' },
-      { key: 'disruption', label: 'Disruption', phase: episodeInfo.disruption, color: '#ef4444' },
-      { key: 'cooldown',   label: 'Cooldown',   phase: episodeInfo.cooldown,   color: '#f59e0b' },
-    ];
     const markers: PhaseMarker[] = [];
-    for (const { key, label, phase, color } of defs) {
-      if (!phase?.start) continue;
-      const ts = new Date(phase.start).getTime() / 1000;
-      if (!isNaN(ts)) markers.push({ key, label, timestamp: ts, color });
+    if (episodeInfo) {
+      const defs = [
+        { key: 'warmup',     label: 'Warmup',     phase: episodeInfo.warmup,     color: '#3b82f6' },
+        { key: 'baseline',   label: 'Baseline',   phase: episodeInfo.baseline,   color: '#22c55e' },
+        { key: 'disruption', label: 'Disruption', phase: episodeInfo.disruption, color: '#ef4444' },
+        { key: 'cooldown',   label: 'Cooldown',   phase: episodeInfo.cooldown,   color: '#f59e0b' },
+      ];
+      for (const { key, label, phase, color } of defs) {
+        if (!phase?.start) continue;
+        const ts = new Date(phase.start).getTime() / 1000;
+        if (!isNaN(ts)) markers.push({ key, label, timestamp: ts, color });
+      }
+    }
+    const windowEndSec = state.status?.baseline?.windowEndSec;
+    if (windowEndSec) {
+      markers.push({ key: 'baseline-mute', label: 'Baseline analysis end', timestamp: windowEndSec, color: '#6b7280' });
     }
     return markers;
-  }, [episodeInfo]);
+  }, [episodeInfo, state.status?.baseline?.windowEndSec]);
 
   // When the active scenario changes, reset zoom (episode range effect will re-apply it)
   const prevScenarioRef = useRef<string | null | undefined>(undefined);

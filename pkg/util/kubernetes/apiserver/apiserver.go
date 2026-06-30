@@ -77,6 +77,10 @@ const (
 	// This is mostly required for built-in controllers in Cluster Agent (ExternalMetrics, Autoscaling that can generate a high number of `Update` requests)
 	controllerClientQPSLimit = 150
 	controllerClientQPSBurst = 300
+	// Leader election operations are low-frequency (one lease update every ~15-60s) but must be
+	// isolated from other components so they cannot be starved by other components' API traffic.
+	leaderElectionClientQPSLimit = 20
+	leaderElectionClientQPSBurst = 40
 )
 
 // APIClient provides authenticated access to the
@@ -88,6 +92,10 @@ type APIClient struct {
 
 	// Cl holds the main kubernetes client
 	Cl kubernetes.Interface
+
+	// LeaderElectionCl holds a dedicated kubernetes client for leader election with independently
+	// managed client-side rate limiting, so leader election is never starved by other components.
+	LeaderElectionCl kubernetes.Interface
 
 	// DynamicCl holds a dynamic kubernetes client
 	DynamicCl dynamic.Interface
@@ -363,6 +371,12 @@ func (c *APIClient) connect() error {
 	c.Cl, err = GetKubeClient(c.defaultClientTimeout, c.defaultClientQPS, c.defaultClientBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
+		return err
+	}
+
+	c.LeaderElectionCl, err = GetKubeClient(c.defaultClientTimeout, leaderElectionClientQPSLimit, leaderElectionClientQPSBurst)
+	if err != nil {
+		log.Infof("Could not get leader election apiserver client: %v", err)
 		return err
 	}
 

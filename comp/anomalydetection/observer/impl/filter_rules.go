@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
@@ -48,6 +49,10 @@ type metricsProcessingRule struct {
 // metricsFilterRules evaluates the ordered rule list against incoming metrics.
 type metricsFilterRules struct {
 	rules []metricsCompiledRule
+
+	// muted tracks metrics that are muted by baseline analysis, these metrics are totally dropped from the storage/engine.
+	// It is used by the baseline analysis to reduce false positives.
+	muted atomic.Pointer[map[uint64]struct{}]
 }
 
 type metricsCompiledRule struct {
@@ -161,6 +166,7 @@ func compileRuleTags(tags []string) ([]string, error) {
 }
 
 // isAllowed returns true if the metric should be ingested.
+// tags must be sorted so the mute hash matches seriesKeyHash in storage.
 func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool {
 	if f == nil {
 		return true
@@ -170,6 +176,12 @@ func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool 
 		return true
 	}
 
+	if m := f.muted.Load(); m != nil {
+		if _, ok := (*m)[seriesKeyHash(source, name, tags)]; ok {
+			return false
+		}
+	}
+
 	for _, rule := range f.rules {
 		if rule.matches(name, source, tags) {
 			return !rule.exclude
@@ -177,6 +189,12 @@ func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool 
 	}
 
 	return true
+}
+
+// setMuted publishes the baseline mute set atomically. Called once at freeze
+// from the engine run goroutine; all handle goroutines observe it on next ingest.
+func (f *metricsFilterRules) setMuted(m map[uint64]struct{}) {
+	f.muted.Store(&m)
 }
 
 func (r metricsCompiledRule) matches(name, source string, tags []string) bool {

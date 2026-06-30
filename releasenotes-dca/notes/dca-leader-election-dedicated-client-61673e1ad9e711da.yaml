@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Cluster Agent's leader election now uses a dedicated Kubernetes API server
+    client with independently managed client-side rate limiting to be more resilient.

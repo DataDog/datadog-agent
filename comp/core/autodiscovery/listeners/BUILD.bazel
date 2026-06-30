@@ -105,6 +105,7 @@ dd_agent_go_test(
         "service_test.go",
         "snmp_test.go",
         "static_config_index_test.go",
+        "staticconfig_test.go",
         "workloadmeta_test.go",
     ],
     embed = [":listeners"],
