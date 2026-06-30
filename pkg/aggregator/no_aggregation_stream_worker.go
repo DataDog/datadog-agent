@@ -62,6 +62,11 @@ type noAggregationStreamWorker struct {
 	// observerHandle is set when the observer component is wired in.
 	// Nil when the feature is disabled or the observer is not included in the binary.
 	observerHandle observer.Handle
+
+	// lookback receives the final no-aggregation series after the worker has
+	// applied the same tag enrichment, type mapping, and value normalization used
+	// for normal serialization.
+	lookback DogStatsDLookback
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
@@ -97,6 +102,7 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *me
 	samplesChan chan metrics.MetricSampleBatch,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
 	tagger tagger.Component,
+	lookback DogStatsDLookback,
 ) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
@@ -119,7 +125,8 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *me
 		// every 5 minutes.
 		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),
 
-		tagger: tagger,
+		tagger:   tagger,
+		lookback: lookback,
 	}
 }
 
@@ -221,6 +228,9 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Host = sample.Host
 							serie.MType = mtype
 							serie.Interval = bucketSize
+							if w.lookback != nil {
+								w.lookback.AppendDogStatsDNoAggSerie(&serie)
+							}
 							seriesSink.Append(&serie)
 
 							w.taggerBuffer.Reset()
