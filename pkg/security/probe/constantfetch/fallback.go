@@ -126,6 +126,7 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameKernelCloneArgsExitSignal:   getKernelCloneArgsExitSignalOffset,
 		OffsetNameFileFinode:                  getFileFinodeOffset,
 		OffsetNameFileFpath:                   getFileFpathOffset,
+		OffsetNameFileFflags:                  getFileFflagsOffset,
 		OffsetNameMountMntID:                  getMountIDOffset,
 		OffsetNameDeviceStructNdNet:           getDeviceStructNdNet,
 		OffsetNameSockStructSKProtocol:        getSockStructSKProtocolOffset,
@@ -969,6 +970,15 @@ func getFileFpathOffset(kv *kernel.Version) uint64 {
 		return 152
 	default:
 		return 16
+	}
+}
+
+func getFileFflagsOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_5, kernel.Kernel6_6):
+		return 72
+	default:
+		return 64
 	}
 }
 

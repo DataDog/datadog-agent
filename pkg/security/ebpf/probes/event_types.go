@@ -236,6 +236,13 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_terminate_walk"),
 			}},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "pidfd_getfd", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_pidfd_receive_fd"),
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_pidfd___receive_fd"),
+			}},
 
 			// iouring
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
@@ -516,6 +523,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("hook_check_kill_permission"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "kill", hasFentry, Entry)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "pidfd_send_signal", hasFentry, Entry)},
 		},
 
 		// List of probes required to capture setsockopt events
