@@ -172,9 +172,17 @@ func (s *Launcher) run() {
 			// Clear files tailed between scans before starting new FilesToTail
 			s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
 
+			// Snapshot the scan keys of the currently-running tailers so the
+			// provider can preserve those files even if they would otherwise
+			// be filtered out by logs_config.ignore_older. Without this, a
+			// file that goes quiet long enough silently gets its tailer
+			// stopped (close_older semantics), which is explicitly out of
+			// scope for the ignore_older feature.
+			currentlyTailed := s.currentlyTailedScanKeys()
+
 			scanTicker.Stop()
 			go func() {
-				s.filesChan <- s.fileProvider.FilesToTail(ctx, s.validatePodContainerID, activeSourcesCopy, s.registry)
+				s.filesChan <- s.fileProvider.FilesToTail(ctx, s.validatePodContainerID, activeSourcesCopy, s.registry, currentlyTailed)
 			}()
 		case files := <-s.filesChan:
 			s.cleanUpRotatedTailers()
@@ -189,6 +197,22 @@ func (s *Launcher) run() {
 			return
 		}
 	}
+}
+
+// currentlyTailedScanKeys returns the set of scan keys (see tailer.File.GetScanKey)
+// for the tailers that are currently running. It is passed to the file provider
+// so that ignore_older does not silently stop already-running tailers when the
+// underlying file goes quiet.
+func (s *Launcher) currentlyTailedScanKeys() map[string]bool {
+	all := s.tailers.All()
+	if len(all) == 0 {
+		return nil
+	}
+	keys := make(map[string]bool, len(all))
+	for _, t := range all {
+		keys[t.GetID()] = true
+	}
+	return keys
 }
 
 // cleanup all tailers
@@ -396,7 +420,15 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 	if s.tailers.Count() >= s.tailingLimit {
 		return
 	}
-	files, err := s.fileProvider.CollectFiles(source)
+	// Pass the currently-tailed scan keys so that CollectFiles does not filter
+	// out files that are already being tailed by the ignore_older heuristic.
+	// This matters when launchTailers is called for a source *update* (e.g. an
+	// Autodiscovery re-annotation with new tags): the underlying file is already
+	// tailed, so its mtime may be well past the ignore_older threshold even
+	// though the tailer should keep running and switch to the new source via
+	// ReplaceSource. Without this, CollectFiles returns empty, ReplaceSource is
+	// never called, and the stale source stays in place until the agent restarts.
+	files, err := s.fileProvider.CollectFiles(source, s.currentlyTailedScanKeys())
 	if err != nil {
 		source.Status.Error(err)
 		log.Warnf("Could not collect files: %v", err)

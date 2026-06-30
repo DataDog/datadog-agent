@@ -1964,6 +1964,15 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Opt-in recursive glob for file log paths (supports **). Default false to preserve current behavior.
 	config.BindEnvAndSetDefault("logs_config.enable_recursive_glob", false)
 
+	// When non-zero, files whose modification time is older than `now - ignore_older`
+	// are skipped by the logs file scanner and no tailer is started for them.
+	// Applies to both wildcard sources (e.g. `path: /var/log/*.log`) and explicit
+	// single-path sources. The value is parsed as a Go time.Duration (e.g. "24h", "168h").
+	// Default is 0, which disables the filter and preserves existing behavior.
+	// Note: this does not affect already-tailing files; it only gates which files are
+	// considered when the scanner discovers them.
+	config.BindEnvAndSetDefault("logs_config.ignore_older", time.Duration(0))
+
 	// Max size in MB an integration logs file can use
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 	// Max disk usage in MB all integrations logs files are allowed to use in total

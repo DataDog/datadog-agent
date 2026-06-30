@@ -170,8 +170,14 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFile
 
 // FilesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
-// Files are collected according to the fileProvider's wildcardOrder and selectionMode
-func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID bool, inputSources []*sources.LogSource, registry auditor.Registry) []*tailer.File {
+// Files are collected according to the fileProvider's wildcardOrder and selectionMode.
+//
+// currentlyTailed is the set of scan keys (see tailer.File.GetScanKey) of files
+// that are currently being tailed by the caller. These files are exempt from the
+// logs_config.ignore_older filter: ignore_older gates the creation of NEW tailers
+// only, it must not stop tailers that are already running just because the file
+// went quiet (that would be close_older semantics).
+func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID bool, inputSources []*sources.LogSource, registry auditor.Registry, currentlyTailed map[string]bool) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
@@ -193,7 +199,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 					wildcardSources = append(wildcardSources, source)
 					continue
 				}
-				files, err := p.CollectFiles(source)
+				files, err := p.collectFiles(source, currentlyTailed)
 				if err != nil {
 					source.Status.Error(err)
 					if shouldLogErrors {
@@ -213,7 +219,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 				log.Debugf("FileProvider context cancelled, not collecting files.")
 				return nil
 			default:
-				files, err := p.filesMatchingSource(source)
+				files, err := p.filesMatchingSource(source, currentlyTailed)
 				wildcardFileCounter.setTotal(source, len(files))
 				if err != nil {
 					continue
@@ -233,7 +239,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 				return nil
 			default:
 				isWildcardSource := config.ContainsWildcard(source.Config.Path)
-				files, err := p.CollectFiles(source)
+				files, err := p.collectFiles(source, currentlyTailed)
 				if isWildcardSource {
 					wildcardFileCounter.setTotal(source, len(files))
 				}
@@ -266,18 +272,51 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 	return filesToTail
 }
 
-// CollectFiles takes a 'LogSource' and produces a list of tailers matching this source
-// with ordering defined by 'wildcardOrder'
-func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, error) {
+// CollectFiles takes a 'LogSource' and a set of currently-tailed scan keys,
+// and produces a list of files matching this source with ordering defined by
+// 'wildcardOrder'.
+//
+// currentlyTailed is the set of scan keys (see tailer.File.GetScanKey) whose
+// files already have a running tailer. Those files bypass the
+// logs_config.ignore_older filter so that:
+//  1. An existing tailer is not stopped merely because its file went quiet
+//     (that would be close_older semantics, which is out of scope for ignore_older).
+//  2. When a source update arrives for a file that is already being tailed (e.g.
+//     an Autodiscovery re-annotation with new tags), the file still appears in the
+//     result list so the caller can call tailer.ReplaceSource — without this the
+//     caller would see an empty list and silently leave the stale source in place.
+//
+// Pass nil if there are no currently-tailed files (the filter then applies
+// unconditionally to all matched files).
+func (p *FileProvider) CollectFiles(source *sources.LogSource, currentlyTailed map[string]bool) ([]*tailer.File, error) {
+	return p.collectFiles(source, currentlyTailed)
+}
+
+// collectFiles is the internal implementation of CollectFiles. currentlyTailed
+// is the set of scan keys whose files are already being tailed; those files
+// bypass the ignore_older filter so we do not stop their tailers.
+func (p *FileProvider) collectFiles(source *sources.LogSource, currentlyTailed map[string]bool) ([]*tailer.File, error) {
 	path := source.Config.Path
-	_, err := opener.StatLogFile(path)
+	stat, err := opener.StatLogFile(path)
 	switch {
 	case err == nil:
+		// Explicit single-path source: honor logs_config.ignore_older if set,
+		// but only for files that are not currently being tailed. Stopping an
+		// already-running tailer because its file went quiet would be
+		// close_older semantics, which is explicitly out of scope.
+		// We log at info level here so users see why a file they configured
+		// explicitly is not being tailed.
+		if ignoreOlder := getIgnoreOlder(); ignoreOlder > 0 && isFileOlderThan(stat.ModTime(), ignoreOlder) {
+			if !isCurrentlyTailed(currentlyTailed, path, source) {
+				log.Debugf("Skipping file %q: modification time (%s) is older than logs_config.ignore_older (%s)", path, stat.ModTime().Format(time.RFC3339), ignoreOlder)
+				return nil, nil
+			}
+		}
 		return []*tailer.File{
 			tailer.NewFile(path, source, false),
 		}, nil
 	case config.ContainsWildcard(path):
-		files, err := p.filesMatchingSource(source)
+		files, err := p.filesMatchingSource(source, currentlyTailed)
 		if err != nil {
 			return nil, err
 		}
@@ -289,8 +328,44 @@ func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, 
 	}
 }
 
+// scanKeyFor mirrors tailer.File.GetScanKey() for a given path/source pair so
+// we can match against the launcher's set of currently-tailed scan keys
+// without having to construct a *tailer.File first.
+func scanKeyFor(path string, source *sources.LogSource) string {
+	if source != nil && source.Config != nil && source.Config.Identifier != "" {
+		return fmt.Sprintf("%s/%s", path, source.Config.Identifier)
+	}
+	return path
+}
+
+// isCurrentlyTailed reports whether the (path, source) pair currently has a
+// running tailer according to the caller-provided set.
+func isCurrentlyTailed(currentlyTailed map[string]bool, path string, source *sources.LogSource) bool {
+	if len(currentlyTailed) == 0 {
+		return false
+	}
+	return currentlyTailed[scanKeyFor(path, source)]
+}
+
+// getIgnoreOlder returns the configured logs_config.ignore_older duration.
+// A return value of 0 means the filter is disabled.
+func getIgnoreOlder() time.Duration {
+	return pkgconfigsetup.Datadog().GetDuration("logs_config.ignore_older")
+}
+
+// isFileOlderThan reports whether the given modification time is older than
+// `now - ignoreOlder`. The current time is read fresh on each call so the
+// caller does not have to plumb a clock through.
+func isFileOlderThan(modTime time.Time, ignoreOlder time.Duration) bool {
+	return time.Since(modTime) > ignoreOlder
+}
+
 // filesMatchingSource returns all the files matching the source path pattern.
-func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer.File, error) {
+//
+// The logs_config.ignore_older filter drops files whose mtime is too old, except
+// for files whose scan key appears in currentlyTailed; those are preserved so a
+// running tailer is not stopped just because the file went quiet.
+func (p *FileProvider) filesMatchingSource(source *sources.LogSource, currentlyTailed map[string]bool) ([]*tailer.File, error) {
 	pattern := source.Config.Path
 	recursiveGlobEnabled := pkgconfigsetup.Datadog().GetBool("logs_config.enable_recursive_glob")
 
@@ -330,11 +405,26 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 		}
 	}
 
+	ignoreOlder := getIgnoreOlder()
+
 	files := make([]*tailer.File, 0, len(paths))
 	for _, path := range paths {
-		if excludedPaths[path] == 0 {
-			files = append(files, tailer.NewFile(path, source, true))
+		if excludedPaths[path] != 0 {
+			continue
 		}
+		if ignoreOlder > 0 {
+			statRes, statErr := opener.StatLogFile(path)
+			if statErr == nil && isFileOlderThan(statRes.ModTime(), ignoreOlder) {
+				// ignore_older only gates the creation of new tailers; files
+				// that are currently being tailed must stay in the list so
+				// the launcher does not stop their tailers.
+				if !isCurrentlyTailed(currentlyTailed, path, source) {
+					log.Debugf("Skipping wildcard match %q: modification time (%s) is older than logs_config.ignore_older (%s)", path, statRes.ModTime().Format(time.RFC3339), ignoreOlder)
+					continue
+				}
+			}
+		}
+		files = append(files, tailer.NewFile(path, source, true))
 	}
 
 	return files, nil

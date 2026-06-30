@@ -130,7 +130,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	testutils.CreateSources(logSources)
-	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor(), nil)
 
 	suite.Equal(1, len(files))
 	suite.False(files[0].IsWildcardPath)
@@ -145,7 +145,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
-	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor(), nil)
 
 	suite.Equal(3, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -169,7 +169,7 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 	path := suite.testDir + "/1/*.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	files, err := fileProvider.CollectFiles(logSources[0])
+	files, err := fileProvider.CollectFiles(logSources[0], nil)
 	suite.NoError(err, "searching for files in this directory shouldn't fail")
 	for _, file := range files {
 		suite.True(file.IsWildcardPath, "this file has been found with a wildcard pattern.")
@@ -180,7 +180,7 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 	path = suite.testDir + "/1/1.log"
 	fileProvider = NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources = suite.newLogSources(path)
-	files, err = fileProvider.CollectFiles(logSources[0])
+	files, err = fileProvider.CollectFiles(logSources[0], nil)
 	suite.NoError(err, "searching for files in this directory shouldn't fail")
 	for _, file := range files {
 		suite.False(file.IsWildcardPath, "this file has not been found using a wildcard pattern.")
@@ -192,7 +192,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	testutils.CreateSources(logSources)
-	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor(), nil)
 
 	suite.Equal(2, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -209,7 +209,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
-	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor(), nil)
 
 	suite.Equal(3, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -232,7 +232,7 @@ func (suite *ProviderTestSuite) TestWildcardPathsAreSorted() {
 	path := suite.testDir + "/*/*.log"
 	fileProvider := NewFileProvider(filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor(), nil)
 	suite.Equal(5, len(files))
 	for i := 0; i < len(files); i++ {
 		suite.Assert().True(files[i].IsWildcardPath)
@@ -251,7 +251,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
-	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor(), nil)
 	suite.Equal(suite.filesLimit, len(files))
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
@@ -271,7 +271,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testDir + "/2/*.log"}),
 	}
 	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
-	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor(), nil)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
@@ -291,7 +291,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	os.Remove(suite.testDir + "/1/2.log")
 	os.Remove(suite.testDir + "/1/3.log")
 	os.Remove(suite.testDir + "/2/2.log")
-	files = fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	files = fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor(), nil)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"1 files tailed out of 1 files matching"}, logSources[0].Messages.GetMessages())
 
@@ -305,7 +305,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 
 	os.Remove(suite.testDir + "/2/1.log")
 
-	files = fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	files = fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor(), nil)
 	suite.Equal(1, len(files))
 	suite.Equal([]string{"1 files tailed out of 1 files matching"}, logSources[0].Messages.GetMessages())
 
@@ -321,7 +321,7 @@ func (suite *ProviderTestSuite) TestExcludePath() {
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, ExcludePaths: excludePaths}),
 	}
 
-	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor(), nil)
 	suite.Equal(3, len(files))
 	for i := 0; i < len(files); i++ {
 		suite.Assert().True(files[i].IsWildcardPath)
@@ -339,7 +339,7 @@ func TestCollectFiles(t *testing.T) {
 	t.Run("Invalid Pattern", func(t *testing.T) {
 		fileProvider := NewFileProvider(2, WildcardUseFileName)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: "//\\///*"})
-		files, err := fileProvider.CollectFiles(source)
+		files, err := fileProvider.CollectFiles(source, nil)
 		assert.Len(t, files, 0)
 		assert.Error(t, err)
 	})
@@ -352,7 +352,7 @@ func TestCollectFiles(t *testing.T) {
 
 		fileProvider := NewFileProvider(2, WildcardUseFileName)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")})
-		files, err := fileProvider.CollectFiles(source)
+		files, err := fileProvider.CollectFiles(source, nil)
 		assert.Nil(t, err)
 		assert.Len(t, files, 4)
 		assert.Equal(t, fs.path("d"), files[0].Path)
@@ -373,7 +373,7 @@ func TestCollectFiles(t *testing.T) {
 
 		fileProvider := NewFileProvider(2, WildcardUseFileModTime)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")})
-		files, err := fileProvider.CollectFiles(source)
+		files, err := fileProvider.CollectFiles(source, nil)
 		assert.Nil(t, err)
 		assert.Len(t, files, 4)
 		assert.Equal(t, fs.path("a.log"), files[0].Path)
@@ -402,7 +402,7 @@ func TestFilesToTail(t *testing.T) {
 				sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/*")}),
 				sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 			}
-			files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor())
+			files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor(), nil)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("a/z"), files[0].Path)
 			assert.Equal(t, fs.path("a/b"), files[1].Path)
@@ -431,7 +431,7 @@ func TestFilesToTail(t *testing.T) {
 				sources.NewLogSource("wildcardC", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/c*")}),
 				sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 			}
-			files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor())
+			files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor(), nil)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("a/addd"), files[0].Path)
 			assert.Equal(t, fs.path("a/accc"), files[1].Path)
@@ -452,7 +452,7 @@ func TestFilesToTail(t *testing.T) {
 			sources := []*sources.LogSource{
 				sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")}),
 			}
-			files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor())
+			files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor(), nil)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("a.log"), files[0].Path)
 			assert.Equal(t, fs.path("q.log"), files[1].Path)
@@ -472,7 +472,7 @@ func TestFilesToTail(t *testing.T) {
 				sources.NewLogSource("wildcard a", &config.LogsConfig{Type: config.FileType, Path: fs.path("a*")}),
 				sources.NewLogSource("wildcard b", &config.LogsConfig{Type: config.FileType, Path: fs.path("b*")}),
 			}
-			files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor())
+			files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor(), nil)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("abb.log"), files[0].Path)
 			assert.Equal(t, fs.path("aaa.log"), files[1].Path)
@@ -496,7 +496,7 @@ func TestFilesToTail(t *testing.T) {
 			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/*")}),
 			sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 		}
-		files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor())
+		files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor(), nil)
 		assert.Len(t, files, 2)
 		assert.Equal(t, fs.path("a/c"), files[0].Path)
 		assert.Equal(t, fs.path("b/c"), files[1].Path)
@@ -678,7 +678,7 @@ func TestCollectFiles_RecursiveGlobEnabled(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("logs_config.enable_recursive_glob", true, configmodel.SourceCLI)
 	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
-	files, err := fileProvider.CollectFiles(source)
+	files, err := fileProvider.CollectFiles(source, nil)
 	assert.NoError(t, err)
 	paths := make(map[string]bool)
 	for _, f := range files {
@@ -704,7 +704,7 @@ func TestCollectFiles_RecursiveGlobDisabled(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("logs_config.enable_recursive_glob", false, configmodel.SourceCLI)
 	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
-	files, err := fileProvider.CollectFiles(source)
+	files, err := fileProvider.CollectFiles(source, nil)
 	// When recursive glob is disabled, a '**' pattern should not expand; expect an error and no matches.
 	assert.Error(t, err)
 	assert.Len(t, files, 0)
@@ -796,8 +796,92 @@ func TestContainerPathsAreCorrectlyIgnored(t *testing.T) {
 		kubeSource,
 		sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 	}
-	files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor(), nil)
 	assert.Len(t, files, 2) // 1 file from k8s source, 1 file from regular file source.
+}
+
+func TestIgnoreOlder_Wildcard(t *testing.T) {
+	fs := newTempFs(t)
+	now := time.Now()
+
+	// Two files: one recent (30m ago) and one old (2h ago).
+	fs.createFileWithTime("recent.log", now.Add(-30*time.Minute))
+	fs.createFileWithTime("old.log", now.Add(-2*time.Hour))
+
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.ignore_older", time.Hour, configmodel.SourceCLI)
+
+	fileProvider := NewFileProvider(10, WildcardUseFileName)
+	source := sources.NewLogSource("wildcard", &config.LogsConfig{
+		Type: config.FileType,
+		Path: fs.path("*.log"),
+	})
+	files, err := fileProvider.CollectFiles(source, nil)
+	assert.NoError(t, err)
+	assert.Len(t, files, 1, "old.log should be filtered out, only recent.log should remain")
+	assert.Equal(t, fs.path("recent.log"), files[0].Path)
+}
+
+func TestIgnoreOlder_ExplicitPath_Old(t *testing.T) {
+	fs := newTempFs(t)
+	now := time.Now()
+
+	// Single explicit-path file that is 2h old; with ignore_older = 1h it should be skipped.
+	fs.createFileWithTime("foo.log", now.Add(-2*time.Hour))
+
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.ignore_older", time.Hour, configmodel.SourceCLI)
+
+	fileProvider := NewFileProvider(10, WildcardUseFileName)
+	source := sources.NewLogSource("explicit", &config.LogsConfig{
+		Type: config.FileType,
+		Path: fs.path("foo.log"),
+	})
+	files, err := fileProvider.CollectFiles(source, nil)
+	assert.NoError(t, err)
+	assert.Len(t, files, 0, "explicit-path file older than ignore_older should be skipped")
+}
+
+func TestIgnoreOlder_ExplicitPath_Recent(t *testing.T) {
+	fs := newTempFs(t)
+	now := time.Now()
+
+	// Single explicit-path file that is 30m old; with ignore_older = 1h it should still tail.
+	fs.createFileWithTime("foo.log", now.Add(-30*time.Minute))
+
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.ignore_older", time.Hour, configmodel.SourceCLI)
+
+	fileProvider := NewFileProvider(10, WildcardUseFileName)
+	source := sources.NewLogSource("explicit", &config.LogsConfig{
+		Type: config.FileType,
+		Path: fs.path("foo.log"),
+	})
+	files, err := fileProvider.CollectFiles(source, nil)
+	assert.NoError(t, err)
+	assert.Len(t, files, 1)
+	assert.Equal(t, fs.path("foo.log"), files[0].Path)
+}
+
+func TestIgnoreOlder_Disabled(t *testing.T) {
+	fs := newTempFs(t)
+	now := time.Now()
+
+	// File is very old, but ignore_older is zero (the default) so it should still tail.
+	fs.createFileWithTime("ancient.log", now.Add(-30*24*time.Hour))
+
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.ignore_older", time.Duration(0), configmodel.SourceCLI)
+
+	fileProvider := NewFileProvider(10, WildcardUseFileName)
+	source := sources.NewLogSource("wildcard", &config.LogsConfig{
+		Type: config.FileType,
+		Path: fs.path("*.log"),
+	})
+	files, err := fileProvider.CollectFiles(source, nil)
+	assert.NoError(t, err)
+	assert.Len(t, files, 1, "ignore_older=0 should disable filtering")
+	assert.Equal(t, fs.path("ancient.log"), files[0].Path)
 }
 
 func TestCollectFiles_RecursiveGlobWithExcludePaths(t *testing.T) {
@@ -819,7 +903,7 @@ func TestCollectFiles_RecursiveGlobWithExcludePaths(t *testing.T) {
 	cfg.Set("logs_config.enable_recursive_glob", true, configmodel.SourceCLI)
 	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 
-	files, err := fileProvider.CollectFiles(source)
+	files, err := fileProvider.CollectFiles(source, nil)
 	assert.NoError(t, err)
 	paths := make(map[string]bool)
 	for _, f := range files {
@@ -830,4 +914,41 @@ func TestCollectFiles_RecursiveGlobWithExcludePaths(t *testing.T) {
 	assert.True(t, paths[fs.path("gamma/g.log")], "gamma should be included")
 	// Excluded by pattern
 	assert.False(t, paths[fs.path("alpha/beta/ab.log")], "alpha subtree should be excluded by ExcludePaths")
+}
+
+// TestScanKeyForMatchesTailerGetScanKey is a tripwire test asserting that the
+// provider's scanKeyFor helper produces the same key as the canonical
+// tailer.File.GetScanKey() method. If GetScanKey() ever changes its format,
+// this test will fail and force scanKeyFor to be updated in lockstep — without
+// such a tripwire, the currently-tailed lookup in CollectFiles would silently
+// stop matching running tailers.
+func TestScanKeyForMatchesTailerGetScanKey(t *testing.T) {
+	cases := []struct {
+		name       string
+		path       string
+		identifier string
+	}{
+		{
+			name:       "no identifier",
+			path:       "/var/log/app.log",
+			identifier: "",
+		},
+		{
+			name:       "with container identifier",
+			path:       "/var/log/pods/foo/bar/0.log",
+			identifier: "docker://abc123def456",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			source := sources.NewLogSource("test", &config.LogsConfig{
+				Type:       config.FileType,
+				Path:       tc.path,
+				Identifier: tc.identifier,
+			})
+			canonical := tailer.NewFile(tc.path, source, false).GetScanKey()
+			got := scanKeyFor(tc.path, source)
+			assert.Equal(t, canonical, got, "scanKeyFor must match tailer.File.GetScanKey() format")
+		})
+	}
 }
