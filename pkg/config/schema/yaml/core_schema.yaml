@@ -6373,6 +6373,50 @@ properties:
                 default: warn
                 comment: Kubelet journald log rate limits (enabled flag already set
                   above).
+          processing_rules:
+            node_type: setting
+            type: array
+            default: []
+            description: |-
+              Ordered log processing rules applied to anomaly-detection log sources
+              (container, kubelet, agent-internal). Rules are evaluated per-message
+              in sequence and the first match wins. Logs that do not match any rule
+              are allowed.
+            example: |2-
+
+                # Source-based: drops all messages from containerd containers.
+                - type: exclude_at_match
+                  name: drop_containerd_runtime
+                  source: containerd
+
+                # Tag-based: evaluated per message, drops matching messages.
+                - type: exclude_at_match
+                  name: drop_dev_containers
+                  tags: ["env:dev"]
+
+                # include_at_match as an earlier exception to a later exclude.
+                - type: include_at_match
+                  name: keep_prod_docker
+                  source: docker
+                  tags: ["env:prod"]
+
+                # Agent-internal logs use source: datadog-agent.
+                - type: exclude_at_match
+                  name: drop_agent_logs
+                  source: datadog-agent
+            items:
+              type: object
+              properties:
+                type:
+                  type: string
+                name:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                source:
+                  type: string
       metrics:
         node_type: section
         type: object
