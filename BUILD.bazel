@@ -181,7 +181,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/processors/k8s/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/transformers/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/transformers/k8s
-# gazelle:exclude pkg/collector/corechecks/containers/containerd
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet/*.go
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet/common/testing
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet/provider
