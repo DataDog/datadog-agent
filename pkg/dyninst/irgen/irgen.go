@@ -1750,9 +1750,7 @@ func analyzeAllProbes(
 					addRoot,
 					budget,
 				)
-				// A condition that reads a redacted value would leak it
-				// through the fire/no-fire signal, which the decoder cannot
-				// scrub. Reject the probe instead.
+				// Reject probes that reference data on the redaction list, to not leak info.
 				if ap.condition != nil {
 					if name, ok := expressionReferencesRedacted(ap.condition.expr, red); ok {
 						ap.condition = nil

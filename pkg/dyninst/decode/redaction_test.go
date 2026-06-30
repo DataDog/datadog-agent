@@ -54,21 +54,21 @@ func TestDecoderRedaction(t *testing.T) {
 	}
 
 	t.Run("value redacted by matching key", func(t *testing.T) {
-		got := decodeArgs(t, redaction.New([]string{"a"}, nil, nil))
+		got := decodeArgs(t, redaction.NewConfig([]string{"a"}, nil, nil))
 		require.Equal(t, expectedMap(map[string]any{
 			"type": "int", "notCapturedReason": "redactedIdent",
 		}), got)
 	})
 
 	t.Run("value redacted by type", func(t *testing.T) {
-		got := decodeArgs(t, redaction.New(nil, []string{"int"}, nil))
+		got := decodeArgs(t, redaction.NewConfig(nil, []string{"int"}, nil))
 		require.Equal(t, expectedMap(map[string]any{
 			"type": "int", "notCapturedReason": "redactedType",
 		}), got)
 	})
 
 	t.Run("non-matching key leaves value intact", func(t *testing.T) {
-		got := decodeArgs(t, redaction.New([]string{"password"}, nil, nil))
+		got := decodeArgs(t, redaction.NewConfig([]string{"password"}, nil, nil))
 		require.Equal(t, expectedMap(map[string]any{
 			"type": "int", "value": "1",
 		}), got)
@@ -98,19 +98,19 @@ func decodeMapArg(t *testing.T, probe string, goVersion string, event func(testi
 func TestDecoderRedactionMessage(t *testing.T) {
 	t.Run("map value by key", func(t *testing.T) {
 		e := decodeMapArg(t, "mapArg", goVersionSwissMap, simpleSwissMapArgEvent,
-			redaction.New([]string{"a"}, nil, nil))
+			redaction.NewConfig([]string{"a"}, nil, nil))
 		require.Equal(t, "m: map[a: {redacted}]", e.Message)
 	})
 
 	t.Run("map value by type", func(t *testing.T) {
 		e := decodeMapArg(t, "mapArg", goVersionSwissMap, simpleSwissMapArgEvent,
-			redaction.New(nil, []string{"int"}, nil))
+			redaction.NewConfig(nil, []string{"int"}, nil))
 		require.Equal(t, "m: map[a: {redacted}]", e.Message)
 	})
 
 	t.Run("struct field", func(t *testing.T) {
 		e := decodeMapArg(t, "bigMapArg", goVersionHmap, simpleBigMapArgEvent,
-			redaction.New([]string{"Field1"}, nil, nil))
+			redaction.NewConfig([]string{"Field1"}, nil, nil))
 		require.Contains(t, e.Message, "Field1: {redacted}")
 		require.Contains(t, e.Message, "Field2: 0")
 	})
@@ -160,7 +160,7 @@ func TestEncodeInterfaceRedactsConcreteType(t *testing.T) {
 		typesByID:            map[ir.TypeID]decoderType{7: (*baseType)(secret)},
 		typesByGoRuntimeType: map[uint32]ir.TypeID{42: 7},
 		dataItems:            map[typeAndAddr]output.DataItem{},
-		redaction:            redaction.New(nil, []string{"main.Secret"}, nil),
+		redaction:            redaction.NewConfig(nil, []string{"main.Secret"}, nil),
 	}
 	data := make([]byte, 16)
 	binary.NativeEndian.PutUint64(data[goRuntimeTypeOffset:goRuntimeTypeOffset+8], 42)
@@ -184,7 +184,7 @@ func TestEncodeInterfaceRedactsConcreteType(t *testing.T) {
 // siblings are left intact. This is the primary case: a sensitive struct field.
 func TestDecoderRedactionStructField(t *testing.T) {
 	irProg := generateIrForProbes(t, "simple", goVersionHmap, "bigMapArg")
-	irProg.Redaction = redaction.New([]string{"Field1"}, nil, nil)
+	irProg.Redaction = redaction.NewConfig([]string{"Field1"}, nil, nil)
 	item := simpleBigMapArgEvent(t, irProg)
 	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 	require.NoError(t, err)

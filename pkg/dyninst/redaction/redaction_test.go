@@ -20,7 +20,7 @@ func TestNilConfig(t *testing.T) {
 }
 
 func TestDefaultIdentifiers(t *testing.T) {
-	c := New(nil, nil, nil)
+	c := NewConfig(nil, nil, nil)
 	for _, name := range []string{
 		"password", "Password", "PASSWORD",
 		"pass_word", "pass-word", "$password", "pass@word",
@@ -38,7 +38,7 @@ func TestDefaultIdentifiers(t *testing.T) {
 }
 
 func TestExtraIdentifiersAreAdditiveAndNormalized(t *testing.T) {
-	c := New([]string{"MotDePasse", "$Passwort", " geheim "}, nil, nil)
+	c := NewConfig([]string{"MotDePasse", "$Passwort", " geheim "}, nil, nil)
 	require.True(t, c.RedactIdentifier("mot_de_passe"))
 	require.True(t, c.RedactIdentifier("passwort"))
 	require.True(t, c.RedactIdentifier("GEHEIM"))
@@ -47,7 +47,7 @@ func TestExtraIdentifiersAreAdditiveAndNormalized(t *testing.T) {
 }
 
 func TestExcludedIdentifiersUnredactDefaults(t *testing.T) {
-	c := New(nil, nil, []string{"token", "x-api-key"})
+	c := NewConfig(nil, nil, []string{"token", "x-api-key"})
 	require.False(t, c.RedactIdentifier("token"))
 	require.False(t, c.RedactIdentifier("xApiKey"))
 	// A non-excluded default is unaffected.
@@ -55,12 +55,12 @@ func TestExcludedIdentifiersUnredactDefaults(t *testing.T) {
 }
 
 func TestExclusionWinsOverExtra(t *testing.T) {
-	c := New([]string{"token"}, nil, []string{"token"})
+	c := NewConfig([]string{"token"}, nil, []string{"token"})
 	require.False(t, c.RedactIdentifier("token"))
 }
 
 func TestRedactTypeExact(t *testing.T) {
-	c := New(nil, []string{"crypto/tls.Config", "main.Credentials"}, nil)
+	c := NewConfig(nil, []string{"crypto/tls.Config", "main.Credentials"}, nil)
 	require.True(t, c.RedactType("crypto/tls.Config"))
 	require.True(t, c.RedactType("main.Credentials"))
 	require.False(t, c.RedactType("main.Credential"))
@@ -68,7 +68,7 @@ func TestRedactTypeExact(t *testing.T) {
 }
 
 func TestRedactTypePrefix(t *testing.T) {
-	c := New(nil, []string{"main.Secret*", "internal/auth.*"}, nil)
+	c := NewConfig(nil, []string{"main.Secret*", "internal/auth.*"}, nil)
 	require.True(t, c.RedactType("main.SecretKey"))
 	require.True(t, c.RedactType("main.Secret"))
 	require.True(t, c.RedactType("internal/auth.Token"))
@@ -77,7 +77,7 @@ func TestRedactTypePrefix(t *testing.T) {
 }
 
 func TestEmptyEntriesIgnored(t *testing.T) {
-	c := New([]string{"", "   "}, []string{"", " "}, []string{""})
+	c := NewConfig([]string{"", "   "}, []string{"", " "}, []string{""})
 	require.True(t, c.RedactIdentifier("password"))
 	require.False(t, c.RedactType("anything"))
 }

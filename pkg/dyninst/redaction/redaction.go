@@ -104,20 +104,19 @@ var defaultIdentifiers = []string{
 	"xsrftoken",
 }
 
-// Config is an immutable redaction policy. The zero value (a nil *Config)
-// redacts nothing, so call sites can hold an unset policy without nil checks.
+// Config is an immutable redaction policy.
 type Config struct {
 	identifiers map[string]struct{}
 	typeExact   map[string]struct{}
 	typePrefix  []string
 }
 
-// New builds a Config from the default keyword set plus the caller-supplied
+// NewConfig builds a Config from the default keyword set plus the caller-supplied
 // additions. extraIdentifiers are added to the defaults; excludedIdentifiers
 // are removed from the result (and so can un-redact a default keyword);
 // redactedTypes are matched by exact type name, or by prefix when the entry
 // ends in "*" (or ".*"). All identifier inputs are normalized.
-func New(extraIdentifiers, redactedTypes, excludedIdentifiers []string) *Config {
+func NewConfig(extraIdentifiers, redactedTypes, excludedIdentifiers []string) *Config {
 	ids := make(map[string]struct{}, len(defaultIdentifiers)+len(extraIdentifiers))
 	for _, k := range defaultIdentifiers {
 		ids[k] = struct{}{}

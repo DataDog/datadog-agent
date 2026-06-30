@@ -12,10 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
 )
 
-// expressionReferencesRedacted returns the first redacted identifier referenced
-// by an expression, if any. It inspects variable references, member names, and
-// string-literal map index keys, so both obj.password and m["password"] are
-// detected.
+// expressionReferencesRedacted returns the full expression path leading to the
+// first redacted identifier referenced by the expression, if any. For example,
+// obj.password returns "obj.password" and m["password"] returns m["password"].
+// It inspects variable references, member names, and string-literal map index
+// keys.
 //
 // It guards two cases the decoder cannot scrub from output. A condition is
 // compiled to eBPF and gates whether a snapshot fires, so reading a redacted
@@ -30,9 +31,9 @@ func expressionReferencesRedacted(expr exprlang.Expr, cfg *redaction.Config) (st
 		return "", false
 	}
 	var found string
-	check := func(s string) {
-		if found == "" && cfg.RedactIdentifier(s) {
-			found = s
+	checkPath := func(name, path string) {
+		if found == "" && cfg.RedactIdentifier(name) {
+			found = path
 		}
 	}
 	literalString := func(e exprlang.Expr) (string, bool) {
@@ -46,19 +47,39 @@ func expressionReferencesRedacted(expr exprlang.Expr, cfg *redaction.Config) (st
 	exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
 		switch n := e.(type) {
 		case *exprlang.RefExpr:
-			check(n.Ref)
+			checkPath(n.Ref, n.Ref)
 		case *exprlang.GetMemberExpr:
-			check(n.Member)
+			checkPath(n.Member, exprString(n))
 		case *exprlang.IndexExpr:
 			if s, ok := literalString(n.Index); ok {
-				check(s)
+				checkPath(s, exprString(n))
 			}
 		case *exprlang.ContainsExpr:
 			if s, ok := literalString(n.Key); ok {
-				check(s)
+				checkPath(s, s)
 			}
 		}
 		return nil
 	})
 	return found, found != ""
+}
+
+// exprString returns a human-readable string for simple path expressions.
+// Non-path nodes (e.g. comparisons) are rendered as "...".
+func exprString(e exprlang.Expr) string {
+	switch n := e.(type) {
+	case *exprlang.RefExpr:
+		return n.Ref
+	case *exprlang.GetMemberExpr:
+		return exprString(n.Base) + "." + n.Member
+	case *exprlang.IndexExpr:
+		if lit, ok := n.Index.(*exprlang.LiteralExpr); ok {
+			if s, ok := lit.Value.(string); ok {
+				return exprString(n.Base) + `["` + s + `"]`
+			}
+		}
+		return exprString(n.Base) + "[...]"
+	default:
+		return "..."
+	}
 }

@@ -17,7 +17,7 @@ import (
 )
 
 func TestExpressionReferencesRedacted(t *testing.T) {
-	cfg := redaction.New(nil, nil, nil)
+	cfg := redaction.NewConfig(nil, nil, nil)
 	ref := func(name string) *exprlang.RefExpr { return &exprlang.RefExpr{Ref: name} }
 	member := func(base exprlang.Expr, m string) *exprlang.GetMemberExpr {
 		return &exprlang.GetMemberExpr{Base: base, Member: m}
@@ -59,7 +59,7 @@ func TestExpressionReferencesRedacted(t *testing.T) {
 
 	name, ok := expressionReferencesRedacted(index(ref("m"), lit("password")), cfg)
 	require.True(t, ok)
-	require.Equal(t, "password", name)
+	require.Equal(t, `m["password"]`, name)
 
 	_, ok = expressionReferencesRedacted(ref("password"), nil)
 	require.False(t, ok, "nil policy redacts nothing")

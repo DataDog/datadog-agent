@@ -43,7 +43,7 @@ func redactionConfig(pid int32, procRoot string) *redaction.Config {
 		}
 		return nil
 	}
-	return redaction.New(
+	return redaction.NewConfig(
 		values(envRedactedIdentifiers),
 		values(envRedactedTypes),
 		values(envRedactionExcludedIdentifiers),
