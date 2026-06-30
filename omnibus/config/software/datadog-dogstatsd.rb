@@ -43,7 +43,7 @@ build do
   if linux_target?
     if debian_target?
       install_target = "//packages/dogstatsd/linux:install_debian"
-    elsif redhat_target? || suse_target?
+    else
       install_target = "//packages/dogstatsd/linux:install_redhat"
     end
     # Bazel places the yaml example, init scripts, service file, and creates
