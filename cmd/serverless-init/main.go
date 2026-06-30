@@ -44,6 +44,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -101,9 +102,9 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
+	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled, child := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
 
-	err := modeConf.Runner(logConfig)
+	err := modeConf.Runner(logConfig, child)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, logsAgent)
@@ -121,7 +122,7 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 	return err
 }
 
-func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
+func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool, *lifecycle.Child) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -168,6 +169,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 				MetricEmitter: metricAgent,
 				SampleDrainer: metricAgent,
 				FlushTimeout:  agentLogConfig.FlushTimeout,
+				SidecarMode:   modeConf.SidecarMode,
 			},
 		}
 		// Only MicroVM needs initialization without an API key: its Init starts the
@@ -178,7 +180,11 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 		if origin == cloudservice.MicroVMOrigin {
 			_ = cloudService.Init(tracingCtx)
 		}
-		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false
+		var child *lifecycle.Child
+		if m, ok := cloudService.(*cloudservice.MicroVM); ok {
+			child = m.Child()
+		}
+		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false, child
 	}
 
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
@@ -195,6 +201,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 			MetricEmitter: metricAgent,
 			SampleDrainer: metricAgent,
 			FlushTimeout:  agentLogConfig.FlushTimeout,
+			SidecarMode:   modeConf.SidecarMode,
 		},
 	}
 
@@ -220,7 +227,11 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	go flushMetricsAgent(metricAgent)
 
-	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled
+	var child *lifecycle.Child
+	if m, ok := cloudService.(*cloudservice.MicroVM); ok {
+		child = m.Child()
+	}
+	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled, child
 }
 
 // tagConfiguration holds the various tag sets for telemetry.
