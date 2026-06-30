@@ -83,6 +83,8 @@ dd_agent_go_test(
     srcs = [
         "endpoints_test.go",
         "endpointslices_test.go",
+        "event_collector_test.go",
+        "event_reflector_store_test.go",
         "events_test.go",
         "resourcetypes_test.go",
         "services_kubelet_test.go",
@@ -110,5 +112,6 @@ dd_agent_go_test(
         "@io_k8s_apimachinery//pkg/version",
         "@io_k8s_client_go//discovery/fake",
         "@io_k8s_client_go//kubernetes/fake",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
