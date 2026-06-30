@@ -102,6 +102,7 @@ def build(
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
+        include_sds=include_sds,
     )
 
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
