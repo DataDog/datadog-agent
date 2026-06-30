@@ -1563,6 +1563,15 @@ func aggregator(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
+
+	config.BindEnvAndSetDefault("metric_lookback.enabled", false)
+	config.BindEnvAndSetDefault("metric_lookback.capacity", 262144)
+	config.BindEnvAndSetDefault("metric_lookback.shard_count", 16)
+	config.BindEnvAndSetDefault("metric_lookback.dogstatsd.enabled", false)
+	config.BindEnvAndSetDefault("metric_lookback.dogstatsd.metric_names", []string{})
+	config.BindEnvAndSetDefault("metric_lookback.monitor.enabled", false)
+	config.BindEnvAndSetDefault("metric_lookback.monitor.metric_name", "")
+	config.BindEnvAndSetDefault("metric_lookback.monitor.baseline_min", 0.0)
 }
 
 func serverless(config pkgconfigmodel.Setup) {
