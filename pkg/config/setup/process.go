@@ -158,10 +158,6 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.cache_lookupid", false)
 
 	procBindEnvAndSetDefault(config, "process_config.language_detection.grpc_port", DefaultProcessEntityStreamPort)
-
-	processesAddOverrideOnce.Do(func() {
-		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
-	})
 }
 
 // loadProcessTransforms loads transforms associated with process config settings.
