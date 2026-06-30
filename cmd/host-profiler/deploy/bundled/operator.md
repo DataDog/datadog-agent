@@ -51,7 +51,7 @@ spec:
 
 The preview image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix in the image override with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
 
-For more details on resource configuration, including Guaranteed QoS and when to increase memory, see [Resource requests and limits](../faq.md#how-do-i-configure-resource-requests-and-limits).
+For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
 
 Apply the updated `DatadogAgent` Custom Resource through your usual workflow.
 
