@@ -39,6 +39,11 @@ type configStore struct {
 	db         *bbolt.DB
 	lock       sync.RWMutex
 	compressor compression.Compressor
+
+	configMu               sync.RWMutex // protects the eviction config fields below
+	minConfigsPerDevice    int
+	maxConfigsPerDevice    int
+	maxRawConfigStoreBytes int64
 }
 
 var _ ConfigStore = (*configStore)(nil)
@@ -354,9 +359,29 @@ func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*types
 	return configsPerDevice, remaining
 }
 
-// EvictConfigs evicts configs exceeding per-device caps then LRU-evicts until the DB is within maxSize.
+func (cs *configStore) UpdateStoreConfig(minConfigsPerDevice int, maxConfigsPerDevice int, maxRawConfigStoreBytes int64) {
+	// pkglog.Debugf("ncm: store config read from datadog.yaml — min_configs_per_device=%d max_configs_per_device=%d max_raw_config_store_bytes=%d", minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes)
+	cs.configMu.Lock()
+	defer cs.configMu.Unlock()
+	cs.minConfigsPerDevice = minConfigsPerDevice
+	cs.maxConfigsPerDevice = maxConfigsPerDevice
+	cs.maxRawConfigStoreBytes = maxRawConfigStoreBytes
+	// pkglog.Debugf("ncm: store eviction config applied")
+}
+
+// EvictConfigs runs the eviction policy using parameters stored by UpdateStoreConfig.
+func (cs *configStore) EvictConfigs() ([]string, error) {
+	cs.configMu.RLock()
+	min := cs.minConfigsPerDevice
+	max := cs.maxConfigsPerDevice
+	maxSize := cs.maxRawConfigStoreBytes
+	cs.configMu.RUnlock()
+	return cs.evictConfigs(min, max, maxSize)
+}
+
+// evictConfigs evicts configs exceeding per-device caps then LRU-evicts until the DB is within maxSize.
 // Returns the UUIDs of all evicted configs; returns an error if the DB size still exceeds maxSize after eviction.
-func (cs *configStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
+func (cs *configStore) evictConfigs(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
 	evicted := make([]string, 0)
 
 	configsPerDevice, sortedEntries, err := cs.buildEvictionIndex()
