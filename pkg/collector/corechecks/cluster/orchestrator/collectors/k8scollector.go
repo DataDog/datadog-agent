@@ -55,6 +55,7 @@ type OrchestratorInformerFactory struct {
 	InformerFactory              informers.SharedInformerFactory
 	UnassignedPodInformerFactory informers.SharedInformerFactory
 	TerminatedPodInformerFactory informers.SharedInformerFactory
+	HelmConfigMapInformerFactory informers.SharedInformerFactory
 	DynamicInformerFactory       dynamicinformer.DynamicSharedInformerFactory
 	CRDInformerFactory           externalversions.SharedInformerFactory
 	VPAInformerFactory           vpai.SharedInformerFactory
