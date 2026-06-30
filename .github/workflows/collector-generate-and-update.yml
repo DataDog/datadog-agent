@@ -2,9 +2,9 @@ name: Update OTel Collector Dependencies and Generate OTel Agent
 
 on:
   schedule:
-    # Run every Wednesday; the job below keeps only every other Wednesday,
-    # anchored so the next scheduled update is 2026-06-24.
-    - cron: '0 12 * * 3'
+    # Run every Friday; the job below keeps only every other Friday,
+    # anchored so the next scheduled update is 2026-06-26.
+    - cron: '0 12 * * 5'
   workflow_dispatch:
 
 jobs:
@@ -13,6 +13,15 @@ jobs:
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
+      - name: Cleanup runner
+        run: |
+          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1 || true
+          docker rmi $(docker image ls -aq) >/dev/null 2>&1 || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf "/usr/local/share/boost" || true
+          df -h
+
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
@@ -39,7 +48,7 @@ jobs:
         id: check-schedule
         if: github.event_name == 'schedule'
         run: |
-          REFERENCE_DATE="2026-06-24"
+          REFERENCE_DATE="2026-06-26"
           TODAY=$(date -u +%Y-%m-%d)
           DAYS_SINCE_REFERENCE=$(( ( $(date -u -d "$TODAY" +%s) - $(date -u -d "$REFERENCE_DATE" +%s) ) / 86400 ))
 
@@ -76,7 +85,7 @@ jobs:
           title: Update OTel Collector dependencies to v${{ steps.collector-update.outputs.OCB_VERSION}}
           body: This PR updates the dependencies of the OTel Collector to v${{ steps.collector-update.outputs.OCB_VERSION}} and generates the OTel Agent code.
           labels: team/opentelemetry-agent
-          draft: true
+          draft: false
 
       - name: Notify Slack on failure
         if: failure()

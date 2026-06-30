@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Disable v3beta metrics intake shadow payloads when zlib compression is used.

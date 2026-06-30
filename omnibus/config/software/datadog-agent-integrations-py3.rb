@@ -35,6 +35,7 @@ excluded_folders = [
   'datadog_checks_dev',            # Development package, (NOT AN INTEGRATION)
   'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
   'docker_daemon',                 # Agent v5 only
+  'tokumx',                        # py2-only, unsupported by current Agent
 ]
 
 if osx_target?
@@ -49,7 +50,6 @@ if arm_target?
   excluded_folders.push('ibm_mq')
 end
 
-final_constraints_file = 'final_constraints-py3.txt'
 agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
 agent_requirements_in = 'agent_requirements.in'
@@ -81,11 +81,11 @@ build do
     "PIP_CONFIG_FILE" => "#{pip_config_file}"
   }
 
-  # Install dependencies
-  command_on_repo_root "bazelisk run " \
-                       "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
-                       "--//:install_dir=#{install_dir} " \
-                       "-- //deps/agent_integrations:install_dependencies --destdir=#{install_dir}"
+  # Install integration dependencies, datadog-checks-base, and datadog-checks-downloader
+  command "bazel run " \
+          "--//packages/agent:flavor=#{ENV.fetch('AGENT_FLAVOR', 'base')} " \
+          "--//:install_dir=#{install_dir} " \
+          "-- //deps/agent_integrations:install --destdir=#{install_dir}"
 
   # Prepare build env for integrations
   wheel_build_dir = windows_safe_path(project_dir, ".wheels")
@@ -97,21 +97,9 @@ build do
     "PIP_CONFIG_FILE" => pip_config_file,
   }
 
-  # Install base and downloader packages
-  cwd_base = windows_safe_path(project_dir, "datadog_checks_base")
-  cwd_downloader = windows_safe_path(project_dir, "datadog_checks_downloader")
-  command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd_base
-  command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-  command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd_downloader
-  command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
-
   #
   # Install Core integrations
   #
-
-  # Create a constraint file after installing all the core dependencies and before any integration
-  # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
-  command "#{python} -m pip freeze > #{install_dir}/#{final_constraints_file}"
 
   if windows_target?
     cached_wheels_dir = "#{windows_safe_path(wheel_build_dir)}\\.cached"
@@ -123,7 +111,7 @@ build do
     tasks_dir_in = windows_safe_path(Dir.pwd)
     # Collect integrations to install
     checks_to_install = (
-      shellout! "dda inv -- agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
+      shellout! "dda inv -- agent.collect-integrations #{project_dir} #{os} #{excluded_folders.join(',')}",
                 :cwd => tasks_dir_in
     ).stdout.split()
     # Retrieving integrations from cache
@@ -220,10 +208,6 @@ build do
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   command "#{python} -m pip check"
-
-  # Removing tests that don't need to be shipped in the embedded folder
-  # This dependency doesn't come from the integrations-core lockfiles, so its tests need to be removed here
-  delete "#{site_packages_path}/../idlelib/idle_test/"
 
   unless windows_target?
     block "Remove .exe files" do

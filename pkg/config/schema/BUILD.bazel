@@ -68,7 +68,7 @@ run_binary(
 # Derive the "embedded" schema output from the merged schema: a variant trimmed
 # of build-time-only data (documentation strings, ...) so the compressed,
 # embedded artifact stays small and runtime RSS low. What the "embedded" output
-# strips is decided in tasks/schema/process_schema.py, not here.
+# strips is decided in tasks/schema/produce_byproduct.py, not here.
 run_binary(
     name = "embedded_core_schema",
     srcs = [":merged_core_schema"],
@@ -78,7 +78,7 @@ run_binary(
         "$(execpath :merged_core_schema)",
         "$@",
     ],
-    tool = "//tasks/schema:process_schema",
+    tool = "//tasks/schema:produce_byproduct",
 )
 
 # system-probe is a single-file schema (no $ref), so it is processed directly.
@@ -91,7 +91,7 @@ run_binary(
         "$(execpath yaml/system-probe_schema.yaml)",
         "$@",
     ],
-    tool = "//tasks/schema:process_schema",
+    tool = "//tasks/schema:produce_byproduct",
 )
 
 zstd_compress(

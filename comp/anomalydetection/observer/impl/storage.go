@@ -32,6 +32,21 @@ type StorageConfig struct {
 	// Points older than (latest timestamp - PointRetentionSecs) are trimmed
 	// on each Add. 0 disables trimming.
 	PointRetentionSecs int64
+
+	// MaxCorrelations caps how many unique correlation patterns are retained in
+	// the engine's accumulated-correlations map. 0 uses the built-in default
+	// (500). -1 disables the cap entirely (suitable for testbench replay where
+	// all patterns must be visible regardless of scenario length).
+	// Only meaningful when TrackCorrelationHistory is true.
+	MaxCorrelations int
+
+	// TrackCorrelationHistory enables the engine's accumulated-correlations map
+	// (accumulateCorrelations / AccumulatedCorrelations / CorrelationHistory).
+	// Default false — live production mode never reads this map, so the map
+	// write + eviction scan on every Advance is avoided. The testbench sets
+	// this to true alongside MaxCorrelations=-1 to retain the full history for
+	// replay analysis.
+	TrackCorrelationHistory bool
 }
 
 // DefaultStorageConfig returns the hard-coded production defaults.
@@ -40,6 +55,7 @@ func DefaultStorageConfig() StorageConfig {
 		MaxSeries:          storageMaxSeries,
 		EvictionFloorRatio: storageEvictionBandRatio,
 		PointRetentionSecs: storagePointRetentionSecs,
+		// TrackCorrelationHistory defaults to false: live agent incurs no overhead.
 	}
 }
 
@@ -268,7 +284,15 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		return AddResult{Ref: -1}
 	}
 	h := seriesKeyHash(namespace, name, tags)
-	canonTags := canonicalizeTags(tags)
+	// Skip the alloc when tags are already sorted. Both ingest paths (real metrics
+	// via prepareMetricIngest and virtual metrics via IngestLog) canonicalize before
+	// calling Add, so this fast path is hit on every normal call.
+	var canonTags []string
+	if tagsSorted(tags) {
+		canonTags = tags
+	} else {
+		canonTags = canonicalizeTags(tags)
+	}
 
 	stats, exists := s.series[h]
 	// Collision guard: verify full identity (namespace + name + sorted tags).
@@ -763,6 +787,21 @@ func (s *timeSeriesStorage) resolveByID(ref observer.SeriesRef) *seriesStats {
 		return nil
 	}
 	return s.seriesIDStats[ref]
+}
+
+// FindRefsByHashes returns the SeriesRef for each hash present in storage.
+// Uses the existing s.series hash map for O(1) per lookup; hashes with no
+// matching series are silently skipped.
+func (s *timeSeriesStorage) FindRefsByHashes(hashes map[uint64]struct{}) []observer.SeriesRef {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	refs := make([]observer.SeriesRef, 0, len(hashes))
+	for h := range hashes {
+		if stats := s.series[h]; stats != nil {
+			refs = append(refs, stats.ref)
+		}
+	}
+	return refs
 }
 
 // GetSeriesMeta returns the metadata for a series by its numeric ref.

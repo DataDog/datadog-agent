@@ -1,7 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
-
-# gazelle:dd_agent_go_test on
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
@@ -17,7 +14,6 @@ go_library(
         "store.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/impl",
-    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",
@@ -44,25 +40,25 @@ go_library(
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//comp/def",
-        "//comp/healthplatform/issues/admisconfig",
+        "//comp/healthplatform/issues/ad-misconfiguration",
         "//comp/healthplatform/store/def",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
+        "//pkg/flare",
         "//pkg/status/health",
         "//pkg/util/http",
         "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/retry",
         "//pkg/util/slices",
-        "@//pkg/flare",
-        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_cenkalti_backoff_v6//:backoff",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_mohae_deepcopy//:deepcopy",
     ],
 )
 
-dd_agent_go_test(
+go_test(
     name = "impl_test",
     srcs = [
         "autoconfig_cel_test.go",
@@ -76,6 +72,7 @@ dd_agent_go_test(
         "store_test.go",
     ],
     embed = [":impl"],
+    gotags = ["test"],
     tags = ["manual"],  # keep
     deps = [
         "//comp/core",
@@ -97,8 +94,9 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
-        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/issues/ad-misconfiguration",
         "//comp/healthplatform/store/mock",
+        "//comp/healthplatform/store/noop-impl",
         "//pkg/collector/check/id",
         "//pkg/config/mock",
         "//pkg/config/setup",
