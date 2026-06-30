@@ -68,6 +68,13 @@ const (
 	pathResume    = basePath + "resume"
 	pathTerminate = basePath + "terminate"
 
+	postReady     = "POST " + pathReady
+	postValidate  = "POST " + pathValidate
+	postLaunch    = "POST " + pathLaunch
+	postSuspend   = "POST " + pathSuspend
+	postResume    = "POST " + pathResume
+	postTerminate = "POST " + pathTerminate
+
 	// flushWorkerCount is the number of goroutines launched by flushAll:
 	// one each for the metric, trace, and logs flushers.
 	flushWorkerCount = 3
@@ -276,12 +283,12 @@ func (s *Server) Heartbeat() *Heartbeat { return s.heartbeat }
 
 func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc(pathReady, s.handleReady)
-	mux.HandleFunc(pathValidate, s.handleValidate)
-	mux.HandleFunc(pathLaunch, s.handleLaunch)
-	mux.HandleFunc(pathSuspend, s.handleSuspend)
-	mux.HandleFunc(pathResume, s.handleResume)
-	mux.HandleFunc(pathTerminate, s.handleTerminate)
+	mux.HandleFunc(postReady, s.handleReady)
+	mux.HandleFunc(postValidate, s.handleValidate)
+	mux.HandleFunc(postLaunch, s.handleLaunch)
+	mux.HandleFunc(postSuspend, s.handleSuspend)
+	mux.HandleFunc(postResume, s.handleResume)
+	mux.HandleFunc(postTerminate, s.handleTerminate)
 	return mux
 }
 
