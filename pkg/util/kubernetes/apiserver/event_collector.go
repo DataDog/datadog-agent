@@ -58,7 +58,9 @@ func (c *APIClient) NewEventCollector(filter string, bufferSize int) *EventColle
 // so the initial list after a restart forwards only events created since it,
 // rather than re-listing the whole retained backlog. Call before Start.
 func (ec *EventCollector) SetCheckpoint(rv string) {
-	ec.lastRV.Store(parseResourceVersion(rv))
+	parsed := parseResourceVersion(rv)
+	ec.lastRV.Store(parsed)
+	ec.maxDrainedRV.Store(parsed)
 }
 
 // Checkpoint returns the highest delivered resourceVersion, for persisting so a

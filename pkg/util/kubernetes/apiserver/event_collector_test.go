@@ -85,9 +85,10 @@ func TestCheckpoint(t *testing.T) {
 		assert.Equal(t, "9", ec.Checkpoint())
 	})
 
-	t.Run("SetCheckpoint seeds the relist watermark", func(t *testing.T) {
+	t.Run("SetCheckpoint seeds both lastRV and maxDrainedRV", func(t *testing.T) {
 		ec := makeCollector(10)
 		ec.SetCheckpoint("42")
 		assert.Equal(t, uint64(42), ec.lastRV.Load())
+		assert.Equal(t, "42", ec.Checkpoint())
 	})
 }
