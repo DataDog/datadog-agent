@@ -13,8 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
-	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
