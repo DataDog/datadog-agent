@@ -217,6 +217,38 @@ func TestUnmarshalTraceChunk(t *testing.T) {
 	})
 }
 
+// TestUnmarshalStringTableTruncated truncates a valid msgp-encoded string table at every
+// byte boundary and verifies each truncation surfaces a single well-formed error instead of
+// drifting across the buffer and producing misleading secondary errors.
+func TestUnmarshalStringTableTruncated(t *testing.T) {
+	var valid []byte
+	valid = msgp.AppendArrayHeader(valid, 3)
+	valid = msgp.AppendString(valid, "")
+	valid = msgp.AppendString(valid, "hello")
+	valid = msgp.AppendString(valid, "world")
+
+	for i := 0; i < len(valid); i++ {
+		truncated := valid[:i]
+		strings := NewStringTable()
+		_, err := unmarshalStringTable(truncated, strings)
+		assert.Error(t, err, "truncation at byte %d should error", i)
+		// The error must not panic when rendered.
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("panic calling err.Error() at truncation %d: %v", i, r)
+				}
+			}()
+			_ = err.Error()
+		}()
+	}
+
+	// The full valid buffer should decode cleanly.
+	strings := NewStringTable()
+	_, err := unmarshalStringTable(valid, strings)
+	assert.NoError(t, err)
+}
+
 // FuzzUnmarshalTracerPayloadErrorHandling verifies that any error returned from
 // UnmarshalMsg does not panic when Error() is called on it. This makes sure we don't ever return a wrapped error with an internal nil error.
 func FuzzUnmarshalTracerPayloadErrorHandling(f *testing.F) {

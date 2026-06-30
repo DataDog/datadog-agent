@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -19,15 +18,15 @@ import (
 func TestMaxEPSSampler(t *testing.T) {
 	for _, testCase := range []struct {
 		name               string
-		events             []*pb.Span
+		traceIDs           []uint64
 		maxEPS             float64
 		pastEPS            float64
 		expectedSampleRate float64
 		deltaPct           float64
 	}{
-		{"low", generateTestEvents(1000), 100, 50, 1., 0},
-		{"limit", generateTestEvents(1000), 100, 100, 1., 0},
-		{"overload", generateTestEvents(1000), 100, 150, 100. / 150., 0.2},
+		{"low", generateTestTraceIDs(1000), 100, 50, 1., 0},
+		{"limit", generateTestTraceIDs(1000), 100, 100, 1., 0},
+		{"overload", generateTestTraceIDs(1000), 100, 150, 100. / 150., 0.2},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			assert := assert.New(t)
@@ -40,8 +39,8 @@ func TestMaxEPSSampler(t *testing.T) {
 			testSampler.Start()
 
 			sampled := 0
-			for _, event := range testCase.events {
-				sample, rate := testSampler.Sample(event)
+			for _, traceID := range testCase.traceIDs {
+				sample, rate := testSampler.SampleV1(traceID)
 				if sample {
 					sampled++
 				}
@@ -50,17 +49,17 @@ func TestMaxEPSSampler(t *testing.T) {
 
 			testSampler.Stop()
 
-			assert.InDelta(testCase.expectedSampleRate, float64(sampled)/float64(len(testCase.events)), testCase.expectedSampleRate*testCase.deltaPct)
+			assert.InDelta(testCase.expectedSampleRate, float64(sampled)/float64(len(testCase.traceIDs)), testCase.expectedSampleRate*testCase.deltaPct)
 		})
 	}
 }
 
-func generateTestEvents(numEvents int) []*pb.Span {
-	testEvents := make([]*pb.Span, numEvents)
-	for i := range testEvents {
-		testEvents[i] = testutil.RandomSpan()
+func generateTestTraceIDs(count int) []uint64 {
+	traceIDs := make([]uint64, count)
+	for i := range traceIDs {
+		traceIDs[i] = testutil.RandomSpan().TraceID
 	}
-	return testEvents
+	return traceIDs
 }
 
 type MockRateCounter struct {

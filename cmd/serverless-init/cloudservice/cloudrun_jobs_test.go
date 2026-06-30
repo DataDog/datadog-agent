@@ -32,11 +32,17 @@ import (
 type mockTraceProcessor struct {
 	processCalled bool
 	lastPayload   *api.Payload
+	lastPayloadV1 *api.PayloadV1
 }
 
 func (m *mockTraceProcessor) Process(p *api.Payload) {
 	m.processCalled = true
 	m.lastPayload = p
+}
+
+func (m *mockTraceProcessor) ProcessV1(p *api.PayloadV1) {
+	m.processCalled = true
+	m.lastPayloadV1 = p
 }
 
 func (m *mockTraceProcessor) Flush() {
@@ -218,16 +224,19 @@ func TestCloudRunJobsSpanCreation(t *testing.T) {
 	assert.NotNil(t, jobs.jobSpan)
 	if jobs.jobSpan != nil {
 		// Service should fallback to job name since DD_SERVICE is not in tags
-		assert.Equal(t, "my-test-job", jobs.jobSpan.Service)
-		assert.Equal(t, "gcp.run.job.task", jobs.jobSpan.Name)
-		assert.Equal(t, "my-test-job", jobs.jobSpan.Resource)
-		assert.NotZero(t, jobs.jobSpan.TraceID)
-		assert.NotZero(t, jobs.jobSpan.SpanID)
-		assert.Equal(t, uint64(0), jobs.jobSpan.ParentID)
-		assert.NotNil(t, jobs.jobSpan.Meta)
-		assert.Equal(t, "cloudrunjobs", jobs.jobSpan.Meta["origin"])
+		assert.Equal(t, "my-test-job", jobs.jobSpan.Service())
+		assert.Equal(t, "gcp.run.job.task", jobs.jobSpan.Name())
+		assert.Equal(t, "my-test-job", jobs.jobSpan.Resource())
+		assert.NotEmpty(t, jobs.jobChunk.TraceID)
+		assert.NotZero(t, jobs.jobSpan.SpanID())
+		assert.Equal(t, uint64(0), jobs.jobSpan.ParentID())
+		origin, hasOrigin := jobs.jobSpan.GetAttributeAsString("origin")
+		assert.True(t, hasOrigin)
+		assert.Equal(t, "cloudrunjobs", origin)
 		// Verify _dd.measured=1 is set for stats computation
-		assert.Equal(t, float64(1), jobs.jobSpan.Metrics["_dd.measured"])
+		measured, hasMeasured := jobs.jobSpan.GetAttributeAsFloat64("_dd.measured")
+		assert.True(t, hasMeasured)
+		assert.Equal(t, float64(1), measured)
 	}
 }
 
@@ -248,8 +257,8 @@ func TestCloudRunJobsSpanServiceNameFallbackToJobName(t *testing.T) {
 
 	// Verify span falls back to job name for service name
 	require.NotNil(t, jobs.jobSpan)
-	assert.Equal(t, "my-job-name", jobs.jobSpan.Service)
-	assert.Equal(t, "my-job-name", jobs.jobSpan.Resource)
+	assert.Equal(t, "my-job-name", jobs.jobSpan.Service())
+	assert.Equal(t, "my-job-name", jobs.jobSpan.Resource())
 }
 
 func TestCloudRunJobsSpanServiceNameFromDDService(t *testing.T) {
@@ -268,9 +277,9 @@ func TestCloudRunJobsSpanServiceNameFromDDService(t *testing.T) {
 
 	// Verify span uses the DD_SERVICE value
 	require.NotNil(t, jobs.jobSpan)
-	assert.Equal(t, "my-custom-service", jobs.jobSpan.Service)
+	assert.Equal(t, "my-custom-service", jobs.jobSpan.Service())
 	// Resource should still use the job name
-	assert.Equal(t, "my-job-name", jobs.jobSpan.Resource)
+	assert.Equal(t, "my-job-name", jobs.jobSpan.Resource())
 }
 
 func TestCloudRunJobsSpanServiceNameFallbackToDefault(t *testing.T) {
@@ -288,8 +297,8 @@ func TestCloudRunJobsSpanServiceNameFallbackToDefault(t *testing.T) {
 
 	// Verify span falls back to default "gcp.run.job"
 	require.NotNil(t, jobs.jobSpan)
-	assert.Equal(t, "gcp.run.job", jobs.jobSpan.Service)
-	assert.Equal(t, "gcp.run.job", jobs.jobSpan.Resource)
+	assert.Equal(t, "gcp.run.job", jobs.jobSpan.Service())
+	assert.Equal(t, "gcp.run.job", jobs.jobSpan.Resource())
 }
 
 func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
@@ -313,14 +322,18 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
-	assert.NotNil(t, mockAgent.lastPayload)
+	assert.NotNil(t, mockAgent.lastPayloadV1)
 
 	// Verify span has error information
 	require.NotNil(t, jobs.jobSpan)
-	assert.Equal(t, int32(1), jobs.jobSpan.Error)
-	assert.Equal(t, "task failed", jobs.jobSpan.Meta["error.msg"])
-	assert.Equal(t, "1", jobs.jobSpan.Meta["exit_code"])
-	assert.NotZero(t, jobs.jobSpan.Duration)
+	assert.True(t, jobs.jobSpan.Error())
+	errorMsg, hasErrorMsg := jobs.jobSpan.GetAttributeAsString("error.msg")
+	assert.True(t, hasErrorMsg)
+	assert.Equal(t, "task failed", errorMsg)
+	exitCode, hasExitCode := jobs.jobSpan.GetAttributeAsString("exit_code")
+	assert.True(t, hasExitCode)
+	assert.Equal(t, "1", exitCode)
+	assert.NotZero(t, jobs.jobSpan.Duration())
 }
 
 func TestCloudRunJobsCompleteAndSubmitJobSpanSuccess(t *testing.T) {
@@ -343,13 +356,14 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanSuccess(t *testing.T) {
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
-	assert.NotNil(t, mockAgent.lastPayload)
+	assert.NotNil(t, mockAgent.lastPayloadV1)
 
 	// Verify span has no error
 	require.NotNil(t, jobs.jobSpan)
-	assert.Equal(t, int32(0), jobs.jobSpan.Error)
-	assert.NotContains(t, jobs.jobSpan.Meta, "error.msg")
-	assert.NotZero(t, jobs.jobSpan.Duration)
+	assert.False(t, jobs.jobSpan.Error())
+	_, hasErrorMsg := jobs.jobSpan.GetAttributeAsString("error.msg")
+	assert.False(t, hasErrorMsg)
+	assert.NotZero(t, jobs.jobSpan.Duration())
 }
 
 func TestCloudRunJobsCompleteAndSubmitJobSpanWithNilSpan(t *testing.T) {

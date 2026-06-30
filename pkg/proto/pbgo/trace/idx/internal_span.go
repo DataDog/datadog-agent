@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"maps"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -65,16 +64,6 @@ func (s *StringTable) Msgsize() int {
 		size += len(str)
 	}
 	return size
-}
-
-// Clone creates a deep copy of the string table.
-func (s *StringTable) Clone() *StringTable {
-	clone := &StringTable{
-		strings: append([]string{}, s.strings...),
-		lookup:  make(map[string]uint32, len(s.lookup)),
-	}
-	maps.Copy(clone.lookup, s.lookup)
-	return clone
 }
 
 // addUnchecked adds a string to the string table without checking for duplicates
@@ -823,48 +812,6 @@ func (s *Span) ShallowCopy() *Span {
 	}
 }
 
-// Clone creates a deep copy of the span so it can be used and modified independently of the original span
-func (s *Span) Clone() *Span {
-	// Deep copy the attributes map
-	newAttributes := make(map[uint32]*AnyValue, len(s.Attributes))
-	maps.Copy(newAttributes, s.Attributes)
-
-	// Deep copy the links slice
-	newLinks := make([]*SpanLink, len(s.Links))
-	copy(newLinks, s.Links)
-
-	// Deep copy the events slice
-	newEvents := make([]*SpanEvent, len(s.Events))
-	copy(newEvents, s.Events)
-
-	return &Span{
-		ServiceRef:   s.ServiceRef,
-		NameRef:      s.NameRef,
-		ResourceRef:  s.ResourceRef,
-		SpanID:       s.SpanID,
-		ParentID:     s.ParentID,
-		Start:        s.Start,
-		Duration:     s.Duration,
-		Error:        s.Error,
-		Attributes:   newAttributes,
-		TypeRef:      s.TypeRef,
-		Links:        newLinks,
-		Events:       newEvents,
-		EnvRef:       s.EnvRef,
-		VersionRef:   s.VersionRef,
-		ComponentRef: s.ComponentRef,
-		Kind:         s.Kind,
-	}
-}
-
-// Clone creates a deep copy of the span and string table so it can be used and modified independently of the original span
-func (s *InternalSpan) Clone() *InternalSpan {
-	return &InternalSpan{
-		Strings: s.Strings.Clone(),
-		span:    s.span.Clone(),
-	}
-}
-
 // DebugString returns a human readable string representation of the span
 func (s *InternalSpan) DebugString() string {
 	var sb strings.Builder
@@ -1258,6 +1205,39 @@ func (s *InternalSpan) MapFilteredAttributes(shouldMap func(k string) bool, mapp
 					StringValueRef: s.Strings.Add(newV),
 				},
 			}
+		}
+	}
+}
+
+// MapFilteredEventAttributes applies mapper to every span-event attribute whose key matches shouldMap.
+// Scalar values are passed as a single string; ArrayValues are iterated per element so array entries
+// can be inspected individually (mirroring the V0 span-event obfuscation). Replaced values are always
+// written back as string-typed AnyValues referencing the shared string table.
+func (s *InternalSpan) MapFilteredEventAttributes(shouldMap func(k string) bool, mapper func(k, v string) string) {
+	mapScalar := func(kStr string, v *AnyValue) *AnyValue {
+		vString := v.AsString(s.Strings)
+		newV := mapper(kStr, vString)
+		if newV == vString {
+			return v
+		}
+		return &AnyValue{Value: &AnyValue_StringValueRef{StringValueRef: s.Strings.Add(newV)}}
+	}
+	for _, event := range s.span.Events {
+		if event == nil {
+			continue
+		}
+		for k, v := range event.Attributes {
+			kStr := s.Strings.Get(k)
+			if !shouldMap(kStr) {
+				continue
+			}
+			if arr, ok := v.Value.(*AnyValue_ArrayValue); ok && arr.ArrayValue != nil {
+				for i, elem := range arr.ArrayValue.Values {
+					arr.ArrayValue.Values[i] = mapScalar(kStr, elem)
+				}
+				continue
+			}
+			event.Attributes[k] = mapScalar(kStr, v)
 		}
 	}
 }

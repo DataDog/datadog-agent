@@ -151,6 +151,7 @@ func unmarshalStringTable(bts []byte, strings *StringTable) (o []byte, err error
 		str, o, err = msgp.ReadStringBytes(o)
 		if err != nil {
 			err = msgp.WrapError(err, "Failed to read string")
+			return
 		}
 		if str == "" {
 			continue // Skip empty strings, we already have an empty string at index 0

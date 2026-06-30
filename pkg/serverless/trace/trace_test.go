@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -31,6 +31,25 @@ func setupTraceAgentTest(t *testing.T) {
 	t.Setenv("DD_RECEIVER_PORT", strconv.Itoa(port))
 	configmock.New(t) // fresh config so BuildSchema picks it up
 	require.Equal(t, port, pkgconfigsetup.Datadog().GetInt("apm_config.receiver_port"))
+}
+
+// createTestSpan is a helper to create an InternalSpan with string attributes for testing
+func createTestSpan(attrs map[string]string) *idx.InternalSpan {
+	st := idx.NewStringTable()
+	span := idx.NewInternalSpan(st, &idx.Span{})
+	for k, v := range attrs {
+		span.SetStringAttribute(k, v)
+	}
+	return span
+}
+
+func TestStartEnabledFalse(t *testing.T) {
+	setupTraceAgentTest(t)
+
+	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{})
+	defer agent.Stop()
+	assert.NotNil(t, agent)
+	assert.IsType(t, noopTraceAgent{}, agent)
 }
 
 type LoadConfigMocked struct {
@@ -80,48 +99,38 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 }
 
 func TestFilterSpanFromRuntimeHttpSpan(t *testing.T) {
-	httpSpanFromStatsD := pb.Span{
-		Meta: map[string]string{
-			"http.url": "http://127.0.0.1:8125/",
-		},
-	}
-	assert.True(t, filterSpan(&httpSpanFromStatsD))
+	httpSpanFromStatsD := createTestSpan(map[string]string{
+		"http.url": "http://127.0.0.1:8125/",
+	})
+	assert.True(t, filterSpan(httpSpanFromStatsD))
 }
 
 func TestFilterSpanFromRuntimeTcpSpan(t *testing.T) {
-	tcpSpanFromStatsD := pb.Span{
-		Meta: map[string]string{
-			"tcp.remote.host": "127.0.0.1",
-			"tcp.remote.port": "8125",
-		},
-	}
-	assert.True(t, filterSpan(&tcpSpanFromStatsD))
+	tcpSpanFromStatsD := createTestSpan(map[string]string{
+		"tcp.remote.host": "127.0.0.1",
+		"tcp.remote.port": "8125",
+	})
+	assert.True(t, filterSpan(tcpSpanFromStatsD))
 }
 
 func TestFilterSpanFromRuntimeDnsSpan(t *testing.T) {
-	dnsSpanFromLocalhostAddress := pb.Span{
-		Meta: map[string]string{
-			"dns.address": "127.0.0.1",
-		},
-	}
+	dnsSpanFromLocalhostAddress := createTestSpan(map[string]string{
+		"dns.address": "127.0.0.1",
+	})
 
-	dnsSpanFromNonRoutableAddress := pb.Span{
-		Meta: map[string]string{
-			"dns.address": "0.0.0.0",
-		},
-	}
-
-	assert.True(t, filterSpan(&dnsSpanFromLocalhostAddress))
-	assert.True(t, filterSpan(&dnsSpanFromNonRoutableAddress))
+	dnsSpanFromNonRoutableAddress := createTestSpan(map[string]string{
+		"dns.address": "0.0.0.0",
+	})
+	assert.True(t, filterSpan(dnsSpanFromLocalhostAddress))
+	assert.True(t, filterSpan(dnsSpanFromNonRoutableAddress))
 }
 
 func TestFilterSpanFromRuntimeLegitimateSpan(t *testing.T) {
-	legitimateSpan := pb.Span{
-		Meta: map[string]string{
-			"http.url": "http://www.datadoghq.com",
-		},
-	}
-	assert.False(t, filterSpan(&legitimateSpan))
+	legitimateSpan := createTestSpan(map[string]string{
+		"http.url": "http://www.datadoghq.com",
+	})
+
+	assert.False(t, filterSpan(legitimateSpan))
 }
 
 func TestGetDDOriginCloudServices(t *testing.T) {
@@ -155,7 +164,6 @@ func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			setupTraceAgentTest(t)
-
 			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 				Enabled:      true,
 				LoadConfig:   &LoadConfig{Path: "./testdata/valid.yml"},

@@ -16,9 +16,8 @@ import (
 	serverlessInitTrace "github.com/DataDog/datadog-agent/cmd/serverless-init/trace"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	idx "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,10 +50,12 @@ const (
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
 type CloudRunJobs struct {
-	startTime  time.Time
-	jobSpan    *pb.Span
-	traceAgent TraceAgent
-	spanTags   map[string]string // tags used for span creation (unified service tags + configured tags + cloud provider metadata)
+	startTime    time.Time
+	jobChunk     *idx.InternalTraceChunk
+	jobSpan      *idx.InternalSpan
+	traceAgent   TraceAgent
+	spanTags     map[string]string // tags used for span creation (unified service tags + configured tags + cloud provider metadata)
+	spanModifier *serverlessInitTrace.CloudRunJobsSpanModifier
 }
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
@@ -179,7 +180,7 @@ func isCloudRunJob() bool {
 	return exists
 }
 
-// initJobSpan creates and initializes the job span with Cloud Run Job metadata
+// initJobSpan creates and initializes the job span chunk with Cloud Run Job metadata
 func (c *CloudRunJobs) initJobSpan() {
 	tags := c.spanTags
 	jobNameVal := tags[jobNameTag]
@@ -200,24 +201,32 @@ func (c *CloudRunJobs) initJobSpan() {
 		resourceName = "gcp.run.job"
 	}
 
-	c.jobSpan = serverlessInitTrace.InitSpan(
+	// Use helper function to create the chunk with a single span
+	c.jobChunk = idx.NewInternalTraceChunkWithSpan(
 		serviceName,
 		"gcp.run.job.task",
 		resourceName,
 		"", // TODO add custom 'job' span type (requires UI changes)
+		0,  // parentID - top-level span
 		c.startTime.UnixNano(),
 		tags,
+		1,                  // priority
+		CloudRunJobsOrigin, // origin
 	)
-	traceutil.SetMeasured(c.jobSpan, true)
+
+	// Store reference to the span for later use
+	c.jobSpan = c.jobChunk.Spans[0]
+	c.jobSpan.SetFloat64Attribute("_dd.measured", 1.0)
 }
 
 // setSpanModifier sets up the span modifier to reparent user spans under the job span
 func (c *CloudRunJobs) setSpanModifier() {
-	if c.traceAgent == nil || c.jobSpan == nil {
+	if c.traceAgent == nil || c.jobChunk == nil || c.jobSpan == nil {
 		return
 	}
 
-	modifier := serverlessInitTrace.NewCloudRunJobsSpanModifier(c.jobSpan)
+	modifier := serverlessInitTrace.NewCloudRunJobsSpanModifier(c.jobChunk)
+	c.spanModifier = modifier
 	if ta, ok := c.traceAgent.(serverlessInitTrace.SpanModifierSetter); ok {
 		ta.SetSpanModifier(modifier)
 	}
@@ -225,18 +234,28 @@ func (c *CloudRunJobs) setSpanModifier() {
 
 // completeAndSubmitJobSpan finalizes the span with duration and error status, then submits it
 func (c *CloudRunJobs) completeAndSubmitJobSpan(runErr error) {
-	if c.jobSpan == nil {
+	if c.jobChunk == nil || c.jobSpan == nil {
 		return
 	}
 
-	c.jobSpan.Duration = time.Since(c.startTime).Nanoseconds()
+	// Set duration
+	duration := time.Since(c.startTime).Nanoseconds()
+	c.jobSpan.SetDuration(uint64(duration))
 
+	// Set error status if needed
 	if runErr != nil {
-		c.jobSpan.Error = 1
-		c.jobSpan.Meta["error.msg"] = runErr.Error()
+		c.jobSpan.SetError(true)
+		c.jobSpan.SetStringAttribute("error.msg", runErr.Error())
 		exitCode := exitcode.From(runErr)
-		c.jobSpan.Meta["exit_code"] = strconv.Itoa(exitCode)
+		c.jobSpan.SetStringAttribute("exit_code", strconv.Itoa(exitCode))
 	}
 
-	serverlessInitTrace.SubmitSpan(c.jobSpan, CloudRunJobsOrigin, c.traceAgent)
+	// Shut down the span modifier before submitting: any in-flight user-span ModifySpan calls
+	// drain through the modifier's mutex, and subsequent calls become no-ops, so the trace
+	// pipeline can safely read jobChunk fields (e.g. TraceID) without racing the writer.
+	if c.spanModifier != nil {
+		c.spanModifier.Shutdown()
+	}
+
+	serverlessInitTrace.SubmitSpan(c.jobChunk, CloudRunJobsOrigin, c.traceAgent)
 }

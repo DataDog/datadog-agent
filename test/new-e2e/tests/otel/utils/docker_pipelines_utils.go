@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	idx "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -54,39 +55,45 @@ func TestTracesDocker(s OTelDockerTestSuite) {
 			return
 		}
 		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		if !assert.NotEmpty(s.T(), trace.IdxTracerPayloads) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
+		tp := idx.FromProto(trace.IdxTracerPayloads[0])
 		if !assert.NotEmpty(s.T(), tp.Chunks) {
 			return
 		}
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service())
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
 
 	// Verify tags on traces and spans
-	tp := traces[0].TracerPayloads[0]
-	assert.Equal(s.T(), env, tp.Env)
-	assert.Equal(s.T(), version, tp.AppVersion)
+	tp := idx.FromProto(traces[0].IdxTracerPayloads[0])
+	assert.Equal(s.T(), env, tp.Env())
+	assert.Equal(s.T(), version, tp.AppVersion())
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(s.T(), CalendarService, sp.Service)
-		assert.Equal(s.T(), env, sp.Meta["env"])
-		assert.Equal(s.T(), version, sp.Meta["version"])
-		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
-		if sp.Meta["span.kind"] == "client" {
-			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
+		assert.Equal(s.T(), CalendarService, sp.Service())
+		assert.Equal(s.T(), env, sp.Env())
+		assert.Equal(s.T(), version, sp.Version())
+		customAttributeValue, ok := sp.GetAttributeAsString(customAttribute)
+		assert.True(s.T(), ok)
+		assert.Equal(s.T(), customAttributeValue, customAttributeValue)
+		if sp.Kind() == idx.SpanKind_SPAN_KIND_CLIENT {
+			libraryName, ok := sp.GetAttributeAsString("otel.library.name")
+			assert.True(s.T(), ok)
+			assert.Equal(s.T(), "calendar-rest-go", libraryName)
 		} else {
-			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
+			libraryName, ok := sp.GetAttributeAsString("otel.library.name")
+			assert.True(s.T(), ok)
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", libraryName)
 		}
-		assert.Equal(s.T(), traces[0].HostName, tp.Hostname)
+		assert.Equal(s.T(), traces[0].HostName, tp.Hostname())
 	}
 }
 

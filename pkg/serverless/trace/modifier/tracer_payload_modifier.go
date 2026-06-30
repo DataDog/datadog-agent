@@ -7,7 +7,7 @@
 package modifier
 
 import (
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,7 +32,7 @@ func NewTracerPayloadModifier(functionTags string) *TracerPayloadModifier {
 // Modify updates the tracer payload to include the `_dd.tags.function` tag in
 // its tags structure, containing the function tags that need to be applied to
 // the payload.
-func (t *TracerPayloadModifier) Modify(tp *pb.TracerPayload) {
+func (t *TracerPayloadModifier) Modify(tp *idx.InternalTracerPayload) {
 	// NOTE: our backend stats computation expects to find these function tags,
 	// and more importantly the host group, i.e. primary tags, as attributes in
 	// the root span meta. These tags are already being injected into all of
@@ -46,22 +46,22 @@ func (t *TracerPayloadModifier) Modify(tp *pb.TracerPayload) {
 // FunctionTags are applied to traces coming from serverless environments. They
 // are included in the trace payload under the `_dd.tags.function` tag and then
 // processed into trace tags for downstream systems as part of trace intake.
-func (t *TracerPayloadModifier) ensureFunctionTags(tp *pb.TracerPayload) {
+func (t *TracerPayloadModifier) ensureFunctionTags(tp *idx.InternalTracerPayload) {
 	if t.functionTags == "" {
 		return
 	}
 
-	if tp.Tags == nil {
-		tp.Tags = make(map[string]string)
+	if tp.Attributes == nil {
+		tp.Attributes = make(map[uint32]*idx.AnyValue)
 	}
 
-	if existingFunctionTags, ok := tp.Tags[tagFunctionTags]; ok && existingFunctionTags != t.functionTags {
+	if existingFunctionTags, ok := tp.GetAttributeAsString(tagFunctionTags); ok && existingFunctionTags != t.functionTags {
 		log.Debugf("The trace payload already has function tags '%v'. Replacing them with '%v'.",
 			existingFunctionTags,
 			t.functionTags,
 		)
 	}
 
-	tp.Tags[tagFunctionTags] = t.functionTags
-	log.Debugf("set function tags to %v", tp.Tags[tagFunctionTags])
+	tp.SetStringAttribute(tagFunctionTags, t.functionTags)
+	log.Debugf("set function tags to %v", t.functionTags)
 }

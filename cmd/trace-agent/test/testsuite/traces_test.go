@@ -6,7 +6,9 @@
 package testsuite
 
 import (
+	"bytes"
 	_ "embed"
+	"encoding/binary"
 	"slices"
 	"strings"
 	"testing"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -181,10 +184,11 @@ func TestTraces(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", v.TracerPayloads[0].Chunks[0].Spans[0].Resource)
-			for _, s := range v.TracerPayloads[0].Chunks[0].Spans {
-				assert.Len(t, s.Service, 100)
-				assert.Len(t, s.Name, 100)
+			internalPayload := idx.FromProto(v.IdxTracerPayloads[0])
+			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", internalPayload.Chunks[0].Spans[0].Resource())
+			for _, s := range internalPayload.Chunks[0].Spans {
+				assert.Len(t, s.Service(), 100)
+				assert.Len(t, s.Name(), 100)
 			}
 		})
 	})
@@ -209,10 +213,11 @@ func TestTraces(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", v.TracerPayloads[0].Chunks[0].Spans[0].Resource)
-			for _, s := range v.TracerPayloads[0].Chunks[0].Spans {
-				assert.Len(t, s.Service, 100)
-				assert.Len(t, s.Name, 100)
+			internalPayload := idx.FromProto(v.IdxTracerPayloads[0])
+			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", internalPayload.Chunks[0].Spans[0].Resource())
+			for _, s := range internalPayload.Chunks[0].Spans {
+				assert.Len(t, s.Service(), 100)
+				assert.Len(t, s.Name(), 100)
 			}
 		})
 	})
@@ -245,50 +250,63 @@ func TestTraces(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			assert.Len(t, v.TracerPayloads[0].Chunks[0].Spans[0].SpanEvents, 1)
-			spanEvent := v.TracerPayloads[0].Chunks[0].Spans[0].SpanEvents[0]
-			assert.Equal(t, "event-name", spanEvent.Name)
-			assert.NotZero(t, spanEvent.TimeUnixNano)
-			assert.Len(t, spanEvent.Attributes, 1)
-			assert.Equal(t, pb.AttributeAnyValue_AttributeAnyValueType(0), spanEvent.Attributes["key"].Type)
-			assert.Equal(t, "value", spanEvent.Attributes["key"].StringValue)
+			internalPayload := idx.FromProto(v.IdxTracerPayloads[0])
+			assert.Len(t, internalPayload.Chunks[0].Spans[0].Events(), 1)
+			spanEvent := internalPayload.Chunks[0].Spans[0].Events()[0]
+			assert.Equal(t, "event-name", spanEvent.Name())
+			assert.NotZero(t, spanEvent.Time())
+			assert.Len(t, spanEvent.Attributes(), 1)
+			spanEventAttr, ok := spanEvent.GetAttributeAsString("key")
+			assert.True(t, ok)
+			assert.Equal(t, "value", spanEventAttr)
 		})
 	})
 }
 
-// payloadsEqual validates that the traces in from are the same as the ones in to.
+// Check that the incoming traces are functionally equivalent to the outgoing traces
+// This check is not strict as the outgoing traces will be in the v1 format.
 func payloadsEqual(t *testing.T, from pb.Traces, to *pb.AgentPayload) {
 	got := 0
-	for _, tracerPayload := range to.TracerPayloads {
+	for _, tracerPayload := range to.IdxTracerPayloads {
 		got += len(tracerPayload.Chunks)
 	}
 	if want := len(from); want != got {
 		t.Fatalf("Expected %d traces, got %d", want, got)
 	}
+
 	var found int
 	for _, t1 := range from {
-		for _, tracerPayload := range to.TracerPayloads {
-			for _, t2 := range tracerPayload.Chunks {
-				if tracesEqual(t1, t2) {
+		for _, tracerPayload := range to.IdxTracerPayloads {
+			internalPayload := idx.FromProto(tracerPayload)
+			for _, t2 := range internalPayload.Chunks {
+				if tracesEqual(t, t1, t2) {
 					found++
 					break
 				}
 			}
 		}
 	}
-	if found != len(from) {
-		t.Fatalf("Failed to match traces")
-	}
 	// validate the reported sampling configuration
-	assert.Equal(t, to.TargetTPS, defaultAgentConfig.TargetTPS)
-	assert.Equal(t, to.ErrorTPS, defaultAgentConfig.ErrorTPS)
-	assert.Equal(t, to.RareSamplerEnabled, defaultAgentConfig.RareSamplerEnabled)
+	assert.Equal(t, defaultAgentConfig.TargetTPS, to.TargetTPS)
+	assert.Equal(t, defaultAgentConfig.ErrorTPS, to.ErrorTPS)
+	assert.Equal(t, defaultAgentConfig.RareSamplerEnabled, to.RareSamplerEnabled)
 }
 
 // tracesEqual reports whether from and to are equal traces. The latter is allowed
 // to contain additional tags.
-func tracesEqual(from pb.Trace, to *pb.TraceChunk) bool {
+func tracesEqual(t *testing.T, from pb.Trace, to *idx.InternalTraceChunk) bool {
 	if want, got := len(from), len(to.Spans); want != got {
+		return false
+	}
+	if len(from) == 0 {
+		return true
+	}
+	upper, lower, err := from[0].Get128BitTraceID()
+	assert.NoError(t, err)
+	traceID := make([]byte, 16)
+	binary.BigEndian.PutUint64(traceID[8:], lower)
+	binary.BigEndian.PutUint64(traceID[:8], upper)
+	if !bytes.Equal(traceID, to.TraceID) {
 		return false
 	}
 	var found int
@@ -305,36 +323,36 @@ func tracesEqual(from pb.Trace, to *pb.TraceChunk) bool {
 
 // spansEqual reports whether s1 and s2 are equal spans. s2 is permitted to have
 // tags not present in s1, but not the other way around.
-func spansEqual(s1, s2 *pb.Span) bool {
-	if s1.Name != s2.Name ||
-		s1.Service != s2.Service ||
+func spansEqual(s1 *pb.Span, s2 *idx.InternalSpan) bool {
+	if s1.Name != s2.Name() ||
+		s1.Service != s2.Service() ||
 		// obfuscation changes resource so we leave it out
 		// s1.Resource != s2.Resource ||
-		s1.TraceID != s2.TraceID ||
-		s1.SpanID != s2.SpanID ||
-		s1.ParentID != s2.ParentID ||
-		s1.Start != s2.Start ||
-		s1.Duration != s2.Duration ||
-		s1.Error != s2.Error ||
-		s1.Type != s2.Type {
+		s1.SpanID != s2.SpanID() ||
+		s1.ParentID != s2.ParentID() ||
+		uint64(s1.Start) != s2.Start() ||
+		uint64(s1.Duration) != s2.Duration() ||
+		s1.Type != s2.Type() {
 		return false
 	}
+	if s2.Error() {
+		if s1.Error != 1 {
+			return false
+		}
+	}
 	for k := range s1.Meta {
-		if _, ok := s2.Meta[k]; !ok {
+		if s2Val, ok := s2.GetAttributeAsString(k); !ok || s2Val != s1.Meta[k] {
 			return false
 		}
 	}
 	for k := range s1.Metrics {
-		if _, ok := s2.Metrics[k]; !ok {
+		if s2Val, ok := s2.GetAttributeAsFloat64(k); !ok || s2Val != s1.Metrics[k] {
 			return false
 		}
 	}
-	if len(s1.SpanEvents) != len(s2.SpanEvents) {
-		return false
-	}
 	for i, se := range s1.SpanEvents {
-		if se.Name != s2.SpanEvents[i].Name ||
-			se.TimeUnixNano != s2.SpanEvents[i].TimeUnixNano {
+		if se.Name != s2.Events()[i].Name() ||
+			se.TimeUnixNano != s2.Events()[i].Time() {
 			return false
 		}
 	}
