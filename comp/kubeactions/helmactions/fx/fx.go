@@ -20,7 +20,8 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		uberfx.Supply(helmactions.Params{}), // default; callers can override with their own fx.Supply higher up
+		// default; callers can override with their own fx.Supply higher up
+		uberfx.Supply(helmactions.Params{}),
 		// apiserver.GetAPIClient is a package-level singleton; providing it through
 		// fx lets the helmactions Requires struct receive it without callers having
 		// to wire it up explicitly.
