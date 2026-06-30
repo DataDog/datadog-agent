@@ -491,6 +491,32 @@ export function MetricsView({
           </div>
         </div>
 
+        {state.status?.baseline?.enabled && (
+          <div className="p-4 border-b border-slate-700">
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              Baseline analysis
+            </h2>
+            {state.status.baseline.active ? (
+              <div className="flex items-center gap-2 text-xs text-amber-400">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                <span>Window active · {Math.round(state.status.baseline.durationSec / 60)}m</span>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs text-slate-300">
+                  <span className="text-green-400">✓</span>
+                  <span>
+                    {(state.status.baseline.mutedSeries?.length ?? 0)} series muted from anomaly detection
+                  </span>
+                </div>
+                {(state.status.baseline.mutedSeries?.length ?? 0) > 0 && (
+                  <MutedSeriesList series={state.status.baseline.mutedSeries!} />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="p-4 border-b border-slate-700 space-y-3">
           <div>
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
@@ -916,6 +942,27 @@ export function MetricsView({
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function MutedSeriesList({ series }: { series: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const preview = series.slice(0, 3);
+  const rest = series.length - preview.length;
+  return (
+    <div className="text-xs text-slate-500 font-mono space-y-0.5 ml-4">
+      {(expanded ? series : preview).map((s) => (
+        <div key={s} className="truncate opacity-60" title={s}>{s}</div>
+      ))}
+      {!expanded && rest > 0 && (
+        <button
+          className="text-slate-400 hover:text-slate-200 transition-colors"
+          onClick={() => setExpanded(true)}
+        >
+          +{rest} more
+        </button>
+      )}
     </div>
   );
 }

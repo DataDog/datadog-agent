@@ -175,7 +175,7 @@ require (
 	golang.org/x/text v0.38.0
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.46.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -201,7 +201,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace v0.77.0
 	github.com/DataDog/datadog-go/v5 v5.8.3
-	github.com/DataDog/datadog-operator/api v0.0.0-20260515125012-8e158b708444
 	github.com/DataDog/dd-trace-go/v2 v2.8.2
 	github.com/DataDog/orchestrion v1.10.0
 	github.com/avast/retry-go/v4 v4.7.0
@@ -384,7 +383,6 @@ require (
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
-	sigs.k8s.io/controller-runtime v0.23.3 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )
@@ -490,7 +488,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface
