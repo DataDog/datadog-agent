@@ -14,7 +14,6 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -77,13 +76,7 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, map[uint64]string, error) 
 				}
 				res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
 			} else {
-				var subInode uint64
-				if info, infoErr := de.Info(); infoErr == nil {
-					if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-						subInode = stat.Ino
-					}
-				}
-				if subInode != 0 {
+				if subInode := inodeForPath(fullPath); subInode != unknownInode {
 					subInodes[subInode] = id
 				}
 			}
