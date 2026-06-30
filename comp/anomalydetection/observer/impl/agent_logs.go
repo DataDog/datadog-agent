@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"time"
 
@@ -64,6 +65,7 @@ func installAgentLogTap(handle observerdef.Handle, minSeverity string, maxRateHi
 			tags = append(tags, "component:"+name)
 		}
 		tags = append(tags, "level:"+strings.ToLower(level.String()))
+		slices.Sort(tags)
 		if !rules.IsAllowed(agentLogSource, tags) {
 			return
 		}
