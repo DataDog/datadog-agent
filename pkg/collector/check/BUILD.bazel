@@ -12,6 +12,7 @@ go_library(
         "metadata.go",
         "retry.go",
         "shadow.go",
+        "unwrap.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/check",
     visibility = ["//visibility:public"],

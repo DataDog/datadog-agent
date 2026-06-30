@@ -17,10 +17,6 @@ type shadowMarker interface {
 	isShadowCheck()
 }
 
-type checkUnwrapper interface {
-	Unwrap() Check
-}
-
 // ShadowCheck wraps a normally loaded check so collector plumbing can route it
 // through the shadow execution path without changing the base Check interface.
 type ShadowCheck struct {
@@ -58,28 +54,6 @@ func (c *ShadowCheck) Unwrap() Check {
 }
 
 func (*ShadowCheck) isShadowCheck() {}
-
-// As finds the first check in c's unwrap chain that implements T.
-func As[T any](c Check) (T, bool) {
-	var zero T
-	for c != nil {
-		if typed, ok := any(c).(T); ok {
-			return typed, true
-		}
-
-		unwrapper, ok := c.(checkUnwrapper)
-		if !ok {
-			return zero, false
-		}
-
-		next := unwrapper.Unwrap()
-		if next == nil || next == c {
-			return zero, false
-		}
-		c = next
-	}
-	return zero, false
-}
 
 // IsShadow returns true when c is a shadow check wrapper.
 func IsShadow(c Check) bool {
