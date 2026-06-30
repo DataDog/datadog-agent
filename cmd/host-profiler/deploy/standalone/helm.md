@@ -28,7 +28,7 @@ Before deploying, update the provided Helm values files for your environment. Th
    - Set `DD_SITE` if your Datadog site is not `datadoghq.com`. See [Datadog sites](https://docs.datadoghq.com/getting_started/site/).
    - Adapt the `DD_API_KEY` secret reference if you do not use the example `datadog-secret` Kubernetes Secret.
    - To use another Datadog container registry, replace the `registry.datadoghq.com` prefix in the Host Profiler image with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
-   - Review the remaining pod settings, including resource limits. For all supported values, see the [OpenTelemetry Collector Helm chart values](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml). For more details on resource configuration, see [Resource requests and limits](../faq.md).
+   - Review the remaining pod settings, including resource requests and limits. For all supported values, see the [OpenTelemetry Collector Helm chart values](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml). For more details on resource configuration, see [Resource requests and limits](../faq.md#how-do-i-configure-resource-requests-and-limits).
 
 2. In [`helm/collector-config-values.yaml`](helm/collector-config-values.yaml):
    - Review the OpenTelemetry Collector pipelines and Datadog export configuration.
