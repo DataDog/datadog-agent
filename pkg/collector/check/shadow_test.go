@@ -26,13 +26,23 @@ func TestNewShadowCheckOverridesIdentityAndInterval(t *testing.T) {
 		interval: 15 * time.Second,
 	}
 
-	shadow := NewShadowCheck(inner, ShadowID(checkid.ID("cpu:abc123")), time.Second)
+	shadow := NewShadowCheck(inner, time.Second)
 
 	require.True(t, IsShadow(shadow))
 	assert.False(t, IsShadow(inner))
 	assert.Equal(t, checkid.ID("cpu:abc123:shadow"), shadow.ID())
 	assert.Equal(t, time.Second, shadow.Interval())
 	assert.Same(t, inner, shadow.Unwrap())
+}
+
+func TestShadowCheckIDTracksInnerCheckID(t *testing.T) {
+	inner := &recordingCheck{id: checkid.ID("cpu:abc123")}
+	shadow := NewShadowCheck(inner, time.Second)
+
+	assert.Equal(t, checkid.ID("cpu:abc123:shadow"), shadow.ID())
+
+	inner.id = checkid.ID("cpu:def456")
+	assert.Equal(t, checkid.ID("cpu:def456:shadow"), shadow.ID())
 }
 
 func TestShadowCheckDelegatesInnerCheckBehavior(t *testing.T) {
@@ -56,7 +66,7 @@ func TestShadowCheckDelegatesInnerCheckBehavior(t *testing.T) {
 		diagnoses:        expectedDiagnoses,
 	}
 
-	shadow := NewShadowCheck(inner, checkid.ID("cpu:abc123:shadow"), time.Second)
+	shadow := NewShadowCheck(inner, time.Second)
 
 	assert.Equal(t, expectedErr, shadow.Run())
 	shadow.Stop()
@@ -98,7 +108,7 @@ func TestShadowIDAppendsShadowSuffix(t *testing.T) {
 func TestShadowCheckForwardsIssueReporter(t *testing.T) {
 	reporter := &recordingIssueReporter{}
 	inner := &issueAwareRecordingCheck{}
-	shadow := NewShadowCheck(inner, ShadowID(checkid.ID("cpu:abc123")), time.Second)
+	shadow := NewShadowCheck(inner, time.Second)
 
 	shadow.SetIssueReporter(reporter)
 

@@ -27,15 +27,13 @@ type checkUnwrapper interface {
 type ShadowCheck struct {
 	Check
 
-	id       checkid.ID
 	interval time.Duration
 }
 
 // NewShadowCheck wraps inner with shadow identity and interval overrides.
-func NewShadowCheck(inner Check, id checkid.ID, interval time.Duration) *ShadowCheck {
+func NewShadowCheck(inner Check, interval time.Duration) *ShadowCheck {
 	return &ShadowCheck{
 		Check:    inner,
-		id:       id,
 		interval: interval,
 	}
 }
@@ -47,7 +45,7 @@ func ShadowID(sourceID checkid.ID) checkid.ID {
 
 // ID returns the shadow check ID.
 func (c *ShadowCheck) ID() checkid.ID {
-	return c.id
+	return c.Check.ID() + shadowIDSuffix
 }
 
 // Interval returns the shadow collection interval.

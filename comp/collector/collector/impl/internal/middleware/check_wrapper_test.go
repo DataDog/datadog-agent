@@ -13,7 +13,6 @@ import (
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/assert"
@@ -81,7 +80,7 @@ func TestCheckWrapperInjectsIssueReporter(t *testing.T) {
 func TestCheckWrapperInjectsIssueReporterThroughShadowCheck(t *testing.T) {
 	reporter := &mockIssueReporter{}
 	inner := &issueAwareCheck{}
-	shadow := check.NewShadowCheck(inner, check.ShadowID(checkid.ID("mock_check:abc123")), 0)
+	shadow := check.NewShadowCheck(inner, 0)
 
 	wrapper := NewCheckWrapper(
 		shadow,
@@ -139,7 +138,7 @@ func TestCheckWrapperCreatesSpan(t *testing.T) {
 
 func TestCheckWrapperPreservesShadowIdentity(t *testing.T) {
 	inner := &mockCheck{}
-	shadow := check.NewShadowCheck(inner, check.ShadowID(checkid.ID("mock_check:abc123")), 0)
+	shadow := check.NewShadowCheck(inner, 0)
 
 	wrapper := NewCheckWrapper(
 		shadow,
