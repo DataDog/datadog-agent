@@ -40,6 +40,13 @@ __attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple
 
     bpf_probe_read(&flow->saddr, sizeof(flow->saddr), &tuple->src.u3.all);
     bpf_probe_read(&flow->daddr, sizeof(flow->daddr), &tuple->dst.u3.all);
+
+    // The conntrack map key is the whole namespaced_flow_t, so l3_protocol/l4_protocol must be filled
+    // the same way parse_packet fills pkt->ns_flow. Otherwise the stored key (proto 0) never matches
+    // the lookup key (ETH_P_IP/IPPROTO_TCP) and NAT translations (e.g. SNAT/masquerade source-port
+    // rewrites) are never reversed on the ingress path.
+    flow->l4_protocol = tuple->dst.protonum;
+    flow->l3_protocol = (tuple->src.l3num == AF_INET6) ? ETH_P_IPV6 : ETH_P_IP;
 }
 
 __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *skb, int direction) {
