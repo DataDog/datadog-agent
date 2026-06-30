@@ -34,6 +34,16 @@ namespace Datadog.CustomActions
         private Dictionary<string, string> InstallerEnvironmentVariables()
         {
             var env = new Dictionary<string, string>();
+            var projectLocation = _session.Property("PROJECTLOCATION");
+            if (!string.IsNullOrEmpty(projectLocation))
+            {
+                env["DD_PROJECTLOCATION"] = projectLocation;
+            }
+            var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
+            if (!string.IsNullOrEmpty(configRoot))
+            {
+                env["DD_APPLICATIONDATADIRECTORY"] = configRoot;
+            }
             var registryProps = new[]
             {
                 // registry props
