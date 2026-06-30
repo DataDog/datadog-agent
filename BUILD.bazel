@@ -120,7 +120,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/metadata/inventorychecks/fx
 # gazelle:exclude comp/metadata/inventorychecks/impl
 # gazelle:exclude comp/ndmtmp/*.go
-# gazelle:exclude comp/netflow/flowaggregator
 # gazelle:exclude comp/netflow/server/fx
 # gazelle:exclude comp/netflow/server/impl
 # gazelle:exclude comp/otelcol/collector/fx-pipeline
