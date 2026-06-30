@@ -141,7 +141,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/process/status/fx
 # gazelle:exclude comp/process/status/impl
 # gazelle:exclude comp/process/submitter
-# gazelle:exclude comp/process/types
 # gazelle:exclude comp/systray/systray/fx
 # gazelle:exclude comp/systray/systray/impl
 # gazelle:exclude pkg/cli/subcommands/autoscalerlist
