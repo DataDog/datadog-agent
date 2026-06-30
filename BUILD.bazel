@@ -65,7 +65,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/cluster-agent/subcommands/autoscalerlist
 # gazelle:exclude cmd/cluster-agent/subcommands/check
 # gazelle:exclude cmd/cluster-agent/subcommands/compliance
-# gazelle:exclude cmd/cluster-agent/subcommands/configcheck
 # gazelle:exclude cmd/cluster-agent/subcommands/flare
 # gazelle:exclude cmd/cluster-agent/subcommands/start
 # gazelle:exclude cmd/cluster-agent-cloudfoundry
