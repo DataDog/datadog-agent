@@ -9,6 +9,11 @@ exporters:
         profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 processors:
     ddhostname/dd-autoconfigured: {}
+    resource/dd-autoconfigured-container-attribute:
+        attributes:
+            - action: insert
+              key: container.id
+              value: user-defined-value
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -43,9 +48,3 @@ service:
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling
-    telemetry:
-        metrics:
-            readers:
-                - pull:
-                    exporter:
-                        prometheus: {}
