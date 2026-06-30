@@ -127,11 +127,11 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 	}
 	tsMillis := ts.UnixNano() / nanoToMillis
 
-	if err := msg.EnsureRendered(); err != nil {
+	content, err := msg.RenderMessage()
+	if err != nil {
 		return fmt.Errorf("can't render the message: %v", err)
 	}
 
-	content := msg.GetContent()
 	status := msg.GetStatus()
 	service := msg.Origin.Service()
 	source := msg.Origin.Source()

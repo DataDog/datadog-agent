@@ -425,16 +425,36 @@ func TestEncoderToValidUTF8(t *testing.T) {
 }
 
 func TestPassthroughEncoder(t *testing.T) {
-	logsConfig := &config.LogsConfig{}
-	source := sources.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", &config.LogsConfig{})
 
-	content := []byte("hello world")
-	msg := newMessage(content, source, message.StatusInfo)
-	msg.State = message.StateRendered
+	t.Run("unstructured rendered message is preserved", func(t *testing.T) {
+		msg := newMessage([]byte("hello world"), source, message.StatusInfo)
+		msg.State = message.StateRendered
 
-	err := PassthroughEncoder.Encode(msg, "any-host")
-	assert.Nil(t, err)
-	assert.Equal(t, "hello world", string(msg.GetContent()))
+		err := PassthroughEncoder.Encode(msg, "any-host")
+		assert.Nil(t, err)
+		assert.Equal(t, "hello world", string(msg.GetContent()))
+	})
+
+	// Regression: a structured message must be rendered before being passed
+	// through, otherwise only the inner message body (not the full structured
+	// payload) reaches the consumer.
+	t.Run("structured message emits full rendered payload", func(t *testing.T) {
+		sc := &message.BasicStructuredContent{Data: map[string]interface{}{
+			"message": "hello world",
+			"syslog":  map[string]interface{}{"app": "myapp"},
+		}}
+		msg := message.NewStructuredMessage(sc, message.NewOrigin(source), message.StatusInfo, 0)
+
+		err := PassthroughEncoder.Encode(msg, "any-host")
+		assert.Nil(t, err)
+
+		encoded := string(msg.GetContent())
+		assert.Contains(t, encoded, `"message":"hello world"`)
+		assert.Contains(t, encoded, `"syslog"`)
+		assert.Contains(t, encoded, `"app":"myapp"`)
+		assert.NotEqual(t, "hello world", encoded, "passthrough dropped the structured envelope")
+	})
 }
 
 func BenchmarkJSONEncoder_Encode(b *testing.B) {

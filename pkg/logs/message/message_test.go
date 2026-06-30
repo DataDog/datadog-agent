@@ -319,25 +319,29 @@ func TestGetStructuredAttribute_EscapedDotInKey(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// EnsureRendered
+// RenderMessage
 // ---------------------------------------------------------------------------
 
-func TestEnsureRendered(t *testing.T) {
+func TestRenderMessage(t *testing.T) {
 	t.Run("unstructured promotes state", func(t *testing.T) {
 		msg := NewMessage([]byte("raw"), nil, "", 0)
 		assert.Equal(t, StateUnstructured, msg.State)
 
-		require.NoError(t, msg.EnsureRendered())
+		rendered, err := msg.RenderMessage()
+		require.NoError(t, err)
 		assert.Equal(t, StateRendered, msg.State)
+		assert.Equal(t, "raw", string(rendered))
 		assert.Equal(t, "raw", string(msg.GetContent()))
 	})
 
-	t.Run("already rendered is no-op", func(t *testing.T) {
+	t.Run("already rendered returns cached bytes", func(t *testing.T) {
 		msg := NewMessage([]byte("data"), nil, "", 0)
 		msg.SetRendered([]byte("rendered"))
 
-		require.NoError(t, msg.EnsureRendered())
+		rendered, err := msg.RenderMessage()
+		require.NoError(t, err)
 		assert.Equal(t, StateRendered, msg.State)
+		assert.Equal(t, "rendered", string(rendered))
 		assert.Equal(t, "rendered", string(msg.GetContent()))
 	})
 
@@ -345,16 +349,21 @@ func TestEnsureRendered(t *testing.T) {
 		msg := NewMessage([]byte("data"), nil, "", 0)
 		msg.SetEncoded([]byte("encoded"))
 
-		require.Error(t, msg.EnsureRendered())
+		_, err := msg.RenderMessage()
+		require.Error(t, err)
 	})
 
-	t.Run("structured renders", func(t *testing.T) {
+	t.Run("structured renders full payload", func(t *testing.T) {
 		sc := &BasicStructuredContent{Data: map[string]interface{}{"message": "hello"}}
 		msg := NewStructuredMessage(sc, nil, "", 0)
 		assert.Equal(t, StateStructured, msg.State)
 
-		require.NoError(t, msg.EnsureRendered())
+		rendered, err := msg.RenderMessage()
+		require.NoError(t, err)
 		assert.Equal(t, StateRendered, msg.State)
-		assert.Contains(t, string(msg.GetContent()), `"message":"hello"`)
+		// RenderMessage returns the full rendered payload, not just the
+		// inner message body returned by GetContent on structured content.
+		assert.Contains(t, string(rendered), `"message":"hello"`)
+		assert.Equal(t, string(rendered), string(msg.GetContent()))
 	})
 }

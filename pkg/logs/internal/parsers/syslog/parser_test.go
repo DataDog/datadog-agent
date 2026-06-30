@@ -121,7 +121,7 @@ func TestSyslogParser_NonSyslogText(t *testing.T) {
 			// The entire input is preserved as the structured message body.
 			assert.Equal(t, line, string(result.GetContent()))
 
-			rendered, rerr := result.Render()
+			rendered, rerr := result.RenderMessage()
 			require.NoError(t, rerr)
 			assert.Contains(t, string(rendered), `"message"`)
 			assert.Contains(t, string(rendered), `"syslog"`)
@@ -137,7 +137,7 @@ func TestSyslogParser_RenderedContent_RFC5424(t *testing.T) {
 	require.NoError(t, err)
 
 	// Render should produce valid JSON with message and syslog fields
-	rendered, err := result.Render()
+	rendered, err := result.RenderMessage()
 	require.NoError(t, err)
 	assert.Contains(t, string(rendered), `"message"`)
 	assert.Contains(t, string(rendered), `"syslog"`)
@@ -177,7 +177,7 @@ func TestSyslogParser_CEF_RFC5424(t *testing.T) {
 	assert.Equal(t, `<14>1 2026-03-30T12:00:00Z firewall01 CEF - - - CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232`, string(result.GetContent()))
 
 	// Render and verify JSON structure
-	rendered, err := result.Render()
+	rendered, err := result.RenderMessage()
 	require.NoError(t, err)
 
 	var data map[string]interface{}
@@ -219,7 +219,7 @@ func TestSyslogParser_CEF_BSD(t *testing.T) {
 
 	assert.Equal(t, "<34>Oct 11 22:14:15 myhost CEF: CEF:0|Vendor|Product|1.0|200|Attack|8|src=1.2.3.4", string(result.GetContent()))
 
-	rendered, err := result.Render()
+	rendered, err := result.RenderMessage()
 	require.NoError(t, err)
 
 	var data map[string]interface{}
@@ -242,7 +242,7 @@ func TestSyslogParser_LEEF10_RFC5424(t *testing.T) {
 
 	assert.Equal(t, message.StateStructured, result.State)
 
-	rendered, err := result.Render()
+	rendered, err := result.RenderMessage()
 	require.NoError(t, err)
 
 	var data map[string]interface{}
@@ -278,7 +278,7 @@ func TestSyslogParser_LEEF20_CustomDelimiter(t *testing.T) {
 	result, err := parser.Parse(input)
 	require.NoError(t, err)
 
-	rendered, err := result.Render()
+	rendered, err := result.RenderMessage()
 	require.NoError(t, err)
 
 	var data map[string]interface{}
@@ -305,7 +305,7 @@ func TestSyslogParser_NonCEFLEEF_Unchanged(t *testing.T) {
 	result, err := parser.Parse(input)
 	require.NoError(t, err)
 
-	rendered, err := result.Render()
+	rendered, err := result.RenderMessage()
 	require.NoError(t, err)
 
 	var data map[string]interface{}
@@ -325,7 +325,7 @@ func TestSyslogParser_CEF_EscapedPipesInHeader(t *testing.T) {
 	result, err := parser.Parse(input)
 	require.NoError(t, err)
 
-	rendered, err := result.Render()
+	rendered, err := result.RenderMessage()
 	require.NoError(t, err)
 
 	var data map[string]interface{}
@@ -344,7 +344,7 @@ func TestSyslogParser_CEF_ExtensionWithSpacesInValue(t *testing.T) {
 	result, err := parser.Parse(input)
 	require.NoError(t, err)
 
-	rendered, err := result.Render()
+	rendered, err := result.RenderMessage()
 	require.NoError(t, err)
 
 	var data map[string]interface{}
@@ -367,7 +367,7 @@ func TestSyslogParser_SIEMParsingDisabled(t *testing.T) {
 	result, err := parser.Parse(input)
 	require.NoError(t, err)
 
-	rendered, err := result.Render()
+	rendered, err := result.RenderMessage()
 	require.NoError(t, err)
 
 	// Raw passthrough: the full original line is emitted verbatim with no
@@ -384,7 +384,7 @@ func TestSyslogParser_MalformedSyslogDoesNotExtractSIEM(t *testing.T) {
 	result, err := parser.Parse(input)
 	require.Error(t, err)
 
-	rendered, rerr := result.Render()
+	rendered, rerr := result.RenderMessage()
 	require.NoError(t, rerr)
 	assert.Contains(t, string(rendered), `"message"`)
 	assert.NotContains(t, string(rendered), `"siem"`)

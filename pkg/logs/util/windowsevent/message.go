@@ -6,6 +6,7 @@
 package windowsevent
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -46,11 +47,28 @@ func (m *Message) SetContent(content []byte) {
 	_ = m.data.SetMessage(string(content))
 }
 
-// GetAttribute retrieves a dot-delimited attribute. Windows Event Log messages
-// do not expose attribute lookups (used by syslog source remapping), so this
-// always returns ("", false).
-func (m *Message) GetAttribute(string) (string, bool) {
-	return "", false
+// GetAttribute retrieves a dot-delimited attribute from the underlying Windows
+// Event Log map (e.g. "Event.System.EventID", "Event.System.Provider.Name" or
+// the Datadog-added "level"). It is used by source-remapping rules to match on
+// structured fields. Returns the string value and true when the path resolves
+// to a scalar, or ("", false) when the path is missing or points at a subtree.
+func (m *Message) GetAttribute(path string) (string, bool) {
+	values, err := m.data.Map.ValuesForPath(path)
+	if err != nil || len(values) == 0 {
+		return "", false
+	}
+	switch v := values[0].(type) {
+	case string:
+		return v, true
+	case int:
+		return strconv.Itoa(v), true
+	case float64:
+		return strconv.FormatFloat(v, 'g', -1, 64), true
+	case bool:
+		return strconv.FormatBool(v), true
+	default:
+		return "", false
+	}
 }
 
 // Checks at the beginning and end of string for truncated flag

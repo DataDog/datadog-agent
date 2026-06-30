@@ -553,7 +553,7 @@ func TestStructuredMessagePreserved(t *testing.T) {
 			t.Fatalf("expected StateStructured (%d), got state %d", message.StateStructured, msg.State)
 		}
 
-		rendered, err := msg.Render()
+		rendered, err := msg.RenderMessage()
 		if err != nil {
 			t.Fatalf("failed to render structured message: %v", err)
 		}

@@ -27,7 +27,7 @@ func NewRawEncoder(useContainerTimestamp bool) Encoder {
 }
 
 func (r *rawEncoder) Encode(msg *message.Message, hostname string) error {
-	rendered, err := msg.Render()
+	rendered, err := msg.RenderMessage()
 	if err != nil {
 		return fmt.Errorf("can't render the message: %v", err)
 	}

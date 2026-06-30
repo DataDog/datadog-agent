@@ -75,14 +75,11 @@ func BenchmarkRender(b *testing.B) {
 				"syslog":  syslogparser.BuildSyslogFields(&parsed),
 			},
 		}
-		source := sources.NewLogSource("bench", &config.LogsConfig{})
-		origin := message.NewOrigin(source)
-		msg := message.NewStructuredMessage(sc, origin, syslogparser.SeverityToStatus(parsed.Pri), time.Now().UnixNano())
 		b.Run(tc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, err := msg.Render()
+				_, err := sc.Render()
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -107,14 +104,11 @@ func BenchmarkRenderNew(b *testing.B) {
 	} {
 		parsed, _ := syslogparser.Parse(tc.msg)
 		sc := syslogparser.NewSyslogStructuredContent(parsed)
-		source := sources.NewLogSource("bench", &config.LogsConfig{})
-		origin := message.NewOrigin(source)
-		msg := message.NewStructuredMessage(sc, origin, syslogparser.SeverityToStatus(parsed.Pri), time.Now().UnixNano())
 		b.Run(tc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, err := msg.Render()
+				_, err := sc.Render()
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -197,7 +191,7 @@ func BenchmarkEncodeViaProcessor(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				msg := message.NewStructuredMessage(sc, origin, syslogparser.SeverityToStatus(parsed.Pri), time.Now().UnixNano())
-				if err := msg.EnsureRendered(); err != nil {
+				if _, err := msg.RenderMessage(); err != nil {
 					b.Fatal(err)
 				}
 				if err := processor.JSONEncoder.Encode(msg, "myhost"); err != nil {

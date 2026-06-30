@@ -247,28 +247,34 @@ func (m *MessageContent) SetEncoded(content []byte) {
 	m.State = StateEncoded
 }
 
-// EnsureRendered prepares the message for encoding. For structured messages
-// it calls Render()+SetRendered(). For unstructured messages it simply
-// promotes the state to StateRendered. Already-rendered messages are left
-// unchanged. Returns an error if the message is already encoded.
-func (m *MessageContent) EnsureRendered() error {
+// RenderMessage renders the message into its transport-ready bytes, caches the
+// result, and advances the state to StateRendered. It is idempotent: calling it
+// on an already-rendered message returns the cached bytes without re-rendering;
+// calling it on an already-encoded message returns an error.
+//
+// Unlike GetContent (which, for structured content, returns only the inner
+// message body for processing/scrubbing), RenderMessage always returns the full
+// rendered payload. Encoders must use RenderMessage rather than GetContent to
+// obtain the bytes to encode.
+func (m *MessageContent) RenderMessage() ([]byte, error) {
 	switch m.State {
-	case StateRendered:
-		return nil
 	case StateEncoded:
-		return errors.New("cannot render an already-encoded message")
+		return nil, errors.New("cannot render an already-encoded message")
+	case StateRendered:
+		return m.content, nil
 	case StateUnstructured:
 		m.State = StateRendered
-		return nil
+		return m.content, nil
 	case StateStructured:
 		rendered, err := m.structuredContent.Render()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		m.SetRendered(rendered)
-		return nil
+		return m.content, nil
+	default:
+		return nil, errors.New("unknown message state for rendering")
 	}
-	return nil
 }
 
 // ParsingExtra ships extra information parsers want to make available
@@ -353,27 +359,6 @@ func NewStructuredMessageWithParsingExtra(content StructuredContent, origin *Ori
 	msg := NewStructuredMessage(content, origin, status, ingestionTimestamp)
 	msg.ParsingExtra.IsTruncated = isTruncated
 	return msg
-}
-
-// Render renders the message.
-// The only state in which this call is changing the content for a StateStructured message.
-func (m *Message) Render() ([]byte, error) {
-	switch m.State {
-	case StateUnstructured:
-		return m.content, nil
-	case StateStructured:
-		data, err := m.MessageContent.structuredContent.Render()
-		if err != nil {
-			return nil, err
-		}
-		return data, nil
-	case StateRendered:
-		return m.content, nil
-	case StateEncoded:
-		return m.content, errors.New("render call on an encoded message")
-	default:
-		return m.content, errors.New("unknown message state for rendering")
-	}
 }
 
 // Methods implementing observer.LogView for read-only observation.

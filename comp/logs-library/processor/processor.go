@@ -193,15 +193,15 @@ func (p *Processor) processMessage(msg *message.Message) {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
 
-		// report to diagnostic receivers (e.g. `stream-logs`) only when active
-		if p.diagnosticMessageReceiver.IsEnabled() {
-			rendered, err := msg.Render()
-			if err != nil {
-				log.Error("can't render the msg", err)
-				return
-			}
-			p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
+		// report this message to diagnostic receivers (e.g. `stream-logs`).
+		// HandleMessage is a no-op when no receiver is listening, and the
+		// rendered bytes are reused by the encoder below (RenderMessage caches).
+		rendered, err := msg.RenderMessage()
+		if err != nil {
+			log.Error("can't render the msg", err)
+			return
 		}
+		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
 		if p.failoverConfig.isFailoverActive {
 			p.filterMRFMessages(msg)

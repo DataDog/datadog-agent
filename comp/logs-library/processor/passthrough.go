@@ -7,15 +7,18 @@ package processor
 
 import "github.com/DataDog/datadog-agent/pkg/logs/message"
 
-// PassthroughEncoder is an encoder that preserves the rendered log line in
-// GetContent() unchanged. Use this when the consumer reads GetContent()
-// directly (e.g. the observer) to avoid wrapping the content in a JSON
-// transport envelope.
+// PassthroughEncoder renders the message and stores the rendered bytes as the
+// encoded content without wrapping them in a transport envelope (e.g. JSON).
+// Use this when the consumer reads the content directly (e.g. the observer).
 var PassthroughEncoder Encoder = &passthroughEncoder{}
 
 type passthroughEncoder struct{}
 
 func (p *passthroughEncoder) Encode(msg *message.Message, _ string) error {
-	msg.SetEncoded(msg.GetContent())
+	content, err := msg.RenderMessage()
+	if err != nil {
+		return err
+	}
+	msg.SetEncoded(content)
 	return nil
 }
