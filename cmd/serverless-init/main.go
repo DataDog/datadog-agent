@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"os"
 	"strings"
 	"sync"
@@ -44,11 +45,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -103,13 +106,13 @@ func main() {
 func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
 
-	err := modeConf.Runner(logConfig)
+	err := cloudService.Run(modeConf, logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, logsAgent)
 	defer tracingCtx.TraceAgent.Stop() // synchronous: drains traces, flushes stats, sends to network
 	defer func() {
-		cloudService.Shutdown(*metricAgent, enhancedMetricsEnabled, err) // submits task.ended metric
+		cloudService.Shutdown(*metricAgent, enhancedMetricsEnabled, err)
 
 		if enhancedMetricsCollector != nil {
 			enhancedMetricsCollector.Stop()
@@ -150,6 +153,10 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	origin := cloudService.GetOrigin()
 	// Note: we do not modify tags for the LogsAgent.
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tagConfig.Tags, tagger, compression, hostname, origin)
+	// Snapshot the startup log tags so the lifecycle server can append lambda_microvm_id
+	// at /run without losing the base set. Must be computed after SetupLogAgent
+	// since MapToArray normalises the same map that SetupLogAgent passes to SetLogsTags.
+	logTagsBase := serverlessTag.MapToArray(tagConfig.Tags)
 
 	// When no API key is configured, skip trace and metric agent initialization
 	// to avoid noisy error logs. The process wrapper and logs agent still function normally.
@@ -159,9 +166,34 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	if apiKey == "" && apmAPIKey == "" {
 		log.Warnf("DD_API_KEY is not set; trace and metric collection are disabled. Set DD_API_KEY to enable monitoring.")
 		traceAgent := trace.NewNoopTraceAgent()
-		tracingCtx := &cloudservice.TracingContext{TraceAgent: traceAgent}
-		metricAgent := &metrics.ServerlessMetricAgent{
-			Tagger: tagger,
+		metricAgent := &metrics.ServerlessMetricAgent{Tagger: tagger}
+		tracingCtx := &cloudservice.TracingContext{
+			TraceAgent: traceAgent,
+			LifecycleCtx: &cloudservice.LifecycleContext{
+				MetricFlusher: metricAgent,
+				LogsFlusher:   logsAgent,
+				MetricEmitter: metricAgent,
+				SampleDrainer: metricAgent,
+				FlushTimeout:  agentLogConfig.FlushTimeout,
+				SidecarMode:   modeConf.SidecarMode,
+				LogsTagSetter: lifecycle.LogsTagSetterFunc(func(tags []string) {
+					serverlessLogs.SetLogsTags(tags)
+					processor.SetServerlessInitTagCache(tags)
+				}),
+				BaseTags: logTagsBase,
+				TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
+					traceAgent.SetTags(tags)
+				}),
+				BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
+			},
+		}
+		// Only MicroVM needs initialization without an API key: its Init starts the
+		// lifecycle hook server so the platform can complete lifecycle handshakes.
+		// Initializing other services here would create trace spans even though
+		// tracing is disabled and span tags are unset, leading to a nil-map panic
+		// on shutdown (e.g. Cloud Run Jobs writing error tags into a nil span Meta).
+		if origin == cloudservice.MicroVMOrigin {
+			_ = cloudService.Init(tracingCtx)
 		}
 		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false
 	}
@@ -169,15 +201,32 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
 	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin)
 
+	metricAgent := setupMetricAgent(tagConfig.Tags, tagConfig.EnhancedMetricTags, tagConfig.EnhancedUsageMetricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
+
 	tracingCtx := &cloudservice.TracingContext{
 		TraceAgent: traceAgent,
 		SpanTags:   traceTags,
+		LifecycleCtx: &cloudservice.LifecycleContext{
+			MetricFlusher: metricAgent,
+			LogsFlusher:   logsAgent,
+			MetricEmitter: metricAgent,
+			SampleDrainer: metricAgent,
+			FlushTimeout:  agentLogConfig.FlushTimeout,
+			SidecarMode:   modeConf.SidecarMode,
+			LogsTagSetter: lifecycle.LogsTagSetterFunc(func(tags []string) {
+				serverlessLogs.SetLogsTags(tags)
+				processor.SetServerlessInitTagCache(tags)
+			}),
+			BaseTags: logTagsBase,
+			TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
+				traceAgent.SetTags(tags)
+			}),
+			BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
+		},
 	}
 
 	// TODO check for errors and exit
 	_ = cloudService.Init(tracingCtx)
-
-	metricAgent := setupMetricAgent(tagConfig.Tags, tagConfig.EnhancedMetricTags, tagConfig.EnhancedUsageMetricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
 	enhancedMetricsEnabled := pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
 	if enhancedMetricsEnabled {
@@ -197,6 +246,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	}
 
 	go flushMetricsAgent(metricAgent)
+
 	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled
 }
 
@@ -289,6 +339,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 		FunctionTags:          functionTags,
 	})
 	traceAgent.SetTags(tags)
+
 	go func() {
 		for range time.Tick(3 * time.Second) {
 			traceAgent.Flush()
