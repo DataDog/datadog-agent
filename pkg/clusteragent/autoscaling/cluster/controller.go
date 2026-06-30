@@ -151,9 +151,10 @@ func (c *Controller) Process(ctx context.Context, _, _, name string) autoscaling
 func (c *Controller) syncNodePool(ctx context.Context, name string, datadogNp *karpenterv1.NodePool) autoscaling.ProcessResult {
 	item, foundInStore := c.store.Get(name)
 	defer item.Release()
-	npi := item.Value()
 
 	if foundInStore {
+		npi := item.Value()
+
 		// Get Target NodePool from Lister if needed
 		var targetNp *karpenterv1.NodePool
 		if npi.TargetName() != "" {

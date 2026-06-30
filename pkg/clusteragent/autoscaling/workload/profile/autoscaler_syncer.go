@@ -273,15 +273,15 @@ func (s *AutoscalerSyncer) ensureDPA(dpaKey string, d desiredDPA) {
 
 	item, found := s.dpaStore.Get(dpaKey)
 	defer item.Release()
-	pai := item.Value()
 	if !found {
 		_, name, _ := cache.SplitMetaNamespaceKey(dpaKey)
 		log.Infof("Creating DPA %s for profile %s", dpaKey, d.profileName)
-		pai = model.NewPodAutoscalerFromProfile(d.ref.Namespace, name, d.profileName, d.template, targetRef, d.templateHash, d.previewAnnotation)
+		pai := model.NewPodAutoscalerFromProfile(d.ref.Namespace, name, d.profileName, d.template, targetRef, d.templateHash, d.previewAnnotation)
 		item.Upsert(pai, syncerStoreID)
 		return
 	}
 
+	pai := item.Value()
 	if !pai.IsProfileManaged() {
 		return
 	}

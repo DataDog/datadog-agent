@@ -134,12 +134,12 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 			storeItem, podAutoscalerFound := p.store.Get(paID)
 			// Release is a safety net; it becomes a no-op once a terminal (Upsert) runs.
 			defer storeItem.Release()
-			podAutoscaler := storeItem.Value()
 			// If the PodAutoscaler is not found, it must be created through the controller
 			// discarding the values received here.
 			if !podAutoscalerFound {
 				return
 			}
+			podAutoscaler := storeItem.Value()
 
 			// In case of custom recommender, we partially merge vertical values if available.
 			if podAutoscaler.CustomRecommenderConfiguration() != nil {
