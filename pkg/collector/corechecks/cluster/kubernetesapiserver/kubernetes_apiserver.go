@@ -82,7 +82,7 @@ type KubeASConfig struct {
 
 	// Event collection configuration
 	CollectEvent              bool `yaml:"collect_events"`
-	MaxEventCollection        int  `yaml:"max_events_per_run"`
+	MaxEventCollection        int  `yaml:"max_events_per_run"` // legacy path only; new path drains the full buffer each run
 	EventCollectionTimeoutMs  int  `yaml:"kubernetes_event_read_timeout_ms"`
 	ResyncPeriodEvents        int  `yaml:"kubernetes_event_resync_period_s"`
 	UnbundleEvents            bool `yaml:"unbundle_events"`
@@ -133,9 +133,10 @@ type KubeASCheck struct {
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
 	tagger          tagger.Component
 
-	mu                    sync.Mutex
-	eventCollectorRunning bool
-	informersStopCh       chan struct{}
+	mu                     sync.Mutex
+	eventCollectorRunning  bool
+	eventCollectorCanceled bool // set by Cancel; prevents startEventCollection after teardown
+	informersStopCh        chan struct{}
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -248,6 +249,9 @@ func (k *KubeASCheck) Run() error {
 		leader, errLeader := cluster.RunLeaderElection()
 		if errLeader != nil {
 			if errLeader != apiserver.ErrNotLeader {
+				// Transient error: we don't know whether we lost leadership, so we do
+				// not stop a running EventCollector — stopping on every blip would be
+				// unnecessarily disruptive and we have no evidence another node took over.
 				_ = k.Warn("Leader Election error. Not running the Kubernetes API Server check.")
 				return errLeader
 			}
@@ -336,29 +340,30 @@ func (k *KubeASCheck) Run() error {
 // startEventCollection builds a new EventCollector and starts it. It is idempotent.
 func (k *KubeASCheck) startEventCollection() error {
 	k.mu.Lock()
-	defer k.mu.Unlock()
-
-	if k.eventCollectorRunning {
+	if k.eventCollectorCanceled || k.eventCollectorRunning {
+		k.mu.Unlock()
 		return nil
 	}
-
 	ec := k.ac.NewEventCollector(k.eventCollection.Filter, k.instance.EventCollectionBufferSize)
 	if ec == nil {
+		k.mu.Unlock()
 		return errors.New("could not create EventCollector: invalid buffer size")
 	}
 	k.eventCollection.EventCollector = ec
+	k.informersStopCh = make(chan struct{})
+	stopCh := k.informersStopCh
+	k.eventCollectorRunning = true
+	k.mu.Unlock()
 
-	// Resume from the last persisted resourceVersion so events created while we
-	// were not the leader (or were restarting) are recovered rather than skipped.
+	// ConfigMap I/O outside the lock: resume from the last persisted resourceVersion
+	// so events created while we were not the leader are recovered rather than skipped.
 	if resVer, _, err := k.ac.GetTokenFromConfigmap(eventTokenKey); err != nil {
 		log.Warnf("Could not read persisted event resourceVersion, starting fresh: %s", err)
 	} else {
 		ec.SetResourceVersion(resVer)
 	}
 
-	k.informersStopCh = make(chan struct{})
-	k.eventCollectorRunning = true
-	return ec.Start(k.informersStopCh)
+	return ec.Start(stopCh)
 }
 
 // stopEventCollection stops the running EventCollector by closing its stop
@@ -378,6 +383,9 @@ func (k *KubeASCheck) stopEventCollection() {
 
 // Cancel stops the EventCollector when the check is unscheduled.
 func (k *KubeASCheck) Cancel() {
+	k.mu.Lock()
+	k.eventCollectorCanceled = true
+	k.mu.Unlock()
 	k.stopEventCollection()
 }
 
