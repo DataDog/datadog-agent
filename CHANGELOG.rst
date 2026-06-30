@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.80.4:
+
+7.80.4
+======
+
+.. _Release Notes_7.80.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-01
+
+- Please refer to the `7.80.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7804>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.80.4_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Add more traces during SSI installation on Linux host
+
+
 .. _Release Notes_7.80.3:
 
 7.80.3
