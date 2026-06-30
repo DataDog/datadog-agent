@@ -41,6 +41,7 @@
 /.claude/skills/update-3rd-party-libs            @DataDog/agent-build
 /.claude/skills/update-otel-deps/                @DataDog/opentelemetry-agent
 /.claude/skills/write-e2e/                       @DataDog/agent-devx
+/.claude/skills/locate-config-setting/SKILL.md   @DataDog/agent-configuration
 # changing the config of mockery will regenerate the mocks, so owners will have to review anyway
 /.mockery.yaml                          # do not notify anyone
 /.go-version                            @DataDog/agent-runtimes @DataDog/agent-build
@@ -543,7 +544,7 @@
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
 /comp/core/gui/impl/systray/ @DataDog/windows-products @DataDog/agent-configuration
-/comp/healthplatform/issues/admisconfig @DataDog/container-platform @DataDog/agent-health
+/comp/healthplatform/issues/ad-misconfiguration @DataDog/container-platform @DataDog/agent-health
 /comp/healthplatform/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health
 /pkg/cloudfoundry                       @DataDog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
@@ -715,7 +716,7 @@
 /pkg/logs/launchers/windowsevent        @DataDog/agent-log-pipelines @DataDog/windows-products
 /pkg/logs/tailers/windowsevent          @DataDog/agent-log-pipelines @DataDog/windows-products
 /pkg/logs/util/windowsevent             @DataDog/agent-log-pipelines @DataDog/windows-products
-/pkg/logs/diagnostic                    @DataDog/agent-log-pipelines
+/comp/logs-library/diagnostic           @DataDog/agent-log-pipelines
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring

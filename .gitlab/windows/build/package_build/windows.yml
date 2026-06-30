@@ -45,7 +45,7 @@
       -e INTEGRATION_WHEELS_CACHE_BUCKET
       -e BUNDLE_MIRROR__RUBYGEMS__ORG
       -e PIP_INDEX_URL
-      -e API_KEY_ORG2
+      -e AGENT_API_KEY_ORG2
       -e OMNIBUS_GIT_CACHE_DIR=${Env:TEMP}/${CI_PIPELINE_ID}/omnibus-git-cache
       -e AGENT_FLAVOR
       -e OMNIBUS_RUBY_VERSION
@@ -135,7 +135,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       -e USE_S3_CACHING
       -e BUNDLE_MIRROR__RUBYGEMS__ORG
       -e PIP_INDEX_URL
-      -e API_KEY_ORG2
+      -e AGENT_API_KEY_ORG2
       -e CI_IDENTITIES_GITLAB_ID_TOKEN
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"

@@ -690,6 +690,14 @@ properties:
                     node_type: setting
                     type: string
                     default: 128Mi
+          run_as_user:
+            node_type: setting
+            type: integer
+            default: 65532
+          uds_path:
+            node_type: setting
+            type: string
+            default: /var/run/datadog/extproc.sock
   container_registry:
     node_type: setting
     type: string

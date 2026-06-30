@@ -8,6 +8,7 @@ import sys
 from collections import defaultdict
 from fnmatch import fnmatch
 from glob import glob
+from pathlib import Path
 
 import yaml
 from invoke.exceptions import Exit
@@ -222,6 +223,92 @@ def releasenote(ctx):
             ctx.run("reno lint")
         else:
             print("'changelog/no-changelog' label found on the PR: skipping linting")
+
+
+@task
+def releasenote_unique_ids(ctx, files=None):
+    """Check that release note UIDs are unique across the corpus.
+
+    Each reno filename ends with a 16-char hex UID (e.g. my-fix-aabbccdd11223344.yaml).
+    Two files sharing the same UID suffix break the changelog build and cause MQ conflicts.
+
+    When --files is given (comma-separated), only those files are checked against the
+    full corpus — intended for pre-commit and CI use. Without --files the full corpus
+    is scanned for any existing duplicates.
+    """
+    hex_digits = set('0123456789abcdefABCDEF')
+
+    def path_key(path):
+        return Path(str(path).replace('\\', '/')).as_posix()
+
+    def uid_of(path: Path):
+        if path.suffix != '.yaml':
+            return None
+        uid = path.stem[-16:]
+        return uid.lower() if len(uid) == 16 and all(c in hex_digits for c in uid) else None
+
+    def release_note_dir(path: Path):
+        """Return the top-level releasenotes* directory for a given path."""
+        for part in path.parts:
+            if part.startswith('releasenotes'):
+                return part
+        return ''
+
+    def release_note_paths():
+        note_paths = []
+        for root in sorted(Path('.').iterdir()):
+            if not root.is_dir() or not root.name.startswith('releasenotes'):
+                continue
+            notes_dir = root / 'notes'
+            if not notes_dir.is_dir():
+                continue
+            for dirpath, dirnames, filenames in os.walk(notes_dir):
+                dirnames.sort()
+                note_paths.extend(
+                    Path(dirpath) / filename for filename in sorted(filenames) if filename.endswith('.yaml')
+                )
+        return note_paths
+
+    # Each top-level releasenotes* directory is a separate reno tree; UIDs only
+    # need to be unique within one tree.
+    all_notes = release_note_paths()
+    targets = [Path(f.strip()) for f in files.split(',') if f.strip()] if files else all_notes
+    target_keys = {path_key(path) for path in targets} if files else None
+
+    seen: dict[tuple[str, str], Path] = {}
+    duplicate_groups: dict[tuple[str, str], list[Path]] = {}
+    for path in all_notes:
+        uid = uid_of(path)
+        if not uid:
+            continue
+        key = (release_note_dir(path), uid)
+        if key in seen:
+            duplicate_groups.setdefault(key, [seen[key]]).append(path)
+        else:
+            seen[key] = path
+
+    errors = []
+    for (_, uid), paths in duplicate_groups.items():
+        if target_keys is None:
+            errors.append((paths[0], uid, paths[1:]))
+            continue
+        for path in paths:
+            if path_key(path) in target_keys:
+                errors.append((path, uid, [other for other in paths if other != path]))
+
+    if errors:
+        print(color_message("Duplicate release note UIDs detected:", "red"), file=sys.stderr)
+        for new, uid, dupes in errors:
+            print(f"  {new} (UID: {uid}) collides with:", file=sys.stderr)
+            for d in dupes:
+                print(f"    - {d}", file=sys.stderr)
+        print(
+            "\nFix: regenerate your note with `reno new <slug>` to get a fresh unique UID.",
+            file=sys.stderr,
+        )
+        raise Exit(code=1)
+
+    print(color_message(f"All {len(targets)} release note(s) have unique UIDs", "green"))
 
 
 @task
