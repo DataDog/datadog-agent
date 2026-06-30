@@ -506,6 +506,11 @@ var (
 	// Tags: source (runtime or replay)
 	MetricSecurityProfileV2EventsImmediate = newRuntimeMetric(".security_profile_v2.events.immediate")
 
+	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report activity-tree
+	// insertion failures that are not routine filtering rejections (i.e. unexpected errors).
+	// Tags: event_type
+	MetricSecurityProfileV2InsertionErrors = newRuntimeMetric(".security_profile_v2.insertion_errors")
+
 	// Tag Resolution metrics
 
 	// MetricSecurityProfileV2TagResolutionEventsQueued is the name of the metric used to report the total events queued waiting for tag resolution

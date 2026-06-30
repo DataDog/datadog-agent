@@ -77,6 +77,8 @@ type ManagerV2 struct {
 
 	eventFiltering map[eventFilteringEntry]*atomic.Uint64
 
+	insertionErrors map[model.EventType]*atomic.Uint64
+
 	// storage
 	localStorage              *storage.Directory
 	remoteStorage             *storage.ActivityDumpRemoteStorageForwarder
@@ -167,6 +169,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		hostname:                  hostname,
 		sendAnomalyDetection:      sendAnomalyDetection,
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
+		insertionErrors:           make(map[model.EventType]*atomic.Uint64),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
 		sampleCookieMap:           cookieMap,
@@ -184,6 +187,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 // initMetricsMap initializes the event filtering metrics map with all combinations of event types, states, and results
 func (m *ManagerV2) initMetricsMap() {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
+		m.insertionErrors[i] = atomic.NewUint64(0)
 		for _, state := range model.AllEventFilteringProfileState {
 			for _, result := range allEventFilteringResults {
 				m.eventFiltering[eventFilteringEntry{
@@ -657,6 +661,16 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
+	// Activity-tree insertion errors (unexpected failures only)
+	for eventType, count := range m.insertionErrors {
+		if value := count.Swap(0); value > 0 {
+			tags := []string{"event_type:" + eventType.String()}
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2InsertionErrors, int64(value), tags, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Per-profile size (RAM and disk reported under the same metric, differentiated by storage tag).
 	// Snapshot the active-profiles map under the lock and then call ComputeHeapSize / statsd
 	// outside it — ComputeHeapSize takes the per-profile lock, and we don't want to hold
@@ -760,6 +774,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
+			m.incrementInsertionError(event.GetEventType())
 			seclog.Debugf("couldn't insert event into profile: %v", err)
 		}
 		return nil, false
@@ -1078,6 +1093,13 @@ func (m *ManagerV2) FillProfileContextFromWorkloadID(id containerutils.WorkloadI
 
 func (m *ManagerV2) incrementEventFilteringStat(eventType model.EventType, state model.EventFilteringProfileState, result EventFilteringResult) {
 	if entry, ok := m.eventFiltering[eventFilteringEntry{eventType, state, result}]; ok {
+		entry.Inc()
+	}
+}
+
+// incrementInsertionError records an unexpected activity-tree insertion failure for the given event type.
+func (m *ManagerV2) incrementInsertionError(eventType model.EventType) {
+	if entry, ok := m.insertionErrors[eventType]; ok {
 		entry.Inc()
 	}
 }
