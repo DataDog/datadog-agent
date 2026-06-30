@@ -48,7 +48,15 @@ type helmactionsImpl struct {
 	clusterID   string
 	clusterName string
 	params      helmactions.Params
+	store       *ActionStore
 	processor   *ActionProcessor
+	watcher     *jobWatcher
+
+	// Watcher lifecycle. watchCancel terminates the watch goroutine;
+	// watchDone is closed once it has returned, letting stop() wait for it
+	// without leaking the goroutine past container shutdown.
+	watchCancel context.CancelFunc
+	watchDone   chan struct{}
 }
 
 // NewComponent creates a new helmactions component.
@@ -85,7 +93,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		clusterID:   clusterID,
 		clusterName: clusterName,
 		params:      reqs.Params,
+		store:       store,
 		processor:   NewActionProcessor(ctx, store, reporter),
+		watcher:     newJobWatcher(reqs.APIClient.Cl, store),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})
@@ -93,16 +103,44 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: comp}, nil
 }
 
-func (h *helmactionsImpl) start(ctx context.Context) error {
+func (h *helmactionsImpl) start(_ context.Context) error {
 	h.log.Infof("Starting helmactions component (clusterName=%s clusterID=%s)", h.clusterName, h.clusterID)
 
+	// The watcher must outlive Fx's start context (which is bounded to startup
+	// hooks), so derive a fresh context from Background and cancel it in stop().
+	watchCtx, cancel := context.WithCancel(context.Background())
+	h.watchCancel = cancel
+	h.watchDone = make(chan struct{})
+	go func() {
+		defer close(h.watchDone)
+		h.watcher.run(watchCtx)
+	}()
 	return nil
 }
 
-func (h *helmactionsImpl) stop(_ context.Context) error {
+func (h *helmactionsImpl) stop(ctx context.Context) error {
 	h.log.Info("Stopping helmactions component")
+	if h.watchCancel != nil {
+		h.watchCancel()
+	}
+	if h.watchDone != nil {
+		// Wait for the goroutine to exit, bounded by the Fx stop context so a
+		// stuck watcher can't hold up shutdown indefinitely.
+		select {
+		case <-h.watchDone:
+		case <-ctx.Done():
+			h.log.Warnf("helmactions: watcher did not exit before stop context cancellation: %v", ctx.Err())
+		}
+	}
+	if h.store != nil {
+		h.store.Stop()
+	}
 	return nil
 }
 
+// OnRollback records a newly-scheduled rollback Job in the store so the watcher
+// can track its progress to completion. Called by the privateactionrunner
+// rollback handler after it successfully creates the Job.
 func (h *helmactionsImpl) OnRollback(job *batchv1.Job) {
+	h.store.TrackJob(job)
 }
