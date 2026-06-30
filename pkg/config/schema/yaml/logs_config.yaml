@@ -75,7 +75,7 @@ properties:
   auto_multi_line_detection:
     node_type: setting
     type: boolean
-    default: false
+    default: true
     visibility: public
     description: |-
       Enable automatic aggregation of multi-line logs for common log patterns.
