@@ -11,10 +11,10 @@
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
     - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
+    # LAST_STABLE_VERSION must be set before tests run (upgrade/rollback tests read it at startup)
+    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - !reference [.new_e2e_template, before_script]
   script:
-    # LAST_STABLE_VERSION is used for upgrade test
-    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - !reference [.new_e2e_template, script]
 
 .new-e2e_windows_domain_test:
@@ -25,10 +25,10 @@
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
     - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
+    # LAST_STABLE_VERSION must be set before tests run (upgrade/rollback tests read it at startup)
+    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - !reference [.new_e2e_template, before_script]
   script:
-    # LAST_STABLE_VERSION is used for upgrade test
-    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - !reference [.new_e2e_template, script]
 
 .new-e2e_windows_installer_tests:

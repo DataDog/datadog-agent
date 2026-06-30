@@ -138,6 +138,7 @@
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
   before_script:
+    - command -v xsltproc >/dev/null 2>&1 || (apt-get update && apt-get install -y xsltproc)
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
