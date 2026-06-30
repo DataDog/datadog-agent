@@ -249,9 +249,6 @@ func (k *KubeASCheck) Run() error {
 		leader, errLeader := cluster.RunLeaderElection()
 		if errLeader != nil {
 			if errLeader != apiserver.ErrNotLeader {
-				// Transient error: we don't know whether we lost leadership, so we do
-				// not stop a running EventCollector — stopping on every blip would be
-				// unnecessarily disruptive and we have no evidence another node took over.
 				_ = k.Warn("Leader Election error. Not running the Kubernetes API Server check.")
 				return errLeader
 			}
@@ -355,8 +352,6 @@ func (k *KubeASCheck) startEventCollection() error {
 	k.eventCollectorRunning = true
 	k.mu.Unlock()
 
-	// ConfigMap I/O outside the lock: resume from the last persisted resourceVersion
-	// so events created while we were not the leader are recovered rather than skipped.
 	// Re-list the full backlog on (re)start (no persisted checkpoint) and let the
 	// bundling transformer dedup by UID; the in-memory watermark dedups relists.
 	return ec.Start(stopCh)
