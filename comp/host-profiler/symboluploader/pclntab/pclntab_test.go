@@ -29,9 +29,6 @@ func getGoToolChain(goMinorVersion int) string {
 	if goMinorVersion >= 21 {
 		suffix = ".0"
 	}
-	if goMinorVersion == 26 {
-		suffix = "rc2"
-	}
 	return fmt.Sprintf("GOTOOLCHAIN=go1.%v%v", goMinorVersion, suffix)
 }
 
