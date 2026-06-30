@@ -274,40 +274,49 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 	return vpcSubnets, nil
 }
 
-func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
-		return
+		return nil
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns)
+	return s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns)
 }
 
-func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	if !s.collectorConfigs.netflowMonitoringEnabled {
-		return
+		return nil
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns)
+	return s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	var vpcSubnets []netip.Prefix
 	if origin == payload.PathOriginNetworkTraffic {
 		var err error
 		vpcSubnets, err = s.getVPCSubnets()
 		if err != nil {
 			s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
-			return
+			return nil
 		}
 	}
 
 	startTime := s.TimeNowFn()
+	var networkPaths []npmodel.NetworkPath
 	connCount := 0
 	for conn := range conns {
 		connCount++
-		if !s.shouldScheduleNetworkPathForConn(conn, origin, vpcSubnets) {
+		hasTest := s.shouldScheduleNetworkPathForConn(conn, origin, vpcSubnets)
+		if !hasTest {
+			networkPaths = append(networkPaths, npmodel.NetworkPath{HasTest: false})
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
 		pathtest := s.makePathtest(conn, origin)
+		testIdentity := makeTestIdentity(conn.SourceHostname, pathtest)
+		pathtest.TestIdentity = testIdentity
+		networkPaths = append(networkPaths, npmodel.NetworkPath{
+			HasTest:      true,
+			TestIdentity: testIdentity,
+		})
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
@@ -315,6 +324,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	}
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
+	return networkPaths
 }
 
 // scheduleOne schedules pathtests.
@@ -431,6 +441,9 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		path.SourceProduct = payload.SourceProductNetflow
 	}
 	path.CollectorType = payload.CollectorTypeAgent
+	if ptest.Pathtest.Origin == payload.PathOriginNetworkTraffic || ptest.Pathtest.Origin == payload.PathOriginNetflow {
+		path.TestIdentity = ptest.Pathtest.TestIdentity
+	}
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)

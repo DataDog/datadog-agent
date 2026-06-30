@@ -96,8 +96,7 @@ type telemetryMetrics struct {
 type IssueState = healthplatform.IssueState
 
 const (
-	IssueStateNew      = healthplatform.IssueState_ISSUE_STATE_NEW
-	IssueStateOngoing  = healthplatform.IssueState_ISSUE_STATE_ONGOING
+	IssueStateActive   = healthplatform.IssueState_ISSUE_STATE_ACTIVE
 	IssueStateResolved = healthplatform.IssueState_ISSUE_STATE_RESOLVED
 
 	// resolvedIssueTTL is the time after which resolved issues are pruned from the persistence file.
@@ -109,18 +108,19 @@ const (
 )
 
 var issueStateToString = map[IssueState]string{
-	IssueStateNew:      "new",
-	IssueStateOngoing:  "ongoing",
+	IssueStateActive:   "active",
 	IssueStateResolved: "resolved",
 }
 
 func issueStateFromString(s string) IssueState {
-	for k, v := range issueStateToString {
-		if v == s {
-			return k
-		}
+	switch s {
+	case "active", "new", "ongoing":
+		return IssueStateActive
+	case "resolved":
+		return IssueStateResolved
+	default:
+		return 0
 	}
-	return 0
 }
 
 // PersistedIssue tracks the lifecycle state of an issue.
@@ -355,7 +355,7 @@ func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
 // Core Public API
 // ============================================================================
 
-// ReportIssue records a new or ongoing issue keyed by issue.Id. The caller is
+// ReportIssue records an active issue keyed by issue.Id. The caller is
 // responsible for building the complete proto Issue (template lookup, field
 // population). issue.IssueName is used as the issue-type key for telemetry and
 // persistence.
@@ -570,27 +570,27 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		h.persistedIssues[issueID] = &PersistedIssue{
 			IssueID:   issueID,
 			IssueType: issueType,
-			State:     IssueStateNew,
+			State:     IssueStateActive,
 			FirstSeen: now,
 			LastSeen:  now,
 		}
 	} else if existing.State == IssueStateResolved {
 		existing.IssueID = issueID
 		existing.IssueType = issueType
-		existing.State = IssueStateNew
+		existing.State = IssueStateActive
 		existing.FirstSeen = now
 		existing.LastSeen = now
 		existing.ResolvedAt = ""
 	} else if existing.IssueType != issueType {
-		h.log.Warnf("health platform: issue %s changed type from %s to %s; resetting to new", issueID, existing.IssueType, issueType)
+		h.log.Warnf("health platform: issue %s changed type from %s to %s; resetting to active", issueID, existing.IssueType, issueType)
 		existing.IssueID = issueID
 		existing.IssueType = issueType
-		existing.State = IssueStateNew
+		existing.State = IssueStateActive
 		existing.FirstSeen = now
 		existing.LastSeen = now
 		existing.ResolvedAt = ""
 	} else {
-		existing.State = IssueStateOngoing
+		existing.State = IssueStateActive
 		existing.LastSeen = now
 	}
 

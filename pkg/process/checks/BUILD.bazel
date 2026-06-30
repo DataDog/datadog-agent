@@ -89,6 +89,7 @@ go_library(
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_dustin_go_humanize//:go-humanize",
+        "@com_github_gogo_protobuf//jsonpb",
         "@com_github_shirou_gopsutil_v4//cpu",
         "@org_golang_google_grpc//:grpc",
     ] + select({
@@ -246,6 +247,7 @@ go_test(
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
+        "//comp/networkpath/npcollector/model",
         "//comp/process/gpusubscriber/fx-mock",
         "//pkg/config/env",
         "//pkg/config/mock",

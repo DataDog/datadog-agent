@@ -7,6 +7,7 @@ package checks
 
 import (
 	"fmt"
+	"iter"
 	"os"
 	"runtime"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -45,6 +47,22 @@ func makeConnections(n int) []*model.Connection {
 		conns = append(conns, c)
 	}
 	return conns
+}
+
+type decidingNPCollector struct {
+	conns        []npmodel.NetworkPathConnection
+	networkPaths []npmodel.NetworkPath
+}
+
+func (c *decidingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
+	for conn := range conns {
+		c.conns = append(c.conns, conn)
+	}
+	return c.networkPaths
+}
+
+func (c *decidingNPCollector) ScheduleNetflowPathTests(_ iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
+	return nil
 }
 
 func TestDNSNameEncoding(t *testing.T) {
@@ -900,6 +918,60 @@ func Test_getDNSNameForIP(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestScheduleNetworkPathSetsConnectionMetadata(t *testing.T) {
+	connWithoutTest := &model.Connection{
+		Laddr:     &model.Addr{Ip: "10.0.0.1", Port: 12345, ContainerId: "container-a"},
+		Raddr:     &model.Addr{Ip: "10.0.0.2", Port: 443},
+		Type:      model.ConnectionType_tcp,
+		Direction: model.ConnectionDirection_outgoing,
+		Family:    model.ConnectionFamily_v4,
+	}
+	invalidConn := &model.Connection{
+		Laddr: &model.Addr{Ip: "not-an-ip", Port: 12345},
+		Raddr: &model.Addr{Ip: "10.0.0.3", Port: 443},
+	}
+	connWithTest := &model.Connection{
+		Laddr:     &model.Addr{Ip: "10.0.0.1", Port: 12346, ContainerId: "container-b"},
+		Raddr:     &model.Addr{Ip: "10.0.0.4", Port: 8443},
+		Type:      model.ConnectionType_udp,
+		Direction: model.ConnectionDirection_outgoing,
+		Family:    model.ConnectionFamily_v4,
+	}
+	conns := &model.Connections{
+		Conns: []*model.Connection{connWithoutTest, invalidConn, connWithTest},
+		Dns: map[string]*model.DNSEntry{
+			"10.0.0.4": {Names: []string{"api.example.com"}},
+		},
+	}
+	collector := &decidingNPCollector{
+		networkPaths: []npmodel.NetworkPath{
+			{HasTest: false, TestIdentity: "should-not-leak"},
+			{HasTest: true, TestIdentity: "test-identity"},
+		},
+	}
+	check := &ConnectionsCheck{
+		hostInfo:    &HostInfo{HostName: "agent-hostname"},
+		npCollector: collector,
+	}
+
+	networkPaths := check.scheduleNetworkPath(conns)
+
+	require.Equal(t, collector.networkPaths, networkPaths)
+	require.Len(t, collector.conns, 2)
+	assert.Equal(t, "agent-hostname", collector.conns[0].SourceHostname)
+	assert.Equal(t, "container-a", collector.conns[0].SourceContainerID)
+	assert.Equal(t, "agent-hostname", collector.conns[1].SourceHostname)
+	assert.Equal(t, "api.example.com", collector.conns[1].Domain)
+
+	require.NotNil(t, connWithoutTest.NetworkPath)
+	assert.False(t, connWithoutTest.NetworkPath.HasTest)
+	assert.Empty(t, connWithoutTest.NetworkPath.TestIdentity)
+	assert.Nil(t, invalidConn.NetworkPath)
+	require.NotNil(t, connWithTest.NetworkPath)
+	assert.True(t, connWithTest.NetworkPath.HasTest)
+	assert.Equal(t, "test-identity", connWithTest.NetworkPath.TestIdentity)
 }
 
 func TestRemoteServiceTags(t *testing.T) {

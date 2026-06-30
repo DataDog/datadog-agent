@@ -53,7 +53,7 @@ func TestDockerPermissionSuite(t *testing.T) {
 // When that check function errors, scheduler.tick leaves lastIssueIDs unchanged
 // so that in-flight issues are not spuriously resolved. This test exercises that
 // path by killing the agent ungracefully (SIGKILL) and verifying that the issue
-// is still reported as ONGOING after systemd restarts the process — even though
+// is still reported as ACTIVE after systemd restarts the process — even though
 // the scheduler may fire before the docker probe has had a chance to warm up.
 func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 	host := suite.Env().RemoteHost
@@ -90,11 +90,11 @@ func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 	}, 2*time.Minute, 10*time.Second, "agent did not restart after SIGKILL")
 	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 
-	// After the crash restart the issue must still be present (NEW or ONGOING).
+	// After the crash restart the issue must still be present as ACTIVE.
 	// The first scheduler tick on restart may run before the agent has fully dropped
 	// privileges, briefly seeing the socket as accessible and resolving the issue.
 	// If that race fires, the docker probe will detect the issue again on the next
-	// successful tick and report it as NEW. Either state confirms the issue survived
+	// successful tick and report it as ACTIVE. This confirms the issue survived
 	// the crash window.
 	var reloadedIssues []*healthplatform.Issue
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
@@ -103,21 +103,19 @@ func (suite *dockerPermissionSuite) TestDockerHealthCheckTransientFailure() {
 		reloadedIssues = nil
 		for _, p := range payloads {
 			for _, iss := range findIssuesByID(suite.T(), p, issueID) {
-				if iss.PersistedIssue != nil &&
-					(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
-						iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 					reloadedIssues = append(reloadedIssues, iss)
 				}
 			}
 		}
-		assert.NotEmpty(ct, reloadedIssues, "docker permission issue not found as NEW or ONGOING after crash restart")
+		assert.NotEmpty(ct, reloadedIssues, "docker permission issue not found as ACTIVE after crash restart")
 	}, defaultIssueTimeout, defaultIssuePollInterval, "docker permission issue not re-reported after crash restart")
 
 	require.NotEmpty(suite.T(), reloadedIssues)
 }
 
 // TestDockerPermissionIssueLifecycle verifies that restricting the docker socket
-// permissions triggers the health issue as NEW in fakeintake, and that restoring
+// permissions triggers the health issue as ACTIVE in fakeintake, and that restoring
 // them causes the issue to stop being reported (or be reported as RESOLVED).
 //
 // Cross-restart persistence is tested separately in TestResilienceSuite.
@@ -149,13 +147,13 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 			issues = nil
 			for _, p := range payloads {
 				for _, iss := range findIssuesByID(t, p, issueID) {
-					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW {
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 						issues = append(issues, iss)
 					}
 				}
 			}
-			assert.NotEmpty(ct, issues, "docker socket permission issue not found as NEW in fakeintake")
-		}, defaultIssueTimeout, defaultIssuePollInterval, "docker socket permission issue not detected as NEW in fakeintake")
+			assert.NotEmpty(ct, issues, "docker socket permission issue not found as ACTIVE in fakeintake")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "docker socket permission issue not detected as ACTIVE in fakeintake")
 
 		require.NotEmpty(t, issues)
 		issue := issues[0]

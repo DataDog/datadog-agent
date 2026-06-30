@@ -223,12 +223,12 @@ func TestResolvedStaysOnSendFailure(t *testing.T) {
 	assert.Contains(t, e.resolved, "fail-issue", "resolved map must be retained after failed send")
 }
 
-// TestActiveWinsOverResolvedOnRecurrence verifies that a NEW active entry takes precedence over
+// TestActiveWinsOverResolvedOnRecurrence verifies that an active entry takes precedence over
 // a stale resolved tombstone for the same ID (issue recurred after being resolved).
 func TestActiveWinsOverResolvedOnRecurrence(t *testing.T) {
 	store := &mockStore{issues: map[string]*healthplatformpayload.Issue{
 		"i:1": {Id: "i:1", PersistedIssue: &healthplatformpayload.PersistedIssue{
-			State: healthplatformpayload.IssueState_ISSUE_STATE_NEW,
+			State: healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE,
 		}},
 	}}
 	fwd := &mockForwarder{}
@@ -247,8 +247,8 @@ func TestActiveWinsOverResolvedOnRecurrence(t *testing.T) {
 	require.Len(t, fwd.reports, 1)
 	sent := fwd.reports[0].Issues["i:1"]
 	require.NotNil(t, sent)
-	assert.Equal(t, healthplatformpayload.IssueState_ISSUE_STATE_NEW, sent.PersistedIssue.GetState(),
-		"active NEW entry must win over stale resolved tombstone on recurrence")
+	assert.Equal(t, healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE, sent.PersistedIssue.GetState(),
+		"active entry must win over stale resolved tombstone on recurrence")
 }
 
 // TestObserverWiresResolvedCh verifies that RegisterIssuesObserver wires resolvedCh into egress.

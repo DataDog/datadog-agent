@@ -182,6 +182,43 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	}
 }
 
+func TestNetworkPathConnectionsIncludesSourceIdentityInputs(t *testing.T) {
+	d := &directSender{hostname: "agent-hostname", sysProbePID: 999}
+	conn := network.ConnectionStats{
+		ConnectionTuple: network.ConnectionTuple{
+			Pid:       123,
+			Source:    util.AddressFromString("10.0.0.1"),
+			SPort:     12345,
+			Dest:      util.AddressFromString("10.0.0.2"),
+			DPort:     443,
+			Type:      network.TCP,
+			Direction: network.OUTGOING,
+			Family:    network.AFINET,
+		},
+	}
+	conn.ContainerID.Source = intern.GetByString("container-a")
+	conns := &network.Connections{
+		BufferedData: network.BufferedData{Conns: []network.ConnectionStats{conn}},
+		DNS: map[util.Address][]dns.Hostname{
+			util.AddressFromString("10.0.0.2"): {dns.ToHostname("api.example.com")},
+		},
+	}
+
+	got := slices.Collect(d.networkPathConnections(conns))
+
+	require.Len(t, got, 1)
+	assert.Equal(t, "10.0.0.1:12345", got[0].Source.String())
+	assert.Equal(t, "10.0.0.2:443", got[0].Dest.String())
+	assert.Equal(t, "10.0.0.2:443", got[0].TranslatedDest.String())
+	assert.Equal(t, "agent-hostname", got[0].SourceHostname)
+	assert.Equal(t, "container-a", got[0].SourceContainerID)
+	assert.Equal(t, "api.example.com", got[0].Domain)
+	assert.Equal(t, model.ConnectionType_tcp, got[0].Type)
+	assert.Equal(t, model.ConnectionDirection_outgoing, got[0].Direction)
+	assert.Equal(t, model.ConnectionFamily_v4, got[0].Family)
+	assert.False(t, got[0].SystemProbeConn)
+}
+
 func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	p := makeConnections(6)
 	p[0].Dest = util.AddressFromString("1.1.2.3")

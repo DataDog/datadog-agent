@@ -47,14 +47,14 @@ func TestResilienceSuite(t *testing.T) {
 }
 
 // TestHealthPlatformResilience verifies that a health issue persists across a graceful restart,
-// re-reported as ONGOING with the same first_seen timestamp.
+// re-reported as ACTIVE with the same first_seen timestamp.
 func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	agent := suite.Env().Agent
 	fakeIntake := suite.Env().FakeIntake.Client()
 
 	const issuePrefix = "check-execution-failure:broken_check"
 
-	// Accept NEW or ONGOING: check may fail multiple times before the first egress tick.
+	// Check may fail multiple times before the first egress tick; active issues use ACTIVE.
 	var initialIssues []*healthplatform.Issue
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
 		payloads, err := fakeIntake.GetAgentHealth()
@@ -62,14 +62,12 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 		initialIssues = nil
 		for _, p := range payloads {
 			for _, iss := range findIssuesByPrefix(p, issuePrefix) {
-				if iss.PersistedIssue != nil &&
-					(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
-						iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 					initialIssues = append(initialIssues, iss)
 				}
 			}
 		}
-		assert.NotEmpty(ct, initialIssues, "issue not found as NEW or ONGOING in fakeintake")
+		assert.NotEmpty(ct, initialIssues, "issue not found as ACTIVE in fakeintake")
 	}, defaultIssueTimeout, defaultIssuePollInterval, "issue not detected in fakeintake")
 
 	require.NotEmpty(suite.T(), initialIssues)
@@ -86,7 +84,7 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	}, 2*time.Minute, 10*time.Second, "agent not ready after restart")
 	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 
-	// After restart the issue must be re-reported as ONGOING (loaded from on-disk store).
+	// After restart the issue must be re-reported as ACTIVE (loaded from on-disk store).
 	var reloadedIssues []*healthplatform.Issue
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
 		payloads, err := fakeIntake.GetAgentHealth()
@@ -94,13 +92,13 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 		reloadedIssues = nil
 		for _, p := range payloads {
 			for _, iss := range findIssuesByPrefix(p, issuePrefix) {
-				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 					reloadedIssues = append(reloadedIssues, iss)
 				}
 			}
 		}
-		assert.NotEmpty(ct, reloadedIssues, "issue not found as ONGOING in fakeintake after restart")
-	}, defaultIssueTimeout, defaultIssuePollInterval, "issue not re-reported as ONGOING after restart")
+		assert.NotEmpty(ct, reloadedIssues, "issue not found as ACTIVE in fakeintake after restart")
+	}, defaultIssueTimeout, defaultIssuePollInterval, "issue not re-reported as ACTIVE after restart")
 
 	require.NotEmpty(suite.T(), reloadedIssues)
 	require.NotNil(suite.T(), reloadedIssues[0].PersistedIssue)
@@ -110,15 +108,14 @@ func (suite *resilienceSuite) TestHealthPlatformResilience() {
 	}
 }
 
-// TestHealthPlatformIssueRecurrence verifies that a resolved issue re-appears as NEW (not ONGOING)
+// TestHealthPlatformIssueRecurrence verifies that a resolved issue re-appears as ACTIVE
 // when the problem recurs, with first_seen reset to the new detection time.
 func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 	fakeIntake := suite.Env().FakeIntake.Client()
 
 	const issuePrefix = "check-execution-failure:broken_check"
 
-	// Capture first_seen from the initial detection (issue may be NEW or ONGOING
-	// depending on test execution order within the suite).
+	// Capture first_seen from the initial detection.
 	var originalFirstSeen string
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
 		payloads, err := fakeIntake.GetAgentHealth()
@@ -176,9 +173,8 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 	))
 	require.NoError(suite.T(), fakeIntake.FlushServerAndResetAggregators())
 
-	// Issue must reappear with a reset first_seen. Accept NEW or ONGOING: the check may
-	// fail multiple times before the first egress tick, so the state may already be
-	// ONGOING in fakeintake. The first_seen assertion below is the authoritative check.
+	// Issue must reappear as ACTIVE with a reset first_seen. The first_seen assertion
+	// below is the authoritative check.
 	var recurrentIssues []*healthplatform.Issue
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
 		payloads, err := fakeIntake.GetAgentHealth()
@@ -186,9 +182,7 @@ func (suite *resilienceSuite) TestHealthPlatformIssueRecurrence() {
 		recurrentIssues = nil
 		for _, p := range payloads {
 			for _, iss := range findIssuesByPrefix(p, issuePrefix) {
-				if iss.PersistedIssue != nil &&
-					(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
-						iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
+				if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE {
 					recurrentIssues = append(recurrentIssues, iss)
 				}
 			}
