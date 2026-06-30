@@ -78,6 +78,9 @@ type ComponentSettings struct {
 	// Components not listed use their catalog default.
 	Enabled map[string]bool
 
+	// Baseline controls the baseline analysis window.
+	Baseline BaselineConfig
+
 	// configs is populated internally by readConfig functions on catalog
 	// entries (e.g. from agent config). It is not exported because the
 	// values must match the typed config expected by each component's

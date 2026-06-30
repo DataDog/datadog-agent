@@ -373,11 +373,16 @@ core,github.com/Microsoft/hcsshim/internal/queue,MIT,Copyright (c) 2015 Microsof
 core,github.com/Microsoft/hcsshim/internal/safefile,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/security,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/timeout,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/Microsoft/hcsshim/internal/vhdx,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/vmcompute,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/wclayer,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/Microsoft/hcsshim/internal/wclayer/cim,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/winapi,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/osversion,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/Microsoft/hcsshim/pkg/cimfs,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/Microsoft/hcsshim/pkg/cimfs/format,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/pkg/ociwclayer,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/Microsoft/hcsshim/pkg/ociwclayer/cim,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/NVIDIA/go-nvml/pkg/dl,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
 core,github.com/NVIDIA/go-nvml/pkg/nvml,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
 core,github.com/NVIDIA/go-nvml/pkg/nvml/mock,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
@@ -905,7 +910,6 @@ core,github.com/containerd/cgroups/v3,Apache-2.0,"Copyright 2012-2015 Docker, In
 core,github.com/containerd/cgroups/v3/cgroup1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/cgroups/v3/cgroup1/stats,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/cgroups/v3/cgroup2/stats,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/events,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/runtime/sandbox/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/services/containers/v1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -926,65 +930,69 @@ core,github.com/containerd/containerd/api/types,Apache-2.0,"Copyright 2012-2015 
 core,github.com/containerd/containerd/api/types/runc/options,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/types/task,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/api/types/transfer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/archive,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/archive/compression,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/archive/tarheader,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/cio,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/containers,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/content,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/content/local,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/content/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/contrib/seccomp/kernelversion,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/defaults,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/diff,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/diff/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/errdefs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/events,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/events/exchange,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/filters,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/identifiers,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/images,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/images/archive,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/labels,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/leases,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/leases/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/mount,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/namespaces,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/oci,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/cap,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/cleanup,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/deprecation,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/dialer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/epoch,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/kmutex,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/randutil,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/streaming,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/transfer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/transfer/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/transfer/streaming,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/unpack,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/plugin,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/protobuf,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/protobuf/proto,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/protobuf/types,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/reference,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/remotes,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/remotes/docker,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/remotes/docker/auth,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/remotes/docker/schema1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/remotes/errors,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/rootfs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/runtime/linux/runctypes,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/runtime/restart,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/sandbox,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/sandbox/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/services,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/services/introspection,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/services/warning,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/snapshots,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/snapshots/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/tracing,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/version,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/client,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/containers,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/content,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/content/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/diff,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/diff/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/events,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/events/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/images,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/images/archive,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/images/usage,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/introspection,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/introspection/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/leases,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/leases/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/mount,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/remotes,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/remotes/docker,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/remotes/docker/auth,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/remotes/docker/schema1,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/remotes/errors,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/runtime/restart,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/sandbox,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/sandbox/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/snapshots,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/snapshots/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/streaming,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/streaming/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/transfer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/transfer/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/transfer/streaming,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/core/unpack,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/defaults,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/internal/cleanup,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/internal/fsverity,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/internal/kmutex,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/internal/randutil,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/internal/userns,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/archive,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/archive/compression,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/archive/tarheader,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/cap,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/cio,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/deprecation,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/dialer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/epoch,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/filters,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/identifiers,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/kernelversion,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/labels,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/namespaces,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/oci,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/protobuf,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/protobuf/proto,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/protobuf/types,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/reference,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/rootfs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/sys,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/pkg/tracing,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/plugins,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/plugins/content/local,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/plugins/services,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/version,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/continuity/devices,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/continuity/fs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/continuity/sysx,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -996,6 +1004,7 @@ core,github.com/containerd/errdefs/pkg/internal/types,Apache-2.0,"Copyright 2012
 core,github.com/containerd/fifo,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/log,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/platforms,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/plugin,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/ttrpc,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/typeurl/v2,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containernetworking/cni/libcni,Apache-2.0,Copyright 2019 CNI authors
@@ -1049,7 +1058,6 @@ core,github.com/docker/docker-credential-helpers/credentials,MIT,"Copyright 2012
 core,github.com/docker/docker/pkg/system,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/sockets,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/tlsconfig,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/docker/go-events,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-units,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/dustin/go-humanize,MIT,Copyright (c) 2005-2008  Dustin Sallings <dustin@spy.net>
 core,github.com/ebitengine/purego,Apache-2.0,Copyright 2022 The Ebitengine Authors
@@ -2113,6 +2121,7 @@ core,github.com/opencontainers/image-spec/identity,Apache-2.0,Copyright 2016 The
 core,github.com/opencontainers/image-spec/specs-go,Apache-2.0,Copyright 2016 The Linux Foundation
 core,github.com/opencontainers/image-spec/specs-go/v1,Apache-2.0,Copyright 2016 The Linux Foundation
 core,github.com/opencontainers/runtime-spec/specs-go,Apache-2.0,Copyright 2015 The Linux Foundation
+core,github.com/opencontainers/runtime-spec/specs-go/features,Apache-2.0,Copyright 2015 The Linux Foundation
 core,github.com/opencontainers/selinux/go-selinux,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/opencontainers/selinux/pkg/pwalkdir,Apache-2.0,Copyright (c) 2017 The Authors
@@ -3287,7 +3296,6 @@ core,google.golang.org/genproto/googleapis/cloud/extendedops,Apache-2.0,Copyrigh
 core,google.golang.org/genproto/googleapis/rpc/code,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/googleapis/rpc/errdetails,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/googleapis/rpc/status,Apache-2.0,Copyright 2020 Google LLC
-core,google.golang.org/genproto/protobuf/field_mask,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/grpc,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/attributes,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/backoff,Apache-2.0,Copyright 2014 gRPC authors.
@@ -3443,11 +3451,13 @@ core,honnef.co/go/tools/go/ir,BSD-3-Clause,Copyright (c) 2009 The Go Authors. Al
 core,honnef.co/go/tools/go/ir/irutil,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2016 Dominik Honnef | Copyright (c) 2016 Dominik Honnef. All rights reserved
 core,honnef.co/go/tools/go/loader,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/go/types/typeutil,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/analysisinternal/typeindex,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/passes/buildir,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/renameio,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/robustio,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/sharedcheck,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/sync,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/typesinternal/typeindex,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/knowledge,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/lintcmd,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/lintcmd/cache,MIT,Copyright (c) 2016 Dominik Honnef

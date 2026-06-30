@@ -201,8 +201,8 @@ require (
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.1.3
-	github.com/containerd/containerd v1.7.33
 	github.com/containerd/containerd/api v1.11.1
+	github.com/containerd/containerd/v2 v2.3.1
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.3.0
 	github.com/containernetworking/cni v1.3.0
@@ -255,7 +255,7 @@ require (
 	github.com/invopop/jsonschema v0.14.0
 	github.com/itchyny/gojq v0.12.19 // indirect
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/jellydator/ttlcache/v3 v3.4.0
+	github.com/jellydator/ttlcache/v3 v3.4.1
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/json-iterator/go v1.1.12
 	github.com/judwhite/go-svc v1.2.1
@@ -270,7 +270,7 @@ require (
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.1
-	github.com/mattn/go-sqlite3 v1.14.46
+	github.com/mattn/go-sqlite3 v1.14.47
 	github.com/mdlayher/netlink v1.11.2
 	github.com/miekg/dns v1.1.72
 	github.com/moby/sys/mountinfo v0.7.2
@@ -293,7 +293,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.69.0
 	github.com/prometheus/procfs v0.20.1
-	github.com/redis/go-redis/v9 v9.20.1
+	github.com/redis/go-redis/v9 v9.21.0
 	github.com/rickar/props v1.1.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/safchain/baloum v0.0.0-20260120132056-b70fa9c29846
@@ -523,7 +523,6 @@ require (
 	github.com/digitalocean/godo v1.193.0 // indirect
 	github.com/docker/cli v29.6.0+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
-	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/edsrzf/mmap-go v1.2.1-0.20241212181136-fad1cd13edbd // indirect
@@ -637,6 +636,7 @@ require (
 	github.com/masahiro331/go-xfs-filesystem v0.0.0-20231205045356-1b22259a6c44 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/mattn/go-shellwords v1.0.13 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
@@ -861,7 +861,7 @@ require (
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap/exp v0.3.0
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
-	golang.org/x/exp/typeparams v0.0.0-20251125195548-87e1e737ad39 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20260209203927-2842357ff358 // indirect
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/telemetry v0.0.0-20260610154732-fb80ec83bdd9 // indirect
@@ -877,7 +877,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.3
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	honnef.co/go/tools v0.6.1 // indirect
+	honnef.co/go/tools v0.7.0 // indirect
 	k8s.io/apiserver v0.35.5 // indirect
 	k8s.io/cloud-provider v0.35.3 // indirect
 	k8s.io/component-helpers v0.35.5 // indirect
@@ -886,6 +886,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20260330154417-16be699c7b31 // indirect
 	k8s.io/sample-controller v0.35.3 // indirect
 	mellium.im/sasl v0.3.2 // indirect
+	modernc.org/sqlite v1.49.1 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
 	sigs.k8s.io/controller-runtime v0.23.3 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
@@ -1003,6 +1004,7 @@ require (
 	github.com/ProtonMail/gopenpgp/v3 v3.2.1 // indirect
 	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.107 // indirect
+	github.com/apache/arrow-go/v18 v18.6.0 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.30 // indirect
@@ -1017,7 +1019,8 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/circonus-labs/circonus-gometrics v2.3.1+incompatible // indirect
 	github.com/circonus-labs/circonusllhist v0.1.3 // indirect
-	github.com/clipperhouse/uax29/v2 v2.5.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
+	github.com/containerd/plugin v1.0.0 // indirect
 	github.com/coreos/etcd v3.3.27+incompatible // indirect
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
 	github.com/coreos/pkg v0.0.0-20220810130054-c7d1c02cb6cf // indirect
@@ -1038,6 +1041,7 @@ require (
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
+	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/go-metrics-stackdriver v0.2.0 // indirect
 	github.com/gophercloud/gophercloud v0.1.0 // indirect
 	github.com/graph-gophers/graphql-go v1.10.2 // indirect
@@ -1107,6 +1111,7 @@ require (
 	github.com/lestrrat-go/iter v1.0.2 // indirect
 	github.com/lestrrat-go/jwx v1.2.29 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
+	github.com/lib/pq v1.12.3 // indirect
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/mitchellh/pointerstructure v1.2.1 // indirect
@@ -1135,6 +1140,7 @@ require (
 	github.com/pb33f/jsonpath v0.8.2 // indirect
 	github.com/pb33f/libopenapi v0.37.2 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
+	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
 	github.com/petermattis/goid v0.0.0-20260226131333-17d1149c6ac6 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pires/go-proxyproto v0.8.0 // indirect
@@ -1181,6 +1187,11 @@ replace github.com/containerd/cgroups/v3 => github.com/containerd/cgroups/v3 v3.
 // matches the pin above. v2.2.4+ would force runtime-spec v1.3.0, conflicting
 // with that pin.
 replace github.com/containerd/containerd/v2 => github.com/containerd/containerd/v2 v2.0.9
+
+// hcsshim >= v0.13.0 changed ImportCimLayerFromTar's signature, breaking
+// containerd/v2 v2.0.9 (pinned above). Pin hcsshim to the version containerd
+// v2.0.9 declares in its own go.mod.
+replace github.com/Microsoft/hcsshim => github.com/Microsoft/hcsshim v0.12.9
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
