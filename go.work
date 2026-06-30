@@ -202,10 +202,6 @@ replace go.opentelemetry.io/collector => github.com/truthbk/opentelemetry-collec
 
 replace go.opentelemetry.io/collector/client => github.com/truthbk/opentelemetry-collector/client v0.0.0-20260619163650-4ae40fbc1ada
 
-replace go.opentelemetry.io/collector/cmd/builder => github.com/truthbk/opentelemetry-collector/cmd/builder v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/cmd/mdatagen => github.com/truthbk/opentelemetry-collector/cmd/mdatagen v0.0.0-20260619163650-4ae40fbc1ada
-
 replace go.opentelemetry.io/collector/component => github.com/truthbk/opentelemetry-collector/component v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/component/componentstatus => github.com/truthbk/opentelemetry-collector/component/componentstatus v0.0.0-20260619163650-4ae40fbc1ada
@@ -219,8 +215,6 @@ replace go.opentelemetry.io/collector/config/configcompression => github.com/tru
 replace go.opentelemetry.io/collector/config/configgrpc => github.com/truthbk/opentelemetry-collector/config/configgrpc v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/config/confighttp => github.com/truthbk/opentelemetry-collector/config/confighttp v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/config/confighttp/xconfighttp => github.com/truthbk/opentelemetry-collector/config/confighttp/xconfighttp v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/config/configmiddleware => github.com/truthbk/opentelemetry-collector/config/configmiddleware v0.0.0-20260619163650-4ae40fbc1ada
 
@@ -253,8 +247,6 @@ replace go.opentelemetry.io/collector/confmap/xconfmap => github.com/truthbk/ope
 replace go.opentelemetry.io/collector/connector => github.com/truthbk/opentelemetry-collector/connector v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/connector/connectortest => github.com/truthbk/opentelemetry-collector/connector/connectortest v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/connector/forwardconnector => github.com/truthbk/opentelemetry-collector/connector/forwardconnector v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/connector/xconnector => github.com/truthbk/opentelemetry-collector/connector/xconnector v0.0.0-20260619163650-4ae40fbc1ada
 
@@ -290,17 +282,11 @@ replace go.opentelemetry.io/collector/extension => github.com/truthbk/openteleme
 
 replace go.opentelemetry.io/collector/extension/extensionauth => github.com/truthbk/opentelemetry-collector/extension/extensionauth v0.0.0-20260619163650-4ae40fbc1ada
 
-replace go.opentelemetry.io/collector/extension/extensionauth/extensionauthtest => github.com/truthbk/opentelemetry-collector/extension/extensionauth/extensionauthtest v0.0.0-20260619163650-4ae40fbc1ada
-
 replace go.opentelemetry.io/collector/extension/extensioncapabilities => github.com/truthbk/opentelemetry-collector/extension/extensioncapabilities v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/extension/extensionmiddleware => github.com/truthbk/opentelemetry-collector/extension/extensionmiddleware v0.0.0-20260619163650-4ae40fbc1ada
 
-replace go.opentelemetry.io/collector/extension/extensionmiddleware/extensionmiddlewaretest => github.com/truthbk/opentelemetry-collector/extension/extensionmiddleware/extensionmiddlewaretest v0.0.0-20260619163650-4ae40fbc1ada
-
 replace go.opentelemetry.io/collector/extension/extensiontest => github.com/truthbk/opentelemetry-collector/extension/extensiontest v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/extension/memorylimiterextension => github.com/truthbk/opentelemetry-collector/extension/memorylimiterextension v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/extension/xextension => github.com/truthbk/opentelemetry-collector/extension/xextension v0.0.0-20260619163650-4ae40fbc1ada
 
@@ -316,13 +302,9 @@ replace go.opentelemetry.io/collector/internal/fanoutconsumer => github.com/trut
 
 replace go.opentelemetry.io/collector/internal/memorylimiter => github.com/truthbk/opentelemetry-collector/internal/memorylimiter v0.0.0-20260619163650-4ae40fbc1ada
 
-replace go.opentelemetry.io/collector/internal/schemagen => github.com/truthbk/opentelemetry-collector/internal/schemagen v0.0.0-20260619163650-4ae40fbc1ada
-
 replace go.opentelemetry.io/collector/internal/sharedcomponent => github.com/truthbk/opentelemetry-collector/internal/sharedcomponent v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/internal/telemetry => github.com/truthbk/opentelemetry-collector/internal/telemetry v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/internal/testutil => github.com/truthbk/opentelemetry-collector/internal/testutil v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/otelcol => github.com/truthbk/opentelemetry-collector/otelcol v0.0.0-20260619163650-4ae40fbc1ada
 
@@ -369,12 +351,6 @@ replace go.opentelemetry.io/collector/receiver/xreceiver => github.com/truthbk/o
 replace go.opentelemetry.io/collector/scraper => github.com/truthbk/opentelemetry-collector/scraper v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/scraper/scraperhelper => github.com/truthbk/opentelemetry-collector/scraper/scraperhelper v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/scraper/scraperhelper/xscraperhelper => github.com/truthbk/opentelemetry-collector/scraper/scraperhelper/xscraperhelper v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/scraper/scrapertest => github.com/truthbk/opentelemetry-collector/scraper/scrapertest v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/scraper/xscraper => github.com/truthbk/opentelemetry-collector/scraper/xscraper v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/service => github.com/truthbk/opentelemetry-collector/service v0.0.0-20260619163650-4ae40fbc1ada
 

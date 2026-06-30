@@ -560,10 +560,6 @@ replace go.opentelemetry.io/collector => github.com/truthbk/opentelemetry-collec
 
 replace go.opentelemetry.io/collector/client => github.com/truthbk/opentelemetry-collector/client v0.0.0-20260619163650-4ae40fbc1ada
 
-replace go.opentelemetry.io/collector/cmd/builder => github.com/truthbk/opentelemetry-collector/cmd/builder v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/cmd/mdatagen => github.com/truthbk/opentelemetry-collector/cmd/mdatagen v0.0.0-20260619163650-4ae40fbc1ada
-
 replace go.opentelemetry.io/collector/component => github.com/truthbk/opentelemetry-collector/component v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/component/componentstatus => github.com/truthbk/opentelemetry-collector/component/componentstatus v0.0.0-20260619163650-4ae40fbc1ada
@@ -577,8 +573,6 @@ replace go.opentelemetry.io/collector/config/configcompression => github.com/tru
 replace go.opentelemetry.io/collector/config/configgrpc => github.com/truthbk/opentelemetry-collector/config/configgrpc v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/config/confighttp => github.com/truthbk/opentelemetry-collector/config/confighttp v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/config/confighttp/xconfighttp => github.com/truthbk/opentelemetry-collector/config/confighttp/xconfighttp v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/config/configmiddleware => github.com/truthbk/opentelemetry-collector/config/configmiddleware v0.0.0-20260619163650-4ae40fbc1ada
 
@@ -611,8 +605,6 @@ replace go.opentelemetry.io/collector/confmap/xconfmap => github.com/truthbk/ope
 replace go.opentelemetry.io/collector/connector => github.com/truthbk/opentelemetry-collector/connector v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/connector/connectortest => github.com/truthbk/opentelemetry-collector/connector/connectortest v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/connector/forwardconnector => github.com/truthbk/opentelemetry-collector/connector/forwardconnector v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/connector/xconnector => github.com/truthbk/opentelemetry-collector/connector/xconnector v0.0.0-20260619163650-4ae40fbc1ada
 
@@ -648,17 +640,11 @@ replace go.opentelemetry.io/collector/extension => github.com/truthbk/openteleme
 
 replace go.opentelemetry.io/collector/extension/extensionauth => github.com/truthbk/opentelemetry-collector/extension/extensionauth v0.0.0-20260619163650-4ae40fbc1ada
 
-replace go.opentelemetry.io/collector/extension/extensionauth/extensionauthtest => github.com/truthbk/opentelemetry-collector/extension/extensionauth/extensionauthtest v0.0.0-20260619163650-4ae40fbc1ada
-
 replace go.opentelemetry.io/collector/extension/extensioncapabilities => github.com/truthbk/opentelemetry-collector/extension/extensioncapabilities v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/extension/extensionmiddleware => github.com/truthbk/opentelemetry-collector/extension/extensionmiddleware v0.0.0-20260619163650-4ae40fbc1ada
 
-replace go.opentelemetry.io/collector/extension/extensionmiddleware/extensionmiddlewaretest => github.com/truthbk/opentelemetry-collector/extension/extensionmiddleware/extensionmiddlewaretest v0.0.0-20260619163650-4ae40fbc1ada
-
 replace go.opentelemetry.io/collector/extension/extensiontest => github.com/truthbk/opentelemetry-collector/extension/extensiontest v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/extension/memorylimiterextension => github.com/truthbk/opentelemetry-collector/extension/memorylimiterextension v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/extension/xextension => github.com/truthbk/opentelemetry-collector/extension/xextension v0.0.0-20260619163650-4ae40fbc1ada
 
@@ -674,13 +660,9 @@ replace go.opentelemetry.io/collector/internal/fanoutconsumer => github.com/trut
 
 replace go.opentelemetry.io/collector/internal/memorylimiter => github.com/truthbk/opentelemetry-collector/internal/memorylimiter v0.0.0-20260619163650-4ae40fbc1ada
 
-replace go.opentelemetry.io/collector/internal/schemagen => github.com/truthbk/opentelemetry-collector/internal/schemagen v0.0.0-20260619163650-4ae40fbc1ada
-
 replace go.opentelemetry.io/collector/internal/sharedcomponent => github.com/truthbk/opentelemetry-collector/internal/sharedcomponent v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/internal/telemetry => github.com/truthbk/opentelemetry-collector/internal/telemetry v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/internal/testutil => github.com/truthbk/opentelemetry-collector/internal/testutil v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/otelcol => github.com/truthbk/opentelemetry-collector/otelcol v0.0.0-20260619163650-4ae40fbc1ada
 
@@ -728,12 +710,6 @@ replace go.opentelemetry.io/collector/scraper => github.com/truthbk/opentelemetr
 
 replace go.opentelemetry.io/collector/scraper/scraperhelper => github.com/truthbk/opentelemetry-collector/scraper/scraperhelper v0.0.0-20260619163650-4ae40fbc1ada
 
-replace go.opentelemetry.io/collector/scraper/scraperhelper/xscraperhelper => github.com/truthbk/opentelemetry-collector/scraper/scraperhelper/xscraperhelper v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/scraper/scrapertest => github.com/truthbk/opentelemetry-collector/scraper/scrapertest v0.0.0-20260619163650-4ae40fbc1ada
-
-replace go.opentelemetry.io/collector/scraper/xscraper => github.com/truthbk/opentelemetry-collector/scraper/xscraper v0.0.0-20260619163650-4ae40fbc1ada
-
 replace go.opentelemetry.io/collector/service => github.com/truthbk/opentelemetry-collector/service v0.0.0-20260619163650-4ae40fbc1ada
 
 replace go.opentelemetry.io/collector/service/hostcapabilities => github.com/truthbk/opentelemetry-collector/service/hostcapabilities v0.0.0-20260619163650-4ae40fbc1ada
@@ -749,13 +725,13 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../../comp/core/agenttelemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../../comp/core/agenttelemetry/impl
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
+	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def => ../../../../comp/core/configstreamconsumer/def
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../../../comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ../../../../comp/core/delegatedauth/api/cloudauth/aws
-	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../core/flare/builder
-	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../comp/core/hostname/hostnameinterface
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def => ../../../../comp/core/hostname/hostnameinterface/def
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock => ../../../../comp/core/hostname/hostnameinterface/mock
@@ -763,35 +739,35 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../../../comp/core/ipc/httphelpers
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../../../comp/core/ipc/impl
 	github.com/DataDog/datadog-agent/comp/core/ipc/mock => ../../../../comp/core/ipc/mock
-	github.com/DataDog/datadog-agent/comp/core/log/def => ../../../core/log/def
+	github.com/DataDog/datadog-agent/comp/core/log/def => ../../../../comp/core/log/def
 	github.com/DataDog/datadog-agent/comp/core/log/fx => ../../../../comp/core/log/fx
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../../comp/core/log/impl
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace => ../../../../comp/core/log/impl-trace
-	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../core/log/mock
-	github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../../core/secrets/def
+	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../../comp/core/log/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../../../comp/core/secrets/def
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ../../../../comp/core/secrets/fx
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ../../../../comp/core/secrets/impl
-	github.com/DataDog/datadog-agent/comp/core/secrets/mock => ../../../core/secrets/mock
-	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl => ../../../core/secrets/noop-impl
-	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../../core/secrets/utils
-	github.com/DataDog/datadog-agent/comp/core/status => ../../../core/status
+	github.com/DataDog/datadog-agent/comp/core/secrets/mock => ../../../../comp/core/secrets/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl => ../../../../comp/core/secrets/noop-impl
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../../../comp/core/secrets/utils
+	github.com/DataDog/datadog-agent/comp/core/status => ../../../../comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ../../../../comp/core/status/statusimpl
-	github.com/DataDog/datadog-agent/comp/core/tagger/def => ../../../core/tagger/def
+	github.com/DataDog/datadog-agent/comp/core/tagger/def => ../../../../comp/core/tagger/def
 	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote => ../../../../comp/core/tagger/fx-remote
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store => ../../../../comp/core/tagger/generic_store
 	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote => ../../../../comp/core/tagger/impl-remote
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../../core/tagger/origindetection
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../../../comp/core/tagger/origindetection
 	github.com/DataDog/datadog-agent/comp/core/tagger/subscriber => ../../../../comp/core/tagger/subscriber
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags => ../../../../comp/core/tagger/tags
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../../../../comp/core/tagger/telemetry
-	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../core/tagger/types
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../core/tagger/utils
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../core/telemetry
-	github.com/DataDog/datadog-agent/comp/def => ../../../def
-	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../forwarder/defaultforwarder
-	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../../comp/core/tagger/types
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../../comp/core/tagger/utils
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
+	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../comp/forwarder/defaultforwarder
+	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs-library => ../../../../comp/logs-library
-	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
+	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../../comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../../../../comp/otelcol/converter/def
@@ -808,11 +784,11 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../../../comp/otelcol/otlp/components/exporter/serializerexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ../../../../comp/otelcol/otlp/components/metricsclient
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ../../../../comp/otelcol/otlp/components/processor/infraattributesprocessor
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../otlp/testutil
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../../../comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/otelcol/status/def => ../../../../comp/otelcol/status/def
 	github.com/DataDog/datadog-agent/comp/otelcol/status/impl => ../../../../comp/otelcol/status/impl
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../../../comp/serializer/logscompression
-	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../../serializer/metricscompression
+	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../../../comp/serializer/metricscompression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../../../comp/trace/agent/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../../comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../../comp/trace/compression/impl-gzip

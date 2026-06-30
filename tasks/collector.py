@@ -689,12 +689,16 @@ def use_fork(
     new_version = core_versions[OTEL_COLLECTOR_MODULE_PREFIX][1:]  # beta line, e.g. "0.152.0"
     update_all_go_mod(modules_version)
     update_versions_in_ocb_yaml(MANIFEST_FILE, modules_version)
-    for filepath in [
+    files_to_update = [
         MANIFEST_FILE,
         "./comp/otelcol/collector/impl/collector.go",
         "./comp/otelcol/collector-contrib/impl/components.go",
         "./.gitlab/test/integration_test/otel.yml",
-    ]:
+    ]
+    # collector unit-test fixtures pin the contrib version string too (see update_files()).
+    for testroot, _, testfiles in os.walk("./tasks/unit_tests/testdata/collector"):
+        files_to_update.extend(os.path.join(testroot, f) for f in testfiles)
+    for filepath in files_to_update:
         update_file(filepath, old_version, new_version)
     update_variables_in_file(
         "./tasks/collector.py", {"OCB_VERSION": new_version, "OTEL_CONTRIB_VERSION": contrib_version}
@@ -706,6 +710,9 @@ def use_fork(
     print(f"Fork pseudoversion: {pseudo}")
     fork_modules = set(core_versions.keys())
 
+    # Only replace modules that are actually required somewhere: replaces for unused modules
+    # have no go.sum entry and break bazel's go_deps ("No sum for ... found").
+    used_modules = set()
     ignored = {os.path.normpath(p) for p in ["./pkg/dyninst/testprogs/progs/go.mod"]}
     for root, _, files in os.walk("."):
         if "go.mod" not in files:
@@ -717,21 +724,22 @@ def use_fork(
         for module in needed:
             target = _fork_target_module(repo, module)
             ctx.run(f"go mod edit -replace={module}={target}@{pseudo} {go_mod_path}", hide=True)
+        used_modules.update(needed)
         if needed:
             print(f"Injected {len(needed)} fork replaces into {go_mod_path}")
 
-    # go.work: add replaces for every fork module (workspace builds; harmless if unused).
-    for module in sorted(fork_modules):
+    # go.work: replace the union of required modules (workspace builds).
+    for module in sorted(used_modules):
         target = _fork_target_module(repo, module)
         ctx.run(f"go work edit -replace={module}={target}@{pseudo}", hide=True)
-    print("Injected fork replaces into go.work")
+    print(f"Injected {len(used_modules)} fork replaces into go.work")
 
-    # OCB manifest: the generated impl/go.mod inherits these replaces.
+    # OCB manifest: the generated impl/go.mod inherits these replaces (only required ones).
     with open(MANIFEST_FILE) as f:
         manifest = yaml.safe_load(f)
     replaces = manifest.get("replaces") or []
     existing = {r.split("=>")[0].strip() for r in replaces}
-    for module in sorted(fork_modules):
+    for module in sorted(used_modules):
         if module in existing:
             continue
         target = _fork_target_module(repo, module)
