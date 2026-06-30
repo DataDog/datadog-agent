@@ -238,11 +238,11 @@ build do
   # there's no need to refer to `pip`, the interpreter will pick the right script.
   command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd
   command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-  # Pre-install pkgconfig==1.5.3 so that lz4's setup_requires=['pkgconfig'] is satisfied before
+  # Pre-install pkgconfig==1.4.0 so that lz4's setup_requires=['pkgconfig'] is satisfied before
   # piptools compile runs. Without this, setuptools' easy_install fetches pkgconfig from PyPI and
   # gets 1.6.0, which dropped setup.py and is incompatible with the legacy easy_install machinery.
-  # 1.5.3 is the latest release that still ships setup.py (1.5.4/1.5.5 do not exist; 1.6.0 dropped it).
-  command "#{pip} install pkgconfig==1.5.3", :env => pre_build_env
+  # 1.4.0 is the last release compatible with Python 2.7; pkgconfig>=1.5.0 added type annotations.
+  command "#{pip} install pkgconfig==1.4.0", :env => pre_build_env
   command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_reqs_file_path} #{static_reqs_out_file} " \
           "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => build_env
   # Pip-compiling seperately each lib that needs a custom build installation
