@@ -30,7 +30,7 @@ func requireSchema(t *testing.T) {
 func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	ctx := map[string]string{
 		contextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
-		contextKeyErrorCount: "3",
+		contextKeyErrorCount: "2",
 	}
 	ctx[contextErrorKey(0)] = "at '/agent_ipc/port': got string, want integer"
 	ctx[contextErrorKey(1)] = "at '/tags': got object, want array"
@@ -39,8 +39,8 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	assert.Empty(t, issue.GetId(), "Id is set by the runner (ReportIssue), not by the template")
 	assert.Equal(t, IssueName, issue.GetIssueName())
 	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.GetSeverity())
-	assert.Equal(t, "Datadog Agent Configuration Has 3 Schema Violations", issue.GetTitle())
-	assert.Equal(t, float64(3),
+	assert.Equal(t, "Datadog Agent Configuration Has 2 Schema Violations", issue.GetTitle())
+	assert.Equal(t, float64(2),
 		issue.GetExtra().GetFields()[contextKeyErrorCount].GetNumberValue())
 	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
 	assert.Contains(t, issue.GetDescription(), "/tags")
