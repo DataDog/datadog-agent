@@ -254,6 +254,32 @@ func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetada
 	return rawConfig, &metadata, nil
 }
 
+// SetPinned updates the IsPinned field on the stored metadata for the given configUUID.
+func (cs *configStore) SetPinned(configUUID string, pinned bool) error {
+	return cs.update(func(tx *bbolt.Tx) error {
+		key := []byte(configUUID)
+		bucket := tx.Bucket([]byte(metadataBucket))
+
+		metadataBytes := bucket.Get(key)
+		if metadataBytes == nil {
+			return fmt.Errorf("config not found: %s", configUUID)
+		}
+
+		var metadata types.ConfigMetadata
+		if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
+			return fmt.Errorf("unmarshal metadata error: %w", err)
+		}
+
+		metadata.IsPinned = pinned
+
+		updated, err := json.Marshal(metadata)
+		if err != nil {
+			return fmt.Errorf("marshal metadata error: %w", err)
+		}
+		return bucket.Put(key, updated)
+	})
+}
+
 // DeleteConfig deletes all data associated with the given key (config UUID) from each bucket
 func (cs *configStore) DeleteConfig(key string) error {
 	return cs.update(func(tx *bbolt.Tx) error {
