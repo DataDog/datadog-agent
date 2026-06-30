@@ -1,3 +1,6 @@
+ad_identifiers:
+  - _tcp_queue_length
+
 init_config:
 
 instances:

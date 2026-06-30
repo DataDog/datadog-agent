@@ -12,6 +12,16 @@ cp "$INPUT" "$OUTPUT"
 # Restore owner-write so install_name_tool can modify dylibs installed as
 # read-only by their build system (e.g. Python lib-dynload modules).
 chmod u+w "$OUTPUT"
+
+# Match Linux patchelf --set-rpath semantics: the packaged output should have
+# exactly the packaging rpath, to avoid leaving in existing ones that may
+# point to build-time paths.
+${OTOOL} -l "$OUTPUT" | awk '
+    $1 == "cmd" && $2 == "LC_RPATH" { in_rpath = 1; next }
+    in_rpath && $1 == "path" { print $2; in_rpath = 0 }
+' | while read -r rpath; do
+    install_name_tool -delete_rpath "$rpath" "$OUTPUT" 2>/dev/null || true
+done
 install_name_tool -add_rpath "$PREFIX" "$OUTPUT" 2>/dev/null || true
 dylib_name=$(basename "$OUTPUT")
 new_id="$PREFIX/$dylib_name"
