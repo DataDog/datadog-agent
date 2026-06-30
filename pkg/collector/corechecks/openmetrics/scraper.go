@@ -6,6 +6,7 @@
 package openmetrics
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -59,6 +60,8 @@ type scrapeResponse struct {
 }
 
 var defaultBearerTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+const maxPreallocatedBodySize = 1024 * 1024
 
 func newScraper(cfg *scraperConfig) (*openmetricsScraper, error) {
 	rawLineFilter, err := compileRegexList(cfg.rawLineFilters)
@@ -127,8 +130,11 @@ func (s *openmetricsScraper) scrape(sender sender.Sender) error {
 	if s.canDirectStreamParse(useOpenMetrics) {
 		return s.scrapeDirectStream(sender, response)
 	}
+	if s.canOpenMetricsStreamParse(useOpenMetrics) {
+		return s.scrapeOpenMetricsStream(sender, response)
+	}
 
-	body, readErr := io.ReadAll(response.body)
+	body, readErr := readResponseBody(response)
 	if readErr != nil {
 		s.submitHealth(sender, servicecheck.ServiceCheckCritical, readErr.Error())
 		if s.flushFirstValue {
@@ -175,9 +181,26 @@ func (s *openmetricsScraper) scrape(sender sender.Sender) error {
 	return nil
 }
 
+func readResponseBody(response *scrapeResponse) ([]byte, error) {
+	if response.contentLength > 0 && response.contentLength <= maxPreallocatedBodySize {
+		var buffer bytes.Buffer
+		buffer.Grow(int(response.contentLength))
+		_, err := buffer.ReadFrom(response.body)
+		return buffer.Bytes(), err
+	}
+	return io.ReadAll(response.body)
+}
+
 func (s *openmetricsScraper) canDirectStreamParse(useOpenMetrics bool) bool {
-	return !useOpenMetrics &&
-		s.cfg.mode == latestMode &&
+	return !useOpenMetrics && s.canTextFastPath()
+}
+
+func (s *openmetricsScraper) canOpenMetricsStreamParse(useOpenMetrics bool) bool {
+	return useOpenMetrics && s.canTextFastPath()
+}
+
+func (s *openmetricsScraper) canTextFastPath() bool {
+	return s.cfg.mode == latestMode &&
 		s.cfg.maxReturnedMetrics > 0 &&
 		!s.cfg.telemetry &&
 		s.rawLineFilter == nil &&
@@ -227,6 +250,44 @@ func (s *openmetricsScraper) scrapeDirectStream(sender sender.Sender, response *
 	}
 	submittedSamples := 0
 	result, err := s.walkAndSubmitPrometheusTextStream(response.body, runtime, sender, &submittedSamples)
+	if err != nil {
+		s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
+		if s.flushFirstValue {
+			s.flushFirstValue = false
+		}
+		return err
+	}
+	if s.cfg.telemetry {
+		s.submitTelemetryCount(sender, "telemetry.metrics.blacklist.count", float64(result.ignoredLines))
+		s.submitTelemetryGauge(sender, "telemetry.payload.size", s.payloadSize(response, int(result.bytesRead)))
+	}
+
+	s.labelAggregator.afterScrape()
+	s.flushFirstValue = true
+	return nil
+}
+
+func (s *openmetricsScraper) scrapeOpenMetricsStream(sender sender.Sender, response *scrapeResponse) error {
+	runtime := runtimeData{
+		flushFirstValue: s.flushFirstValue,
+		staticTags:      s.staticTags,
+	}
+	submittedSamples := 0
+	samples := make([]parsedSample, 1)
+	metric := parsedMetric{Samples: samples}
+	result, err := walkOpenMetricsTextSamples(response.body, s.cfg.mode == latestMode, func(familyName string) bool {
+		if s.cfg.maxReturnedMetrics > 0 && submittedSamples >= s.cfg.maxReturnedMetrics {
+			return false
+		}
+		_, configured := s.transformer.exact[familyName]
+		return configured
+	}, func(sample parsedSample, metricFamily parsedMetric) error {
+		samples[0] = sample
+		metric.Name = metricFamily.Name
+		metric.Type = metricFamily.Type
+		submittedSamples += s.processMetric(metric, runtime, sender, submittedSamples)
+		return nil
+	})
 	if err != nil {
 		s.submitHealth(sender, servicecheck.ServiceCheckCritical, err.Error())
 		if s.flushFirstValue {

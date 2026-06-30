@@ -11,10 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+	"unsafe"
 
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
@@ -22,6 +24,7 @@ import (
 )
 
 const nameLabel = "__name__"
+const openMetricsStreamMaxLineSize = 1024 * 1024
 
 type parsedMetric struct {
 	Name    string
@@ -197,6 +200,620 @@ func walkPrometheusTextSamples(r io.Reader, trimCounterSuffix bool, shouldMateri
 		return result, err
 	}
 	return result, nil
+}
+
+func walkOpenMetricsTextSamples(r io.Reader, trimCounterSuffix bool, shouldMaterialize func(string) bool, handler func(parsedSample, parsedMetric) error) (streamParseResult, error) {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 64*1024), openMetricsStreamMaxLineSize)
+
+	result := streamParseResult{}
+	currentMetric := parsedMetric{}
+	hasCurrentMetric := false
+	seenEOF := false
+	for scanner.Scan() {
+		line := bytes.TrimRight(scanner.Bytes(), "\r")
+		result.bytesRead += int64(len(line)) + 1
+
+		if seenEOF {
+			return result, errors.New("unexpected data after # EOF")
+		}
+		if bytes.Equal(line, []byte("# EOF")) {
+			seenEOF = true
+			continue
+		}
+		if len(line) == 0 {
+			return result, fmt.Errorf("invalid OpenMetrics line %q", line)
+		}
+		if line[0] == ' ' || line[0] == '\t' {
+			return result, fmt.Errorf("invalid OpenMetrics line %q: unexpected leading whitespace", line)
+		}
+		if bytes.HasPrefix(line, []byte("#")) {
+			name, typ, ok, err := parseOpenMetricsTypeLine(line)
+			if err != nil {
+				return result, err
+			}
+			if !ok {
+				if err := validateOpenMetricsMetadataLine(line); err != nil {
+					return result, err
+				}
+				continue
+			}
+			if trimCounterSuffix {
+				name = normalizeFamilyName(name, typ)
+			}
+			currentMetric = parsedMetric{Name: name, Type: typ}
+			hasCurrentMetric = true
+			continue
+		}
+
+		rawNameBytes, rawName, err := openMetricsSampleName(line)
+		if err != nil {
+			return result, err
+		}
+		if hasCurrentMetric && openMetricsCreatedSeries(rawNameBytes, rawName, currentMetric) {
+			continue
+		}
+
+		familyName := ""
+		metric := parsedMetric{Type: "unknown"}
+		if hasCurrentMetric && openMetricsSampleBelongsToFamily(rawNameBytes, rawName, &currentMetric) {
+			familyName = currentMetric.Name
+			metric = currentMetric
+		} else {
+			familyName = openMetricsSampleNameString(rawNameBytes, rawName)
+			metric.Name = familyName
+		}
+
+		materialize := shouldMaterialize(familyName)
+		sample, err := parseOpenMetricsSampleLine(line, materialize)
+		if err != nil {
+			return result, err
+		}
+		if !materialize {
+			continue
+		}
+		if err := handler(sample, metric); err != nil {
+			return result, err
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return result, err
+	}
+	if !seenEOF {
+		return result, errors.New("data does not end with # EOF")
+	}
+	return result, nil
+}
+
+func parseOpenMetricsTypeLine(line []byte) (string, string, bool, error) {
+	const prefix = "# TYPE "
+	if !bytes.HasPrefix(line, []byte(prefix)) {
+		return "", "", false, nil
+	}
+	name, consumed, err := parseOpenMetricsIdentifier(line[len(prefix):])
+	if err != nil {
+		return "", "", false, fmt.Errorf("invalid OpenMetrics TYPE line %q: %w", line, err)
+	}
+	rest := line[len(prefix)+consumed:]
+	if len(rest) == 0 || rest[0] != ' ' {
+		return "", "", false, fmt.Errorf("invalid OpenMetrics TYPE line %q: missing type", line)
+	}
+	typ := string(rest[1:])
+	if !validOpenMetricsType(typ) {
+		return "", "", false, fmt.Errorf("invalid OpenMetrics TYPE line %q: invalid type", line)
+	}
+	return name, typ, true, nil
+}
+
+func validateOpenMetricsMetadataLine(line []byte) error {
+	var prefix string
+	switch {
+	case bytes.HasPrefix(line, []byte("# HELP ")):
+		prefix = "# HELP "
+	case bytes.HasPrefix(line, []byte("# UNIT ")):
+		prefix = "# UNIT "
+	default:
+		return nil
+	}
+
+	name, consumed, err := parseOpenMetricsIdentifier(line[len(prefix):])
+	if err != nil {
+		return fmt.Errorf("invalid OpenMetrics metadata line %q: %w", line, err)
+	}
+	rest := line[len(prefix)+consumed:]
+	if len(rest) < 2 || rest[0] != ' ' {
+		return fmt.Errorf("invalid OpenMetrics metadata line %q: missing text", line)
+	}
+	text := string(rest[1:])
+	if !utf8.ValidString(text) {
+		return fmt.Errorf("invalid OpenMetrics metadata line %q: invalid utf-8", line)
+	}
+	if prefix == "# UNIT " && !strings.HasSuffix(name, "_"+text) {
+		return fmt.Errorf("invalid OpenMetrics metadata line %q: unit is not a metric suffix", line)
+	}
+	return nil
+}
+
+func validOpenMetricsType(typ string) bool {
+	switch typ {
+	case "counter", "gauge", "histogram", "gaugehistogram", "summary", "info", "stateset", "unknown":
+		return true
+	default:
+		return false
+	}
+}
+
+func openMetricsCreatedSeries(sampleNameBytes []byte, sampleName string, metric parsedMetric) bool {
+	switch metric.Type {
+	case "counter", "histogram", "summary":
+		if sampleName != "" {
+			return sampleName == metric.Name+"_created"
+		}
+		return bytesEqualStringWithSuffix(sampleNameBytes, metric.Name, "_created")
+	default:
+		return false
+	}
+}
+
+func openMetricsSampleName(line []byte) ([]byte, string, error) {
+	if len(line) == 0 {
+		return nil, "", fmt.Errorf("invalid OpenMetrics sample line %q: missing metric name", line)
+	}
+	if line[0] == '{' {
+		end := findLabelSetEnd(line)
+		if end < 0 {
+			return nil, "", fmt.Errorf("invalid OpenMetrics sample line %q: unterminated label set", line)
+		}
+		name, err := parseOpenMetricsLabelsInto(nil, line[1:end], true)
+		if err != nil {
+			return nil, "", err
+		}
+		if name == "" {
+			return nil, "", fmt.Errorf("invalid OpenMetrics sample line %q: missing metric name", line)
+		}
+		return nil, name, nil
+	}
+	name, _, err := parseOpenMetricsIdentifierRaw(line)
+	return name, "", err
+}
+
+func openMetricsSampleNameString(sampleNameBytes []byte, sampleName string) string {
+	if sampleName != "" {
+		return sampleName
+	}
+	return string(sampleNameBytes)
+}
+
+func openMetricsSampleBelongsToFamily(sampleNameBytes []byte, sampleName string, metric *parsedMetric) bool {
+	if sampleName != "" {
+		return sampleBelongsToFamily(sampleName, metric)
+	}
+	if bytesEqualString(sampleNameBytes, metric.Name) {
+		return true
+	}
+
+	switch metric.Type {
+	case "counter":
+		return bytesEqualStringWithSuffix(sampleNameBytes, metric.Name, "_total")
+	case "histogram":
+		return bytesEqualStringWithSuffix(sampleNameBytes, metric.Name, "_bucket") ||
+			bytesEqualStringWithSuffix(sampleNameBytes, metric.Name, "_sum") ||
+			bytesEqualStringWithSuffix(sampleNameBytes, metric.Name, "_count")
+	case "summary":
+		return bytesEqualStringWithSuffix(sampleNameBytes, metric.Name, "_sum") ||
+			bytesEqualStringWithSuffix(sampleNameBytes, metric.Name, "_count")
+	default:
+		return false
+	}
+}
+
+func bytesEqualString(data []byte, value string) bool {
+	if len(data) != len(value) {
+		return false
+	}
+	for i := range data {
+		if data[i] != value[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func bytesEqualStringWithSuffix(data []byte, value string, suffix string) bool {
+	if len(data) != len(value)+len(suffix) {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if data[i] != value[i] {
+			return false
+		}
+	}
+	for i := 0; i < len(suffix); i++ {
+		if data[len(value)+i] != suffix[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func parseOpenMetricsSampleLine(line []byte, materializeLabels bool) (parsedSample, error) {
+	var name string
+	var rest []byte
+	var labels map[string]string
+	if line[0] == '{' {
+		end := findLabelSetEnd(line)
+		if end < 0 {
+			return parsedSample{}, fmt.Errorf("invalid OpenMetrics sample line %q: unterminated label set", line)
+		}
+		if materializeLabels {
+			labels = map[string]string{}
+		}
+		var err error
+		name, err = parseOpenMetricsLabelsInto(labels, line[1:end], true)
+		if err != nil {
+			return parsedSample{}, err
+		}
+		if name == "" {
+			return parsedSample{}, fmt.Errorf("invalid OpenMetrics sample line %q: missing metric name", line)
+		}
+		if materializeLabels {
+			labels[nameLabel] = name
+		}
+		rest = line[end+1:]
+	} else {
+		var consumed int
+		if materializeLabels {
+			parsedName, parsedConsumed, err := parseOpenMetricsIdentifier(line)
+			if err != nil {
+				return parsedSample{}, err
+			}
+			name = parsedName
+			consumed = parsedConsumed
+			labels = map[string]string{nameLabel: name}
+		} else {
+			_, parsedConsumed, err := parseOpenMetricsIdentifierRaw(line)
+			if err != nil {
+				return parsedSample{}, err
+			}
+			consumed = parsedConsumed
+		}
+		rest = line[consumed:]
+		if len(rest) > 0 && rest[0] == '{' {
+			end := findLabelSetEnd(rest)
+			if end < 0 {
+				return parsedSample{}, fmt.Errorf("invalid OpenMetrics sample line %q: unterminated label set", line)
+			}
+			if _, err := parseOpenMetricsLabelsInto(labels, rest[1:end], false); err != nil {
+				return parsedSample{}, err
+			}
+			rest = rest[end+1:]
+		}
+	}
+
+	if len(rest) == 0 || rest[0] != ' ' {
+		return parsedSample{}, fmt.Errorf("invalid OpenMetrics sample line %q: missing value", line)
+	}
+	rest = trimOpenMetricsSpaces(rest)
+	rawValue, rest, err := nextOpenMetricsToken(rest)
+	if err != nil {
+		return parsedSample{}, fmt.Errorf("invalid OpenMetrics sample line %q: %w", line, err)
+	}
+	value, err := parseOpenMetricsFloat(rawValue)
+	if err != nil {
+		return parsedSample{}, fmt.Errorf("invalid OpenMetrics sample line %q: invalid value: %w", line, err)
+	}
+
+	sample := parsedSample{
+		Name:   name,
+		Labels: labels,
+		Value:  value,
+	}
+	rest = trimOpenMetricsSpaces(rest)
+	if len(rest) == 0 {
+		return sample, nil
+	}
+	if rest[0] == '#' {
+		if err := parseOpenMetricsExemplar(rest); err != nil {
+			return parsedSample{}, err
+		}
+		return sample, nil
+	}
+
+	rawTimestamp, timestampRest, err := nextOpenMetricsToken(rest)
+	if err != nil {
+		return parsedSample{}, fmt.Errorf("invalid OpenMetrics sample line %q: %w", line, err)
+	}
+	timestamp, err := parseOpenMetricsTimestamp(rawTimestamp)
+	if err != nil {
+		return parsedSample{}, fmt.Errorf("invalid OpenMetrics sample line %q: invalid timestamp: %w", line, err)
+	}
+	sample.Timestamp = timestamp
+	timestampRest = trimOpenMetricsSpaces(timestampRest)
+	if len(timestampRest) == 0 {
+		return sample, nil
+	}
+	if timestampRest[0] != '#' {
+		return parsedSample{}, fmt.Errorf("invalid OpenMetrics sample line %q: unexpected data after timestamp", line)
+	}
+	if err := parseOpenMetricsExemplar(timestampRest); err != nil {
+		return parsedSample{}, err
+	}
+	return sample, nil
+}
+
+func parseOpenMetricsExemplar(data []byte) error {
+	if len(data) < 2 || data[0] != '#' || data[1] != ' ' {
+		return fmt.Errorf("invalid OpenMetrics exemplar %q", data)
+	}
+	rest := trimOpenMetricsSpaces(data[1:])
+	if len(rest) == 0 || rest[0] != '{' {
+		return fmt.Errorf("invalid OpenMetrics exemplar %q: missing labels", data)
+	}
+	end := findLabelSetEnd(rest)
+	if end < 0 {
+		return fmt.Errorf("invalid OpenMetrics exemplar %q: unterminated label set", data)
+	}
+	if _, err := parseOpenMetricsLabelsInto(nil, rest[1:end], false); err != nil {
+		return err
+	}
+	rest = trimOpenMetricsSpaces(rest[end+1:])
+	rawValue, rest, err := nextOpenMetricsToken(rest)
+	if err != nil {
+		return fmt.Errorf("invalid OpenMetrics exemplar %q: missing value", data)
+	}
+	if _, err := parseOpenMetricsFloat(rawValue); err != nil {
+		return fmt.Errorf("invalid OpenMetrics exemplar %q: invalid value: %w", data, err)
+	}
+	rest = trimOpenMetricsSpaces(rest)
+	if len(rest) == 0 {
+		return nil
+	}
+	rawTimestamp, rest, err := nextOpenMetricsToken(rest)
+	if err != nil {
+		return fmt.Errorf("invalid OpenMetrics exemplar %q: invalid timestamp", data)
+	}
+	if _, err := parseOpenMetricsTimestamp(rawTimestamp); err != nil {
+		return fmt.Errorf("invalid OpenMetrics exemplar %q: invalid timestamp: %w", data, err)
+	}
+	if len(trimOpenMetricsSpaces(rest)) > 0 {
+		return fmt.Errorf("invalid OpenMetrics exemplar %q: unexpected trailing data", data)
+	}
+	return nil
+}
+
+func parseOpenMetricsLabelsInto(labels map[string]string, data []byte, allowMetricName bool) (string, error) {
+	if labels == nil {
+		return validateOpenMetricsLabels(data, allowMetricName)
+	}
+
+	metricName := ""
+	var seen [8]string
+	seenCount := 0
+	var seenOverflow map[string]struct{}
+	for len(data) > 0 {
+		data = trimOpenMetricsSpaces(data)
+		if len(data) == 0 {
+			break
+		}
+		name, consumed, err := parseOpenMetricsIdentifier(data)
+		if err != nil {
+			return "", err
+		}
+		data = trimOpenMetricsSpaces(data[consumed:])
+		if len(data) > 0 && data[0] == '=' {
+			duplicate := false
+			for i := 0; i < seenCount; i++ {
+				if seen[i] == name {
+					duplicate = true
+					break
+				}
+			}
+			if seenOverflow != nil {
+				if _, ok := seenOverflow[name]; ok {
+					duplicate = true
+				}
+			}
+			if duplicate {
+				return "", fmt.Errorf("invalid OpenMetrics label set %q: duplicate label name", data)
+			}
+			if seenCount < len(seen) {
+				seen[seenCount] = name
+				seenCount++
+			} else {
+				if seenOverflow == nil {
+					seenOverflow = make(map[string]struct{}, 1)
+				}
+				seenOverflow[name] = struct{}{}
+			}
+			data = trimOpenMetricsSpaces(data[1:])
+			if labels != nil {
+				value, valueConsumed, err := parsePrometheusLabelValue(data)
+				if err != nil {
+					return "", err
+				}
+				labels[name] = value
+				data = trimOpenMetricsSpaces(data[valueConsumed:])
+			} else {
+				valueConsumed, err := validatePrometheusLabelValue(data)
+				if err != nil {
+					return "", err
+				}
+				data = trimOpenMetricsSpaces(data[valueConsumed:])
+			}
+		} else {
+			if !allowMetricName {
+				return "", fmt.Errorf("invalid OpenMetrics label set %q: missing `=`", data)
+			}
+			if metricName != "" {
+				return "", fmt.Errorf("invalid OpenMetrics label set %q: duplicate metric name", data)
+			}
+			metricName = name
+		}
+
+		if len(data) == 0 {
+			break
+		}
+		if data[0] != ',' {
+			return "", fmt.Errorf("invalid OpenMetrics label set %q: missing `,`", data)
+		}
+		data = data[1:]
+	}
+	return metricName, nil
+}
+
+func validateOpenMetricsLabels(data []byte, allowMetricName bool) (string, error) {
+	metricName := ""
+	var seen [8][]byte
+	seenCount := 0
+	var seenOverflow map[string]struct{}
+	for len(data) > 0 {
+		data = trimOpenMetricsSpaces(data)
+		if len(data) == 0 {
+			break
+		}
+		rawName, consumed, err := parseOpenMetricsIdentifierRaw(data)
+		if err != nil {
+			return "", err
+		}
+		data = trimOpenMetricsSpaces(data[consumed:])
+		if len(data) > 0 && data[0] == '=' {
+			duplicate := false
+			for i := 0; i < seenCount; i++ {
+				if bytes.Equal(seen[i], rawName) {
+					duplicate = true
+					break
+				}
+			}
+			if seenOverflow != nil {
+				if _, ok := seenOverflow[string(rawName)]; ok {
+					duplicate = true
+				}
+			}
+			if duplicate {
+				return "", fmt.Errorf("invalid OpenMetrics label set %q: duplicate label name", data)
+			}
+			if seenCount < len(seen) {
+				seen[seenCount] = rawName
+				seenCount++
+			} else {
+				if seenOverflow == nil {
+					seenOverflow = make(map[string]struct{}, 1)
+				}
+				seenOverflow[string(rawName)] = struct{}{}
+			}
+			data = trimOpenMetricsSpaces(data[1:])
+			valueConsumed, err := validatePrometheusLabelValue(data)
+			if err != nil {
+				return "", err
+			}
+			data = trimOpenMetricsSpaces(data[valueConsumed:])
+		} else {
+			if !allowMetricName {
+				return "", fmt.Errorf("invalid OpenMetrics label set %q: missing `=`", data)
+			}
+			if metricName != "" {
+				return "", fmt.Errorf("invalid OpenMetrics label set %q: duplicate metric name", data)
+			}
+			var err error
+			metricName, err = openMetricsIdentifierRawString(rawName)
+			if err != nil {
+				return "", err
+			}
+		}
+
+		if len(data) == 0 {
+			break
+		}
+		if data[0] != ',' {
+			return "", fmt.Errorf("invalid OpenMetrics label set %q: missing `,`", data)
+		}
+		data = data[1:]
+	}
+	return metricName, nil
+}
+
+func parseOpenMetricsIdentifier(data []byte) (string, int, error) {
+	raw, consumed, err := parseOpenMetricsIdentifierRaw(data)
+	if err != nil {
+		return "", 0, err
+	}
+	value, err := openMetricsIdentifierRawString(raw)
+	if err != nil {
+		return "", 0, err
+	}
+	return value, consumed, nil
+}
+
+func parseOpenMetricsIdentifierRaw(data []byte) ([]byte, int, error) {
+	if len(data) == 0 {
+		return nil, 0, errors.New("missing identifier")
+	}
+	if data[0] == '"' {
+		consumed, err := validatePrometheusLabelValue(data)
+		if err != nil {
+			return nil, 0, err
+		}
+		return data[:consumed], consumed, nil
+	}
+	end := bytes.IndexAny(data, "{,}= ")
+	if end < 0 {
+		end = len(data)
+	}
+	if end == 0 {
+		return nil, 0, fmt.Errorf("invalid OpenMetrics identifier %q", data)
+	}
+	if !validPrometheusMetricNameBytes(data[:end]) {
+		return nil, 0, fmt.Errorf("invalid OpenMetrics identifier %q", data[:end])
+	}
+	return data[:end], end, nil
+}
+
+func openMetricsIdentifierRawString(raw []byte) (string, error) {
+	if len(raw) > 0 && raw[0] == '"' {
+		value, _, err := parsePrometheusLabelValue(raw)
+		return value, err
+	}
+	return string(raw), nil
+}
+
+func parseOpenMetricsFloat(data []byte) (float64, error) {
+	if !validPrometheusFloat(data) {
+		return 0, fmt.Errorf("unsupported character in float %q", data)
+	}
+	return strconv.ParseFloat(unsafeString(data), 64)
+}
+
+func parseOpenMetricsTimestamp(data []byte) (int64, error) {
+	value, err := parseOpenMetricsFloat(data)
+	if err != nil {
+		return 0, err
+	}
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, fmt.Errorf("invalid timestamp %q", data)
+	}
+	return int64(value * 1000), nil
+}
+
+func nextOpenMetricsToken(data []byte) ([]byte, []byte, error) {
+	if len(data) == 0 {
+		return nil, nil, errors.New("missing token")
+	}
+	end := bytes.IndexByte(data, ' ')
+	if end < 0 {
+		return data, nil, nil
+	}
+	return data[:end], data[end:], nil
+}
+
+func trimOpenMetricsSpaces(data []byte) []byte {
+	return bytes.TrimLeft(data, " ")
+}
+
+func unsafeString(data []byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+	return unsafe.String(unsafe.SliceData(data), len(data))
 }
 
 func prometheusSampleName(line []byte) ([]byte, error) {

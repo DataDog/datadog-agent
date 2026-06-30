@@ -59,6 +59,36 @@ metrics:
 `, payload)
 	})
 
+	b.Run("default_cap_openmetrics_text", func(b *testing.B) {
+		benchmarkOpenMetricsRunWithContentType(b, `
+openmetrics_endpoint: %%endpoint%%
+namespace: om_eval
+metrics:
+  - stress_gauge:
+      type: gauge
+  - stress_counter:
+      type: counter
+  - stress_histogram_seconds:
+      type: histogram
+`, payload+"# EOF\n", "application/openmetrics-text; version=1.0.0")
+	})
+
+	b.Run("default_cap_openmetrics_text_regex_fallback", func(b *testing.B) {
+		benchmarkOpenMetricsRunWithSetupAndContentType(b, `
+openmetrics_endpoint: %%endpoint%%
+namespace: om_eval
+metrics:
+  - stress_gauge:
+      type: gauge
+  - stress_counter:
+      type: counter
+  - stress_histogram_seconds:
+      type: histogram
+`, payload+"# EOF\n", "application/openmetrics-text; version=1.0.0", func(scraper *openmetricsScraper) {
+			scraper.transformer.patterns = append(scraper.transformer.patterns, metricPattern{pattern: regexp.MustCompile("a^")})
+		})
+	})
+
 	b.Run("default_cap_buffered", func(b *testing.B) {
 		benchmarkOpenMetricsRunWithSetup(b, `
 openmetrics_endpoint: %%endpoint%%
@@ -102,6 +132,36 @@ metrics:
   - stress_histogram_seconds:
       type: histogram
 `, widePayload)
+	})
+
+	b.Run("wide_endpoint_subset_openmetrics_text", func(b *testing.B) {
+		benchmarkOpenMetricsRunWithContentType(b, `
+openmetrics_endpoint: %%endpoint%%
+namespace: om_eval
+metrics:
+  - stress_gauge:
+      type: gauge
+  - stress_counter:
+      type: counter
+  - stress_histogram_seconds:
+      type: histogram
+`, widePayload+"# EOF\n", "application/openmetrics-text; version=1.0.0")
+	})
+
+	b.Run("wide_endpoint_subset_openmetrics_text_regex_fallback", func(b *testing.B) {
+		benchmarkOpenMetricsRunWithSetupAndContentType(b, `
+openmetrics_endpoint: %%endpoint%%
+namespace: om_eval
+metrics:
+  - stress_gauge:
+      type: gauge
+  - stress_counter:
+      type: counter
+  - stress_histogram_seconds:
+      type: histogram
+`, widePayload+"# EOF\n", "application/openmetrics-text; version=1.0.0", func(scraper *openmetricsScraper) {
+			scraper.transformer.patterns = append(scraper.transformer.patterns, metricPattern{pattern: regexp.MustCompile("a^")})
+		})
 	})
 
 	b.Run("wide_endpoint_subset_buffered", func(b *testing.B) {
@@ -487,11 +547,21 @@ func benchmarkOpenMetricsRun(b *testing.B, instance string, payload string) {
 	benchmarkOpenMetricsRunWithSetup(b, instance, payload, nil)
 }
 
+func benchmarkOpenMetricsRunWithContentType(b *testing.B, instance string, payload string, contentType string) {
+	b.Helper()
+	benchmarkOpenMetricsRunWithSetupAndContentType(b, instance, payload, contentType, nil)
+}
+
 func benchmarkOpenMetricsRunWithSetup(b *testing.B, instance string, payload string, setup func(*openmetricsScraper)) {
+	b.Helper()
+	benchmarkOpenMetricsRunWithSetupAndContentType(b, instance, payload, "text/plain; version=0.0.4", setup)
+}
+
+func benchmarkOpenMetricsRunWithSetupAndContentType(b *testing.B, instance string, payload string, contentType string, setup func(*openmetricsScraper)) {
 	b.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		w.Header().Set("Content-Type", contentType)
 		_, _ = w.Write([]byte(payload))
 	}))
 	b.Cleanup(server.Close)

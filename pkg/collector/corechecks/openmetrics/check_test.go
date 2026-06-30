@@ -1475,6 +1475,118 @@ request_duration_seconds_count 6
 	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_duration_seconds.count", 6, "", []string{"endpoint:" + run.endpoint}, false)
 }
 
+func TestLatestOpenMetricsStreamSubmitsOpenMetricsText(t *testing.T) {
+	run := runOpenMetricsCheckWithResponse(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - requests
+  - queue_depth
+  - request_duration_seconds
+`, `# TYPE requests counter
+requests_total{method="GET"} 10 123.456 # {trace_id="abc"} 7 456.789
+requests_created{method="GET"} 100
+# TYPE queue_depth gauge
+queue_depth{queue="default"} 3
+# TYPE request_duration_seconds histogram
+request_duration_seconds_bucket{le="0.1"} 2 # {trace_id="bucket"} 1
+request_duration_seconds_bucket{le="+Inf"} 2
+request_duration_seconds_sum 0.2
+request_duration_seconds_count 2
+# EOF
+`, http.StatusOK, "application/openmetrics-text; version=1.0.0")
+
+	require.False(t, run.check.scraper.inner.canDirectStreamParse(true))
+	require.True(t, run.check.scraper.inner.canOpenMetricsStreamParse(true))
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.requests.count", 10, "", []string{"endpoint:" + run.endpoint, "method:GET"}, false)
+	run.sender.AssertMetricMissing(t, "Gauge", "test.requests_created")
+	run.sender.AssertMetric(t, "Gauge", "test.queue_depth", 3, "", []string{"endpoint:" + run.endpoint, "queue:default"})
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_duration_seconds.bucket", 2, "", []string{"endpoint:" + run.endpoint, "upper_bound:0.1"}, false)
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_duration_seconds.sum", 0.2, "", []string{"endpoint:" + run.endpoint}, false)
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.request_duration_seconds.count", 2, "", []string{"endpoint:" + run.endpoint}, false)
+}
+
+func TestLatestOpenMetricsStreamUsesCurrentOpenMetricsFamily(t *testing.T) {
+	run := runOpenMetricsCheckWithResponse(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - requests
+  - other
+`, `# TYPE requests counter
+# TYPE other gauge
+other 5
+requests_total{method="GET"} 10
+# EOF
+`, http.StatusOK, "application/openmetrics-text; version=1.0.0")
+
+	require.False(t, run.check.scraper.inner.canDirectStreamParse(true))
+	require.True(t, run.check.scraper.inner.canOpenMetricsStreamParse(true))
+	run.sender.AssertMetric(t, "Gauge", "test.other", 5, "", []string{"endpoint:" + run.endpoint})
+	run.sender.AssertMetricMissing(t, "MonotonicCountWithFlushFirstValue", "test.requests.count")
+}
+
+func TestLatestOpenMetricsStreamHandlesQuotedNamesAndLabels(t *testing.T) {
+	run := runOpenMetricsCheckWithResponse(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - gc_duration_seconds
+`, `# TYPE "gc_duration_seconds" summary
+{"gc_duration_seconds",quantile="0.5","strange.label"="ok"} 1.5
+{"gc_duration_seconds_created"} 100
+{"gc_duration_seconds_sum"} 3
+{"gc_duration_seconds_count"} 2 # {"id.thing"="summary-count-test"} 1 123.321
+# EOF
+`, http.StatusOK, "application/openmetrics-text; version=1.0.0")
+
+	require.False(t, run.check.scraper.inner.canDirectStreamParse(true))
+	require.True(t, run.check.scraper.inner.canOpenMetricsStreamParse(true))
+	run.sender.AssertMetric(t, "Gauge", "test.gc_duration_seconds.quantile", 1.5, "", []string{"endpoint:" + run.endpoint, "quantile:0.5", "strange.label:ok"})
+	run.sender.AssertMetricMissing(t, "Gauge", "test.gc_duration_seconds_created")
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.gc_duration_seconds.sum", 3, "", []string{"endpoint:" + run.endpoint}, false)
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.gc_duration_seconds.count", 2, "", []string{"endpoint:" + run.endpoint}, false)
+}
+
+func TestLatestOpenMetricsStreamRequiresEOF(t *testing.T) {
+	for name, payload := range map[string]string{
+		"missing EOF": `# TYPE metric1 gauge
+metric1 1
+`,
+		"blank line before EOF": `# TYPE metric1 gauge
+metric1 1
+
+# EOF
+`,
+		"leading whitespace": `# TYPE metric1 gauge
+ metric1 1
+# EOF
+`,
+		"data after EOF": `# TYPE metric1 gauge
+metric1 1
+# EOF
+metric2 2
+`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			run := configureOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: openmetrics
+metrics:
+  - metric1
+`, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/openmetrics-text; version=1.0.0")
+				_, err := w.Write([]byte(payload))
+				require.NoError(t, err)
+			}))
+
+			require.False(t, run.check.scraper.inner.canDirectStreamParse(true))
+			require.True(t, run.check.scraper.inner.canOpenMetricsStreamParse(true))
+			require.Error(t, run.check.Run())
+		})
+	}
+}
+
 func TestLatestDirectStreamSkippedMetricStillValidatesResponseTail(t *testing.T) {
 	run := configureOpenMetricsCheck(t, `
 openmetrics_endpoint: %%endpoint%%
