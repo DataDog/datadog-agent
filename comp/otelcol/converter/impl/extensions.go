@@ -173,3 +173,19 @@ func addExtensionToPipeline(conf *confmap.Conf, comp component) {
 
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
+
+// reuseOrAddExtension wires an existing user-defined extension of the same base
+// component name into service::extensions when one is present; otherwise it adds
+// comp's dd-autoconfigured instance and wires that. Callers are responsible for
+// any feature/mode gating and for skipping extensions already in the pipeline.
+func reuseOrAddExtension(conf *confmap.Conf, comp component) {
+	// User already defined this extension but forgot to wire it into
+	// service.extensions — reuse their definition instead of creating a
+	// second <name>/dd-autoconfigured.
+	if existingID := findExistingExtensionID(conf, comp.Name); existingID != "" {
+		wireExtensionIDToPipeline(conf, existingID)
+		return
+	}
+	addComponentToConfig(conf, comp)
+	addExtensionToPipeline(conf, comp)
+}

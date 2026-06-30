@@ -44,19 +44,11 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 		if !slices.Contains(enabledFeatures, extension.Name) || extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
-		// The datadog extension requires an API key; without one we add nothing for
-		// it (neither reuse an existing definition nor create a new one).
-		if extension.Name == datadogName && (c.coreConfig == nil || c.coreConfig.GetString("api_key") == "") {
-			continue
-		}
-		// User already defined this extension but forgot to wire it into
-		// service.extensions — reuse their definition instead of creating a
-		// second <name>/dd-autoconfigured.
-		if existingID := findExistingExtensionID(conf, extension.Name); existingID != "" {
-			wireExtensionIDToPipeline(conf, existingID)
-			continue
-		}
 		if extension.Name == datadogName {
+			// The datadog extension requires an API key; without one we add nothing.
+			if c.coreConfig == nil || c.coreConfig.GetString("api_key") == "" {
+				continue
+			}
 			site := defaultSite
 			if c.coreConfig.GetString("site") != "" {
 				site = c.coreConfig.GetString("site")
@@ -81,21 +73,12 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 				"installation_method": c.coreConfig.GetString("otelcollector.installation_method"),
 			}
 		}
-		addComponentToConfig(conf, extension)
-		addExtensionToPipeline(conf, extension)
+		reuseOrAddExtension(conf, extension)
 	}
 
 	// dogtel extension (standalone mode only)
 	if c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone") && !extensionIsInServicePipeline(conf, dogtelComponent) {
-		if existingID := findExistingExtensionID(conf, dogtelName); existingID != "" {
-			// User already defined a dogtel extension but forgot to wire it into
-			// service.extensions — reuse their definition instead of creating a
-			// second dogtel/dd-autoconfigured with empty config.
-			wireExtensionIDToPipeline(conf, existingID)
-		} else {
-			addComponentToConfig(conf, dogtelComponent)
-			addExtensionToPipeline(conf, dogtelComponent)
-		}
+		reuseOrAddExtension(conf, dogtelComponent)
 	}
 
 	// infra attributes processor
