@@ -112,3 +112,55 @@ func TestIsAllowed_AllTagsMustPresent(t *testing.T) {
 	assert.False(t, r.IsAllowed("x", []string{"env:dev", "team:foo"}))
 	assert.True(t, r.IsAllowed("x", []string{"env:dev"})) // missing team:foo
 }
+
+// --- containsAllTagsSorted ---
+
+func TestContainsAllTagsSorted_EmptyRuleTags(t *testing.T) {
+	assert.True(t, containsAllTagsSorted(nil, nil))
+	assert.True(t, containsAllTagsSorted([]string{"env:prod"}, nil))
+}
+
+func TestContainsAllTagsSorted_EmptySampleTags(t *testing.T) {
+	assert.False(t, containsAllTagsSorted(nil, []string{"env:prod"}))
+}
+
+func TestContainsAllTagsSorted_AllMatch(t *testing.T) {
+	sample := []string{"env:prod", "service:web", "team:foo"}
+	rule := []string{"env:prod", "service:web"}
+	assert.True(t, containsAllTagsSorted(sample, rule))
+}
+
+func TestContainsAllTagsSorted_PartialMatch(t *testing.T) {
+	sample := []string{"env:prod", "service:web"}
+	rule := []string{"env:prod", "team:foo"}
+	assert.False(t, containsAllTagsSorted(sample, rule))
+}
+
+func TestContainsAllTagsSorted_SampleExhaustedBeforeAllRuleTags(t *testing.T) {
+	sample := []string{"a:1"}
+	rule := []string{"a:1", "z:9"}
+	assert.False(t, containsAllTagsSorted(sample, rule))
+}
+
+func TestContainsAllTagsSorted_ExactMatch(t *testing.T) {
+	tags := []string{"env:dev", "service:api"}
+	assert.True(t, containsAllTagsSorted(tags, tags))
+}
+
+// --- compileRuleTags deduplication ---
+
+func TestCompileRuleTagsDeduplicate(t *testing.T) {
+	compiled, err := compileRuleTags([]string{"env:prod", "env:prod", "service:web"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"env:prod", "service:web"}, compiled)
+}
+
+func TestIsAllowed_DuplicateRuleTagsBehaveAsIfUnique(t *testing.T) {
+	r := rules(t, ProcessingRule{
+		Name: "r", Type: "exclude_at_match",
+		Tags: []string{"env:prod", "env:prod"},
+	})
+	// Should match the same as a rule with a single "env:prod".
+	assert.False(t, r.IsAllowed("x", []string{"env:prod"}))
+	assert.True(t, r.IsAllowed("x", []string{"env:dev"}))
+}
