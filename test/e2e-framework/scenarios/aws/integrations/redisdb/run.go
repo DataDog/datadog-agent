@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	scenarioName = "redisdb"
+	hostName = "agent-host"
 	// redisImage pins the standalone Redis 7.2 OSS image used by the lab.
 	redisImage = "redis:7.2"
 )
@@ -49,7 +49,7 @@ func Run(ctx *pulumi.Context) error {
 
 	// Single x86_64 Ubuntu VM sized per the capacity plan (t3.medium, 2 vCPU /
 	// 4 GiB / 20 GiB).
-	host, err := ec2.NewVM(awsEnv, scenarioName, ec2.WithInstanceType("t3.medium"))
+	host, err := ec2.NewVM(awsEnv, hostName, ec2.WithInstanceType("t3.medium"))
 	if err != nil {
 		return err
 	}

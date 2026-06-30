@@ -35,7 +35,10 @@ def _ssh_base(ctx: Context, scenario_name: str, role: str, stack_name: str | Non
         host = get_host(ctx, role, scenario_name, stack_name)
     except KeyError as exc:
         raise RuntimeError(_missing_outputs_message(role)) from exc
-    command = f"ssh {host.user}@{host.address}"
+    command = (
+        f"ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "
+        f"{host.user}@{host.address}"
+    )
     if host.port:
         command += f" -p {host.port}"
     return command

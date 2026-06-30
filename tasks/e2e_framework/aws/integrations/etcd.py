@@ -4,8 +4,11 @@ from tasks.e2e_framework.aws.integrations._lab_tasks import build_collection
 collection = build_collection(
     name="etcd",
     scenario_name="aws/integrations/etcd",
-    check_command="sudo -u dd-agent datadog-agent check etcd",
-    remote_hostname="agent-host",
+    # etcd uses the ec2docker scenario: the Agent runs as the `datadog-agent`
+    # container, so check/status must exec inside it rather than use host commands.
+    check_command="sudo docker exec datadog-agent agent check etcd",
+    status_command="sudo docker exec datadog-agent agent status",
+    remote_hostname="aws-agent-host",
     source=("https://github.com/DataDog/integrations-core", "master", "etcd"),
-    reload_check=True,
+    reload_check=False,
 )

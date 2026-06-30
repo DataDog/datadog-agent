@@ -5,7 +5,7 @@ collection = build_collection(
     name="aws_neuron",
     scenario_name="aws/integrations/aws_neuron",
     check_command="sudo -u dd-agent datadog-agent check aws_neuron",
-    remote_hostname="agent-host",
+    remote_hostname="aws-agent-host",
     source=("https://github.com/DataDog/integrations-core", "master", "aws_neuron"),
     reload_check=True,
 )

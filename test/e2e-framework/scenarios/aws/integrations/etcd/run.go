@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	scenarioName = "etcd"
+	hostName = "agent-host"
 	// instanceType matches the capacity plan selection (t3.large: 2 vCPU / 8 GiB).
 	instanceType = "t3.large"
 )
@@ -37,7 +37,7 @@ func Run(ctx *pulumi.Context) error {
 	env := outputs.NewDockerHost()
 
 	params := ec2docker.GetParams(
-		ec2docker.WithName(scenarioName),
+		ec2docker.WithName(hostName),
 		ec2docker.WithEC2VMOptions(ec2.WithInstanceType(instanceType)),
 		ec2docker.WithFakeIntakeOptions([]fakeintake.Option{}...),
 		ec2docker.WithAgentOptions(

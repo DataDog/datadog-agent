@@ -71,6 +71,11 @@ if [ -z "${PYTHON_BIN}" ]; then
   log "FATAL: python3 unavailable"; exit 1
 fi
 
+# neuron-monitor-prometheus.py imports prometheus_client, which the DLAMI system
+# python does not ship. Without it the exporter crash-loops and :8000 never opens.
+"${PYTHON_BIN}" -m pip install --quiet prometheus_client 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 \
+  || log "WARNING: could not install prometheus_client for ${PYTHON_BIN}; exporter may crash-loop"
+
 # ---------------------------------------------------------------------------
 # Prometheus exporter systemd unit: neuron-monitor | neuron-monitor-prometheus.py
 # ---------------------------------------------------------------------------
@@ -173,14 +178,22 @@ PYEOF
 
 # Resolve a python that can import torch-neuron; DLAMI ships venvs under
 # /opt/aws_neuron_venv_*; otherwise use the system python.
-LOAD_PYTHON="${PYTHON_BIN}"
+LOAD_EXEC="${PYTHON_BIN} ${WORKDIR}/neuron_load.py"
+NEURON_VENV=""
 for venv in /opt/aws_neuron_venv_pytorch* /opt/aws_neuronx_venv_pytorch* /opt/aws_neuron_venv*; do
   if [ -x "${venv}/bin/python" ]; then
-    LOAD_PYTHON="${venv}/bin/python"
+    NEURON_VENV="${venv}"
     break
   fi
 done
-log "inference loop python=${LOAD_PYTHON}"
+if [ -n "${NEURON_VENV}" ]; then
+  # Source the venv's activate (not just venv/bin/python): torch-neuronx needs the
+  # runtime env it sets (LD_LIBRARY_PATH, NEURON_RT_*, libneuronpjrt path). Calling
+  # the interpreter directly leaves libneuronpjrt unresolved and the trace silently
+  # falls back to CPU, so no neuroncore_* metrics are emitted.
+  LOAD_EXEC="/bin/bash -lc 'source ${NEURON_VENV}/bin/activate && exec python ${WORKDIR}/neuron_load.py'"
+fi
+log "inference loop exec=${LOAD_EXEC}"
 
 cat > /etc/systemd/system/neuron-load.service <<EOF
 [Unit]
@@ -190,7 +203,7 @@ Wants=neuron-monitor-prometheus.service
 
 [Service]
 Type=simple
-ExecStart=${LOAD_PYTHON} ${WORKDIR}/neuron_load.py
+ExecStart=${LOAD_EXEC}
 Restart=always
 RestartSec=10
 User=root

@@ -5,7 +5,7 @@ collection = build_collection(
     name="redisdb",
     scenario_name="aws/integrations/redisdb",
     check_command="sudo -u dd-agent datadog-agent check redisdb",
-    remote_hostname="agent-host",
+    remote_hostname="aws-agent-host",
     source=("https://github.com/DataDog/integrations-core", "master", "redisdb"),
     reload_check=True,
 )

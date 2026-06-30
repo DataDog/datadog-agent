@@ -42,20 +42,17 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 		return err
 	}
 
-	// The standard host export key is "dd-Host-aws-<Name>"; the generated task
-	// reads role "agent-host" (key "dd-Host-agent-host"). Export an alias under
-	// that key with the same connection fields so the task can resolve the host.
-	ctx.Export("dd-Host-agent-host", pulumi.Map{
-		"address":       host.Address,
-		"port":          host.Port,
-		"username":      host.Username,
-		"password":      host.Password,
-		"cloudProvider": host.CloudProvider,
-		"osFamily":      host.OSFamily,
-		"osFlavor":      host.OSFlavor,
-		"osVersion":     host.OSVersion,
-		"architecture":  host.Architecture,
-	})
+	// JMXFetch needs a JRE on the host to run the JMX-based "kafka" check; the
+	// Agent package does not bundle one. Install a headless JRE before the Agent.
+	jreReady, err := host.OS.Runner().Command(
+		awsEnv.CommonNamer().ResourceName("kafka-install-jre"),
+		&command.Args{
+			Create: pulumi.String("sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq default-jre-headless"),
+		},
+	)
+	if err != nil {
+		return err
+	}
 
 	// Install Docker + docker-compose on the host (ECR creds helper included).
 	dockerManager, err := docker.NewAWSManager(&awsEnv, host)
@@ -131,7 +128,7 @@ EOF`),
 		agentOptions := append(params.agentOptions,
 			agentparams.WithIntegration("kafka.d", kafkaCheckConfig),
 			agentparams.WithTags([]string{fmt.Sprintf("stackid:%s", ctx.Stack())}),
-			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(jmxReady)),
+			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(jmxReady, jreReady)),
 		)
 		agentComp, err := agent.NewHostAgent(&awsEnv, host, agentOptions...)
 		if err != nil {

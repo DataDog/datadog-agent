@@ -68,17 +68,17 @@ services:
         kafka-console-consumer --bootstrap-server localhost:9092 --topic marvel --group lab-consumer-marvel >/dev/null 2>&1 &
         kafka-console-consumer --bootstrap-server localhost:9092 --topic dc --group lab-consumer-dc >/dev/null 2>&1 &
         while true; do
-          iteration=$((iteration + 1))
-          topic=${topics[$((RANDOM % ${#topics[@]}))]}
-          hero=${heroes[$((RANDOM % ${#heroes[@]}))]}
-          batch=$((1 + RANDOM % 20))
-          for i in $(seq 1 "$batch"); do
-            echo "{\"hero\":\"$hero\",\"iter\":$iteration,\"n\":$i}"
-          done | kafka-console-producer --bootstrap-server localhost:9092 --topic "$topic" >/dev/null 2>&1
+          iteration=$$((iteration + 1))
+          topic=$${topics[$$((RANDOM % $${#topics[@]}))]}
+          hero=$${heroes[$$((RANDOM % $${#heroes[@]}))]}
+          batch=$$((1 + RANDOM % 20))
+          for i in $$(seq 1 "$$batch"); do
+            echo "{\"hero\":\"$$hero\",\"iter\":$$iteration,\"n\":$$i}"
+          done | kafka-console-producer --bootstrap-server localhost:9092 --topic "$$topic" >/dev/null 2>&1
           # Periodically list/describe to exercise admin + controller beans.
-          if [ $((iteration % 10)) -eq 0 ]; then
+          if [ $$((iteration % 10)) -eq 0 ]; then
             kafka-topics --bootstrap-server localhost:9092 --describe >/dev/null 2>&1 || true
             kafka-consumer-groups --bootstrap-server localhost:9092 --describe --all-groups >/dev/null 2>&1 || true
           fi
-          sleep $((1 + RANDOM % 4))
+          sleep $$((1 + RANDOM % 4))
         done
