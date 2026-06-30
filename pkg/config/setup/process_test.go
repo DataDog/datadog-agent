@@ -383,6 +383,7 @@ func TestEnvVarOverride(t *testing.T) {
 				t.Setenv(env, tc.value)
 
 				cfg := newTestConf(t)
+				loadProcessTransforms(cfg)
 				assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 			})
 		}
