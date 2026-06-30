@@ -146,6 +146,26 @@ func TestSetupWithoutAPIKey(t *testing.T) {
 	})
 }
 
+// TestLogTagsBaseComputedFromTagConfigTags verifies that the logTagsBase variable
+// computed in setup() — as serverlessTag.MapToArray(tagConfig.Tags) — contains all
+// tags configured via DD_TAGS. This documents the contract: BaseTags passed to
+// LifecycleContext must be the full startup tag slice so the lifecycle server can
+// append microvm_id to it without losing any base tags.
+func TestLogTagsBaseComputedFromTagConfigTags(t *testing.T) {
+	configmock.New(t)
+	modeConf = mode.DetectMode()
+	t.Setenv("DD_TAGS", "env:prod region:us-east-1")
+
+	cloudService := &cloudservice.LocalService{}
+	tagConfig := configureTags(cloudService)
+	logTagsBase := serverlessTag.MapToArray(tagConfig.Tags)
+
+	assert.Contains(t, logTagsBase, "env:prod",
+		"logTagsBase must include all DD_TAGS entries (used as BaseTags on the lifecycle server)")
+	assert.Contains(t, logTagsBase, "region:us-east-1")
+	assert.NotEmpty(t, logTagsBase)
+}
+
 // TestSetupOtlpAgentNoPanic ensures setupOtlpAgent does not panic when OTLP is enabled.
 func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_LOGS_ENABLED", "true")

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -20,8 +21,26 @@ var JSONServerlessInitEncoder Encoder = &jsonServerlessInitEncoder{}
 
 // jsonServerlessInitEncoder transforms a message into a JSON byte array.
 // It caches the tags string since tags are constant in serverless-init environments.
+// Call SetServerlessInitTagCache when tags change at runtime (e.g. after
+// a MicroVM /launch hook adds lambda_microvm_id).
 type jsonServerlessInitEncoder struct {
 	cachedTags string
+}
+
+// SetServerlessInitTagCache pre-populates the JSONServerlessInitEncoder's cache
+// with the provided tags. This must be called (instead of clearing the cache)
+// whenever the log tag set changes at runtime (e.g. after /launch appends
+// lambda_microvm_id). Setting the cache directly prevents in-flight pre-launch
+// messages — whose origin.tags were snapshotted before the update — from being
+// encoded first and re-priming the cache with stale tags.
+//
+// Pass nil or an empty slice to reset the cache (equivalent to the old
+// InvalidateServerlessInitTagCache behaviour; the next Encode call will
+// re-populate from the message).
+func SetServerlessInitTagCache(tags []string) {
+	if enc, ok := JSONServerlessInitEncoder.(*jsonServerlessInitEncoder); ok {
+		enc.cachedTags = strings.Join(tags, ",")
+	}
 }
 
 // JSON representation of a message for serverless-init.

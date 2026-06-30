@@ -827,8 +827,8 @@ func TestNewServerWithForwarderWriteTimeoutCoversForwardBudget(t *testing.T) {
 }
 
 // TestInstanceIDTagAppearsInMetricsAfterLaunch verifies that once /launch stores a
-// MicroVM instance ID, subsequent lifecycle metrics include instance_id:<id> as an
-// extra tag. This is the primary tagging path for identifying individual MicroVM
+// MicroVM instance ID, subsequent lifecycle metrics include lambda_microvm_id:<id> as
+// an extra tag. This is the primary tagging path for identifying individual MicroVM
 // instances in lifecycle metrics.
 func TestInstanceIDTagAppearsInMetricsAfterLaunch(t *testing.T) {
 	srv, _, _, _, emitter, _ := newTestServer()
@@ -848,7 +848,7 @@ func TestInstanceIDTagAppearsInMetricsAfterLaunch(t *testing.T) {
 		}
 	}
 	require.NotNil(t, found, "suspend metric must be emitted")
-	assert.Contains(t, found.extraTags, instanceIDTagPrefix+"vm-abc123")
+	assert.Contains(t, found.extraTags, lambdaMicroVMID+"vm-abc123")
 }
 
 // errorReader is a helper io.Reader that always returns the provided error.
@@ -1032,6 +1032,24 @@ func TestHandleLaunch_MissingBodyIDUsesUnknown(t *testing.T) {
 	assert.Contains(t, srv.heartbeat.tagsForEmit(), "microvm_id:unknown")
 }
 
+// traced_invocations is emitted by the Heartbeat on each tick, not directly by
+// handleLaunch. This test verifies the separation of concerns: the server's own
+// emitter must never receive traced_invocations. Billing tag correctness is
+// covered in heartbeat_test.go.
+func TestHandleLaunch_ServerDoesNotDirectlyEmitTracedInvocations(t *testing.T) {
+	srv, _, _, _, emitter, _ := newTestServer()
+	_, teardown := withFakeHeartbeat(t, srv)
+	defer teardown()
+
+	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+
+	for _, m := range emitter.getEmittedMetrics() {
+		assert.NotEqual(t, activeInstancesMetricName, m.name,
+			"server must not directly emit traced_invocations; that is the heartbeat's responsibility")
+	}
+}
+
 func TestHandleSuspend_StopsHeartbeat(t *testing.T) {
 	srv, _, _, _, _, _ := newTestServer()
 	started, teardown := withFakeHeartbeat(t, srv)
@@ -1089,4 +1107,172 @@ func TestServerStop_AlsoStopsHeartbeat(t *testing.T) {
 	require.NoError(t, srv.Stop(ctx))
 
 	assert.False(t, started(), "Server.Stop must also stop the heartbeat")
+}
+
+// ---------------------------------------------------------------------------
+// Log tag setter tests
+// ---------------------------------------------------------------------------
+
+// mockLogsTagSetter records every SetLogsTags call for assertions.
+type mockLogsTagSetter struct {
+	mu    sync.Mutex
+	calls [][]string
+}
+
+func (m *mockLogsTagSetter) SetLogsTags(tags []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, slices.Clone(tags))
+}
+
+func (m *mockLogsTagSetter) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.calls)
+}
+
+func (m *mockLogsTagSetter) lastCall() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.calls) == 0 {
+		return nil
+	}
+	return slices.Clone(m.calls[len(m.calls)-1])
+}
+
+func (m *mockLogsTagSetter) allCalls() [][]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([][]string, len(m.calls))
+	for i, c := range m.calls {
+		out[i] = slices.Clone(c)
+	}
+	return out
+}
+
+// TestLogsTagSetterFunc_CallsWrappedFunction verifies that LogsTagSetterFunc
+// delegates to the underlying function when SetLogsTags is called.
+func TestLogsTagSetterFunc_CallsWrappedFunction(t *testing.T) {
+	var received []string
+	fn := LogsTagSetterFunc(func(tags []string) { received = tags })
+	fn.SetLogsTags([]string{"env:prod", "region:us-east-1"})
+	assert.Equal(t, []string{"env:prod", "region:us-east-1"}, received)
+}
+
+// TestSetLogsTagSetter_WiresFields verifies that SetLogsTagSetter stores both
+// the setter and the base-tag snapshot on the server.
+func TestSetLogsTagSetter_WiresFields(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockLogsTagSetter{}
+	baseTags := []string{"region:us-east-1"}
+	srv.SetLogsTagSetter(setter, baseTags)
+	assert.Equal(t, setter, srv.logsTagSetter)
+	assert.Equal(t, baseTags, srv.baseTags)
+}
+
+// TestHandleLaunch_UpdatesLogTagsWithMicroVMID is the primary feature test:
+// /launch with a microVmId body calls SetLogsTags with baseTags + lambdaMicroVMID + id.
+func TestHandleLaunch_UpdatesLogTagsWithMicroVMID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockLogsTagSetter{}
+	srv.SetLogsTagSetter(setter, []string{"env:prod", "region:us-east-1"})
+
+	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+
+	require.Equal(t, 1, setter.callCount(), "SetLogsTags must be called exactly once on /launch")
+	assert.Equal(t, []string{"env:prod", "region:us-east-1", lambdaMicroVMID + "vm-abc123"}, setter.lastCall())
+}
+
+// TestHandleLaunch_NoMicroVmID_DoesNotUpdateLogTags verifies that when the platform
+// sends /launch with no microVmId, SetLogsTags is not called — the tag pipeline
+// should not be updated with an unknown value.
+func TestHandleLaunch_NoMicroVmID_DoesNotUpdateLogTags(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockLogsTagSetter{}
+	srv.SetLogsTagSetter(setter, []string{"env:prod"})
+
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, nil))
+
+	assert.Equal(t, 0, setter.callCount(), "SetLogsTags must not be called when microVmId is absent")
+}
+
+// TestHandleLaunch_NilLogsTagSetter_DoesNotPanic verifies nil-safety: a server
+// constructed without SetLogsTagSetter must not panic when /launch fires.
+func TestHandleLaunch_NilLogsTagSetter_DoesNotPanic(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	// logsTagSetter is nil by default
+
+	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
+	assert.NotPanics(t, func() {
+		srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+	})
+}
+
+// TestHandleLaunch_BaseTagsNotMutated verifies the safe-append contract: each
+// call to handleLaunch produces an independent slice and does not modify the
+// baseTags stored on the server. This guards against the naive
+// append(s.baseTags, ...) pattern which can corrupt baseTags when the slice
+// has spare capacity.
+func TestHandleLaunch_BaseTagsNotMutated(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockLogsTagSetter{}
+	baseTags := []string{"env:prod", "service:foo"}
+	originalBase := slices.Clone(baseTags)
+	srv.SetLogsTagSetter(setter, baseTags)
+
+	body1 := strings.NewReader(`{"microVmId":"vm-first"}`)
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body1))
+	assert.Equal(t, originalBase, baseTags, "handleLaunch must not mutate the baseTags slice")
+
+	// Simulate a second /launch (e.g. resumed from snapshot with a new ID) to
+	// confirm each call produces an independent result.
+	body2 := strings.NewReader(`{"microVmId":"vm-second"}`)
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body2))
+
+	calls := setter.allCalls()
+	require.Len(t, calls, 2)
+	assert.Equal(t, []string{"env:prod", "service:foo", lambdaMicroVMID + "vm-first"}, calls[0])
+	assert.Equal(t, []string{"env:prod", "service:foo", lambdaMicroVMID + "vm-second"}, calls[1])
+}
+
+// TestHandleLaunch_EmptyBaseTags_AppendsMicroVMIDOnly verifies that when the
+// server is started with no base tags, the resulting tag slice contains only
+// the microvm_id tag (not an empty leading element).
+func TestHandleLaunch_EmptyBaseTags_AppendsMicroVMIDOnly(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockLogsTagSetter{}
+	srv.SetLogsTagSetter(setter, nil)
+
+	body := strings.NewReader(`{"microVmId":"vm-solo"}`)
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+
+	require.Equal(t, 1, setter.callCount())
+	assert.Equal(t, []string{lambdaMicroVMID + "vm-solo"}, setter.lastCall())
+}
+
+// TestHandleLaunch_WithForwarder_UpdatesLogTags verifies that the log tag update
+// fires even when a user-app forwarder is configured. handleLaunch parses the
+// body and calls the setter before delegating to handleParallel.
+func TestHandleLaunch_WithForwarder_UpdatesLogTags(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	srv, _, _, _, _, _ := newTestServer()
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	setter := &mockLogsTagSetter{}
+	srv.SetLogsTagSetter(setter, []string{"env:staging"})
+
+	body := strings.NewReader(`{"microVmId":"vm-fwd456"}`)
+	srv.handleLaunch(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathLaunch, body))
+
+	require.Equal(t, 1, setter.callCount(), "SetLogsTags must be called even when forwarder is configured")
+	assert.Equal(t, []string{"env:staging", lambdaMicroVMID + "vm-fwd456"}, setter.lastCall())
 }
