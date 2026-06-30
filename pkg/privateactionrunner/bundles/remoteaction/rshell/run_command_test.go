@@ -27,19 +27,22 @@ func makeTask(command string, allowedCommands []string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
 		Inputs: map[string]any{"command": command},
-		RemoteAction: &types.RemoteActionAttributes{
-			TargetCommands: allowedCommands,
+		SystemInputs: &types.SystemInputsAttributes{
+			RemoteAction: &types.RemoteActionAttributes{
+				TargetCommands: allowedCommands,
+			},
 		},
 	}
 	return task
 }
 
 // makeTaskWithPaths constructs a task carrying the backend allowlists in the
-// signed task's nested remote_action policy. Use makeTask (without this helper)
-// to exercise the "backend did not send target_paths" branch: a nil slice.
+// signed task's nested system_inputs.remote_action policy. Use makeTask
+// (without this helper) to exercise the "backend did not send target_paths"
+// branch: a nil slice.
 func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths []string) *types.Task {
 	task := makeTask(command, allowedCommands)
-	task.Data.Attributes.RemoteAction.TargetPaths = allowedPaths
+	task.Data.Attributes.SystemInputs.RemoteAction.TargetPaths = allowedPaths
 	return task
 }
 

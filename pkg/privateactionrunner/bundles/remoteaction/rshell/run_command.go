@@ -136,7 +136,8 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 //
 // The command allowlists are no longer carried in inputs: they are resolved
 // from execution policies on the backend and delivered in the signed task
-// (Attributes.RemoteAction.TargetCommands / Attributes.RemoteAction.TargetPaths).
+// (Attributes.SystemInputs.RemoteAction.TargetCommands /
+// Attributes.SystemInputs.RemoteAction.TargetPaths).
 // Inputs only carry the command to run.
 type RunCommandInputs struct {
 	Command string `json:"command"`
@@ -174,9 +175,9 @@ func (h *RunCommandHandler) Run(
 	// The backend allowlists come from the signed task, not from user inputs.
 	var backendCommands []string
 	var backendPaths []string
-	if task.Data.Attributes.RemoteAction != nil {
-		backendCommands = task.Data.Attributes.RemoteAction.TargetCommands
-		backendPaths = task.Data.Attributes.RemoteAction.TargetPaths
+	if task.Data.Attributes.SystemInputs != nil && task.Data.Attributes.SystemInputs.RemoteAction != nil {
+		backendCommands = task.Data.Attributes.SystemInputs.RemoteAction.TargetCommands
+		backendPaths = task.Data.Attributes.SystemInputs.RemoteAction.TargetPaths
 	}
 	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
