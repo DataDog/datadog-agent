@@ -50,7 +50,7 @@ Restart the Private Action Runner process to apply the new identity.`,
 	return []*cobra.Command{cmd}
 }
 
-func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component) error {
+func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
 	ctx := context.Background()
 
 	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
@@ -72,11 +72,12 @@ func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component)
 		return fmt.Errorf("failed to persist new identity: %w", err)
 	}
 
-	parCfg, err := parconfig.FromDDConfig(cfg)
+	// nil metrics client: identity rotation emits no metrics.
+	parCfg, err := parconfig.FromDDConfig(cfg, nil)
 	if err != nil {
-		fmt.Printf("Identity rotated, but failed to load runner config for auto-connection: %v\n", err)
+		logger.Warnf("Identity rotated, but failed to load runner config for auto-connection: %v", err)
 	} else if urnParts, err := parutil.ParseRunnerURN(result.URN); err != nil {
-		fmt.Printf("Identity rotated, but failed to parse URN for auto-connection: %v\n", err)
+		logger.Warnf("Identity rotated, but failed to parse URN for auto-connection: %v", err)
 	} else {
 		autoconnections.CreateConnectionsIfEnabled(
 			ctx, cfg, parCfg,
@@ -85,7 +86,7 @@ func run(_ log.Component, cfg config.Component, hostnameComp hostname.Component)
 		)
 	}
 
-	fmt.Printf("Identity successfully rotated. New URN: %s\n", result.URN)
-	fmt.Println("Restart the Private Action Runner to apply the new identity.")
+	logger.Infof("Identity successfully rotated. New URN: %s", result.URN)
+	logger.Info("Restart the Private Action Runner to apply the new identity.")
 	return nil
 }

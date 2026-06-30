@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "events",
+    srcs = [
+        "ad_limiter.go",
+        "custom.go",
+        "event.go",
+        "event_easyjson.go",
+        "json.go",
+        "rate_limiter.go",
+        "std_limiter.go",
+        "token_limiter.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/events",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/config",
+        "//pkg/security/metrics",
+        "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/containerutils",
+        "//pkg/security/secl/model",
+        "//pkg/security/secl/rules",
+        "//pkg/security/seclog",
+        "//pkg/security/utils",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_mailru_easyjson//:easyjson",
+        "@com_github_mailru_easyjson//jlexer",
+        "@com_github_mailru_easyjson//jwriter",
+        "@org_golang_x_time//rate",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

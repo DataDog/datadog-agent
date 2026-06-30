@@ -88,7 +88,8 @@ type collectorImpl struct {
 	createdAt time.Time
 }
 
-type provides struct {
+// Provides defines the output types of the collector component.
+type Provides struct {
 	compdef.Out
 
 	Comp             collector.Component
@@ -99,12 +100,13 @@ type provides struct {
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(newProvides),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		fxutil.ProvideOptional[collector.Component](),
 	)
 }
 
-func newProvides(deps dependencies) provides {
+// NewComponent creates a new collector component.
+func NewComponent(deps dependencies) Provides {
 	c := newCollector(deps)
 
 	var agentCheckMetadata metadata.Provider
@@ -112,7 +114,7 @@ func newProvides(deps dependencies) provides {
 		agentCheckMetadata = metadata.NewProvider(c.collectMetadata)
 	}
 
-	return provides{
+	return Provides{
 		Comp:             c,
 		StatusProvider:   status.NewInformationProvider(collectorStatus.NewProvider(c)),
 		MetadataProvider: agentCheckMetadata,
@@ -211,7 +213,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry)
+	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry, option.New[healthplatform.Component](c.healthPlatform))
 
 	var emptyID checkid.ID
 

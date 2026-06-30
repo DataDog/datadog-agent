@@ -9,14 +9,17 @@ package installer
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v6"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/ddot"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -78,43 +81,67 @@ func (s *testExtensionsSuite) installExtension(pkg TestPackageConfig, extensionN
 	s.Require().NoError(err, "Failed to install extension: %s", output)
 }
 
-// removeExtension removes an extension using the datadog-installer.
-func (s *testExtensionsSuite) removeExtension(packageName, extensionName string) {
-	output, err := s.runInstallerCommand(fmt.Sprintf("extension remove %s %s", packageName, extensionName))
-	s.Require().NoError(err, "Failed to remove extension: %s", output)
-}
-
-// verifyDDOTRunning verifies that DDOT is running via PowerShell service check.
-// If expectedVersion is non-empty, also verifies the DDOT service binary path
-// contains that version string, confirming the correct version is running.
-func (s *testExtensionsSuite) verifyDDOTRunning(expectedVersion string) {
+// verifyDDOTRunningSCM asserts the legacy Windows SCM path: datadog-otel-agent is Running.
+// Used for the stable baseline (pre–OCI-procmgr DDOT) where the collector runs as that service.
+// If expectedVersion is non-empty, also checks the service PathName contains that version.
+func (s *testExtensionsSuite) verifyDDOTRunningSCM(expectedVersion string) {
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
+	if expectedVersion == "" {
+		return
+	}
 	assert.Eventually(s.T(), func() bool {
-		output, err := s.Env().RemoteHost.Execute(
-			`$svc = Get-Service -Name "datadog-otel-agent" -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output "NotFound" } else { Write-Output $svc.Status }`)
-		if err != nil {
-			return false
-		}
-		if !strings.Contains(output, "Running") {
-			return false
-		}
-		if expectedVersion == "" {
-			return true
-		}
 		binaryPath, err := s.Env().RemoteHost.Execute(
 			`(Get-WmiObject -Class Win32_Service -Filter "Name='datadog-otel-agent'").PathName`)
 		if err != nil {
 			return false
 		}
 		return strings.Contains(binaryPath, expectedVersion)
-	}, 5*time.Minute, 2*time.Second, "DDOT service should be running at version %s", expectedVersion)
+	}, 2*time.Minute, 2*time.Second, "DDOT SCM service should be running at version %s", expectedVersion)
 }
 
-// verifyDDOTServiceNotRunning verifies that the DDOT service is not present.
-func (s *testExtensionsSuite) verifyDDOTServiceNotRunning() {
-	output, err := s.Env().RemoteHost.Execute(
-		`$svc = Get-Service -Name "datadog-otel-agent" -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output "NotFound" } else { Write-Output $svc.Status }`)
+// verifyDDOTRunningProcmgr waits for procmgr + stopped legacy otel, asserts DDOT under procmgr, then (if expectedVersion != "")
+// that dd-procmgr describe Command contains that version (same convention as verifyDDOTRunningSCM).
+func (s *testExtensionsSuite) verifyDDOTRunningProcmgr(expectedVersion string) {
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
+	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
+	ddot.AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	if expectedVersion == "" {
+		return
+	}
+	installRoot, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err)
-	s.Require().Contains(output, "NotFound", "DDOT service should not exist")
+	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
+	assert.Eventually(s.T(), func() bool {
+		cmdLine, err := ddot.WindowsDescribeDDOTCommandLine(s.Env().RemoteHost, cli)
+		if err != nil || cmdLine == "" {
+			return false
+		}
+		return strings.Contains(cmdLine, expectedVersion)
+	}, 2*time.Minute, 2*time.Second, "dd-procmgr describe Command should contain version %s", expectedVersion)
+}
+
+// pollWindowsServiceStatus runs Get-Service on the remote host and returns trimmed output:
+// "NotFound" if the service is absent, otherwise the status string (e.g. Running, Stopped).
+func (s *testExtensionsSuite) pollWindowsServiceStatus(serviceName string) (output string, ok bool) {
+	cmd := fmt.Sprintf(
+		`$svc = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output "NotFound" } else { Write-Output $svc.Status }`,
+		serviceName)
+	out, err := s.Env().RemoteHost.Execute(cmd)
+	if err != nil {
+		return "", false
+	}
+	return strings.TrimSpace(out), true
+}
+
+// verifyServiceNotFound waits until the named Windows service is absent from SCM.
+func (s *testExtensionsSuite) verifyServiceNotFound(serviceName string) {
+	assert.Eventually(s.T(), func() bool {
+		out, ok := s.pollWindowsServiceStatus(serviceName)
+		if !ok {
+			return false
+		}
+		return strings.Contains(out, "NotFound")
+	}, 5*time.Minute, 2*time.Second, "Windows service %q should be removed from SCM", serviceName)
 }
 
 // setAgentConfig creates the agent configuration with the given OCI registry URL.
@@ -175,13 +202,15 @@ func (s *testExtensionsSuite) installCurrentAgentVersion(opts ...MsiOption) {
 func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
 	s.setAgentConfig(consts.PipelineOCIRegistry)
 	s.installPreviousAgentVersion()
-	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
 	defer func() {
-		s.removeExtension("datadog-agent", "ddot")
+		if err := s.Installer().Uninstall(WithMSILogFile("teardown-uninstall-persist-through-upgrade.log")); err != nil {
+			s.T().Logf("teardown: uninstall agent: %v", err)
+		}
 	}()
-	s.verifyDDOTRunning(s.StableAgentVersion().Version())
+	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
+	s.verifyDDOTRunningSCM(s.StableAgentVersion().Version())
 	s.installCurrentAgentVersion()
-	s.verifyDDOTRunning(s.CurrentAgentVersion().Version())
+	s.verifyDDOTRunningProcmgr(s.CurrentAgentVersion().Version())
 }
 
 // TestExtensionRestoredOnMSIRollback tests that extensions are restored when an MSI upgrade fails and rolls back.
@@ -194,11 +223,13 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 	// downloads the pipeline package from the catalog URL (installtesting.datad0g.com).
 	s.setAgentConfig("")
 	s.installPreviousAgentVersion()
-	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
 	defer func() {
-		s.removeExtension("datadog-agent", "ddot")
+		if err := s.Installer().Uninstall(WithMSILogFile("teardown-uninstall-msi-rollback.log")); err != nil {
+			s.T().Logf("teardown: uninstall agent: %v", err)
+		}
 	}()
-	s.verifyDDOTRunning(s.StableAgentVersion().Version())
+	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
+	s.verifyDDOTRunningSCM(s.StableAgentVersion().Version())
 	s.setExperimentMSIArgs([]string{"WIXFAILWHENDEFERRED=1"})
 
 	// Override MSI args to include the pipeline registry URL for the experiment MSI.
@@ -224,16 +255,13 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
 	s.Require().NoError(err)
 
-	err = s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
-
 	s.Require().Host(s.Env().RemoteHost).
 		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
 
-	s.verifyDDOTRunning(s.StableAgentVersion().Version())
+	s.verifyDDOTRunningSCM(s.StableAgentVersion().Version())
 }
 
 // TestExtensionRemovedOnUninstall tests that extensions are cleaned up on uninstall.
@@ -244,17 +272,23 @@ func (s *testExtensionsSuite) TestExtensionRemovedOnUninstall() {
 
 	// 1. Install current agent version
 	s.installCurrentAgentVersion()
+	defer func() {
+		if err := s.Installer().Uninstall(WithMSILogFile("teardown-uninstall-extension-removed-on-uninstall.log")); err != nil {
+			s.T().Logf("teardown: uninstall agent: %v", err)
+		}
+	}()
 
 	// 2. Install DDOT extension
 	s.installExtension(s.CurrentAgentVersion().OCIPackage(), "ddot")
 
-	// 3. Verify DDOT is running
-	s.verifyDDOTRunning(s.CurrentAgentVersion().Version())
+	// 3. Verify DDOT is running (OCI layout: under dd-procmgr-service)
+	s.verifyDDOTRunningProcmgr(s.CurrentAgentVersion().Version())
 
 	// 4. Uninstall agent
 	err := s.Installer().Uninstall()
 	s.Require().NoError(err, "Failed to uninstall agent")
 
-	// 5. Verify DDOT service is removed
-	s.verifyDDOTServiceNotRunning()
+	// 5. Legacy otel and procmgr SCM services must be gone
+	s.verifyServiceNotFound("datadog-otel-agent")
+	s.verifyServiceNotFound("dd-procmgr-service")
 }

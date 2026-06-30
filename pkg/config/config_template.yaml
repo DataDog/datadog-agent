@@ -2656,6 +2656,12 @@ api_key:
 #
 # dogstatsd_no_aggregation_pipeline_batch_size: 2048
 
+## @param dogstatsd_no_aggregation_pipeline_workers_count - integer - optional - default: 1
+## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE_WORKERS_COUNT - integer - optional - default: 1
+## How many workers are used by the no-aggregation pipeline.
+#
+# dogstatsd_no_aggregation_pipeline_workers_count: 1
+
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
@@ -2735,11 +2741,11 @@ api_key:
 #
 # jmx_max_ram_percentage: 25
 
-## @param jmx_log_file - string - optional - default: ""
-## @env DD_JMX_LOG_FILE - string - optional - default: ""
+## @param jmx_log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
+## @env DD_JMX_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
 ## Path of the log file where JMXFetch logs are written.
 #
-# jmx_log_file: <JMXFETCH_LOG_FILE_PATH>
+# jmx_log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
 
 ## @param jmx_max_restarts - integer - optional - default: 3
 ## @env DD_JMX_MAX_RESTARTS - integer - optional - default: 3
@@ -2823,12 +2829,12 @@ api_key:
 #
 # log_level: "info"
 
-## @param log_file - string - optional - default: ""
-## @env DD_LOG_FILE - string - optional - default: ""
+## @param log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
+## @env DD_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
 ## Path of the log file for the Datadog Agent.
 ## See https://docs.datadoghq.com/agent/guide/agent-log-files/
 #
-# log_file: <AGENT_LOG_FILE_PATH>
+# log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
 
 ## @param log_format_json - boolean - optional - default: false
 ## @env DD_LOG_FORMAT_JSON - boolean - optional - default: false
@@ -4342,7 +4348,7 @@ api_key:
 #         # @param use_raw_socket - boolean - optional - default: false
 #         # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_LINUX_USE_RAW_SOCKET - boolean - optional - default: false
 #         # Send pings in a privileged fashion using a raw socket.
-#         # This may be required if your system doesn't support  sending pings in an unprivileged fashion (using a UDP
+#         # This may be required if your system doesn't support sending pings in an unprivileged fashion (using a UDP
 #         # socket).
 #         # If `use_raw_socket` is set to true, you MUST also enable system-probe which has elevated privileges. To
 #         # enable it, see system-probe.yaml.example.
@@ -4557,7 +4563,7 @@ api_key:
 #         #         - "tagKey2:tagValue2"
 #         #       disabled: true         # (optional) disables monitoring for matched interfaces, default value is false
 #
-#         interface_config:
+#         interface_configs:
 #           "10.0.0.1":
 #             - match_field: name
 #               match_value: eth0
@@ -4645,7 +4651,6 @@ api_key:
 
 #     # @param stop_timeout - integer - optional - default: 5
 #     # @env DD_NETWORK_DEVICES_SNMP_TRAPS_STOP_TIMEOUT - integer - optional - default: 5
-#     # stop_timeout - float - optional - default: 5.0
 #     # The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
 #
 #     stop_timeout: 5
@@ -4678,7 +4683,7 @@ api_key:
 #     #                            Default port differ by flow type: netflow5(2055), netflow9(2055), ipfix(4739), sflow5(6343)
 #     #  * bind_host    - string - (Optional) The hostname to listen on for incoming netflow packets.
 #     #                            Binds to 0.0.0.0 by default (accepting all packets).
-#     #  * workers      - string - (Optional) Number of workers to use for this listener.
+#     #  * workers      - integer - (Optional) Number of workers to use for this listener.
 #     #                            Defaults to 1.
 #     #  * mapping      - (Optional) List of NetflowV9/IPFIX fields to additionally collect.
 #     #                              Defaults to None.
@@ -5216,7 +5221,7 @@ api_key:
 
 #   # @param http_allowlist - list of strings - optional - default: []
 #   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - comma-separated list of strings - optional - default: []
-#   # List of allowed URL patterns for HTTP actions.
+#   # List of allowed domains for HTTP actions. Supports glob pattern. Example : ["datadoghq.com", "*.datadoghq.com"]
 #
 #   http_allowlist: []
 

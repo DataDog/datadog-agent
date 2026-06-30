@@ -22,6 +22,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -74,6 +75,22 @@ func TestDefaults(t *testing.T) {
 	assert.True(t, config.GetBool("logs_config.tag_truncated_logs"))
 
 	assert.True(t, config.GetBool("process_manager.enabled"))
+}
+
+func TestRelativePathResolvedByDefault(t *testing.T) {
+	config := newTestConf(t)
+
+	// Defaults expressed with the ${...}/ relative-path notation must be resolved
+	// to concrete paths once the schema is built. If resolution were not enabled by
+	// default, these settings would still contain the literal ${...} token.
+	logFile := config.GetString("log_file")
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultLogPath(), "agent.log"), logFile)
+	assert.NotContains(t, logFile, "${", "relative path was not resolved")
+
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultLogPath(), "jmxfetch.log"), config.GetString("jmx_log_file"))
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultConfPath(), "conf.d"), config.GetString("confd_path"))
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultConfPath(), "checks.d"), config.GetString("additional_checksd"))
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultRunPath(), "sbom-agent"), config.GetString("sbom.cache_directory"))
 }
 
 func TestProcessManagerEnabledEnvOverride(t *testing.T) {
@@ -677,6 +694,14 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, false, config.GetBool("network_path.netflow_monitoring.enabled"))
 }
 
+func TestHealthPlatformDefaults(t *testing.T) {
+	config := confFromYAML(t, "")
+
+	assert.Equal(t, true, config.GetBool("health_platform.enabled"))
+	assert.Equal(t, 15*time.Minute, config.GetDuration("health_platform.forwarder.interval"))
+	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
+}
+
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
 	datadogYaml := `
 infrastructure_mode: none
@@ -855,6 +880,40 @@ data_plane:
 	})
 }
 
+func TestComputeDataPlaneStopTimeout(t *testing.T) {
+	t.Run("unset stop timeout derives from component timeouts", func(t *testing.T) {
+		cfg := confFromYAML(t, "")
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 4, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceDefault, cfg.GetSource("data_plane.stop_timeout"))
+	})
+
+	t.Run("explicit stop timeout is preserved", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+data_plane:
+  stop_timeout: 11
+`)
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 11, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceFile, cfg.GetSource("data_plane.stop_timeout"))
+	})
+
+	t.Run("recomputes default after component timeout changes", func(t *testing.T) {
+		cfg := confFromYAML(t, "")
+		cfg.Set("aggregator_stop_timeout", 3, pkgconfigmodel.SourceFleetPolicies)
+		cfg.Set("forwarder_stop_timeout", 7, pkgconfigmodel.SourceFleetPolicies)
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 10, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceDefault, cfg.GetSource("data_plane.stop_timeout"))
+	})
+}
+
 func TestDataPlaneDefaults(t *testing.T) {
 	cfg := confFromYAML(t, "")
 
@@ -864,7 +923,7 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.Equal(t, "tcp://0.0.0.0:5101", cfg.GetString("data_plane.secure_api_listen_address"))
 	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
-	assert.Equal(t, DefaultDataPlaneLogFile, cfg.GetString("data_plane.log_file"))
+	assert.Equal(t, defaultpaths.GetDefaultDataPlaneLogFile(), cfg.GetString("data_plane.log_file"))
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.traces.enabled"))
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.metrics.enabled"))
 	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
@@ -954,6 +1013,7 @@ proxy:
 	expectedURL := "somehost:1234"
 	expectedHTTPURL := "https://" + expectedURL
 	testConfig := confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	LoadProxyFromEnv(testConfig)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -978,6 +1038,7 @@ fips:
 	expectedURL = "localhost:50"
 	expectedHTTPURL = "http://" + expectedURL
 	testConfig = confFromYAML(t, datadogYamlFips)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -1002,6 +1063,7 @@ fips:
 
 	expectedHTTPURL = "https://" + expectedURL
 	testConfig = confFromYAML(t, datadogYamlFips)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	testConfig.Set("skip_ssl_validation", false, pkgconfigmodel.SourceAgentRuntime) // should be overridden by fips.tls_verify
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
@@ -1071,6 +1133,7 @@ fips:
 `
 
 	testConfig := confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err := setupFipsEndpoints(testConfig)
 	require.Error(t, err)
 }
@@ -1081,6 +1144,7 @@ apm_config:
   peer_service_aggregation: true
 `
 	testConfig := confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
@@ -1090,6 +1154,7 @@ apm_config:
   peer_service_aggregation: false
 `
 	testConfig = confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
@@ -1101,6 +1166,7 @@ apm_config:
   peer_tags_aggregation: true
 `
 	testConfig := confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
@@ -1110,6 +1176,7 @@ apm_config:
   peer_tags_aggregation: false
 `
 	testConfig = confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
@@ -1140,6 +1207,7 @@ func TestEnablePeerTagsAggregationEnv(t *testing.T) {
 func TestEnableStatsComputationBySpanKindYAML(t *testing.T) {
 	datadogYaml := ""
 	testConfig := confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
@@ -1149,6 +1217,7 @@ apm_config:
   compute_stats_by_span_kind: false
 `
 	testConfig = confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
@@ -1158,6 +1227,7 @@ apm_config:
   compute_stats_by_span_kind: true
 `
 	testConfig = confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
@@ -1233,7 +1303,7 @@ func TestLogDefaults(t *testing.T) {
 	testConfig := newTestConf(t)
 	require.Equal(t, 1, testConfig.GetInt("log_file_max_rolls"))
 	require.Equal(t, "10Mb", testConfig.GetString("log_file_max_size"))
-	require.Equal(t, "", testConfig.GetString("log_file"))
+	require.Equal(t, defaultpaths.GetDefaultLogFile(), testConfig.GetString("log_file"))
 	require.Equal(t, "info", testConfig.GetString("log_level"))
 	require.True(t, testConfig.GetBool("log_to_console"))
 	require.False(t, testConfig.GetBool("log_format_json"))
@@ -1245,7 +1315,7 @@ func TestLogDefaults(t *testing.T) {
 
 	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
 	require.Equal(t, "10Mb", SystemProbe.GetString("log_file_max_size"))
-	require.Equal(t, defaultSystemProbeLogFilePath, SystemProbe.GetString("log_file"))
+	require.Equal(t, defaultpaths.GetDefaultSystemProbeLogFile(), SystemProbe.GetString("log_file"))
 	require.Equal(t, "info", SystemProbe.GetString("log_level"))
 	require.True(t, SystemProbe.GetBool("log_to_console"))
 	require.False(t, SystemProbe.GetBool("log_format_json"))
@@ -1649,11 +1719,11 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
 		{
-			name:         "darwin resets true to false",
+			name:         "darwin preserves true",
 			goos:         "darwin",
 			initialValue: true,
-			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			// Even when already false, non-Linux writes SourceAgentRuntime so that
@@ -1665,11 +1735,11 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
 		{
-			name:         "darwin locks false via SourceAgentRuntime",
+			name:         "darwin preserves false",
 			goos:         "darwin",
 			initialValue: false,
 			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			name:         "darwin bypass: force-enable=true preserves true",
@@ -1688,13 +1758,13 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
-			// Garbage value in the env var does NOT bypass the gate.
-			name:         "darwin bypass: force-enable=yes is ignored (gate applies)",
+			// Garbage value in the env var has no effect on Darwin because Darwin is supported.
+			name:         "darwin force-enable=yes has no effect",
 			goos:         "darwin",
 			forceEnable:  "yes",
 			initialValue: true,
-			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			// When bypass is active and value is already false, gate is still skipped —

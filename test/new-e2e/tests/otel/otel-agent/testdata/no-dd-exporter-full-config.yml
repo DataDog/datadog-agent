@@ -78,7 +78,7 @@ extensions:
     gateway_destination: ""
     gateway_service: ""
     hostname: ""
-    installation_method: "" # TODO: change to "helm" after helm chart version bump
+    installation_method: kubernetes
     http:
       cors: null
       endpoint: localhost:9875
@@ -243,6 +243,9 @@ receivers:
         tsdb:
           outofordertimewindow: 0
           retention: {}
+    discovery_reload_on_startup: false
+    initial_scrape_offset: 0s
+    scrape_on_shutdown: false
     target_allocator: null
     trim_metric_suffixes: false
 service:

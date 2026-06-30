@@ -83,6 +83,7 @@ type npCollectorImpl struct {
 
 	networkDevicesNamespace string
 	filter                  *connfilter.ConnFilter
+	localIPs                *localIPCache
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -117,6 +118,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		inputChanFullLogLimit:  utillog.NewLogLimit(10, time.Minute*5),
 
 		networkDevicesNamespace: collectorConfigs.networkDevicesNamespace,
+		localIPs:                newLocalIPCache(discoverLocalInterfaceIPs),
 
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
@@ -202,7 +204,7 @@ func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn npmodel.NetworkPathCon
 	return true
 }
 
-func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkPathConnection, vpcSubnets []netip.Prefix) bool {
+func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix) bool {
 	if conn.IntraHost {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1)
 		return false
@@ -222,6 +224,10 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkP
 		return false
 	}
 
+	if s.shouldSkipNetflowAgentSource(conn, origin) {
+		return false
+	}
+
 	if !s.checkPassesConnCIDRFilters(conn, vpcSubnets) {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_conn_filters"}, 1)
 		return false
@@ -232,6 +238,24 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkP
 		return false
 	}
 
+	return true
+}
+
+func (s *npCollectorImpl) shouldSkipNetflowAgentSource(conn npmodel.NetworkPathConnection, origin payload.PathOrigin) bool {
+	if origin != payload.PathOriginNetflow || !conn.Source.IsValid() {
+		return false
+	}
+
+	isLocal, err := s.localIPs.contains(conn.Source.Addr())
+	if err != nil {
+		s.logger.Warnf("failed to discover local interface IPs for NetFlow source filtering: %s", err)
+	}
+	if !isLocal {
+		return false
+	}
+
+	_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_netflow_agent_source"}, 1)
+	s.logger.Tracef("Skipping NetFlow connection from local Agent source: source=%s, dest=%s", conn.Source, conn.Dest)
 	return true
 }
 
@@ -279,7 +303,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	connCount := 0
 	for conn := range conns {
 		connCount++
-		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
+		if !s.shouldScheduleNetworkPathForConn(conn, origin, vpcSubnets) {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
@@ -367,17 +391,18 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 
 	cfg := config.Config{
-		DestHostname:              ptest.Pathtest.Hostname,
-		DestPort:                  ptest.Pathtest.Port,
-		MaxTTL:                    uint8(s.collectorConfigs.maxTTL),
-		Timeout:                   s.collectorConfigs.timeout,
-		Protocol:                  ptest.Pathtest.Protocol,
-		TCPMethod:                 s.collectorConfigs.tcpMethod,
-		TCPSynParisTracerouteMode: s.collectorConfigs.tcpSynParisTracerouteMode,
-		DisableWindowsDriver:      s.collectorConfigs.disableWindowsDriver,
-		ReverseDNS:                false, // Do not run reverse DNS in datadog-traceroute, it's handled in npcollector
-		TracerouteQueries:         s.collectorConfigs.tracerouteQueries,
-		E2eQueries:                s.collectorConfigs.e2eQueries,
+		DestHostname:                    ptest.Pathtest.Hostname,
+		DestPort:                        ptest.Pathtest.Port,
+		MaxTTL:                          uint8(s.collectorConfigs.maxTTL),
+		Timeout:                         s.collectorConfigs.timeout,
+		Protocol:                        ptest.Pathtest.Protocol,
+		TCPMethod:                       s.collectorConfigs.tcpMethod,
+		TCPSynParisTracerouteMode:       s.collectorConfigs.tcpSynParisTracerouteMode,
+		DisableWindowsDriver:            s.collectorConfigs.disableWindowsDriver,
+		DisableSourcePublicIPCollection: s.collectorConfigs.disableSourcePublicIPCollection,
+		ReverseDNS:                      false, // Do not run reverse DNS in datadog-traceroute, it's handled in npcollector
+		TracerouteQueries:               s.collectorConfigs.tracerouteQueries,
+		E2eQueries:                      s.collectorConfigs.e2eQueries,
 	}
 
 	s.logger.Debugf("Running traceroute with config: %+v", cfg)

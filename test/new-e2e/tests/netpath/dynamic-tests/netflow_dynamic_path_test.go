@@ -47,7 +47,52 @@ var netflowDynamicPathDisabledDatadogYaml string
 const (
 	expectedNetflowFlowType  = "netflow5"
 	expectedNetflowNamespace = "e2e-netflow"
+
+	selfSourceNetflowDestinationIP   = "8.8.8.8"
+	selfSourceNetflowDestinationPort = uint16(32749)
+	netflowAgentSourceSkippedMetric  = "datadog.network_path.collector.schedule.conns_skipped"
+	netflowAgentSourceSkippedReason  = "reason:skip_netflow_agent_source"
 )
+
+const sendSelfSourceNetflowScript = `import socket
+import struct
+import sys
+import time
+
+src_ip = sys.argv[1]
+dst_ip = sys.argv[2]
+dst_port = int(sys.argv[3])
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+for seq in range(20):
+    now = int(time.time())
+    header = struct.pack("!HHIIIIBBH", 5, 1, 100000, now, 0, seq, 0, 0, 0)
+    record = struct.pack(
+        "!4s4s4sHHIIIIHHBBBBHHBBH",
+        socket.inet_aton(src_ip),
+        socket.inet_aton(dst_ip),
+        b"\x00\x00\x00\x00",
+        0,
+        0,
+        10 + seq,
+        500 + seq,
+        90000,
+        100000,
+        40000 + seq,
+        dst_port,
+        0,
+        0x10,
+        6,
+        0,
+        0,
+        0,
+        32,
+        32,
+        0,
+    )
+    sock.sendto(header + record, ("127.0.0.1", 2056))
+    time.sleep(0.2)
+`
 
 type netflowDynamicPathSuite struct {
 	e2e.BaseSuite[environments.DockerHost]
@@ -87,7 +132,7 @@ func netflowDynamicPathProvisioner(datadogYaml string) provisioners.Provisioner 
 			return err
 		}
 
-		host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(e2eos.AmazonLinuxECSDefault))
+		host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(e2eos.UbuntuDefault))
 		if err != nil {
 			return err
 		}
@@ -192,6 +237,63 @@ func (s *netflowDynamicPathSuite) TestNetflowDynamicNetworkPath() {
 	}
 }
 
+func (s *netflowDynamicPathSuite) TestNetflowDynamicPathSkipsAgentSource() {
+	fakeintake := s.Env().FakeIntake.Client()
+	agentIP := s.agentContainerIPv4()
+
+	s.stopNetflowGenerator()
+	defer s.startNetflowGenerator()
+
+	require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
+	s.sendSelfSourceNetflow(agentIP)
+
+	var matchedFlow *aggregator.NDMFlow
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		ndmflows, err := fakeintake.GetNDMFlows()
+		require.NoError(c, err)
+
+		match := findSelfSourceNDMFlow(ndmflows, agentIP.String(), selfSourceNetflowDestinationIP, selfSourceNetflowDestinationPort)
+		require.NotNil(c, match, "self-source NetFlow row was not received by fakeintake")
+
+		present, err := metricPresentWithTags(
+			fakeintake,
+			netflowAgentSourceSkippedMetric,
+			[]string{netflowAgentSourceSkippedReason},
+		)
+		require.NoError(c, err)
+		assert.True(c, present, "self-source NetFlow skip metric was not received by fakeintake")
+
+		matchedFlow = match
+	}, 2*time.Minute, 10*time.Second)
+
+	require.Never(s.T(), func() bool {
+		netpaths, err := fakeintake.GetLatestNetpathEvents()
+		if err != nil {
+			s.T().Logf("error querying netpath events: %v", err)
+			return true
+		}
+		match := findNetflowPathByDestination(netpaths, selfSourceNetflowDestinationIP, selfSourceNetflowDestinationPort)
+		if match == nil {
+			return false
+		}
+
+		s.T().Logf("unexpected self-source netflow network path event: destination=%s:%d test_run_id=%s",
+			match.Destination.Hostname,
+			match.Destination.Port,
+			match.TestRunID,
+		)
+		return true
+	}, 1*time.Minute, 10*time.Second, "self-source NetFlow row produced a network path event")
+
+	if matchedFlow != nil {
+		s.T().Logf("self-source NetFlow row source=%s destination=%s:%s was skipped by Network Path",
+			matchedFlow.Source.IP,
+			matchedFlow.Destination.IP,
+			matchedFlow.Destination.Port,
+		)
+	}
+}
+
 func (s *netflowDynamicPathDisabledSuite) TestNetflowDynamicNetworkPathDisabled() {
 	fakeintake := s.Env().FakeIntake.Client()
 
@@ -247,6 +349,35 @@ func (s *netflowDynamicPathDisabledSuite) TestNetflowDynamicNetworkPathDisabled(
 	}, 1*time.Minute, 10*time.Second, "netflow dynamic path output was produced while network_path.netflow_monitoring.enabled was false")
 }
 
+func (s *netflowDynamicPathSuite) agentContainerIPv4() netip.Addr {
+	output := s.Env().RemoteHost.MustExecute(`docker inspect -f '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' datadog-agent | awk 'NF {print; exit}'`)
+	ip, err := netip.ParseAddr(strings.TrimSpace(output))
+	require.NoError(s.T(), err, "could not parse Agent container IP from docker inspect output: %q", output)
+	require.True(s.T(), ip.Is4(), "Agent container IP must be IPv4 for NetFlow v5: %s", ip)
+	return ip
+}
+
+func (s *netflowDynamicPathSuite) sendSelfSourceNetflow(agentIP netip.Addr) {
+	command := fmt.Sprintf(
+		"python3 -c %s %s %s %d",
+		shellQuote(sendSelfSourceNetflowScript),
+		shellQuote(agentIP.String()),
+		shellQuote(selfSourceNetflowDestinationIP),
+		selfSourceNetflowDestinationPort,
+	)
+	s.Env().RemoteHost.MustExecute(command)
+}
+
+func (s *netflowDynamicPathSuite) stopNetflowGenerator() {
+	s.Env().RemoteHost.MustExecute("docker stop netflow-generator || true")
+}
+
+func (s *netflowDynamicPathSuite) startNetflowGenerator() {
+	if _, err := s.Env().RemoteHost.Execute("docker start netflow-generator || true"); err != nil {
+		s.T().Logf("failed to restart netflow-generator: %v", err)
+	}
+}
+
 func tcpDestinationsFromNDMFlows(flows []*aggregator.NDMFlow) map[string]netflowTCPDestination {
 	destinations := make(map[string]netflowTCPDestination)
 	for _, flow := range flows {
@@ -275,6 +406,23 @@ func tcpDestinationsFromNDMFlows(flows []*aggregator.NDMFlow) map[string]netflow
 	return destinations
 }
 
+func findSelfSourceNDMFlow(flows []*aggregator.NDMFlow, sourceIP string, destinationIP string, destinationPort uint16) *aggregator.NDMFlow {
+	for _, flow := range flows {
+		if flow == nil || flow.IPProtocol != "TCP" || flow.FlowType != expectedNetflowFlowType {
+			continue
+		}
+		if flow.Device.Namespace != expectedNetflowNamespace {
+			continue
+		}
+		if flow.Source.IP == sourceIP &&
+			flow.Destination.IP == destinationIP &&
+			flow.Destination.Port == strconv.Itoa(int(destinationPort)) {
+			return flow
+		}
+	}
+	return nil
+}
+
 func findNetflowPathMatch(destinations map[string]netflowTCPDestination, netpaths []*aggregator.Netpath) *netflowPathMatch {
 	for _, np := range netpaths {
 		if np == nil || np.Origin != payload.PathOriginNetflow || np.Protocol != payload.ProtocolTCP {
@@ -289,6 +437,18 @@ func findNetflowPathMatch(destinations map[string]netflowTCPDestination, netpath
 		return &netflowPathMatch{
 			destination: destination,
 			path:        np,
+		}
+	}
+	return nil
+}
+
+func findNetflowPathByDestination(netpaths []*aggregator.Netpath, destinationIP string, destinationPort uint16) *aggregator.Netpath {
+	for _, np := range netpaths {
+		if np == nil || np.Origin != payload.PathOriginNetflow || np.Protocol != payload.ProtocolTCP {
+			continue
+		}
+		if np.Destination.Hostname == destinationIP && np.Destination.Port == destinationPort {
+			return np
 		}
 	}
 	return nil
@@ -324,6 +484,11 @@ func assertMetricPresent(c *assert.CollectT, fakeintake *fakeintakeclient.Client
 
 func metricPresent(fakeintake *fakeintakeclient.Client, metricName string) (bool, error) {
 	metrics, err := fakeintake.FilterMetrics(metricName)
+	return len(metrics) > 0, err
+}
+
+func metricPresentWithTags(fakeintake *fakeintakeclient.Client, metricName string, tags []string) (bool, error) {
+	metrics, err := fakeintake.FilterMetrics(metricName, fakeintakeclient.WithTags[*aggregator.MetricSeries](tags))
 	return len(metrics) > 0, err
 }
 

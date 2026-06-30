@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	dto "github.com/prometheus/client_model/go"
@@ -76,6 +77,13 @@ type Provides struct {
 }
 
 // Interfacing with runner.
+//
+// A single job type drives both the periodic metric-profile flush and
+// the errortracking flush. The profiles slice doubles as a
+// discriminator: a nil profiles slice means "this is the errortracking
+// flush job"; a non-nil slice means "this is a metric-profile tick".
+// Threading both behaviours through the same job avoids widening the
+// runner's interface for a one-off second consumer.
 type job struct {
 	a        *atel
 	profiles []*Profile
@@ -634,6 +642,10 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 	return nil
 }
 
+// SubmitErrorLog is a no-op in stack-2; the actual channel send and
+// flush machinery lives in stack-3 (wiring).
+func (a *atel) SubmitErrorLog(_ errortracking.ErrorLog) {}
+
 func (a *atel) StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context) {
 	if a.lightTracer != nil {
 		return installertelemetry.StartSpanFromContext(a.cancelCtx, operationName)
@@ -694,7 +706,6 @@ func (a *atel) stop() error {
 	runnerCtx := a.runner.stop()
 	<-runnerCtx.Done()
 
-	<-a.cancelCtx.Done()
 	a.logComp.Info("Agent telemetry is stopped")
 	return nil
 }

@@ -54,7 +54,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PAREnabled, false)
 
 	// Log file
-	config.BindEnvAndSetDefault(PARLogFile, DefaultPrivateActionRunnerLogFile)
+	config.BindEnvAndSetDefault(PARLogFile, "${log_path}/private-action-runner.log")
 
 	// Identity / enrollment configuration
 	config.BindEnvAndSetDefault(PARSelfEnroll, true)

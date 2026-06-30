@@ -40,6 +40,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		MetricConfig:    tpl.MetricConfig,
 		LogsConfig:      tpl.LogsConfig,
 		ADIdentifiers:   tpl.ADIdentifiers,
+		CELSelector:     tpl.CELSelector,
 		ClusterCheck:    tpl.ClusterCheck,
 		Provider:        tpl.Provider,
 		ServiceID:       svc.GetServiceID(),
@@ -48,6 +49,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		MetricsExcluded: svc.HasFilter(filter.MetricsFilter),
 		LogsExcluded:    svc.HasFilter(filter.LogsFilter),
 		ImageName:       svc.GetImageName(),
+		Discovery:       tpl.Discovery,
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)

@@ -6,19 +6,10 @@
 package languagedetection
 
 import (
-	"strings"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/stretchr/testify/require"
 
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
-
-func (s *languageDetectionSuite) installPython() {
-	s.Env().RemoteHost.MustExecute("sudo apt-get -y install python3")
-	pyVersion := s.Env().RemoteHost.MustExecute("python3 --version")
-	require.True(s.T(), strings.HasPrefix(pyVersion, "Python 3"))
-}
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{

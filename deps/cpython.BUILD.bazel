@@ -17,7 +17,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 python_externals = {
     "bzip2": "1.0.8",
     "mpdecimal": "4.0.0",
-    "sqlite": "3.53.0.0",
+    "sqlite": "3.53.2.0",
     "xz": "5.2.5",
     "zlib": "1.3.1",
     "libffi": "3.4.4",
@@ -145,7 +145,25 @@ cc_library(
 
 filegroup(
     name = "all_srcs",
-    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "BUILD.bazel",
+            ".devcontainer/**",
+            "Android/**",
+            "Doc/**",
+            "InternalDocs/**",
+            "iOS/**",
+            # Windows related.
+            "PC/**",
+            "PCbuild/**",
+            "Tools/msi/**",
+            "Tools/nuget/**",
+            # Tests that don't need to be shipped with the Agent
+            "Lib/idlelib/idle_test/**",
+            "Lib/test/**",
+        ],
+    ),
 )
 
 UNIX_BINS = [
@@ -174,6 +192,7 @@ configure_make(
         "--with-dbmliborder=",
         "--with-openssl=$$EXT_BUILD_DEPS/openssl",
         "--with-openssl-rpath=yes",
+        "--disable-test-modules",
     ] + select({
         "@@//:macos_arm64": ["--with-universal-archs=universal2"],
         "@@//:macos_x86_64": ["--with-universal-archs=intel"],
@@ -297,6 +316,8 @@ configure_make(
       --install-prefix "##PREFIX##" \
       --sandbox-prefix "$$BUILD_TMPDIR/$$INSTALL_PREFIX" \
       $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py
+    rm -f $$INSTALLDIR/lib/python{version}/config-*/Makefile
+    find $$INSTALLDIR/lib/python{version} -name '*.exe' -delete
     """.format(
         version = PYTHON_MAJOR_MINOR,
     ),
@@ -376,19 +397,6 @@ select_file(
     srcs = ":python_unix",
     subpath = "bin/python{}".format(PYTHON_MAJOR_MINOR),
     visibility = ["//visibility:public"],
-)
-
-# Using a copy here is the most convenient way to exclude a bunch of things for the final package
-copy_to_directory(
-    name = "python_lib_dir_unix",
-    srcs = [":python_lib_dir_group_unix"],
-    exclude_srcs_patterns = [
-        "test/**/*",
-        "**/*.exe",
-        "**/Makefile",
-    ],
-    root_paths = ["python_unix/lib/python{}".format(PYTHON_MAJOR_MINOR)],
-    out = "python{}".format(PYTHON_MAJOR_MINOR),
 )
 
 filegroup(
@@ -493,7 +501,7 @@ dd_cc_packaged(
     installed_files = [":_python_pkg_common_files"],
     installed_executables = {
         ":python3_bin": "bin",
-        ":python_lib_dir_unix": "lib/python{}".format(PYTHON_MAJOR_MINOR),
+        ":python_lib_dir_group_unix": "lib/python{}".format(PYTHON_MAJOR_MINOR),
     } | select({
         "@platforms//os:linux": {":python_stable_lib_linux": "lib"},
         "//conditions:default": {},

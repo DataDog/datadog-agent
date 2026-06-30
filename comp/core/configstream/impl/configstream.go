@@ -46,7 +46,7 @@ type configStream struct {
 	m           sync.Mutex
 	subscribers map[string]*subscription
 
-	subscribeChan   chan *subscription
+	subscribeChan   chan pendingSubscription
 	unsubscribeChan chan string
 	stopChan        chan struct{}
 
@@ -66,6 +66,13 @@ type subscription struct {
 	lastSequenceID uint64
 }
 
+// pendingSubscription is a short-lived handshake value sent through subscribeChan.
+// ready is closed by addSubscriber once the snapshot is in sub.ch, unblocking Subscribe().
+type pendingSubscription struct {
+	sub   *subscription
+	ready chan struct{}
+}
+
 // NewComponent creates a new configstream component.
 func NewComponent(reqs Requires) (Provides, error) {
 	cs := &configStream{
@@ -73,7 +80,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:             reqs.Log,
 		telemetry:       reqs.Telemetry,
 		subscribers:     make(map[string]*subscription),
-		subscribeChan:   make(chan *subscription),
+		subscribeChan:   make(chan pendingSubscription),
 		unsubscribeChan: make(chan string),
 		stopChan:        make(chan struct{}),
 	}
@@ -109,10 +116,10 @@ func (cs *configStream) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.Confi
 	subID := fmt.Sprintf("%s-%s", req.Name, uuid.New().String())
 	subChan := make(chan *pb.ConfigEvent, 100) // Buffered channel to avoid blocking
 
-	cs.subscribeChan <- &subscription{
-		id: subID,
-		ch: subChan,
-	}
+	sub := &subscription{id: subID, ch: subChan}
+	ready := make(chan struct{})
+	cs.subscribeChan <- pendingSubscription{sub: sub, ready: ready}
+	<-ready // wait until the initial snapshot has been sent
 
 	unsubscribeFunc := func() {
 		cs.unsubscribeChan <- subID
@@ -159,8 +166,8 @@ func (cs *configStream) run() {
 
 	for {
 		select {
-		case sub := <-cs.subscribeChan:
-			cs.addSubscriber(sub)
+		case pending := <-cs.subscribeChan:
+			cs.addSubscriber(pending.sub, pending.ready)
 		case id := <-cs.unsubscribeChan:
 			cs.removeSubscriber(id)
 		case update := <-updatesChan:
@@ -177,7 +184,9 @@ func (cs *configStream) run() {
 	}
 }
 
-func (cs *configStream) addSubscriber(sub *subscription) {
+func (cs *configStream) addSubscriber(sub *subscription, ready chan struct{}) {
+	defer close(ready)
+
 	cs.log.Infof("New subscriber '%s' joining the config stream", sub.id)
 	snapshot, seqID, err := cs.createConfigSnapshot()
 	if err != nil {
@@ -196,7 +205,6 @@ func (cs *configStream) addSubscriber(sub *subscription) {
 	cs.subscribersGauge.Set(float64(len(cs.subscribers)))
 	cs.snapshotsSent.Inc()
 
-	// Send snapshot to the new subscriber
 	sub.ch <- snapshot
 }
 
