@@ -810,6 +810,7 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
                                "FLEET_INSTALL=[FLEET_INSTALL], " +
                                "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                               "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
@@ -831,6 +832,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
                                "FLEET_INSTALL=[FLEET_INSTALL], " +
+                               "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
