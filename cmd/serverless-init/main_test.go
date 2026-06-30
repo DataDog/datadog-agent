@@ -8,8 +8,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -31,6 +29,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// TestMetricAgentNoOpWithoutDemux verifies that the methods called by the
+// lifecycle server on the metric agent are safe when the agent has not been
+// started (Demux and dogStatsDServer are nil). In the no-API-key path the
+// agent is never started, so /suspend and /terminate must not panic when
+// they call Flush and WaitForPendingSamples.
+func TestMetricAgentNoOpWithoutDemux(t *testing.T) {
+	agent := &metrics.ServerlessMetricAgent{}
+	assert.NotPanics(t, func() {
+		agent.Flush()
+		agent.WaitForPendingSamples()
+	})
+}
 
 func TestTagsSetup(t *testing.T) {
 	configmock.New(t)
@@ -152,34 +163,4 @@ func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	// If it panics the process crashes. Without this the test can pass flakily when the goroutine hasn't run yet.
 	const panicWindow = 500 * time.Millisecond
 	<-time.After(panicWindow)
-}
-
-// TestMiniAgentSentinelConstants pins the directory and file paths written by
-// the MicroVM sentinel. These values are consumed by language tracers (dd-trace
-// Node.js, etc.) at runtime — any change here must be coordinated with those tracers.
-func TestMiniAgentSentinelConstants(t *testing.T) {
-	assert.Equal(t, "/tmp/datadog", miniAgentDir)
-	assert.Equal(t, "/tmp/datadog/mini_agent_ready", miniAgentReadyFile)
-}
-
-// TestCreateMiniAgentSentinel_CreatesFile verifies that createMiniAgentSentinel
-// creates the sentinel file when the parent directory is writable.
-func TestCreateMiniAgentSentinel_CreatesFile(t *testing.T) {
-	dir := t.TempDir()
-	file := filepath.Join(dir, "mini_agent_ready")
-	createMiniAgentSentinel(dir, file)
-	_, err := os.Stat(file)
-	assert.NoError(t, err, "sentinel file must exist after createMiniAgentSentinel")
-}
-
-// TestCreateMiniAgentSentinel_Idempotent verifies that calling
-// createMiniAgentSentinel twice neither panics nor errors — os.Create truncates
-// existing files, which is a no-op for an empty sentinel.
-func TestCreateMiniAgentSentinel_Idempotent(t *testing.T) {
-	dir := t.TempDir()
-	file := filepath.Join(dir, "mini_agent_ready")
-	createMiniAgentSentinel(dir, file)
-	assert.NotPanics(t, func() { createMiniAgentSentinel(dir, file) })
-	_, err := os.Stat(file)
-	assert.NoError(t, err)
 }

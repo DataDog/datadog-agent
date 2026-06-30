@@ -58,11 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	datadogConfigPath  = "datadog.yaml"
-	miniAgentDir       = "/tmp/datadog"
-	miniAgentReadyFile = miniAgentDir + "/mini_agent_ready"
-)
+const datadogConfigPath = "datadog.yaml"
 
 var modeConf mode.Conf
 
@@ -113,7 +109,7 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, logsAgent)
 	defer tracingCtx.TraceAgent.Stop() // synchronous: drains traces, flushes stats, sends to network
 	defer func() {
-		cloudService.Shutdown(*metricAgent, enhancedMetricsEnabled, err) // submits task.ended metric
+		cloudService.Shutdown(*metricAgent, enhancedMetricsEnabled, err)
 
 		if enhancedMetricsCollector != nil {
 			enhancedMetricsCollector.Stop()
@@ -163,9 +159,24 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	if apiKey == "" && apmAPIKey == "" {
 		log.Warnf("DD_API_KEY is not set; trace and metric collection are disabled. Set DD_API_KEY to enable monitoring.")
 		traceAgent := trace.NewNoopTraceAgent()
-		tracingCtx := &cloudservice.TracingContext{TraceAgent: traceAgent}
-		metricAgent := &metrics.ServerlessMetricAgent{
-			Tagger: tagger,
+		metricAgent := &metrics.ServerlessMetricAgent{Tagger: tagger}
+		tracingCtx := &cloudservice.TracingContext{
+			TraceAgent: traceAgent,
+			LifecycleCtx: &cloudservice.LifecycleContext{
+				MetricFlusher: metricAgent,
+				LogsFlusher:   logsAgent,
+				MetricEmitter: metricAgent,
+				SampleDrainer: metricAgent,
+				FlushTimeout:  agentLogConfig.FlushTimeout,
+			},
+		}
+		// Only MicroVM needs initialization without an API key: its Init starts the
+		// lifecycle hook server so the platform can complete lifecycle handshakes.
+		// Initializing other services here would create trace spans even though
+		// tracing is disabled and span tags are unset, leading to a nil-map panic
+		// on shutdown (e.g. Cloud Run Jobs writing error tags into a nil span Meta).
+		if origin == cloudservice.MicroVMOrigin {
+			_ = cloudService.Init(tracingCtx)
 		}
 		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false
 	}
@@ -173,23 +184,22 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
 	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin)
 
-	// Sentinel file signals to language tracers (e.g. dd-trace Node.js) that an
-	// HTTP trace agent is available on localhost:8126. Without it, dd-trace detects
-	// AWS_LAMBDA_FUNCTION_NAME and switches to the log exporter, bypassing the agent.
-	// Scoped to MicroVM: standard Lambda already handles this via its own extension layer.
-	if cloudService.GetOrigin() == cloudservice.MicroVMOrigin {
-		createMiniAgentSentinel(miniAgentDir, miniAgentReadyFile)
-	}
+	metricAgent := setupMetricAgent(tagConfig.Tags, tagConfig.EnhancedMetricTags, tagConfig.EnhancedUsageMetricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
 	tracingCtx := &cloudservice.TracingContext{
 		TraceAgent: traceAgent,
 		SpanTags:   traceTags,
+		LifecycleCtx: &cloudservice.LifecycleContext{
+			MetricFlusher: metricAgent,
+			LogsFlusher:   logsAgent,
+			MetricEmitter: metricAgent,
+			SampleDrainer: metricAgent,
+			FlushTimeout:  agentLogConfig.FlushTimeout,
+		},
 	}
 
 	// TODO check for errors and exit
 	_ = cloudService.Init(tracingCtx)
-
-	metricAgent := setupMetricAgent(tagConfig.Tags, tagConfig.EnhancedMetricTags, tagConfig.EnhancedUsageMetricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
 	enhancedMetricsEnabled := pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
 	if enhancedMetricsEnabled {
@@ -209,6 +219,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	}
 
 	go flushMetricsAgent(metricAgent)
+
 	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled
 }
 
@@ -386,14 +397,6 @@ func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverle
 		break
 	}
 	wg.Done()
-}
-
-func createMiniAgentSentinel(dir, file string) {
-	if err := os.MkdirAll(dir, 0o755); err == nil {
-		if f, err := os.Create(file); err == nil {
-			f.Close()
-		}
-	}
 }
 
 func setEnvWithoutOverride(envToSet map[string]string) {

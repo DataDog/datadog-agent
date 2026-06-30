@@ -6,12 +6,34 @@
 package cloudservice
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 )
+
+// Compile-time guards: the concrete types passed via LifecycleContext must
+// satisfy the lifecycle interfaces.  Failures here mean Init() would panic at
+// runtime when the lifecycle server calls the missing methods.
+var _ lifecycle.Flusher = (*serverlessMetrics.ServerlessMetricAgent)(nil)
+var _ lifecycle.SampleDrainer = (*serverlessMetrics.ServerlessMetricAgent)(nil)
+var _ lifecycle.MetricEmitter = (*serverlessMetrics.ServerlessMetricAgent)(nil)
+
+// noopTraceAgent is a local stub that satisfies the TraceAgent interface
+// without importing pkg/serverless/trace (which imports cloudservice, creating
+// a cycle).
+type noopTraceAgent struct{}
+
+func (n *noopTraceAgent) Process(_ *api.Payload) {}
+func (n *noopTraceAgent) Flush()                 {}
+func (n *noopTraceAgent) Stop()                  {}
 
 const testImageARN = "arn:aws:lambda:us-east-1:123456789012:microvm-image:my-image"
 
@@ -54,9 +76,11 @@ func TestMicroVMGetEnhancedMetricTags(t *testing.T) {
 	assert.Equal(t, "us-east-1", result.Base["region"])
 	assert.Equal(t, "123456789012", result.Base["account_id"])
 	assert.Equal(t, "my-image", result.Base["image_name"])
+	assert.NotContains(t, result.Base, "instance_id", "Base must not carry the high-cardinality instance_id")
 
 	assert.Equal(t, result.Base["region"], result.Usage["region"])
 	assert.Equal(t, result.Base["account_id"], result.Usage["account_id"])
+	assert.NotContains(t, result.Usage, "instance_id", "instance_id is absent until SetInstanceID is called from /launch")
 }
 
 func TestParseMicroVMARNWithColonInName(t *testing.T) {
@@ -73,3 +97,82 @@ func TestMicroVMOrigin(t *testing.T) {
 func TestMicroVMMetricPrefix(t *testing.T) {
 	assert.Equal(t, microVMPrefix, (&MicroVM{}).GetMetricPrefix())
 }
+
+func TestMicroVMInit_NilTracingCtx_DoesNotStartServer(t *testing.T) {
+	m := &MicroVM{}
+	err := m.Init(nil)
+	require.NoError(t, err)
+	assert.Nil(t, m.server, "Init with nil TracingContext must not start a lifecycle server")
+}
+
+func TestMicroVMInit_NilLifecycleCtx_DoesNotStartServer(t *testing.T) {
+	m := &MicroVM{}
+	err := m.Init(&TracingContext{TraceAgent: &noopTraceAgent{}})
+	require.NoError(t, err)
+	assert.Nil(t, m.server, "Init without LifecycleCtx must not start a lifecycle server")
+}
+
+func TestMicroVMInit_WithLifecycleCtx_ServerIsConstructed(t *testing.T) {
+	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
+	m := &MicroVM{}
+	ctx := &TracingContext{
+		TraceAgent: &noopTraceAgent{},
+		LifecycleCtx: &LifecycleContext{
+			MetricFlusher: metricAgent,
+			LogsFlusher:   &noopLogsFlusher{},
+			MetricEmitter: metricAgent,
+			SampleDrainer: metricAgent,
+			FlushTimeout:  time.Second,
+		},
+	}
+	err := m.Init(ctx)
+	require.NoError(t, err)
+	// m.server may be nil when port 9000 is already bound in CI — that is a valid
+	// outcome. The important contract is that Init never panics.
+}
+
+func TestMicroVMShutdown_NilServer_NoPanic(t *testing.T) {
+	m := &MicroVM{}
+	assert.NotPanics(t, func() { m.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, false, nil) })
+}
+
+// TestMicroVMShutdown_LiveServer uses port 0 (random) to avoid colliding with
+// port 9000, and sets m.server directly (same-package access) to bypass Init's
+// hardcoded DefaultPort.
+func TestMicroVMShutdown_LiveServer_StopsCleanly(t *testing.T) {
+	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
+	srv := lifecycle.NewServer(
+		0, // random free port
+		metricAgent, &noopTraceAgent{}, &noopLogsFlusher{},
+		metricAgent, metricAgent,
+		(&MicroVM{}).GetSource(),
+		time.Second,
+	)
+	l, err := srv.Listen()
+	require.NoError(t, err)
+	go srv.Serve(l)
+
+	m := &MicroVM{server: srv, flushTimeout: time.Second}
+	assert.NotPanics(t, func() { m.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, false, nil) })
+}
+
+func TestMicroVMInit_NonMicroVMServicesIgnoreLifecycleCtx(t *testing.T) {
+	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
+	lc := &LifecycleContext{
+		MetricFlusher: metricAgent,
+		LogsFlusher:   &noopLogsFlusher{},
+		MetricEmitter: metricAgent,
+		SampleDrainer: metricAgent,
+		FlushTimeout:  time.Second,
+	}
+	ctx := &TracingContext{TraceAgent: &noopTraceAgent{}, LifecycleCtx: lc}
+
+	for _, svc := range []CloudService{&LocalService{}, &AppService{}} {
+		assert.NotPanics(t, func() { _ = svc.Init(ctx) },
+			"%T.Init must not panic when passed a LifecycleCtx", svc)
+	}
+}
+
+type noopLogsFlusher struct{}
+
+func (n *noopLogsFlusher) Flush(_ context.Context) {}

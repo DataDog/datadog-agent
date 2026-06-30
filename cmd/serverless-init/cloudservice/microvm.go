@@ -6,10 +6,15 @@
 package cloudservice
 
 import (
+	"context"
 	"maps"
 	"os"
 	"strings"
+	"time"
 
+	"log"
+
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -24,8 +29,22 @@ const (
 	microVMUsageMetricSuffix = "instance"
 )
 
+// LifecycleContext carries the telemetry dependencies needed by MicroVM.Init to
+// construct and start the lifecycle hook server. Populated by main.go before
+// calling CloudService.Init; nil (and ignored) for all non-MicroVM services.
+type LifecycleContext struct {
+	MetricFlusher lifecycle.Flusher
+	LogsFlusher   lifecycle.LogsFlusher
+	MetricEmitter lifecycle.MetricEmitter
+	SampleDrainer lifecycle.SampleDrainer
+	FlushTimeout  time.Duration
+}
+
 // MicroVM implements CloudService for AWS Lambda MicroVMs.
-type MicroVM struct{}
+type MicroVM struct {
+	server       *lifecycle.Server
+	flushTimeout time.Duration
+}
 
 // GetTags returns MicroVM-specific tags parsed from the image ARN env var.
 func (m *MicroVM) GetTags() map[string]string {
@@ -51,6 +70,8 @@ func (m *MicroVM) GetTags() map[string]string {
 }
 
 // GetEnhancedMetricTags returns base (low-cardinality) and usage tags.
+// instance_id is absent from Usage tags at startup because the MicroVM ID is
+// not known until the /launch lifecycle hook fires.
 func (m *MicroVM) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
 		"account_id": tagValueOrUnknown(tags["account_id"]),
@@ -78,13 +99,44 @@ func (m *MicroVM) GetSource() metrics.MetricSource {
 	return metrics.MetricSourceAWSMicroVMEnhanced
 }
 
-// Init is a no-op for MicroVM; lifecycle events are handled by the lifecycle server.
-func (m *MicroVM) Init(_ *TracingContext) error { return nil }
+// Init starts the MicroVM lifecycle hook server.
+func (m *MicroVM) Init(ctx *TracingContext) error {
+	if ctx == nil || ctx.LifecycleCtx == nil {
+		return nil
+	}
+	lc := ctx.LifecycleCtx
+	m.flushTimeout = lc.FlushTimeout
+	m.server = lifecycle.NewServer(
+		lifecycle.DefaultPort,
+		lc.MetricFlusher,
+		ctx.TraceAgent, // satisfies lifecycle.Flusher via TraceAgent.Flush()
+		lc.LogsFlusher,
+		lc.MetricEmitter,
+		lc.SampleDrainer,
+		m.GetSource(),
+		lc.FlushTimeout,
+	)
+	l, err := m.server.Listen()
+	if err != nil {
+		log.Fatalf("MicroVM lifecycle server failed to bind: %v", err)
+	}
+	go m.server.Serve(l)
+	return nil
+}
 
-// Shutdown is a no-op for MicroVM. The lifecycle server emits the terminate
-// metric when the /terminate hook fires; this deferred cleanup must not
-// double-emit it.
-func (m *MicroVM) Shutdown(_ serverlessMetrics.ServerlessMetricAgent, _ bool, _ error) {}
+// Shutdown stops the MicroVM lifecycle hook server so that any in-flight
+// /suspend or /terminate request can complete before the metric and trace
+// agents are torn down.
+func (m *MicroVM) Shutdown(_ serverlessMetrics.ServerlessMetricAgent, _ bool, _ error) {
+	if m.server == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), m.flushTimeout)
+	defer cancel()
+	if err := m.server.Stop(ctx); err != nil {
+		log.Printf("MicroVM lifecycle server shutdown error: %v", err)
+	}
+}
 
 // AddStartMetric is a no-op for MicroVM. The lifecycle server emits the launch
 // metric when the /launch hook fires; emitting it here would double-count.

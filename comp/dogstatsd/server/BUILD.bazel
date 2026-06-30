@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "server_test",
+    srcs = ["default_serverless_test.go"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/metrics",
+        "//pkg/serverless/env",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
