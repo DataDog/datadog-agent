@@ -228,7 +228,7 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/integrationtests
 # gazelle:exclude pkg/logs/launchers/container/tailerfactory
-# gazelle:exclude pkg/logs/launchers/file
+# gazelle:exclude pkg/logs/launchers/file/*.go
 # gazelle:exclude pkg/logs/launchers/integration
 # gazelle:exclude pkg/logs/launchers/journald
 # gazelle:exclude pkg/logs/tailers/container
