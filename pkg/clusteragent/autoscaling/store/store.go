@@ -7,6 +7,7 @@
 package store
 
 import (
+	"slices"
 	"sync"
 )
 
@@ -55,8 +56,8 @@ type keyLock struct {
 // Stored values must be treated as immutable. The store returns shallow copies of T;
 // replace reference-typed fields rather than mutating their backing data.
 type Store[T any] struct {
-	// mu guards data and the per-key lock registry. It is never held across callbacks
-	// or while an item lock is held.
+	// mu guards data, the per-key lock registry, and each entry's ref count. It is never
+	// held across callbacks or while an item lock is held.
 	mu    sync.RWMutex
 	data  map[string]T
 	locks map[string]*keyLock
@@ -99,6 +100,7 @@ func (s *Store[T]) Peek(id string) (T, bool) {
 
 // List returns shallow copies of values matched by filter; a nil filter returns all
 // values. The filter runs without any lock held, so it may safely read the store.
+// Results are in no particular order.
 func (s *Store[T]) List(filter func(T) bool) []T {
 	s.mu.RLock()
 	snapshot := make([]T, 0, len(s.data))
@@ -111,14 +113,9 @@ func (s *Store[T]) List(filter func(T) bool) []T {
 		return snapshot
 	}
 
-	// Filter outside the lock and reuse the snapshot's backing array.
-	out := snapshot[:0]
-	for _, v := range snapshot {
-		if filter(v) {
-			out = append(out, v)
-		}
-	}
-	return out
+	// Filter outside the lock, reusing the snapshot's backing array. DeleteFunc also
+	// zeroes the dropped slots, so filtered-out values aren't kept alive.
+	return slices.DeleteFunc(snapshot, func(v T) bool { return !filter(v) })
 }
 
 // Count returns the number of items in the store.

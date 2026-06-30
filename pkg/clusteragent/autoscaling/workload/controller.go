@@ -223,7 +223,6 @@ func (c *Controller) processPodAutoscaler(ctx context.Context, key, ns, name str
 func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string, podAutoscaler *datadoghq.DatadogPodAutoscaler) (autoscaling.ProcessResult, error) {
 	item, podAutoscalerInternalFound := c.store.Get(key)
 	defer item.Release()
-	podAutoscalerInternal := item.Value()
 
 	// Object is missing from our store
 	if !podAutoscalerInternalFound {
@@ -239,6 +238,8 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 
 		return autoscaling.NoRequeue, nil
 	}
+
+	podAutoscalerInternal := item.Value()
 
 	if podAutoscaler == nil {
 		// Object is not present in Kubernetes

@@ -151,8 +151,9 @@ func (p *autoscalingSettingsProcessor) reconcile(isLeader bool) {
 	for paID, item := range p.state {
 		if _, found := inStore[paID]; !found {
 			lockedItem, podAutoscalerFound := p.store.Get(paID)
-			podAutoscaler := lockedItem.Value()
+			var podAutoscaler model.PodAutoscalerInternal
 			if podAutoscalerFound {
+				podAutoscaler = lockedItem.Value()
 				podAutoscaler.UpdateFromSettings(item.spec, item.receivedTimestamp)
 			} else {
 				podAutoscaler = model.NewPodAutoscalerFromSettings(item.namespace, item.name, item.spec, item.receivedTimestamp)
