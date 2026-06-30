@@ -699,11 +699,14 @@ infrastructure_mode: iot
 	// Features omitted from the IoT Agent build are disabled at runtime.
 	assert.False(t, config.GetBool("apm_config.enabled"))
 	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
+	assert.False(t, config.GetBool("process_config.process_collection.enabled"))
 	assert.False(t, config.GetBool("process_config.container_collection.enabled"))
 	assert.False(t, config.GetBool("container_image.enabled"))
 	assert.False(t, config.GetBool("container_lifecycle.enabled"))
 	assert.False(t, config.GetBool("orchestrator_explorer.enabled"))
+	assert.False(t, config.GetBool("sbom.enabled"))
 }
+
 
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
 	datadogYaml := `
