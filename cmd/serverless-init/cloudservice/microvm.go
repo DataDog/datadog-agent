@@ -51,9 +51,9 @@ type LifecycleContext struct {
 	SampleDrainer  lifecycle.SampleDrainer
 	FlushTimeout   time.Duration
 	SidecarMode    bool
-	LogsTagSetter  lifecycle.LogsTagSetter  // nil-safe; applied via server.SetLogsTagSetter after /launch
+	LogsTagSetter  lifecycle.LogsTagSetter  // nil-safe; applied via server.SetLogsTagSetter after /run
 	BaseTags       []string                 // startup log tag snapshot passed alongside LogsTagSetter
-	TraceTagSetter lifecycle.TraceTagSetter // nil-safe; applied via server.SetTraceTagSetter after /launch
+	TraceTagSetter lifecycle.TraceTagSetter // nil-safe; applied via server.SetTraceTagSetter after /run
 	BaseTraceTags  map[string]string        // startup trace tag snapshot passed alongside TraceTagSetter
 }
 
@@ -93,7 +93,7 @@ func (m *MicroVM) GetTags() map[string]string {
 
 // GetEnhancedMetricTags returns base (low-cardinality) and usage tags.
 // instance_id is absent from Usage tags at startup because the MicroVM ID is
-// not known until the /launch lifecycle hook fires.
+// not known until the /run lifecycle hook fires.
 func (m *MicroVM) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
 		"account_id":        tagValueOrUnknown(tags["account_id"]),
@@ -218,8 +218,8 @@ func (m *MicroVM) Shutdown(_ serverlessMetrics.ServerlessMetricAgent, _ bool, _ 
 	}
 }
 
-// AddStartMetric is a no-op for MicroVM. The lifecycle server emits the launch
-// metric when the /launch hook fires; emitting it here would double-count.
+// AddStartMetric is a no-op for MicroVM. The lifecycle server emits the run
+// metric when the /run hook fires; emitting it here would double-count.
 func (m *MicroVM) AddStartMetric(_ *serverlessMetrics.ServerlessMetricAgent) {}
 
 // ShouldForceFlushAllOnForceFlushToSerializer returns false for MicroVM.

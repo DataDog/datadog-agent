@@ -25,14 +25,14 @@ const (
 	activeInstancesMetricName = "aws.lambda.enhanced.microvm.active_instances"
 
 	// UnknownTagValue is the placeholder used when a tag value has not yet
-	// been observed (e.g. MicroVM ID before /launch, or ARN fields that
+	// been observed (e.g. MicroVM ID before /run, or ARN fields that
 	// cannot be parsed). Exported so cloudservice can reference the sentinel
 	// without duplicating the string literal.
 	UnknownTagValue = "unknown"
 )
 
 // Heartbeat periodically emits a heartbeat metric while the MicroVM is in
-// the "running" phase (between /launch and /suspend or /terminate).
+// the "running" phase (between /run and /suspend or /terminate).
 //
 // This type is MicroVM-specific: it is constructed only by main.go's
 // newLifecycleServerIfMicroVM, which itself short-circuits to nil for
@@ -65,7 +65,7 @@ type Heartbeat struct {
 // DefaultHeartbeatInterval. baseTags are tags known at construction time
 // (typically derived from env vars, e.g., microvm_image_arn); the
 // microvm_id tag is appended at emit time and is set at runtime via
-// SetMicroVMID from the /launch request.
+// SetMicroVMID from the /run request.
 func NewHeartbeat(interval time.Duration, emitter MetricEmitter, source metrics.MetricSource, baseTags []string) *Heartbeat {
 	if interval <= 0 {
 		interval = DefaultHeartbeatInterval
@@ -88,7 +88,7 @@ func (h *Heartbeat) BaseTags() []string {
 	return slices.Clone(h.baseTags)
 }
 
-// SetMicroVMID records the MicroVM instance ID extracted from the /launch
+// SetMicroVMID records the MicroVM instance ID extracted from the /run
 // request header. Empty input is ignored so the existing value (default
 // "unknown" or a previously-set ID) is preserved. Safe to call concurrently
 // with the emitting goroutine; the change is visible on the next tick.
@@ -187,7 +187,7 @@ func (h *Heartbeat) emit() {
 }
 
 // tagsForEmit returns a fresh tag slice combining the immutable base tags
-// (set at construction) with the current microvm_id (set at /launch).
+// (set at construction) with the current microvm_id (set at /run).
 func (h *Heartbeat) tagsForEmit() []string {
 	h.mu.Lock()
 	id := h.microVMID

@@ -17,7 +17,7 @@ const UserAppPortEnvVar = "DD_AWS_MICROVM_USER_APP_PORT"
 // LifecyclePortEnvVar overrides the port the lifecycle hook server listens on (default 9000).
 const LifecyclePortEnvVar = "DD_AWS_MICROVM_LIFECYCLE_PORT"
 
-// ForwardTimeoutMsEnvVar overrides the timeout (ms) for /launch, /resume, /suspend, /terminate.
+// ForwardTimeoutMsEnvVar overrides the timeout (ms) for /run, /resume, /suspend, /terminate.
 const ForwardTimeoutMsEnvVar = "DD_AWS_MICROVM_FORWARD_TIMEOUT_MS"
 
 // ReadyTimeoutMsEnvVar overrides the timeout (ms) for /ready.

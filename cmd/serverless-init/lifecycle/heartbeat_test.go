@@ -181,7 +181,7 @@ func TestHeartbeat_StopIsUnblockedWhenEmitterStucks(t *testing.T) {
 }
 
 // Until SetMicroVMID is called, the heartbeat tags microvm_id with the
-// placeholder "unknown". Production wiring sets the ID at /launch before
+// placeholder "unknown". Production wiring sets the ID at /run before
 // Start, so this state should never reach an emitted metric in practice;
 // the test pins the contract anyway in case wiring changes.
 func TestHeartbeat_TagsForEmit_DefaultsMicroVMIDToUnknown(t *testing.T) {
@@ -237,7 +237,7 @@ func TestHeartbeat_EmittedMetric_CarriesARNTag(t *testing.T) {
 }
 
 // Empty SetMicroVMID input is ignored — preserves the existing value rather
-// than clobbering with empty. Defends against a /launch where the platform
+// than clobbering with empty. Defends against a /run where the platform
 // header is missing: the heartbeat keeps emitting with whatever ID was
 // last seen (or "unknown" if never set).
 func TestHeartbeat_SetMicroVMID_EmptyIsIgnored(t *testing.T) {

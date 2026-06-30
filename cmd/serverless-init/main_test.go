@@ -170,7 +170,7 @@ func TestLogTagsBaseComputedFromTagConfigTags(t *testing.T) {
 
 // TestBaseTraceTagsComputedFromTagConfigTags verifies that traceTags —
 // passed as BaseTraceTags to LifecycleContext — contains all tags from DD_TAGS
-// so that the lifecycle server can extend the map with lambda_microvm_id at /launch
+// so that the lifecycle server can extend the map with lambda_microvm_id at /run
 // without losing any startup tags.
 func TestBaseTraceTagsComputedFromTagConfigTags(t *testing.T) {
 	configmock.New(t)

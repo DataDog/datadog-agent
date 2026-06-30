@@ -104,7 +104,7 @@ func TestForwarder_PassThrough_TruncatesBodyAtCap(t *testing.T) {
 // This matters for MicroVM snapshot/restore: any connection pooled inside a
 // Firecracker snapshot is stale on resume, and Go's HTTP transport does not
 // auto-retry POST on a stale connection. Forcing a fresh dial per call
-// eliminates the class of "first /launch hook fails with 503/504" failures.
+// eliminates the class of "first /run hook fails with 503/504" failures.
 func TestNewForwarder_DisableKeepAlives_OpensNewConnectionPerRequest(t *testing.T) {
 	var newConns atomic.Int32
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

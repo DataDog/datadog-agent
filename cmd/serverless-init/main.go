@@ -154,7 +154,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	// Note: we do not modify tags for the LogsAgent.
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tagConfig.Tags, tagger, compression, hostname, origin)
 	// Snapshot the startup log tags so the lifecycle server can append lambda_microvm_id
-	// at /launch without losing the base set. Must be computed after SetupLogAgent
+	// at /run without losing the base set. Must be computed after SetupLogAgent
 	// since MapToArray normalises the same map that SetupLogAgent passes to SetLogsTags.
 	logTagsBase := serverlessTag.MapToArray(tagConfig.Tags)
 
