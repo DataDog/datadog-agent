@@ -8,7 +8,6 @@
 package mocksender
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
@@ -51,10 +50,7 @@ func CreateDefaultDemultiplexer(tb testing.TB) *aggregator.AgentDemultiplexer {
 	taggerComponent := nooptagger.NewComponent()
 	filterList := filterlist.NewNoopFilterList()
 	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressionmock.NewMockCompressor(), taggerComponent, filterList, "")
-	//TODO(agent-build): remove guard due to `newSysCheck(nil)` in pkg/collector/corechecks/oracle/init_test.go
-	if tb != nil && !reflect.ValueOf(tb).IsNil() {
-		tb.Cleanup(demux.Stop)
-	}
+	tb.Cleanup(demux.Stop)
 	return demux
 }
 
