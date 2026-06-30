@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"go.yaml.in/yaml/v2"
@@ -132,6 +133,7 @@ type KubeASCheck struct {
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
 	tagger          tagger.Component
 
+	mu                    sync.Mutex
 	eventCollectorRunning bool
 	informersStopCh       chan struct{}
 }
@@ -189,7 +191,7 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		k.instance.MaxEventCollection = maxEventCardinality
 	}
 
-	if k.instance.EventCollectionBufferSize == 0 {
+	if k.instance.EventCollectionBufferSize < 1 {
 		k.instance.EventCollectionBufferSize = defaultEventCollectionBufferSize
 	}
 
@@ -333,28 +335,38 @@ func (k *KubeASCheck) Run() error {
 
 // startEventCollection builds a new EventCollector and starts it. It is idempotent.
 func (k *KubeASCheck) startEventCollection() error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
 	if k.eventCollectorRunning {
 		return nil
 	}
 
-	k.informersStopCh = make(chan struct{})
-	k.eventCollection.EventCollector = k.ac.NewEventCollector(k.eventCollection.Filter, k.instance.EventCollectionBufferSize)
+	ec := k.ac.NewEventCollector(k.eventCollection.Filter, k.instance.EventCollectionBufferSize)
+	if ec == nil {
+		return errors.New("could not create EventCollector: invalid buffer size")
+	}
+	k.eventCollection.EventCollector = ec
 
 	// Resume from the last persisted resourceVersion so events created while we
 	// were not the leader (or were restarting) are recovered rather than skipped.
 	if resVer, _, err := k.ac.GetTokenFromConfigmap(eventTokenKey); err != nil {
 		log.Warnf("Could not read persisted event resourceVersion, starting fresh: %s", err)
 	} else {
-		k.eventCollection.EventCollector.SetResourceVersion(resVer)
+		ec.SetResourceVersion(resVer)
 	}
 
+	k.informersStopCh = make(chan struct{})
 	k.eventCollectorRunning = true
-	return k.eventCollection.EventCollector.Start(k.informersStopCh)
+	return ec.Start(k.informersStopCh)
 }
 
 // stopEventCollection stops the running EventCollector by closing its stop
 // channel. It is idempotent.
 func (k *KubeASCheck) stopEventCollection() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
 	if !k.eventCollectorRunning {
 		return
 	}
@@ -370,12 +382,20 @@ func (k *KubeASCheck) Cancel() {
 }
 
 func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Event, error) {
-	events := k.eventCollection.EventCollector.Drain()
+	k.mu.Lock()
+	ec := k.eventCollection.EventCollector
+	k.mu.Unlock()
 
-	sender.Gauge("kubernetes_apiserver.events_dropped", float64(k.eventCollection.EventCollector.Dropped()), "", nil)
+	if ec == nil {
+		return nil, nil
+	}
+
+	events := ec.Drain()
+
+	sender.Gauge("kubernetes_apiserver.events_dropped", float64(ec.DrainDropped()), "", nil)
 
 	// Persist the high-water mark so a restart or leader failover resumes here.
-	if err := k.ac.UpdateTokenInConfigmap(eventTokenKey, k.eventCollection.EventCollector.ResourceVersion(), time.Now()); err != nil {
+	if err := k.ac.UpdateTokenInConfigmap(eventTokenKey, ec.ResourceVersion(), time.Now()); err != nil {
 		k.Warnf("Could not persist event resourceVersion: %s", err.Error())
 	}
 

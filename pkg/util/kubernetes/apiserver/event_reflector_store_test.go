@@ -111,15 +111,14 @@ func TestDelete(t *testing.T) {
 	assert.Empty(t, *captured)
 }
 
-// TestReplace verifies cold-start seeding suppresses forwarding, a seeded watermark
-// (restart) forwards the backlog past it regardless of list order, and relists
-// advance the watermark to the collection resourceVersion.
+// TestReplace verifies the store forwards events past a fixed threshold and advances the watermark to the collection resourceVersion.
 func TestReplace(t *testing.T) {
-	t.Run("cold start seeds watermark from listRV and skips all events", func(t *testing.T) {
+	t.Run("cold start forwards all events and seeds watermark from listRV", func(t *testing.T) {
 		s, captured := makeStore()
-		require.NoError(t, s.Replace([]interface{}{eventWithRV("5")}, "10"))
-		assert.Empty(t, *captured)
-		assert.True(t, s.seeded)
+		ev := eventWithRV("5")
+		require.NoError(t, s.Replace([]interface{}{ev}, "10"))
+		require.Len(t, *captured, 1)
+		assert.Same(t, ev, (*captured)[0])
 		assert.Equal(t, uint64(10), s.watermark.Load())
 	})
 
@@ -132,10 +131,9 @@ func TestReplace(t *testing.T) {
 	})
 
 	t.Run("unordered list forwards every event past the threshold", func(t *testing.T) {
-		// Regression: unordered list [9, 6, 3] with watermark 4 — both 9 and 6 must forward.
 		s, captured := makeStore()
 		s.watermark.Store(4)
-		_ = s.Replace([]interface{}{eventWithRV("9"), eventWithRV("6"), eventWithRV("3")}, "9")
+		require.NoError(t, s.Replace([]interface{}{eventWithRV("9"), eventWithRV("6"), eventWithRV("3")}, "9"))
 		require.Len(t, *captured, 2)
 		assert.ElementsMatch(t, []string{"9", "6"}, []string{(*captured)[0].ResourceVersion, (*captured)[1].ResourceVersion})
 	})

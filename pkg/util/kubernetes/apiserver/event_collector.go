@@ -65,14 +65,20 @@ func (ec *EventCollector) ResourceVersion() string {
 // Reflector lists then watches events matching the field selector, forwarding
 // them to the buffer through eventReflectorStore.
 func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-stopCh
+		cancel()
+	}()
+
 	lw := &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = ec.filter
-			return ec.client.CoreV1().Events(metav1.NamespaceAll).List(context.TODO(), opts)
+			return ec.client.CoreV1().Events(metav1.NamespaceAll).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = ec.filter
-			return ec.client.CoreV1().Events(metav1.NamespaceAll).Watch(context.TODO(), opts)
+			return ec.client.CoreV1().Events(metav1.NamespaceAll).Watch(ctx, opts)
 		},
 	}
 
@@ -96,9 +102,9 @@ func (ec *EventCollector) Drain() []*v1.Event {
 	}
 }
 
-// Dropped returns the number of events dropped due to the buffer being full.
-func (ec *EventCollector) Dropped() uint64 {
-	return ec.dropped.Load()
+// DrainDropped returns the number of events dropped since the last call, resetting the counter.
+func (ec *EventCollector) DrainDropped() uint64 {
+	return ec.dropped.Swap(0)
 }
 
 // enqueue buffers an event, dropping it (and counting the drop) if the buffer is full.

@@ -22,7 +22,6 @@ import (
 type eventReflectorStore struct {
 	enqueue   func(*v1.Event)
 	watermark *atomic.Uint64
-	seeded    bool
 }
 
 // forwardIfNew forwards an object if it is an *v1.Event whose resourceVersion
@@ -50,24 +49,20 @@ func (s *eventReflectorStore) Update(obj interface{}) error { s.forwardIfNew(obj
 // Delete drops a removed event. Removals are never forwarded to Datadog.
 func (s *eventReflectorStore) Delete(_ interface{}) error { return nil }
 
-// Replace handles the initial list and every relist. On a cold start, we set the watermark to the list's resourceVersion.
-// Otherwise on a relist, or the first list after a restart, we only forward events past the watermark.
+// Replace handles the initial list and every relist. Lists come in unordered,
+// so we forward against a fixed threshold and advance the watermark only after
+// the loop. On cold start the threshold is 0, so all events are forwarded.
 func (s *eventReflectorStore) Replace(list []interface{}, resourceVersion string) error {
-	if s.seeded || s.watermark.Load() > 0 {
-		// Lists come in unordered, so we forward against a fixed threshold and
-		// update the high watermark only after the loop.
-		threshold := s.watermark.Load()
-		for _, obj := range list {
-			ev, ok := obj.(*v1.Event)
-			if !ok {
-				continue
-			}
-			if parseResourceVersion(ev.ResourceVersion) > threshold {
-				s.enqueue(ev)
-			}
+	threshold := s.watermark.Load()
+	for _, obj := range list {
+		ev, ok := obj.(*v1.Event)
+		if !ok {
+			continue
+		}
+		if parseResourceVersion(ev.ResourceVersion) > threshold {
+			s.enqueue(ev)
 		}
 	}
-	s.seeded = true
 	if listRV := parseResourceVersion(resourceVersion); listRV > s.watermark.Load() {
 		s.watermark.Store(listRV)
 	}
