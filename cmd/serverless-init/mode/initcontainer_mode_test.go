@@ -51,7 +51,6 @@ func TestDetectMode_Init_RunnerIsNil(t *testing.T) {
 	assert.Nil(t, conf.Runner, "init mode Runner must be nil; main.go builds the closure with child")
 }
 
-
 // TestHandleTerminationSignals_SIGTERM and _SIGINT exercise handleTerminationSignals
 // via its injectable notify parameter, avoiding real OS signals and verifying
 // that either signal unblocks stopCh.
