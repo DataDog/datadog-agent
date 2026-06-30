@@ -13,12 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func makeCollector(bufferSize int) *EventCollector {
 	return &EventCollector{
-		events:  make(chan *v1.Event, bufferSize),
-		dropped: atomic.NewUint64(0),
+		events:       make(chan *v1.Event, bufferSize),
+		dropped:      atomic.NewUint64(0),
+		lastRV:       atomic.NewUint64(0),
+		maxDrainedRV: atomic.NewUint64(0),
 	}
 }
 
@@ -65,5 +68,26 @@ func TestEnqueue(t *testing.T) {
 		ec.events <- ev // fill the buffer
 		ec.enqueue(ev)
 		assert.Equal(t, uint64(1), ec.DrainDropped())
+	})
+}
+
+// TestCheckpoint verifies the checkpoint tracks the highest delivered resourceVersion and round-trips through SetCheckpoint.
+func TestCheckpoint(t *testing.T) {
+	rvEvent := func(rv string) *v1.Event {
+		return &v1.Event{ObjectMeta: metav1.ObjectMeta{ResourceVersion: rv}}
+	}
+
+	t.Run("checkpoint is the highest drained resourceVersion", func(t *testing.T) {
+		ec := makeCollector(10)
+		ec.events <- rvEvent("5")
+		ec.events <- rvEvent("9")
+		ec.Drain()
+		assert.Equal(t, "9", ec.Checkpoint())
+	})
+
+	t.Run("SetCheckpoint seeds the relist watermark", func(t *testing.T) {
+		ec := makeCollector(10)
+		ec.SetCheckpoint("42")
+		assert.Equal(t, uint64(42), ec.lastRV.Load())
 	})
 }

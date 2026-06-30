@@ -9,6 +9,7 @@ package apiserver
 
 import (
 	"context"
+	"strconv"
 
 	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
@@ -27,8 +28,10 @@ type EventCollector struct {
 	client kubernetes.Interface
 	filter string
 
-	// lastRV is the highest resourceVersion forwarded so far
+	// lastRV is the relist-dedup watermark, seeded from the persisted checkpoint on start.
 	lastRV *atomic.Uint64
+	// maxDrainedRV is the highest resourceVersion delivered, persisted as the restart checkpoint.
+	maxDrainedRV *atomic.Uint64
 
 	events  chan *v1.Event
 	dropped *atomic.Uint64
@@ -42,12 +45,26 @@ func (c *APIClient) NewEventCollector(filter string, bufferSize int) *EventColle
 		return nil
 	}
 	return &EventCollector{
-		client:  c.InformerCl,
-		filter:  filter,
-		lastRV:  atomic.NewUint64(0),
-		events:  make(chan *v1.Event, bufferSize),
-		dropped: atomic.NewUint64(0),
+		client:       c.InformerCl,
+		filter:       filter,
+		lastRV:       atomic.NewUint64(0),
+		maxDrainedRV: atomic.NewUint64(0),
+		events:       make(chan *v1.Event, bufferSize),
+		dropped:      atomic.NewUint64(0),
 	}
+}
+
+// SetCheckpoint seeds the relist-dedup watermark from a persisted resourceVersion
+// so the initial list after a restart forwards only events created since it,
+// rather than re-listing the whole retained backlog. Call before Start.
+func (ec *EventCollector) SetCheckpoint(rv string) {
+	ec.lastRV.Store(parseResourceVersion(rv))
+}
+
+// Checkpoint returns the highest delivered resourceVersion, for persisting so a
+// restart or leader handoff resumes from here instead of from scratch.
+func (ec *EventCollector) Checkpoint() string {
+	return strconv.FormatUint(ec.maxDrainedRV.Load(), 10)
 }
 
 // Start builds the events Reflector and runs it until stopCh is closed. The
@@ -78,13 +95,17 @@ func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
 	return nil
 }
 
-// Drain returns the events buffered since the last call.
+// Drain returns the events buffered since the last call, advancing the
+// delivered-resourceVersion checkpoint.
 func (ec *EventCollector) Drain() []*v1.Event {
 	var drained []*v1.Event
 	for {
 		select {
 		case ev := <-ec.events:
 			drained = append(drained, ev)
+			if rv := parseResourceVersion(ev.ResourceVersion); rv > ec.maxDrainedRV.Load() {
+				ec.maxDrainedRV.Store(rv)
+			}
 		default:
 			return drained
 		}

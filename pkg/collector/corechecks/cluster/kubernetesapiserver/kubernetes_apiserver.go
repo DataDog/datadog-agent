@@ -352,8 +352,13 @@ func (k *KubeASCheck) startEventCollection() error {
 	k.eventCollectorRunning = true
 	k.mu.Unlock()
 
-	// Re-list the full backlog on (re)start (no persisted checkpoint) and let the
-	// bundling transformer dedup by UID; the in-memory watermark dedups relists.
+	// If the checkpoint is present, seed the watermark from it so the initial list only forwards newer events.
+	if resVer, _, err := k.ac.GetTokenFromConfigmap(eventTokenKey); err != nil {
+		log.Warnf("Could not read persisted event checkpoint, starting fresh: %s", err)
+	} else {
+		ec.SetCheckpoint(resVer)
+	}
+
 	return ec.Start(stopCh)
 }
 
@@ -392,6 +397,11 @@ func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Eve
 	events := ec.Drain()
 
 	sender.Gauge("datadog.cluster_agent.kubernetes_apiserver.events_dropped", float64(ec.DrainDropped()), "", nil)
+
+	// Persist the delivered-up-to checkpoint so a restart resumes from here.
+	if err := k.ac.UpdateTokenInConfigmap(eventTokenKey, ec.Checkpoint(), time.Now()); err != nil {
+		k.Warnf("Could not persist event checkpoint: %s", err.Error())
+	}
 
 	ddevents, errs := k.eventCollection.Transformer.Transform(events)
 
