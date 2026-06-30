@@ -1099,7 +1099,7 @@ func (m *ManagerV2) evictUnusedNodes() {
 	defer m.profilesLock.Unlock()
 
 	for selector, profile := range m.profiles {
-		if profile == nil {
+		if profile == nil || !profile.IsEnabled() {
 			continue
 		}
 
@@ -1110,9 +1110,6 @@ func (m *ManagerV2) evictUnusedNodes() {
 		}
 		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
-			if !profile.IsEnabled() && profile.ActivityTree.Stats.HeapSize() < int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
-				profile.Enable()
-			}
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
 
