@@ -9,10 +9,12 @@ import "go.opentelemetry.io/collector/connector"
 
 // NewFactory panics on AIX, which the Datadog connector does not support.
 //
-// The signature intentionally differs from the non-AIX NewFactory: the embedded
-// (DDOT) Collector that injects the Agent dependencies is not built on AIX, and
-// keeping this stub import-minimal avoids pulling in the connector
-// implementation, which depends on packages that do not build on AIX.
-func NewFactory() connector.Factory {
+// The parameter count must match the non-AIX NewFactory: callers such as
+// comp/otelcol/collector/impl/collector.go are gated on the otlp build tag
+// only (not !aix), so this stub is still compiled into AIX builds and must
+// satisfy the same call sites. Parameters are typed `any` rather than the
+// real types (types.TaggerClient, SourceProviderFunc, *stats.Concentrator)
+// so this file doesn't need to import the connector implementation packages.
+func NewFactory(_, _, _ any) connector.Factory {
 	panic("aix is not supported")
 }
