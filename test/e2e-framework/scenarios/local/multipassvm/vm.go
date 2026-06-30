@@ -17,10 +17,14 @@ import (
 )
 
 // NewVM creates a multipass Ubuntu VM and returns it as a Host component.
-func NewVM(e local.Environment, name string) (*remote.Host, error) {
+func NewVM(e local.Environment, name string, params ...VMOption) (*remote.Host, error) {
 	return components.NewComponent(&e, e.Namer.ResourceName(name), func(c *remote.Host) error {
+		vmArgs, err := buildArgs(params...)
+		if err != nil {
+			return err
+		}
 		instanceName := e.Namer.ResourceName(e.Ctx().Stack(), name)
-		address, user, port, err := localmultipass.NewInstance(e, localmultipass.VMArgs{Name: instanceName}, pulumi.Parent(c))
+		address, user, port, err := localmultipass.NewInstance(e, instanceName, vmArgs, vmArgs.PulumiResourceOptions...)
 		if err != nil {
 			return err
 		}

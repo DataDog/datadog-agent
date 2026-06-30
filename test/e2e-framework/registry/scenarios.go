@@ -47,7 +47,7 @@ func Scenarios() ScenarioRegistry {
 		"gcp/gke":                 gke.Run,
 		"gcp/openshiftvm":         openshiftvm.Run,
 		"local/kindmonocontainer": localkindmonocontainer.Run,
-		"local/multipassvm": 	   localmultipassvm.Run,
+		"local/multipassvm": 	   localmultipassvm.VMRun,
 		"localpodman/vm":          localpodmanrun.VMRun,
 	}
 }

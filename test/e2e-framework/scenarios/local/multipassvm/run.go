@@ -17,13 +17,22 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 )
 
-func Run(ctx *pulumi.Context) error {
+// VMRun is the entry point for the scenario when run via pulumi.
+func VMRun(ctx *pulumi.Context) error {
+	env, err := local.NewEnvironment(ctx)
+	if err != nil {
+		return err
+	}
+	return Run(ctx, ParamsFromEnvironment(env))
+}
+
+func Run(ctx *pulumi.Context, params *Params) error {
 	env, err := local.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
 
-	vm, err := NewVM(env, "multipass-vm")
+	vm, err := NewVM(env, params.Name, params.vmOptions...)
 	if err != nil {
 		return err
 	}
@@ -47,12 +56,13 @@ func Run(ctx *pulumi.Context) error {
 		}
 	}
 
-	if env.AgentDeploy() {
+	if params.agentOptions != nil {
 		agentOptions := []agentparams.Option{
 			agentparams.WithLogs(),
 			agentparams.WithAgentConfig("logs_config.container_collect_all: true"),
 		}
-		if env.AgentUseFakeintake() {
+
+		if params.deployFakeIntake {
 			fi, err := fakeintake.NewLocalDockerFakeintake(&env, "fakeintake")
 			if err != nil {
 				return err
@@ -62,6 +72,7 @@ func Run(ctx *pulumi.Context) error {
 			}
 			agentOptions = append(agentOptions, agentparams.WithFakeintake(fi))
 		}
+
 		if env.AgentFlavor() != "" {
 			agentOptions = append(agentOptions, agentparams.WithFlavor(env.AgentFlavor()))
 		}
@@ -73,6 +84,9 @@ func Run(ctx *pulumi.Context) error {
 			}
 			agentOptions = append(agentOptions, agentparams.WithAgentConfig(configContent))
 		}
+
+		agentOptions = append(agentOptions, params.agentOptions...)
+
 		hostAgent, err := agent.NewHostAgent(&env, vm, agentOptions...)
 		if err != nil {
 			return err
@@ -99,7 +113,6 @@ func Run(ctx *pulumi.Context) error {
 		); err != nil {
 			return err
 		}
-		return nil
 	}
 
 	return nil
