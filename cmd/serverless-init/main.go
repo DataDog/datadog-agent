@@ -181,6 +181,10 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 					processor.SetServerlessInitTagCache(tags)
 				}),
 				BaseTags: logTagsBase,
+				TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
+					traceAgent.SetTags(tags)
+				}),
+				BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
 			},
 		}
 		// Only MicroVM needs initialization without an API key: its Init starts the
@@ -218,6 +222,10 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 				processor.SetServerlessInitTagCache(tags)
 			}),
 			BaseTags: logTagsBase,
+			TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
+				traceAgent.SetTags(tags)
+			}),
+			BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
 		},
 	}
 

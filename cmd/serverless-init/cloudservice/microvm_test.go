@@ -168,6 +168,68 @@ func TestMicroVM_LogsTagSetter_InvokedOnLaunch(t *testing.T) {
 	assert.Contains(t, got, "lambda_microvm_id:vm-abc123", "microvm_id from /launch body must be appended to tags")
 }
 
+// TestLifecycleContext_NilTraceTagSetter_IsAccepted verifies that
+// LifecycleContext.TraceTagSetter is nil-safe: passing nil must not cause any
+// compile or runtime issue. Mirrors TestLifecycleContext_NilLogsTagSetter_IsAccepted.
+func TestLifecycleContext_NilTraceTagSetter_IsAccepted(t *testing.T) {
+	lc := &LifecycleContext{TraceTagSetter: nil, BaseTraceTags: nil}
+	assert.Nil(t, lc.TraceTagSetter, "nil TraceTagSetter must be accepted by LifecycleContext")
+}
+
+// TestMicroVM_TraceTagSetter_InvokedOnLaunch verifies the end-to-end wiring of
+// TraceTagSetter: MicroVM.Init passes it to the server, and the server calls it
+// on /launch with base trace tags extended by lambda_microvm_id from the body.
+//
+// Mirrors TestMicroVM_LogsTagSetter_InvokedOnLaunch.
+func TestMicroVM_TraceTagSetter_InvokedOnLaunch(t *testing.T) {
+	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
+
+	var mu sync.Mutex
+	var receivedTags map[string]string
+	setter := lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
+		mu.Lock()
+		defer mu.Unlock()
+		receivedTags = tags
+	})
+	baseTraceTags := map[string]string{"env": "test", "service": "myapp"}
+
+	srv := lifecycle.NewServer(
+		0,
+		metricAgent, &noopTraceAgent{}, &noopLogsFlusher{},
+		metricAgent, metricAgent,
+		(&MicroVM{}).GetSource(),
+		time.Second,
+		lifecycle.NewNoopChildHandle(),
+		nil, // no forwarder
+		nil, // no heartbeat
+	)
+	// This is the call Init makes when lc.TraceTagSetter != nil.
+	srv.SetTraceTagSetter(setter, baseTraceTags)
+
+	l, err := srv.Listen()
+	require.NoError(t, err)
+	go srv.Serve(l)
+	t.Cleanup(func() {
+		shutCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = srv.Stop(shutCtx)
+	})
+
+	launchPath := "/aws/lambda-microvms/runtime/beta/v1/launch"
+	body := strings.NewReader(`{"microVmId":"vm-abc123"}`)
+	resp, err := http.Post("http://"+l.Addr().String()+launchPath, "application/json", body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	mu.Lock()
+	got := receivedTags
+	mu.Unlock()
+
+	assert.Equal(t, "test", got["env"], "base trace tags must be forwarded to TraceTagSetter on /launch")
+	assert.Equal(t, "myapp", got["service"], "base trace tags must be forwarded to TraceTagSetter on /launch")
+	assert.Equal(t, "vm-abc123", got["lambda_microvm_id"], "microvm_id from /launch body must appear in trace tags")
+}
+
 func TestMicroVMInit_NilTracingCtx_DoesNotStartServer(t *testing.T) {
 	m := &MicroVM{}
 	err := m.Init(nil)
