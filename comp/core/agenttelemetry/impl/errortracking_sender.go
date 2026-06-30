@@ -19,6 +19,13 @@ import (
 	agentversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// commitSHAPlaceholder is embedded in the tags field by enrichErrorLog instead
+// of the real 40-char hex SHA. The scrubber's appKeyReplacer masks 40-char hex
+// strings (Datadog app-key pattern); this placeholder is not hex so it passes
+// through unmodified. sendLogsBatch replaces it with version.FullCommit after
+// scrubbing is done.
+const commitSHAPlaceholder = "FULL_SHA_TO_BE_REPLACED"
+
 // sendLogsBatch takes already-converted wire Log structs (produced by
 // enrichErrorLog) and POSTs them as a single LogsPayload-envelope to every
 // configured endpoint.
@@ -85,14 +92,6 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, logs []Log) error {
 //   - Tags   -> git.repository_url + git.commit.sha for Source Code Integration
 //   - Message, TraceID, SpanID -> "" (not populated)
 //   - IsCrash -> false (this path does not emit crash logs)
-//
-// commitSHAPlaceholder is embedded in the tags field by enrichErrorLog instead
-// of the real 40-char hex SHA. The scrubber's appKeyReplacer masks 40-char hex
-// strings (Datadog app-key pattern); this placeholder is not hex so it passes
-// through unmodified. sendLogsBatch replaces it with version.FullCommit after
-// scrubbing is done.
-const commitSHAPlaceholder = "FULL_SHA_TO_BE_REPLACED"
-
 func enrichErrorLog(e errortracking.ErrorLog) Log {
 	count := int(e.Count)
 	if count < 1 {
