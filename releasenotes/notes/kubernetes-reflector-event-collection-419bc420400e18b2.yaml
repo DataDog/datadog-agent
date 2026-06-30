@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add a new reflector-based Kubernetes event collection path, enabled via ``use_new_event_collection``.

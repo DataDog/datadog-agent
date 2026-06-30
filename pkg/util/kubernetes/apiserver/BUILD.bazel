@@ -10,6 +10,8 @@ go_library(
         "diagnosis.go",
         "endpoints.go",
         "endpointslices.go",
+        "event_collector.go",
+        "event_reflector_store.go",
         "events.go",
         "hostname.go",
         "openshift.go",
@@ -72,6 +74,7 @@ go_library(
         "@io_k8s_kube_aggregator//pkg/client/clientset_generated/clientset/typed/apiregistration/v1:apiregistration",
         "@org_golang_x_mod//semver",
         "@org_golang_x_sync//errgroup",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -80,6 +83,8 @@ dd_agent_go_test(
     srcs = [
         "endpoints_test.go",
         "endpointslices_test.go",
+        "event_collector_test.go",
+        "event_reflector_store_test.go",
         "events_test.go",
         "resourcetypes_test.go",
         "services_kubelet_test.go",
@@ -107,5 +112,6 @@ dd_agent_go_test(
         "@io_k8s_apimachinery//pkg/version",
         "@io_k8s_client_go//discovery/fake",
         "@io_k8s_client_go//kubernetes/fake",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
