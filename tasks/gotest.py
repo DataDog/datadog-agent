@@ -690,6 +690,7 @@ def test(
         ctx,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
+        include_sds=include_sds,
     )
 
     # Use stdout if no profile is set

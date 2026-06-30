@@ -3,15 +3,12 @@ import sys
 
 from invoke import task
 
+from tasks.libs.common.utils import get_sds_library_dir
+
 is_windows = sys.platform == "win32"
 is_darwin = sys.platform == "darwin"
 
 SDS_SHARED_TARGET = "//deps/sds/rust:dd_sds_shared"
-
-
-def _dev_lib_path():
-    here = os.path.abspath(os.path.dirname(__file__))
-    return os.path.abspath(os.path.join(here, '..', 'dev', 'lib'))
 
 
 @task
@@ -30,7 +27,7 @@ def build_library(ctx):
     lib_name = "libdd_sds.dylib" if is_darwin else "libdd_sds.so"
     src = os.path.join(bazel_bin, "deps", "sds", "rust", lib_name)
 
-    dest = _dev_lib_path()
+    dest = get_sds_library_dir()
     os.makedirs(dest, exist_ok=True)
     ctx.run(f"cp {src} {dest}/")
     # Bazel outputs are read-only; make the copy writable to re-stamp it.
