@@ -229,7 +229,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/logs/launchers/file
 # gazelle:exclude pkg/logs/launchers/integration
 # gazelle:exclude pkg/logs/launchers/journald
-# gazelle:exclude pkg/logs/schedulers/ad
 # gazelle:exclude pkg/logs/tailers/container
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/luts.go
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/main.go
