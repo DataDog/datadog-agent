@@ -76,7 +76,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/host-profiler/subcommands
 # gazelle:exclude cmd/iot-agent
 # gazelle:exclude cmd/otel-agent/command
-# gazelle:exclude cmd/otel-agent/subcommands/flare
 # gazelle:exclude cmd/otel-agent/subcommands/run
 # gazelle:exclude cmd/privateactionrunner/subcommands/*.go
 # gazelle:exclude cmd/privateactionrunner/subcommands/run
