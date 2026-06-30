@@ -44,6 +44,8 @@ const (
 	otelTimestamp      = otelNamespace + ".timestamp"
 	otelScopeName      = otelNamespace + ".scope.name"
 	otelScopeVersion   = otelNamespace + ".scope.version"
+	otelLibraryName    = otelNamespace + ".library.name"    // deprecated alias for otel.scope.name
+	otelLibraryVersion = otelNamespace + ".library.version" // deprecated alias for otel.scope.version
 )
 const (
 	// This set of constants specify the keys of the attributes that will be used to represent Datadog
@@ -142,9 +144,11 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 	}
 	if name := scope.Name(); name != "" {
 		l.AdditionalProperties[otelScopeName] = name
+		l.AdditionalProperties[otelLibraryName] = name
 	}
 	if version := scope.Version(); version != "" {
 		l.AdditionalProperties[otelScopeVersion] = version
+		l.AdditionalProperties[otelLibraryVersion] = version
 	}
 	if traceID := lr.TraceID(); !traceID.IsEmpty() {
 		l.AdditionalProperties[ddTraceID] = strconv.FormatUint(traceIDToUint64(traceID), 10)
