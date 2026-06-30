@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -92,6 +93,16 @@ func TestShadowCheckDelegatesInnerCheckBehavior(t *testing.T) {
 
 func TestShadowIDAppendsShadowSuffix(t *testing.T) {
 	assert.Equal(t, checkid.ID("ntp:def456:shadow"), ShadowID(checkid.ID("ntp:def456")))
+}
+
+func TestShadowCheckForwardsIssueReporter(t *testing.T) {
+	reporter := &recordingIssueReporter{}
+	inner := &issueAwareRecordingCheck{}
+	shadow := NewShadowCheck(inner, ShadowID(checkid.ID("cpu:abc123")), time.Second)
+
+	shadow.SetIssueReporter(reporter)
+
+	assert.Equal(t, reporter, inner.reporter)
 }
 
 type recordingCheck struct {
@@ -202,4 +213,17 @@ func (c *recordingCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 
 func (c *recordingCheck) IsHASupported() bool {
 	return c.haSupported
+}
+
+type recordingIssueReporter struct {
+	healthplatformstore.Component
+}
+
+type issueAwareRecordingCheck struct {
+	recordingCheck
+	reporter healthplatformstore.Component
+}
+
+func (c *issueAwareRecordingCheck) SetIssueReporter(reporter healthplatformstore.Component) {
+	c.reporter = reporter
 }

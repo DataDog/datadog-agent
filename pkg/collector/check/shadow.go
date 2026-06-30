@@ -8,6 +8,7 @@ package check
 import (
 	"time"
 
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
@@ -57,6 +58,13 @@ func (c *ShadowCheck) Interval() time.Duration {
 // Unwrap returns the wrapped check.
 func (c *ShadowCheck) Unwrap() Check {
 	return c.Check
+}
+
+// SetIssueReporter forwards issue reporter injection to issue-aware checks.
+func (c *ShadowCheck) SetIssueReporter(reporter healthplatformstore.Component) {
+	if aware, ok := c.Check.(IssueAwareCheck); ok {
+		aware.SetIssueReporter(reporter)
+	}
 }
 
 func (*ShadowCheck) isShadowCheck() {}

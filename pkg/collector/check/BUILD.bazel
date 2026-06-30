@@ -44,6 +44,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/diagnose/def",
+        "//comp/healthplatform/store/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
