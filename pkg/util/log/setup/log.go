@@ -186,7 +186,7 @@ func buildSlogLogger(
 	multiHandler := handlers.NewMulti(handlerList...)
 	asyncHandler := handlers.NewAsync(multiHandler)
 
-	// AGTHEAL-15: errortracking branch is a sibling of asyncHandler under the
+	// errortracking branch is a sibling of asyncHandler under the
 	// global level filter. The Handler atomic-loads the current Submitter
 	// (and per-PC Bouncer) on every record, so the chain is correctly wired
 	// whether or not the agenttelemetry component has registered yet; its
