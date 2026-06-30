@@ -215,7 +215,8 @@ func patcherTestStoreWithData() *store {
 	// ns1/autoscaler-burstable-follower simulates a FOLLOWER replica: the stored recommendation has
 	// NO removeLimitSentinel (it never ran the leader sync and the status strips negatives), yet
 	// ApplyRecommendations must still remove the CPU limit by re-deriving burstable from the spec.
-	store.Set("ns1/autoscaler-burstable-follower", model.FakePodAutoscalerInternal{
+	item, _ = store.Get("ns1/autoscaler-burstable-follower")
+	item.Upsert(model.FakePodAutoscalerInternal{
 		Namespace:            "ns1",
 		Name:                 "autoscaler-burstable-follower",
 		PreviewAnnotationKey: `{"burstable":true}`,
