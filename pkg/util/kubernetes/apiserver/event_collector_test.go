@@ -56,7 +56,7 @@ func TestEnqueue(t *testing.T) {
 	t.Run("buffer not full: event buffered, Dropped stays zero", func(t *testing.T) {
 		ec := makeCollector(1)
 		ec.enqueue(ev)
-		assert.Equal(t, uint64(0), ec.Dropped())
+		assert.Equal(t, uint64(0), ec.DrainDropped())
 		assert.Len(t, ec.Drain(), 1)
 	})
 
@@ -64,6 +64,6 @@ func TestEnqueue(t *testing.T) {
 		ec := makeCollector(1)
 		ec.events <- ev // fill the buffer
 		ec.enqueue(ev)
-		assert.Equal(t, uint64(1), ec.Dropped())
+		assert.Equal(t, uint64(1), ec.DrainDropped())
 	})
 }
