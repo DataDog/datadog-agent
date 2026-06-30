@@ -64,7 +64,7 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	}
 	// rshell policy fields are delivered in the signed task fields in production
 	// (resolved from execution policies by the backend). The runner reads them
-	// from the remote_action attributes, not inputs. Surface any values supplied
+	// from system_inputs.remote_action, not inputs. Surface any values supplied
 	// via the test inputs as those signed-task fields so skip-verification e2e
 	// flows behave like a real backend-signed task.
 	remoteAction := map[string]interface{}{}
@@ -72,10 +72,12 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 		remoteAction["target_commands"] = v
 	}
 	if v, ok := task.Inputs["allowedPaths"]; ok {
-		remoteAction["target_paths"] = parTargetPathsFromAllowedPathsInput(v)
+		remoteAction["target_paths"] = v
 	}
 	if len(remoteAction) > 0 {
-		attributes["remote_action"] = remoteAction
+		attributes["system_inputs"] = map[string]interface{}{
+			"remote_action": remoteAction,
+		}
 	}
 	resp := map[string]interface{}{
 		"data": map[string]interface{}{
@@ -86,26 +88,6 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
-}
-
-func parTargetPathsFromAllowedPathsInput(allowedPaths interface{}) interface{} {
-	switch paths := allowedPaths.(type) {
-	case map[string][]string:
-		if containerized, ok := paths["containerized"]; ok {
-			return containerized
-		}
-		if defaults, ok := paths["default"]; ok {
-			return defaults
-		}
-	case map[string]interface{}:
-		if containerized, ok := paths["containerized"]; ok {
-			return containerized
-		}
-		if defaults, ok := paths["default"]; ok {
-			return defaults
-		}
-	}
-	return allowedPaths
 }
 
 func (fi *Server) handlePARPublish(w http.ResponseWriter, r *http.Request) {

@@ -22,9 +22,11 @@ func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
 		OrgId:      42,
 		TaskId:     "task-id",
 		Inputs:     &structpb.Struct{},
-		RemoteAction: &privateactionspb.RemoteAction{
-			TargetCommands: []string{"rshell:cat"},
-			TargetPaths:    []string{"/host/var/log"},
+		SystemInputs: &privateactionspb.SystemInputs{
+			RemoteAction: &privateactionspb.RemoteAction{
+				TargetCommands: []string{"rshell:cat"},
+				TargetPaths:    []string{"/host/var/log"},
+			},
 		},
 	}
 
@@ -32,13 +34,14 @@ func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
 
 	assert.Equal(t, "task-id", got.Data.ID)
 	assert.Equal(t, "runCommand", got.Data.Attributes.Name)
-	require.NotNil(t, got.Data.Attributes.RemoteAction)
-	assert.Equal(t, []string{"rshell:cat"}, got.Data.Attributes.RemoteAction.TargetCommands)
-	assert.Equal(t, []string{"/host/var/log"}, got.Data.Attributes.RemoteAction.TargetPaths)
+	require.NotNil(t, got.Data.Attributes.SystemInputs)
+	require.NotNil(t, got.Data.Attributes.SystemInputs.RemoteAction)
+	assert.Equal(t, []string{"rshell:cat"}, got.Data.Attributes.SystemInputs.RemoteAction.TargetCommands)
+	assert.Equal(t, []string{"/host/var/log"}, got.Data.Attributes.SystemInputs.RemoteAction.TargetPaths)
 }
 
 func TestMapPbTaskToStructEmptyRemoteActionPolicyFields(t *testing.T) {
 	got := mapPbTaskToStruct(&privateactionspb.PrivateActionTask{Inputs: &structpb.Struct{}})
 
-	assert.Nil(t, got.Data.Attributes.RemoteAction)
+	assert.Nil(t, got.Data.Attributes.SystemInputs)
 }

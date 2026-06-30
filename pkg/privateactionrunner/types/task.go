@@ -36,9 +36,12 @@ type Attributes struct {
 	ConnectionInfo        *privateactionspb.ConnectionInfo                `json:"connection_info"`
 	TraceId               uint64                                          `json:"trace_id,omitempty"`
 	SpanId                uint64                                          `json:"span_id,omitempty"`
-	// RemoteAction carries backend-resolved Datadog policy for remote-action
-	// tasks, separate from user-provided action inputs and global task
-	// attributes.
+	// SystemInputs carries backend-resolved policy and other backend-provided
+	// inputs, separate from user-provided action inputs.
+	SystemInputs *SystemInputsAttributes `json:"system_inputs,omitempty"`
+}
+
+type SystemInputsAttributes struct {
 	RemoteAction *RemoteActionAttributes `json:"remote_action,omitempty"`
 }
 
