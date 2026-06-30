@@ -7,9 +7,10 @@
 - [Why isn't host profiling included directly in DDOT?](#why-isnt-host-profiling-included-directly-in-ddot)
 - [How does the Host Profiler relate to OpenTelemetry?](#how-does-the-host-profiler-relate-to-opentelemetry)
 - [What does the Datadog Host Profiler distribution add?](#what-does-the-datadog-host-profiler-distribution-add)
+- [What overhead should I expect?](#what-overhead-should-i-expect)
+- [How do I configure resource requests and limits?](#how-do-i-configure-resource-requests-and-limits)
 - [Do I need debug symbols?](#do-i-need-debug-symbols)
 - [What security privileges does the Host Profiler require?](#what-security-privileges-does-the-host-profiler-require)
-- [How do I configure resource requests and limits?](#how-do-i-configure-resource-requests-and-limits)
 
 ## How does the Host Profiler name services?
 
@@ -61,6 +62,25 @@ It provides:
 
 The long-term goal is to make these benefits available with upstream OpenTelemetry distributions directly. The preview distribution provides them out of the box today.
 
+## What overhead should I expect?
+
+The Host Profiler is designed to run continuously on every supported node.
+
+In Datadog's internal deployments, the Host Profiler runs on thousands of hosts in densely packed Kubernetes clusters. In that environment, we observe average usage of about `15m` CPU (15 millicores) and about `350 MB` of memory per Host Profiler container.
+
+Actual usage depends on node density, process churn, and debug symbol processing. The provided manifests set limits of `500m` CPU and `1Gi` memory to cap usage while leaving room for temporary spikes, such as symbol upload for large native binaries. If you observe sustained usage considerably above these averages, contact Datadog Support so we can help review your workload characteristics and tune the deployment.
+
+## How do I configure resource requests and limits?
+
+The provided manifests set Host Profiler container requests to `0` and limits to `500m` CPU and `1Gi` memory. This caps profiler usage without reserving CPU or memory on every node.
+
+Tune these values when needed:
+
+- **Cluster policies or reserved capacity**: set nonzero requests if your cluster requires them, or if you want the scheduler to reserve capacity for the profiler.
+- **Dense nodes or many processes**: increase limits based on observed usage.
+- **Large native binaries**: increase the memory limit when the profiler uploads large debug symbols.
+- **Guaranteed QoS**: set requests equal to limits for every container in the pod, including init containers. In bundled Agent deployments, the Agent containers also affect the pod QoS class.
+
 ## Do I need debug symbols?
 
 For compiled languages such as C, C++, Rust, and Go, debug symbols are required for function names to appear in profiles.
@@ -80,17 +100,6 @@ export DD_SITE=<DATADOG_SITE>
 ```shell
 DD_BETA_COMMANDS_ENABLED=1 datadog-ci elf-symbols upload /path/to/build/symbols/
 ```
-
-## How do I configure resource requests and limits?
-
-The provided manifests set Host Profiler container requests to `0` and limits to `500m` CPU and `1Gi` memory. This caps profiler usage without reserving CPU or memory on every node.
-
-Tune these values when needed:
-
-- **Cluster policies or reserved capacity**: set nonzero requests if your cluster requires them, or if you want the scheduler to reserve capacity for the profiler.
-- **Dense nodes or many processes**: increase limits based on observed usage.
-- **Large native binaries**: increase the memory limit when the profiler uploads large debug symbols.
-- **Guaranteed QoS**: set requests equal to limits for every container in the pod, including init containers. In bundled Agent deployments, the Agent containers also affect the pod QoS class.
 
 ## What security privileges does the Host Profiler require?
 
