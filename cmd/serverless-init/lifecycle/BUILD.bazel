@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "lifecycle",
+    srcs = [
+        "childhandle.go",
+        "config.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "lifecycle_test",
+    srcs = [
+        "childhandle_test.go",
+        "config_test.go",
+    ],
+    embed = [":lifecycle"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
