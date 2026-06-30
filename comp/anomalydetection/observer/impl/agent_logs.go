@@ -15,6 +15,8 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const agentLogSource = "datadog-agent"
+
 // installAgentLogTap registers a pkg/util/log observer that forwards agent-internal
 // log lines into the observer pipeline. Logs below minSeverity are dropped before
 // any rate-limiting. The three max rates are in logs/second over a 10-second
@@ -23,17 +25,17 @@ import (
 // onDropped is called with the priority bucket name ("high", "medium", "low")
 // when a log is dropped by the rate limiter. It is NOT called for min_severity
 // drops. It may be nil.
-func installAgentLogTap(handle observerdef.Handle, minSeverity string, maxRateHigh, maxRateMedium, maxRateLow float64, onDropped func(priority string)) {
-	baseTags := []string{"source:datadog-agent"}
+// rules is applied after the severity gate but before the rate gate, so excluded
+// messages do not consume rate budget. A nil rules allows all.
+func installAgentLogTap(handle observerdef.Handle, minSeverity string, maxRateHigh, maxRateMedium, maxRateLow float64, onDropped func(priority string), rules *logsfilter.Rules) {
+	baseTags := []string{"source:" + agentLogSource}
 	minBucket := logsfilter.MinBucketForSeverity(minSeverity)
 
 	var highW, mediumW, lowW logsfilter.RateWindow
-	shouldForward := func(level pkglog.LogLevel) (bool, string) {
-		bucket := logsfilter.BucketForStatus(strings.ToLower(level.String()))
-		if bucket < minBucket {
-			return false, "" // severity-filtered: intentional, not counted as rate-limit drop
-		}
-		tier := logsfilter.RateTierForBucket(bucket)
+	// chargeRate consumes one slot from the appropriate rate window and returns
+	// (true, "") if allowed or (false, tier) if rate-limited.
+	chargeRate := func(level pkglog.LogLevel) (bool, string) {
+		tier := logsfilter.RateTierForBucket(logsfilter.BucketForStatus(strings.ToLower(level.String())))
 		var allowed bool
 		switch tier {
 		case "high":
@@ -50,19 +52,28 @@ func installAgentLogTap(handle observerdef.Handle, minSeverity string, maxRateHi
 	}
 
 	pkglog.SetLogObserver(func(level pkglog.LogLevel, message string) {
-		forward, droppedPriority := shouldForward(level)
-		if !forward {
-			if droppedPriority != "" && onDropped != nil {
-				onDropped(droppedPriority)
-			}
+		// 1. Severity gate: cheap, no side effects.
+		bucket := logsfilter.BucketForStatus(strings.ToLower(level.String()))
+		if bucket < minBucket {
 			return
 		}
+		// 2. Build tags and apply processing rules before consuming rate budget.
 		tags := make([]string, 0, 3)
 		tags = append(tags, baseTags...)
 		if name := pkglog.GetLoggerName(); name != "" {
 			tags = append(tags, "component:"+name)
 		}
 		tags = append(tags, "level:"+strings.ToLower(level.String()))
+		if !rules.IsAllowed(agentLogSource, tags) {
+			return
+		}
+		// 3. Rate limiting: only charge budget for messages that pass the rule filter.
+		if forward, droppedPriority := chargeRate(level); !forward {
+			if droppedPriority != "" && onDropped != nil {
+				onDropped(droppedPriority)
+			}
+			return
+		}
 		payload, _ := json.Marshal(map[string]any{
 			"msg": message,
 		})
