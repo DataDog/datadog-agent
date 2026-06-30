@@ -222,6 +222,8 @@ const (
 	samplerNoisyLogDetection
 )
 
+const defaultAdaptiveSamplerMatchThreshold = 0.9
+
 func resolveSamplerMode(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, sourceNoisyLogDetection *bool) samplerMode {
 	if resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling) {
 		return samplerAdaptiveSampling
@@ -259,7 +261,11 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 			c.BurstSize = *sourceAdaptiveSampling.BurstSize
 		}
 		if sourceAdaptiveSampling.MatchThreshold != nil {
-			c.MatchThreshold = *sourceAdaptiveSampling.MatchThreshold
+			if *sourceAdaptiveSampling.MatchThreshold <= 0 || *sourceAdaptiveSampling.MatchThreshold > 1 {
+				log.Warnf("Invalid adaptive sampler source match_threshold %f, keeping %f", *sourceAdaptiveSampling.MatchThreshold, c.MatchThreshold)
+			} else {
+				c.MatchThreshold = *sourceAdaptiveSampling.MatchThreshold
+			}
 		}
 		if sourceAdaptiveSampling.ProtectImportantLogs != nil {
 			c.ProtectImportantLogs = *sourceAdaptiveSampling.ProtectImportantLogs
@@ -427,6 +433,11 @@ func validateAdaptiveSamplerConfig(c preprocessor.AdaptiveSamplerConfig) preproc
 
 	if c.BurstSize <= 0 {
 		c.BurstSize = 1
+	}
+
+	if c.MatchThreshold <= 0 || c.MatchThreshold > 1 {
+		log.Warnf("Invalid adaptive sampler match_threshold %f, using default %f", c.MatchThreshold, defaultAdaptiveSamplerMatchThreshold)
+		c.MatchThreshold = defaultAdaptiveSamplerMatchThreshold
 	}
 
 	return c

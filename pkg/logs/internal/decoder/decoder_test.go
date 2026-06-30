@@ -676,6 +676,23 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 		assert.False(t, got.TagPatternHash)
 	})
 
+	t.Run("invalid global match threshold falls back to default", func(t *testing.T) {
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.match_threshold", -1.0, pkgconfigmodel.SourceAgentRuntime)
+		defer mockConfig.Set("logs_config.experimental_adaptive_sampling.match_threshold", 0.8, pkgconfigmodel.SourceAgentRuntime)
+
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
+		assert.Equal(t, defaultAdaptiveSamplerMatchThreshold, got.MatchThreshold)
+	})
+
+	t.Run("invalid source match threshold keeps global value", func(t *testing.T) {
+		sourceInvalidThreshold := 1.5
+		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
+			MatchThreshold: &sourceInvalidThreshold,
+		}, preprocessor.NewTokenizer(0))
+
+		assert.Equal(t, 0.8, got.MatchThreshold)
+	})
+
 	t.Run("source filters are resolved", func(t *testing.T) {
 		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
 			Include: []*config.AdaptiveSamplingRule{
