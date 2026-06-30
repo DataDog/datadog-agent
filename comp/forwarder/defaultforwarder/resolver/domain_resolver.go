@@ -62,7 +62,8 @@ type domainResolver struct {
 	overrides           map[string]destination
 	alternateDomainList []string
 
-	isMRF bool
+	isMRF            bool
+	isMetricToVector bool
 }
 
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
@@ -375,7 +376,9 @@ func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.AP
 	}
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.V1SeriesEndpoint.Name, Vector)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SeriesEndpoint.Name, Vector)
+	r.RegisterAlternateDestination(vectorEndpoint, endpoints.V3SeriesEndpoint.Name, Vector)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SketchSeriesEndpoint.Name, Vector)
+	r.isMetricToVector = true
 	return r, nil
 }
 
@@ -403,6 +406,12 @@ func (r *domainResolver) IsLocal() bool {
 // IsMRF returns true when the domain is used as the target for multi region failover.
 func (r *domainResolver) IsMRF() bool {
 	return r.isMRF
+}
+
+// IsMetricToVector returns true when the resolver was constructed to divert metrics to a
+// Vector/Observability Pipelines Worker endpoint via NewDomainResolverWithMetricToVector.
+func (r *domainResolver) IsMetricToVector() bool {
+	return r.isMetricToVector
 }
 
 type authHeader struct {

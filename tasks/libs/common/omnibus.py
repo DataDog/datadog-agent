@@ -54,6 +54,7 @@ ENV_PASSHTROUGH = {
     'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_version': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'AGENT_DATA_PLANE_VERSION': 'Agent Data Plane Version',
+    'AGENT_DATA_PLANE_SOURCE_URL_BASE': 'Override URL base for Agent Data Plane tarball downloads',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
@@ -109,6 +110,8 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'TEAM_ID': 'Apple developer team ID used for notarization',
         'KEYCHAIN_NAME': 'Name of the ephemeral keychain holding signing certificates',
         'KEYCHAIN_PWD': 'Password for the ephemeral signing keychain',
+        'AGENT_DATA_PLANE_HASH_DARWIN_AMD64': 'Agent Data Plane Hash for Darwin AMD64',
+        'AGENT_DATA_PLANE_HASH_DARWIN_ARM64': 'Agent Data Plane Hash for Darwin ARM64',
     },
 }
 
@@ -199,7 +202,7 @@ def _hash_paths(hasher, paths: list[str]):
 
 def get_dd_api_key(ctx):
     if sys.platform == 'win32':
-        cmd = f'aws.exe ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
+        cmd = f'C:\\devtools\\ci-identities-gitlab-job-client.exe secrets read {os.environ["AGENT_API_KEY_ORG2"]} token'
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:

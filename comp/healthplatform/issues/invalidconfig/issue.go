@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !jetson
-
 package invalidconfig
 
 import (
@@ -54,8 +52,8 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 	})
 
 	return &healthplatform.Issue{
-		IssueName:   IssueID,
-		Title:       fmt.Sprintf("Datadog Agent configuration has %d schema violation%s", count, suffix),
+		IssueName:   IssueName,
+		Title:       fmt.Sprintf("Datadog Agent Configuration Has %d Schema Violation%s", count, suffix),
 		Description: desc,
 		Category:    "configuration",
 		Location:    "agent",

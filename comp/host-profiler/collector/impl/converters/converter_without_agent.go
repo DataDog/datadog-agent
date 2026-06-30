@@ -38,6 +38,13 @@ var resourceDetectionDefaultConfig = confMap{
 	},
 }
 
+// internalHealthMetricsPipelineResolution holds the data needed to create the internal health metrics pipeline.
+type internalHealthMetricsPipelineResolution struct {
+	defaultTarget            string
+	uncoveredExporters       []any
+	inferredMetricsEndpoints map[string]string
+}
+
 // converterWithoutAgent ensures sane configuration that satisfies the following conditions:
 //   - At least one resourcedetection processor declared and used with required defaults
 //   - If no resourcedetection processor used, declare & use a minimal resourcedetection processor
@@ -138,9 +145,12 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 }
 
 func (c *converterWithoutAgent) ensureMetricsPipeline(conf confMap) error {
-	metrics, err := confmaputils.Ensure[confMap](conf, "service::pipelines::metrics")
-	if err != nil {
-		return err
+	// Only operate on a metrics pipeline the user actually declared. Using Ensure here would
+	// materialize an empty service::pipelines::metrics for profiles-only configs, which then
+	// fails validation with "service::pipelines::metrics: must have at least one receiver".
+	metrics, ok := confmaputils.Get[confMap](conf, "service::pipelines::metrics")
+	if !ok {
+		return nil
 	}
 
 	processors, err := confmaputils.Ensure[[]any](metrics, "processors")
@@ -435,47 +445,70 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 	return nil
 }
 
-// addInternalHealthMetricsPipeline scrapes OTel collector internal telemetry and exports it
-// to the same orgs as profiles. Separate from ensureMetricsPipeline which handles user-defined pipelines.
-func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, profilesExporterNames []any, profilesProcessors []any) error {
-	if existing, ok := confmaputils.Get[confMap](conf, "service::pipelines::"+internalHealthMetricsPipelineName); ok {
-		slog.Warn("metrics/profiler-internal-health pipeline already configured, skipping auto-configuration",
-			slog.Any("existing_config", existing))
-		return nil
-	}
-
+// hasInternalHealthMetricsPipelineConflicts checks if the internal health metrics pipeline should be created
+// and if there are any conflicts with the reserved receiver and processor names.
+func hasInternalHealthMetricsPipelineConflicts(conf confMap) bool {
 	if level, ok := confmaputils.Get[string](conf, "service::telemetry::metrics::level"); ok {
 		if strings.ToLower(level) == "none" {
-			slog.Info("metrics telemetry disabled (level=none), skipping metrics pipeline")
-			return nil
+			slog.Info("skipping internal health metrics pipeline", slog.String("reason", "metrics telemetry disabled (level=none)"))
+			return true
 		}
+	}
+
+	if existing, ok := confmaputils.Get[confMap](conf, "service::pipelines::"+internalHealthMetricsPipelineName); ok {
+		slog.Warn("skipping internal health metrics pipeline", slog.String("reason", "metrics/profiler-internal-health pipeline already configured"),
+			slog.Any("existing_config", existing))
+		return true
 	}
 
 	if receivers, ok := confmaputils.Get[confMap](conf, "receivers"); ok {
 		if _, exists := receivers[reservedPrometheusReceiver]; exists {
-			slog.Warn("receiver name conflicts with reserved name, skipping pipeline",
+			slog.Warn("skipping internal health metrics pipeline",
+				slog.String("reason", "receiver name conflicts with reserved name"),
 				slog.String("receiver", reservedPrometheusReceiver))
-			return nil
+			return true
 		}
 	}
 	if processors, ok := confmaputils.Get[confMap](conf, "processors"); ok {
 		for _, reserved := range []string{reservedFilterProcessor, reservedCumulativeToDeltaProcessor} {
 			if _, exists := processors[reserved]; exists {
-				slog.Warn("processor name conflicts with reserved name, skipping pipeline",
+				slog.Warn("skipping internal health metrics pipeline",
+					slog.String("reason", "processor name conflicts with reserved name"),
 					slog.String("processor", reserved))
-				return nil
+				return true
 			}
 		}
 	}
 
-	metricsExporterNames := []any{}
+	return false
+}
+
+// resolveInternalHealthMetricsPipeline resolves telemetry prometheus targets and determines which
+// profile exporters still need internal metrics scraping.
+func resolveInternalHealthMetricsPipeline(conf confMap, profilesExporterNames []any) (internalHealthMetricsPipelineResolution, bool) {
+	targets, err := selectTelemetryPrometheusTargets(conf)
+	if err != nil {
+		slog.Info("skipping internal health metrics pipeline", slog.String("reason", err.Error()))
+		return internalHealthMetricsPipelineResolution{}, false
+	}
+
+	coveredExporters, err := getCoveredExportersInMetricsPipelines(conf, targets, isComponentTypeOtlpHTTP)
+	if err != nil {
+		slog.Info("skipping internal health metrics pipeline", slog.String("reason", err.Error()))
+		return internalHealthMetricsPipelineResolution{}, false
+	}
+
+	resolution := internalHealthMetricsPipelineResolution{
+		uncoveredExporters:       []any{},
+		inferredMetricsEndpoints: map[string]string{},
+		defaultTarget:            targets[0].HostPort,
+	}
+
+	// For each profiles exporter, check if it is already covered by a prometheus receiver
+	// (i.e. included in a metrics pipeline with a matching prometheus receiver).
 	for _, exporterNameAny := range profilesExporterNames {
 		exporterName, ok := exporterNameAny.(string)
-		if !ok {
-			continue
-		}
-
-		if !isComponentTypeOtlpHTTP(exporterName) {
+		if !ok || !isComponentTypeOtlpHTTP(exporterName) {
 			continue
 		}
 
@@ -487,79 +520,89 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 
 		if _, hasMetrics := confmaputils.Get[string](exporterConf, "metrics_endpoint"); hasMetrics {
 			slog.Debug("metrics_endpoint already set, preserving user config", slog.String("exporter", exporterName))
-			metricsExporterNames = append(metricsExporterNames, exporterName)
-			continue
-		}
-
-		// If a top-level endpoint is set, otlphttp derives the metrics URL by appending
-		// /v1/metrics. We check this before profiles_endpoint so a bare endpoint takes
-		// precedence over a profiles_endpoint override.
-		if _, hasEndpoint := confmaputils.Get[string](exporterConf, "endpoint"); hasEndpoint {
+		} else if _, hasEndpoint := confmaputils.Get[string](exporterConf, "endpoint"); hasEndpoint {
+			// If a top-level endpoint is set, otlphttp derives the metrics URL by appending
+			// /v1/metrics. We check this before profiles_endpoint so a bare endpoint takes
+			// precedence over a profiles_endpoint override.
 			slog.Debug("endpoint set, reusing exporter for metrics", slog.String("exporter", exporterName))
-			metricsExporterNames = append(metricsExporterNames, exporterName)
-			continue
+		} else {
+			profilesEndpoint, ok := confmaputils.Get[string](exporterConf, "profiles_endpoint")
+			if !ok {
+				slog.Warn("otlp_http exporter missing endpoint and profiles_endpoint, cannot infer metrics endpoint",
+					slog.String("exporter", exporterName))
+				continue
+			}
+
+			metricsEndpoint, err := inferMetricsEndpoint(profilesEndpoint)
+			if err != nil {
+				slog.Warn("cannot infer metrics endpoint from profiles endpoint",
+					slog.String("exporter", exporterName),
+					slog.Any("error", err))
+				continue
+			}
+
+			resolution.inferredMetricsEndpoints[exporterName] = metricsEndpoint
 		}
 
-		profilesEndpoint, ok := confmaputils.Get[string](exporterConf, "profiles_endpoint")
-		if !ok {
-			slog.Warn("otlp_http exporter missing endpoint and profiles_endpoint, cannot infer metrics endpoint",
-				slog.String("exporter", exporterName))
-			continue
+		if _, ok := coveredExporters[exporterName]; !ok {
+			resolution.uncoveredExporters = append(resolution.uncoveredExporters, exporterName)
 		}
-
-		metricsEndpoint, err := inferMetricsEndpoint(profilesEndpoint)
-		if err != nil {
-			slog.Warn("cannot infer metrics endpoint from profiles endpoint",
-				slog.String("exporter", exporterName),
-				slog.String("profiles_endpoint", profilesEndpoint),
-				slog.Any("error", err))
-			continue
-		}
-
-		if err := confmaputils.Set(exporterConf, "metrics_endpoint", metricsEndpoint); err != nil {
-			return fmt.Errorf("failed to set metrics_endpoint for %s: %w", exporterName, err)
-		}
-
-		slog.Info("inferred metrics endpoint for exporter",
-			slog.String("exporter", exporterName),
-			slog.String("profiles_endpoint", profilesEndpoint),
-			slog.String("metrics_endpoint", metricsEndpoint))
-
-		metricsExporterNames = append(metricsExporterNames, exporterName)
 	}
 
-	if len(metricsExporterNames) == 0 {
-		slog.Info("no exporters configured, skipping metrics pipeline")
+	return resolution, true
+}
+
+// addInternalHealthMetricsPipeline scrapes OTel collector internal telemetry and exports it
+// to the same orgs as profiles. Separate from ensureMetricsPipeline which handles user-defined pipelines.
+func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, profilesExporterNames []any, profilesProcessors []any) error {
+	if hasInternalHealthMetricsPipelineConflicts(conf) {
 		return nil
 	}
 
-	if err := confmaputils.Set(conf, pathPrefixReceivers+reservedPrometheusReceiver, confmaputils.PrometheusReceiverConfig("host-profiler-internal", "127.0.0.1:8889")); err != nil {
-		return fmt.Errorf("failed to add prometheus receiver: %w", err)
+	resolution, ok := resolveInternalHealthMetricsPipeline(conf, profilesExporterNames)
+	if !ok {
+		return nil
 	}
 
-	if err := confmaputils.Set(conf, pathPrefixProcessors+reservedFilterProcessor, confmaputils.FilterProcessorConfig()); err != nil {
-		return fmt.Errorf("failed to add filter processor: %w", err)
-	}
-	if err := confmaputils.Set(conf, pathPrefixProcessors+reservedCumulativeToDeltaProcessor, confMap{}); err != nil {
-		return fmt.Errorf("failed to add cumulativetodelta processor: %w", err)
+	if len(resolution.uncoveredExporters) > 0 {
+		if err := confmaputils.Set(conf, pathPrefixReceivers+reservedPrometheusReceiver, confmaputils.PrometheusReceiverConfig("host-profiler-internal", resolution.defaultTarget)); err != nil {
+			return fmt.Errorf("failed to add prometheus receiver: %w", err)
+		}
+
+		if err := confmaputils.Set(conf, pathPrefixProcessors+reservedFilterProcessor, confmaputils.FilterProcessorConfig()); err != nil {
+			return fmt.Errorf("failed to add filter processor: %w", err)
+		}
+		if err := confmaputils.Set(conf, pathPrefixProcessors+reservedCumulativeToDeltaProcessor, confMap{}); err != nil {
+			return fmt.Errorf("failed to add cumulativetodelta processor: %w", err)
+		}
+
+		metricsProcessors := []any{reservedFilterProcessor, reservedCumulativeToDeltaProcessor}
+		metricsProcessors = append(metricsProcessors, profilesProcessors...)
+
+		metricsPipeline := confMap{
+			"receivers":  []any{reservedPrometheusReceiver},
+			"processors": metricsProcessors,
+			"exporters":  resolution.uncoveredExporters,
+		}
+
+		if err := confmaputils.Set(conf, "service::pipelines::"+internalHealthMetricsPipelineName, metricsPipeline); err != nil {
+			return fmt.Errorf("failed to create pipeline: %w", err)
+		}
+
+		slog.Info("created internal health metrics pipeline",
+			slog.Int("exporters", len(resolution.uncoveredExporters)),
+			slog.String("pipeline", internalHealthMetricsPipelineName))
+	} else {
+		slog.Info("skipping internal health metrics pipeline",
+			slog.String("reason", "no exporters configured"))
 	}
 
-	metricsProcessors := []any{reservedFilterProcessor, reservedCumulativeToDeltaProcessor}
-	metricsProcessors = append(metricsProcessors, profilesProcessors...)
-
-	metricsPipeline := confMap{
-		"receivers":  []any{reservedPrometheusReceiver},
-		"processors": metricsProcessors,
-		"exporters":  metricsExporterNames,
+	for exporterName, metricsEndpoint := range resolution.inferredMetricsEndpoints {
+		if err := confmaputils.Set(conf, pathPrefixExporters+exporterName+"::metrics_endpoint", metricsEndpoint); err != nil {
+			return fmt.Errorf("failed to set metrics_endpoint for %s: %w", exporterName, err)
+		}
+		slog.Info("inferred metrics endpoint for exporter", slog.String("exporter", exporterName), slog.String("metrics_endpoint", metricsEndpoint))
 	}
-
-	if err := confmaputils.Set(conf, "service::pipelines::"+internalHealthMetricsPipelineName, metricsPipeline); err != nil {
-		return fmt.Errorf("failed to create pipeline: %w", err)
-	}
-
-	slog.Info("created internal health metrics pipeline",
-		slog.Int("exporters", len(metricsExporterNames)),
-		slog.String("pipeline", internalHealthMetricsPipelineName))
 
 	return nil
 }

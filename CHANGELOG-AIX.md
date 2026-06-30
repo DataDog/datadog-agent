@@ -9,6 +9,10 @@
 ## Unreleased
 
 <!-- Add entries here for changes not yet in a release. -->
+- Build scripts: remove all hardcoded `/opt/datadog-agent` source-tree references — `AGENT_SRC` is now auto-resolved by walking up from the script directory to the nearest `.git` ancestor, so the agent source can live at any path on the build host
+- Remove the obsolete packaged integration constraints artifact from the AIX BFF package
+- Remove `sharedlibrarycheck` from the AIX agent build (the shared-library check loader was included but not validated on AIX)
+- The embedded `python3.13` binary and all Python extension modules now have the correct install-time library search path baked into their XCOFF loader section. Previously, the staging path was baked in, causing `libpython3.13.so could not be loaded` when running pip or python directly (without `LIBPATH` set). Operators can now run `pip install` without setting `LIBPATH` first.
 
 ---
 

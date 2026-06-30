@@ -425,22 +425,9 @@ func (d *TukeyBiweightDetector) scoreBiweight(state *tbSeriesState, series *obse
 		return observer.Anomaly{}, false
 	}
 
-	// (f) PLAN DEVIATION: the original plan specified a "biweight-weight"
-	// gate — fire only if |latest - mu| < c·sigma, the same trimming cutoff
-	// used during the IRLS fit. With the plan's defaults (ZThreshold=5,
-	// c=4.685) this gate is mathematically empty: zAbs >= 5 AND |z| < 4.685
-	// have no overlap, so the detector could never fire and tests #3 and #4
-	// (FiresOnLevelShift, RobustToHistoricalOutlier) would be unsatisfiable.
-	//
-	// The candidate description's stated property is "downweights extremes
-	// during baseline estimation, then scores deviation against the
-	// IMMUNIZED baseline" — the biweight protects (mu, sigma), and any
-	// sufficiently anomalous latest point should fire. So the gate's real
-	// purpose is to suppress EXTREME glitches (sensor errors, NaN-converted
-	// 1e308, etc.) without blocking real shifts. We replace the c·sigma
-	// cutoff with a generous glitch cap at glitchZCap·sigma — anything
-	// beyond that is almost certainly an instrumentation artifact rather
-	// than a genuine regime change.
+	// (f) Suppress extreme glitches (sensor errors, NaN-converted 1e308, etc.)
+	// without blocking real shifts. Points with |z| >= glitchZCap are treated
+	// as instrumentation artifacts rather than genuine regime changes.
 	if zAbs >= tbGlitchZCap {
 		return observer.Anomaly{}, false
 	}
@@ -474,9 +461,8 @@ func (d *TukeyBiweightDetector) scoreBiweight(state *tbSeriesState, series *obse
 	return anomaly, true
 }
 
-// ensureDefaults fills in zero-valued config fields with sensible defaults.
-// Mirrors MannKendallDetector.ensureDefaults so a struct-literal construction
-// (&TukeyBiweightDetector{}) still produces a working detector.
+// ensureDefaults fills in zero-valued config fields with sensible defaults so
+// struct-literal construction (&TukeyBiweightDetector{}) still works.
 func (d *TukeyBiweightDetector) ensureDefaults() {
 	if d.WindowSize <= 0 {
 		d.WindowSize = 80

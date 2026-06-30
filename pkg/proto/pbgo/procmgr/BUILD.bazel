@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/procmgr:procmgr_go_proto": [
+            "process_manager.pb.go",
+            "process_manager_grpc.pb.go",
+        ],
+    },
+)
+
+go_library(
+    name = "procmgr",
+    srcs = [
+        "process_manager.pb.go",
+        "process_manager_grpc.pb.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)

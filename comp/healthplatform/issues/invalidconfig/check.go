@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !jetson
-
 // Package invalidconfig reports datadog.yaml schema violations through the Agent Health Platform.
-// Excluded from the IoT Agent build to stay under the binary size budget.
 package invalidconfig
 
 import (
@@ -57,7 +54,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	return []runnerdef.IssueReport{
 		{
 			IssueID:   IssueID,
-			IssueName: IssueID,
+			IssueName: IssueName,
 			Source:    "agent",
 			Context: map[string]string{
 				contextKeyConfigPath: c.cfg.ConfigFileUsed(),

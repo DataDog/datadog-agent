@@ -19,9 +19,9 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
@@ -891,7 +891,7 @@ func (s *dsdServer) parseServiceCheckMessage(parser *parser, message []byte, ori
 }
 
 func getBuckets(cfg model.Reader, logger log.Component, option string) []float64 {
-	if !cfg.IsSet(option) {
+	if !cfg.IsConfigured(option) {
 		return nil
 	}
 
@@ -905,7 +905,7 @@ func getBuckets(cfg model.Reader, logger log.Component, option string) []float64
 
 func getDogstatsdMappingProfiles(cfg model.Reader) ([]mapper.MappingProfileConfig, error) {
 	var mappings []mapper.MappingProfileConfig
-	if cfg.IsSet("dogstatsd_mapper_profiles") {
+	if cfg.IsConfigured("dogstatsd_mapper_profiles") {
 		err := structure.UnmarshalKey(cfg, "dogstatsd_mapper_profiles", &mappings)
 		if err != nil {
 			return []mapper.MappingProfileConfig{}, fmt.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)

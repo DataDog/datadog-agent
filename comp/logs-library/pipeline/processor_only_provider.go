@@ -9,11 +9,11 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -60,6 +60,11 @@ func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
 
 func (p *processorOnlyProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return p.inputChan, p.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, "0")
+}
+
+// GetPipelineMonitor returns this provider's pipeline monitor (a no-op; the logs check does not surface on the status page).
+func (p *processorOnlyProvider) GetPipelineMonitor() metrics.PipelineMonitor {
+	return p.pipelineMonitor
 }
 
 func (p *processorOnlyProvider) GetOutputChan() chan *message.Message {

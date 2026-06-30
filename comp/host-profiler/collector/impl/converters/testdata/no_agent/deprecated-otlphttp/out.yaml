@@ -53,11 +53,9 @@ receivers:
                     - PrometheusText0.0.4
                   static_configs:
                     - targets:
-                        - 127.0.0.1:8889
+                        - localhost:8888
 service:
     pipelines:
-        metrics:
-            processors: []
         metrics/profiler-internal-health:
             exporters:
                 - otlphttp/prod

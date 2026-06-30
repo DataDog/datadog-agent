@@ -9,6 +9,7 @@ go_library(
         "go_context.go",
         "implementors.go",
         "irgen.go",
+        "runtime_recovery_probe.go",
         "type_catalog.go",
         "type_index.go",
         "type_index_in_mem.go",
@@ -36,6 +37,7 @@ go_library(
 go_test(
     name = "irgen_test",
     srcs = [
+        "contains_equivalence_test.go",
         "go_context_test.go",
         "implementors_test.go",
         "irgen_all_symbols_test.go",

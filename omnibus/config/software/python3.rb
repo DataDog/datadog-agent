@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.13.13"
+default_version "3.13.14"
 
 
 relative_path "Python-#{version}"
@@ -13,14 +13,17 @@ build do
 
   if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @cpython//:install --destdir='#{install_dir}'"
+    command "bazel run --//:install_dir=#{install_dir} -- @cpython//:install --destdir='#{install_dir}'",
+      :live_stream => Omnibus.logger.live_stream(:info)
     # Libraries and binaries are rpath-patched by dd_cc_packaged in cpython.BUILD.bazel;
     # this call is now only for the ##PREFIX## text substitution in _sysconfigdata.
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-      " #{install_dir}/embedded/lib/python3.*/_sysconfigdata__*.py"
+    command "bazel run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+      " #{install_dir}/embedded/lib/python3.*/_sysconfigdata__*.py",
+      :live_stream => Omnibus.logger.live_stream(:info)
     python = "#{install_dir}/embedded/bin/python3"
   else
-    command_on_repo_root "bazelisk run #{flavor_flag} --//:install_dir=#{install_dir} -- @cpython//:install --destdir=#{install_dir}"
+    command "bazel run #{flavor_flag} --//:install_dir=#{install_dir} -- @cpython//:install --destdir=#{install_dir}",
+      :live_stream => Omnibus.logger.live_stream(:info)
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
   end
 

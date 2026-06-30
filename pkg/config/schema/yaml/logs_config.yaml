@@ -57,6 +57,8 @@ properties:
     - template_section:LogsAgent
   processing_rules:
     node_type: setting
+    type: array
+    default: []
     visibility: public
     description: |-
       Global processing rules that are applied to all logs. The available rules are
@@ -68,8 +70,6 @@ properties:
           name: <RULE_NAME>
           pattern: <RULE_PATTERN>
     tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
     - template_section:LogsAgent
     comment: add global processing rules that are applied on all logs
   auto_multi_line_detection:
@@ -220,7 +220,7 @@ properties:
       Controls how wildcard file log source are prioritized when there are more files
       that match wildcard log configurations than the `logs_config.open_files_limit`
 
-      Choices are 'by_name' and 'by_modification_time'. See config_template.yaml for full details.
+      Choices are 'by_name' and 'by_modification_time'. See pkg/config/schema/yaml/ for full details.
 
       WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
       more disk I/O at the wildcard log paths
@@ -314,9 +314,8 @@ properties:
       could happen while serializing large objects on log lines.
   api_key:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
     comment: specific logs-agent api-key
   atomic_registry_write:
     node_type: setting
@@ -355,6 +354,13 @@ properties:
         node_type: setting
         type: integer
         default: 20
+      stack_trace_parsers:
+        node_type: setting
+        type: array
+        default:
+        - go
+        items:
+          type: string
       tag_aggregated_json:
         node_type: setting
         type: boolean
@@ -527,7 +533,7 @@ properties:
       to preserve current behavior.
   expected_tags_duration:
     node_type: setting
-    type: number
+    type: string
     default: 0s
     format: duration
     tags:
@@ -547,6 +553,15 @@ properties:
         tags:
         - golang_type:float64
         comment: Maximum burst allowance per pattern, measured in accumulated credits/logs.
+      disabled_sources:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        comment: Sources listed here will not have adaptive sampling or noisy log
+          detection applied, even if enabled globally. Matches against the configured
+          source tag of each log source.
       enabled:
         node_type: setting
         type: boolean
@@ -596,6 +611,12 @@ properties:
         tags:
         - golang_type:float64
         comment: Steady-state logs per second allowed for each matched pattern.
+      tag_pattern_hash:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: When adaptive sampling or noisy log detection is enabled, tag logs
+          with the hash of their structural sampler pattern.
       tokenizer_max_input_bytes:
         node_type: setting
         type: integer
@@ -606,6 +627,13 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  experimental_noisy_log_detection:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: |-
+      Tag repetitive logs that would be dropped by the adaptive sampler with noisy_log:true
+      without dropping them. Real adaptive sampling takes precedence when enabled.
   file_scan_period:
     node_type: setting
     type: number

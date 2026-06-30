@@ -6,10 +6,13 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -204,18 +207,18 @@ func TestFromDDConfig(t *testing.T) {
 
 			// Set required configuration values
 			if tt.site != "" {
-				mockConfig.SetWithoutSource("site", tt.site)
+				mockConfig.SetInTest("site", tt.site)
 			}
 			if tt.ddURL != "" {
-				mockConfig.SetWithoutSource("dd_url", tt.ddURL)
+				mockConfig.SetInTest("dd_url", tt.ddURL)
 			}
 
 			// Set minimal required PAR config to avoid errors
-			mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-			mockConfig.SetWithoutSource(setup.PARUrn, "")
+			mockConfig.SetInTest(setup.PARPrivateKey, "")
+			mockConfig.SetInTest(setup.PARUrn, "")
 
 			// Call FromDDConfig
-			cfg, err := FromDDConfig(mockConfig)
+			cfg, err := FromDDConfig(mockConfig, nil)
 			require.NoError(t, err)
 
 			// Verify both DDHost and DatadogSite are set correctly
@@ -228,14 +231,52 @@ func TestFromDDConfig(t *testing.T) {
 	}
 }
 
+func TestFromDDConfigMetricsClient(t *testing.T) {
+	providedClient := &statsd.NoOpClient{}
+	tests := []struct {
+		name     string
+		client   statsd.ClientInterface
+		wantSame statsd.ClientInterface
+		wantNoOp bool
+	}{
+		{
+			name:     "uses provided metrics client",
+			client:   providedClient,
+			wantSame: providedClient,
+		},
+		{
+			name:     "defaults nil metrics client to no-op",
+			wantNoOp: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest(setup.PARPrivateKey, "")
+			mockConfig.SetInTest(setup.PARUrn, "")
+
+			cfg, err := FromDDConfig(mockConfig, tt.client)
+
+			require.NoError(t, err)
+			if tt.wantSame != nil {
+				assert.Same(t, tt.wantSame, cfg.MetricsClient)
+			}
+			if tt.wantNoOp {
+				assert.IsType(t, &statsd.NoOpClient{}, cfg.MetricsClient)
+			}
+		})
+	}
+}
+
 func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 	t.Run("cluster agent default actions are included when default_actions_enabled is true", func(t *testing.T) {
 		flavor.SetFlavor(flavor.ClusterAgent)
 		defer flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
-		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, true)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -253,8 +294,8 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
-		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, true)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -271,8 +312,8 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		defer flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
-		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, false)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, false)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -284,8 +325,8 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		defer flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
-		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, true)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -295,8 +336,8 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 	t.Run("explicit allowlist works without default actions", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
-		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, false)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, false)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -311,32 +352,32 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
 	// every backend-allowed path through containment matching. The
 	// transform returns it verbatim.
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{"/var/log", "/tmp"})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{"/var/log", "/tmp"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/var/log", "/tmp"}, cfg.RShellAllowedPaths)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	// Explicit empty: operator opts in to blocking everything.
 	assert.NotNil(t, cfg.RShellAllowedPaths)
@@ -348,32 +389,32 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
 	// sentinel that admits every backend command in the rshell namespace.
 	// The transform returns it verbatim.
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{"cat", "ls"})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "ls"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cat", "ls"}, cfg.RShellAllowedCommands)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	// Explicit empty list: operator opts in to blocking every command.
 	// Distinct from the unset case above.
@@ -395,7 +436,7 @@ private_action_runner:
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
 }
@@ -408,7 +449,7 @@ private_action_runner:
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
 }
@@ -423,11 +464,11 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *t
 	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{tmpDir, fp}, cfg.RShellAllowedPaths)
 }
@@ -438,11 +479,11 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *tes
 	// logs a warning so a Windows-native path configured by mistake does
 	// not silently produce an empty intersection without feedback.
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{`C:\Data`, "/var/log"}, cfg.RShellAllowedPaths)
 }
@@ -454,11 +495,11 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(
 	// here — the point of this test is that unnamespaced entries do not
 	// cause config load to fail.
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cat", "rshell:ls"}, cfg.RShellAllowedCommands)
 }
@@ -474,8 +515,109 @@ private_action_runner:
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
+}
+
+func TestNewMetricsClient(t *testing.T) {
+	createErr := errors.New("permission denied")
+	tests := []struct {
+		name           string
+		port           int
+		bindHost       string
+		createErr      error
+		wantErr        string
+		wantNoOp       bool
+		wantHost       string
+		wantPort       int
+		wantSameClient bool
+	}{
+		{
+			name:           "uses configured bind host and dogstatsd port",
+			port:           8126,
+			bindHost:       "127.0.0.1",
+			wantHost:       "127.0.0.1",
+			wantPort:       8126,
+			wantSameClient: true,
+		},
+		{
+			name:      "returns no-op and error when DogStatsD client creation fails",
+			port:      8126,
+			bindHost:  "127.0.0.1",
+			createErr: createErr,
+			wantErr:   "failed to create DogStatsD client",
+			wantNoOp:  true,
+			wantHost:  "127.0.0.1",
+			wantPort:  8126,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("STATSD_URL", "")
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("dogstatsd_port", tt.port)
+			if tt.bindHost != "" {
+				mockConfig.SetInTest("bind_host", tt.bindHost)
+			}
+
+			wantClient := &statsd.NoOpClient{}
+			statsdComp := &recordingStatsdComponent{client: wantClient, err: tt.createErr}
+			got, err := NewMetricsClient(mockConfig, statsdComp)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.wantErr)
+				assert.ErrorIs(t, err, tt.createErr)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.wantSameClient {
+				assert.Same(t, wantClient, got)
+			}
+			if tt.wantNoOp {
+				assert.IsType(t, &statsd.NoOpClient{}, got)
+			}
+			assert.Equal(t, "host_port", statsdComp.call)
+			assert.Equal(t, tt.wantHost, statsdComp.host)
+			assert.Equal(t, tt.wantPort, statsdComp.port)
+			assert.Empty(t, statsdComp.addr)
+		})
+	}
+}
+
+type recordingStatsdComponent struct {
+	client statsd.ClientInterface
+	err    error
+	call   string
+	addr   string
+	host   string
+	port   int
+}
+
+var _ statsdcomp.Component = (*recordingStatsdComponent)(nil)
+
+func (r *recordingStatsdComponent) Get() (statsd.ClientInterface, error) {
+	r.call = "get"
+	return r.client, r.err
+}
+
+func (r *recordingStatsdComponent) Create(_ ...statsd.Option) (statsd.ClientInterface, error) {
+	r.call = "create"
+	return r.client, r.err
+}
+
+func (r *recordingStatsdComponent) CreateForAddr(addr string, _ ...statsd.Option) (statsd.ClientInterface, error) {
+	r.call = "addr"
+	r.addr = addr
+	return r.client, r.err
+}
+
+func (r *recordingStatsdComponent) CreateForHostPort(host string, port int, _ ...statsd.Option) (statsd.ClientInterface, error) {
+	r.call = "host_port"
+	r.host = host
+	r.port = port
+	return r.client, r.err
 }

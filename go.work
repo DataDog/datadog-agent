@@ -1,4 +1,4 @@
-go 1.25.10
+go 1.26.4
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -14,6 +14,7 @@ use (
 	comp/core/agenttelemetry/fx
 	comp/core/agenttelemetry/impl
 	comp/core/config
+	comp/core/configstreamconsumer/def
 	comp/core/configsync
 	comp/core/delegatedauth
 	comp/core/delegatedauth/api/cloudauth/aws
@@ -88,7 +89,6 @@ use (
 	internal/tools/independent-lint
 	internal/tools/modformatter
 	internal/tools/modparser
-	internal/tools/proto
 	internal/tools/worksynchronizer
 	pkg/aggregator/ckey
 	pkg/api
@@ -106,7 +106,6 @@ use (
 	pkg/config/schema
 	pkg/config/setup
 	pkg/config/structure
-	pkg/config/teeconfig
 	pkg/config/utils
 	pkg/config/viperconfig
 	pkg/discovery/tracermetadata/model
@@ -114,7 +113,6 @@ use (
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/logs/diagnostic
 	pkg/logs/message
 	pkg/logs/sources
 	pkg/logs/status/statusinterface

@@ -2,6 +2,129 @@
 Release Notes
 =============
 
+.. _Release Notes_7.80.3:
+
+7.80.3
+======
+
+.. _Release Notes_7.80.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-24
+Pinned to datadog-agent v7.80.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7803>`_.
+
+
+.. _Release Notes_7.80.2:
+
+7.80.2
+======
+
+.. _Release Notes_7.80.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-17
+Pinned to datadog-agent v7.80.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7802>`_.
+
+
+.. _Release Notes_7.80.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an issue where the admission controller connectivity probe webhook
+  did not include the AKS selector requirements when
+  ``admission_controller.add_aks_selectors`` was enabled, which could cause
+  repeated webhook reconciliation conflicts on AKS.
+
+
+.. _Release Notes_7.80.1:
+
+7.80.1
+======
+
+.. _Release Notes_7.80.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-12
+Pinned to datadog-agent v7.80.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7801>`_.
+
+
+.. _Release Notes_7.80.0:
+
+7.80.0
+======
+
+.. _Release Notes_7.80.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-11
+Pinned to datadog-agent v7.80.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7800>`_.
+
+
+.. _Release Notes_7.80.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Updated the bundled kube-state-metrics library from v2.13 to v2.18.
+  The kube-state-metrics metric allow/deny list now uses ECMAScript
+  regular expression syntax instead of Go ``regexp`` syntax. Most
+  patterns are compatible, but users relying on Go-specific regex
+  features (e.g. ``(?s)`` flag) in ``metric_allowlist`` or
+  ``metric_denylist`` should update their patterns.
+
+
+.. _Release Notes_7.80.0_New Features:
+
+New Features
+------------
+
+- The Cluster Agent admission controller now reports connectivity probe
+  failures to the Datadog Health Platform. When the admission webhook
+  becomes unreachable, an ``admission-controller-connectivity-failure``
+  health issue is raised with severity ``high`` and category
+  ``availability``, including remediation steps. The issue is
+  automatically resolved when connectivity is restored.
+
+- Add a Prometheus HTTP Service Discovery (HTTP SD) provider for the Cluster
+  Agent. The provider polls Prometheus-compatible HTTP SD endpoints and 
+  generates check configurations for each discovered target. Configure
+  endpoints under ``prometheus_http_sd.configs``, each providing its own 
+  ``url`` and ``check_template``.
+
+- Autoscaling profiles (``DatadogPodAutoscalerClusterProfile``) now support
+  Argo Rollouts as a target workload type. The Cluster Agent automatically
+  detects whether the Argo Rollouts CRD is installed at startup and, if
+  present, watches Rollout resources for profile labels alongside
+  Deployments and StatefulSets.
+
+- The ``kubernetes_state`` core check now collects both ``endpoints`` and
+  ``endpointslices`` resources by default, and emits new
+  ``kubernetes_state.endpointslice.address_available`` and
+  ``kubernetes_state.endpointslice.address_not_ready`` metrics for
+  Kubernetes EndpointSlice objects, mirroring the existing
+  ``kubernetes_state.endpoint.address_available`` and
+  ``kubernetes_state.endpoint.address_not_ready`` metrics.
+
+
+.. _Release Notes_7.80.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The orchestrator check now collects force-deleted pods by default. The
+  ``orchestrator_explorer.terminated_pods_improved.enabled`` option will be
+  removed in a future release.
+
+
 .. _Release Notes_7.79.2:
 
 7.79.2
