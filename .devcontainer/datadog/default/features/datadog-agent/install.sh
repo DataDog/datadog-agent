@@ -21,6 +21,6 @@ mv /var/config/dd-defaults /var/config/dd
 # Configure PATH for interactive shells.
 # File name convention *-workspace-env.sh is important:
 # /etc/zsh/zshenv sources these files.
-cat > /etc/profile.d/10-ddagent-workspace-env.sh << 'EOF'
-export PATH="/home/bits/.local/bin:/usr/local/go/bin:$HOME/go/bin:$PATH"
+cat > /etc/profile.d/zz-ddagent-workspace-env.sh << 'EOF'
+export PATH="/home/bits/.local/bin:$PATH" # Make sure we keep it in the path some useful tooling is there
 EOF
