@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -239,87 +240,88 @@ func TestTCleanupHookIsNoOpAfterNormalTeardown(t *testing.T) {
 
 // --- fail-fast (firstFailTest) tests ---
 
-// failFastSuite is a suite where the first test fails and subsequent tests
-// should be skipped by the fail-fast guard.
-type failFastSuite struct {
-	BaseSuite[testEnv]
-
-	provisioner *testProvisioner
-}
-
-func (s *failFastSuite) TestFailFirst() {
-	s.provisioner.AssertNumberOfCalls(s.T(), "Provision", 1)
-	s.T().Fail()
-}
-
-func (s *failFastSuite) TestShouldSkip1() {
-	// If fail-fast works, this test should be skipped and never reach this line.
-	s.T().Error("this test should have been skipped by fail-fast")
-}
-
-func (s *failFastSuite) TestShouldSkip2() {
-	s.T().Error("this test should have been skipped by fail-fast")
-}
-
-// TestFailFastSkipsSubsequentTests verifies that after the first test fails,
-// subsequent tests are skipped (not run) and the provisioner is not called again.
-func TestFailFastSkipsSubsequentTests(t *testing.T) {
+// TestFailFastGuardSkipsBeforeTest verifies that BeforeTest skips (does not call
+// reconcileEnv) when firstFailTest is set and failFast is enabled. It simulates a
+// prior test failure by directly setting firstFailTest, avoiding an intentionally
+// failing sub-test that would propagate as a real CI failure.
+func TestFailFastGuardSkipsBeforeTest(t *testing.T) {
 	p := &testProvisioner{}
 	p.On("ID").Return("test")
 	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
 	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-	s := &failFastSuite{provisioner: p}
+	s := &testNoOpSuite{}
 	Run(t, s, WithProvisioner(p))
 
-	// Provision should be called exactly once: during SetupSuite for the first test.
-	// BeforeTest for subsequent tests should skip without calling reconcileEnv.
+	// Simulate a prior test failure by setting firstFailTest directly.
+	s.firstFailTest = "testNoOpSuite.TestSimulatedFailure"
+	s.params.failFast = true
+
+	// BeforeTest should skip, not call reconcileEnv.
+	// Run it in a sub-test so Skipf's runtime.Goexit doesn't exit the parent.
+	subTestPassed := t.Run("subsequent_test", func(subT *testing.T) {
+		s.SetT(subT)
+		s.BeforeTest("testNoOpSuite", "TestSubsequent")
+		// If we reach here, the guard didn't work.
+		subT.Error("BeforeTest should have skipped due to earlier failure")
+	})
+
+	assert.True(t, subTestPassed, "sub-test should have been skipped (not failed)")
+
+	// Provision should not have been called again by BeforeTest (only by SetupSuite).
 	p.AssertNumberOfCalls(t, "Provision", 1)
-
-	// firstFailTest should be set to the first failing test
-	require.NotEmpty(t, s.firstFailTest, "firstFailTest should be set after first test failure")
-	require.Contains(t, s.firstFailTest, "TestFailFirst")
-
-	// TearDownSuite should still have run (Destroy called once)
-	p.AssertNumberOfCalls(t, "Destroy", 1)
 }
 
-// noFailFastSuite is a suite where the first test fails but fail-fast is disabled.
-type noFailFastSuite struct {
-	BaseSuite[testEnv]
-
-	provisioner *testProvisioner
-}
-
-func (s *noFailFastSuite) TestFailFirst() {
-	s.provisioner.AssertNumberOfCalls(s.T(), "Provision", 1)
-	s.T().Fail()
-}
-
-func (s *noFailFastSuite) TestShouldRun() {
-	// With fail-fast disabled, this test should run (not be skipped).
-	// The provisioner set is unchanged so reconcileEnv's DeepEqual short-circuit
-	// skips re-provisioning, but the test body still executes.
-}
-
-// TestWithoutFailFastRunsAllTests verifies that with WithoutFailFast(),
-// subsequent tests still run after a failure.
-func TestWithoutFailFastRunsAllTests(t *testing.T) {
+// TestFailFastGuardDoesNotSkipWhenDisabled verifies that BeforeTest does NOT skip
+// when failFast is disabled, even if firstFailTest is set.
+func TestFailFastGuardDoesNotSkipWhenDisabled(t *testing.T) {
 	p := &testProvisioner{}
 	p.On("ID").Return("test")
 	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
 	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-	s := &noFailFastSuite{provisioner: p}
+	s := &testNoOpSuite{}
 	Run(t, s, WithProvisioner(p), WithoutFailFast())
 
-	// With fail-fast disabled, the second test should have run (not been skipped).
-	// Provision is called once during SetupSuite; BeforeTest for the second test
-	// hits the DeepEqual short-circuit so no re-provisioning occurs.
-	p.AssertNumberOfCalls(t, "Provision", 1)
-	p.AssertNumberOfCalls(t, "Destroy", 1)
+	// Simulate a prior test failure.
+	s.firstFailTest = "testNoOpSuite.TestSimulatedFailure"
+	s.params.failFast = false
 
-	// firstFailTest should still be set (the first test failed), but the second
-	// test should have run anyway because fail-fast was disabled.
+	// BeforeTest should NOT skip — it should call reconcileEnv (which will
+	// short-circuit via DeepEqual since provisioners haven't changed).
+	t.Run("subsequent_test", func(subT *testing.T) {
+		s.SetT(subT)
+		s.BeforeTest("testNoOpSuite", "TestSubsequent")
+		// If we reach here, the guard correctly did not skip.
+	})
+
+	// firstFailTest should still be set.
 	require.NotEmpty(t, s.firstFailTest)
+}
+
+// TestFailFastGuardSkipsUpdateEnv verifies that UpdateEnv skips re-provisioning
+// when firstFailTest is set and failFast is enabled.
+func TestFailFastGuardSkipsUpdateEnv(t *testing.T) {
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &testNoOpSuite{}
+	Run(t, s, WithProvisioner(p))
+
+	// Simulate a prior test failure.
+	s.firstFailTest = "testNoOpSuite.TestSimulatedFailure"
+	s.params.failFast = true
+
+	// UpdateEnv should skip, not call reconcileEnv.
+	t.Run("update_env_after_failure", func(subT *testing.T) {
+		s.SetT(subT)
+		s.UpdateEnv(p)
+		// If we reach here, the guard didn't work.
+		subT.Error("UpdateEnv should have skipped due to earlier failure")
+	})
+
+	// Provision should not have been called again by UpdateEnv.
+	p.AssertNumberOfCalls(t, "Provision", 1)
 }
