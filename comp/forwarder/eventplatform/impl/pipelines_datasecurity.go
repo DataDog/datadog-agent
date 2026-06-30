@@ -8,7 +8,14 @@ package eventplatformimpl
 import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+)
+
+// These mirror the logs-platform defaults (pkg/config/setup DefaultBatch*/DefaultInputChanSize),
+// inlined to avoid importing pkg/config/setup from inside comp/ (depguard pkgconfigusage).
+const (
+	sdsDefaultBatchMaxContentSize = 5000000
+	sdsDefaultBatchMaxSize        = 1000
+	sdsDefaultInputChanSize       = 100
 )
 
 func getDataSecurityPipelines() []passthroughPipelineDesc {
@@ -21,9 +28,9 @@ func getDataSecurityPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "sds-intake.",
 			intakeTrackType:               "sdsresult",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    sdsDefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           sdsDefaultBatchMaxSize,
+			defaultInputChanSize:          sdsDefaultInputChanSize,
 		},
 	}
 }
