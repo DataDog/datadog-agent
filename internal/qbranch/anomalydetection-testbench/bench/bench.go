@@ -110,19 +110,38 @@ type ComponentInfo struct {
 	Config      map[string]any `json:"config,omitempty"`
 }
 
+// testbenchView extends DebugView with debug-only hooks that the live agent never
+// calls. Methods prefixed with Debug are implemented by observerImpl but intentionally
+// excluded from DebugView to keep the production interface free of testbench concerns.
+type testbenchView interface {
+	observerimpl.DebugView
+	DebugSubscribeBaselineCompleted(func(endSec int64, mutedGroups []string))
+}
+
+// BaselineInfo is the baseline analysis window state exposed to the testbench UI.
+type BaselineInfo struct {
+	Enabled          bool     `json:"enabled"`
+	DurationSec      int64    `json:"durationSec"`
+	MuteNoisyMetrics bool     `json:"muteNoisyMetrics"`
+	Active           bool     `json:"active"`
+	WindowEndSec     int64    `json:"windowEndSec,omitempty"`
+	MutedSeries      []string `json:"mutedSeries,omitempty"`
+}
+
 // StatusResponse is the response for /api/status.
 type StatusResponse struct {
-	Ready                 bool         `json:"ready"`
-	Scenario              string       `json:"scenario,omitempty"`
-	SeriesCount           int          `json:"seriesCount"`
-	AnomalyCount          int          `json:"anomalyCount"`
-	LogAnomalyCount       int          `json:"logAnomalyCount"`
-	ComponentCount        int          `json:"componentCount"`
-	CorrelatorsProcessing bool         `json:"correlatorsProcessing"`
-	ScenarioStart         *int64       `json:"scenarioStart,omitempty"`
-	ScenarioEnd           *int64       `json:"scenarioEnd,omitempty"`
-	EpisodeInfo           *EpisodeInfo `json:"episodeInfo,omitempty"`
-	ServerConfig          ServerConfig `json:"serverConfig"`
+	Ready                 bool          `json:"ready"`
+	Scenario              string        `json:"scenario,omitempty"`
+	SeriesCount           int           `json:"seriesCount"`
+	AnomalyCount          int           `json:"anomalyCount"`
+	LogAnomalyCount       int           `json:"logAnomalyCount"`
+	ComponentCount        int           `json:"componentCount"`
+	CorrelatorsProcessing bool          `json:"correlatorsProcessing"`
+	ScenarioStart         *int64        `json:"scenarioStart,omitempty"`
+	ScenarioEnd           *int64        `json:"scenarioEnd,omitempty"`
+	EpisodeInfo           *EpisodeInfo  `json:"episodeInfo,omitempty"`
+	ServerConfig          ServerConfig  `json:"serverConfig"`
+	Baseline              *BaselineInfo `json:"baseline,omitempty"`
 }
 
 // ServerConfig exposes server-side configuration to the UI.
@@ -168,6 +187,14 @@ type Bench struct {
 	api *BenchAPI
 
 	replayStats *ReplayStats
+
+	// baselineMu protects baseline fields. Separate from tb.mu because the
+	// callback fires from the engine run goroutine while tb.mu may already be
+	// held by LoadScenario driving ingestion/replay.
+	baselineMu           sync.Mutex
+	baselineFrozen       bool
+	baselineWindowEndSec int64
+	baselineMutedSeries  []string
 }
 
 // New creates a new Bench instance with the given observer, debug view, SSE access, and config.
@@ -206,6 +233,18 @@ func New(obs observerdef.Component, debug observerimpl.DebugView, sseAccess test
 				}
 			}
 		}()
+	}
+
+	if cfg.ComponentSettings.Baseline.Enabled {
+		if tbv, ok := debug.(testbenchView); ok {
+			tbv.DebugSubscribeBaselineCompleted(func(endSec int64, mutedGroups []string) {
+				tb.baselineMu.Lock()
+				tb.baselineFrozen = true
+				tb.baselineWindowEndSec = endSec
+				tb.baselineMutedSeries = mutedGroups
+				tb.baselineMu.Unlock()
+			})
+		}
 	}
 
 	tb.api = NewBenchAPI(tb)
@@ -254,7 +293,7 @@ func (tb *Bench) ListScenarios() ([]ScenarioInfo, error) {
 		return nil, fmt.Errorf("failed to read scenarios directory: %w", err)
 	}
 
-	var scenarios []ScenarioInfo
+	scenarios := []ScenarioInfo{}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -511,17 +550,25 @@ func (m *parquetMetricView) GetRawTags() []string    { return m.tags }
 func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
 func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
 
-// unboundedStorageCfg returns a StorageConfig with no point-retention window,
-// so pre-loaded replay data stays in memory for the full replay run.
+// unboundedStorageCfg returns a StorageConfig for testbench replay:
+// no point-retention window (pre-loaded data stays in memory) and full
+// correlation history accumulation enabled (disabled in live mode to avoid
+// per-Advance overhead that production reporters never read).
 func unboundedStorageCfg() observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.PointRetentionSecs = 0
-	cfg.MaxCorrelations = -1 // unlimited — testbench must show all patterns
+	cfg.MaxCorrelations = -1           // unlimited — testbench must show all patterns
+	cfg.TrackCorrelationHistory = true // accumulate history for replay UI / output
 	return cfg
 }
 
 // resetAllState resets engine state via DebugView.Reset.
 func (tb *Bench) resetAllState() {
+	tb.baselineMu.Lock()
+	tb.baselineFrozen = false
+	tb.baselineWindowEndSec = 0
+	tb.baselineMutedSeries = nil
+	tb.baselineMu.Unlock()
 	tb.debug.Reset(tb.settings, unboundedStorageCfg())
 }
 
@@ -568,6 +615,23 @@ func (tb *Bench) GetStatus() StatusResponse {
 
 	componentCount := tb.debug.ExtractorCount() + len(tb.debug.CatalogEntries())
 
+	var baselineInfo *BaselineInfo
+	if tb.settings.Baseline.Enabled {
+		tb.baselineMu.Lock()
+		frozen := tb.baselineFrozen
+		windowEndSec := tb.baselineWindowEndSec
+		mutedSeries := tb.baselineMutedSeries
+		tb.baselineMu.Unlock()
+		baselineInfo = &BaselineInfo{
+			Enabled:          true,
+			DurationSec:      tb.settings.Baseline.DurationSec,
+			MuteNoisyMetrics: tb.settings.Baseline.MuteNoisyMetrics,
+			Active:           !frozen,
+			WindowEndSec:     windowEndSec,
+			MutedSeries:      mutedSeries,
+		}
+	}
+
 	return StatusResponse{
 		Ready:                 tb.ready,
 		Scenario:              tb.loadedScenario,
@@ -583,6 +647,7 @@ func (tb *Bench) GetStatus() StatusResponse {
 			Components: compMap,
 			LogsOnly:   tb.config.LogsOnly,
 		},
+		Baseline: baselineInfo,
 	}
 }
 
