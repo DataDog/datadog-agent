@@ -33,6 +33,7 @@ type testCase struct {
 	name                 string
 	policies             []*testPolicy
 	expectedPolicyStates []*PolicyState
+	model                *model.Model
 }
 
 func TestPolicyMonitorPolicyState(t *testing.T) {
@@ -1534,6 +1535,54 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "rule with disabled event type",
+			model: &model.Model{
+				ExtraValidateFieldFnc: func(field eval.Field, _ eval.FieldValue) error {
+					if field == "exec.file.path" {
+						return rules.ErrEventTypeNotEnabled
+					}
+					return nil
+				},
+			},
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy A",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+						Version:      "0.0.1",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Policy A",
+						Version: "0.0.1",
+						Source:  "test",
+					},
+					Status: PolicyStatusFullyRejected,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "event_type_disabled",
+							Message:    "rule compilation error: event type not enabled",
+							Version:    "0.0.1",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	if runtime.GOOS == "linux" {
@@ -1678,7 +1727,11 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			rs := rules.NewRuleSet(&model.Model{}, eventCtor, ruleOpts, evalOpts)
+			m := tc.model
+			if m == nil {
+				m = &model.Model{}
+			}
+			rs := rules.NewRuleSet(m, eventCtor, ruleOpts, evalOpts)
 			loader := rules.NewPolicyLoader(newTestPolicyProvider(tc.policies...))
 			filteredRules, errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{MacroFilters: macroFilters, RuleFilters: ruleFilters})
 			policyStates := NewPoliciesState(rs, filteredRules, errs, false)
