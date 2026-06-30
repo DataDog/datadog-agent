@@ -94,7 +94,7 @@ dd_agent_go_test(
         "hostinfo_windows_test.go",
     ],
     embed = [":hostinfo"],
-    env_inherit = ["PATH"],
+    env_inherit = ["PATH"],  # test invokes system utilities (e.g. ioreg on macOS) requiring the host PATH
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/gohai/platform",
