@@ -396,7 +396,7 @@ func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Eve
 
 	events := ec.Drain()
 
-	sender.Gauge("kubernetes_apiserver.events_dropped", float64(ec.DrainDropped()), "", nil)
+	sender.Gauge("datadog.cluster_agent.kubernetes_apiserver.events_dropped", float64(ec.DrainDropped()), "", nil)
 
 	ddevents, errs := k.eventCollection.Transformer.Transform(events)
 
