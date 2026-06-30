@@ -26,6 +26,11 @@ func DiscoverComponentsFromConfig(cfg config.Component) ([]pkgconfigsetup.Config
 	detectedProviders := []pkgconfigsetup.ConfigurationProviders{}
 	detectedListeners := []pkgconfigsetup.Listeners{}
 
+	// The static config listener activates checks based on configuration state
+	// only (not on the environment), so it is always enabled regardless of the
+	// environment autodiscovery (autoconfig_from_environment) setting.
+	detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "static config"})
+
 	// Auto-add Prometheus config provider based on `prometheus_scrape.enabled`
 	if cfg.GetBool("prometheus_scrape.enabled") {
 		var prometheusProvider pkgconfigsetup.ConfigurationProviders
@@ -129,9 +134,8 @@ func DiscoverComponentsFromEnv(cfg config.Component) ([]pkgconfigsetup.Configura
 	detectedListeners := []pkgconfigsetup.Listeners{}
 
 	// When using automatic discovery of providers/listeners
-	// We automatically activate the environment and static config listener
+	// We automatically activate the environment listener
 	detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "environment"})
-	detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "static config"})
 
 	// Automatic handling of AD providers/listeners should only run in the core or process agent.
 	if flavor.GetFlavor() != flavor.DefaultAgent && flavor.GetFlavor() != flavor.ProcessAgent {
