@@ -79,6 +79,10 @@ type Component interface {
 	// the queue type, so LocalQueue and ClusterQueue entities are distinct.
 	GetKubernetesKueueQueue(id string) (*KubernetesKueueQueue, error)
 
+	// GetKubernetesKueueResourceFlavor returns metadata about a Kubernetes Kueue ResourceFlavor.
+	// It fetches the entity with kind KindKubernetesKueueResourceFlavor and the given ID.
+	GetKubernetesKueueResourceFlavor(id string) (*KubernetesKueueResourceFlavor, error)
+
 	// GetKubernetesMetadata returns metadata about a Kubernetes resource. It fetches
 	// the entity with kind KubernetesMetadata and the given ID.
 	GetKubernetesMetadata(id KubeMetadataEntityID) (*KubernetesMetadata, error)
