@@ -239,22 +239,17 @@ func (s *Scheduler) stopQueues() {
 	defer s.mu.Unlock()
 
 	log.Debugf("Stopping %v normal queue(s) and %v shadow queue(s)", len(s.jobQueues), len(s.shadowJobQueues))
-	for _, q := range s.jobQueues {
-		s.stopQueue(q)
-	}
-	for _, q := range s.shadowJobQueues {
-		s.stopQueue(q)
-	}
-}
-
-func (s *Scheduler) stopQueue(q *jobQueue) {
-	// check that the queue is actually running or this blocks
-	// while posting to the channel
-	if q.running {
-		q.stop <- true
-		<-q.stopped
-		log.Debugf("Stopped queue %v", q.interval)
-		q.running = false
+	for _, queues := range []map[time.Duration]*jobQueue{s.jobQueues, s.shadowJobQueues} {
+		for _, q := range queues {
+			// check that the queue is actually running or this blocks
+			// while posting to the channel
+			if q.running {
+				q.stop <- true
+				<-q.stopped
+				log.Debugf("Stopped queue %v", q.interval)
+				q.running = false
+			}
+		}
 	}
 }
 

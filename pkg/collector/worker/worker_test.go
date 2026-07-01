@@ -329,6 +329,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		healthplatformmock.Mock(t),
 		100*time.Millisecond,
 		10*time.Second,
+		false,
 	)
 	require.Nil(t, err)
 
@@ -562,6 +563,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 		healthplatformmock.Mock(t),
 		pollingInterval,
 		10*time.Second,
+		false,
 	)
 	require.Nil(t, err)
 
@@ -626,7 +628,7 @@ func TestShadowWorkerDoesNotSendServiceCheck(t *testing.T) {
 
 	mockSender := mocksender.NewMockSender("")
 
-	worker, err := newWorkerWithOptionsAndShadow(
+	worker, err := newWorkerWithOptions(
 		100,
 		200,
 		pendingChecksChan,
@@ -675,6 +677,7 @@ func TestWorkerSenderNil(t *testing.T) {
 		healthplatformmock.Mock(t),
 		pollingInterval,
 		10*time.Second,
+		false,
 	)
 	require.Nil(t, err)
 
@@ -719,6 +722,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 		healthplatformmock.Mock(t),
 		pollingInterval,
 		10*time.Second,
+		false,
 	)
 	require.Nil(t, err)
 
@@ -898,6 +902,7 @@ func TestWorkerWatchdogWarningLog(t *testing.T) {
 				healthplatformmock.Mock(t),
 				100*time.Millisecond,
 				tt.watchdogTimeout,
+				false,
 			)
 			require.NoError(t, err)
 

@@ -76,19 +76,7 @@ func NewWorker(
 	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
 
-	if checksTracker == nil {
-		return nil, errors.New("worker cannot initialize using a nil checksTracker")
-	}
-
-	if pendingChecksChan == nil {
-		return nil, errors.New("worker cannot initialize using a nil pendingChecksChan")
-	}
-
-	if shouldAddCheckStatsFunc == nil {
-		return nil, errors.New("worker cannot initialize using a nil shouldAddCheckStatsFunc")
-	}
-
-	return newWorkerWithOptionsAndShadow(
+	return newWorkerWithOptions(
 		runnerID,
 		ID,
 		pendingChecksChan,
@@ -116,19 +104,7 @@ func NewShadowWorker(
 	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
 
-	if checksTracker == nil {
-		return nil, errors.New("worker cannot initialize using a nil checksTracker")
-	}
-
-	if pendingChecksChan == nil {
-		return nil, errors.New("worker cannot initialize using a nil pendingChecksChan")
-	}
-
-	if shouldAddCheckStatsFunc == nil {
-		return nil, errors.New("worker cannot initialize using a nil shouldAddCheckStatsFunc")
-	}
-
-	return newWorkerWithOptionsAndShadow(
+	return newWorkerWithOptions(
 		runnerID,
 		ID,
 		pendingChecksChan,
@@ -154,38 +130,19 @@ func newWorkerWithOptions(
 	healthPlatform healthplatform.Component,
 	utilizationTickInterval time.Duration,
 	watchdogWarningTimeout time.Duration,
-) (*Worker, error) {
-	return newWorkerWithOptionsAndShadow(
-		runnerID,
-		ID,
-		pendingChecksChan,
-		checksTracker,
-		shouldAddCheckStatsFunc,
-		getDefaultSenderFunc,
-		haAgent,
-		healthPlatform,
-		utilizationTickInterval,
-		watchdogWarningTimeout,
-		false,
-	)
-}
-
-// newWorkerWithOptionsAndShadow returns an instance of a `Worker` with an override for the
-// `aggregator.GetDefaultSender()`. The purpose of this pass-through is to help
-// test the aggregator logic.
-func newWorkerWithOptionsAndShadow(
-	runnerID int,
-	ID int,
-	pendingChecksChan chan check.Check,
-	checksTracker *tracker.RunningChecksTracker,
-	shouldAddCheckStatsFunc func(id checkid.ID) bool,
-	getDefaultSenderFunc func() (sender.Sender, error),
-	haAgent haagent.Component,
-	healthPlatform healthplatform.Component,
-	utilizationTickInterval time.Duration,
-	watchdogWarningTimeout time.Duration,
 	isShadowWorker bool,
 ) (*Worker, error) {
+	if checksTracker == nil {
+		return nil, errors.New("worker cannot initialize using a nil checksTracker")
+	}
+
+	if pendingChecksChan == nil {
+		return nil, errors.New("worker cannot initialize using a nil pendingChecksChan")
+	}
+
+	if shouldAddCheckStatsFunc == nil {
+		return nil, errors.New("worker cannot initialize using a nil shouldAddCheckStatsFunc")
+	}
 
 	if getDefaultSenderFunc == nil {
 		return nil, errors.New("worker cannot initialize using a nil getDefaultSenderFunc")
