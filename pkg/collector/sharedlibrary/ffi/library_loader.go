@@ -17,7 +17,7 @@ import (
 	"runtime"
 	"unsafe"
 
-	_ "github.com/DataDog/datadog-agent/pkg/collector/aggregator" // import submit functions
+	"github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
@@ -27,23 +27,17 @@ import (
 #cgo CFLAGS: -I "${SRCDIR}/../../../../rtloader/include"
 #include "ffi.h"
 
-// functions from the aggregator package
-extern void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
-extern void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
-extern void SubmitEvent(char *, event_t *);
-extern void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
-extern void SubmitEventPlatformEvent(char *, char *, int, char *);
-
-// the callbacks are aggregated in this file as it's the only one which uses it
-const aggregator_t aggregator = {
-	SubmitMetric,
-	SubmitServiceCheck,
-	SubmitEvent,
-	SubmitHistogramBucket,
-	SubmitEventPlatformEvent,
-};
-
-const aggregator_t *get_aggregator(void) {
+// Build the aggregator callback table from pointers owned by the aggregator
+// package. The void* to callback-type casts are done here in C so this package
+// never references the aggregator's exported symbols in its own cgo link (which
+// fails on the MinGW/Windows linker).
+const aggregator_t *build_aggregator(void *m, void *sc, void *e, void *h, void *ep) {
+	static aggregator_t aggregator;
+	aggregator.cb_submit_metric = (cb_submit_metric_t)m;
+	aggregator.cb_submit_service_check = (cb_submit_service_check_t)sc;
+	aggregator.cb_submit_event = (cb_submit_event_t)e;
+	aggregator.cb_submit_histogram_bucket = (cb_submit_histogram_bucket_t)h;
+	aggregator.cb_submit_event_platform_event = (cb_submit_event_platform_event_t)ep;
 	return &aggregator;
 }
 */
@@ -213,9 +207,10 @@ func NewSharedLibraryLoader(folderPath string) (*SharedLibraryLoader, error) {
 	if err != nil {
 		return nil, err
 	}
+	cb := aggregator.GetCallbacks()
 	return &SharedLibraryLoader{
 		folderPath: folderPath,
-		aggregator: C.get_aggregator(),
+		aggregator: C.build_aggregator(cb.Metric, cb.ServiceCheck, cb.Event, cb.HistogramBucket, cb.EventPlatformEvent),
 		permission: permission,
 	}, nil
 }

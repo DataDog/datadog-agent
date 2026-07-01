@@ -31,6 +31,7 @@ generate_config_schema-linux:
   script:
     - dda inv -- -e agent.build
     - dda inv -- schema.generate --agent-bin=./bin/agent/agent
+    - bash $CI_PROJECT_DIR/tasks/schema/check_schema_refresh.sh $CI_PROJECT_DIR
     - bash $CI_PROJECT_DIR/tasks/schema/check_config_templates.sh $CI_PROJECT_DIR
   artifacts:
     when: always
