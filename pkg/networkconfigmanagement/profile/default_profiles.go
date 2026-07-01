@@ -7,6 +7,7 @@ package profile
 
 import (
 	"regexp"
+	"strings"
 )
 
 func MkCommand(command string, requires ...string) *PlainCommand {
@@ -48,14 +49,31 @@ func MkRedaction(regex string, opts ...RedactionOption) RedactionRule {
 	return r
 }
 
+func lines(s ...string) string {
+	return strings.Join(s, "\n")
+}
+
 // DefaultProfiles is the built-in set of NCM device profiles, keyed by profile name.
 var DefaultProfiles = Map{
 	"aoscx": {
 		Name: "aoscx",
 		Commands: CommandSet{
+			Verify:     MkCommand("show system", `(AOS|ArubaOS)-CX Version`),
 			GetRunning: MkCommand("show running-config", `!Version (.*)?`),
 			GetStartup: MkCommand("show startup-config", `!Version (.*)?`),
 			GetVersion: MkCommand("show version"),
+			PushConfig: []Command{
+				&SCPCommand{
+					RemoteCommand: "scp",
+					Filepath:      "usb:/dd-rollback-config",
+				},
+				MkCommand(lines(
+					"copy usb:/dd-rollback-config running-config overwrite",
+					"copy running-config startup-config"), `Success`),
+			},
+		},
+		Preprocessing: []RedactionRule{
+			MkRedaction(`.*configuration:\s*!\s*!Version.*\s*(?:!export-password:.*\s)?`, WithReplacement(""), WithMultiline()),
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^(snmp-server community) \S+(.*)`),
@@ -65,15 +83,18 @@ var DefaultProfiles = Map{
 			MkRedaction(`^(tacacs-server host \S+ key) \S+(.*)`),
 			MkRedaction(`^(tacacs-server key).*`),
 			MkRedaction(`^(user \S+ group \S+ password) \S+(.*)`),
-			MkRedaction(`.*configuration:\s*!\s*!Version.*\s*(?:!export-password:.*\s)?`, WithReplacement(""), WithMultiline()),
 		},
 	},
 
 	"aosw": {
 		Name: "aosw",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `(Alcatel-Lucent Operating System-Wireless|AOS-W|AOS-10)`),
 			GetRunning: MkCommand("show running-config", `Building Configuration...`),
 			GetVersion: MkCommand("show version"),
+		},
+		Preprocessing: []RedactionRule{
+			MkRedaction(`Building Configuration...\s*`, WithReplacement(""), WithMultiline()),
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(secret) (\S+)\s?$`),
@@ -95,15 +116,26 @@ var DefaultProfiles = Map{
 			MkRedaction(`community (.*?)\s*$`, WithReplacement("community <secret hidden>")),
 			MkRedaction(`(?m)^(snmp-server host \S+ (?:trap )?version (?:v?[123]c?|v3)) (\S+)(.*)`, WithReplacement("$1 <secret hidden>$3")),
 			MkRedaction(`(?m)^(vrrp \d+.*\n.*\n)(authentication) (\S+)`, WithReplacement("$1$2 <secret hidden>"), WithMultiline()),
-			MkRedaction(`Building Configuration...\s*`, WithReplacement(""), WithMultiline()),
 		},
 	},
 
 	"cisco-asa": {
 		Name: "cisco-asa",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", "Cisco Adaptive Security Appliance Software Version"),
 			GetRunning: MkCommand("more system:running-config", `ASA Version \d+\.\d+\(\d+\)`),
 			GetVersion: MkCommand("show version"),
+			PushConfig: []Command{
+				&SCPCommand{
+					RemoteCommand: "scp",
+					Filepath:      "flash:/dd-rollback-config",
+				},
+				MkCommand(lines(
+					"copy flash:/dd-rollback-config startup-config",
+					"clear configure all",
+					"copy startup-config running-config",
+				), `Success`), // TODO confirm output
+			},
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(snmp-server community).*`),
@@ -125,9 +157,24 @@ var DefaultProfiles = Map{
 	"cisco-ios": {
 		Name: "cisco-ios",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `(Cisco IOS|Cisco Internetwork Operating System)`),
 			GetRunning: MkCommand("show running-config", `Building configuration...`, `Current configuration :`),
 			GetStartup: MkCommand("show startup-config", `Using (.*?) out of (.*?) bytes`),
 			GetVersion: MkCommand("show version"),
+			PushConfig: []Command{
+				&SCPCommand{
+					RemoteCommand: "scp",
+					Filepath:      "flash:/dd-rollback-config",
+				},
+				MkCommand("configure replace flash:/dd-rollback-config force"),
+			},
+		},
+		Preprocessing: []RedactionRule{
+			MkRedaction(`(?m)^\s*Building configuration...\s*`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`Current configuration : (.*)\s*`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)(?:^!\s*$\s*)?^! Last configuration change at .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)(?:^!\s*$\s*)?^! NVRAM config last updated at .*$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?s)^\s*Using \d+ out of \d+ bytes\s*`, WithReplacement(""), WithMultiline()),
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(snmp-server community).*`),
@@ -155,11 +202,6 @@ var DefaultProfiles = Map{
 			MkRedaction(`(?m)^( +domain-password) \S+ ?(.*)`, WithReplacement("$1 <secret hidden> $2")),
 			MkRedaction(`(?m)^( +pre-shared-key).*`),
 			MkRedaction(`(?m)^(.*server-key(?: \d)?) \S+`),
-			MkRedaction(`(?s)banner (exec|incoming|login) \^C.*?\^C\s*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^\s*Building configuration...\s*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`Current configuration : (.*)\s*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)(?:^!\s*$\s*)?^! Last configuration change at .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?s)^\s*Using \d+ out of \d+ bytes\s*`, WithReplacement(""), WithMultiline()),
 		},
 		MetadataRules: []MetadataRule{
 			{
@@ -181,13 +223,16 @@ var DefaultProfiles = Map{
 	"dellos10": {
 		Name: "dellos10",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `(Dell EMC Networking|Dell Application Software)`),
 			GetRunning: MkCommand("show running-configuration", `! Version (.*)?`),
 			GetStartup: MkCommand("show startup-configuration", `(?m)^hostname\s+\S+`),
 		},
-		Redactions: []RedactionRule{
-			MkRedaction(`(password )(\S+)`, WithReplacement("${1}<secret hidden>")),
+		Preprocessing: []RedactionRule{
 			MkRedaction(`(?m)^! Version .*$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
 			MkRedaction(`(?m)^! Last configuration change at .*$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+		},
+		Redactions: []RedactionRule{
+			MkRedaction(`(password )(\S+)`, WithReplacement("${1}<secret hidden>")),
 		},
 		MetadataRules: []MetadataRule{
 			{
@@ -201,6 +246,7 @@ var DefaultProfiles = Map{
 	"eos": {
 		Name: "eos",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `Arista .*`),
 			GetRunning: MkCommand("show running-config | no-more | exclude ! Time:", `! Command: show running-config`),
 			GetStartup: MkCommand("show startup-config | no-more | exclude ! Time:", `! Command: show startup-config`),
 			PushConfig: []Command{
@@ -208,11 +254,20 @@ var DefaultProfiles = Map{
 					RemoteCommand: "scp",
 					Filepath:      "/tmp/dd-rollback-config",
 				},
-				MkCommand("configure replace file:/tmp/dd-rollback-config"),
-				MkCommand("write", `Copy completed successfully`),
+				MkCommand(lines(
+					"configure replace file:/tmp/dd-rollback-config",
+					"write",
+				), `Copy completed successfully`),
 				// TODO should we be deleting the file after?
 				// MkCommand("delete file:/tmp/dd-rollback-config"),
 			},
+		},
+		Preprocessing: []RedactionRule{
+			MkRedaction(`(?m)^! Command:.*$\n(?:^! device:.*$\n)?(?:^!$\n)*(?:^! boot system.*$\n)?(?:^!$\n)*`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)^! Command: show startup-config.*$\n`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)^! Startup-config last modified at.*$\n`, WithReplacement(""), WithMultiline()),
+			// Note that the multiline flag means this only matches a ! at the very beginning of the config.
+			MkRedaction(`^!\n`, WithReplacement(""), WithMultiline()),
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^(snmp-server community).*`),
@@ -223,10 +278,6 @@ var DefaultProfiles = Map{
 			MkRedaction(`^(radius-server .+ key \d) \S+`),
 			MkRedaction(`( {6}key) ([0-9a-fA-F]+ 7) ([0-9a-fA-F]+).*`),
 			MkRedaction(`(localized|auth (md5|sha\d{0,3})|priv (des|aes\d{0,3})) \S+`),
-			MkRedaction(`(?m)^! Command:.*$\n(?:^! device:.*$\n)?(?:^!$\n)*(?:^! boot system.*$\n)?(?:^!$\n)*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^! Command: show startup-config.*$\n`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^! Startup-config last modified at.*$\n`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`^!\n`, WithReplacement(""), WithMultiline()),
 		},
 		MetadataRules: []MetadataRule{
 			{
@@ -244,6 +295,7 @@ var DefaultProfiles = Map{
 	"fortios": {
 		Name: "fortios",
 		Commands: CommandSet{
+			Verify:     MkCommand("get system status", `Version: FortiGate`),
 			GetRunning: MkCommand("show full-configuration", `config (system|global|vdom)`),
 		},
 		Redactions: []RedactionRule{
@@ -261,8 +313,16 @@ var DefaultProfiles = Map{
 	"junos": {
 		Name: "junos",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `Junos:`),
 			GetRunning: MkCommand("show configuration | display omit", `version \d+\.\d+[^;]*;`),
 			GetVersion: MkCommand("show version"),
+			PushConfig: []Command{
+				&SCPCommand{
+					RemoteCommand: "scp",
+					Filepath:      "/tmp/dd-rollback-config",
+				},
+				MkCommand("configure\nload override /tmp/dd-rollback-config\ncommit\nexit", `commit complete`),
+			},
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(\s*community) (\S+) (\{)`, WithReplacement("$1 <secret hidden> {")),
@@ -284,9 +344,24 @@ var DefaultProfiles = Map{
 	"nxos": {
 		Name: "nxos",
 		Commands: CommandSet{
+			Verify:     MkCommand("show version", `Cisco Nexus Operating System`),
 			GetRunning: MkCommand("show running-config", `!Command: show running-config`),
 			GetStartup: MkCommand("show startup-config", `!Command: show startup-config`),
 			GetVersion: MkCommand("show version"),
+			PushConfig: []Command{
+				&SCPCommand{
+					RemoteCommand: "scp",
+					Filepath:      "bootflash:dd-rollback-config",
+				},
+				MkCommand("configure replace bootflash:dd-rollback-config"),
+			},
+		},
+		Preprocessing: []RedactionRule{
+			MkRedaction(`!Command: show running-config\s*`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)^!Running configuration last done at:.*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)^!Time: .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`!Command: show startup-config\s*`, WithReplacement(""), WithMultiline()),
+			MkRedaction(`(?m)^!Startup config saved at: .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^(snmp-server community).*`),
@@ -296,11 +371,6 @@ var DefaultProfiles = Map{
 			MkRedaction(`(password \d+) (\S+)`),
 			MkRedaction(`^(radius-server .*key(?: \d+)?) \S+`),
 			MkRedaction(`^(tacacs-server .*key(?: \d+)?) \S+`),
-			MkRedaction(`!Command: show running-config\s*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^!Running configuration last done at:.*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^!Time: .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`!Command: show startup-config\s*`, WithReplacement(""), WithMultiline()),
-			MkRedaction(`(?m)^!Startup config saved at: .*?$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
 		},
 		MetadataRules: []MetadataRule{
 			{
@@ -319,6 +389,7 @@ var DefaultProfiles = Map{
 	"pan-os": {
 		Name: "pan-os",
 		Commands: CommandSet{
+			Verify:     MkCommand("show system info", `model: *PA-`),
 			GetRunning: MkCommand("show config running", `(?s)<config.*</config>`),
 			GetVersion: MkCommand("show system info"),
 		},
@@ -330,6 +401,7 @@ var DefaultProfiles = Map{
 	"tmos": {
 		Name: "tmos",
 		Commands: CommandSet{
+			Verify:     MkCommand("cat /config/partitions/*/bigip*.conf", `(^sys global-settings\s*{)|(^ltm (node|pool|virtual) \S+ {)|(^#TMSH-VERSION: \S+)`),
 			GetRunning: MkCommand("cat /config/partitions/*/bigip*.conf", `(^sys global-settings\s*{)|(^ltm (node|pool|virtual) \S+ {)|(^#TMSH-VERSION: \S+)`),
 		},
 		Redactions: []RedactionRule{

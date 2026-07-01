@@ -30,25 +30,25 @@ func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremo
 		getConfig = conn.RetrieveStartupConfig
 		mode = "startup"
 	}
-	rawConfig, checkErr := getConfig(ctx)
-	if checkErr != nil {
-		return nil, false, checkErr
+	rawConfig, err := getConfig(ctx)
+	if err != nil {
+		return nil, false, err
 	}
 
 	deviceID := dc.device.DeviceID()
-	redactedConfig, metadata, checkErr := dc.profile.ProcessConfig(rawConfig)
-	if checkErr != nil {
-		return nil, false, fmt.Errorf("unable to process rules for %s config for device %s: %s", mode, deviceID, checkErr)
+	result, err := dc.profile.ProcessConfig(rawConfig)
+	if err != nil {
+		return nil, false, fmt.Errorf("unable to process rules for %s config for device %s: %s", mode, deviceID, err)
 	}
 	configID, configHash, stored := "", "", false
 	if configStore != nil {
 		var err error
-		configID, configHash, stored, err = configStore.StoreConfig(deviceID, confType, string(rawConfig))
+		configID, configHash, stored, err = configStore.StoreConfig(deviceID, confType, string(result.Raw))
 		if err != nil {
 			logger.Warnf("unable to store %s config: %v", mode, err)
 		}
 	}
-	conf := ncmreport.ToNetworkDeviceConfig(deviceID, dc.device.IPAddress, confType, metadata, dc.GetTags(), redactedConfig, configID, configHash)
+	conf := ncmreport.ToNetworkDeviceConfig(deviceID, dc.device.IPAddress, confType, result.Metadata, dc.GetTags(), result.Redacted, configID, configHash)
 	return &conf, stored, nil
 }
 
