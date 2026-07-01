@@ -9,7 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter",
     visibility = ["//comp/anomalydetection:__subpackages__"],
     deps = [
-        "//pkg/config/model",
+        "//comp/core/config",
         "//pkg/config/structure",
     ],
 )

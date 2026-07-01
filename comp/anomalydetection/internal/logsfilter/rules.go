@@ -27,7 +27,7 @@ import (
 	"slices"
 	"strings"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
@@ -92,12 +92,14 @@ func NewRules(rules []ProcessingRule) (*Rules, error) {
 
 // LoadRules reads processing rules from the given config key and compiles them.
 // Returns an empty (allow-all) Rules when the key is absent.
-func LoadRules(cfg pkgconfigmodel.Reader, key string) (*Rules, error) {
+// EnableStringUnmarshal allows the key to be set as a JSON array via environment
+// variable (e.g. DD_ANOMALY_DETECTION_LOGS_PROCESSING_RULES).
+func LoadRules(cfg config.Component, key string) (*Rules, error) {
 	if !cfg.IsConfigured(key) {
 		return &Rules{}, nil
 	}
 	var raw []ProcessingRule
-	if err := structure.UnmarshalKey(cfg, key, &raw); err != nil {
+	if err := structure.UnmarshalKey(cfg, key, &raw, structure.EnableStringUnmarshal); err != nil {
 		return nil, fmt.Errorf("%s: decode failed: %w", key, err)
 	}
 	return NewRules(raw)
