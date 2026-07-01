@@ -344,7 +344,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			appendTags(builder, tags)
 		} else {
 			// we couldn't obtain any container tags
-			if src.Kind == source.AWSECSFargateKind || src.Kind == source.AzureContainerAppsKind {
+			if src.Kind == source.AWSECSFargateKind {
 				// but we have some information from the source provider that we can add
 				appendTags(builder, src.Tag())
 			}
@@ -528,7 +528,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 		appendTags(payloadTags, tags)
 	} else {
 		// we couldn't obtain any container tags
-		if src.Kind == source.AWSECSFargateKind || src.Kind == source.AzureContainerAppsKind {
+		if src.Kind == source.AWSECSFargateKind {
 			// but we have some information from the source provider that we can add
 			appendTags(payloadTags, src.Tag())
 		}
