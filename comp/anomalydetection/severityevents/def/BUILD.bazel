@@ -6,7 +6,6 @@ go_library(
         "component.go",
         "types.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def",
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def",
     visibility = ["//visibility:public"],
-    deps = ["//comp/anomalydetection/severityevents/def"],
 )
