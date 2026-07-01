@@ -25,6 +25,7 @@ observer-ablation-ddeval:
     OBSERVER_ABLATION_DDEVAL_MAX_ATTEMPTS: "1"
     OBSERVER_ABLATION_DDEVAL_WHERE_IN: ""
     OBSERVER_ABLATION_DD_SITE: "datadoghq.com"
+    OBSERVER_ABLATION_ATLAS_VERSION: "v2.29.0"
     DDEVAL_PACKAGE_SPEC: "https://binaries.ddbuild.io/dd-source/python/ddeval-0.0.120641177-py3-none-any.whl"
   script:
     - mkdir -p "$OBSERVER_ABLATION_OUTPUT_DIR"
@@ -32,6 +33,9 @@ observer-ablation-ddeval:
     - DD_APP_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token)" || exit $?; export DD_APP_KEY
     - export DD_SITE="$OBSERVER_ABLATION_DD_SITE"
     - python3 -m pip install "$DDEVAL_PACKAGE_SPEC" optuna
+    - dogbrew install "atlas@$OBSERVER_ABLATION_ATLAS_VERSION"
+    - export PATH="/opt/dogbrew/bin:$PATH"
+    - atlas --help
     - ddeval --help
     - |
       if [[ -n "${OBSERVER_ABLATION_SCENARIOS:-}" ]]; then

@@ -1619,7 +1619,7 @@ def eval_pipeline(
     valid_combos = [c for c in combo_results if c["max_score"] is not None]
     if not valid_combos:
         print(color_message("Error: all combinations failed — aborting.", Color.RED))
-        return
+        raise Exit(code=1)
 
     valid_combos.sort(key=lambda c: c["max_score"], reverse=True)
     best_combo = valid_combos[0]
@@ -1663,7 +1663,7 @@ def eval_pipeline(
 
     if not tune_result or tune_result.get("completed_trials", 0) == 0:
         print(color_message("Error: fine-tuning produced no results.", Color.RED))
-        return
+        raise Exit(code=1)
 
     final_score = tune_result.get("score", 0.0)
     best_config_path = os.path.join(tune_dir, "best_config.json")
