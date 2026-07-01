@@ -47,6 +47,7 @@ import (
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -56,6 +57,7 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -101,12 +103,21 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
+	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled, rcService := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
 
 	err := modeConf.Runner(logConfig)
 
-	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
+	// Defers are LIFO. Execution order: cloudService → traceAgent → rcService → lastFlush.
+	// Trace agent stops first so its HTTP server drains in-flight /v0.7/config requests before
+	// the RC service closes its bolt DB.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, logsAgent)
+	defer func() {
+		if rcService != nil {
+			if err := rcService.Stop(); err != nil {
+				log.Warnf("Error stopping Remote Config service: %v", err)
+			}
+		}
+	}()
 	defer tracingCtx.TraceAgent.Stop() // synchronous: drains traces, flushes stats, sends to network
 	defer func() {
 		cloudService.Shutdown(*metricAgent, enhancedMetricsEnabled, err) // submits task.ended metric
@@ -121,7 +132,7 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 	return err
 }
 
-func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
+func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool, *remoteconfig.CoreAgentService) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -163,11 +174,16 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 		metricAgent := &metrics.ServerlessMetricAgent{
 			Tagger: tagger,
 		}
-		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false
+		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false, nil
+	}
+
+	var rcService *remoteconfig.CoreAgentService
+	if os.Getenv(mode.RemoteConfigPreviewEnvVar) == "true" {
+		rcService = setupRemoteConfig(apiKey)
 	}
 
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
-	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin)
+	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin, rcService)
 
 	tracingCtx := &cloudservice.TracingContext{
 		TraceAgent: traceAgent,
@@ -197,7 +213,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	}
 
 	go flushMetricsAgent(metricAgent)
-	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled
+	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled, rcService
 }
 
 // tagConfiguration holds the various tag sets for telemetry.
@@ -256,7 +272,7 @@ var serverlessProfileTags = []string{
 	"_dd.origin",
 }
 
-func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component, origin string) trace.ServerlessTraceAgent {
+func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component, origin string, rcService *remoteconfig.CoreAgentService) trace.ServerlessTraceAgent {
 	profileTags := make(map[string]string)
 	for _, serverlessProfileTag := range serverlessProfileTags {
 		if value, ok := tags[serverlessProfileTag]; ok {
@@ -287,6 +303,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
 		AdditionalProfileTags: profileTags,
 		FunctionTags:          functionTags,
+		RCService:             rcService,
 	})
 	traceAgent.SetTags(tags)
 	go func() {
@@ -295,6 +312,60 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 		}
 	}()
 	return traceAgent
+}
+
+// noopRcTelemetryReporter satisfies RcTelemetryReporter for remoteconfig.NewService.
+// The skipped metrics cover RC-internal health (rate limiting, subscription churn) and are not user-observable.
+type noopRcTelemetryReporter struct{}
+
+func (noopRcTelemetryReporter) IncTimeout()                                {}
+func (noopRcTelemetryReporter) IncRateLimit()                              {}
+func (noopRcTelemetryReporter) IncConfigSubscriptionsConnectedCounter()    {}
+func (noopRcTelemetryReporter) IncConfigSubscriptionsDisconnectedCounter() {}
+func (noopRcTelemetryReporter) SetConfigSubscriptionsActive(int)           {}
+func (noopRcTelemetryReporter) SetConfigSubscriptionClientsTracked(int)    {}
+
+// setupRemoteConfig starts the embedded RC service that backs the trace agent's
+// /v0.7/config proxy. Returns nil if RC is disabled or setup fails.
+func setupRemoteConfig(apiKey string) *remoteconfig.CoreAgentService {
+	cfg := pkgconfigsetup.Datadog()
+	if !configUtils.IsRemoteConfigEnabled(cfg) {
+		log.Debug("Remote Config is disabled, skipping RC service setup")
+		return nil
+	}
+	if apiKey == "" {
+		log.Warn("Remote Config requires DD_API_KEY; service not started")
+		return nil
+	}
+
+	baseRawURL := configUtils.GetMainEndpoint(cfg, "https://config.", "remote_configuration.rc_dd_url")
+
+	opts := []remoteconfig.Option{
+		remoteconfig.WithAPIKey(apiKey),
+		remoteconfig.WithTraceAgentEnv(configUtils.GetTraceAgentDefaultEnv(cfg)),
+		remoteconfig.WithConfigRootOverride(cfg.GetString("site"), cfg.GetString("remote_configuration.config_root")),
+		remoteconfig.WithDirectorRootOverride(cfg.GetString("site"), cfg.GetString("remote_configuration.director_root")),
+		remoteconfig.WithRcKey(cfg.GetString("remote_configuration.key")),
+	}
+
+	svc, err := remoteconfig.NewService(
+		cfg,
+		"Remote Config",
+		baseRawURL,
+		"",
+		func() []string { return nil },
+		noopRcTelemetryReporter{},
+		version.AgentVersion,
+		opts...,
+	)
+	if err != nil {
+		log.Warnf("Failed to start Remote Config service: %v", err)
+		return nil
+	}
+
+	svc.Start()
+	log.Info("Remote Config service started")
+	return svc
 }
 
 func setupMetricAgent(tags map[string]string, enhancedMetricTags map[string]string, enhancedUsageMetricTags map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *metrics.ServerlessMetricAgent {

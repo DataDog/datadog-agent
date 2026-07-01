@@ -29,15 +29,23 @@ const (
 	loggerNameSidecar = "SERVERLESS_SIDECAR"
 )
 
+// RemoteConfigPreviewEnvVar is the opt-in flag that enables the Remote Config
+// serverless preview. When set to "true" it both lifts serverless-init's
+// suppression of the tracer's RC/telemetry env defaults (here) and starts the
+// embedded RC service (in main.setupRemoteConfig).
+const RemoteConfigPreviewEnvVar = "DD_REMOTE_CONFIGURATION_ENABLED_SERVERLESS_INIT_PREVIEW"
+
 // DetectMode detects the mode in which the serverless agent should run
 func DetectMode() Conf {
 
 	envToSet := map[string]string{
-		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
-		"DD_REMOTE_CONFIGURATION_ENABLED":      "false",
 		"DD_HOSTNAME":                          "none",
 		"DD_APM_ENABLED":                       "true",
 		"DD_TRACE_ENABLED":                     "true",
+		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
+	}
+	if os.Getenv(RemoteConfigPreviewEnvVar) != "true" {
+		envToSet["DD_REMOTE_CONFIGURATION_ENABLED"] = "false"
 	}
 
 	if len(os.Args) == 1 {
