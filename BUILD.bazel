@@ -133,7 +133,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/process/rtcontainercheck
 # gazelle:exclude comp/process/runner
 # gazelle:exclude comp/process/status/fx
-# gazelle:exclude comp/process/status/impl
 # gazelle:exclude comp/process/submitter
 # gazelle:exclude comp/systray/systray/fx
 # gazelle:exclude comp/systray/systray/impl
