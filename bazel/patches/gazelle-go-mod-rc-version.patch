@@ -1,0 +1,25 @@
+diff --git a/internal/bzlmod/go_mod.bzl b/internal/bzlmod/go_mod.bzl
+--- a/internal/bzlmod/go_mod.bzl
++++ b/internal/bzlmod/go_mod.bzl
+@@ -110,7 +110,9 @@ def parse_go_work(go_work_content, go_work_label):
+         else:
+             fail("{}:{}: unexpected directive '{}'".format(go_work_label.name, line_no, tokens[0]))
+
+-    major, minor = go.split(".")[:2]
++    # Strip pre-release suffix (e.g. "27rc1" -> "27") before converting to int.
++    major, minor_raw = go.split(".")[:2]
++    minor = minor_raw.split("rc")[0].split("beta")[0].split("alpha")[0]
+
+     go_mods = [use_spec_to_label(go_work_label.repo_name, use) for use in state["use"]]
+     from_file_tags = [struct(go_mod = go_mod, _is_dev_dependency = False) for go_mod in go_mods]
+@@ -255,7 +257,9 @@ def parse_go_mod(content, path):
+         go = "1.16"
+
+     # The go directive can contain patch and pre-release versions, but we omit them.
+-    major, minor = go.split(".")[:2]
++    # Strip pre-release suffix (e.g. "27rc1" -> "27") before converting to int.
++    major, minor_raw = go.split(".")[:2]
++    minor = minor_raw.split("rc")[0].split("beta")[0].split("alpha")[0]
+
+     return struct(
+         module = module,

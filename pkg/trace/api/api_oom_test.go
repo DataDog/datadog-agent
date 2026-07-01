@@ -62,7 +62,11 @@ func TestOOMKill(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			resp, err := http.Post(fmt.Sprintf("http://localhost:%d/v0.4/traces", port), "application/msgpack", bytes.NewReader(data))
+			// Use a per-goroutine client to avoid shared-pool connection reuse
+			// across goroutines, which interacts badly with server-side connection
+			// limits in Go 1.27+.
+			client := &http.Client{Transport: &http.Transport{}}
+			resp, err := client.Post(fmt.Sprintf("http://localhost:%d/v0.4/traces", port), "application/msgpack", bytes.NewReader(data))
 			if err != nil {
 				t.Log("Error posting payload", err)
 				return
