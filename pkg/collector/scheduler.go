@@ -24,6 +24,7 @@ import (
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender/vbrsender"
 	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -57,6 +58,17 @@ type loadInstanceResult struct {
 	loaderErrors map[string]error
 }
 
+// vbrCompressedCheckNames is a TEMPORARY hardcoded allowlist of check names
+// that get VBR-compressed metrics (see pkg/aggregator/sender/vbrsender).
+// This will become a real Agent configuration option later; for now it's
+// how the VBR project's Phase 1 gets tested end to end.
+var vbrCompressedCheckNames = map[string]bool{
+	"openmetrics": true,
+	// TEMPORARY: stands in for "openmetrics" in this sandbox, which can't
+	// build Python/rtloader support (see pkg/collector/corechecks/vbrscrapeprobe).
+	"vbr_scrape_probe": true,
+}
+
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
 	schedulerErrs.Set("LoaderErrors", expvar.Func(func() interface{} {
@@ -73,6 +85,7 @@ type CheckScheduler struct {
 	loaders             []check.Loader
 	collector           option.Option[collectorcomp.Component]
 	senderManager       sender.SenderManager
+	vbrSenderManager    sender.SenderManager
 	shadowSenderManager sender.SenderManager
 	shadowSenderContext context.Context
 	shadowSenderCancel  context.CancelFunc
@@ -84,11 +97,12 @@ type CheckScheduler struct {
 // InitCheckScheduler creates and returns a check scheduler
 func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
-		collector:      collector,
-		senderManager:  senderManager,
-		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
-		infraTagger:    infratags.NewTagger(setup.Datadog()),
+		collector:        collector,
+		senderManager:    senderManager,
+		vbrSenderManager: vbrsender.Wrap(senderManager),
+		configToChecks:   make(map[string][]checkid.ID),
+		loaders:          make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
+		infraTagger:      infratags.NewTagger(setup.Datadog()),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
@@ -199,6 +213,11 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 		shadowCandidates = shadowCandidatesByInstance(config)
 	}
 
+	senderManager := s.senderManager
+	if vbrCompressedCheckNames[config.Name] {
+		senderManager = s.vbrSenderManager
+	}
+
 	initConfig := commonInitConfig{}
 	err := yaml.Unmarshal(config.InitConfig, &initConfig)
 	if err != nil {
@@ -230,7 +249,7 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
 		}
 
-		result := s.loadCheckInstance(s.senderManager, config, instance, instanceIndex, selectedInstanceLoader)
+		result := s.loadCheckInstance(senderManager, config, instance, instanceIndex, selectedInstanceLoader)
 
 		if result.check != nil {
 			log.Debugf("%v: successfully loaded check '%s'", result.loader, config.Name)
