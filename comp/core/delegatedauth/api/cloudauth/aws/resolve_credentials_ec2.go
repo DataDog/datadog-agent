@@ -64,9 +64,10 @@ func (a *AWSAuth) resolveCredentials(ctx context.Context) *creds.SecurityCredent
 		return &creds.SecurityCredentials{}
 	}
 
-	// Wrap in a cache so providers that return expiring credentials (web identity, container,
-	// IMDS instance role) refresh correctly; LoadDefaultConfig did this for us.
-	sdkCreds, err := aws.NewCredentialsCache(provider).Retrieve(ctx)
+	// Resolve once per call. Delegated auth re-runs this on each proof generation (startup and
+	// every refresh interval), and the credentials it returns are valid for hours, so no
+	// cross-call caching is needed.
+	sdkCreds, err := provider.Retrieve(ctx)
 	if err != nil {
 		log.Warnf("AWS credential retrieval failed: %v", err)
 		return &creds.SecurityCredentials{}

@@ -167,3 +167,44 @@ func TestContainerCredentialsProvider_HostAllowlist(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+// TestWebIdentityProvider_Retrieve_NoExpiration verifies that an STS response without an
+// <Expiration> yields non-expiring credentials (CanExpire false), which the caller relies on.
+func TestWebIdentityProvider_Retrieve_NoExpiration(t *testing.T) {
+	const respXML = `<AssumeRoleWithWebIdentityResponse><AssumeRoleWithWebIdentityResult><Credentials>` +
+		`<AccessKeyId>AKID</AccessKeyId><SecretAccessKey>SK</SecretAccessKey><SessionToken>TK</SessionToken>` +
+		`</Credentials></AssumeRoleWithWebIdentityResult></AssumeRoleWithWebIdentityResponse>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, respXML)
+	}))
+	defer srv.Close()
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("jwt"), 0o600))
+
+	got, err := (&webIdentityProvider{roleARN: "r", tokenFile: tokenFile, stsURL: srv.URL, client: srv.Client()}).Retrieve(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "AKID", got.AccessKeyID)
+	assert.False(t, got.CanExpire)
+}
+
+// TestWebIdentityProvider_Retrieve_Errors verifies error paths: a non-200 STS response and a
+// missing token file both return an error and no credentials.
+func TestWebIdentityProvider_Retrieve_Errors(t *testing.T) {
+	t.Run("STS non-200", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = io.WriteString(w, `<ErrorResponse><Error><Message>not authorized</Message></Error></ErrorResponse>`)
+		}))
+		defer srv.Close()
+		tokenFile := filepath.Join(t.TempDir(), "token")
+		require.NoError(t, os.WriteFile(tokenFile, []byte("jwt"), 0o600))
+		got, err := (&webIdentityProvider{roleARN: "r", tokenFile: tokenFile, stsURL: srv.URL, client: srv.Client()}).Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Empty(t, got.AccessKeyID)
+	})
+	t.Run("missing token file", func(t *testing.T) {
+		got, err := (&webIdentityProvider{roleARN: "r", tokenFile: "/no/such/token", stsURL: "https://sts.us-east-1.amazonaws.com/", client: http.DefaultClient}).Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Empty(t, got.AccessKeyID)
+	})
+}
