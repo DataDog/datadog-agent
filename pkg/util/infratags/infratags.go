@@ -58,7 +58,7 @@ func NewTagger(cfg pkgconfigmodel.Reader) *Tagger {
 	return &Tagger{infraModeTags: tags, taggedChecks: taggedChecks}
 }
 
-// IsCheckEligible reports whether checkName should receive infra mode tags.
+// IsCheckEligible reports whether the given check should receive infra mode tags.
 func (t *Tagger) IsCheckEligible(checkName string) bool {
 	// nil = no infra mode tagging
 	if t == nil {
@@ -76,7 +76,7 @@ func (t *Tagger) IsCheckEligible(checkName string) bool {
 	return ok
 }
 
-// AppendTags appends the pre-resolved infra_mode tags unconditionally.
+// AppendTags appends the pre-resolved infra_mode tags.
 func (t *Tagger) AppendTags(tags []string) []string {
 	if t == nil || len(t.infraModeTags) == 0 {
 		return tags
