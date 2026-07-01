@@ -18,8 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-func newTask(inputs map[string]any) *types.Task {
+func newTask(taskID string, inputs map[string]any) *types.Task {
 	task := &types.Task{}
+	task.Data.ID = taskID
 	task.Data.Attributes = &types.Attributes{
 		BundleID: "com.datadoghq.remoteaction.internal",
 		Name:     "prepareEncryption",
@@ -37,18 +38,16 @@ func TestPrepareEncryptionRun(t *testing.T) {
 	}{
 		{
 			name:   "generates key pair, populates output and stores private key",
-			inputs: map[string]any{"boundTaskId": "task-abc"},
+			inputs: map[string]any{"encryptionContextId": "ctx-abc"},
 			assertOut: func(t *testing.T, store encryptioncontext.Store, result *PrepareEncryptionOutputs) {
 				require.Equal(t, "curve25519", result.KeyType)
-				require.Equal(t, "curve25519", result.EncryptionContext.KeyType)
-				require.Equal(t, "task-abc", result.EncryptionContext.BoundTaskID)
-				require.NotEmpty(t, result.EncryptionContext.EncryptionContextID)
+				require.Equal(t, "ctx-abc", result.EncryptionContextID)
 
-				publicKey, err := base64.StdEncoding.DecodeString(result.EncryptionContext.PublicKey)
+				publicKey, err := base64.StdEncoding.DecodeString(result.PublicKey)
 				require.NoError(t, err)
 				require.Len(t, publicKey, 32, "Curve25519 public key must be 32 bytes")
 
-				privateKey, err := store.Take("task-abc", result.EncryptionContext.EncryptionContextID)
+				privateKey, err := store.Take("task-abc", result.EncryptionContextID)
 				require.NoError(t, err)
 				require.NotNil(t, privateKey)
 
@@ -63,13 +62,13 @@ func TestPrepareEncryptionRun(t *testing.T) {
 			},
 		},
 		{
-			name:    "rejects missing boundTaskId",
+			name:    "rejects missing encryptionContextId",
 			inputs:  map[string]any{},
 			wantErr: true,
 		},
 		{
-			name:    "rejects empty boundTaskId",
-			inputs:  map[string]any{"boundTaskId": ""},
+			name:    "rejects empty encryptionContextId",
+			inputs:  map[string]any{"encryptionContextId": ""},
 			wantErr: true,
 		},
 	}
@@ -79,7 +78,7 @@ func TestPrepareEncryptionRun(t *testing.T) {
 			store := encryptioncontext.NewStore(time.Minute, time.Now)
 			handler := NewPrepareEncryptionHandler(store)
 
-			output, err := handler.Run(context.Background(), newTask(testCase.inputs), nil)
+			output, err := handler.Run(context.Background(), newTask("task-abc", testCase.inputs), nil)
 			if testCase.wantErr {
 				require.Error(t, err)
 				return
@@ -101,7 +100,7 @@ func TestPrepareEncryptionGeneratesUniqueContextsPerRun(t *testing.T) {
 	results := make([]*PrepareEncryptionOutputs, 0, len(runs))
 	for _, name := range runs {
 		t.Run(name, func(_ *testing.T) {
-			output, err := handler.Run(context.Background(), newTask(map[string]any{"boundTaskId": "task"}), nil)
+			output, err := handler.Run(context.Background(), newTask("task", map[string]any{"encryptionContextId": name}), nil)
 			require.NoError(t, err)
 			result, ok := output.(*PrepareEncryptionOutputs)
 			require.True(t, ok)
@@ -109,8 +108,8 @@ func TestPrepareEncryptionGeneratesUniqueContextsPerRun(t *testing.T) {
 		})
 	}
 
-	require.NotEqual(t, results[0].EncryptionContext.EncryptionContextID, results[1].EncryptionContext.EncryptionContextID)
-	require.NotEqual(t, results[0].EncryptionContext.PublicKey, results[1].EncryptionContext.PublicKey)
+	require.NotEqual(t, results[0].EncryptionContextID, results[1].EncryptionContextID)
+	require.NotEqual(t, results[0].PublicKey, results[1].PublicKey)
 }
 
 func TestInternalBundleGetAction(t *testing.T) {
