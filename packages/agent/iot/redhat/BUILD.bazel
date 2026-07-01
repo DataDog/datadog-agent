@@ -26,7 +26,6 @@ pkg_filegroup(
     srcs = [
         ":systemd_gen",
         ":upstart_redhat_conf_gen",
-        "//packages/agent/iot:example_config",
     ],
 )
 
