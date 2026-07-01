@@ -41,9 +41,8 @@ var (
 )
 
 const (
-	// webIdentitySessionName is the RoleSessionName sent with AssumeRoleWithWebIdentity. It is
-	// informational (appears in the assumed-role ARN / CloudTrail); mappings key on the role.
-	webIdentitySessionName = "datadog-agent-workload-identity-federation"
+	// defaultWebIdentitySessionName is the RoleSessionName used when AWS_ROLE_SESSION_NAME is unset.
+	defaultWebIdentitySessionName = "datadog-agent-workload-identity-federation"
 	// webIdentityAPIVersion is the STS query-API version.
 	webIdentityAPIVersion = "2011-06-15"
 	// maxSTSResponseBytes bounds the STS response read to avoid unbounded memory use.
@@ -109,11 +108,19 @@ func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.Credentials
 		// This is the only outbound external call in credential resolution (static needs no
 		// network; container/IMDS use link-local addresses), so it uses the Agent's configured
 		// HTTP transport for proxy / custom CA / TLS settings, matching the intake-key call.
+		// RoleSessionName follows the standard AWS_ROLE_SESSION_NAME env var (as the SDK does),
+		// falling back to our default, so a role trust policy that conditions on sts:RoleSessionName
+		// still assumes correctly.
+		sessionName := os.Getenv("AWS_ROLE_SESSION_NAME")
+		if sessionName == "" {
+			sessionName = defaultWebIdentitySessionName
+		}
 		return &webIdentityProvider{
-			roleARN:   os.Getenv("AWS_ROLE_ARN"),
-			tokenFile: os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE"),
-			stsURL:    "https://" + fmt.Sprintf(regionalStsHost, a.resolveRegion()) + "/",
-			client:    &http.Client{Timeout: 10 * time.Second, Transport: httputils.CreateHTTPTransport(cfg)},
+			roleARN:     os.Getenv("AWS_ROLE_ARN"),
+			tokenFile:   os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE"),
+			sessionName: sessionName,
+			stsURL:      "https://" + fmt.Sprintf(regionalStsHost, a.resolveRegion()) + "/",
+			client:      &http.Client{Timeout: 10 * time.Second, Transport: httputils.CreateHTTPTransport(cfg)},
 		}, nil
 
 	case creds.HasAWSContainerCredentialsInEnvironment():
@@ -173,10 +180,11 @@ func (a *AWSAuth) resolveRegion() string {
 // unauthenticated apart from the token, so unlike the GetCallerIdentity proof it needs no SigV4
 // signing; we POST the query-API form and parse the XML response.
 type webIdentityProvider struct {
-	roleARN   string
-	tokenFile string
-	stsURL    string
-	client    *http.Client
+	roleARN     string
+	tokenFile   string
+	sessionName string
+	stsURL      string
+	client      *http.Client
 }
 
 // assumeRoleWithWebIdentityResponse is the subset of the STS XML response we consume.
@@ -205,7 +213,7 @@ func (p *webIdentityProvider) Retrieve(ctx context.Context) (aws.Credentials, er
 		"Action":           {"AssumeRoleWithWebIdentity"},
 		"Version":          {webIdentityAPIVersion},
 		"RoleArn":          {p.roleARN},
-		"RoleSessionName":  {webIdentitySessionName},
+		"RoleSessionName":  {p.sessionName},
 		"WebIdentityToken": {strings.TrimSpace(string(token))},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.stsURL, strings.NewReader(form.Encode()))

@@ -154,10 +154,11 @@ func TestWebIdentityProvider_Retrieve(t *testing.T) {
 	require.NoError(t, os.WriteFile(tokenFile, []byte("the-web-identity-jwt"), 0o600))
 
 	p := &webIdentityProvider{
-		roleARN:   "arn:aws:iam::123456789012:role/example",
-		tokenFile: tokenFile,
-		stsURL:    srv.URL,
-		client:    srv.Client(),
+		roleARN:     "arn:aws:iam::123456789012:role/example",
+		tokenFile:   tokenFile,
+		sessionName: "my-session",
+		stsURL:      srv.URL,
+		client:      srv.Client(),
 	}
 	got, err := p.Retrieve(context.Background())
 	require.NoError(t, err)
@@ -166,10 +167,33 @@ func TestWebIdentityProvider_Retrieve(t *testing.T) {
 	assert.Equal(t, "tokenexample", got.SessionToken)
 	assert.True(t, got.CanExpire)
 
-	// The request carried the right STS action, role, and the token read from the file.
+	// The request carried the right STS action, role, session name, and the token read from the file.
 	assert.Equal(t, "AssumeRoleWithWebIdentity", gotForm.Get("Action"))
 	assert.Equal(t, "arn:aws:iam::123456789012:role/example", gotForm.Get("RoleArn"))
+	assert.Equal(t, "my-session", gotForm.Get("RoleSessionName"))
 	assert.Equal(t, "the-web-identity-jwt", gotForm.Get("WebIdentityToken"))
+}
+
+// TestCredentialProvider_WebIdentitySessionName verifies the RoleSessionName follows
+// AWS_ROLE_SESSION_NAME when set and falls back to the default otherwise.
+func TestCredentialProvider_WebIdentitySessionName(t *testing.T) {
+	t.Run("honors AWS_ROLE_SESSION_NAME", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
+		t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/token")
+		t.Setenv("AWS_ROLE_SESSION_NAME", "caller-supplied")
+		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		require.NoError(t, err)
+		assert.Equal(t, "caller-supplied", p.(*webIdentityProvider).sessionName)
+	})
+	t.Run("falls back to default", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
+		t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/token")
+		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
+		require.NoError(t, err)
+		assert.Equal(t, defaultWebIdentitySessionName, p.(*webIdentityProvider).sessionName)
+	})
 }
 
 // TestContainerCredentialsProvider_HostAllowlist verifies the SSRF guard on an http
