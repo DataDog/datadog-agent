@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor/processortest"
@@ -225,11 +226,11 @@ func TestContainerTagPromotion(t *testing.T) {
 				cfg,
 				next,
 			)
-			assert.NotNil(t, tp)
-			assert.NoError(t, err)
+			require.NoError(t, err)
+			require.NotNil(t, tp)
 
 			ctx := context.Background()
-			assert.NoError(t, tp.Start(ctx, nil))
+			require.NoError(t, tp.Start(ctx, nil))
 
 			td := ptrace.NewTraces()
 			rs := td.ResourceSpans().AppendEmpty()
