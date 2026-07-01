@@ -760,6 +760,18 @@ def _run_bayesian_runs(
     }
 
 
+def _require_optuna():
+    try:
+        import optuna
+    except Exception:
+        import sys
+
+        print(color_message('Please use dda inv --dep optuna ... to run this task', Color.RED), file=sys.stderr)
+        raise Exit from None
+
+    return optuna
+
+
 @task
 def eval_bayesian(
     ctx,
@@ -846,13 +858,7 @@ def eval_bayesian(
     """
     import pickle
 
-    try:
-        import optuna
-    except Exception:
-        import sys
-
-        print(color_message('Please use dda inv --dep optuna ... to run this task', Color.RED), file=sys.stderr)
-        raise Exit from None
+    optuna = _require_optuna()
 
     only_list = [c.strip() for c in only.split(",") if c.strip()]
     if only_list and lock:
@@ -1462,6 +1468,8 @@ def eval_pipeline(
         dda inv --dep optuna anomalydetection.eval-pipeline --force-disable cusum,scanwelch
         dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval --ddeval-command ddeval --n-combos 3 --n-trials-search 2 --n-trials-tune 3
     """
+    _require_optuna()
+
     try:
         eval_backend, ddeval_options = _resolve_ddeval_options(
             eval_backend=eval_backend,
@@ -1758,6 +1766,8 @@ def eval_component(
         dda inv --dep optuna anomalydetection.eval-component --component bocpd --timeout 120
         dda inv --dep optuna anomalydetection.eval-component --component bocpd --scenarios food_delivery_redis
     """
+    _require_optuna()
+
     all_known = DETECTORS + CORRELATORS + EXTRACTORS
     if component not in all_known:
         print(color_message(f"Error: unknown component '{component}'. Known: {', '.join(all_known)}", Color.RED))

@@ -31,7 +31,7 @@ observer-ablation-ddeval:
     - DD_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DD_API_KEY
     - DD_APP_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token)" || exit $?; export DD_APP_KEY
     - export DD_SITE="$OBSERVER_ABLATION_DD_SITE"
-    - python3 -m pip install "$DDEVAL_PACKAGE_SPEC"
+    - python3 -m pip install "$DDEVAL_PACKAGE_SPEC" optuna
     - ddeval --help
     - |
       if [[ -n "${OBSERVER_ABLATION_SCENARIOS:-}" ]]; then
