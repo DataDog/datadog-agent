@@ -1,0 +1,13 @@
+auth_token_file_path: /tmp/agent-auth-token
+cloud_provider_metadata: []
+
+dd_url: http://127.0.0.1:9091
+process_config.process_dd_url: http://localhost:9093
+
+telemetry.enabled: true
+telemetry.checks: '*'
+
+log_level: info
+aggregator_buffer_size: 100
+
+dogstatsd_socket: '/tmp/dsd.socket'

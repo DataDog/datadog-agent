@@ -1,5 +1,8 @@
 lading:
-  version: 0.31.2
+  # TODO: switch back to a released lading version after DataDog/lading#1895
+  # lands. This custom build contains body_variant.openmetrics, used by the
+  # OpenMetrics Python contrast SMP cases.
+  version: sha-87e2bc917be922a0594bc4a7131cb88516c1e9e6
 
 target:
   ddprof_replicas: 1
