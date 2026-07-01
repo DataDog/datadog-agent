@@ -37,13 +37,10 @@ var unifiedServiceTagMap = map[string][]string{
 // either create duplicate entries (in `duplicate` mode) or break downstream
 // consumers reading the raw key (in `rename` mode).
 var knownConventionKeys = func() map[string]struct{} {
-	m := make(map[string]struct{}, len(attributes.KubernetesDDTags)+2*len(attributes.ContainerMappings))
-	for k := range attributes.KubernetesDDTags {
-		m[k] = struct{}{}
-	}
+	m := make(map[string]struct{}, 2*len(attributes.ContainerMappings))
 	for otelKey, ddName := range attributes.ContainerMappings {
-		m[ddName] = struct{}{}  // DD-format name (primary case)
-		m[otelKey] = struct{}{} // OTel-semconv key (defense-in-depth)
+		m[ddName] = struct{}{}  // trace-agent source 3 (containerDDTags)
+		m[otelKey] = struct{}{} // trace-agent source 1 (OTel semconv)
 	}
 	return m
 }()

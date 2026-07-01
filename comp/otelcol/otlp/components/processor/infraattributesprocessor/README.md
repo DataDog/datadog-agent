@@ -48,11 +48,12 @@ The `container_tag_promotion` option opts into rewriting these custom tags so th
 * `container_tag_promotion: rename` — each non-exempt tag is written **only** under `datadog.container.tag.<key>`. Smaller resource payload, but consumers that read the raw key lose access to the value.
 
 **Exemptions (never prefixed, regardless of mode):**
-* Known DD container conventions (`pod_name`, `kube_namespace`, `kube_deployment`, `container_id`, `image_name`, ...) — already recognized by downstream and promoted on their canonical key.
-* OTel semantic conventions (`k8s.pod.name`, `k8s.namespace.name`, `container.id`, `container.image.name`, ...) — same, via the OTel→DD mapping in `pkg/opentelemetry-mapping-go/otlp/attributes`.
+* Keys recognized by trace-agent's container-tag promotion path (`ConsumeContainerTagsFromResource`) — the union of `attributes.ContainerMappings` keys (OTel semantic conventions: `k8s.pod.name`, `container.id`, `container.image.name`, ...) and its values (DD-format names produced by the OTel→DD mapping: `pod_name`, `kube_namespace`, `container_id`, `runtime`, `cloud_provider`, ...). These already reach `_dd.tags.container` under their canonical key.
 * USM keys (`service`, `env`, `version`) — flow through their own path to `service.name` / `deployment.environment` / `service.version`.
 * `datadog.host.name` (when `allow_hostname_override: true`) — reserved host attribute.
 * Keys already starting with `datadog.container.tag.` — idempotent, never re-prefixed.
+
+Note that DD-format keys emitted by the tagger that are **not** in `ContainerMappings` (`kube_service`, `pod_phase`, `kube_qos`, `kube_priority_class`, `kube_app_*`, `image_id`, `docker_image`, `git.commit.sha`, ...) are treated as custom for this feature and **are** prefixed by `duplicate` / `rename` — trace-agent does not recognize them for container-tag promotion on their own.
 
 Example:
 ```

@@ -80,6 +80,21 @@ var promotionTests = []promotionTest{
 		},
 	},
 	{
+		// `kube_service` lives in KubernetesDDTags but NOT in ContainerMappings —
+		// trace-agent's container-tag promotion does not recognize it, so IAP
+		// MUST prefix it. Regression guard against re-adding KubernetesDDTags
+		// to the exempt set (which would strand this key as a span attribute
+		// instead of promoting it into `_dd.tags.container`).
+		name:       "duplicate, KubernetesDDTags-only key (kube_service) IS promoted",
+		mode:       ContainerTagPromotionDuplicate,
+		taggerTags: []string{"kube_service:mysvc"},
+		outResourceAttributes: map[string]any{
+			"container.id":                       "test",
+			"kube_service":                       "mysvc",
+			"datadog.container.tag.kube_service": "mysvc",
+		},
+	},
+	{
 		// Defense-in-depth: the tagger does not emit OTel-format keys in practice.
 		// This case documents that if such a key ever slipped through, it would
 		// stay under its canonical name rather than gaining a nonsensical
@@ -134,6 +149,19 @@ var promotionTests = []promotionTest{
 		},
 	},
 	{
+		// Symmetric to the duplicate/kube_service case — `pod_phase` lives in
+		// KubernetesDDTags but NOT in ContainerMappings values, so it MUST be
+		// renamed rather than exempt. Regression guard against KubernetesDDTags
+		// creeping back into the exempt set.
+		name:       "rename, KubernetesDDTags-only key (pod_phase) IS renamed",
+		mode:       ContainerTagPromotionRename,
+		taggerTags: []string{"pod_phase:running"},
+		outResourceAttributes: map[string]any{
+			"container.id":                    "test",
+			"datadog.container.tag.pod_phase": "running",
+		},
+	},
+	{
 		// Defense-in-depth counterpart of the duplicate/k8s.pod.name case.
 		name:       "rename, OTel-semconv key (k8s.pod.name) is exempt (defense-in-depth)",
 		mode:       ContainerTagPromotionRename,
@@ -178,31 +206,57 @@ var promotionTests = []promotionTest{
 	},
 }
 
-// TestKnownConventionKeysCoversCanonicalSources is a structural invariant
+// TestKnownConventionKeysCoversContainerMappings is a structural invariant
 // test: it asserts that knownConventionKeys — the exempt-set consulted by
-// writeTagAttribute — actually covers every canonical source of container-tag
-// conventions declared in pkg/opentelemetry-mapping-go/otlp/attributes.
+// writeTagAttribute — covers exactly the keys that trace-agent's
+// ConsumeContainerTagsFromResource recognizes for container-tag promotion:
+// sources 1 (OTel semconv keys of ContainerMappings) and 3 (values of
+// ContainerMappings, mirroring trace-agent's `containerDDTags`).
 //
-// This guards against two classes of regression that point-witness tests miss:
+// This guards against two regressions point-witness tests miss:
 //
 //  1. Refactor that hard-codes the exempt list and drops a canonical entry
 //     (e.g. someone forgets `runtime`).
-//  2. Extension of the canonical maps upstream (new OTel semconv key or new
-//     DD-format tag) that is not reflected in the exempt-set builder.
+//  2. Extension of ContainerMappings upstream — new OTel key or new DD-name —
+//     that is not reflected in the exempt-set builder.
 //
-// If this fails, either the builder in common.go is broken, or a canonical
-// source has grown and needs to be re-audited against IAP's promotion logic.
-func TestKnownConventionKeysCoversCanonicalSources(t *testing.T) {
-	for k := range attributes.KubernetesDDTags {
-		_, ok := knownConventionKeys[k]
-		assert.Truef(t, ok, "KubernetesDDTags key %q must be exempt from container-tag promotion", k)
-	}
+// If this fails, either the builder in common.go is broken, or ContainerMappings
+// has grown and needs to be re-audited against IAP's promotion logic.
+func TestKnownConventionKeysCoversContainerMappings(t *testing.T) {
 	for otelKey, ddName := range attributes.ContainerMappings {
 		_, ok := knownConventionKeys[otelKey]
-		assert.Truef(t, ok, "ContainerMappings OTel key %q must be exempt", otelKey)
+		assert.Truef(t, ok, "ContainerMappings OTel key %q must be exempt from container-tag promotion", otelKey)
 		_, ok = knownConventionKeys[ddName]
-		assert.Truef(t, ok, "ContainerMappings DD name %q must be exempt", ddName)
+		assert.Truef(t, ok, "ContainerMappings DD name %q must be exempt from container-tag promotion", ddName)
 	}
+}
+
+// TestKnownConventionKeysDoesNotOverExempt is the negative-space guard for
+// the invariant above. It asserts that the broader `KubernetesDDTags` set
+// (used by TagsFromAttributes for OTLP→metric-tag recognition, NOT for
+// container-tag promotion) is NOT wholesale copied into the exempt-set.
+// Specifically, keys that live in KubernetesDDTags but are absent from
+// ContainerMappings values (`kube_service`, `pod_phase`, `kube_qos`,
+// `kube_priority_class`, `image_id`, `docker_image`, `git.commit.sha`, ...)
+// must NOT be exempt — otherwise the container-tag-promotion feature silently
+// strands them as span attributes instead of promoting them.
+func TestKnownConventionKeysDoesNotOverExempt(t *testing.T) {
+	containerDDNames := make(map[string]struct{}, len(attributes.ContainerMappings))
+	for _, ddName := range attributes.ContainerMappings {
+		containerDDNames[ddName] = struct{}{}
+	}
+	var overExempted []string
+	for k := range attributes.KubernetesDDTags {
+		if _, isContainerTag := containerDDNames[k]; isContainerTag {
+			continue // legitimately exempt via ContainerMappings values
+		}
+		if _, exempted := knownConventionKeys[k]; exempted {
+			overExempted = append(overExempted, k)
+		}
+	}
+	assert.Emptyf(t, overExempted,
+		"KubernetesDDTags keys that trace-agent's container-tag promotion does NOT recognize must not be exempt; got over-exempted: %v",
+		overExempted)
 }
 
 func TestContainerTagPromotion(t *testing.T) {
