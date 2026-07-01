@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rawpacketdrop",
+    srcs = ["rawpacketdrop_monitor.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/monitors/rawpacketdrop",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/metrics",
+            "//pkg/security/probe/managerhelper",
+            "//pkg/security/seclog",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/metrics",
+            "//pkg/security/probe/managerhelper",
+            "//pkg/security/seclog",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "//conditions:default": [],
+    }),
+)

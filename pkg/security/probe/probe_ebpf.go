@@ -187,6 +187,8 @@ type EBPFProbe struct {
 
 	// raw packet filter for actions
 	rawPacketActionFilters []rawpacket.Filter
+	dropActionRuleIDs      map[uint32]string
+	dropActionRuleIDsLock  sync.RWMutex
 
 	// remediation tracking
 	activeRemediations     map[string]*Remediation
@@ -783,9 +785,24 @@ func (p *EBPFProbe) setupRawPacketFiltersOnNewRuleset(rs *rules.RuleSet) error {
 func (p *EBPFProbe) applyRawPacketActionFilters(applyFromRuleset bool) error {
 	// TODO check cgroupv2
 
+	// if we add a new filter, we must reset the stats since the filter order can change
+	// if the apply is from a ruleset, we already have reset the stats
+	if !applyFromRuleset {
+		if err := p.resetRawPacketDropStats(); err != nil {
+			seclog.Debugf("failed to reset raw packet drop stats: %s", err)
+		}
+	}
+	// then we can rebuild the map between rule IDs and filter indexes
+	// the monitor will use this map to map rule IDs to filter indexes
+	p.rebuildDropActionRuleIDs()
+
 	opts := rawpacket.DefaultProgOpts()
 	opts.WithProgPrefix("raw_packet_drop_action_")
 	opts.WithGetCurrentCgroupID(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS())
+
+	if droppedPacketsMap, err := managerhelper.Map(p.Manager, "dropped_packets"); err == nil {
+		opts.WithDropStatsMapFd(droppedPacketsMap.FD())
+	}
 
 	// adapt max instruction limits depending of the kernel version
 	if p.kernelVersion.Code >= kernel.Kernel5_2 {
@@ -829,6 +846,57 @@ func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) erro
 	p.rawPacketActionFilters = append(p.rawPacketActionFilters, actionFilter)
 	// Here we add a new filter so we can apply it on the active buffer
 	return p.applyRawPacketActionFilters(false)
+}
+
+func (p *EBPFProbe) rebuildDropActionRuleIDs() {
+	ruleIDs := make(map[uint32]string, len(p.rawPacketActionFilters))
+	for i, filter := range p.rawPacketActionFilters {
+		if i >= rawpacket.MaxDropActionFilters {
+			seclog.Errorf("too many drop action filters, indexes might be incorrect because of the kernel LRU, max is %d", rawpacket.MaxDropActionFilters)
+			break
+		}
+		ruleIDs[uint32(i)] = string(filter.RuleID)
+	}
+
+	p.dropActionRuleIDsLock.Lock()
+	p.dropActionRuleIDs = ruleIDs
+	p.dropActionRuleIDsLock.Unlock()
+}
+
+// function to get the drop action rule IDs up to date for the monitor
+func (p *EBPFProbe) getDropActionRuleIDs() map[uint32]string {
+	p.dropActionRuleIDsLock.RLock()
+	defer p.dropActionRuleIDsLock.RUnlock()
+
+	out := make(map[uint32]string, len(p.dropActionRuleIDs))
+	for index, ruleID := range p.dropActionRuleIDs {
+		out[index] = ruleID
+	}
+	return out
+}
+
+func (p *EBPFProbe) clearDroppedPacketsMap(droppedPacketsMap *lib.Map) {
+	iterator := droppedPacketsMap.Iterate()
+	var key uint64
+	var value uint64
+	for iterator.Next(&key, &value) {
+		_ = droppedPacketsMap.Delete(key)
+	}
+}
+
+func (p *EBPFProbe) resetRawPacketDropStats() error {
+	if err := p.monitors.FlushRawPacketDropStats(); err != nil {
+		return err
+	}
+
+	droppedPacketsMap, err := managerhelper.Map(p.Manager, "dropped_packets")
+	if err != nil {
+		return err
+	}
+
+	p.clearDroppedPacketsMap(droppedPacketsMap)
+	p.monitors.ResetRawPacketDropCounters()
+	return nil
 }
 
 // Start the probe
@@ -2717,6 +2785,10 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 
 		// reset action filter
 		if p.config.RuntimeSecurity.EnforcementEnabled {
+			// we reset before the new packets filters are loaded in the kernel
+			if err := p.resetRawPacketDropStats(); err != nil {
+				seclog.Debugf("failed to reset raw packet drop stats: %s", err)
+			}
 			p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
 			if err := p.applyRawPacketActionFilters(true); err != nil {
 				seclog.Errorf("unable to load raw packet action programs: %v", err)
@@ -3202,6 +3274,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		MetricNameTruncated:  atomic.NewUint64(0),
 		activeRemediations:   make(map[string]*Remediation),
 		pid:                  utils.Getpid(),
+		dropActionRuleIDs:    make(map[uint32]string),
 	}
 
 	p.onNewPCE = func(pce *model.ProcessCacheEntry, err error) {

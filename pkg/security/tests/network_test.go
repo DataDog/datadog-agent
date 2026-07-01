@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	ebpfprobes "github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -368,6 +369,165 @@ func TestRawPacketAction(t *testing.T) {
 		}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
+}
+
+func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup ID test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	const (
+		ruleID1       = "test_rule_raw_packet_drop_ping_metric"
+		ruleID2       = "test_rule_raw_packet_drop_ping_metric_2"
+		pingHost      = "8.8.8.8"
+		pingCount     = 3
+		totalExpected = 6
+	)
+
+	bootstrapRule := &rules.RuleDefinition{
+		ID:         "bootstrap_capture_container_id",
+		Expression: `exec.file.name == "id"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{bootstrapRule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	test.statsdClient.Flush()
+
+	captureContainerID := func(wrapper *dockerCmdWrapper) string {
+		var containerID string
+		test.WaitSignalFromRule(t, func() error {
+			return wrapper.Command("id", []string{}, []string{}).Run()
+		}, func(event *model.Event, _ *rules.Rule) {
+			containerID = event.GetContainerID()
+			assert.NotEmpty(t, containerID)
+		}, bootstrapRule.ID)
+		t.Logf("captured container ID: %s", containerID)
+		return containerID
+	}
+
+	triggerIsolation := func(wrapper *dockerCmdWrapper, ruleID string) {
+		test.WaitSignalFromRule(t, func() error {
+			return wrapper.Command("free", []string{}, []string{}).Run()
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, ruleID)
+		}, ruleID)
+	}
+
+	runPings := func(wrapper *dockerCmdWrapper, host string, count int) {
+		t.Helper()
+		cmd := wrapper.Command("ping", []string{
+			"-c", strconv.Itoa(count),
+			"-i", "1",
+			"-W", "1",
+			host,
+		}, []string{})
+		_, _ = cmd.CombinedOutput()
+	}
+
+	waitForMetric := func(ruleID string, expected int64) {
+		t.Helper()
+		metricKey := metrics.MetricRawPacketDropped + ":rule_id:" + ruleID
+		err := retry(t, func() error {
+			test.sendStats()
+			count := test.statsdClient.Get(metricKey)
+			if count != expected {
+				return fmt.Errorf("expected %d dropped packets for %s, got %d (%+v)", expected, ruleID, count, test.statsdClient.GetByPrefix(metrics.MetricRawPacketDropped))
+			}
+			return nil
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
+		assert.NoError(t, err)
+	}
+
+	reloadPolicy := func(ruleDefs []*rules.RuleDefinition) {
+		t.Helper()
+		if err := setTestPolicy(commonCfgDir, nil, ruleDefs); err != nil {
+			t.Fatalf("failed to set policy: %v", err)
+		}
+		if err := test.reloadPolicies(); err != nil {
+			t.Fatalf("failed to reload policies: %v", err)
+		}
+	}
+
+	// 1) start container
+	cmdWrapperA, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapperA.stop()
+
+	// 2) recover container ID
+	containerAID := captureContainerID(cmdWrapperA)
+
+	// 2bis) Create second container for later
+	cmdWrapperB, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cmdWrapperB.start(); err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapperB.stop()
+	time.Sleep(1 * time.Second)
+
+	containerBID := captureContainerID(cmdWrapperB)
+	rule2 := &rules.RuleDefinition{
+		ID:         ruleID2,
+		Expression: fmt.Sprintf(`exec.file.name == "free" && process.container.id == "%s"`, containerBID),
+		Actions: []*rules.ActionDefinition{
+			{
+				NetworkFilter: &rules.NetworkFilterDefinition{
+					BPFFilter: "host 1.1.1.1",
+					Scope:     "cgroup",
+					Policy:    "drop",
+				},
+			},
+		},
+	}
+
+	// 3) isolation rule on container A
+	rule1 := &rules.RuleDefinition{
+		ID:         ruleID1,
+		Expression: fmt.Sprintf(`exec.container.id == "%s"`, containerAID),
+		Actions: []*rules.ActionDefinition{
+			{
+				NetworkFilter: &rules.NetworkFilterDefinition{
+					BPFFilter: "host " + pingHost,
+					Scope:     "cgroup",
+					Policy:    "drop",
+				},
+			},
+		},
+	}
+	reloadPolicy([]*rules.RuleDefinition{bootstrapRule, rule1})
+	// trigger isolation by starting a first process on container A
+	cmdWrapperA.Command("free", []string{}, []string{}).Run()
+	time.Sleep(1 * time.Second)
+
+	// 4) 3 pings in container A async
+	go runPings(cmdWrapperA, pingHost, pingCount)
+
+	// 5) reload with a second rule on another container (free trigger, different filter)
+	reloadPolicy([]*rules.RuleDefinition{rule2, rule1})
+	triggerIsolation(cmdWrapperB, ruleID2)
+
+	// 6) add some pings in container B
+	go runPings(cmdWrapperB, "1.1.1.1", 2)
+
+	// 7) 3 more pings in container A
+	runPings(cmdWrapperA, pingHost, pingCount)
+	// wait until they have all been processed
+	time.Sleep(2 * time.Second)
+
+	// 8) rule1 counter should total 6 dropped packets across reload
+	waitForMetric(ruleID1, totalExpected)
 }
 
 func TestRawPacketActionWithSignature(t *testing.T) {
