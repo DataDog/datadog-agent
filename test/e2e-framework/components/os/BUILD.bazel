@@ -28,6 +28,7 @@ go_library(
         "scripts/setup-ssh.ps1",
         "scripts/ssh-allow-sftp-root.sh",
         "scripts/zypper-disable-unattended-upgrades.sh",
+        "scripts/dnf-disable-automatic.sh",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/os",
     visibility = ["//visibility:public"],
