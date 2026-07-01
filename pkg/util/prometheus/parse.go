@@ -10,6 +10,7 @@ package prometheus
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -24,16 +25,16 @@ type Metric map[string]string
 
 // Sample represents a single metric data point.
 type Sample struct {
-	Metric    Metric
-	Value     float64
-	Timestamp int64 // milliseconds since epoch, 0 if not set
+	Metric    Metric  `json:"labels"`
+	Value     float64 `json:"value"`
+	Timestamp int64   `json:"timestamp"` // milliseconds since epoch, 0 if not set
 }
 
 // MetricFamily represents a metric family that is returned by a prometheus endpoint.
 type MetricFamily struct {
-	Name    string
-	Type    string
-	Samples []Sample
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`
+	Samples []Sample `json:"samples"`
 }
 
 // trimHistogramSuffix removes histogram-specific suffixes (_bucket, _sum, _count).
@@ -173,4 +174,18 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error
 // ParseMetrics parses prometheus-formatted metrics from the input data.
 func ParseMetrics(data []byte) ([]MetricFamily, error) {
 	return ParseMetricsWithFilter(data, nil)
+}
+
+// ParseMetricsToJSON parses prometheus-formatted metrics and returns the result as a JSON string.
+// This is used by the Python check bridge to avoid Python-side parsing overhead.
+func ParseMetricsToJSON(data []byte) (string, error) {
+	families, err := ParseMetrics(data)
+	if err != nil {
+		return "", err
+	}
+	out, err := json.Marshal(families)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
 }

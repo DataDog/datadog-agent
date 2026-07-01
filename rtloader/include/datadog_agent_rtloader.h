@@ -689,6 +689,17 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_mongodb_string_cb(rtloader_t *, cb
 */
 DATADOG_AGENT_RTLOADER_API void set_emit_agent_telemetry_cb(rtloader_t *, cb_emit_agent_telemetry_t);
 
+/*! \fn void set_parse_prometheus_metrics_cb(rtloader_t *, cb_parse_prometheus_metrics_t)
+    \brief Sets a callback to be used by rtloader to parse Prometheus/OpenMetrics text
+    format metrics using the Go parser.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_parse_prometheus_metrics_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_parse_prometheus_metrics_cb(rtloader_t *, cb_parse_prometheus_metrics_t);
+
 #ifdef __cplusplus
 }
 #endif
