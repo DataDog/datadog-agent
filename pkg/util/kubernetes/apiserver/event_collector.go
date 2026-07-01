@@ -73,18 +73,12 @@ func (ec *EventCollector) Checkpoint() string {
 // Reflector lists then watches events matching the field selector, forwarding
 // them to the buffer through eventReflectorStore.
 func (ec *EventCollector) Start(stopCh <-chan struct{}) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-stopCh
-		cancel()
-	}()
-
 	lw := &cache.ListWatch{
-		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = ec.filter
 			return ec.client.CoreV1().Events(metav1.NamespaceAll).List(ctx, opts)
 		},
-		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = ec.filter
 			return ec.client.CoreV1().Events(metav1.NamespaceAll).Watch(ctx, opts)
 		},
