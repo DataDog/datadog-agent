@@ -529,8 +529,8 @@ func (suite *ecsSuite) TestCPU() {
 				`^task_version:[[:digit:]]+$`,
 			},
 			Value: &testMetricExpectValueArgs{
-				Max: 155000000,
-				Min: 145000000,
+				Min: cpustressUsageMin,
+				Max: cpustressUsageMax,
 			},
 		},
 	})

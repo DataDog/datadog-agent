@@ -70,6 +70,11 @@ type testMetricExpectValueArgs struct {
 	Max float64
 }
 
+const (
+	cpustressUsageMin = 120_000_000 // 0.12 core (observed min ~0.125)
+	cpustressUsageMax = 180_000_000 // 0.18 core (observed max ~0.172)
+)
+
 // myCollectT does nothing more than "github.com/stretchr/testify/assert".CollectT
 // It’s used only to get access to `errors` field which is otherwise private.
 type myCollectT struct {

@@ -1044,8 +1044,8 @@ func (suite *k8sSuite) TestCPU() {
 				`^short_image:apps-stress-ng$`,
 			}, sourceCodeIntegrationTags),
 			Value: &testMetricExpectValueArgs{
-				Max: 155000000,
-				Min: 145000000,
+				Min: cpustressUsageMin,
+				Max: cpustressUsageMax,
 			},
 		},
 	})
