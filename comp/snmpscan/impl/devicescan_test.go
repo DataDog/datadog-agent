@@ -13,12 +13,17 @@ import (
 	"testing"
 
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// discardPDU is an emit callback that drops PDUs, for walk tests that only
+// care about request behavior rather than collected results.
+func discardPDU(*gosnmp.SnmpPDU) error { return nil }
 
 func TestResolveUseBulk(t *testing.T) {
 	tests := []struct {
@@ -103,7 +108,7 @@ func TestGatherPDUsWithBulk_ContextCancellation(t *testing.T) {
 		Version:   gosnmp.Version2c,
 	}
 
-	_, err := gatherPDUsWithBulk(ctx, snmp, 0, 0, defaultBulkMaxRepetitions)
+	err := gatherPDUsWithBulk(ctx, snmp, discardPDU, 0, 0, defaultBulkMaxRepetitions)
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
@@ -152,7 +157,7 @@ func TestGatherPDUsWithBulk_AdaptsMaxRepOnFailure(t *testing.T) {
 		},
 	}
 
-	_, err := gatherPDUsWithBulk(context.Background(), fake, 0, 0, 10)
+	err := gatherPDUsWithBulk(context.Background(), fake, discardPDU, 0, 0, 10)
 	require.NoError(t, err)
 
 	require.Len(t, fake.calls, 2)
@@ -177,7 +182,7 @@ func TestGatherPDUsWithBulk_GivesUpWhenMaxRepCannotShrink(t *testing.T) {
 		},
 	}
 
-	_, err := gatherPDUsWithBulk(context.Background(), fake, 0, 0, 4)
+	err := gatherPDUsWithBulk(context.Background(), fake, discardPDU, 0, 0, 4)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "request timeout")
 	// 4 → 2 → 1 → still 1 (OnFailure returns false): 3 calls.
@@ -225,6 +230,65 @@ func TestColumnFilteringLogic(t *testing.T) {
 	assert.True(t, keptOIDs["1.3.6.1.2.1.2.2.1.3.2"], "First ifType row should be kept")
 	assert.False(t, keptOIDs["1.3.6.1.2.1.2.2.1.2.3"], "Second ifDescr row should be filtered")
 	assert.False(t, keptOIDs["1.3.6.1.2.1.2.2.1.3.3"], "Second ifType row should be filtered")
+}
+
+// collectOIDs sums the DeviceOIDs across the payloads a flusher sent.
+func collectOIDs(payloads []metadata.NetworkDevicesMetadata) int {
+	total := 0
+	for _, p := range payloads {
+		total += len(p.DeviceOIDs)
+	}
+	return total
+}
+
+func TestOIDFlusherCountBased(t *testing.T) {
+	var sent []metadata.NetworkDevicesMetadata
+	send := func(p metadata.NetworkDevicesMetadata) error {
+		sent = append(sent, p)
+		return nil
+	}
+
+	// flushInterval 0 so only the count threshold fires.
+	flusher := newOIDFlusher("default", 100, 0, send)
+	for i := 0; i < 250; i++ {
+		assert.NoError(t, flusher.add(&metadata.DeviceOID{OID: "1.2.3"}))
+	}
+	// Two flushes happened mid-walk (at 100 and 200), so results stream out
+	// before the scan finishes.
+	assert.Len(t, sent, 2)
+	assert.NoError(t, flusher.flush())
+	// The final flush reports the remaining 50 OIDs; nothing is dropped.
+	assert.Len(t, sent, 3)
+	assert.Equal(t, 250, collectOIDs(sent))
+}
+
+func TestOIDFlusherEndOnly(t *testing.T) {
+	var sent []metadata.NetworkDevicesMetadata
+	send := func(p metadata.NetworkDevicesMetadata) error {
+		sent = append(sent, p)
+		return nil
+	}
+
+	// A count threshold larger than the OID count and no time threshold means
+	// no mid-walk flush.
+	flusher := newOIDFlusher("default", 1000, 0, send)
+	for i := 0; i < 50; i++ {
+		assert.NoError(t, flusher.add(&metadata.DeviceOID{OID: "1.2.3"}))
+	}
+	assert.Empty(t, sent)
+	assert.NoError(t, flusher.flush())
+	assert.Len(t, sent, 1)
+	assert.Equal(t, 50, collectOIDs(sent))
+}
+
+func TestOIDFlusherEmptyFlushNoOp(t *testing.T) {
+	called := false
+	flusher := newOIDFlusher("default", 100, 0, func(metadata.NetworkDevicesMetadata) error {
+		called = true
+		return nil
+	})
+	assert.NoError(t, flusher.flush())
+	assert.False(t, called)
 }
 
 func TestCycleDetectionLogic(t *testing.T) {
