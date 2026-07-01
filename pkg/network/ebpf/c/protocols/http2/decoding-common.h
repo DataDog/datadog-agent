@@ -124,7 +124,31 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
 // stream, before it actually enqueues the stream's stats.
 //
 // See RFC 7540 section 5.1: https://datatracker.ietf.org/doc/html/rfc7540#section-5.1
-static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template, http2_telemetry_t *http2_tel) {
+
+static __always_inline void http2_batch_enqueue_wrapper(void *ctx, conn_tuple_t *tuple, http2_stream_t *http) {
+    u32 zero = 0;
+    http2_event_t *event = bpf_map_lookup_elem(&http2_scratch_buffer, &zero);
+    if (!event) {
+        return;
+    }
+
+    bpf_memcpy(&event->tuple, tuple, sizeof(conn_tuple_t));
+    bpf_memcpy(&event->stream, http, sizeof(http2_stream_t));
+
+    // Check which consumer type to use based on kernel version capability
+    __u64 use_direct_consumer = 0;
+    LOAD_CONSTANT("use_direct_consumer", use_direct_consumer);
+
+    if (use_direct_consumer) {
+        // Direct consumer path - use perf/ring buffer output (kernel >= 5.8)
+        http2_output_event(ctx, event);
+    } else {
+        // Batch consumer path - use map-based batching (kernel < 5.8)
+        http2_batch_enqueue(event);
+    }
+}
+
+static __always_inline void handle_end_of_stream(void *ctx, http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template, http2_telemetry_t *http2_tel) {
     // We want to see the EOS twice for a given stream: one for the client, one for the server.
     if (!current_stream->end_of_stream_seen) {
         current_stream->end_of_stream_seen = true;
@@ -134,14 +158,9 @@ static __always_inline void handle_end_of_stream(http2_stream_t *current_stream,
     // response end of stream;
     current_stream->response_last_seen = bpf_ktime_get_ns();
 
-    const __u32 zero = 0;
-    http2_event_t *event = bpf_map_lookup_elem(&http2_scratch_buffer, &zero);
-    if (event) {
-        event->tuple = http2_stream_key_template->tup;
-        event->stream = *current_stream;
-        // enqueue
-        http2_batch_enqueue(event);
-    }
+    // Emit the completed stream via the batch/direct consumer wrapper, which
+    // handles staging into the scratch buffer and selecting the output path.
+    http2_batch_enqueue_wrapper(ctx, &http2_stream_key_template->tup, current_stream);
 
     bpf_map_delete_elem(&http2_in_flight, http2_stream_key_template);
 }
