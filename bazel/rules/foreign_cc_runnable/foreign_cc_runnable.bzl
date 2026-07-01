@@ -97,11 +97,17 @@ def _foreign_cc_runnable_impl(ctx):
     if not is_linux and not is_macos:
         fail("{}: unsupported platform (Linux and macOS only)".format(ctx.label))
 
-    patchelf = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
+    patchelf_path = ""
+    patchelf_tools = []
+    if is_linux:
+        patchelf_toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
+        patchelf = patchelf_toolchain.label[DefaultInfo].files_to_run
+        patchelf_path = patchelf.executable.path
+        patchelf_tools = [patchelf]
 
     args = ctx.actions.args()
     args.add("linux" if is_linux else "darwin")
-    args.add(patchelf.path)
+    args.add(patchelf_path)
     args.add(input_tree.path)
     args.add(output_tree.path)
     args.add(manifest.path)
@@ -111,6 +117,7 @@ def _foreign_cc_runnable_impl(ctx):
         executable = ctx.file._script,
         arguments = [args],
         inputs = [input_tree, manifest],
+        tools = patchelf_tools,
         outputs = [output_tree],
         mnemonic = "ForeignCcRunnable",
         progress_message = "Rewriting rpaths for %{label}",

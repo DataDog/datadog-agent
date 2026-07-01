@@ -91,6 +91,18 @@ initContainers:
       - name: host-seccomp
         mountPath: /host/var/lib/kubelet/seccomp
 
+# Resource defaults for the Host Profiler container. Explicit zero requests avoid
+# reserving CPU or memory on every node, while limits cap runaway usage. Set
+# nonzero requests if your cluster policy requires them or you want reserved capacity.
+# Increase the memory limit if the Host Profiler uploads debug symbols for large binaries.
+resources:
+  requests:
+    cpu: "0"
+    memory: "0"
+  limits:
+    cpu: "500m"
+    memory: "1Gi"
+
 extraVolumeMounts:
   # /tmp is required because the container uses a read-only root filesystem.
   - name: tmpdir
