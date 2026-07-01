@@ -171,12 +171,13 @@ func (l *LocalService) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Conf
 
 // defaultRun is the standard Run implementation for cloud services that do not
 // manage a child process themselves. In sidecar mode it calls RunSidecar; in
-// init-container mode it spawns the user app directly via RunInit.
+// init-container mode it spawns the user app with no child handle (no
+// MarkAlive/MarkDead tracking). MicroVM overrides Run to supply its child.
 func defaultRun(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
 	if modeConf.SidecarMode {
 		return mode.RunSidecar(logConfig)
 	}
-	return mode.RunInit(logConfig)
+	return mode.RunInit(logConfig, nil) // no child tracking for non-MicroVM services
 }
 
 // Shutdown emits the shutdown metric for LocalService
