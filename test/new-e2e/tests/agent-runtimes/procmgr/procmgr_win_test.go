@@ -103,11 +103,10 @@ func toWindowsSlashPath(p string) string {
 // forward slashes. The e2e runner is Linux; installPath from the registry uses
 // backslashes, so filepath.Join would produce mixed separators.
 func joinWindowsPath(base string, elems ...string) string {
-	p := strings.TrimRight(toWindowsSlashPath(base), `/`)
-	for _, e := range elems {
-		p += "/" + e
-	}
-	return p
+	parts := make([]string, 0, len(elems)+1)
+	parts = append(parts, strings.TrimRight(toWindowsSlashPath(base), `/`))
+	parts = append(parts, elems...)
+	return strings.Join(parts, "/")
 }
 
 // ensureWindowsDirPS returns a script that creates a directory on the remote host.
