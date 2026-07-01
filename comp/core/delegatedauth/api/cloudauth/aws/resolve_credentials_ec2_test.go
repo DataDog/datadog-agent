@@ -9,12 +9,17 @@ package aws
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go-v2/credentials/endpointcreds"
-	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -77,7 +82,7 @@ func TestCredentialProvider_EC2_Selection(t *testing.T) {
 		t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")
 		p, err := (&AWSAuth{}).credentialProvider()
 		require.NoError(t, err)
-		assert.IsType(t, &stscreds.WebIdentityRoleProvider{}, p)
+		assert.IsType(t, &webIdentityProvider{}, p)
 	})
 	t.Run("container credentials", func(t *testing.T) {
 		isolateAWSEnv(t)
@@ -92,6 +97,51 @@ func TestCredentialProvider_EC2_Selection(t *testing.T) {
 		require.NoError(t, err)
 		assert.IsType(t, &ec2rolecreds.Provider{}, p)
 	})
+}
+
+// TestWebIdentityProvider_Retrieve verifies the hand-rolled AssumeRoleWithWebIdentity call: it
+// POSTs the query-API form with the token from the file and parses credentials from the STS XML.
+func TestWebIdentityProvider_Retrieve(t *testing.T) {
+	const respXML = `<AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleWithWebIdentityResult>
+    <Credentials>
+      <AccessKeyId>ASIAEXAMPLE</AccessKeyId>
+      <SecretAccessKey>secretexample</SecretAccessKey>
+      <SessionToken>tokenexample</SessionToken>
+      <Expiration>2030-01-01T00:00:00Z</Expiration>
+    </Credentials>
+  </AssumeRoleWithWebIdentityResult>
+</AssumeRoleWithWebIdentityResponse>`
+
+	var gotForm url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		gotForm = r.PostForm
+		w.Header().Set("Content-Type", "text/xml")
+		_, _ = io.WriteString(w, respXML)
+	}))
+	defer srv.Close()
+
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("the-web-identity-jwt"), 0o600))
+
+	p := &webIdentityProvider{
+		roleARN:   "arn:aws:iam::123456789012:role/example",
+		tokenFile: tokenFile,
+		stsURL:    srv.URL,
+		client:    srv.Client(),
+	}
+	got, err := p.Retrieve(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "ASIAEXAMPLE", got.AccessKeyID)
+	assert.Equal(t, "secretexample", got.SecretAccessKey)
+	assert.Equal(t, "tokenexample", got.SessionToken)
+	assert.True(t, got.CanExpire)
+
+	// The request carried the right STS action, role, and the token read from the file.
+	assert.Equal(t, "AssumeRoleWithWebIdentity", gotForm.Get("Action"))
+	assert.Equal(t, "arn:aws:iam::123456789012:role/example", gotForm.Get("RoleArn"))
+	assert.Equal(t, "the-web-identity-jwt", gotForm.Get("WebIdentityToken"))
 }
 
 // TestContainerCredentialsProvider_HostAllowlist verifies the SSRF guard on an http
@@ -115,5 +165,46 @@ func TestContainerCredentialsProvider_HostAllowlist(t *testing.T) {
 		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "https://creds.internal.example/v1")
 		_, err := containerCredentialsProvider()
 		assert.NoError(t, err)
+	})
+}
+
+// TestWebIdentityProvider_Retrieve_NoExpiration verifies that an STS response without an
+// <Expiration> yields non-expiring credentials (CanExpire false), which the caller relies on.
+func TestWebIdentityProvider_Retrieve_NoExpiration(t *testing.T) {
+	const respXML = `<AssumeRoleWithWebIdentityResponse><AssumeRoleWithWebIdentityResult><Credentials>` +
+		`<AccessKeyId>AKID</AccessKeyId><SecretAccessKey>SK</SecretAccessKey><SessionToken>TK</SessionToken>` +
+		`</Credentials></AssumeRoleWithWebIdentityResult></AssumeRoleWithWebIdentityResponse>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, respXML)
+	}))
+	defer srv.Close()
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("jwt"), 0o600))
+
+	got, err := (&webIdentityProvider{roleARN: "r", tokenFile: tokenFile, stsURL: srv.URL, client: srv.Client()}).Retrieve(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "AKID", got.AccessKeyID)
+	assert.False(t, got.CanExpire)
+}
+
+// TestWebIdentityProvider_Retrieve_Errors verifies error paths: a non-200 STS response and a
+// missing token file both return an error and no credentials.
+func TestWebIdentityProvider_Retrieve_Errors(t *testing.T) {
+	t.Run("STS non-200", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = io.WriteString(w, `<ErrorResponse><Error><Message>not authorized</Message></Error></ErrorResponse>`)
+		}))
+		defer srv.Close()
+		tokenFile := filepath.Join(t.TempDir(), "token")
+		require.NoError(t, os.WriteFile(tokenFile, []byte("jwt"), 0o600))
+		got, err := (&webIdentityProvider{roleARN: "r", tokenFile: tokenFile, stsURL: srv.URL, client: srv.Client()}).Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Empty(t, got.AccessKeyID)
+	})
+	t.Run("missing token file", func(t *testing.T) {
+		got, err := (&webIdentityProvider{roleARN: "r", tokenFile: "/no/such/token", stsURL: "https://sts.us-east-1.amazonaws.com/", client: http.DefaultClient}).Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Empty(t, got.AccessKeyID)
 	})
 }

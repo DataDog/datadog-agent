@@ -21,9 +21,7 @@ go_library(
         "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
         "@com_github_aws_aws_sdk_go_v2_credentials//ec2rolecreds",
         "@com_github_aws_aws_sdk_go_v2_credentials//endpointcreds",
-        "@com_github_aws_aws_sdk_go_v2_credentials//stscreds",
         "@com_github_aws_aws_sdk_go_v2_feature_ec2_imds//:imds",
-        "@com_github_aws_aws_sdk_go_v2_service_sts//:sts",
     ],
 )
 
@@ -41,7 +39,6 @@ go_test(
         "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
         "@com_github_aws_aws_sdk_go_v2_credentials//ec2rolecreds",
         "@com_github_aws_aws_sdk_go_v2_credentials//endpointcreds",
-        "@com_github_aws_aws_sdk_go_v2_credentials//stscreds",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

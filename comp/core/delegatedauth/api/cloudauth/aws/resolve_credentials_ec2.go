@@ -9,19 +9,22 @@ package aws
 
 import (
 	"context"
+	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go-v2/credentials/endpointcreds"
-	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,13 +40,23 @@ var (
 	eksContainerIPv6     = net.IP{0xFD, 0, 0x0E, 0xC2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x23}
 )
 
+const (
+	// webIdentitySessionName is the RoleSessionName sent with AssumeRoleWithWebIdentity. It is
+	// informational (appears in the assumed-role ARN / CloudTrail); mappings key on the role.
+	webIdentitySessionName = "datadog-agent-workload-identity-federation"
+	// webIdentityAPIVersion is the STS query-API version.
+	webIdentityAPIVersion = "2011-06-15"
+	// maxSTSResponseBytes bounds the STS response read to avoid unbounded memory use.
+	maxSTSResponseBytes = 1 << 20
+)
+
 // resolveCredentials (ec2 build) selects the AWS credential provider matching the runtime
 // environment, in the SDK's standard precedence but limited to the mechanisms a deployed Agent
 // actually encounters: static env vars, IRSA web identity, ECS / EKS Pod Identity container
 // credentials, and EC2 IMDS. It deliberately does not use config.LoadDefaultConfig, which would
 // also link SSO, credential_process and shared-profile (~/.aws) support that the Agent does not
-// need and which materially grows the binary. Each provider is from aws-sdk-go-v2; only the
-// provider selection is ours.
+// need and which materially grows the binary. Each provider is from aws-sdk-go-v2 (except the
+// web-identity provider, hand-rolled to avoid linking service/sts); only the selection is ours.
 func (a *AWSAuth) resolveCredentials(ctx context.Context) *creds.SecurityCredentials {
 	provider, err := a.credentialProvider()
 	if err != nil {
@@ -51,13 +64,20 @@ func (a *AWSAuth) resolveCredentials(ctx context.Context) *creds.SecurityCredent
 		return &creds.SecurityCredentials{}
 	}
 
-	// Wrap in a cache so providers that return expiring credentials (web identity, container,
-	// IMDS instance role) refresh correctly; LoadDefaultConfig did this for us.
-	sdkCreds, err := aws.NewCredentialsCache(provider).Retrieve(ctx)
+	// Resolve once per call. Delegated auth re-runs this on each proof generation (startup and
+	// every refresh interval), and the credentials it returns are valid for hours, so no
+	// cross-call caching is needed.
+	sdkCreds, err := provider.Retrieve(ctx)
 	if err != nil {
 		log.Warnf("AWS credential retrieval failed: %v", err)
 		return &creds.SecurityCredentials{}
 	}
+
+	// sdkCreds.Source is set by the provider that produced the credentials (ex:
+	// DelegatedAuthWebIdentity, EC2RoleProvider), naming which environment matched. Logged at Info
+	// (once per key fetch, matching the surrounding delegated-auth logs) so operators can confirm
+	// the credential source without enabling debug.
+	log.Infof("delegated auth resolved AWS credentials via %s", sdkCreds.Source)
 
 	return &creds.SecurityCredentials{
 		AccessKeyID:     sdkCreds.AccessKeyID,
@@ -79,15 +99,17 @@ func (a *AWSAuth) credentialProvider() (aws.CredentialsProvider, error) {
 		), nil
 
 	case creds.HasAWSWorkloadIdentityInEnvironment():
-		// IRSA: exchange the projected web-identity token via STS AssumeRoleWithWebIdentity. The
-		// STS client needs a region; resolveRegion always yields one (defaulting to defaultRegion)
-		// so an IRSA-only pod with no AWS_REGION/AWS_DEFAULT_REGION still resolves an endpoint.
-		client := sts.New(sts.Options{Region: a.resolveRegion()})
-		return stscreds.NewWebIdentityRoleProvider(
-			client,
-			os.Getenv("AWS_ROLE_ARN"),
-			stscreds.IdentityTokenFile(os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")),
-		), nil
+		// IRSA: exchange the projected web-identity token via STS AssumeRoleWithWebIdentity. We
+		// call STS directly (a plain unsigned POST + XML parse, mirroring the hand-rolled
+		// GetCallerIdentity proof) rather than through service/sts, which would link the full STS
+		// client and materially grow the binary. resolveRegion always yields a region (defaulting
+		// to defaultRegion) so an IRSA-only pod with no AWS_REGION/AWS_DEFAULT_REGION still works.
+		return &webIdentityProvider{
+			roleARN:   os.Getenv("AWS_ROLE_ARN"),
+			tokenFile: os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE"),
+			stsURL:    "https://" + fmt.Sprintf(regionalStsHost, a.resolveRegion()) + "/",
+			client:    &http.Client{Timeout: 10 * time.Second},
+		}, nil
 
 	case creds.HasAWSContainerCredentialsInEnvironment():
 		return containerCredentialsProvider()
@@ -114,6 +136,85 @@ func (a *AWSAuth) resolveRegion() string {
 		return r
 	}
 	return defaultRegion
+}
+
+// webIdentityProvider retrieves credentials via STS AssumeRoleWithWebIdentity using the projected
+// web-identity token (IRSA / EKS). It implements aws.CredentialsProvider. The call is
+// unauthenticated apart from the token, so unlike the GetCallerIdentity proof it needs no SigV4
+// signing; we POST the query-API form and parse the XML response.
+type webIdentityProvider struct {
+	roleARN   string
+	tokenFile string
+	stsURL    string
+	client    *http.Client
+}
+
+// assumeRoleWithWebIdentityResponse is the subset of the STS XML response we consume.
+type assumeRoleWithWebIdentityResponse struct {
+	Result struct {
+		Credentials struct {
+			AccessKeyID     string    `xml:"AccessKeyId"`
+			SecretAccessKey string    `xml:"SecretAccessKey"`
+			SessionToken    string    `xml:"SessionToken"`
+			Expiration      time.Time `xml:"Expiration"`
+		} `xml:"Credentials"`
+	} `xml:"AssumeRoleWithWebIdentityResult"`
+}
+
+// Retrieve exchanges the web-identity token for temporary credentials.
+func (p *webIdentityProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+	if p.roleARN == "" || p.tokenFile == "" {
+		return aws.Credentials{}, errors.New("web identity: AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE must be set")
+	}
+	token, err := os.ReadFile(p.tokenFile)
+	if err != nil {
+		return aws.Credentials{}, fmt.Errorf("web identity: read token file %s: %w", p.tokenFile, err)
+	}
+
+	form := url.Values{
+		"Action":           {"AssumeRoleWithWebIdentity"},
+		"Version":          {webIdentityAPIVersion},
+		"RoleArn":          {p.roleARN},
+		"RoleSessionName":  {webIdentitySessionName},
+		"WebIdentityToken": {strings.TrimSpace(string(token))},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.stsURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return aws.Credentials{}, fmt.Errorf("web identity: build STS request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return aws.Credentials{}, fmt.Errorf("web identity: STS request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxSTSResponseBytes))
+	if err != nil {
+		return aws.Credentials{}, fmt.Errorf("web identity: read STS response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return aws.Credentials{}, fmt.Errorf("web identity: STS returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	var parsed assumeRoleWithWebIdentityResponse
+	if err := xml.Unmarshal(body, &parsed); err != nil {
+		return aws.Credentials{}, fmt.Errorf("web identity: parse STS response: %w", err)
+	}
+	c := parsed.Result.Credentials
+	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
+		return aws.Credentials{}, errors.New("web identity: STS response missing credentials")
+	}
+
+	return aws.Credentials{
+		AccessKeyID:     c.AccessKeyID,
+		SecretAccessKey: c.SecretAccessKey,
+		SessionToken:    c.SessionToken,
+		Source:          "DelegatedAuthWebIdentity",
+		CanExpire:       !c.Expiration.IsZero(),
+		Expires:         c.Expiration,
+	}, nil
 }
 
 // containerCredentialsProvider builds the ECS task-role / EKS Pod Identity provider from the
