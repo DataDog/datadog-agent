@@ -58,7 +58,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const datadogConfigPath = "datadog.yaml"
+const (
+	datadogConfigPath  = "datadog.yaml"
+	miniAgentDir       = "/tmp/datadog"
+	miniAgentReadyFile = miniAgentDir + "/mini_agent_ready"
+)
 
 var modeConf mode.Conf
 
@@ -168,6 +172,14 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
 	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin)
+
+	// Sentinel file signals to language tracers (e.g. dd-trace Node.js) that an
+	// HTTP trace agent is available on localhost:8126. Without it, dd-trace detects
+	// AWS_LAMBDA_FUNCTION_NAME and switches to the log exporter, bypassing the agent.
+	// Scoped to MicroVM: standard Lambda already handles this via its own extension layer.
+	if cloudService.GetOrigin() == cloudservice.MicroVMOrigin {
+		createMiniAgentSentinel(miniAgentDir, miniAgentReadyFile)
+	}
 
 	tracingCtx := &cloudservice.TracingContext{
 		TraceAgent: traceAgent,
@@ -289,6 +301,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 		FunctionTags:          functionTags,
 	})
 	traceAgent.SetTags(tags)
+
 	go func() {
 		for range time.Tick(3 * time.Second) {
 			traceAgent.Flush()
@@ -373,6 +386,14 @@ func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverle
 		break
 	}
 	wg.Done()
+}
+
+func createMiniAgentSentinel(dir, file string) {
+	if err := os.MkdirAll(dir, 0o755); err == nil {
+		if f, err := os.Create(file); err == nil {
+			f.Close()
+		}
+	}
 }
 
 func setEnvWithoutOverride(envToSet map[string]string) {

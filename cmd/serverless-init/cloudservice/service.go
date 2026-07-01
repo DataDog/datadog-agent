@@ -47,6 +47,11 @@ const (
 	CloudRunJob      CloudRunType = "job"
 )
 
+const (
+	archAMD64 = "amd64"
+	archARM64 = "arm64"
+)
+
 // CloudService implements getting tags from each Cloud Provider.
 type CloudService interface {
 	// GetTags returns a map of tags for a given cloud service. These tags are then attached to
@@ -96,6 +101,8 @@ type CloudService interface {
 type LocalService struct{}
 
 const defaultPrefix = "datadog.serverless_agent."
+
+const unsupportedArchMsg = "serverless-init is running on an unsupported architecture (%s). Monitoring may behave unexpectedly."
 
 const localServiceShutdownMetricName = "datadog.serverless_agent.enhanced.shutdown"
 const localServiceStartMetricName = "datadog.serverless_agent.enhanced.cold_start"
@@ -175,13 +182,26 @@ func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 	return false
 }
 
+func isSupportedArch(arch string) bool {
+	return arch == archAMD64 || arch == archARM64
+}
+
 // GetCloudServiceType TODO: Refactor to avoid leaking individual service implementation details into the interface layer
 //
 //nolint:revive // TODO(SERV) Fix revive lin
 func GetCloudServiceType() CloudService {
+	arch := runtime.GOARCH
 
-	if runtime.GOARCH != "amd64" {
-		log.Errorf("serverless-init is running on an unsupported architecture (%s). Monitoring may behave unexpectedly.", runtime.GOARCH)
+	// MicroVM supports both amd64 and arm64; all other services are amd64-only.
+	if isMicroVM() {
+		if !isSupportedArch(arch) {
+			log.Errorf(unsupportedArchMsg, arch)
+		}
+		return &MicroVM{}
+	}
+
+	if arch != archAMD64 {
+		log.Errorf(unsupportedArchMsg, arch)
 	}
 
 	if isCloudRunService() {
