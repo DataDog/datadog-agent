@@ -59,6 +59,21 @@ type IAParams struct {
 
 	// Cardinality represents the tag cardinality used by this test
 	Cardinality types.TagCardinality
+
+	// ReceiveResourceSpansV1 indicates the agent runs with disable_receive_resource_spans_v2,
+	// i.e. the v1 OTLP receiver path. That path predates the OTel scope convention and still
+	// emits otel.library.name/version instead of otel.scope.name/version.
+	ReceiveResourceSpansV1 bool
+}
+
+// scopeNameKey returns the span meta key holding the instrumentation scope name for the
+// receiver path under test: otel.scope.name for the v2 path (default) and the deprecated
+// otel.library.name for the v1 path (disable_receive_resource_spans_v2).
+func scopeNameKey(iaParams IAParams) string {
+	if iaParams.ReceiveResourceSpansV1 {
+		return "otel.library.name"
+	}
+	return "otel.scope.name"
 }
 
 // TestTraces tests that OTLP traces are received through OTel pipelines as expected
@@ -111,9 +126,9 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
 		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
 		if sp.Meta["span.kind"] == "client" {
-			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
+			assert.Equal(s.T(), "calendar-rest-go", sp.Meta[scopeNameKey(iaParams)])
 		} else {
-			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta[scopeNameKey(iaParams)])
 		}
 		ctags, ok := getContainerTags(s.T(), tp)
 		assert.True(s.T(), ok)
@@ -180,14 +195,14 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 			assert.Equal(s.T(), "http", sp.Type)
 			assert.IsType(s.T(), uint64(0), sp.ParentID)
 			assert.NotZero(s.T(), sp.ParentID)
-			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
+			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.scope.name"])
 		} else {
 			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
 			assert.Equal(s.T(), "http.server.request", sp.Name)
 			assert.Equal(s.T(), "GET", sp.Resource)
 			assert.Equal(s.T(), "web", sp.Type)
 			assert.Zero(s.T(), sp.ParentID)
-			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.scope.name"])
 		}
 		assert.IsType(s.T(), uint64(0), sp.TraceID)
 		assert.NotZero(s.T(), sp.TraceID)

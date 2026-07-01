@@ -704,10 +704,19 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 	if in.TraceState().AsRaw() != "" {
 		transform.SetMetaOTLP(span, "w3c.tracestate", in.TraceState().AsRaw())
 	}
+	scopeConventionGateEnabled := !o.conf.HasFeature("disable_otel_scope_convention")
 	if lib.Name() != "" {
+		if scopeConventionGateEnabled {
+			transform.SetMetaOTLP(span, string(semconv117.OtelScopeNameKey), lib.Name())
+		}
+		// otel.library.name is a deprecated alias of otel.scope.name but MUST still be
+		// reported with the same value for backward compatibility.
 		transform.SetMetaOTLP(span, string(semconv117.OtelLibraryNameKey), lib.Name())
 	}
 	if lib.Version() != "" {
+		if scopeConventionGateEnabled {
+			transform.SetMetaOTLP(span, string(semconv117.OtelScopeVersionKey), lib.Version())
+		}
 		transform.SetMetaOTLP(span, string(semconv117.OtelLibraryVersionKey), lib.Version())
 	}
 	transform.SetMetaOTLP(span, string(semconv117.OtelStatusCodeKey), in.Status().Code().String())
