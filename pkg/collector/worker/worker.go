@@ -284,37 +284,37 @@ func (w *Worker) Run(ctx context.Context) {
 
 		checkWarnings := check.GetWarnings()
 
-			serviceCheckStatus := servicecheck.ServiceCheckOK
+		serviceCheckStatus := servicecheck.ServiceCheckOK
 
-			if len(checkWarnings) != 0 {
-				expvars.AddWarningsCount(len(checkWarnings))
-				serviceCheckStatus = servicecheck.ServiceCheckWarning
+		if len(checkWarnings) != 0 {
+			expvars.AddWarningsCount(len(checkWarnings))
+			serviceCheckStatus = servicecheck.ServiceCheckWarning
 		}
 
 		if checkErr != nil {
 			checkLogger.Error(checkErr)
 			expvars.AddErrorsCount(1)
-				serviceCheckStatus = servicecheck.ServiceCheckCritical
-			}
+			serviceCheckStatus = servicecheck.ServiceCheckCritical
+		}
 
-			if !longRunning && !w.isShadowWorker {
-				// Use the default sender for the service checks
-				sender, err := w.getDefaultSenderFunc()
-				if err != nil {
-					log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
-				}
-				if sender != nil {
-					serviceCheckTags := []string{"check:" + check.String(), "dd_enable_check_intake:true"}
-					hname, _ := hostname.Get(ctx)
-					if pkgconfigsetup.Datadog().GetBool("integration_check_status_enabled") {
-						sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
-					}
-					// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
-					// it here for now to make sure it's not breaking any historical behavior
-					// with the shared default sender.
-					sender.Commit()
-				}
+		if !longRunning && !w.isShadowWorker {
+			// Use the default sender for the service checks
+			sender, err := w.getDefaultSenderFunc()
+			if err != nil {
+				log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
 			}
+			if sender != nil {
+				serviceCheckTags := []string{"check:" + check.String(), "dd_enable_check_intake:true"}
+				hname, _ := hostname.Get(ctx)
+				if pkgconfigsetup.Datadog().GetBool("integration_check_status_enabled") {
+					sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+				}
+				// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
+				// it here for now to make sure it's not breaking any historical behavior
+				// with the shared default sender.
+				sender.Commit()
+			}
+		}
 
 		// Remove the check from the running list
 		w.checksTracker.DeleteCheck(check.ID())
