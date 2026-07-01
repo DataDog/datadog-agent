@@ -19,8 +19,8 @@ go_library(
         "types_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/loader",
+    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
-    tags = ["manual"], # keep
     deps = [
         "//pkg/dyninst/compiler",
         "//pkg/dyninst/ir",
