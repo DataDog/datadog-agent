@@ -83,48 +83,48 @@ func NewScheduler(checksPipe chan<- check.Check, shadowChecksPipe chan<- check.C
 
 // Enter schedules a `Check`s for execution accordingly to the `Check.Interval()` value.
 // If the interval is 0, the check is supposed to run only once.
-func (s *Scheduler) Enter(check check.Check) error {
+func (s *Scheduler) Enter(ch check.Check) error {
 	// enqueue immediately if this is a one-time schedule
-	if check.Interval() == 0 {
-		s.enqueueOnce(check)
+	if ch.Interval() == 0 {
+		s.enqueueOnce(ch)
 		return nil
 	}
 
-	if check.Interval() < minAllowedInterval {
+	if ch.Interval() < minAllowedInterval {
 		return fmt.Errorf("schedule interval must be greater than %v or 0", minAllowedInterval)
 	}
 
-	log.Infof("Scheduling check %s with an interval of %v", check.ID(), check.Interval())
+	log.Infof("Scheduling check %s with an interval of %v", ch.ID(), ch.Interval())
 
 	// sync when accessing `jobQueues` and `check2queue`
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	queues := s.jobQueues
-	isShadow := isShadowCheck(check)
+	isShadow := check.IsShadow(ch)
 	if isShadow {
 		queues = s.shadowJobQueues
 	}
 
-	if _, ok := queues[check.Interval()]; !ok {
-		queues[check.Interval()] = newJobQueue(check.Interval(), isShadow)
-		s.startQueue(queues[check.Interval()])
-		if check.IsTelemetryEnabled() {
+	if _, ok := queues[ch.Interval()]; !ok {
+		queues[ch.Interval()] = newJobQueue(ch.Interval(), isShadow)
+		s.startQueue(queues[ch.Interval()])
+		if ch.IsTelemetryEnabled() {
 			tlmQueuesCount.Inc()
 		}
 		schedulerQueuesCount.Add(1)
 	}
-	queues[check.Interval()].addJob(check)
+	queues[ch.Interval()].addJob(ch)
 
 	// map each check to the Job Queue it was assigned to
 	s.checkToQueueMutex.Lock()
-	s.checkToQueue[check.ID()] = queues[check.Interval()]
+	s.checkToQueue[ch.ID()] = queues[ch.Interval()]
 	s.checkToQueueMutex.Unlock()
 
 	schedulerChecksEntered.Add(1)
-	if check.IsTelemetryEnabled() {
-		checkName := check.String()
-		s.tlmTrackedChecks[check.ID()] = checkName
+	if ch.IsTelemetryEnabled() {
+		checkName := ch.String()
+		s.tlmTrackedChecks[ch.ID()] = checkName
 		tlmChecksEntered.Inc(checkName)
 	}
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
@@ -228,10 +228,6 @@ func (s *Scheduler) IsCheckScheduled(id checkid.ID) bool {
 	return found
 }
 
-func isShadowCheck(c check.Check) bool {
-	return check.IsShadow(c)
-}
-
 // stopQueues shuts down the timers for each active queue
 // Blocks until all the queues have fully stopped
 func (s *Scheduler) stopQueues() {
@@ -278,18 +274,18 @@ func (s *Scheduler) startQueue(q *jobQueue) {
 // enqueueOnce enqueues a check once to the checksPipe.
 // Do not block, in case the runner has not started yet.
 // The queuing can be cancelled by closing the `cancelOneTime` channel.
-func (s *Scheduler) enqueueOnce(check check.Check) {
-	log.Infof("Scheduling check %v for one-time execution", check)
+func (s *Scheduler) enqueueOnce(ch check.Check) {
+	log.Infof("Scheduling check %v for one-time execution", ch)
 	s.wgOneTime.Add(1)
 
 	go func(cancelOneTime <-chan bool) {
 		defer s.wgOneTime.Done()
 		checksPipe := s.checksPipe
-		if isShadowCheck(check) {
+		if check.IsShadow(ch) {
 			checksPipe = s.shadowChecksPipe
 		}
 		select {
-		case checksPipe <- check:
+		case checksPipe <- ch:
 		case <-cancelOneTime:
 		}
 	}(s.cancelOneTime)
