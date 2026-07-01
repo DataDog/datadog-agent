@@ -36,6 +36,9 @@ runtime_security_config:
   ## Set to true to enable CWS
   enabled: true
 
+data_security:
+  enabled: true
+
 cluster_checks:
   enabled: true
 
