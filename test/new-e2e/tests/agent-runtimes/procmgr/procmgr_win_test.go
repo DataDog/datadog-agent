@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -67,6 +68,54 @@ description: should not start
 	adpProcessName = "datadog-agent-data-plane"
 )
 
+// psRemote formats a PowerShell script for RemoteHost.Execute on Windows.
+// String args are escaped for single-quoted literals: ” for quotes, %% for fmt.Sprintf.
+// $ and $env:... in args are safe because they are only embedded inside '...', not expanded.
+func psRemote(format string, args ...any) string {
+	for i, a := range args {
+		if s, ok := a.(string); ok {
+			args[i] = escapePSSingleQuotedLiteral(s)
+		}
+	}
+	if len(args) == 0 {
+		return format
+	}
+	return fmt.Sprintf(format, args...)
+}
+
+func escapePSSingleQuotedLiteral(s string) string {
+	s = strings.ReplaceAll(s, `%`, `%%`)
+	s = strings.ReplaceAll(s, `'`, `''`)
+	return s
+}
+
+// toWindowsSlashPath normalizes a Windows path to forward slashes. The e2e runner is
+// Linux/macOS where filepath.ToSlash is a no-op on backslashes.
+func toWindowsSlashPath(p string) string {
+	p = strings.ReplaceAll(strings.TrimSpace(p), `\`, `/`)
+	for strings.Contains(p, "//") {
+		p = strings.ReplaceAll(p, "//", "/")
+	}
+	return p
+}
+
+// joinWindowsPath joins a Windows install/config path with relative segments using
+// forward slashes. The e2e runner is Linux; installPath from the registry uses
+// backslashes, so filepath.Join would produce mixed separators.
+func joinWindowsPath(base string, elems ...string) string {
+	p := strings.TrimRight(toWindowsSlashPath(base), `/`)
+	for _, e := range elems {
+		p += "/" + e
+	}
+	return p
+}
+
+// ensureWindowsDirPS returns a script that creates a directory on the remote host.
+// Use -Path (not -LiteralPath): Windows PowerShell 5.1 New-Item does not support -LiteralPath.
+func ensureWindowsDirPS(dir string) string {
+	return psRemote(`New-Item -ItemType Directory -Force -Path '%s' | Out-Null`, dir)
+}
+
 var winPlatform = platformConfig{
 	daemonBin:         winDaemonBin,
 	cliBin:            winCLIBin,
@@ -75,7 +124,7 @@ var winPlatform = platformConfig{
 	testProcessYAML:   winTestProcessConfig,
 	missingBinaryYAML: winMissingBinaryConfig,
 	checkBinCmd: func(path string) string {
-		return fmt.Sprintf(`powershell -Command "if (Test-Path '%s') { exit 0 } else { exit 1 }"`, path)
+		return psRemote(`if (Test-Path -LiteralPath '%s') { exit 0 } else { exit 1 }`, path)
 	},
 	checkSvcRunning:  `powershell -Command "(Get-Service dd-procmgr-service).Status"`,
 	svcRunningOutput: "Running",
@@ -159,11 +208,9 @@ func (s *procmgrWindowsSuite) tryInstallWindowsDDOTForProcmgr() {
 
 	destExe := filepath.Join(installPath, "ext", "ddot", "embedded", "bin", "otel-agent.exe")
 	destDir := filepath.Dir(destExe)
-	copyPS := fmt.Sprintf(
-		`powershell -NoProfile -Command "$ErrorActionPreference='Stop'; New-Item -ItemType Directory -Force -LiteralPath '%s' | Out-Null; Copy-Item -LiteralPath '%s' -Destination '%s' -Force"`,
-		psEscapeSingleQuotedPath(destDir),
-		psEscapeSingleQuotedPath(embeddedOtel),
-		psEscapeSingleQuotedPath(destExe),
+	copyPS := psRemote(
+		`$ErrorActionPreference='Stop'; New-Item -ItemType Directory -Force -Path '%s' | Out-Null; Copy-Item -LiteralPath '%s' -Destination '%s' -Force`,
+		destDir, embeddedOtel, destExe,
 	)
 	if _, err := host.Execute(copyPS); err != nil {
 		s.T().Logf("windows ddot procmgr: copy otel-agent failed: %v", err)
@@ -172,10 +219,9 @@ func (s *procmgrWindowsSuite) tryInstallWindowsDDOTForProcmgr() {
 
 	exExample := filepath.Join(configRoot, "otel-config.yaml.example")
 	exOut := filepath.Join(configRoot, "otel-config.yaml")
-	otelPS := fmt.Sprintf(
-		`powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $ex='%s'; $out='%s'; if (Test-Path -LiteralPath $ex) { $c = Get-Content -Raw -LiteralPath $ex; $c = $c -replace '\$\{env:DD_API_KEY\}','aaaaaaaaaaaaaaaa'; $c = $c -replace '\$\{env:DD_SITE\}','datadoghq.com'; Set-Content -LiteralPath $out -Value $c -Encoding utf8 } elseif (-not (Test-Path -LiteralPath $out)) { throw 'missing otel-config' }"`,
-		psEscapeSingleQuotedPath(exExample),
-		psEscapeSingleQuotedPath(exOut),
+	otelPS := psRemote(
+		`$ErrorActionPreference='Stop'; $ex='%s'; $out='%s'; if (Test-Path -LiteralPath $ex) { $c = Get-Content -Raw -LiteralPath $ex; $c = $c -replace '\$\{env:DD_API_KEY\}','aaaaaaaaaaaaaaaa'; $c = $c -replace '\$\{env:DD_SITE\}','datadoghq.com'; Set-Content -LiteralPath $out -Value $c -Encoding utf8 } elseif (-not (Test-Path -LiteralPath $out)) { throw 'missing otel-config' }`,
+		exExample, exOut,
 	)
 	if _, err := host.Execute(otelPS); err != nil {
 		s.T().Logf("windows ddot procmgr: otel-config bootstrap failed: %v", err)
@@ -183,31 +229,23 @@ func (s *procmgrWindowsSuite) tryInstallWindowsDDOTForProcmgr() {
 	}
 
 	fleetPolicies := filepath.Join(configRoot, "Installer", "managed", "datadog-agent", "stable")
-	mkdirPS := fmt.Sprintf(
-		`powershell -NoProfile -Command "New-Item -ItemType Directory -Force -LiteralPath '%s' | Out-Null"`,
-		psEscapeSingleQuotedPath(fleetPolicies),
-	)
-	host.MustExecute(mkdirPS)
+	host.MustExecute(ensureWindowsDirPS(fleetPolicies))
 
 	datadogYAML := filepath.Join(configRoot, "datadog.yaml")
 	appendOtel := "\notelcollector:\n  enabled: true\n"
 	b64AppendOtel := base64.StdEncoding.EncodeToString([]byte(appendOtel))
-	enableOtelPS := fmt.Sprintf(
-		`powershell -NoProfile -Command "$dy='%s'; if (-not (Test-Path -LiteralPath $dy)) { exit 0 }; if (-not (Select-String -LiteralPath $dy -Pattern 'otelcollector:' -Quiet)) { $a=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('%s')); Add-Content -LiteralPath $dy -Value $a -Encoding utf8 }"`,
-		psEscapeSingleQuotedPath(datadogYAML),
-		b64AppendOtel,
-	)
-	host.MustExecute(enableOtelPS)
+	host.MustExecute(psRemote(
+		`$dy='%s'; if (-not (Test-Path -LiteralPath $dy)) { exit 0 }; if (-not (Select-String -LiteralPath $dy -Pattern 'otelcollector:' -Quiet)) { $a=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('%s')); Add-Content -LiteralPath $dy -Value $a -Encoding utf8 }`,
+		datadogYAML, b64AppendOtel,
+	))
 
 	yamlPath := filepath.Join(installPath, "processes.d", "datadog-agent-ddot.yaml")
 	yamlBody := windowsDDOTProcmgrYAMLContent(installPath, configRoot, fleetPolicies)
 	b64 := base64.StdEncoding.EncodeToString([]byte(yamlBody))
-	writePS := fmt.Sprintf(
-		`powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $b=[Convert]::FromBase64String('%s'); [IO.File]::WriteAllBytes('%s', $b)"`,
-		b64,
-		psEscapeSingleQuotedPath(yamlPath),
-	)
-	if _, err := host.Execute(writePS); err != nil {
+	if _, err := host.Execute(psRemote(
+		`$ErrorActionPreference='Stop'; $b=[Convert]::FromBase64String('%s'); [IO.File]::WriteAllBytes('%s', $b)`,
+		b64, yamlPath,
+	)); err != nil {
 		s.T().Logf("windows ddot procmgr: write processes.d yaml failed: %v", err)
 		return
 	}
@@ -253,10 +291,6 @@ stderr: inherit
 `, windowsDDOTDescOriginalLine, exe, otelCfg, ddCfg, exe, fleet)
 }
 
-func psEscapeSingleQuotedPath(p string) string {
-	return strings.ReplaceAll(p, `'`, `''`)
-}
-
 func (s *procmgrWindowsSuite) requireDDOTWindows() {
 	s.T().Helper()
 	if !s.hasDDOT {
@@ -295,23 +329,17 @@ func (s *procmgrWindowsSuite) TestDDOTReloadAfterYamlChange() {
 	originalPID := s.waitWindowsDDOTRunning(90 * time.Second)
 
 	s.T().Cleanup(func() {
-		restorePS := fmt.Sprintf(
-			`powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)"`,
-			psEscapeSingleQuotedPath(yamlPath),
-			psEscapeSingleQuotedPath(windowsDDOTDescE2ELine),
-			psEscapeSingleQuotedPath(windowsDDOTDescOriginalLine),
-		)
-		_, _ = s.Env().RemoteHost.Execute(restorePS)
+		_, _ = s.Env().RemoteHost.Execute(psRemote(
+			`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
+			yamlPath, windowsDDOTDescE2ELine, windowsDDOTDescOriginalLine,
+		))
 		_, _ = s.Env().RemoteHost.Execute(s.platform.cliCmd("reload"))
 	})
 
-	applyPS := fmt.Sprintf(
-		`powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)"`,
-		psEscapeSingleQuotedPath(yamlPath),
-		psEscapeSingleQuotedPath(windowsDDOTDescOriginalLine),
-		psEscapeSingleQuotedPath(windowsDDOTDescE2ELine),
-	)
-	s.Env().RemoteHost.MustExecute(applyPS)
+	s.Env().RemoteHost.MustExecute(psRemote(
+		`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
+		yamlPath, windowsDDOTDescOriginalLine, windowsDDOTDescE2ELine,
+	))
 
 	reloadOut := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("reload"))
 	assert.Contains(s.T(), reloadOut, "datadog-agent-ddot", "reload output: %s", reloadOut)
@@ -353,48 +381,52 @@ func (s *procmgrWindowsSuite) trySetupWindowsADPForProcmgr() bool {
 		return false
 	}
 
-	adpExe := filepath.Join(installPath, "bin", "agent", "agent-data-plane.exe")
+	adpExe := joinWindowsPath(installPath, "bin", "agent", "agent-data-plane.exe")
 	if _, err := host.Execute(s.platform.checkBinCmd(adpExe)); err != nil {
 		s.T().Logf("windows adp procmgr: no agent-data-plane at %s", adpExe)
 		return false
 	}
 
-	yamlPath := filepath.Join(installPath, "processes.d", "datadog-agent-data-plane.yaml")
-	if _, err := host.Execute(s.platform.checkBinCmd(yamlPath)); err != nil {
-		fleetPolicies := filepath.Join(configRoot, "Installer", "managed", "datadog-agent", "stable")
-		mkdirPS := fmt.Sprintf(
-			`powershell -NoProfile -Command "New-Item -ItemType Directory -Force -LiteralPath '%s' | Out-Null"`,
-			psEscapeSingleQuotedPath(filepath.Dir(yamlPath)),
-		)
-		host.MustExecute(mkdirPS)
-		mkdirFleetPS := fmt.Sprintf(
-			`powershell -NoProfile -Command "New-Item -ItemType Directory -Force -LiteralPath '%s' | Out-Null"`,
-			psEscapeSingleQuotedPath(fleetPolicies),
-		)
-		host.MustExecute(mkdirFleetPS)
+	fleetPolicies := joinWindowsPath(configRoot, "Installer", "managed", "datadog-agent", "stable")
+	runDir := joinWindowsPath(configRoot, "run")
+	yamlPath := joinWindowsPath(installPath, "processes.d", "datadog-agent-data-plane.yaml")
+	host.MustExecute(ensureWindowsDirPS(joinWindowsPath(installPath, "processes.d")))
+	host.MustExecute(ensureWindowsDirPS(fleetPolicies))
+	host.MustExecute(ensureWindowsDirPS(runDir))
 
-		yamlBody := windowsADPProcmgrYAMLContent(installPath, configRoot, fleetPolicies)
-		b64 := base64.StdEncoding.EncodeToString([]byte(yamlBody))
-		writePS := fmt.Sprintf(
-			`powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $b=[Convert]::FromBase64String('%s'); [IO.File]::WriteAllBytes('%s', $b)"`,
-			b64,
-			psEscapeSingleQuotedPath(yamlPath),
-		)
-		if _, err := host.Execute(writePS); err != nil {
-			s.T().Logf("windows adp procmgr: write processes.d yaml failed: %v", err)
-			return false
-		}
+	yamlBody := windowsADPProcmgrYAMLContent(installPath, configRoot, fleetPolicies)
+	b64 := base64.StdEncoding.EncodeToString([]byte(yamlBody))
+	if _, err := host.Execute(psRemote(
+		`$ErrorActionPreference='Stop'; $b=[Convert]::FromBase64String('%s'); [IO.File]::WriteAllBytes('%s', $b)`,
+		b64, yamlPath,
+	)); err != nil {
+		s.T().Logf("windows adp procmgr: write processes.d yaml failed: %v", err)
+		return false
 	}
 
-	datadogYAML := filepath.Join(configRoot, "datadog.yaml")
+	datadogYAML := joinWindowsPath(configRoot, "datadog.yaml")
 	appendADP := "\nprocess_manager:\n  enabled: true\ndata_plane:\n  enabled: true\n"
 	b64AppendADP := base64.StdEncoding.EncodeToString([]byte(appendADP))
-	enableADPPS := fmt.Sprintf(
-		`powershell -NoProfile -Command "$dy='%s'; if (-not (Test-Path -LiteralPath $dy)) { exit 0 }; if (-not (Select-String -LiteralPath $dy -Pattern 'data_plane:' -Quiet)) { $a=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('%s')); Add-Content -LiteralPath $dy -Value $a -Encoding utf8 }"`,
-		psEscapeSingleQuotedPath(datadogYAML),
-		b64AppendADP,
-	)
-	host.MustExecute(enableADPPS)
+	host.MustExecute(psRemote(
+		`$dy='%s'; if (-not (Test-Path -LiteralPath $dy)) { exit 0 }; if (-not (Select-String -LiteralPath $dy -Pattern 'data_plane:' -Quiet)) { $a=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('%s')); Add-Content -LiteralPath $dy -Value $a -Encoding utf8 }`,
+		datadogYAML, b64AppendADP,
+	))
+	// ADP reads data_plane.enabled from the core Agent config stream, not only datadog.yaml.
+	host.MustExecute(psRemote(
+		`[Environment]::SetEnvironmentVariable('DD_PROCESS_MANAGER_ENABLED','true','Machine'); [Environment]::SetEnvironmentVariable('DD_DATA_PLANE_ENABLED','true','Machine')`,
+	))
+	if err := windowsCommon.RestartService(host, "DatadogAgent"); err != nil {
+		s.T().Logf("windows adp procmgr: restart DatadogAgent failed: %v", err)
+		return false
+	}
+	procmgrReady := assert.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := host.MustExecuteOn(ct, s.platform.checkSvcRunning)
+		assert.Equal(ct, s.platform.svcRunningOutput, strings.TrimSpace(out))
+	}, 90*time.Second, 2*time.Second)
+	if !procmgrReady {
+		s.T().Logf("windows adp procmgr: dd-procmgr-service not running after DatadogAgent restart")
+		return false
+	}
 
 	if _, err := host.Execute(s.platform.cliCmd("reload")); err != nil {
 		s.T().Logf("windows adp procmgr: initial reload failed: %v", err)
@@ -406,10 +438,50 @@ func (s *procmgrWindowsSuite) trySetupWindowsADPForProcmgr() bool {
 
 func windowsADPProcmgrYAMLContent(installPath, configRoot, fleetPolicies string) string {
 	config := embedded.ADPWindowsProcmgrConfig
-	config = strings.ReplaceAll(config, "__ADP_INSTALL_ROOT__", filepath.ToSlash(filepath.Clean(installPath)))
-	config = strings.ReplaceAll(config, "__ADP_ETC_ROOT__", filepath.ToSlash(filepath.Clean(configRoot)))
-	config = strings.ReplaceAll(config, "__ADP_FLEET_POLICIES_DIR__", filepath.ToSlash(filepath.Clean(fleetPolicies)))
+	config = strings.ReplaceAll(config, "__ADP_INSTALL_ROOT__", toWindowsSlashPath(installPath))
+	config = strings.ReplaceAll(config, "__ADP_ETC_ROOT__", toWindowsSlashPath(configRoot))
+	config = strings.ReplaceAll(config, "__ADP_FLEET_POLICIES_DIR__", toWindowsSlashPath(fleetPolicies))
 	return config
+}
+
+func (s *procmgrWindowsSuite) logWindowsADPDiagnostics() {
+	s.T().Helper()
+	host := s.Env().RemoteHost
+
+	describe, _ := host.Execute(s.platform.cliCmd("describe " + adpProcessName))
+	s.T().Logf("dd-procmgr describe %s:\n%s", adpProcessName, describe)
+
+	installPath, err := windowsagent.GetInstallPathFromRegistry(host)
+	if err != nil {
+		s.T().Logf("windows adp diagnostics: InstallPath registry: %v", err)
+		return
+	}
+	configRoot, err := windowsagent.GetConfigRootFromRegistry(host)
+	if err != nil {
+		s.T().Logf("windows adp diagnostics: ConfigRoot registry: %v", err)
+		return
+	}
+
+	agentExe := joinWindowsPath(installPath, "bin", "agent.exe")
+	for _, key := range []string{"data_plane.enabled", "process_manager.enabled"} {
+		out, err := host.Execute(fmt.Sprintf(`& "%s" config get %s -s`, agentExe, key))
+		if err != nil {
+			s.T().Logf("agent config get %s: %v", key, err)
+			continue
+		}
+		s.T().Logf("agent config get %s: %s", key, strings.TrimSpace(out))
+	}
+
+	adpLog := joinWindowsPath(configRoot, "logs", "agent-data-plane.log")
+	logTail, err := host.Execute(psRemote(
+		`$p='%s'; if (Test-Path -LiteralPath $p) { Get-Content -LiteralPath $p -Tail 80 } else { 'log file not found: ' + $p }`,
+		adpLog,
+	))
+	if err != nil {
+		s.T().Logf("agent-data-plane.log tail (%s): %v", adpLog, err)
+		return
+	}
+	s.T().Logf("agent-data-plane.log tail (%s):\n%s", adpLog, logTail)
 }
 
 func (s *procmgrWindowsSuite) requireADPWindows() {
@@ -455,13 +527,13 @@ func (s *procmgrWindowsSuite) TestADPProcessRunning() {
 
 	pid := s.waitWindowsADPRunning(90 * time.Second)
 
-	pidFile := filepath.Join(configRoot, "run", "agent-data-plane.pid")
+	pidFile := joinWindowsPath(configRoot, "run", "agent-data-plane.pid")
 	pidFileContent := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
-		fmt.Sprintf(`powershell -NoProfile -Command "(Get-Content -Raw -LiteralPath '%s').Trim()"`, psEscapeSingleQuotedPath(pidFile)),
+		psRemote(`(Get-Content -Raw -LiteralPath '%s').Trim()`, pidFile),
 	))
 	assert.Equal(s.T(), pid, pidFileContent, "PID file should match procmgrd-reported PID")
 
-	adpExe := filepath.Join(installPath, "bin", "agent", "agent-data-plane.exe")
+	adpExe := joinWindowsPath(installPath, "bin", "agent", "agent-data-plane.exe")
 	_, err = s.Env().RemoteHost.Execute(s.platform.checkBinCmd(adpExe))
 	assert.NoError(s.T(), err, "ADP binary should exist at %s", adpExe)
 }
@@ -488,17 +560,20 @@ func (s *procmgrWindowsSuite) TestADPProcessDescribe() {
 
 	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	require.NoError(s.T(), err)
-	expectedCmd := filepath.Join(installPath, "bin", "agent", "agent-data-plane.exe")
+	expectedCmd := joinWindowsPath(installPath, "bin", "agent", "agent-data-plane.exe")
 
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+	ok := assert.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe "+adpProcessName))
 		assertField(ct, out, "Name", adpProcessName)
 		assertField(ct, out, "State", "Running")
-		assert.Equal(ct, filepath.ToSlash(expectedCmd), filepath.ToSlash(fieldValue(out, "Command")))
+		assert.Equal(ct, expectedCmd, toWindowsSlashPath(fieldValue(out, "Command")))
 		assertField(ct, out, "Restart Policy", "on-failure")
 		assertHasField(ct, out, "PID")
 		assertHasField(ct, out, "UUID")
 	}, 90*time.Second, 2*time.Second)
+	if !ok {
+		s.logWindowsADPDiagnostics()
+	}
 }
 
 func (s *procmgrWindowsSuite) TestADPReloadAfterYamlChange() {
@@ -506,28 +581,22 @@ func (s *procmgrWindowsSuite) TestADPReloadAfterYamlChange() {
 
 	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	require.NoError(s.T(), err)
-	yamlPath := filepath.Join(installPath, "processes.d", "datadog-agent-data-plane.yaml")
+	yamlPath := joinWindowsPath(installPath, "processes.d", "datadog-agent-data-plane.yaml")
 
 	originalPID := s.waitWindowsADPRunning(90 * time.Second)
 
 	s.T().Cleanup(func() {
-		restorePS := fmt.Sprintf(
-			`powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)"`,
-			psEscapeSingleQuotedPath(yamlPath),
-			psEscapeSingleQuotedPath(windowsADPDescE2ELine),
-			psEscapeSingleQuotedPath(windowsADPDescOriginalLine),
-		)
-		_, _ = s.Env().RemoteHost.Execute(restorePS)
+		_, _ = s.Env().RemoteHost.Execute(psRemote(
+			`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
+			yamlPath, windowsADPDescE2ELine, windowsADPDescOriginalLine,
+		))
 		_, _ = s.Env().RemoteHost.Execute(s.platform.cliCmd("reload"))
 	})
 
-	applyPS := fmt.Sprintf(
-		`powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)"`,
-		psEscapeSingleQuotedPath(yamlPath),
-		psEscapeSingleQuotedPath(windowsADPDescOriginalLine),
-		psEscapeSingleQuotedPath(windowsADPDescE2ELine),
-	)
-	s.Env().RemoteHost.MustExecute(applyPS)
+	s.Env().RemoteHost.MustExecute(psRemote(
+		`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $c=$c.Replace('%s','%s'); $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
+		yamlPath, windowsADPDescOriginalLine, windowsADPDescE2ELine,
+	))
 
 	reloadOut := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("reload"))
 	assert.Contains(s.T(), reloadOut, adpProcessName, "reload output: %s", reloadOut)
