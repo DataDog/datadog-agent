@@ -52,7 +52,10 @@ go_test(
         "container_store_linux_test.go",
     ],
     embed = [":containers"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],  # keep
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/network",

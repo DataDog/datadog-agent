@@ -238,7 +238,12 @@ go_test(
         ],
         "//conditions:default": [],
     }),
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "functionaltests",
+        "linux_bpf",
+    ],  # keep
+    tags = ["manual"],  # keep
     deps = [
         "//pkg/security/secl/rules",
         "//pkg/util/log",
