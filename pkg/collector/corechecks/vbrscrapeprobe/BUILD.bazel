@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "vbrscrapeprobe",
+    srcs = ["vbrscrapeprobe.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/vbrscrapeprobe",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/prometheus",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
