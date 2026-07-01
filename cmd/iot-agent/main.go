@@ -12,11 +12,14 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	"github.com/DataDog/datadog-agent/cmd/iot-agent/subcommands"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func main() {
+	rssshrinker.ScheduleDefault()
+
 	// Set the flavor
 	flavor.SetFlavor(flavor.IotAgent)
 

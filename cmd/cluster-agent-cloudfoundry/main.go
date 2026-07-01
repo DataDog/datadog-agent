@@ -15,11 +15,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func main() {
+	rssshrinker.ScheduleDefault()
+
 	flavor.SetFlavor(flavor.ClusterAgent)
 
 	ClusterAgentCmd := command.MakeCommand(subcommands.ClusterAgentSubcommands())
