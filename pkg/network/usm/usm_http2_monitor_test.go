@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
@@ -73,7 +74,8 @@ var (
 
 type usmHTTP2Suite struct {
 	suite.Suite
-	isTLS bool
+	isTLS             bool
+	useDirectConsumer bool
 }
 
 func (s *usmHTTP2Suite) getCfg() *config.Config {
@@ -81,30 +83,50 @@ func (s *usmHTTP2Suite) getCfg() *config.Config {
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
+	cfg.HTTP2UseDirectConsumer = s.useDirectConsumer
 	return cfg
 }
 
 func TestHTTP2Scenarios(t *testing.T) {
 	skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
-		for _, tc := range []struct {
-			name  string
-			isTLS bool
+		for _, consumer := range []struct {
+			name              string
+			useDirectConsumer bool
 		}{
 			{
-				name:  "without TLS",
-				isTLS: false,
+				name:              "batch consumer",
+				useDirectConsumer: false,
 			},
 			{
-				name:  "with TLS",
-				isTLS: true,
+				name:              "direct consumer",
+				useDirectConsumer: true,
 			},
 		} {
-			t.Run(tc.name, func(t *testing.T) {
-				if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
-					t.Skip("GoTLS not supported for this setup")
+			t.Run(consumer.name, func(t *testing.T) {
+				if consumer.useDirectConsumer && !events.SupportsDirectConsumer() {
+					t.Skip("Direct consumer requires kernel >= 5.8.0")
 				}
-				suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
+				for _, tc := range []struct {
+					name  string
+					isTLS bool
+				}{
+					{
+						name:  "without TLS",
+						isTLS: false,
+					},
+					{
+						name:  "with TLS",
+						isTLS: true,
+					},
+				} {
+					t.Run(tc.name, func(t *testing.T) {
+						if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+							t.Skip("GoTLS not supported for this setup")
+						}
+						suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS, useDirectConsumer: consumer.useDirectConsumer})
+					})
+				}
 			})
 		}
 	})
