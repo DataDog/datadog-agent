@@ -32,9 +32,7 @@ ENV_PASSHTROUGH = {
     'GEM_PATH': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'HOME': 'Home directory might be used by invoked programs such as git',
     'INSTALL_DIR': 'Used by Omnibus to determine the target install directory when building the package',
-    'INTEGRATION_WHEELS_CACHE_BUCKET': 'Bucket where integration wheels are cached',
     'INTEGRATIONS_WHEELS_STORAGE': 'Storage tier ("dev" or "stable") for integration dependency wheels, expanded by pip in lockfiles',
-    'INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD': 'Setting that skips uploading integration wheels to cache',
     'MY_RUBY_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'OMNIBUS_FORCE_PACKAGES': 'Force Omnibus to build actual packages',
     'OMNIBUS_GIT_CACHE_DIR': 'Local directory used by Omnibus for the local git cache',
@@ -134,7 +132,6 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'GOPRIVATE',
         'GOPROXY',
         'HOME',
-        'INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD',
         'JARSIGN_JAR',
         'KEYCHAIN_NAME',
         'KEYCHAIN_PWD',
@@ -202,7 +199,7 @@ def _hash_paths(hasher, paths: list[str]):
 
 def get_dd_api_key(ctx):
     if sys.platform == 'win32':
-        cmd = f'aws.exe ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
+        cmd = f'C:\\devtools\\ci-identities-gitlab-job-client.exe secrets read {os.environ["AGENT_API_KEY_ORG2"]} token'
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:

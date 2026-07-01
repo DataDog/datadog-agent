@@ -40,15 +40,7 @@ func TestOOMKill(t *testing.T) {
 	conf.WatchdogInterval = time.Millisecond
 	conf.MaxMemory = 0.1 * 1000 * 1000 // 100KB
 	conf.ReceiverPort = port
-	// Match the production default (apm_config.max_connections = 1000).
-	// Without this, config.New() leaves MaxConnections=0 which the listener
-	// converts to 1, serialising all 50 connections. With Go 1.27's new
-	// maybeDrainBody logic in net/http's readLoop, the shared DefaultTransport
-	// recycles connections into the idle pool after a 50ms drain attempt. The
-	// next goroutine then reuses that connection, but the server (capped at 1
-	// concurrent connection) has already moved on to a new socket, so writes
-	// on the recycled connection never get drained and the test deadlocks.
-	conf.MaxConnections = 1000
+	conf.MaxConnections = 1000 // default value of apm_config.max_connections
 
 	r := newTestReceiverFromConfig(conf)
 	r.Start()

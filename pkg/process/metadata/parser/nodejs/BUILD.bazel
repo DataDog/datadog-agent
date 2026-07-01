@@ -1,6 +1,12 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+filegroup(
+    name = "nodejs_testdata",
+    srcs = glob(["testdata/**"]),
+    visibility = ["//visibility:public"],
+)
+
 go_library(
     name = "nodejs",
     srcs = ["nodejs.go"],
