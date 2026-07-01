@@ -42,11 +42,17 @@ build do
   end
 
   if linux_target?
+    # Next steps:
+    # - Add //cmd/installer:installer to the deps in //packages/agent/iot
+    # - Drop the invoke here
+    # - Drop the copy bin/agent -> install_dir/bin
     command "invoke agent.build --flavor iot --no-development", env: env, :live_stream => Omnibus.logger.live_stream(:info)
 
-    # Installs: bin/ and run/ dirs, and the agent binary.
+    # Installs: bin/ and run/ dirs
     command "bazel run --//packages/agent:flavor=iot --//:install_dir='#{install_dir}' -- " \
             "//packages/agent/iot:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
+    copy 'bin/agent', "#{install_dir}/bin/"
+
     # Installs: example yaml
     command "bazel run --//packages/agent:flavor=iot --//:install_dir='#{install_dir}' -- " \
             "//packages/agent/iot:install_example_config --destdir=/", :live_stream => Omnibus.logger.live_stream(:info)
