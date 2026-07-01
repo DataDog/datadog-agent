@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
@@ -13,6 +13,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/tagger/def",
         "//comp/def",
+        "//comp/dogstatsd/statsd/def",
         "//comp/forwarder/eventplatform/def",
         "//comp/networkpath/traceroute/def",
         "//comp/privateactionrunner/def",
@@ -31,5 +32,18 @@ go_library(
         "//pkg/privateactionrunner/util",
         "//pkg/util/http",
         "@//pkg/privateactionrunner/autoconnections",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["privateactionrunner_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
