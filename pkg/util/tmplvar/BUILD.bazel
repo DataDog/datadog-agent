@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "tmplvar",
@@ -17,14 +18,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "tmplvar_test",
     srcs = [
         "parse_test.go",
         "resolver_test.go",
     ],
     embed = [":tmplvar"],
-    gotags = ["test"],
     deps = [
         "//comp/core/workloadmeta/def",
         "@com_github_stretchr_testify//assert",
