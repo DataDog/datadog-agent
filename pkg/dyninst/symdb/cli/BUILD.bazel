@@ -22,6 +22,11 @@ go_library(
 go_binary(
     name = "cli",
     embed = [":cli_lib"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],  # keep
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
 )
 

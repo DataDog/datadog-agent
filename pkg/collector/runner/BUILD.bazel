@@ -16,12 +16,12 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
+        "//pkg/collector/python",
         "//pkg/collector/runner/tracker",
         "//pkg/collector/scheduler",
         "//pkg/collector/worker",
         "//pkg/config/setup",
         "//pkg/util/log",
-        "@//pkg/collector/python",
         "@org_uber_go_atomic//:atomic",
     ],
 )

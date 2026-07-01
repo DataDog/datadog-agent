@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "viperconfig",
@@ -19,11 +20,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "viperconfig_test",
     srcs = ["viper_test.go"],
     embed = [":viperconfig"],
-    gotags = ["test"],
     deps = [
         "//pkg/config/model",
         "@com_github_stretchr_testify//assert",

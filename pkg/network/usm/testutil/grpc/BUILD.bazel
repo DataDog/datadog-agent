@@ -8,6 +8,7 @@ go_library(
         "server.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc",
+    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/network/protocols/http/testutil",

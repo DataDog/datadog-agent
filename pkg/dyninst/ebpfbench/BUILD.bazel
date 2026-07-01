@@ -22,5 +22,7 @@ go_library(
 go_binary(
     name = "ebpfbench",
     embed = [":ebpfbench_lib"],
+    gotags = ["linux_bpf"],
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
