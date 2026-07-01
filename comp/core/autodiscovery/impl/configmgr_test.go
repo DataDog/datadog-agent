@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -695,11 +695,11 @@ func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 
 	count, issues := hp.GetAllIssues()
 	assert.Equal(t, 1, count, "expected 1 health issue to be reported")
-	expectedIssueID := "ad-template:postgres:docker://abc123:" + tpl.Digest()
+	expectedIssueID := admisconfig.TemplateIssueID + ":postgres:docker://abc123:" + tpl.Digest()
 	issue := issues[expectedIssueID]
 	require.NotNil(t, issue, "expected health issue at issue id %s", expectedIssueID)
 	assert.Equal(t, expectedIssueID, issue.Id)
-	assert.Equal(t, storedef.ADMisconfigurationSource, issue.Source)
+	assert.Equal(t, admisconfig.Source, issue.Source)
 }
 
 func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
@@ -722,9 +722,9 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 
 	// Pre-populate a health issue using the same IssueId format the code uses.
 	hp.ReportIssue(&healthplatformpayload.Issue{
-		Id:        "ad-template:redis:docker://def456:" + tpl.Digest(),
-		IssueName: storedef.ADMisconfigurationIssueName,
-		Source:    storedef.ADMisconfigurationSource,
+		Id:        admisconfig.TemplateIssueID + ":redis:docker://def456:" + tpl.Digest(),
+		IssueName: admisconfig.TemplateIssueName,
+		Source:    admisconfig.Source,
 	})
 	count, _ := hp.GetAllIssues()
 	require.Equal(t, 1, count)
