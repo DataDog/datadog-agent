@@ -7,10 +7,9 @@
 
 package daemon
 
-import "runtime/debug"
+import "github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 
-// releaseMemory releases memory to the OS
+// releaseMemory releases memory to the OS.
 func releaseMemory() {
-	// Release the memory garbage collected by the Go runtime to OS
-	debug.FreeOSMemory()
+	rssshrinker.Shrink()
 }
