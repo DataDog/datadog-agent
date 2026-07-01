@@ -411,6 +411,68 @@ func TestOtelSpanToDDSpanDBNameMapping(t *testing.T) {
 	}
 }
 
+// TestOtelSpanToDDSpanTraceStatePreservation verifies that the raw W3C
+// tracestate is preserved on the DD span's Meta for both the minimal and full
+// conversions. The minimal conversion feeds the APM stats Concentrator, which
+// relies on this value to recover head-sampling probability.
+func TestOtelSpanToDDSpanTraceStatePreservation(t *testing.T) {
+	tests := []struct {
+		name       string
+		tracestate string
+		expectKey  bool
+	}{
+		{
+			name:       "tracestate present",
+			tracestate: "ot=th:8",
+			expectKey:  true,
+		},
+		{
+			name:       "tracestate present with multiple members",
+			tracestate: "ot=th:8;rv:abcdefabcdefab,foo=bar",
+			expectKey:  true,
+		},
+		{
+			name:       "empty tracestate omits key",
+			tracestate: "",
+			expectKey:  false,
+		},
+	}
+
+	newCfg := func() *config.AgentConfig {
+		cfg := &config.AgentConfig{}
+		cfg.OTLPReceiver = &config.OTLP{}
+		cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		return cfg
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			newSpan := func() ptrace.Span {
+				span := ptrace.NewSpan()
+				span.SetName("test-span")
+				span.TraceState().FromRaw(tt.tracestate)
+				return span
+			}
+
+			// Minimal conversion (APM stats path).
+			minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil)
+			// Full conversion.
+			fullSpan := OtelSpanToDDSpan(newSpan(), pcommon.NewResource(), lib, newCfg())
+
+			if tt.expectKey {
+				assert.Equal(t, tt.tracestate, minSpan.Meta["w3c.tracestate"])
+				assert.Equal(t, tt.tracestate, fullSpan.Meta["w3c.tracestate"])
+			} else {
+				assert.NotContains(t, minSpan.Meta, "w3c.tracestate")
+				assert.NotContains(t, fullSpan.Meta, "w3c.tracestate")
+			}
+		})
+	}
+}
+
 // TestGetOTelEnv_SemconvVersionPrecedence tests environment extraction with multiple semconv versions.
 // Semconv 1.27+ uses deployment.environment.name, 1.17+ uses deployment.environment.
 func TestGetOTelEnv_SemconvVersionPrecedence(t *testing.T) {
