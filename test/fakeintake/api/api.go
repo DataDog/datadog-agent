@@ -31,6 +31,12 @@ type ParsedPayload struct {
 //nolint:revive // TODO(APL) Fix revive linter
 type APIFakeIntakePayloadsRawGETResponse struct {
 	Payloads []Payload `json:"payloads"`
+	// Cursor is the total number of payloads ever appended to the requested
+	// endpoint. Clients doing incremental fetches send this value back as the
+	// `cursor` query param on the next request to receive only new payloads.
+	// Omitted (zero) when the server does not support cursor-based fetching
+	// or when no cursor query param was sent, so old clients are unaffected.
+	Cursor int `json:"cursor,omitempty"`
 }
 
 //nolint:revive // TODO(APL) Fix revive linter

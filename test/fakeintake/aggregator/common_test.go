@@ -5,7 +5,10 @@
 package aggregator
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"os"
 	"runtime"
 	"sync"
 	"testing"
@@ -164,5 +167,89 @@ func TestCommonAggregator(t *testing.T) {
 			}
 		}()
 		wg.Wait()
+	})
+
+	t.Run("UnmarshallPayloads merges instead of replacing", func(t *testing.T) {
+		// First batch: totoro and porco rosso
+		data1, err := generateTestData()
+		require.NoError(t, err)
+
+		agg := newAggregator(parseMockPayloadItem)
+		err = agg.UnmarshallPayloads(data1)
+		require.NoError(t, err)
+
+		// Should have 2 names
+		assert.ElementsMatch(t, []string{"totoro", "porco rosso"}, agg.GetNames())
+		assert.Len(t, agg.GetPayloadsByName("totoro"), 1)
+
+		// Second batch: a new totoro payload (disjoint from the first)
+		items2 := []*mockPayloadItem{
+			{Name: "totoro", Tags: []string{"age:999"}},
+			{Name: "ponyo", Tags: []string{"age:5"}},
+		}
+		jsonData2, err := json.Marshal(items2)
+		require.NoError(t, err)
+		data2 := []api.Payload{{Data: jsonData2, Timestamp: time.Now()}}
+
+		err = agg.UnmarshallPayloads(data2)
+		require.NoError(t, err)
+
+		// After merge: 3 names (totoro, porco rosso, ponyo)
+		assert.ElementsMatch(t, []string{"totoro", "porco rosso", "ponyo"}, agg.GetNames())
+
+		// totoro should have 2 payloads (one from each batch)
+		totoroPayloads := agg.GetPayloadsByName("totoro")
+		assert.Len(t, totoroPayloads, 2)
+
+		// porco rosso should still have 1 payload (from the first batch only)
+		assert.Len(t, agg.GetPayloadsByName("porco rosso"), 1)
+
+		// ponyo should have 1 payload (from the second batch)
+		assert.Len(t, agg.GetPayloadsByName("ponyo"), 1)
+	})
+
+	t.Run("Reset clears merged state", func(t *testing.T) {
+		data, err := generateTestData()
+		require.NoError(t, err)
+
+		agg := newAggregator(parseMockPayloadItem)
+		err = agg.UnmarshallPayloads(data)
+		require.NoError(t, err)
+		assert.NotEmpty(t, agg.GetNames())
+
+		agg.Reset()
+		assert.Empty(t, agg.GetNames())
+
+		// After reset, new payloads start fresh (not merged with old)
+		err = agg.UnmarshallPayloads(data)
+		require.NoError(t, err)
+		assert.Len(t, agg.GetPayloadsByName("totoro"), 1)
+	})
+
+	t.Run("UnmarshallPayloads does not print debug output to stdout", func(t *testing.T) {
+		data, err := generateTestData()
+		require.NoError(t, err)
+
+		agg := newAggregator(parseMockPayloadItem)
+
+		// Capture stdout during UnmarshallPayloads
+		oldStdout := os.Stdout
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		err = agg.UnmarshallPayloads(data)
+		w.Close()
+		os.Stdout = oldStdout
+
+		require.NoError(t, err)
+
+		var buf bytes.Buffer
+		io.Copy(&buf, r)
+		output := buf.String()
+
+		// The old code had a bare fmt.Print(reflect.TypeOf(agg).Name()) that printed
+		// the aggregator type name to stdout on every call. Verify it's gone.
+		assert.Empty(t, output, "UnmarshallPayloads should not print anything to stdout")
 	})
 }
