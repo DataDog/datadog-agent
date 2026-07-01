@@ -48,7 +48,11 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction DecompressPythonDistributions { get; }
 
-        public ManagedAction CleanupOnRollback { get; }
+        public ManagedAction RemoveFleetProcmgrConfigOnRollback { get; }
+
+        public ManagedAction RemoveGeneratedArtifactsOnRollback { get; }
+
+        public ManagedAction RemoveEmptyInstallDirOnRollback { get; }
 
         public ManagedAction CleanupOnUninstall { get; }
 
@@ -206,7 +210,7 @@ namespace WixSetup.Datadog_Agent
 
             EnsureGeneratedFilesRemoved = new CustomAction<CustomActions>(
                 new Id(nameof(EnsureGeneratedFilesRemoved)),
-                CustomActions.CleanupFiles,
+                CustomActions.RemoveGeneratedArtifacts,
                 Return.check,
                 When.Before,
                 Step.InstallFiles,
@@ -258,12 +262,11 @@ namespace WixSetup.Datadog_Agent
                     "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]")
                 .HideTarget(true);
 
-            // Cleanup leftover files on rollback
-            // must be before the DecompressPythonDistributions custom action.
-            // That way, if DecompressPythonDistributions fails, this will get executed.
-            CleanupOnRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(CleanupOnRollback)),
-                    CustomActions.CleanupFiles,
+            // Cleanup leftover files on rollback. Must be before DecompressPythonDistributions so a
+            // decompression failure still runs these rollback actions.
+            RemoveFleetProcmgrConfigOnRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveFleetProcmgrConfigOnRollback)),
+                    CustomActions.RemoveFleetProcmgrConfigOnRollback,
                     Return.check,
                     When.After,
                     new Step(WriteConfig.Id),
@@ -274,17 +277,45 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties(
-                    "ROLLBACK=1, " +
                     "INSTALLED=[Installed], " +
                     "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                    "PROJECTLOCATION=[PROJECTLOCATION]");
+
+            RemoveGeneratedArtifactsOnRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveGeneratedArtifactsOnRollback)),
+                    CustomActions.RemoveGeneratedArtifactsOnRollback,
+                    Return.check,
+                    When.After,
+                    new Step(RemoveFleetProcmgrConfigOnRollback.Id),
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RemoveEmptyInstallDirOnRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveEmptyInstallDirOnRollback)),
+                    CustomActions.RemoveEmptyInstallDirOnRollback,
+                    Return.check,
+                    When.After,
+                    new Step(RemoveGeneratedArtifactsOnRollback.Id),
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             DecompressPythonDistributions = new CustomAction<CustomActions>(
                     new Id(nameof(DecompressPythonDistributions)),
                     CustomActions.DecompressPythonDistributions,
                     Return.check,
                     When.After,
-                    new Step(CleanupOnRollback.Id),
+                    new Step(RemoveEmptyInstallDirOnRollback.Id),
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
             {
@@ -359,7 +390,7 @@ namespace WixSetup.Datadog_Agent
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnUninstall)),
-                    CustomActions.CleanupFiles,
+                    CustomActions.RemoveGeneratedArtifacts,
                     Return.check,
                     When.Before,
                     Step.RemoveFiles,
@@ -387,7 +418,7 @@ namespace WixSetup.Datadog_Agent
 
             CleanupInstallDirAfterUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupInstallDirAfterUninstall)),
-                    CustomActions.CleanupFiles,
+                    CustomActions.RemoveEmptyInstallDirAfterUninstall,
                     Return.check,
                     When.After,
                     Step.RemoveFiles,
@@ -397,7 +428,7 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             }
-                .SetProperties("CLEANUP_TAIL=1, PROJECTLOCATION=[PROJECTLOCATION]");
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             RunPreRemovePythonScript = new CustomAction<CustomActions>(
                     new Id(nameof(RunPreRemovePythonScript)),

@@ -90,9 +90,33 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult CleanupFiles(Session session)
+        public static ActionResult RemoveGeneratedArtifacts(Session session)
         {
-            return Datadog.CustomActions.CleanUpFilesCustomAction.CleanupFiles(session);
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveGeneratedArtifacts(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveFleetProcmgrConfigOnRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveFleetProcmgrConfigOnRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveGeneratedArtifactsOnRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveGeneratedArtifactsOnRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirOnRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirAfterUninstall(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirAfterUninstall(session);
         }
 
         [CustomAction]

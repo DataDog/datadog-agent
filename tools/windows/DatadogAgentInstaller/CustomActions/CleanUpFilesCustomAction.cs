@@ -12,28 +12,95 @@ namespace Datadog.CustomActions
         private const string AdpProcmgrConfigFileName = "datadog-agent-data-plane.yaml";
         private const string DdotProcmgrConfigFileName = "datadog-agent-ddot.yaml";
 
-        private static ActionResult CleanupFiles(ISession session)
+        /// <summary>
+        /// Removes generated install artifacts (embedded2/embedded3, python-scripts, session-generated paths).
+        /// Used before InstallFiles and during uninstall.
+        /// </summary>
+        public static ActionResult RemoveGeneratedArtifacts(Session session)
         {
-            var projectLocation = session.Property("PROJECTLOCATION");
+            return RemoveGeneratedArtifacts(new SessionWrapper(session));
+        }
 
-            // Post-RemoveFiles tail: drop empty processes.d and empty install root after MSI components
-            // are gone (fleet prerm already removed processes.d YAML on full uninstall).
-            if (session.Property("CLEANUP_TAIL") == "1")
+        /// <summary>
+        /// Rollback-only: remove fleet-written processes.d YAML that MSI does not track.
+        /// Skips upgrade and maintenance rollbacks so existing DDOT/ADP configs are preserved.
+        /// </summary>
+        public static ActionResult RemoveFleetProcmgrConfigOnRollback(Session session)
+        {
+            return RemoveFleetProcmgrConfigOnRollback(new SessionWrapper(session));
+        }
+
+        /// <summary>
+        /// Rollback-only: remove generated install artifacts after a failed install.
+        /// </summary>
+        public static ActionResult RemoveGeneratedArtifactsOnRollback(Session session)
+        {
+            return RemoveGeneratedArtifactsOnRollback(new SessionWrapper(session));
+        }
+
+        /// <summary>
+        /// Rollback-only: drop an otherwise-empty install root left by a failed fresh install.
+        /// </summary>
+        public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
+        {
+            return RemoveEmptyInstallDirOnRollback(new SessionWrapper(session));
+        }
+
+        /// <summary>
+        /// Uninstall tail: drop empty processes.d and empty install root after MSI components are removed.
+        /// Fleet prerm already removed processes.d YAML on full uninstall.
+        /// </summary>
+        public static ActionResult RemoveEmptyInstallDirAfterUninstall(Session session)
+        {
+            return RemoveEmptyInstallDirAfterUninstall(new SessionWrapper(session));
+        }
+
+        private static ActionResult RemoveGeneratedArtifacts(ISession session)
+        {
+            RemoveGeneratedArtifactPaths(session, session.Property("PROJECTLOCATION"));
+            return ActionResult.Success;
+        }
+
+        private static ActionResult RemoveFleetProcmgrConfigOnRollback(ISession session)
+        {
+            if (!IsFreshInstallRollback(session))
             {
-                TryRemoveEmptyInstallDir(session, projectLocation);
+                session.Log("Skipping fleet process manager config cleanup (not a fresh-install rollback).");
                 return ActionResult.Success;
             }
 
-            // Fresh-install rollback only: fleet postinst may have written processes.d YAML that MSI
-            // does not track. Upgrade rollback passes UPGRADINGPRODUCTCODE; repair/change (maintenance)
-            // rollbacks have Installed set because the Agent was already on the machine.
-            if (session.Property("ROLLBACK") == "1"
-                && string.IsNullOrEmpty(session.Property("UPGRADINGPRODUCTCODE"))
-                && string.IsNullOrEmpty(session.Property("INSTALLED")))
-            {
-                TryRemoveFleetProcmgrConfigFiles(session, projectLocation);
-            }
+            TryRemoveFleetProcmgrConfigFiles(session, session.Property("PROJECTLOCATION"));
+            return ActionResult.Success;
+        }
 
+        private static ActionResult RemoveGeneratedArtifactsOnRollback(ISession session)
+        {
+            RemoveGeneratedArtifactPaths(session, session.Property("PROJECTLOCATION"));
+            return ActionResult.Success;
+        }
+
+        private static ActionResult RemoveEmptyInstallDirOnRollback(ISession session)
+        {
+            TryRemoveEmptyInstallDir(session, session.Property("PROJECTLOCATION"));
+            return ActionResult.Success;
+        }
+
+        private static ActionResult RemoveEmptyInstallDirAfterUninstall(ISession session)
+        {
+            TryRemoveEmptyInstallDir(session, session.Property("PROJECTLOCATION"));
+            return ActionResult.Success;
+        }
+
+        private static bool IsFreshInstallRollback(ISession session)
+        {
+            // Upgrade rollback passes UPGRADINGPRODUCTCODE; repair/change (maintenance) rollbacks
+            // have Installed set because the Agent was already on the machine.
+            return string.IsNullOrEmpty(session.Property("UPGRADINGPRODUCTCODE"))
+                && string.IsNullOrEmpty(session.Property("INSTALLED"));
+        }
+
+        private static void RemoveGeneratedArtifactPaths(ISession session, string projectLocation)
+        {
             var toDelete = new[]
             {
                 // may contain python files created outside of install
@@ -70,13 +137,6 @@ namespace Datadog.CustomActions
                     // we may brick the installation.
                 }
             }
-
-            if (session.Property("ROLLBACK") == "1")
-            {
-                TryRemoveEmptyInstallDir(session, projectLocation);
-            }
-
-            return ActionResult.Success;
         }
 
         private static void TryRemoveFleetProcmgrConfigFiles(ISession session, string projectLocation)
@@ -142,11 +202,6 @@ namespace Datadog.CustomActions
             {
                 session.Log($"Error while deleting empty install directory: {e}");
             }
-        }
-
-        public static ActionResult CleanupFiles(Session session)
-        {
-            return CleanupFiles(new SessionWrapper(session));
         }
     }
 }
