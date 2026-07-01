@@ -25,6 +25,7 @@ observer-ablation-ddeval:
     OBSERVER_ABLATION_DDEVAL_MAX_ATTEMPTS: "1"
     OBSERVER_ABLATION_DDEVAL_WHERE_IN: ""
     OBSERVER_ABLATION_DD_SITE: "datadoghq.com"
+    OBSERVER_ABLATION_TOOLS_DIR: "$CI_PROJECT_DIR/.observer-ablation-tools"
     OBSERVER_ABLATION_ATLAS_VERSION: "v2.29.0"
     OBSERVER_ABLATION_ATLAS_TARBALL: "https://binaries.ddbuild.io/dd-source/atlas/$OBSERVER_ABLATION_ATLAS_VERSION/atlas-tar.tar.gz"
     DDEVAL_PACKAGE_SPEC: "https://binaries.ddbuild.io/dd-source/python/ddeval-0.0.120641177-py3-none-any.whl"
@@ -34,19 +35,19 @@ observer-ablation-ddeval:
     - DD_APP_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token)" || exit $?; export DD_APP_KEY
     - export DD_SITE="$OBSERVER_ABLATION_DD_SITE"
     - python3 -m pip install "$DDEVAL_PACKAGE_SPEC" optuna
-    - mkdir -p "$OBSERVER_ABLATION_OUTPUT_DIR/bin"
-    - curl --fail --location --show-error "$OBSERVER_ABLATION_ATLAS_TARBALL" | tar -xz -C "$OBSERVER_ABLATION_OUTPUT_DIR/bin" atlas-linux-amd64
-    - mv "$OBSERVER_ABLATION_OUTPUT_DIR/bin/atlas-linux-amd64" "$OBSERVER_ABLATION_OUTPUT_DIR/bin/atlas"
-    - chmod +x "$OBSERVER_ABLATION_OUTPUT_DIR/bin/atlas"
+    - mkdir -p "$OBSERVER_ABLATION_TOOLS_DIR/bin"
+    - curl --fail --location --show-error "$OBSERVER_ABLATION_ATLAS_TARBALL" | tar -xz -C "$OBSERVER_ABLATION_TOOLS_DIR/bin" atlas-linux-amd64
+    - mv "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas-linux-amd64" "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas"
+    - chmod +x "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas"
     - |
-      cat > "$OBSERVER_ABLATION_OUTPUT_DIR/bin/ddeval-with-atlas" <<'EOF'
+      cat > "$OBSERVER_ABLATION_TOOLS_DIR/bin/ddeval-with-atlas" <<'EOF'
       #!/usr/bin/env bash
       set -euo pipefail
       export PATH="$(dirname "$0"):$PATH"
       exec ddeval "$@"
       EOF
-      chmod +x "$OBSERVER_ABLATION_OUTPUT_DIR/bin/ddeval-with-atlas"
-    - export PATH="$OBSERVER_ABLATION_OUTPUT_DIR/bin:$PATH"
+      chmod +x "$OBSERVER_ABLATION_TOOLS_DIR/bin/ddeval-with-atlas"
+    - export PATH="$OBSERVER_ABLATION_TOOLS_DIR/bin:$PATH"
     - atlas --help
     - ddeval --help
     - |
@@ -61,7 +62,7 @@ observer-ablation-ddeval:
       fi
       dda inv --dep optuna anomalydetection.eval-pipeline \
         --eval-backend ddeval \
-        --ddeval-command "$OBSERVER_ABLATION_OUTPUT_DIR/bin/ddeval-with-atlas" \
+        --ddeval-command "$OBSERVER_ABLATION_TOOLS_DIR/bin/ddeval-with-atlas" \
         --n-combos "$OBSERVER_ABLATION_N_COMBOS" \
         --n-trials-search "$OBSERVER_ABLATION_N_TRIALS_SEARCH" \
         --n-trials-tune "$OBSERVER_ABLATION_N_TRIALS_TUNE" \
