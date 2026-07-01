@@ -51,6 +51,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func newComponent(reqs Requires) (*networkDeviceConfigImpl, error) {
+	ncmConfig, err := newConfig(reqs.Config)
+	if err != nil {
+		return nil, err
+	}
+
 	rollbackEnabled := reqs.Config.GetBool("network_devices.config_management.rollback.enabled")
 	hostname, err := reqs.HostnameService.Get(context.Background())
 	if err != nil {
@@ -75,6 +80,11 @@ func newComponent(reqs Requires) (*networkDeviceConfigImpl, error) {
 			reqs.Logger.Errorf("ncm: running in no-rollback mode - configs will be not saved locally for rollback")
 		} else {
 			reqs.Logger.Debugf("ncm: config rollback enabled; local db is %v", dbPath)
+			store.UpdateStoreConfig(
+				ncmConfig.Rollback.Store.MinConfigsPerDevice,
+				ncmConfig.Rollback.Store.MaxConfigsPerDevice,
+				ncmConfig.Rollback.Store.MaxRawConfigStoreBytes,
+			)
 			reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
 		}
 	}

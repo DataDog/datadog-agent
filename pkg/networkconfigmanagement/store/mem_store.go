@@ -24,6 +24,10 @@ type memConfigStore struct {
 	metadata   map[string]types.ConfigMetadata
 	clock      clock.Clock
 	uuidGen    func() string
+
+	minConfigsPerDevice    int
+	maxConfigsPerDevice    int
+	maxRawConfigStoreBytes int64
 }
 
 var _ ConfigStore = (*memConfigStore)(nil)
@@ -46,10 +50,13 @@ func WithUUIDGenerator(gen func() string) MemStoreOption {
 // NewMemStore creates a ConfigStore backed by in-memory maps (for use in tests).
 func NewMemStore(opts ...MemStoreOption) ConfigStore {
 	m := &memConfigStore{
-		rawConfigs: make(map[string]string),
-		metadata:   make(map[string]types.ConfigMetadata),
-		clock:      clock.New(),
-		uuidGen:    func() string { return uuid.New().String() },
+		rawConfigs:             make(map[string]string),
+		metadata:               make(map[string]types.ConfigMetadata),
+		clock:                  clock.New(),
+		uuidGen:                func() string { return uuid.New().String() },
+		minConfigsPerDevice:    defaultMinConfigsPerDevice,
+		maxConfigsPerDevice:    defaultMaxConfigsPerDevice,
+		maxRawConfigStoreBytes: defaultMaxRawConfigStoreBytes,
 	}
 	for _, o := range opts {
 		o(m)
@@ -114,6 +121,18 @@ func (m *memConfigStore) CheckDuplicate(deviceID string, configType types.Config
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.findLatestMatch(deviceID, configType, rawHash), nil
+}
+
+// UpdateStoreConfig validates and applies new eviction-policy knobs
+func (m *memConfigStore) UpdateStoreConfig(minConfigsPerDevice, maxConfigsPerDevice int, maxRawConfigStoreBytes int64) {
+	minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes = validateStoreConfigValues(minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes)
+
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	m.minConfigsPerDevice = minConfigsPerDevice
+	m.maxConfigsPerDevice = maxConfigsPerDevice
+	m.maxRawConfigStoreBytes = maxRawConfigStoreBytes
 }
 
 // GetConfig retrieves all data for a config by UUID.
