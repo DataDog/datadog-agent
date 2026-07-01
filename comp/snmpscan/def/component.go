@@ -25,6 +25,16 @@ type Component interface {
 	ScanDeviceAndSendData(ctx context.Context, connParams *snmpparse.SNMPConfig, namespace string, scanParams ScanParams) error
 }
 
+// ScanMethod selects the SNMP walk method used for a device scan.
+type ScanMethod string
+
+const (
+	// ScanMethodGetBulk walks the device using SNMP GetBulk requests.
+	ScanMethodGetBulk ScanMethod = "getbulk"
+	// ScanMethodGetNext walks the device using SNMP GetNext requests.
+	ScanMethodGetNext ScanMethod = "getnext"
+)
+
 // ScanParams contains options for a device scan
 type ScanParams struct {
 	ScanType metadata.ScanType
@@ -36,4 +46,13 @@ type ScanParams struct {
 	// MaxCallCount limits the total number of SNMP calls in a scan.
 	// A value of 0 means there is no limit.
 	MaxCallCount int
+
+	// ScanMethod selects the SNMP walk method. The zero value defaults to
+	// GetBulk; GetBulk is automatically downgraded to GetNext for SNMPv1
+	// devices, which do not support GetBulk.
+	ScanMethod ScanMethod
+
+	// BulkMaxRepetitions sets the max-repetitions value for GetBulk requests.
+	// A value of 0 uses the default. It has no effect when walking with GetNext.
+	BulkMaxRepetitions uint32
 }
