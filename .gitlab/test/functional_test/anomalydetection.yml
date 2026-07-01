@@ -38,6 +38,14 @@ observer-ablation-ddeval:
     - curl --fail --location --show-error "$OBSERVER_ABLATION_ATLAS_TARBALL" | tar -xz -C "$OBSERVER_ABLATION_OUTPUT_DIR/bin" atlas-linux-amd64
     - mv "$OBSERVER_ABLATION_OUTPUT_DIR/bin/atlas-linux-amd64" "$OBSERVER_ABLATION_OUTPUT_DIR/bin/atlas"
     - chmod +x "$OBSERVER_ABLATION_OUTPUT_DIR/bin/atlas"
+    - |
+      cat > "$OBSERVER_ABLATION_OUTPUT_DIR/bin/ddeval-with-atlas" <<'EOF'
+      #!/usr/bin/env bash
+      set -euo pipefail
+      export PATH="$(dirname "$0"):$PATH"
+      exec ddeval "$@"
+      EOF
+      chmod +x "$OBSERVER_ABLATION_OUTPUT_DIR/bin/ddeval-with-atlas"
     - export PATH="$OBSERVER_ABLATION_OUTPUT_DIR/bin:$PATH"
     - atlas --help
     - ddeval --help
@@ -53,7 +61,7 @@ observer-ablation-ddeval:
       fi
       dda inv --dep optuna anomalydetection.eval-pipeline \
         --eval-backend ddeval \
-        --ddeval-command ddeval \
+        --ddeval-command "$OBSERVER_ABLATION_OUTPUT_DIR/bin/ddeval-with-atlas" \
         --n-combos "$OBSERVER_ABLATION_N_COMBOS" \
         --n-trials-search "$OBSERVER_ABLATION_N_TRIALS_SEARCH" \
         --n-trials-tune "$OBSERVER_ABLATION_N_TRIALS_TUNE" \
