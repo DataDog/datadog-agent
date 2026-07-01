@@ -15,7 +15,7 @@ import (
 )
 
 // Standard AWS environment variable names. Only the non-ec2 build reads these directly; the
-// ec2 build resolves credentials through the AWS SDK default chain.
+// ec2 build resolves credentials via environment-specific providers (see resolve_credentials_ec2.go).
 const (
 	awsAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	awsSecretAccessKeyEnvVar = "AWS_SECRET_ACCESS_KEY"
