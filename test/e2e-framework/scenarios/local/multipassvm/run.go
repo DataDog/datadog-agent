@@ -8,6 +8,7 @@ package localmultipassvm
 import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
@@ -40,7 +41,15 @@ func Run(ctx *pulumi.Context, params *Params) error {
 		return err
 	}
 
-	dockerManager, err := docker.NewManager(&env, vm)
+	dockerInstall, err := docker.InstallDocker(vm, pulumi.Parent(vm))
+	if err != nil {
+		return err
+	}
+	composeInstall, err := docker.InstallCompose(vm, pulumi.Parent(vm))
+	if err != nil {
+		return err
+	}
+	dockerManager, err := docker.NewManager(&env, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall, composeInstall))
 	if err != nil {
 		return err
 	}
