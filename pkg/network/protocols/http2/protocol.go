@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,7 +35,8 @@ type Protocol struct {
 	telemetry               *http.Telemetry
 	statkeeper              *http.StatKeeper
 	http2InFlightMapCleaner *ddebpf.MapCleaner[HTTP2StreamKey, HTTP2Stream]
-	eventsConsumer          *events.BatchConsumer[EbpfTx]
+	consumer                *events.KernelAdaptiveConsumer[EbpfTx]
+	useDirectConsumer       bool
 
 	// http2Telemetry is used to retrieve metrics from the kernel
 	http2Telemetry             *kernelTelemetry
@@ -103,6 +105,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "http2_ctx_heap",
+		},
+		{
+			Name: "http2_scratch_buffer",
 		},
 		{
 			Name: "http2_batch_events",
@@ -225,14 +230,29 @@ func newHTTP2Protocol(mgr *manager.Manager, cfg *config.Config) (protocols.Proto
 	telemetry := http.NewTelemetry("http2")
 	http2KernelTelemetry := newHTTP2KernelTelemetry()
 
-	return &Protocol{
+	p := &Protocol{
 		cfg:                        cfg,
 		mgr:                        mgr,
 		telemetry:                  telemetry,
 		http2Telemetry:             http2KernelTelemetry,
 		kernelTelemetryStopChannel: make(chan struct{}),
 		dynamicTable:               NewDynamicTable(cfg),
-	}, nil
+	}
+
+	// Create adaptive consumer that determines kernel version and callback internally
+	if err := p.createAdaptiveConsumer(); err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
+// Modifiers implements the ModifierProvider interface
+func (p *Protocol) Modifiers() []ddebpf.Modifier {
+	if p.consumer == nil {
+		return nil
+	}
+	return p.consumer.Modifiers()
 }
 
 // Name returns the protocol name.
@@ -275,6 +295,11 @@ func (p *Protocol) ConfigureOptions(opts *manager.Options) {
 		EditorFlag: manager.EditMaxEntries,
 	}
 
+	// The netif flush tracepoint must stay activated even when the direct
+	// consumer is in use: it also flushes the terminated_http2 batch stream
+	// (see flush.h), which always uses the batch consumer. Excluding it (as the
+	// HTTP protocol does in direct mode) would break terminated-connection
+	// events.
 	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          eventStream,
@@ -283,6 +308,9 @@ func (p *Protocol) ConfigureOptions(opts *manager.Options) {
 	})
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	utils.EnableOption(opts, "terminated_http2_monitoring_enabled")
+	// Route the main http2 event stream through the direct or batch consumer in
+	// the kernel, matching the consumer selected in createAdaptiveConsumer.
+	utils.AddBoolConst(opts, p.useDirectConsumer, "use_direct_consumer")
 	// Configure event stream
 	events.Configure(p.cfg, eventStream, p.mgr, opts)
 	p.dynamicTable.configureOptions(p.mgr, opts)
@@ -292,13 +320,16 @@ func (p *Protocol) ConfigureOptions(opts *manager.Options) {
 // Additional initialisation steps, such as starting an event consumer,
 // should be performed here.
 func (p *Protocol) PreStart() (err error) {
-	p.eventsConsumer, err = events.NewBatchConsumer(
-		eventStream,
-		p.mgr,
-		p.processHTTP2,
-	)
-	if err != nil {
-		return
+	// If using BatchConsumer, create it now (after manager initialization)
+	if !p.useDirectConsumer {
+		batchConsumer, err := events.NewBatchConsumer(eventStream, p.mgr, p.processHTTP2)
+		if err != nil {
+			return err
+		}
+		p.consumer = events.NewKernelAdaptiveConsumer[EbpfTx](
+			batchConsumer,
+			[]ddebpf.Modifier{}, // BatchConsumer needs no modifiers
+		)
 	}
 
 	if err = p.dynamicTable.preStart(p.mgr); err != nil {
@@ -306,7 +337,9 @@ func (p *Protocol) PreStart() (err error) {
 	}
 
 	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg))
-	p.eventsConsumer.Start()
+
+	// Start the consumer (works for both DirectConsumer and BatchConsumer)
+	p.consumer.Start()
 
 	return
 }
@@ -369,8 +402,8 @@ func (p *Protocol) Stop() {
 	// http2InFlightMapCleaner handles nil pointer receivers
 	p.http2InFlightMapCleaner.Stop()
 
-	if p.eventsConsumer != nil {
-		p.eventsConsumer.Stop()
+	if p.consumer != nil {
+		p.consumer.Stop()
 	}
 
 	if p.statkeeper != nil {
@@ -421,6 +454,14 @@ func (p *Protocol) processHTTP2(events []EbpfTx) {
 	}
 }
 
+func (p *Protocol) processHTTP2Direct(event *EbpfTx) {
+	eventWrapper := &EventWrapper{
+		EbpfTx: event,
+	}
+	p.telemetry.Count(eventWrapper)
+	p.statkeeper.Process(eventWrapper)
+}
+
 func (p *Protocol) setupHTTP2InFlightMapCleaner() {
 	http2Map, _, err := p.mgr.GetMap(InFlightMap)
 	if err != nil {
@@ -450,7 +491,7 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner() {
 // The format of HTTP2 stats:
 // [source, dest tuple, request path] -> RequestStats object
 func (p *Protocol) GetStats() (*protocols.ProtocolStats, func()) {
-	p.eventsConsumer.Sync()
+	p.consumer.Sync()
 	p.telemetry.Log()
 	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
@@ -466,4 +507,40 @@ func (p *Protocol) GetStats() (*protocols.ProtocolStats, func()) {
 // IsBuildModeSupported returns always true, as http2 module is supported by all modes.
 func (*Protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
+}
+
+// createAdaptiveConsumer creates the appropriate consumer based on configuration and kernel version
+// and determines which callback method to use internally
+func (p *Protocol) createAdaptiveConsumer() error {
+	// Check if direct consumer is explicitly requested via configuration
+	if p.cfg.HTTP2UseDirectConsumer {
+		if events.SupportsDirectConsumer() {
+			// Use DirectConsumer for kernel ≥5.8 (supports bpf_perf_event_output in socket filters)
+			directConsumer, err := events.NewDirectConsumer("http2", p.processHTTP2Direct, p.cfg)
+			if err != nil {
+				return err
+			}
+			p.consumer = events.NewKernelAdaptiveConsumer[EbpfTx](
+				directConsumer,
+				[]ddebpf.Modifier{&directConsumer.EventHandler},
+			)
+			p.useDirectConsumer = true
+			log.Debugf("HTTP2 monitoring: using direct consumer (requested via configuration)")
+		} else {
+			// Fall back to BatchConsumer on unsupported kernels
+			kernelVersion, err := kernel.HostVersion()
+			if err != nil {
+				log.Warnf("HTTP2 monitoring: direct consumer requested but unable to determine kernel version (%v), falling back to batch consumer", err)
+			} else {
+				log.Warnf("HTTP2 monitoring: direct consumer requested but kernel version %v < 5.8.0, falling back to batch consumer", kernelVersion)
+			}
+			p.useDirectConsumer = false
+		}
+	} else {
+		// Default behavior: use BatchConsumer regardless of kernel version
+		log.Debugf("HTTP2 monitoring: using batch consumer (default behavior)")
+		p.useDirectConsumer = false
+	}
+
+	return nil
 }
