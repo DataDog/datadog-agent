@@ -38,10 +38,10 @@ func (s *ServiceCheckTemplateStore) templatesForService(namespace, name string) 
 	return out
 }
 
-func newHandler() (*AutodiscoveryHandler, *CheckStore, *ServiceCheckTemplateStore) {
+func newHandler() (*ChecksHandler, *CheckStore, *ServiceCheckTemplateStore) {
 	cs := NewCheckStore()
 	ts := NewServiceCheckTemplateStore()
-	h := &AutodiscoveryHandler{
+	h := &ChecksHandler{
 		checkStore:           cs,
 		templateStore:        ts,
 		serviceTargetEnabled: true,
@@ -195,7 +195,7 @@ func TestValidate(t *testing.T) {
 			expectField:    "spec.config.checks[0].integration",
 		},
 		{
-			name: "no instances or logs",
+			name: "no instances",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
 					Integration:   "redisdb",
@@ -205,17 +205,6 @@ func TestValidate(t *testing.T) {
 			}),
 			expectErrCount: 1,
 			expectField:    "spec.config.checks[0].instances",
-		},
-		{
-			name: "logs only is valid",
-			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
-				{
-					Integration:   "custom",
-					ContainerName: "app",
-					Logs:          []datadoghq.DatadogInstrumentationLogConfig{{Type: "tcp"}},
-				},
-			}),
-			expectErrCount: 0,
 		},
 		{
 			name: "no container name for workload",
@@ -414,7 +403,6 @@ func TestServiceCheckTemplateStore_NotifyOnChange(t *testing.T) {
 }
 
 func TestTranslateCheck(t *testing.T) {
-	port := int32(10514)
 	tests := []struct {
 		name             string
 		check            datadoghq.DatadogInstrumentationCheckConfig
@@ -422,8 +410,6 @@ func TestTranslateCheck(t *testing.T) {
 		expectedInstLen  int
 		expectedADIDs    []string
 		instanceContains []string
-		logsNil          bool
-		logsContains     string
 	}{
 		{
 			name: "empty init config defaults to {}",
@@ -435,7 +421,6 @@ func TestTranslateCheck(t *testing.T) {
 			expectedInit:    "{}",
 			expectedInstLen: 1,
 			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
-			logsNil:         true,
 		},
 		{
 			name: "provided init config is preserved",
@@ -448,30 +433,21 @@ func TestTranslateCheck(t *testing.T) {
 			expectedInit:    `{"service":"myservice"}`,
 			expectedInstLen: 1,
 			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
-			logsNil:         true,
 		},
 		{
-			name: "logs config is translated",
+			name: "multiple instances are preserved",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration:   "custom",
+				Integration:   "http_check",
 				ContainerName: "app",
-				Instances:     []runtime.RawExtension{{Raw: []byte(`{"key":"val"}`)}},
-				Logs:          []datadoghq.DatadogInstrumentationLogConfig{{Type: "tcp", Port: &port}},
+				Instances: []runtime.RawExtension{
+					{Raw: []byte(`{"url":"http://host1"}`)},
+					{Raw: []byte(`{"url":"http://host2"}`)},
+				},
 			},
-			expectedInit:    "{}",
-			expectedInstLen: 1,
-			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
-			logsContains:    `"type":"tcp"`,
-		},
-		{
-			name: "no logs returns nil logs config",
-			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration: "redisdb",
-				Instances:   []runtime.RawExtension{{Raw: []byte(`{"host":"localhost"}`)}},
-			},
-			expectedInit:    "{}",
-			expectedInstLen: 1,
-			logsNil:         true,
+			expectedInit:     "{}",
+			expectedInstLen:  2,
+			expectedADIDs:    []string{adtypes.KubeContainerNameIdentifier("app")},
+			instanceContains: []string{"host1", "host2"},
 		},
 	}
 	for _, tt := range tests {
@@ -490,16 +466,11 @@ func TestTranslateCheck(t *testing.T) {
 			for i, substr := range tt.instanceContains {
 				assert.Contains(t, string(configs[0].Instances[i]), substr)
 			}
-			if tt.logsNil {
-				assert.Nil(t, configs[0].LogsConfig)
-			} else {
-				assert.Contains(t, string(configs[0].LogsConfig), tt.logsContains)
-			}
 		})
 	}
 }
 
-func TestBuildCELSelector(t *testing.T) {
+func TestRootOwnerCELFilter(t *testing.T) {
 	tests := []struct {
 		name      string
 		kind      string
@@ -543,7 +514,7 @@ func TestBuildCELSelector(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ref := autoscalingv2.CrossVersionObjectReference{Kind: tt.kind, Name: tt.target}
-			rules := buildCELSelector(ref, tt.namespace)
+			rules := rootOwnerCELFilter(ref, tt.namespace)
 			require.Len(t, rules.Containers, 1)
 			for _, substr := range tt.contains {
 				assert.Contains(t, rules.Containers[0], substr)

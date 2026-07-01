@@ -3,8 +3,9 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "handlers",
     srcs = [
-        "autodiscovery.go",
         "autodiscovery_utils.go",
+        "checks.go",
+        "logs.go",
         "registry.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers",
@@ -14,6 +15,7 @@ go_library(
         "//comp/core/autodiscovery/integration",
         "//comp/core/workloadfilter/def",
         "//pkg/clusteragent/instrumentation",
+        "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/apiserver",
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
         "@io_k8s_api//autoscaling/v2:autoscaling",
@@ -24,7 +26,10 @@ go_library(
 
 go_test(
     name = "handlers_test",
-    srcs = ["autodiscovery_test.go"],
+    srcs = [
+        "checks_test.go",
+        "logs_test.go",
+    ],
     embed = [":handlers"],
     gotags = [
         "kubeapiserver",

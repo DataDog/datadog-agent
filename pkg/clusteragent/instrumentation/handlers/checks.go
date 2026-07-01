@@ -30,18 +30,18 @@ const (
 	autodiscoveryProvider    = "datadoginstrumentation"
 )
 
-// AutodiscoveryHandler translates DatadogInstrumentation check sections into
+// ChecksHandler translates DatadogInstrumentation check sections into
 // integration.Config entries. It supports both workload targets (Deployment,
 // DaemonSet, etc.) and Service targets, branching internally on the target kind.
-type AutodiscoveryHandler struct {
+type ChecksHandler struct {
 	checkStore           *CheckStore
 	templateStore        *ServiceCheckTemplateStore
 	serviceTargetEnabled bool
 }
 
-// NewAutodiscoveryHandler returns the Autodiscovery DatadogInstrumentation handler.
-func NewAutodiscoveryHandler(dep *Deps) *AutodiscoveryHandler {
-	return &AutodiscoveryHandler{
+// NewChecksHandler returns the checks DatadogInstrumentation handler.
+func NewChecksHandler(dep *Deps) *ChecksHandler {
+	return &ChecksHandler{
 		checkStore:           dep.CheckStore,
 		templateStore:        dep.ServiceCheckTemplateStore,
 		serviceTargetEnabled: apiserver.UseEndpointSlices(),
@@ -49,17 +49,17 @@ func NewAutodiscoveryHandler(dep *Deps) *AutodiscoveryHandler {
 }
 
 // Name returns the unique handler name.
-func (h *AutodiscoveryHandler) Name() string {
-	return "autodiscovery"
+func (h *ChecksHandler) Name() string {
+	return "checks"
 }
 
 // HasSection reports whether the CR contains Autodiscovery check configuration.
-func (h *AutodiscoveryHandler) HasSection(cr *datadoghq.DatadogInstrumentation) bool {
+func (h *ChecksHandler) HasSection(cr *datadoghq.DatadogInstrumentation) bool {
 	return cr != nil && len(cr.Spec.Config.Checks) > 0
 }
 
 // SupportsTarget returns whether Autodiscovery check delivery supports the target kind.
-func (h *AutodiscoveryHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
+func (h *ChecksHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
 	switch ref.Kind {
 	case "Deployment", "DaemonSet", "StatefulSet", "CronJob", "Job":
 		return true
@@ -73,7 +73,7 @@ func (h *AutodiscoveryHandler) SupportsTarget(ref autoscalingv2.CrossVersionObje
 }
 
 // Validate reports per-check validation errors against spec.config.checks.
-func (h *AutodiscoveryHandler) Validate(cr *datadoghq.DatadogInstrumentation) []instrumentation.ValidationError {
+func (h *ChecksHandler) Validate(cr *datadoghq.DatadogInstrumentation) []instrumentation.ValidationError {
 	if cr == nil {
 		return nil
 	}
@@ -82,8 +82,8 @@ func (h *AutodiscoveryHandler) Validate(cr *datadoghq.DatadogInstrumentation) []
 		if strings.TrimSpace(check.Integration) == "" {
 			errs = append(errs, h.checkValidationError(i, "integration", "InvalidIntegration", "integration name must not be empty"))
 		}
-		if len(check.Instances) == 0 && len(check.Logs) == 0 {
-			errs = append(errs, h.checkValidationError(i, "instances", "InvalidInstances", "at least one instance or log config is required"))
+		if len(check.Instances) == 0 {
+			errs = append(errs, h.checkValidationError(i, "instances", "InvalidInstances", "at least one instance is required"))
 		}
 
 		if !isService(cr) && !hasContainerName(check) {
@@ -93,7 +93,7 @@ func (h *AutodiscoveryHandler) Validate(cr *datadoghq.DatadogInstrumentation) []
 	return errs
 }
 
-func (h *AutodiscoveryHandler) checkValidationError(index int, field, reason, message string) instrumentation.ValidationError {
+func (h *ChecksHandler) checkValidationError(index int, field, reason, message string) instrumentation.ValidationError {
 	fieldPath := fmt.Sprintf("spec.config.checks[%d]", index)
 	if field != "" {
 		fieldPath += "." + field
@@ -110,7 +110,7 @@ func (h *AutodiscoveryHandler) checkValidationError(index int, field, reason, me
 // Handle translates check configs on Create/Update, removes them on Delete,
 // and reports a ChecksReady status. For Service targets the configs are stored
 // as templates; for workload targets they are stored directly.
-func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.EventType, cr *datadoghq.DatadogInstrumentation) (instrumentation.HandlerStatus, error) {
+func (h *ChecksHandler) Handle(_ context.Context, event instrumentation.EventType, cr *datadoghq.DatadogInstrumentation) (instrumentation.HandlerStatus, error) {
 	if cr == nil {
 		return instrumentation.HandlerStatus{
 			Type:    checksReadyConditionType,
@@ -172,7 +172,7 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 }
 
 func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
-	initConfig, instances, logsConfig, err := translateCheckFields(check)
+	initConfig, instances, err := translateCheckFields(check)
 	if err != nil {
 		return integration.Config{}, err
 	}
@@ -187,14 +187,13 @@ func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadogh
 		ADIdentifiers: adIdentifiers,
 		InitConfig:    initConfig,
 		Instances:     instances,
-		LogsConfig:    logsConfig,
-		CELSelector:   buildCELSelector(cr.Spec.TargetRef, cr.Namespace),
+		CELSelector:   rootOwnerCELFilter(cr.Spec.TargetRef, cr.Namespace),
 		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
 
 func translateServiceCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
-	initConfig, instances, logsConfig, err := translateCheckFields(check)
+	initConfig, instances, err := translateCheckFields(check)
 	if err != nil {
 		return integration.Config{}, err
 	}
@@ -202,15 +201,14 @@ func translateServiceCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq
 		Name:       check.Integration,
 		InitConfig: initConfig,
 		Instances:  instances,
-		LogsConfig: logsConfig,
 		Source:     fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
 
-func translateCheckFields(check datadoghq.DatadogInstrumentationCheckConfig) (integration.Data, []integration.Data, integration.Data, error) {
+func translateCheckFields(check datadoghq.DatadogInstrumentationCheckConfig) (integration.Data, []integration.Data, error) {
 	initConfig, err := rawExtensionToData(check.InitConfig)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("init_config: %w", err)
+		return nil, nil, fmt.Errorf("init_config: %w", err)
 	}
 	if len(initConfig) == 0 {
 		initConfig = integration.Data("{}")
@@ -220,16 +218,12 @@ func translateCheckFields(check datadoghq.DatadogInstrumentationCheckConfig) (in
 	for j, raw := range check.Instances {
 		data, err := rawExtensionToData(raw)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("instances[%d]: %w", j, err)
+			return nil, nil, fmt.Errorf("instances[%d]: %w", j, err)
 		}
 		instances = append(instances, data)
 	}
 
-	logsConfig, err := marshalLogs(check.Logs)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("logs: %w", err)
-	}
-	return initConfig, instances, logsConfig, nil
+	return initConfig, instances, nil
 }
 
 func rawExtensionToData(raw runtime.RawExtension) (integration.Data, error) {
@@ -246,18 +240,7 @@ func rawExtensionToData(raw runtime.RawExtension) (integration.Data, error) {
 	return b, nil
 }
 
-func marshalLogs(logs []datadoghq.DatadogInstrumentationLogConfig) (integration.Data, error) {
-	if len(logs) == 0 {
-		return nil, nil
-	}
-	b, err := json.Marshal(logs)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
-}
-
-func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace string) workloadfilter.Rules {
+func rootOwnerCELFilter(ref autoscalingv2.CrossVersionObjectReference, namespace string) workloadfilter.Rules {
 	expr := fmt.Sprintf(
 		`container.pod.rootowner.kind == %q && container.pod.rootowner.name == %q && container.pod.namespace == %q && container.image.reference != ""`,
 		ref.Kind, ref.Name, namespace,
