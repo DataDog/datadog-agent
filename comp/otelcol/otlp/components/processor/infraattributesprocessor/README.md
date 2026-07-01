@@ -37,6 +37,31 @@ The cardinality option sets the [TagCardinality](../../../../../../comp/core/tag
 * `cardinality: 1` - **OrchestratorCardinality**: tags that change value for each pod or task
 * `cardinality: 2` - **HighCardinality**: typically tags that change value for each web request, user agent, container, etc.
 
+### Container tag promotion
+
+Downstream (trace-agent / Datadog exporter) only promotes a resource attribute into `_dd.tags.container` (visible in the Infrastructure tab of a span) if its key matches a known DD or OTel container-tag convention, or if it carries the `datadog.container.tag.` prefix. Custom tags emitted by this processor — for example tags produced by `podLabelsAsTags` — fall into neither category and are therefore silently dropped from container tags.
+
+The `container_tag_promotion` option opts into rewriting these custom tags so the downstream promotion path picks them up:
+
+* `container_tag_promotion: off` *(default)* — tags are written as-is. Existing behavior.
+* `container_tag_promotion: duplicate` — each non-exempt tag is written twice: under its original key **and** under `datadog.container.tag.<key>`. The original survives for any downstream consumer that reads the raw key; the prefixed copy reaches `_dd.tags.container`.
+* `container_tag_promotion: rename` — each non-exempt tag is written **only** under `datadog.container.tag.<key>`. Smaller resource payload, but consumers that read the raw key lose access to the value.
+
+**Exemptions (never prefixed, regardless of mode):**
+* Known DD container conventions (`pod_name`, `kube_namespace`, `kube_deployment`, `container_id`, `image_name`, ...) — already recognized by downstream and promoted on their canonical key.
+* OTel semantic conventions (`k8s.pod.name`, `k8s.namespace.name`, `container.id`, `container.image.name`, ...) — same, via the OTel→DD mapping in `pkg/opentelemetry-mapping-go/otlp/attributes`.
+* USM keys (`service`, `env`, `version`) — flow through their own path to `service.name` / `deployment.environment` / `service.version`.
+* `datadog.host.name` (when `allow_hostname_override: true`) — reserved host attribute.
+* Keys already starting with `datadog.container.tag.` — idempotent, never re-prefixed.
+
+Example:
+```
+processors:
+  infraattributes:
+    cardinality: 2
+    container_tag_promotion: duplicate
+```
+
 ## Expected Attributes
 
 The infra attributes processor [looks up the following resource attributes](https://github.com/DataDog/datadog-agent/blob/a7e58c617398e40e4d9f730f855b5bda963f3d42/comp/otelcol/otlp/components/processor/infraattributesprocessor/common.go#L90-L125) in order to extract Kubernetes Tags. These resource attributes can be set in your SDK or in your otel-agent collector configuration:

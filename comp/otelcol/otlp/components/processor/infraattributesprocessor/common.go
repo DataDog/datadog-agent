@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -27,6 +28,25 @@ var unifiedServiceTagMap = map[string][]string{
 	tags.Env:     {string(conventions.DeploymentEnvironmentKey), "deployment.environment.name"},
 	tags.Version: {string(conventions.ServiceVersionKey)},
 }
+
+// knownConventionKeys is the set of resource-attribute keys that the
+// downstream trace-agent / Datadog exporter already promotes into
+// `_dd.tags.container` through its own convention mappings. The infra
+// attributes processor's container-tag-promotion logic (see
+// ContainerTagPromotionMode) skips these keys, since prefixing them would
+// either create duplicate entries (in `duplicate` mode) or break downstream
+// consumers reading the raw key (in `rename` mode).
+var knownConventionKeys = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(attributes.KubernetesDDTags)+2*len(attributes.ContainerMappings))
+	for k := range attributes.KubernetesDDTags {
+		m[k] = struct{}{}
+	}
+	for otelKey, ddName := range attributes.ContainerMappings {
+		m[ddName] = struct{}{}  // DD-format name (primary case)
+		m[otelKey] = struct{}{} // OTel-semconv key (defense-in-depth)
+	}
+	return m
+}()
 
 type infraTagsProcessor struct {
 	tagger   types.TaggerClient
@@ -49,12 +69,19 @@ func newInfraTagsProcessor(
 	return infraTagsProcessor
 }
 
-// ProcessTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes
+// ProcessTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes.
+//
+// The promote parameter controls how tags that are NOT recognized container-tag
+// conventions are surfaced for downstream `_dd.tags.container` promotion. Known
+// DD / OTel conventions (knownConventionKeys), USM keys, and the
+// `datadog.host.name` host attribute are exempt and always written under their
+// canonical key.
 func (p infraTagsProcessor) ProcessTags(
 	logger *zap.Logger,
 	cardinality types.TagCardinality,
 	resourceAttributes pcommon.Map,
 	allowHostnameOverride bool,
+	promote ContainerTagPromotionMode,
 ) {
 	if _, ok := resourceAttributes.Get(string(conventions.ContainerIDKey)); !ok {
 		originInfo := originInfoFromAttributes(resourceAttributes, cardinality)
@@ -97,7 +124,7 @@ func (p infraTagsProcessor) ProcessTags(
 	for k, v := range tagMap {
 		otelAttrs, ust := unifiedServiceTagMap[k]
 		if !ust {
-			resourceAttributes.PutStr(k, v)
+			writeTagAttribute(resourceAttributes, k, v, promote)
 			continue
 		}
 
@@ -118,6 +145,31 @@ func (p infraTagsProcessor) ProcessTags(
 		if hostname, found := p.hostname.Get(); found {
 			resourceAttributes.PutStr("datadog.host.name", hostname)
 		}
+	}
+}
+
+// writeTagAttribute writes a non-USM tag into resource attributes, honoring
+// the container-tag-promotion mode. Keys already carrying the
+// `datadog.container.tag.` prefix and keys in knownConventionKeys are always
+// written as-is (idempotency / convention exemption); only truly custom keys
+// are subject to duplication / renaming.
+func writeTagAttribute(resourceAttributes pcommon.Map, k, v string, promote ContainerTagPromotionMode) {
+	if strings.HasPrefix(k, attributes.CustomContainerTagPrefix) {
+		resourceAttributes.PutStr(k, v)
+		return
+	}
+	if _, isKnown := knownConventionKeys[k]; isKnown {
+		resourceAttributes.PutStr(k, v)
+		return
+	}
+	switch promote {
+	case ContainerTagPromotionDuplicate:
+		resourceAttributes.PutStr(k, v)
+		resourceAttributes.PutStr(attributes.CustomContainerTagPrefix+k, v)
+	case ContainerTagPromotionRename:
+		resourceAttributes.PutStr(attributes.CustomContainerTagPrefix+k, v)
+	default: // "", ContainerTagPromotionOff
+		resourceAttributes.PutStr(k, v)
 	}
 }
 
