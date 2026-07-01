@@ -33,6 +33,7 @@ dd_agent_go_test(
     embed = [":stats"],
     deps = [
         "//comp/core/telemetry/impl",
+        "//comp/haagent/mock",
         "//comp/healthplatform/store/mock",
         "//pkg/collector/check/id",
         "//pkg/config/mock",

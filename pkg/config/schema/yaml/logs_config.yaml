@@ -190,6 +190,9 @@ properties:
       darwin: 200
       other: 500
     comment: |-
+      Increase the number of files that can be tailed in parallel:
+      The default limit on darwin is 256. This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
+
       There is no effective limit for windows due to use of CreateFile win32 API
       The OS default for most linux distributions is 1024
   file_wildcard_selection_mode:
@@ -559,9 +562,9 @@ properties:
         default: []
         items:
           type: string
-        comment: Sources listed here will not have adaptive sampling or noisy log
-          detection applied, even if enabled globally. Matches against the configured
-          source tag of each log source.
+        comment: |-
+          Sources listed here will not have adaptive sampling or noisy log detection applied, even if enabled globally.
+          Useful for auto-discovered sources that cannot be configured via integration-level YAML.
       enabled:
         node_type: setting
         type: boolean
@@ -799,7 +802,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: DEPRECATED in favor of `logs_config.force_use_http`.
   use_podman_logs:
     node_type: setting
     type: boolean
@@ -823,7 +825,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: DEPRECATED in favor of `logs_config.force_use_tcp`.
   use_v2_api:
     node_type: setting
     type: boolean

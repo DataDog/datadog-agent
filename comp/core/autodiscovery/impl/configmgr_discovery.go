@@ -33,7 +33,7 @@ const discoveredChangesBuffer = 128
 // initDiscoveryWorker wires the workqueue-backed discovery worker into cm.
 func initDiscoveryWorker(cm *reconcilingConfigManager, disco discoverer.ConfigDiscoverer) {
 	cm.discoveredCh = make(chan integration.ConfigChanges, discoveredChangesBuffer)
-	cm.discoveryWorker = discoverer.NewWorker(disco, cmServiceLookup{cm}, cm.onDiscoveryResult, discoverer.Config{})
+	cm.discoveryWorker = discoverer.NewWorker(disco, cmServiceLookup{cm}, cm.onDiscoveryResult, discoverer.Config{}, cm.telemetryStore)
 }
 
 func (cm *reconcilingConfigManager) scheduleDiscovery(svcID, tplDigest, integrationName string) {

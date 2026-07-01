@@ -236,7 +236,7 @@ func TestConverter(t *testing.T) {
 	mockConfig := configmock.New(t)
 	require := require.New(t)
 	configConverter := NewConfigConverter()
-	cfg, err := GetAgentConfig("./tests/datadog.conf")
+	cfg, err := GetAgentConfig("./testdata/datadog.conf")
 	require.NoError(err)
 	err = FromAgentConfig(cfg, configConverter)
 	require.NoError(err)

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "zap",
@@ -14,14 +15,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "zap_test",
     srcs = [
         "zapcore_test.go",
         "zapencoder_test.go",
     ],
     embed = [":zap"],
-    gotags = ["test"],
     deps = [
         "//pkg/util/log",
         "//pkg/util/log/slog",

@@ -1,0 +1,20 @@
+Your PR changed the Agent configuration but did not refresh the generated config schema.
+
+Why this job failed:
+  Rebuilding the Agent and running `dda inv -- schema.generate` produced changes
+  to the files under pkg/config/schema/yaml/. This means the committed schema no
+  longer matches the Agent's current configuration. The diff above shows exactly
+  what is out of date.
+
+How to regenerate the schema:
+  1. Build the Agent:        dda inv -- agent.build
+  2. Regenerate the schema:  dda inv -- schema.generate --agent-bin=./bin/agent/agent
+  3. Commit the updated files under pkg/config/schema/yaml/
+
+Note: this check is TEMPORARY. We are actively migrating the Agent configuration
+to a schema-based system, and while that migration is in progress the schema
+must be regenerated and committed alongside any configuration change. We know
+this is an extra friction point — it will be removed once the migration is
+complete. Thanks for bearing with us!
+
+Questions? Reach out to #fleet-automation.

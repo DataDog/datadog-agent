@@ -1576,6 +1576,16 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 }
 
 func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
+	if pkgconfigenv.IsECSFargate() {
+		if val, found := platformValues["fargate"]; found {
+			return val
+		}
+	}
+	if pkgconfigenv.IsContainerized() {
+		if val, found := platformValues["container"]; found {
+			return val
+		}
+	}
 	if val, found := platformValues[runtime.GOOS]; found {
 		return val
 	}

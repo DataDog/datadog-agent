@@ -67,6 +67,14 @@ properties:
           Must be under host_socket_path.
         tags:
         - template_section:Common
+  collection_interval_override:
+    node_type: setting
+    type: integer
+    default: 0
+    comment: |-
+      gpu.collection_interval_override (seconds) overrides the gpu check scheduling
+      cadence when > 0, taking precedence over the instance's min_collection_interval.
+      Binds DD_GPU_COLLECTION_INTERVAL_OVERRIDE.
   disabled_collectors:
     node_type: setting
     type: array

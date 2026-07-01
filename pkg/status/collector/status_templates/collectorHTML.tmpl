@@ -24,6 +24,7 @@
               {{- if .TotalHistogramBuckets}}
               Histogram Buckets: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}<br>
               {{- end -}}
+              First Execution Time : {{humanizeDuration .FirstExecutionTime "ms"}}<br>
               Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
               Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
               Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}<br>

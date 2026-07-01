@@ -40,6 +40,14 @@ type Store struct {
 	// does not imply a check scheduling delay, as not all entities match
 	// a check configuration.
 	TagCompletenessDelay telemetry.Histogram
+	// DiscoveryQueueDepth tracks the number of configs currently pending
+	// discovery (queued or actively being processed) by integration name and
+	// entity kind (e.g. "process", "docker", "containerd").
+	DiscoveryQueueDepth telemetry.Gauge
+	// DiscoveryResults counts terminal discovery outcomes by integration name,
+	// result type, and entity kind. Result values: "success",
+	// "permanent_failure", "max_attempts_exceeded", "service_not_found".
+	DiscoveryResults telemetry.Counter
 }
 
 // NewStore returns a new Store.
@@ -81,6 +89,20 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 			[]string{"listener"},
 			"Delay in processing discovered services due to waiting for tag completeness (in seconds).",
 			[]float64{0, 1, 2, 3, 5, 7, 10},
+			commonOpts,
+		),
+		DiscoveryQueueDepth: telemetryComp.NewGaugeWithOpts(
+			subsystem,
+			"discovery_queue_depth",
+			[]string{"integration_name", "entity_kind"},
+			"Number of configs currently pending discovery by integration name and entity kind.",
+			commonOpts,
+		),
+		DiscoveryResults: telemetryComp.NewCounterWithOpts(
+			subsystem,
+			"discovery_results",
+			[]string{"integration_name", "result", "entity_kind"},
+			"Terminal discovery outcomes by integration name, result type, and entity kind.",
 			commonOpts,
 		),
 	}

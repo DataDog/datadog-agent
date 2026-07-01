@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "setup",
@@ -24,8 +25,6 @@ go_library(
         "standard_names.go",
         "system_probe.go",
         "system_probe_cws.go",
-        "system_probe_cws_notwin.go",
-        "system_probe_cws_windows.go",
         "system_probe_usm.go",
         "test_config_accessor.go",
         "test_helpers.go",
@@ -59,7 +58,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "setup_test",
     srcs = [
         "config_change_checker_test.go",
@@ -72,7 +71,6 @@ go_test(
         "unexpectedunicodefinder_test.go",
     ],
     embed = [":setup"],
-    gotags = ["test"],
     deps = [
         "//comp/core/delegatedauth/mock",
         "//comp/core/secrets/mock",

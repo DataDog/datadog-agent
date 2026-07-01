@@ -44,20 +44,18 @@ const (
 func OTLP(config pkgconfigmodel.Setup) {
 	// Legacy port keys (unused; 0 = disabled)
 	config.BindEnvAndSetDefault("otlp_config.grpc_port", 0)
+	// Legacy port keys (unused; 0 = disabled)
 	config.BindEnvAndSetDefault("otlp_config.http_port", 0)
 
-	// NOTE: This only partially works.
-	// The environment variable is also manually checked in comp/otelcol/otlp/config.go
+	// This only partially works. The environment variable is also manually checked in comp/otelcol/otlp/config.go
 	config.BindEnvAndSetDefault("otlp_config.metrics.tag_cardinality", "low",
 		"DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY", "DD_OTLP_TAG_CARDINALITY")
 
-	// Logs
 	config.BindEnvAndSetDefault("otlp_config.logs.enabled", false)
 	config.BindEnvAndSetDefault("otlp_config.logs.batch.min_size", 8192)
 	config.BindEnvAndSetDefault("otlp_config.logs.batch.max_size", 0)
 	config.BindEnvAndSetDefault("otlp_config.logs.batch.flush_timeout", "200ms")
 
-	// Traces settings
 	config.BindEnvAndSetDefault("otlp_config.traces.enabled", true)
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_as_resource_name", false)
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
@@ -82,7 +80,6 @@ func OTLP(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.http.cors.allowed_headers", []string{})
 	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.http.cors.allowed_origins", []string{})
 
-	// Metrics settings
 	config.BindEnvAndSetDefault("otlp_config.metrics.tags", "")
 	config.BindEnvAndSetDefault("otlp_config.metrics.enabled", true)
 	config.BindEnvAndSetDefault("otlp_config.metrics.resource_attributes_as_tags", false)

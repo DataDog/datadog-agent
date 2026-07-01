@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
 )
 
 // formatLimits tracks formatting limits for log output.
@@ -48,6 +49,7 @@ const (
 	formatNil             = "nil"
 	formatCycle           = "{cycle}"
 	formatTruncated       = "{truncated}"
+	formatRedacted        = "{redacted}"
 	formatEllipsis        = "..."
 	formatEllipsisComma   = ", ..."
 	formatEllipsisCommaRB = ", ...}"
@@ -170,6 +172,9 @@ type encodingContext struct {
 		index  int
 		status ir.ExprStatus
 	}
+	// redaction is the policy for scrubbing sensitive captured values. Nil
+	// when no policy is configured, in which case nothing is redacted.
+	redaction *redaction.Config
 }
 
 // forEachOfType invokes fn for each data item whose IR type ID matches
@@ -1103,7 +1108,12 @@ func makeFormatMapEntryCallback(
 		}
 
 		valueBeforeLen := buf.Len()
-		if err := formatType(c, buf, valueType, valueData, limits); err != nil {
+		if c.redactMapValue(keyType.GetID(), keyData) {
+			if !limits.canWrite(len(formatRedacted)) {
+				return false, nil
+			}
+			buf.WriteString(formatRedacted)
+		} else if err := formatType(c, buf, valueType, valueData, limits); err != nil {
 			return false, err
 		}
 		valueWritten := buf.Len() - valueBeforeLen
@@ -1128,7 +1138,13 @@ func makeEncodeMapEntryCallback(
 		if err := encodeValue(c, enc, keyTypeID, keyData, keyTypeName); err != nil {
 			return false, err
 		}
-		if err := encodeValue(c, enc, valueTypeID, valueData, valueTypeName); err != nil {
+		if c.redactMapValue(keyTypeID, keyData) {
+			if err := writeRedacted(
+				enc, valueTypeName, tokenNotCapturedReasonRedactedIdent,
+			); err != nil {
+				return false, err
+			}
+		} else if err := encodeValue(c, enc, valueTypeID, valueData, valueTypeName); err != nil {
 			return false, err
 		}
 		if err := writeTokens(enc, jsontext.EndArray); err != nil {
@@ -1136,6 +1152,57 @@ func makeEncodeMapEntryCallback(
 		}
 		return true, nil
 	}
+}
+
+// redactMapValue reports whether a map value must be redacted because its
+// string key matches a redacted identifier. Non-string keys never match.
+func (e *encodingContext) redactMapValue(keyTypeID ir.TypeID, keyData []byte) bool {
+	if e.redaction == nil {
+		return false
+	}
+	sh, ok := e.getType(keyTypeID)
+	if !ok {
+		return false
+	}
+	strHeader, ok := sh.(*goStringHeaderType)
+	if !ok {
+		return false
+	}
+	key, ok := strHeader.stringValue(e, keyData)
+	if !ok {
+		return false
+	}
+	return e.redaction.RedactIdentifier(key)
+}
+
+// stringValue reads the contents of a captured string from its header bytes.
+// It returns false when the header is too short or the backing bytes were not
+// captured; a captured-but-truncated string is matched on the bytes present.
+func (s *goStringHeaderType) stringValue(c *encodingContext, data []byte) (string, bool) {
+	if s.lenFieldOffset+uint32(s.lenFieldSize) > uint32(len(data)) ||
+		s.strFieldOffset+uint32(s.strFieldSize) > uint32(len(data)) {
+		return "", false
+	}
+	strLen := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
+	if strLen == 0 {
+		return "", true
+	}
+	address := binary.NativeEndian.Uint64(data[s.strFieldOffset : s.strFieldOffset+uint32(s.strFieldSize)])
+	if address == 0 {
+		return "", false
+	}
+	item, ok := c.getPtr(address, s.Data.GetID())
+	if !ok {
+		return "", false
+	}
+	b, ok := item.Data()
+	if !ok {
+		return "", false
+	}
+	if n := int(strLen); n < len(b) {
+		b = b[:n]
+	}
+	return string(b), true
 }
 
 func (b *goHMapBucketType) irType() ir.Type { return (*ir.GoHMapBucketType)(b) }
@@ -1484,6 +1551,14 @@ func (s *structureType) encodeValueFields(
 		if err := writeTokens(enc, jsontext.String(field.Name)); err != nil {
 			return err
 		}
+		if c.redaction.RedactIdentifier(field.Name) {
+			if err := writeRedacted(
+				enc, field.Type.GetName(), tokenNotCapturedReasonRedactedIdent,
+			); err != nil {
+				return err
+			}
+			continue
+		}
 		fieldEnd := field.Offset + field.Type.GetByteSize()
 		if fieldEnd > uint32(len(data)) {
 			return fmt.Errorf(
@@ -1538,6 +1613,12 @@ func (s *structureType) formatValueFields(
 		}
 		buf.WriteString(fieldName)
 		limits.consume(len(fieldName))
+
+		if c.redaction.RedactIdentifier(field.Name) {
+			writeBoundedString(buf, limits, formatRedacted)
+			fieldCount++
+			continue
+		}
 
 		fieldEnd := field.Offset + field.Type.GetByteSize()
 		if fieldEnd > uint32(len(data)) {
@@ -2282,6 +2363,19 @@ func encodeInterface(
 	}
 	tt := t.irType()
 
+	// Type redaction applies to the resolved concrete type, which is only
+	// known here; the static interface type checked in encodeValue does not
+	// match a redacted type.
+	if c.redaction.RedactType(tt.GetName()) {
+		if err := writeTokens(enc,
+			jsontext.String("type"), jsontext.String(tt.GetName()),
+			tokenNotCapturedReason, tokenNotCapturedReasonRedactedType,
+		); err != nil {
+			return err
+		}
+		return writeTokens(enc, jsontext.EndObject, jsontext.EndObject)
+	}
+
 	if err := writeTokens(
 		enc, jsontext.String("type"), jsontext.String(tt.GetName()),
 	); err != nil {
@@ -2344,6 +2438,10 @@ func formatInterface(
 	}
 
 	tt := t.irType()
+	if c.redaction.RedactType(tt.GetName()) {
+		writeBoundedString(buf, limits, formatRedacted)
+		return nil
+	}
 	ptrData := data[goInterfaceDataOffset : goInterfaceDataOffset+8]
 	if pt, ok := tt.(*ir.PointerType); ok {
 		return (*pointerType)(pt).formatValueFields(c, buf, ptrData, limits)

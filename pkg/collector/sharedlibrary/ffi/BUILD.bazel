@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "ffi",
+    srcs = [
+        "ffi.c",
+        "ffi.h",
+        "library_loader.go",
+        "library_loader_test_util.go",
+    ],
+    cdeps = ["//rtloader:rtloader_dynamic"],
+    cgo = True,
+    copts = ["-I pkg/collector/sharedlibrary/ffi/rtloader/include"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi",
+    # Sources require sharedlibrarycheck; without it no Go files are active and
+    # compilation fails. Mark manual so //... expansion skips this target; tests
+    # embedding this library supply the right gotags via their flavor tags.
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/aggregator",
+        "//pkg/util/filesystem",
+    ],
+)
+
+dd_agent_go_test(
+    name = "ffi_test",
+    srcs = ["library_loader_test.go"],
+    embed = [":ffi"],
+    flavors = [
+        "base",
+        "fips",
+        "heroku",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

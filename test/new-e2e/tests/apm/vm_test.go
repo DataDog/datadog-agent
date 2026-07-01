@@ -326,18 +326,18 @@ func (s *VMFakeintakeSuite) TestProcessTagsHeaderTrace() {
 	s.T().Log("Waiting for Trace Agent to be live.")
 	s.Require().NoError(waitRemotePort(s, 8126))
 
-	traceWithProcessTagsWithHeader(s.Env().RemoteHost, "binary:generator", "test-service")
+	traceWithProcessTagsWithHeader(s.Env().RemoteHost, "binary:generator-1", "test-service")
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testProcessTraces(c, s.Env().FakeIntake, "binary:generator")
+		testProcessTraces(c, s.Env().FakeIntake, "binary:generator-1")
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator")
+		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator-1")
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 }
@@ -350,18 +350,18 @@ func (s *VMFakeintakeSuite) TestProcessTagsTrace() {
 	s.T().Log("Waiting for Trace Agent to be live.")
 	s.Require().NoError(waitRemotePort(s, 8126))
 
-	traceWithProcessTags(s.Env().RemoteHost, "binary:generator", "test-service")
+	traceWithProcessTags(s.Env().RemoteHost, "binary:generator-2", "test-service")
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testProcessTraces(c, s.Env().FakeIntake, "binary:generator")
+		testProcessTraces(c, s.Env().FakeIntake, "binary:generator-2")
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator")
+		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator-2")
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 }

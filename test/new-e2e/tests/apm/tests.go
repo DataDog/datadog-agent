@@ -94,27 +94,46 @@ func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string
 func testProcessTraces(c *assert.CollectT, intake *components.FakeIntake, processTags string) {
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
-	assert.NotEmpty(c, traces)
+	if !assert.NotEmpty(c, traces) {
+		return
+	}
+	// Fakeintake accumulates across tests; old payloads (without _dd.tags.process) may
+	// arrive after the flush due to agent pipeline buffering. Assert that at least one
+	// TracerPayload carries the expected process
+	found := false
 	for _, p := range traces {
-		assert.NotEmpty(c, p.TracerPayloads)
 		for _, tp := range p.TracerPayloads {
 			tags, ok := tp.Tags["_dd.tags.process"]
-			assert.True(c, ok)
+			if !ok {
+				continue
+			}
 			assert.Equal(c, processTags, tags)
+			found = true
 		}
 	}
+	assert.True(c, found, "no TracerPayload had _dd.tags.process=%q", processTags)
 }
 
 func testStatsHaveProcessTags(c *assert.CollectT, intake *components.FakeIntake, processTags string) {
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
-	assert.NotEmpty(c, stats)
+	if !assert.NotEmpty(c, stats) {
+		return
+	}
+	// Fakeintake accumulates across tests; old payloads (without _dd.tags.process) may
+	// arrive after the flush due to agent pipeline buffering. Assert that at least one
+	// TracerPayload carries the expected process
+	found := false
 	for _, p := range stats {
-		assert.NotEmpty(c, p.StatsPayload.Stats)
 		for _, s := range p.StatsPayload.Stats {
+			if s.ProcessTags == "" {
+				continue
+			}
 			assert.Equal(c, processTags, s.ProcessTags)
+			found = true
 		}
 	}
+	assert.True(c, found, "no stats payload had ProcessTags=%q", processTags)
 }
 
 func testStatsHaveContainerTags(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {

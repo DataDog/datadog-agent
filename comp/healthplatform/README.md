@@ -1,8 +1,8 @@
-# Health Platform — Issue Naming Conventions
+# Health Platform — Developer Guide
+
+## Issue identity fields
 
 Every health issue has three identity fields. Follow these rules when adding a new issue module.
-
-## Field reference
 
 ### `id`
 
@@ -28,6 +28,26 @@ Every health issue has three identity fields. Follow these rules when adding a n
 - **Examples**: `"Check 'nginx' Failed"`, `"Autodiscovery Misconfiguration on 'default/my-pod'"`, `"Agent cannot write to: /var/lib/datadog-agent"`
 
 > Static titles are acceptable only when there is genuinely no instance-specific value to embed (e.g. singleton issues like `"Admission Controller Unreachable"`).
+
+## Issue lifecycle state
+
+Issues have two canonical states defined in the `IssueState` proto enum:
+
+| Value | Name | Meaning |
+|---|---|---|
+| `4` | `ISSUE_STATE_ACTIVE` | Issue is currently present |
+| `3` | `ISSUE_STATE_RESOLVED` | Issue has been resolved |
+
+The enum also retains three deprecated values for wire compatibility with older agents:
+`UNSPECIFIED=0`, `NEW=1`, `ONGOING=2` — consumers must treat all three as equivalent to `ACTIVE`.
+`RESOLVED=3` is unchanged from the original enum so agents that pre-date this simplification are handled transparently.
+
+The state machine in the store (`store/impl/store.go`):
+- Any `ReportIssue` call sets or keeps the issue `ACTIVE` and updates `LastSeen`.
+- `ResolveIssue` / `ResolveAllIssues` transitions to `RESOLVED` and sets `ResolvedAt`.
+- A resolved issue that is reported again resets to `ACTIVE` with a fresh `FirstSeen`.
+
+On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store accepts `"new"` and `"ongoing"` as legacy aliases for `"active"` when reading persistence files written by older agent versions (schema v2).
 
 ## Current issues
 

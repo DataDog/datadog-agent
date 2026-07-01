@@ -56,6 +56,7 @@ func TestFilterBuilderOps(t *testing.T) {
 					ContainerImageMetadata: {},
 					ECSTask:                {},
 					KubernetesKueueQueue:   {},
+					KueueResourceFlavor:    {},
 					KubernetesMetadata:     {},
 					KubernetesPodUID:       {},
 					Process:                {},

@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -50,24 +49,33 @@ type kueueQueueEntry struct {
 	name             string
 	queueType        workloadmeta.KueueQueueType
 	clusterQueueName string
-	// resolvedTags holds the queue's label/annotation tags already resolved
-	// against kubernetes_resources_{labels,annotations}_as_tags. Each entry is
-	// in "name:value" form where a leading '+' on the name denotes a
-	// high-cardinality tag (as interpreted by taglist.AddAuto).
-	resolvedTags []string
-	uid          string
+	labels           map[string]string
+	annotations      map[string]string
+	uid              string
+}
+
+type kueueResourceFlavorEntry struct {
+	name               string
+	labels             map[string]string
+	annotations        map[string]string
+	uid                string
+	nodeAffinityLabels map[string]string
+}
+
+type metadataSnapshot struct {
+	namespaces           map[string]namespaceEntry
+	kueueQueues          map[string]kueueQueueEntry
+	kueueResourceFlavors map[string]kueueResourceFlavorEntry
 }
 
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
 // labels/annotations from the DCA to node agents.
 type KubeMetadataStreamServer struct {
-	store    *controllers.MetaBundleStore
-	wmeta    workloadmeta.Component
-	resolver *kueueQueueTagResolver
+	store *controllers.MetaBundleStore
+	wmeta workloadmeta.Component
 
-	namespacesMutex sync.RWMutex
-	namespaces      map[string]namespaceEntry // keys are namespace names
-	kueueQueues     map[string]kueueQueueEntry
+	metadataMutex sync.RWMutex
+	metadata      metadataSnapshot
 	// namespaceSubscribers holds notification channels per node name. A node
 	// can have multiple subscribers because more than one process (for example,
 	// the running agent plus "agent diagnose", "agent check", etc.) may stream
@@ -80,10 +88,16 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 	return &KubeMetadataStreamServer{
 		store:                store,
 		wmeta:                wmeta,
-		resolver:             newKueueQueueTagResolver(pkgconfigsetup.Datadog()),
+		metadata:             newMetadataSnapshot(),
+		namespaceSubscribers: make(map[string][]chan struct{}),
+	}
+}
+
+func newMetadataSnapshot() metadataSnapshot {
+	return metadataSnapshot{
 		namespaces:           make(map[string]namespaceEntry),
 		kueueQueues:          make(map[string]kueueQueueEntry),
-		namespaceSubscribers: make(map[string][]chan struct{}),
+		kueueResourceFlavors: make(map[string]kueueResourceFlavorEntry),
 	}
 }
 
@@ -126,9 +140,8 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 
 	// Send initial full state
 	lastSentPodServicesState := srv.buildPodServiceMappingsSnapshot(nodeName)
-	lastSentNamespacesState := srv.buildNamespacesSnapshot()
-	lastSentKueueQueuesState := srv.buildKueueQueuesSnapshot()
-	initialResp := fullStateResponse(lastSentPodServicesState, lastSentNamespacesState, lastSentKueueQueuesState)
+	lastSentMetadataState := srv.buildMetadataSnapshot()
+	initialResp := fullStateResponse(lastSentPodServicesState, lastSentMetadataState)
 	initialSendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_full_state",
 		tracer.ResourceName("sendFullState"),
 		tracer.Tag("node_name", nodeName),
@@ -178,18 +191,12 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 			ticker.Reset(keepAliveInterval)
 
 		case <-namespacesNotifyCh:
-			currentNamespacesState := srv.buildNamespacesSnapshot()
-			namespacesDiff := computeNamespacesDiff(lastSentNamespacesState, currentNamespacesState)
-			currentKueueQueuesState := srv.buildKueueQueuesSnapshot()
-			kueueQueuesDiff := computeKueueQueueDiff(lastSentKueueQueuesState, currentKueueQueuesState)
-			if len(namespacesDiff)+len(kueueQueuesDiff) == 0 {
+			currentMetadataState := srv.buildMetadataSnapshot()
+			metadataDiff := computeMetadataDiff(lastSentMetadataState, currentMetadataState)
+			if metadataDiff.isEmpty() {
 				continue
 			}
-			resp := &pb.KubeMetadataStreamResponse{
-				IsFullState:       false,
-				NamespaceMetadata: namespacesDiff,
-				KueueQueues:       kueueQueuesDiff,
-			}
+			resp := metadataDiff.response(false)
 			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
 				tracer.ResourceName("sendDiff"),
 				tracer.Tag("node_name", nodeName),
@@ -203,8 +210,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				return err
 			}
 			sendSpan.Finish()
-			lastSentNamespacesState = currentNamespacesState
-			lastSentKueueQueuesState = currentKueueQueuesState
+			lastSentMetadataState = currentMetadataState
 			ticker.Reset(keepAliveInterval)
 
 		case <-ticker.C:
@@ -226,18 +232,22 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 }
 
 func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Event) {
-	srv.namespacesMutex.Lock()
-	defer srv.namespacesMutex.Unlock()
+	srv.metadataMutex.Lock()
+	defer srv.metadataMutex.Unlock()
 
 	changed := false
 	for _, event := range events {
 		switch entity := event.Entity.(type) {
 		case *workloadmeta.KubernetesMetadata:
-			if srv.processNamespaceEvent(event.Type, entity) {
+			if srv.metadata.processNamespaceEvent(event.Type, entity) {
 				changed = true
 			}
 		case *workloadmeta.KubernetesKueueQueue:
-			if srv.processKueueQueueEvent(event.Type, entity) {
+			if srv.metadata.processKueueQueueEvent(event.Type, entity) {
+				changed = true
+			}
+		case *workloadmeta.KubernetesKueueResourceFlavor:
+			if srv.metadata.processKueueResourceFlavorEvent(event.Type, entity) {
 				changed = true
 			}
 		default:
@@ -250,19 +260,19 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 	}
 }
 
-func (srv *KubeMetadataStreamServer) processNamespaceEvent(eventType workloadmeta.EventType, metadata *workloadmeta.KubernetesMetadata) bool {
+func (s *metadataSnapshot) processNamespaceEvent(eventType workloadmeta.EventType, metadata *workloadmeta.KubernetesMetadata) bool {
 	namespaceName := metadata.Name
 
 	switch eventType {
 	case workloadmeta.EventTypeSet:
-		srv.namespaces[namespaceName] = namespaceEntry{
+		s.namespaces[namespaceName] = namespaceEntry{
 			labels:      metadata.Labels,
 			annotations: metadata.Annotations,
 		}
 		return true
 	case workloadmeta.EventTypeUnset:
-		if _, exists := srv.namespaces[namespaceName]; exists {
-			delete(srv.namespaces, namespaceName)
+		if _, exists := s.namespaces[namespaceName]; exists {
+			delete(s.namespaces, namespaceName)
 			return true
 		}
 	default:
@@ -271,26 +281,50 @@ func (srv *KubeMetadataStreamServer) processNamespaceEvent(eventType workloadmet
 	return false
 }
 
-func (srv *KubeMetadataStreamServer) processKueueQueueEvent(eventType workloadmeta.EventType, queue *workloadmeta.KubernetesKueueQueue) bool {
+func (s *metadataSnapshot) processKueueQueueEvent(eventType workloadmeta.EventType, queue *workloadmeta.KubernetesKueueQueue) bool {
 	key := queue.EntityID.ID
 	switch eventType {
 	case workloadmeta.EventTypeSet:
-		srv.kueueQueues[key] = kueueQueueEntry{
+		s.kueueQueues[key] = kueueQueueEntry{
 			namespace:        queue.Namespace,
 			name:             queue.Name,
 			queueType:        queue.QueueType,
 			clusterQueueName: queue.ClusterQueueName,
-			resolvedTags:     srv.resolver.resolveKueueQueueTags(queue),
+			labels:           queue.Labels,
+			annotations:      queue.Annotations,
 			uid:              queue.UID,
 		}
 		return true
 	case workloadmeta.EventTypeUnset:
-		if _, exists := srv.kueueQueues[key]; exists {
-			delete(srv.kueueQueues, key)
+		if _, exists := s.kueueQueues[key]; exists {
+			delete(s.kueueQueues, key)
 			return true
 		}
 	default:
 		log.Errorf("Unknown event type %d for Kueue queue %s", eventType, key)
+	}
+	return false
+}
+
+func (s *metadataSnapshot) processKueueResourceFlavorEvent(eventType workloadmeta.EventType, flavor *workloadmeta.KubernetesKueueResourceFlavor) bool {
+	key := flavor.EntityID.ID
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+		s.kueueResourceFlavors[key] = kueueResourceFlavorEntry{
+			name:               flavor.Name,
+			labels:             flavor.Labels,
+			annotations:        flavor.Annotations,
+			uid:                flavor.UID,
+			nodeAffinityLabels: flavor.NodeAffinityLabels,
+		}
+		return true
+	case workloadmeta.EventTypeUnset:
+		if _, exists := s.kueueResourceFlavors[key]; exists {
+			delete(s.kueueResourceFlavors, key)
+			return true
+		}
+	default:
+		log.Errorf("Unknown event type %d for Kueue resource flavor %s", eventType, key)
 	}
 	return false
 }
@@ -310,8 +344,8 @@ func (srv *KubeMetadataStreamServer) notifyNamespaceSubscribers() {
 }
 
 func (srv *KubeMetadataStreamServer) subscribeToNamespaceEvents(nodeName string) <-chan struct{} {
-	srv.namespacesMutex.Lock()
-	defer srv.namespacesMutex.Unlock()
+	srv.metadataMutex.Lock()
+	defer srv.metadataMutex.Unlock()
 
 	ch := make(chan struct{}, 1)
 	srv.namespaceSubscribers[nodeName] = append(srv.namespaceSubscribers[nodeName], ch)
@@ -324,8 +358,8 @@ func (srv *KubeMetadataStreamServer) subscribeToNamespaceEvents(nodeName string)
 }
 
 func (srv *KubeMetadataStreamServer) unsubscribeFromNamespaceEvents(nodeName string, ch <-chan struct{}) {
-	srv.namespacesMutex.Lock()
-	defer srv.namespacesMutex.Unlock()
+	srv.metadataMutex.Lock()
+	defer srv.metadataMutex.Unlock()
 
 	channels := srv.namespaceSubscribers[nodeName]
 	for i, c := range channels {
@@ -344,27 +378,25 @@ func (srv *KubeMetadataStreamServer) unsubscribeFromNamespaceEvents(nodeName str
 }
 
 func (srv *KubeMetadataStreamServer) buildNamespacesSnapshot() map[string]namespaceEntry {
-	srv.namespacesMutex.RLock()
-	defer srv.namespacesMutex.RUnlock()
-
-	snapshot := make(map[string]namespaceEntry, len(srv.namespaces))
-	for ns, entry := range srv.namespaces {
-		snapshot[ns] = namespaceEntry{
-			labels:      entry.labels,
-			annotations: entry.annotations,
-		}
-	}
-	return snapshot
+	return srv.buildMetadataSnapshot().namespaces
 }
 
 func (srv *KubeMetadataStreamServer) buildKueueQueuesSnapshot() map[string]kueueQueueEntry {
-	srv.namespacesMutex.RLock()
-	defer srv.namespacesMutex.RUnlock()
+	return srv.buildMetadataSnapshot().kueueQueues
+}
 
-	snapshot := make(map[string]kueueQueueEntry, len(srv.kueueQueues))
-	for key, entry := range srv.kueueQueues {
-		snapshot[key] = entry
-	}
+func (srv *KubeMetadataStreamServer) buildKueueResourceFlavorsSnapshot() map[string]kueueResourceFlavorEntry {
+	return srv.buildMetadataSnapshot().kueueResourceFlavors
+}
+
+func (srv *KubeMetadataStreamServer) buildMetadataSnapshot() metadataSnapshot {
+	srv.metadataMutex.RLock()
+	defer srv.metadataMutex.RUnlock()
+
+	snapshot := newMetadataSnapshot()
+	maps.Copy(snapshot.namespaces, srv.metadata.namespaces)
+	maps.Copy(snapshot.kueueQueues, srv.metadata.kueueQueues)
+	maps.Copy(snapshot.kueueResourceFlavors, srv.metadata.kueueResourceFlavors)
 	return snapshot
 }
 
@@ -385,7 +417,7 @@ func kubeMetadataStreamFilter() *workloadmeta.Filter {
 			metadata := entity.(*workloadmeta.KubernetesMetadata)
 			return workloadmeta.IsNamespaceMetadata(metadata)
 		},
-	).AddKind(workloadmeta.KindKubernetesKueueQueue).Build()
+	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).Build()
 }
 
 func bundleToPodServiceMappingsSnapshot(bundle *apiserver.MetadataMapperBundle) map[string]podServiceEntry {
@@ -404,9 +436,8 @@ func bundleToPodServiceMappingsSnapshot(bundle *apiserver.MetadataMapperBundle) 
 }
 
 // fullStateResponse creates a KubeMetadataStreamResponse with
-// is_full_state=true containing all current mappings and namespace labels and
-// annotations.
-func fullStateResponse(podServices map[string]podServiceEntry, namespaces map[string]namespaceEntry, kueueQueues map[string]kueueQueueEntry) *pb.KubeMetadataStreamResponse {
+// is_full_state=true containing all current mappings and metadata.
+func fullStateResponse(podServices map[string]podServiceEntry, metadata metadataSnapshot) *pb.KubeMetadataStreamResponse {
 	mappings := make([]*pb.PodServiceMapping, 0, len(podServices))
 	for _, entry := range podServices {
 		mappings = append(mappings, &pb.PodServiceMapping{
@@ -417,26 +448,35 @@ func fullStateResponse(podServices map[string]podServiceEntry, namespaces map[st
 		})
 	}
 
-	namespacesMetadata := make([]*pb.NamespaceMetadata, 0, len(namespaces))
-	for namespace, entry := range namespaces {
-		namespacesMetadata = append(namespacesMetadata, &pb.NamespaceMetadata{
-			Namespace:   namespace,
-			Labels:      entry.labels,
-			Annotations: entry.annotations,
-			Type:        pb.KubeMetadataEventType_SET,
-		})
-	}
+	resp := computeMetadataDiff(newMetadataSnapshot(), metadata).response(true)
+	resp.Mappings = mappings
+	return resp
+}
 
-	kueueQueuesSnapshot := make([]*pb.KueueQueue, 0, len(kueueQueues))
-	for _, entry := range kueueQueues {
-		kueueQueuesSnapshot = append(kueueQueuesSnapshot, protoKueueQueue(entry, pb.KubeMetadataEventType_SET))
-	}
+type metadataDiff struct {
+	namespaces           []*pb.NamespaceMetadata
+	kueueQueues          []*pb.KueueQueue
+	kueueResourceFlavors []*pb.KueueResourceFlavor
+}
 
+func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
+	return metadataDiff{
+		namespaces:           computeNamespacesDiff(old.namespaces, current.namespaces),
+		kueueQueues:          computeKueueQueueDiff(old.kueueQueues, current.kueueQueues),
+		kueueResourceFlavors: computeKueueResourceFlavorDiff(old.kueueResourceFlavors, current.kueueResourceFlavors),
+	}
+}
+
+func (d metadataDiff) isEmpty() bool {
+	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors) == 0
+}
+
+func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse {
 	return &pb.KubeMetadataStreamResponse{
-		IsFullState:       true,
-		Mappings:          mappings,
-		NamespaceMetadata: namespacesMetadata,
-		KueueQueues:       kueueQueuesSnapshot,
+		IsFullState:          isFullState,
+		NamespaceMetadata:    d.namespaces,
+		KueueQueues:          d.kueueQueues,
+		KueueResourceFlavors: d.kueueResourceFlavors,
 	}
 }
 
@@ -518,15 +558,46 @@ func computeKueueQueueDiff(old, current map[string]kueueQueueEntry) []*pb.KueueQ
 	return diff
 }
 
+func computeKueueResourceFlavorDiff(old, current map[string]kueueResourceFlavorEntry) []*pb.KueueResourceFlavor {
+	var diff []*pb.KueueResourceFlavor
+
+	for key, cur := range current {
+		prev, existed := old[key]
+		if !existed || !kueueResourceFlavorEqual(prev, cur) {
+			diff = append(diff, protoKueueResourceFlavor(cur, pb.KubeMetadataEventType_SET))
+		}
+	}
+
+	for key, prev := range old {
+		if _, exists := current[key]; !exists {
+			diff = append(diff, protoKueueResourceFlavor(prev, pb.KubeMetadataEventType_UNSET))
+		}
+	}
+
+	return diff
+}
+
 func protoKueueQueue(entry kueueQueueEntry, eventType pb.KubeMetadataEventType) *pb.KueueQueue {
 	return &pb.KueueQueue{
 		Namespace:    entry.namespace,
 		Name:         entry.name,
 		QueueType:    protoKueueQueueType(entry.queueType),
 		ClusterQueue: entry.clusterQueueName,
-		ResolvedTags: entry.resolvedTags,
+		Labels:       entry.labels,
+		Annotations:  entry.annotations,
 		Uid:          entry.uid,
 		Type:         eventType,
+	}
+}
+
+func protoKueueResourceFlavor(entry kueueResourceFlavorEntry, eventType pb.KubeMetadataEventType) *pb.KueueResourceFlavor {
+	return &pb.KueueResourceFlavor{
+		Name:               entry.name,
+		Labels:             entry.labels,
+		Annotations:        entry.annotations,
+		Uid:                entry.uid,
+		NodeAffinityLabels: entry.nodeAffinityLabels,
+		Type:               eventType,
 	}
 }
 
@@ -536,7 +607,16 @@ func kueueQueueEqual(left, right kueueQueueEntry) bool {
 		left.queueType == right.queueType &&
 		left.clusterQueueName == right.clusterQueueName &&
 		left.uid == right.uid &&
-		slices.Equal(left.resolvedTags, right.resolvedTags)
+		maps.Equal(left.labels, right.labels) &&
+		maps.Equal(left.annotations, right.annotations)
+}
+
+func kueueResourceFlavorEqual(left, right kueueResourceFlavorEntry) bool {
+	return left.name == right.name &&
+		left.uid == right.uid &&
+		maps.Equal(left.labels, right.labels) &&
+		maps.Equal(left.annotations, right.annotations) &&
+		maps.Equal(left.nodeAffinityLabels, right.nodeAffinityLabels)
 }
 
 func protoKueueQueueType(queueType workloadmeta.KueueQueueType) pb.KueueQueueType {

@@ -93,7 +93,7 @@ properties:
         - golang_type:duration
       refresh_interval:
         node_type: setting
-        type: number
+        type: string
         default: 0s
         format: duration
         tags:

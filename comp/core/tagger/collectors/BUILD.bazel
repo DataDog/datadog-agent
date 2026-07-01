@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "collectors",
@@ -30,6 +31,7 @@ go_library(
         "//pkg/util/docker",
         "//pkg/util/fargate",
         "//pkg/util/flavor",
+        "//pkg/util/gpu",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",
@@ -40,7 +42,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "collectors_test",
     srcs = [
         "ecs_common_test.go",
@@ -48,7 +50,6 @@ go_test(
         "workloadmeta_test.go",
     ],
     embed = [":collectors"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",

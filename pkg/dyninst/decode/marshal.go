@@ -161,6 +161,14 @@ func (m *messageData) processJSONSegment(
 		return nil
 	}
 	expr := ev.rootType.Expressions[exprIdx]
+	if expr.Redacted {
+		if !limits.canWrite(len(formatRedacted)) {
+			return nil
+		}
+		result.WriteString(formatRedacted)
+		limits.consume(len(formatRedacted))
+		return nil
+	}
 
 	// Check expression status.
 	statusArraySize := ev.rootType.ExprStatusArraySize
@@ -532,6 +540,9 @@ func (ce *captureEvent) processExpression(
 	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 		return err
 	}
+	if expr.Redacted {
+		return writeRedacted(enc, typeName, tokenNotCapturedReasonRedactedIdent)
+	}
 	exprStatus := statusArray.getExprStatus(expressionIndex)
 	// ExprStatusPresent and ExprStatusTruncated both indicate the value
 	// is present; Truncated additionally signals that a filter result
@@ -749,6 +760,9 @@ func encodeValue(
 	data []byte,
 	valueType string,
 ) error {
+	if c.redaction.RedactType(valueType) {
+		return writeRedacted(enc, valueType, tokenNotCapturedReasonRedactedType)
+	}
 	decoderType, ok := c.getType(typeID)
 	if !ok {
 		return errors.New("no decoder type found")
@@ -768,6 +782,20 @@ func encodeValue(
 		return err
 	}
 	return nil
+}
+
+// writeRedacted emits a captured-value object whose value is dropped for the
+// given reason, e.g. {"type": "string", "notCapturedReason": "redactedIdent"}.
+// The name (when there is one) is written by the caller beforehand.
+func writeRedacted(enc *jsontext.Encoder, typeName string, reason jsontext.Token) error {
+	return writeTokens(enc,
+		jsontext.BeginObject,
+		jsontext.String("type"),
+		jsontext.String(typeName),
+		tokenNotCapturedReason,
+		reason,
+		jsontext.EndObject,
+	)
 }
 
 func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {

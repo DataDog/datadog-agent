@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "containerd",
@@ -30,14 +31,18 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "containerd_test",
     srcs = [
         "containerd_util_test.go",
         "namespaces_test.go",
     ],
     embed = [":containerd"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "dogstatsd",
+        "fips",
+    ],
     deps = [
         "//pkg/config/mock",
         "//pkg/util/containerd/fake",

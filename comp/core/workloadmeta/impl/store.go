@@ -442,6 +442,16 @@ func (w *workloadmeta) GetKubernetesKueueQueue(id string) (*wmdef.KubernetesKueu
 	return entity.(*wmdef.KubernetesKueueQueue), nil
 }
 
+// GetKubernetesKueueResourceFlavor implements Store#GetKubernetesKueueResourceFlavor
+func (w *workloadmeta) GetKubernetesKueueResourceFlavor(id string) (*wmdef.KubernetesKueueResourceFlavor, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKueueResourceFlavor, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKueueResourceFlavor), nil
+}
+
 // ListECSTasks implements Store#ListECSTasks
 func (w *workloadmeta) ListECSTasks() []*wmdef.ECSTask {
 	entities := w.listEntitiesByKind(wmdef.KindECSTask)

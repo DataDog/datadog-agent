@@ -21,12 +21,19 @@ type kueueQueueParser struct {
 	queueType workloadmeta.KueueQueueType
 }
 
+type kueueResourceFlavorParser struct{}
+
 // NewKueueQueueParser returns a parser for Kueue queue resources.
 func NewKueueQueueParser(queueType workloadmeta.KueueQueueType) (ObjectParser, error) {
 	if err := validateKueueQueueType(queueType); err != nil {
 		return nil, err
 	}
 	return kueueQueueParser{queueType: queueType}, nil
+}
+
+// NewKueueResourceFlavorParser returns a parser for Kueue ResourceFlavor resources.
+func NewKueueResourceFlavorParser() ObjectParser {
+	return kueueResourceFlavorParser{}
 }
 
 func (p kueueQueueParser) Parse(obj interface{}) workloadmeta.Entity {
@@ -64,6 +71,28 @@ func (p kueueQueueParser) entityID(namespace, name string) string {
 	return id
 }
 
+func (p kueueResourceFlavorParser) Parse(obj interface{}) workloadmeta.Entity {
+	u := obj.(*unstructured.Unstructured)
+	meta := workloadmeta.EntityMeta{
+		Name:        u.GetName(),
+		Namespace:   u.GetNamespace(),
+		Labels:      u.GetLabels(),
+		Annotations: u.GetAnnotations(),
+		UID:         string(u.GetUID()),
+	}
+
+	nodeAffinityLabels, _, _ := unstructured.NestedStringMap(u.Object, "spec", "nodeLabels")
+
+	return &workloadmeta.KubernetesKueueResourceFlavor{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+			ID:   workloadmeta.GenerateKueueResourceFlavorEntityID(meta.Name),
+		},
+		EntityMeta:         meta,
+		NodeAffinityLabels: nodeAffinityLabels,
+	}
+}
+
 // GenerateKueueQueueEntityID returns the workloadmeta entity ID for a Kueue queue.
 func GenerateKueueQueueEntityID(queueType workloadmeta.KueueQueueType, namespace, name string) (string, error) {
 	return workloadmeta.GenerateKueueQueueEntityID(queueType, namespace, name)
@@ -92,5 +121,10 @@ func validateKueueQueueType(queueType workloadmeta.KueueQueueType) error {
 
 // KueueQueueDeletionMeta returns Kubernetes object metadata used by generic reflector stores.
 func KueueQueueDeletionMeta(obj interface{}) metav1.Object {
+	return obj.(metav1.Object)
+}
+
+// KueueResourceFlavorDeletionMeta returns Kubernetes object metadata used by generic reflector stores.
+func KueueResourceFlavorDeletionMeta(obj interface{}) metav1.Object {
 	return obj.(metav1.Object)
 }

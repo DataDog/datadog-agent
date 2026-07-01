@@ -107,14 +107,13 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 			for _, p := range payloads {
 				for _, iss := range findIssuesByID(t, p, admissionProbeIssueID) {
 					if iss.PersistedIssue != nil &&
-						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
-							iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
+						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE) {
 						detectedIssue = iss
 						return
 					}
 				}
 			}
-			assert.Fail(ct, "admission probe issue not found as NEW or ONGOING in fakeintake")
+			assert.Fail(ct, "admission probe issue not found as ACTIVE in fakeintake")
 		}, defaultIssueTimeout, defaultIssuePollInterval, "admission probe issue not detected in fakeintake")
 
 		require.NotNil(t, detectedIssue)
@@ -125,12 +124,7 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 		assert.NotNil(t, detectedIssue.Remediation)
 		assert.NotEmpty(t, detectedIssue.Remediation.Steps)
 		require.NotNil(t, detectedIssue.PersistedIssue)
-		assert.Contains(t,
-			[]healthplatform.IssueState{
-				healthplatform.IssueState_ISSUE_STATE_NEW,
-				healthplatform.IssueState_ISSUE_STATE_ONGOING,
-			},
-			detectedIssue.PersistedIssue.State)
+		assert.Equal(t, healthplatform.IssueState_ISSUE_STATE_ACTIVE, detectedIssue.PersistedIssue.State)
 	})
 
 	suite.unblockWebhookFromAPIServer(suite.T())

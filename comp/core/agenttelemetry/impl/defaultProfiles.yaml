@@ -8,6 +8,10 @@ profiles:
         preserve_tags:
           - check_name
           - check_loader
+      - name: checks.first_execution_time
+        preserve_tags:
+          - check_name
+          - check_loader
       - name: checks.delay
         preserve_tags:
           - check_name

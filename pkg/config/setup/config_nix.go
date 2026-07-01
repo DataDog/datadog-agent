@@ -11,10 +11,5 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-const (
-	// defaultGuiPort is the default GUI port (-1 means disabled on Linux)
-	defaultGuiPort = -1
-)
-
 // FleetConfigOverride is a no-op on Linux
 func FleetConfigOverride(_ pkgconfigmodel.Config) {}

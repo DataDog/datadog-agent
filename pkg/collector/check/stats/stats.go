@@ -75,6 +75,8 @@ var (
 		[]string{"check_name"}, "Histogram buckets count")
 	tlmExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("checks", "execution_time",
 		[]string{"check_name", "check_loader"}, "Check execution time")
+	tlmFirstExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("checks", "first_execution_time",
+		[]string{"check_name", "check_loader"}, "Check first execution time")
 	tlmCheckDelay = telemetryimpl.GetCompatComponent().NewGauge("checks",
 		"delay",
 		[]string{"check_name"},
@@ -142,6 +144,7 @@ type Stats struct {
 	EventPlatformEvents      map[string]int64
 	TotalEventPlatformEvents map[string]int64
 	ExecutionTimes           [32]int64     // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
+	FirstExecutionTime       int64         // duration of the first run in milliseconds
 	AverageExecutionTime     int64         // average run duration
 	LastExecutionTime        time.Duration // most recent run duration, provided for convenience
 	LastSuccessDate          int64         // most recent successful execution date, unix timestamp in seconds
@@ -215,7 +218,12 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	cs.LastExecutionTime = t
 	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
 	cs.TotalRuns++
-	if cs.Telemetry {
+	if cs.TotalRuns == 1 {
+		cs.FirstExecutionTime = tms
+		if cs.Telemetry {
+			tlmFirstExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
+		}
+	} else if cs.Telemetry {
 		tlmExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
 	}
 	var totalExecutionTime int64
