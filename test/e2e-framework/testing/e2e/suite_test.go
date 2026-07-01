@@ -241,9 +241,9 @@ func TestTCleanupHookIsNoOpAfterNormalTeardown(t *testing.T) {
 // --- fail-fast (firstFailTest) tests ---
 
 // TestFailFastGuardSkipsBeforeTest verifies that BeforeTest skips (does not call
-// reconcileEnv) when firstFailTest is set and failFast is enabled. It simulates a
-// prior test failure by directly setting firstFailTest, avoiding an intentionally
-// failing sub-test that would propagate as a real CI failure.
+// reconcileEnv) when firstFailTest is set and failFast is enabled via WithFailFast().
+// It simulates a prior test failure by directly setting firstFailTest, avoiding an
+// intentionally failing sub-test that would propagate as a real CI failure.
 func TestFailFastGuardSkipsBeforeTest(t *testing.T) {
 	p := &testProvisioner{}
 	p.On("ID").Return("test")
@@ -251,11 +251,10 @@ func TestFailFastGuardSkipsBeforeTest(t *testing.T) {
 	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	s := &testNoOpSuite{}
-	Run(t, s, WithProvisioner(p))
+	Run(t, s, WithProvisioner(p), WithFailFast())
 
 	// Simulate a prior test failure by setting firstFailTest directly.
 	s.firstFailTest = "testNoOpSuite.TestSimulatedFailure"
-	s.params.failFast = true
 
 	// BeforeTest should skip, not call reconcileEnv.
 	// Run it in a sub-test so Skipf's runtime.Goexit doesn't exit the parent.
@@ -272,20 +271,19 @@ func TestFailFastGuardSkipsBeforeTest(t *testing.T) {
 	p.AssertNumberOfCalls(t, "Provision", 1)
 }
 
-// TestFailFastGuardDoesNotSkipWhenDisabled verifies that BeforeTest does NOT skip
-// when failFast is disabled, even if firstFailTest is set.
-func TestFailFastGuardDoesNotSkipWhenDisabled(t *testing.T) {
+// TestFailFastGuardDoesNotSkipByDefault verifies that BeforeTest does NOT skip
+// by default (failFast is false), even if firstFailTest is set.
+func TestFailFastGuardDoesNotSkipByDefault(t *testing.T) {
 	p := &testProvisioner{}
 	p.On("ID").Return("test")
 	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
 	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	s := &testNoOpSuite{}
-	Run(t, s, WithProvisioner(p), WithoutFailFast())
+	Run(t, s, WithProvisioner(p))
 
 	// Simulate a prior test failure.
 	s.firstFailTest = "testNoOpSuite.TestSimulatedFailure"
-	s.params.failFast = false
 
 	// BeforeTest should NOT skip — it should call reconcileEnv (which will
 	// short-circuit via DeepEqual since provisioners haven't changed).
@@ -300,7 +298,7 @@ func TestFailFastGuardDoesNotSkipWhenDisabled(t *testing.T) {
 }
 
 // TestFailFastGuardSkipsUpdateEnv verifies that UpdateEnv skips re-provisioning
-// when firstFailTest is set and failFast is enabled.
+// when firstFailTest is set and failFast is enabled via WithFailFast().
 func TestFailFastGuardSkipsUpdateEnv(t *testing.T) {
 	p := &testProvisioner{}
 	p.On("ID").Return("test")
@@ -308,11 +306,10 @@ func TestFailFastGuardSkipsUpdateEnv(t *testing.T) {
 	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	s := &testNoOpSuite{}
-	Run(t, s, WithProvisioner(p))
+	Run(t, s, WithProvisioner(p), WithFailFast())
 
 	// Simulate a prior test failure.
 	s.firstFailTest = "testNoOpSuite.TestSimulatedFailure"
-	s.params.failFast = true
 
 	// UpdateEnv should skip, not call reconcileEnv.
 	t.Run("update_env_after_failure", func(subT *testing.T) {

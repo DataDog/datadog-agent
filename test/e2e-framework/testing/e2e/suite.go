@@ -366,9 +366,6 @@ func (bs *BaseSuite[Env]) DatadogClient() *datadog.Client {
 }
 
 func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
-	// failFast defaults to true. Set it before applying options so that
-	// WithoutFailFast() can override it to false.
-	bs.params.failFast = true
 	for _, o := range options {
 		o(&bs.params)
 	}
