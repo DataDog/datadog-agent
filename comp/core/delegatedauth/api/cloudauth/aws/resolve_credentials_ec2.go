@@ -58,6 +58,16 @@ const (
 // aws-sdk-go-v2; the web-identity and IMDS legs are handled directly (hand-rolled STS to avoid
 // linking service/sts, and the Agent's IMDS helper to honor ec2_metadata_timeout). Only the
 // selection is ours.
+//
+// Divergences from the SDK default chain are intentional and follow Agent conventions:
+//   - IMDS is governed by Agent config (ec2_metadata_timeout, ec2_prefer_imdsv2), not the SDK's
+//     IMDS env vars (AWS_EC2_METADATA_DISABLED / _V1_DISABLED / _SERVICE_ENDPOINT / _ENDPOINT_MODE),
+//     which this path does not honor (the Agent honors none of them elsewhere either).
+//   - the IRSA STS call uses the Agent's HTTP transport, so proxy / custom CA / TLS come from Agent
+//     config and AWS_CA_BUNDLE is not consulted.
+//   - only AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY are read for static creds (not the legacy
+//     AWS_ACCESS_KEY / AWS_SECRET_KEY aliases), and shared-config / SSO / credential_process are
+//     unsupported.
 func (a *AWSAuth) resolveCredentials(ctx context.Context, cfg pkgconfigmodel.Reader) *creds.SecurityCredentials {
 	provider, err := a.credentialProvider(cfg)
 	if err != nil {

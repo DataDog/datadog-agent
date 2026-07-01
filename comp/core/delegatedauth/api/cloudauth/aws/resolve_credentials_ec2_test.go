@@ -43,6 +43,22 @@ func TestResolveCredentials_EC2_StaticEnvVarsReturned(t *testing.T) {
 	assert.Equal(t, "EKSTATICTOKEN", got.Token)
 }
 
+// TestResolveCredentials_EC2_NoUsableCredsReturnsEmpty verifies resolveCredentials returns empty
+// credentials (not nil) when the selected provider fails, exercising the wrapper's error branch.
+// It forces a deterministic web-identity failure via a missing token file rather than falling
+// through to the IMDS provider, which would make a live metadata call on an EC2 host or CI runner.
+func TestResolveCredentials_EC2_NoUsableCredsReturnsEmpty(t *testing.T) {
+	isolateAWSEnv(t)
+	t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
+	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", filepath.Join(t.TempDir(), "no-such-token"))
+
+	auth := &AWSAuth{region: "us-east-1"}
+	got := auth.resolveCredentials(context.Background(), configmock.New(t))
+	require.NotNil(t, got)
+	// AccessKeyID will be empty; downstream generateAwsAuthData returns "missing AWS credentials".
+	assert.Empty(t, got.AccessKeyID)
+}
+
 // TestResolveRegion_EC2 covers the region precedence used for the IRSA STS call. The IRSA-only
 // case (no configured region, no AWS_REGION/AWS_DEFAULT_REGION) must still yield a region,
 // otherwise the web-identity STS call fails endpoint resolution.

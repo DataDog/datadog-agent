@@ -29,6 +29,7 @@ go_test(
     srcs = [
         "aws_test.go",
         "resolve_credentials_ec2_test.go",
+        "resolve_credentials_noec2_test.go",
         "resolve_credentials_test.go",
     ],
     embed = [":aws"],

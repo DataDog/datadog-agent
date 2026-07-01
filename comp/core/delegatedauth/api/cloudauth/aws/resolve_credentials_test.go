@@ -16,12 +16,14 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
-// isolateAWSEnv makes credential resolution hermetic: it clears every AWS
-// credential-source environment variable, neutralizes AWS_PROFILE, and points the
-// shared config/credentials files at a nonexistent path so tests do not pick up the
-// developer or CI machine's AWS configuration. IMDS is disabled as well. This matters
-// for the ec2 build, where resolveCredentials goes through the full AWS SDK chain
-// (which otherwise reads ~/.aws and instance metadata).
+// isolateAWSEnv makes credential resolution hermetic: it clears every AWS credential-source
+// environment variable, neutralizes AWS_PROFILE, and points the shared config/credentials files at
+// a nonexistent path so tests do not pick up the developer or CI machine's AWS configuration. In
+// the ec2 build credentialProvider selects a provider from these env vars, so a stray AWS_ROLE_ARN
+// or container URI on the host would otherwise change which provider is chosen. Tests deliberately
+// avoid driving the default IMDS branch through resolveCredentials (which would make a live
+// metadata call, ignoring AWS_EC2_METADATA_DISABLED since the Agent governs IMDS via its own
+// config); they assert provider selection or inject the fetch instead.
 func isolateAWSEnv(t *testing.T) {
 	t.Helper()
 	for _, k := range []string{
@@ -35,7 +37,6 @@ func isolateAWSEnv(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "no-such-aws-file")
 	t.Setenv("AWS_CONFIG_FILE", missing)
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", missing)
-	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 }
 
 // -- Static env var tests (run in both build variants) --
@@ -65,14 +66,4 @@ func TestResolveCredentials_StaticEnvVars_NoToken(t *testing.T) {
 	assert.Equal(t, "AKIAIOSFODNN7EXAMPLE", got.AccessKeyID)
 	assert.Equal(t, "secret123", got.SecretAccessKey)
 	assert.Empty(t, got.Token)
-}
-
-func TestResolveCredentials_NoCredsReturnsEmpty(t *testing.T) {
-	isolateAWSEnv(t)
-
-	auth := &AWSAuth{region: "us-east-1"}
-	got := auth.resolveCredentials(context.Background(), configmock.New(t))
-	require.NotNil(t, got)
-	// AccessKeyID will be empty; downstream generateAwsAuthData returns "missing AWS credentials"
-	assert.Empty(t, got.AccessKeyID)
 }
