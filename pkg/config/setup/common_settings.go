@@ -1518,7 +1518,7 @@ func telemetry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("agent_telemetry.use_compression", true)
 	config.BindEnvAndSetDefault("agent_telemetry.startup_trace_sampling", 0)
 
-	// AGTHEAL-15: experimental error log forwarding to telemetry. Use-sites must
+	// experimental error log forwarding to telemetry. Use-sites must
 	// additionally gate on pkg/config/utils.IsAgentTelemetryEnabled so
 	// gov/FIPS exclusion is inherited from the parent agent_telemetry flag.
 	config.BindEnvAndSetDefault("agent_telemetry.errortracking.enabled", false)
