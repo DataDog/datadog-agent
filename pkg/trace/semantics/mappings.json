@@ -1,5 +1,8 @@
 {
   "version": "0.1.0",
+  "metadata": {
+    "content_hash": "b6ebea4713ef6e43e2f0c29576cb50344b75b04b345c2a372af4da16487e4955"
+  },
   "concepts": {
     "peer.service": {
       "canonical": "peer.service",
