@@ -42,12 +42,15 @@ func newComponent(
 	resolver targetResolver,
 ) *component {
 	readers := map[RuntimeType]configReaderFactory{
-		RuntimeDocker: newDockerConfigReader,
+		RuntimeDocker:     newDockerConfigReader,
+		RuntimeKubernetes: newKubernetesConfigReader,
 	}
-	collectors := map[string]configCollector{}
+	collectors := map[string]configCollector{
+		redisIntegrationName: newRedisConfigCollector(),
+	}
 	return &component{
 		ad:        ad,
-		scheduler: newADScheduler(resolver, readers, collectors),
+		scheduler: newADScheduler(resolver, readers, collectors, noopConfigFileReporter{}),
 	}
 }
 

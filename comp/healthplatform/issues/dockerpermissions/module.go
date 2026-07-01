@@ -21,7 +21,7 @@ func init() {
 const (
 	// IssueName is the identifier for Docker permission issues,
 	// used as the template registry key and the proto IssueName field.
-	IssueName = "docker_file_tailing_disabled"
+	IssueName = "Docker File Tailing Disabled"
 
 	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "docker-socket-permissions"

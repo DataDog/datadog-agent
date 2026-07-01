@@ -18,7 +18,9 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 )
@@ -158,12 +160,12 @@ func TestValidate(t *testing.T) {
 			expectErrCount: 0,
 		},
 		{
-			name: "valid check",
+			name: "valid check with container name",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration:    "redisdb",
-					ContainerImage: []string{"redis"},
-					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:   "redisdb",
+					ContainerName: "redis",
+					Instances:     []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
 			expectErrCount: 0,
@@ -172,9 +174,9 @@ func TestValidate(t *testing.T) {
 			name: "empty integration name",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration:    "",
-					ContainerImage: []string{"redis"},
-					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:   "",
+					ContainerName: "redis",
+					Instances:     []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
 			expectErrCount: 1,
@@ -184,9 +186,9 @@ func TestValidate(t *testing.T) {
 			name: "whitespace-only integration name",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration:    "   ",
-					ContainerImage: []string{"redis"},
-					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:   "   ",
+					ContainerName: "redis",
+					Instances:     []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
 			expectErrCount: 1,
@@ -196,9 +198,9 @@ func TestValidate(t *testing.T) {
 			name: "no instances or logs",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration:    "redisdb",
-					ContainerImage: []string{"redis"},
-					Instances:      nil,
+					Integration:   "redisdb",
+					ContainerName: "redis",
+					Instances:     nil,
 				},
 			}),
 			expectErrCount: 1,
@@ -208,15 +210,15 @@ func TestValidate(t *testing.T) {
 			name: "logs only is valid",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration:    "custom",
-					ContainerImage: []string{"app"},
-					Logs:           []datadoghq.DatadogInstrumentationLogConfig{{Type: "tcp"}},
+					Integration:   "custom",
+					ContainerName: "app",
+					Logs:          []datadoghq.DatadogInstrumentationLogConfig{{Type: "tcp"}},
 				},
 			}),
 			expectErrCount: 0,
 		},
 		{
-			name: "no container image for workload",
+			name: "no container name for workload",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
 					Integration: "redisdb",
@@ -224,7 +226,7 @@ func TestValidate(t *testing.T) {
 				},
 			}),
 			expectErrCount: 1,
-			expectField:    "spec.config.checks[0].containerImage",
+			expectField:    "spec.config.checks[0].containerName",
 		},
 		{
 			name: "all validations fail for workload",
@@ -237,14 +239,14 @@ func TestValidate(t *testing.T) {
 			name: "multiple checks with mixed errors",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration:    "redisdb",
-					ContainerImage: []string{"redis"},
-					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:   "redisdb",
+					ContainerName: "redis",
+					Instances:     []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 				{
-					Integration:    "",
-					ContainerImage: []string{"app"},
-					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:   "",
+					ContainerName: "app",
+					Instances:     []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
 			expectErrCount: 1,
@@ -426,53 +428,39 @@ func TestTranslateCheck(t *testing.T) {
 		{
 			name: "empty init config defaults to {}",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration:    "http_check",
-				ContainerImage: []string{"container-image"},
-				Instances:      []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
+				Integration:   "http_check",
+				ContainerName: "app",
+				Instances:     []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
 			},
 			expectedInit:    "{}",
 			expectedInstLen: 1,
-			expectedADIDs:   []string{"container-image"},
+			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
 			logsNil:         true,
 		},
 		{
 			name: "provided init config is preserved",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration:    "http_check",
-				ContainerImage: []string{"container-image"},
-				InitConfig:     runtime.RawExtension{Raw: []byte(`{"service":"myservice"}`)},
-				Instances:      []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
+				Integration:   "http_check",
+				ContainerName: "app",
+				InitConfig:    runtime.RawExtension{Raw: []byte(`{"service":"myservice"}`)},
+				Instances:     []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
 			},
 			expectedInit:    `{"service":"myservice"}`,
 			expectedInstLen: 1,
-			expectedADIDs:   []string{"container-image"},
+			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
 			logsNil:         true,
-		},
-		{
-			name: "multiple instances are translated",
-			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration:    "http_check",
-				ContainerImage: []string{"container-image", "other-container"},
-				Instances: []runtime.RawExtension{
-					{Raw: []byte(`{"url":"http://host1"}`)},
-					{Raw: []byte(`{"url":"http://host2"}`)},
-				},
-			},
-			expectedInit:     "{}",
-			expectedInstLen:  2,
-			expectedADIDs:    []string{"container-image", "other-container"},
-			instanceContains: []string{"host1", "host2"},
-			logsNil:          true,
 		},
 		{
 			name: "logs config is translated",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration: "custom",
-				Instances:   []runtime.RawExtension{{Raw: []byte(`{"key":"val"}`)}},
-				Logs:        []datadoghq.DatadogInstrumentationLogConfig{{Type: "tcp", Port: &port}},
+				Integration:   "custom",
+				ContainerName: "app",
+				Instances:     []runtime.RawExtension{{Raw: []byte(`{"key":"val"}`)}},
+				Logs:          []datadoghq.DatadogInstrumentationLogConfig{{Type: "tcp", Port: &port}},
 			},
 			expectedInit:    "{}",
 			expectedInstLen: 1,
+			expectedADIDs:   []string{adtypes.KubeContainerNameIdentifier("app")},
 			logsContains:    `"type":"tcp"`,
 		},
 		{
@@ -497,10 +485,7 @@ func TestTranslateCheck(t *testing.T) {
 			require.Len(t, configs, 1)
 			assert.Equal(t, tt.expectedInit, string(configs[0].InitConfig))
 			require.Len(t, configs[0].Instances, tt.expectedInstLen)
-
-			if tt.expectedADIDs != nil {
-				require.ElementsMatch(t, tt.expectedADIDs, configs[0].ADIdentifiers)
-			}
+			require.ElementsMatch(t, tt.expectedADIDs, configs[0].ADIdentifiers)
 
 			for i, substr := range tt.instanceContains {
 				assert.Contains(t, string(configs[0].Instances[i]), substr)
@@ -523,7 +508,7 @@ func TestBuildCELSelector(t *testing.T) {
 		contains  []string
 	}{
 		{
-			name:      "basic selector without images",
+			name:      "basic selector",
 			kind:      "Deployment",
 			target:    "my-app",
 			namespace: "default",
@@ -531,19 +516,21 @@ func TestBuildCELSelector(t *testing.T) {
 				`container.pod.rootowner.kind == "Deployment"`,
 				`container.pod.rootowner.name == "my-app"`,
 				`container.pod.namespace == "default"`,
+				`container.image.reference != ""`,
 			},
 		},
 		{
-			name:      "selector with single image",
+			name:      "selector with statefulset target",
 			kind:      "StatefulSet",
 			target:    "redis",
 			namespace: "data",
 			contains: []string{
 				`container.pod.rootowner.kind == "StatefulSet"`,
+				`container.pod.rootowner.name == "redis"`,
 			},
 		},
 		{
-			name:      "selector with multiple images",
+			name:      "selector with deployment target",
 			kind:      "Deployment",
 			target:    "multi",
 			namespace: "default",
@@ -561,6 +548,62 @@ func TestBuildCELSelector(t *testing.T) {
 			for _, substr := range tt.contains {
 				assert.Contains(t, rules.Containers[0], substr)
 			}
+			assert.NotContains(t, rules.Containers[0], `container.name ==`)
 		})
 	}
+}
+
+// TestCheckStoreIncrementalHash verifies the incremental configHash maintained by
+// writeConfigs/deleteConfigs.
+func TestCheckStoreIncrementalHash(t *testing.T) {
+	cfg := []integration.Config{{Name: "check"}}
+	write := func(cs *CheckStore, key, uid string, gen int64) {
+		cr := newCR(key, "ns", "Deployment", "app", nil)
+		cr.UID = types.UID(uid)
+		cr.Generation = gen
+		cs.writeConfigs(key, cr, cfg)
+	}
+
+	t.Run("empty store hashes to zero", func(t *testing.T) {
+		require.Equal(t, uint64(0), NewCheckStore().Hash())
+	})
+
+	t.Run("add then delete restores empty hash", func(t *testing.T) {
+		cs := NewCheckStore()
+		write(cs, "a", "uid-a", 1)
+		require.NotEqual(t, uint64(0), cs.Hash())
+		cs.deleteConfigs("a")
+		require.Equal(t, uint64(0), cs.Hash())
+	})
+
+	t.Run("update changes hash and revert restores it", func(t *testing.T) {
+		cs := NewCheckStore()
+		write(cs, "a", "uid-a", 1)
+		write(cs, "b", "uid-b", 1)
+		full := cs.Hash()
+		write(cs, "b", "uid-b", 2) // generation bump
+		require.NotEqual(t, full, cs.Hash())
+		write(cs, "b", "uid-b", 1) // revert
+		require.Equal(t, full, cs.Hash())
+	})
+
+	t.Run("hash is independent of apply order", func(t *testing.T) {
+		cs := NewCheckStore()
+		write(cs, "a", "uid-a", 1)
+		write(cs, "b", "uid-b", 1)
+
+		other := NewCheckStore()
+		write(other, "b", "uid-b", 1)
+		write(other, "a", "uid-a", 1)
+
+		require.Equal(t, cs.Hash(), other.Hash())
+	})
+
+	t.Run("hash is different when same cr has new uid", func(t *testing.T) {
+		cs := NewCheckStore()
+		write(cs, "a", "uid-a", 1)
+		prevHash := cs.Hash()
+		write(cs, "a", "uid-b", 1)
+		require.NotEqual(t, prevHash, cs.Hash())
+	})
 }

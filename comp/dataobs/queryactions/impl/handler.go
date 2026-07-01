@@ -16,18 +16,42 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// activeConfigEntry stores the scheduled check config alongside the base postgres config
-// metadata and parsed instance, so that disabling can restore the original config.
+// A "base config" is a postgres integration.Config emitted by another provider (typically the
+// file provider reading conf.d/postgres.d/conf.yaml) that a DO query action matched against via
+// findPostgresConfig — i.e. the config as it exists before DO touches it. A single base config
+// can bundle several postgres instances. Throughout this file, "base config" always refers to
+// this original, provider-emitted config, as distinct from the DO check config or remainder
+// config that this component derives from it.
+
+// activeConfigEntry stores the scheduled DO check config alongside the base postgres config it
+// was derived from and the host it targets, so reconcileBases can rebuild the set of postgres
+// instances that should keep running independently of any single DO config.
 type activeConfigEntry struct {
 	checkConfig integration.Config
-	baseCfg     *integration.Config // the original matched postgres config for restoration
-	instance    map[string]any      // full parsed postgres instance for rebuilding
+	baseCfg     *integration.Config // the original matched postgres config (full, all instances)
+	matchHost   string              // host this DO config targets (DBIdentifier.Host)
 }
 
-// isSupportedIntegration reports whether name is a supported DB integration.
-// Currently only postgres is supported; mysql may be added in the future.
-func isSupportedIntegration(name string) bool {
-	return name == "postgres"
+// managedBaseEntry tracks a base postgres config that has at least one instance targeted by a
+// DO query action. A DO query action only injects data_observability.queries into the targeted
+// instance — every other field, and every other instance, is unchanged. But autodiscovery
+// schedules whole configs (by digest), not single instances, so we cannot patch one instance in
+// place: we unschedule the base config and schedule the targeted instance (with queries) plus a
+// "remainder" config holding the base config's other instances verbatim. The original base config
+// is retained here so it can be restored once no DO query action targets any of its instances.
+type managedBaseEntry struct {
+	original  integration.Config  // the full original base config, for restoration
+	remainder *integration.Config // remainder config currently scheduled, or nil if none
+}
+
+// instanceHost returns the host/server field for an integration instance,
+// handling the fact that sap_hana uses "server" while postgres uses "host".
+func instanceHost(instance map[string]any) string {
+	if host, ok := instance["host"].(string); ok && host != "" {
+		return host
+	}
+	server, _ := instance["server"].(string)
+	return server
 }
 
 // instanceHasDOEnabled checks whether a parsed instance map has data_observability.enabled: true.
@@ -69,7 +93,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 
 		// Empty queries list signals all queries for this config should be removed
 		if len(payload.Queries) == 0 {
-			c.collectDisable(configID, &changes)
+			c.removeActiveConfig(configID, &changes)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 			continue
 		}
@@ -89,11 +113,11 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		baseCfg, instance, err := c.findPostgresConfig(&payload.DBIdentifier)
+		baseCfg, instance, err := c.findMatchingConfig(&payload.DBIdentifier)
 		if err != nil {
 			c.log.Warnf("No matching postgres config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-			c.collectDisable(configID, &changes)
+			c.removeActiveConfig(configID, &changes)
 			continue
 		}
 
@@ -106,21 +130,18 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		if err != nil {
 			c.log.Errorf("Failed to build check config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-			c.collectDisable(configID, &changes)
+			c.removeActiveConfig(configID, &changes)
 			continue
 		}
 
 		// Remove previous DO config version if this config_id was already active.
 		c.removeActiveConfig(configID, &changes)
-		// Unschedule the base file-provider config to prevent duplicate check execution.
-		// No-op in autodiscovery if the base config was already unscheduled by a prior update.
-		changes.Unschedule = append(changes.Unschedule, *baseCfg)
 
 		c.activeConfigsMu.Lock()
 		c.activeConfigs[configID] = activeConfigEntry{
 			checkConfig: checkConfig,
 			baseCfg:     baseCfg,
-			instance:    instance,
+			matchHost:   payload.DBIdentifier.Host,
 		}
 		c.activeConfigsMu.Unlock()
 		changes.Schedule = append(changes.Schedule, checkConfig)
@@ -140,15 +161,20 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 
 	for _, configID := range toUnschedule {
 		c.log.Infof("Config %s absent from RC snapshot, disabling", configID)
-		c.collectDisable(configID, &changes)
+		c.removeActiveConfig(configID, &changes)
 	}
+
+	// Reconcile base postgres configs: schedule remainder configs for partially-managed bases
+	// and restore originals for bases no longer targeted by any DO config.
+	c.reconcileBases(&changes)
 
 	return changes
 }
 
-// removeActiveConfig removes a config from activeConfigs and adds the previous DO check
-// config to changes.Unschedule. Used before scheduling an updated DO config (where the
-// base config should NOT be restored). It is a no-op if configID is not currently active.
+// removeActiveConfig removes a DO config from activeConfigs and adds its check config to
+// changes.Unschedule. It does NOT touch the base config — base-config lifecycle (restoring
+// the original file-provider config or its remainder) is owned by reconcileBases, which runs
+// after all activeConfigs mutations for an update. No-op if configID is not currently active.
 func (c *component) removeActiveConfig(configID string, changes *integration.ConfigChanges) {
 	c.activeConfigsMu.Lock()
 	prev, existed := c.activeConfigs[configID]
@@ -164,43 +190,131 @@ func (c *component) removeActiveConfig(configID string, changes *integration.Con
 	changes.Unschedule = append(changes.Unschedule, prev.checkConfig)
 }
 
-// collectDisable removes a config from activeConfigs, unschedules the DO check config,
-// and re-schedules the original base postgres config to restore normal check behavior.
-// It is a no-op if configID is not currently active.
-func (c *component) collectDisable(configID string, changes *integration.ConfigChanges) {
+// reconcileBases keeps file-provider postgres instances that are NOT targeted by a DO query
+// action scheduled, while preventing the targeted instances from running twice.
+//
+// Autodiscovery schedules whole integration.Configs (keyed by Digest), but a single
+// file-provider postgres config can bundle several instances. When a DO config targets one of
+// them, we cannot simply unschedule the whole base config — that would drop the untargeted
+// sibling instances. Instead, for each base config that currently has at least one active DO
+// config, we unschedule the original and schedule a "remainder" config holding only the
+// instances no DO config targets. Once no DO config targets a base config, the original is
+// restored.
+//
+// The remainder is computed from the full set of active DO configs, so multiple DO configs
+// targeting different instances of the same base config never cause an instance to be both
+// kept in the remainder and run as a DO check (which would duplicate DBM collection).
+func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 	c.activeConfigsMu.Lock()
-	prev, existed := c.activeConfigs[configID]
-	if existed {
-		delete(c.activeConfigs, configID)
-	}
-	c.activeConfigsMu.Unlock()
+	defer c.activeConfigsMu.Unlock()
 
-	if !existed {
-		return
+	// Group the hosts targeted by active DO configs per base config digest.
+	type baseGroup struct {
+		original integration.Config
+		hosts    map[string]bool
+	}
+	desired := make(map[string]*baseGroup)
+	for _, entry := range c.activeConfigs {
+		digest := entry.baseCfg.Digest()
+		g := desired[digest]
+		if g == nil {
+			g = &baseGroup{original: *entry.baseCfg, hosts: make(map[string]bool)}
+			desired[digest] = g
+		}
+		g.hosts[entry.matchHost] = true
 	}
 
-	changes.Unschedule = append(changes.Unschedule, prev.checkConfig)
-	changes.Schedule = append(changes.Schedule, *prev.baseCfg)
-	c.log.Infof("Disabled Data Observability query actions for config: %s", configID)
+	// Newly-managed or changed bases.
+	for digest, g := range desired {
+		remainder := buildRemainder(&g.original, g.hosts)
+		managed, exists := c.managedBases[digest]
+		if !exists {
+			// First DO config to target this base: unschedule the original, schedule the remainder.
+			changes.Unschedule = append(changes.Unschedule, g.original)
+			if remainder != nil {
+				changes.Schedule = append(changes.Schedule, *remainder)
+			}
+			c.managedBases[digest] = &managedBaseEntry{original: g.original, remainder: remainder}
+			continue
+		}
+		// Already managed (original already unscheduled). Only touch the remainder if it changed,
+		// to avoid needlessly restarting the untargeted instances.
+		if sameConfig(managed.remainder, remainder) {
+			continue
+		}
+		if managed.remainder != nil {
+			changes.Unschedule = append(changes.Unschedule, *managed.remainder)
+		}
+		if remainder != nil {
+			changes.Schedule = append(changes.Schedule, *remainder)
+		}
+		managed.remainder = remainder
+	}
+
+	// Bases no longer targeted by any DO config: unschedule the remainder, restore the original.
+	for digest, managed := range c.managedBases {
+		if _, ok := desired[digest]; ok {
+			continue
+		}
+		if managed.remainder != nil {
+			changes.Unschedule = append(changes.Unschedule, *managed.remainder)
+		}
+		changes.Schedule = append(changes.Schedule, managed.original)
+		delete(c.managedBases, digest)
+		c.log.Infof("Restored original postgres config (digest %s); no Data Observability query actions target it", digest)
+	}
 }
 
-// findPostgresConfig finds a postgres config that matches the given identifier and has
-// data_observability.enabled: true. Returns the matching config and the already-parsed
+// buildRemainder returns a copy of base containing only the instances whose host is NOT in
+// matchedHosts. Returns nil when no instances remain (every instance is DO-managed). Instances
+// whose YAML cannot be parsed are kept, so a config we cannot classify is never silently dropped.
+func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *integration.Config {
+	kept := make([]integration.Data, 0, len(base.Instances))
+	for _, instanceData := range base.Instances {
+		var instance map[string]any
+		if err := yaml.Unmarshal(instanceData, &instance); err != nil {
+			kept = append(kept, instanceData)
+			continue
+		}
+		host, _ := instance["host"].(string)
+		if matchedHosts[host] {
+			continue
+		}
+		kept = append(kept, instanceData)
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	remainder := *base
+	remainder.Instances = kept
+	return &remainder
+}
+
+// sameConfig reports whether two optional configs are equivalent by autodiscovery digest.
+func sameConfig(a, b *integration.Config) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Digest() == b.Digest()
+}
+
+// findMatchingConfig finds a supported DB integration config that matches the given identifier
+// and has data_observability.enabled: true. Returns the matching config and the already-parsed
 // instance map to avoid re-parsing YAML in callers.
-func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
+func (c *component) findMatchingConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
 	cfgs := c.ac.GetUnresolvedConfigs()
 
 	var lastParseErr error
 	for cfgIdx := range cfgs {
 		cfg := cfgs[cfgIdx]
-		if !isSupportedIntegration(cfg.Name) {
-			continue
+		if cfg.Name != "postgres" && cfg.Name != "sap_hana" {
+			c.log.Warnf("DO query action: config %s is not a known DO-supported integration", cfg.Name)
 		}
 
 		for _, instanceData := range cfg.Instances {
 			var instance map[string]any
 			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
-				c.log.Warnf("Failed to unmarshal postgres instance data for config %s, skipping: %v", cfg.Name, err)
+				c.log.Warnf("Failed to unmarshal %s instance data for config %s, skipping: %v", cfg.Name, cfg.Name, err)
 				lastParseErr = err
 				continue
 			}
@@ -212,23 +326,45 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 	}
 
 	if lastParseErr != nil {
-		// Surface the parse error so operators debug the postgres config YAML, not the RC identifier.
-		return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s; at least one postgres instance had a YAML parse error: %w",
+		return nil, nil, fmt.Errorf("no supported DB config found for identifier: type=%s, host=%s; at least one instance had a YAML parse error: %w",
 			dbID.Type, dbID.Host, lastParseErr)
 	}
-	return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s",
+	return nil, nil, fmt.Errorf("no supported DB config found for identifier: type=%s, host=%s",
 		dbID.Type, dbID.Host)
 }
 
 // matchesIdentifier checks if an instance matches the given DB identifier.
-// Matching is by host only — per-query dbname fields handle database routing.
+// Matching is by host — per-query dbname fields handle database routing.
+// sap_hana uses "server" as the host key; postgres uses "host".
+// dbID.Host may be "host:port" (as sent by sap_hana backends) or bare "host".
+// We match against both the bare host and the "host:port" form built from the instance.
 func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
-	host, _ := instance["host"].(string)
-	return host == dbID.Host
+	host := instanceHost(instance)
+	if host == dbID.Host {
+		return true
+	}
+	// Try matching "host:port" form — sap_hana backends include the port in the identifier.
+	if port, ok := instancePort(instance); ok {
+		return fmt.Sprintf("%s:%d", host, port) == dbID.Host
+	}
+	return false
 }
 
-// buildCheckConfig creates a postgres check config with data_observability queries injected.
-// It clones the full matched postgres instance and adds the data_observability section.
+// instancePort returns the port number for an integration instance, if present.
+func instancePort(instance map[string]any) (int, bool) {
+	switch v := instance["port"].(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	}
+	return 0, false
+}
+
+// buildCheckConfig creates a check config with data_observability queries injected.
+// It clones the full matched instance and adds the data_observability section.
 // Returns an error if YAML serialization fails; callers must report ApplyStateError to RC.
 func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integration.Config, instance map[string]any, remoteConfigID string) (integration.Config, error) {
 	queries := make([]map[string]any, 0, len(payload.Queries))
@@ -283,7 +419,7 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 	}
 
 	return integration.Config{
-		Name:      "postgres",
+		Name:      baseCfg.Name,
 		Source:    c.String(),
 		Provider:  baseCfg.Provider,
 		NodeName:  baseCfg.NodeName,

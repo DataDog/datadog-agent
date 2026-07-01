@@ -126,9 +126,14 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
+	var sourceCategory []string
+	if sc := source.Config().SourceCategory; sc != "" {
+		sourceCategory = []string{"sourcecategory:" + sc}
+	}
+	baseBytes := message.TagMetadataBytes(source.Config().Tags, sourceCategory)
 	tokenizerMaxInputBytes, labelerMaxBytes := resolveTokenizerAndLabelerMaxInputBytes(source.Config().AutoMultiLineOptions, source.Config().ExperimentalAdaptiveSampling, source.Config().ExperimentalNoisyLogDetection)
 	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
-	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, labelerMaxBytes)
+	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, labelerMaxBytes, baseBytes)
 
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
@@ -180,6 +185,33 @@ func resolveNoisyLogDetectionEnabled(sourceNoisyLogDetection *bool) bool {
 	}
 
 	return pkgconfigsetup.Datadog().GetBool("logs_config.experimental_noisy_log_detection")
+}
+
+const disabledSourcesConfigKey = "logs_config.experimental_adaptive_sampling.disabled_sources"
+
+func newDisabledSet() map[string]struct{} {
+	entries := pkgconfigsetup.Datadog().GetStringSlice(disabledSourcesConfigKey)
+	m := make(map[string]struct{}, len(entries))
+	for _, s := range entries {
+		m[s] = struct{}{}
+	}
+	return m
+}
+
+// buildIsSourceDisabled builds a closure that checks whether the current source
+// is in the disabled_sources set. The set is built once at init; the source name
+// is read per-message through ReplaceableSource to track source swaps.
+// When Remote Config support is added, the set can be rebuilt via a callback
+// (e.g. using atomic.Pointer for lock-free reads) without changing the caller.
+func buildIsSourceDisabled(source *sources.ReplaceableSource) func() bool {
+	disabledSet := newDisabledSet()
+	if len(disabledSet) == 0 {
+		return nil
+	}
+	return func() bool {
+		_, disabled := disabledSet[source.Config().Source]
+		return disabled
+	}
 }
 
 type samplerMode int
@@ -304,7 +336,7 @@ func resolveAdaptiveSamplerFilters(rules []*config.AdaptiveSamplingRule, tok *pr
 	return filters
 }
 
-func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, labelerMaxBytes int) LineHandler {
+func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, labelerMaxBytes int, baseBytesEstimate int) LineHandler {
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
 
@@ -312,9 +344,13 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	sourceConfig := source.Config()
 	switch resolveSamplerMode(sourceConfig.ExperimentalAdaptiveSampling, sourceConfig.ExperimentalNoisyLogDetection) {
 	case samplerAdaptiveSampling:
-		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
+		cfg := resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
+		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
+		sampler = preprocessor.NewAdaptiveSampler(cfg, source.UnderlyingSource().Name, baseBytesEstimate)
 	case samplerNoisyLogDetection:
-		sampler = preprocessor.NewAdaptiveSampler(resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
+		cfg := resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
+		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
+		sampler = preprocessor.NewAdaptiveSampler(cfg, source.UnderlyingSource().Name, baseBytesEstimate)
 	default:
 		sampler = preprocessor.NewNoopSampler()
 	}

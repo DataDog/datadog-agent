@@ -314,9 +314,8 @@ properties:
       could happen while serializing large objects on log lines.
   api_key:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
     comment: specific logs-agent api-key
   atomic_registry_write:
     node_type: setting
@@ -358,7 +357,8 @@ properties:
       stack_trace_parsers:
         node_type: setting
         type: array
-        default: [go]
+        default:
+        - go
         items:
           type: string
       tag_aggregated_json:
@@ -533,7 +533,7 @@ properties:
       to preserve current behavior.
   expected_tags_duration:
     node_type: setting
-    type: number
+    type: string
     default: 0s
     format: duration
     tags:
@@ -553,6 +553,15 @@ properties:
         tags:
         - golang_type:float64
         comment: Maximum burst allowance per pattern, measured in accumulated credits/logs.
+      disabled_sources:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        comment: Sources listed here will not have adaptive sampling or noisy log
+          detection applied, even if enabled globally. Matches against the configured
+          source tag of each log source.
       enabled:
         node_type: setting
         type: boolean

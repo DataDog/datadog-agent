@@ -196,7 +196,7 @@ go_e2e_test_binaries:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
     - pushd test/new-e2e
-    - go install github.com/DataDog/orchestrion@v1.4.0
+    - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
@@ -433,6 +433,16 @@ new-e2e-agent-health:
   variables:
     TARGETS: ./tests/agent-health
     TEAM: agent-health
+
+new-e2e-agent-telemetry:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    # only manual, will enable on changes in follow up pr
+    # - !reference [.on_agenttelemetry_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-telemetry
+    TEAM: agent-runtimes
 
 new-e2e-privateactionrunner:
   extends: .new_e2e_template
@@ -987,6 +997,11 @@ new-e2e-anomalydetection:
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_x64
+  needs:
+    - !reference [.new_e2e_template_needs_deb_x64, needs]
+    # netpath dynamic-tests run the agent as a Docker container, pulling the
+    # agent-qa:<pipeline>-<sha>-linux image built by qa_agent_linux
+    - qa_agent_linux
   rules:
     - !reference [.on_netpath_or_e2e_changes]
     - !reference [.manual]
@@ -1045,6 +1060,7 @@ new-e2e-otel:
     - qa_dca
     - qa_agent_full
     - qa_ot_agent_standalone
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/otel
     EXTRA_PARAMS: --skip "TestOTelAgentIA(EKS|USTEKS)"
@@ -1139,6 +1155,24 @@ new-e2e-ssi-gke:
   variables:
     E2E_PROVISIONER: gke
     E2E_STACK_NAME_SUFFIX: gke
+    E2E_PRE_INITIALIZED: "true"
+    # Image volume is not supported on GKE in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+
+new-e2e-ssi-gke-autopilot-init:
+  extends: .new-e2e_ssi_extra_distribution_init
+  variables:
+    E2E_PROVISIONER: gke-autopilot
+    E2E_STACK_NAME_SUFFIX: gke-autopilot
+
+new-e2e-ssi-gke-autopilot:
+  extends: .new-e2e_ssi_extra_distribution
+  needs:
+    - !reference [.new-e2e_ssi_extra_distribution, needs]
+    - new-e2e-ssi-gke-autopilot-init
+  variables:
+    E2E_PROVISIONER: gke-autopilot
+    E2E_STACK_NAME_SUFFIX: gke-autopilot
     E2E_PRE_INITIALIZED: "true"
     # Image volume is not supported on GKE in our current test setup.
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"

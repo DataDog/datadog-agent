@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "setup",
@@ -54,13 +55,12 @@ go_library(
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
-            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "setup_test",
     srcs = [
         "config_change_checker_test.go",
@@ -73,7 +73,6 @@ go_test(
         "unexpectedunicodefinder_test.go",
     ],
     embed = [":setup"],
-    gotags = ["test"],
     deps = [
         "//comp/core/delegatedauth/mock",
         "//comp/core/secrets/mock",
