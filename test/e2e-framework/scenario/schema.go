@@ -24,19 +24,19 @@ const (
 
 // Field is one introspectable scenario parameter.
 type Field struct {
-	Name     string // CLI flag / config key
-	GoName   string // Go struct field name
-	Kind     Kind
-	Default  string
-	Help     string
-	Enum     []string
-	Required bool
-	Index    []int // reflect field index path (supports nested components)
+	Name     string   `json:"name"`              // CLI flag / config key
+	GoName   string   `json:"goName"`            // Go struct field name
+	Kind     Kind     `json:"kind"`
+	Default  string   `json:"default,omitempty"`
+	Help     string   `json:"help,omitempty"`
+	Enum     []string `json:"enum,omitempty"`
+	Required bool     `json:"required,omitempty"`
+	Index    []int    `json:"index"` // reflect field index path (supports nested components)
 }
 
 // Schema is the ordered set of a struct's introspectable fields.
 type Schema struct {
-	Fields []Field
+	Fields []Field `json:"fields"`
 }
 
 // BuildSchema reflects a pointer-to-struct into a Schema, recursing into nested
