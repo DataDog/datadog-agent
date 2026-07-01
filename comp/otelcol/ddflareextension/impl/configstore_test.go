@@ -19,7 +19,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/apmstats"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -55,7 +55,7 @@ func addFactories(factories otelcol.Factories) {
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil, func(context.Context) (string, error) {
 		return "hostname", nil
 	})
-	factories.Connectors[datadogConnectorType] = apmstats.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, nil, nil, nil)
+	factories.Connectors[datadogConnectorType] = datadogconnector.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, nil, nil, nil)
 	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{}, option.None[ipc.Component](), false)
 	factories.Telemetry = otelconftelemetry.NewFactory()
 }

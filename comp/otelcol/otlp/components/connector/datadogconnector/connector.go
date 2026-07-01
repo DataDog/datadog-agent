@@ -1,7 +1,9 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package apmstats
+// Package datadogconnector provides the "datadog" OpenTelemetry connector, which
+// computes APM stats from incoming traces and forwards traces to the next consumer.
+package datadogconnector
 
 import (
 	"context"

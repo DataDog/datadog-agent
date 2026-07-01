@@ -2,13 +2,13 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
-    name = "apmstats",
+    name = "datadogconnector",
     srcs = [
         "connector.go",
         "factory.go",
         "traces_connector.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/apmstats",
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/types",
@@ -35,12 +35,12 @@ go_library(
 )
 
 dd_agent_go_test(
-    name = "apmstats_test",
+    name = "datadogconnector_test",
     srcs = [
         "connector_test.go",
         "factory_test.go",
     ],
-    embed = [":apmstats"],
+    embed = [":datadogconnector"],
     deps = [
         "//comp/otelcol/otlp/testutil",
         "//pkg/obfuscate",
