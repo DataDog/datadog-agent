@@ -1228,11 +1228,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("health_platform.enabled", true)
 	config.BindEnvAndSetDefault("health_platform.persist_on_kubernetes", false)
 	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 15*time.Minute)
-	// health_platform.invalidconfig_check.enabled is off by default because the check calls
-	// schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
-	// (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
-	// This adds ~8 MiB of permanent heap even when the agent config is valid.
-	// Enable it deliberately if you need schema validation at startup.
 	config.BindEnvAndSetDefault("health_platform.invalidconfig_check.enabled", true)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
