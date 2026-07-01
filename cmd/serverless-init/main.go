@@ -103,13 +103,13 @@ func main() {
 func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
 
-	err := modeConf.Runner(logConfig)
+	err := cloudService.Run(modeConf, logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, logsAgent)
 	defer tracingCtx.TraceAgent.Stop() // synchronous: drains traces, flushes stats, sends to network
 	defer func() {
-		cloudService.Shutdown(*metricAgent, enhancedMetricsEnabled, err) // submits task.ended metric
+		cloudService.Shutdown(*metricAgent, enhancedMetricsEnabled, err)
 
 		if enhancedMetricsCollector != nil {
 			enhancedMetricsCollector.Stop()
