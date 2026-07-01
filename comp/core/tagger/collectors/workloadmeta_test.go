@@ -238,6 +238,7 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID: podTaggerEntityID,
 					HighCardTags: []string{
 						"gitcommit:foobar",
+						"kube_pod_uid:" + podEntityID.ID,
 					},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
@@ -302,7 +303,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -357,7 +358,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -408,7 +409,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -463,7 +464,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -508,7 +509,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 						"oshift_deployment:gitlab-ce-1",
@@ -538,7 +539,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -570,7 +571,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
@@ -603,7 +604,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
@@ -639,7 +640,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
@@ -673,7 +674,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
@@ -710,7 +711,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 						"kube_ownerref_name:some_cronjob-123",
@@ -744,7 +745,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
@@ -786,7 +787,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 						"kube_ownerref_name:some_deployment-bcd2",
@@ -818,7 +819,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -846,7 +847,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -876,7 +877,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -908,7 +909,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -964,6 +965,7 @@ func TestHandleKubePod(t *testing.T) {
 					Source:   podSource,
 					EntityID: podTaggerEntityID,
 					HighCardTags: []string{
+						"kube_pod_uid:" + podEntityID.ID,
 						"pod_uid:" + podEntityID.ID,
 					},
 					OrchestratorCardTags: []string{
@@ -1007,7 +1009,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -1062,7 +1064,7 @@ func TestHandleKubePod(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -1175,7 +1177,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},
@@ -1324,7 +1326,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 				{
 					Source:       podSource,
 					EntityID:     podTaggerEntityID,
-					HighCardTags: []string{},
+					HighCardTags: []string{"kube_pod_uid:" + podEntityID.ID},
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 					},

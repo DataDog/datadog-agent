@@ -1,0 +1,6 @@
+features:
+  - |
+    Added ``kube_pod_uid`` as a high cardinality tag for Kubernetes pods. This tag contains
+    the pod's UID (``metadata.uid``) and is emitted when tag cardinality is set to ``high``.
+    This enables unique identification of pods across restarts and correlation with external
+    systems like DCGM that use pod UID as an identifier.
