@@ -1749,12 +1749,12 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 				Name:      "job-sample",
 				Namespace: "default",
 				UID:       "uid-job-sample",
-					Labels: map[string]string{
-						"team": "ml",
-					},
-					Annotations: map[string]string{
-						"owner": "team-a",
-					},
+				Labels: map[string]string{
+					"team": "ml",
+				},
+				Annotations: map[string]string{
+					"owner": "team-a",
+				},
 			},
 			QueueName:        "batch",
 			ClusterQueueName: "cluster-batch",

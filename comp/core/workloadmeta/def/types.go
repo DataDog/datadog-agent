@@ -1553,8 +1553,8 @@ type KueuePodSetAssignment struct {
 type KubernetesKueueWorkload struct {
 	EntityID
 	EntityMeta
-	QueueName        string
-	ClusterQueueName string
+	QueueName         string
+	ClusterQueueName  string
 	PodSetAssignments []KueuePodSetAssignment
 }
 
