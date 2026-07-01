@@ -196,6 +196,78 @@ SSH in and inspect the agent directly.
 - `common/config/environment.go` — Pulumi config management
 - `README.md` — setup guide, troubleshooting, examples
 
+## Unified scenario model
+
+A scenario is defined **once** in Go and driven from tests, the `scenariorun`
+CLI, and the `scenario-service` stub without any duplication. See
+`scenario/` (reflection: `BuildSchema`/`Decode`/`RegisterFlags`/`CollectFlags`,
+the generic `Scenario[Env]`, the type-erased `Runnable` registry, and `Describe()`
+with `ProtocolVersion`), `scenario/params/` (reusable `AgentParams`/`FakeintakeParams`
+components with `ToOptions()`), and `scenario/scenarios/ec2host/` (reference scenario).
+
+### Two convergent provisioning paths — zero migration
+
+Tests keep using the existing typed provisioner and typed `With…` options
+unchanged. The CLI/service path decodes flags into the canonical struct and maps
+them onto **those same typed options via the same provisioner**:
+
+```go
+// Test path — unchanged:
+awshost.Provisioner(awshost.WithRunOptions(
+    ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204)),
+    ec2.WithAgentOptions(agentparams.WithAgentConfig(cfg)),
+))
+
+// CLI/service path — Provisioner(p) adapter calls the same awshost.Provisioner:
+ec2host.Provisioner(p)  // p is decoded from CLI flags into *EC2HostParams
+```
+
+### Canonical params struct
+
+Params are a Go struct with `scenario:` tags; `BuildSchema` reflects them:
+
+```
+scenario:"name=os,default=ubuntu-22.04,help=Operating system,enum=ubuntu-22.04|debian-12"
+scenario:"-"   // Go-only escape hatch, not exposed to CLI (e.g. InstanceOptions []ec2.VMOption)
+```
+
+Reusable components (`AgentParams`, `FakeintakeParams`) embed directly into
+the canonical struct; `BuildSchema` recurses into them automatically.
+
+**Go zero-value note:** use `ec2host.NewEC2HostParams(os, arch)` in Go code
+(sets `Agent.Install=true`); a bare `EC2HostParams{}` literal gets `Install=false`
+because the `default=true` schema attribute is only applied by the CLI/service
+path via `Decode`. This is documented as a warning in `params.go`.
+
+### Actions
+
+Actions receive the fully-hydrated typed env (same clients a test gets from
+`s.Env()`), hydrated via `testing/standalone`. Reference actions in the
+ec2-host scenario: `restart-agent` (no params) and `run-command` (tagged params).
+
+### CLI
+
+```bash
+dda inv scenario.lab --args="list"
+dda inv scenario.lab --args="describe --json"
+dda inv scenario.lab --args="create ec2-host --os debian-12"
+dda inv scenario.lab --args="action ec2-host my-stack restart-agent"
+dda inv scenario.lab --args="destroy ec2-host my-stack"
+```
+
+`dda inv scenario.lab` (defined in `tasks/scenario.py`, registered as the
+`scenario` collection in `tasks/__init__.py`) builds and forwards to the
+`scenariorun` binary (`test/e2e-framework/cmd/scenariorun`). The command tree
+and flags are generated from the registry by reflection — never hand-declared.
+`describe --json` carries `protocolVersion`.
+
+### Service
+
+`cmd/scenario-service` (stub) builds and drives the `scenariorun` binary from
+a caller-specified commit via the stable `describe`/`create`/`action`/`destroy`
+protocol. This lets a long-running service drive scenarios at any pinned commit
+without version coupling.
+
 ## Keeping this file accurate
 
 This file is part of the `AGENTS.md` hierarchy (see root `AGENTS.md` §
