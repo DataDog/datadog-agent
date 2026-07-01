@@ -55,4 +55,14 @@ type ScanParams struct {
 	// BulkMaxRepetitions sets the max-repetitions value for GetBulk requests.
 	// A value of 0 uses the default. It has no effect when walking with GetNext.
 	BulkMaxRepetitions uint32
+
+	// FlushEveryNOIDs reports partial scan results once this many OIDs have been
+	// collected, so large devices surface results before the scan completes.
+	// A value of 0 uses the default batch size.
+	FlushEveryNOIDs int
+
+	// FlushInterval reports partial scan results when this much time has elapsed
+	// since the last report, regardless of how many OIDs were collected.
+	// A value of 0 uses the default interval.
+	FlushInterval time.Duration
 }
