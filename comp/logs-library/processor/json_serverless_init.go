@@ -7,7 +7,6 @@ package processor
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -37,8 +36,9 @@ type jsonServerlessInitPayload struct {
 
 // Encode encodes a message into a JSON byte array.
 func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string) error {
-	if msg.State != message.StateRendered {
-		return errors.New("message passed to encoder isn't rendered")
+	content, err := msg.RenderMessage()
+	if err != nil {
+		return fmt.Errorf("can't render the message: %v", err)
 	}
 
 	ts := time.Now().UTC()
@@ -52,7 +52,7 @@ func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string
 	}
 
 	encoded, err := json.Marshal(jsonServerlessInitPayload{
-		Message:   ValidUtf8Bytes(msg.GetContent()),
+		Message:   ValidUtf8Bytes(content),
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano() / nanoToMillis,
 		Hostname:  hostname,

@@ -6,11 +6,13 @@
 package socket
 
 import (
+	"encoding/json"
 	"net"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	syslogparser "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/syslog"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -73,14 +75,126 @@ func BenchmarkRender(b *testing.B) {
 				"syslog":  syslogparser.BuildSyslogFields(&parsed),
 			},
 		}
-		source := sources.NewLogSource("bench", &config.LogsConfig{})
-		origin := message.NewOrigin(source)
-		msg := message.NewStructuredMessage(sc, origin, syslogparser.SeverityToStatus(parsed.Pri), time.Now().UnixNano())
 		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, err := msg.Render()
+				_, err := sc.Render()
 				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Render (SyslogStructuredContent via jsoniter.Stream)
+// ---------------------------------------------------------------------------
+
+func BenchmarkRenderNew(b *testing.B) {
+	for _, tc := range []struct {
+		name string
+		msg  []byte
+	}{
+		{"RFC5424_Short", rfc5424Short},
+		{"RFC5424_Typical", rfc5424Typical},
+		{"RFC5424_Long_1KB", rfc5424Long},
+		{"BSD", bsdTypical},
+	} {
+		parsed, _ := syslogparser.Parse(tc.msg)
+		sc := syslogparser.NewSyslogStructuredContent(parsed)
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := sc.Render()
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkRenderThenMarshal measures the real old double-serialization path:
+// Render() produces inner JSON, then encoding/json.Marshal wraps it using
+// processor.ValidUtf8Bytes (a TextMarshaler) which encodes the rendered JSON
+// as a JSON string value, re-escaping all quotes.
+func BenchmarkRenderThenMarshal(b *testing.B) {
+	type transportPayload struct {
+		Message   processor.ValidUtf8Bytes `json:"message"`
+		Status    string                   `json:"status"`
+		Timestamp int64                    `json:"timestamp"`
+		Hostname  string                   `json:"hostname"`
+		Service   string                   `json:"service"`
+		Source    string                   `json:"ddsource"`
+		Tags      string                   `json:"ddtags"`
+	}
+
+	for _, tc := range []struct {
+		name string
+		msg  []byte
+	}{
+		{"RFC5424_Short", rfc5424Short},
+		{"RFC5424_Typical", rfc5424Typical},
+		{"RFC5424_Long_1KB", rfc5424Long},
+		{"BSD", bsdTypical},
+	} {
+		parsed, _ := syslogparser.Parse(tc.msg)
+		sc := syslogparser.NewSyslogStructuredContent(parsed)
+
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				rendered, err := sc.Render()
+				if err != nil {
+					b.Fatal(err)
+				}
+				_, err = json.Marshal(transportPayload{
+					Message:   processor.ValidUtf8Bytes(rendered),
+					Status:    "info",
+					Timestamp: 1699000000000,
+					Hostname:  "myhost",
+					Service:   "myservice",
+					Source:    "mysource",
+					Tags:      "env:prod,team:logs",
+				})
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkEncodeViaProcessor measures the actual Encode() path through the
+// processor, which uses the fast appendEscaped envelope builder for all messages.
+func BenchmarkEncodeViaProcessor(b *testing.B) {
+	for _, tc := range []struct {
+		name string
+		msg  []byte
+	}{
+		{"RFC5424_Short", rfc5424Short},
+		{"RFC5424_Typical", rfc5424Typical},
+		{"RFC5424_Long_1KB", rfc5424Long},
+		{"BSD", bsdTypical},
+	} {
+		parsed, _ := syslogparser.Parse(tc.msg)
+		sc := syslogparser.NewSyslogStructuredContent(parsed)
+		source := sources.NewLogSource("bench", &config.LogsConfig{})
+		origin := message.NewOrigin(source)
+
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				msg := message.NewStructuredMessage(sc, origin, syslogparser.SeverityToStatus(parsed.Pri), time.Now().UnixNano())
+				if _, err := msg.RenderMessage(); err != nil {
+					b.Fatal(err)
+				}
+				if err := processor.JSONEncoder.Encode(msg, "myhost"); err != nil {
 					b.Fatal(err)
 				}
 			}

@@ -6,7 +6,6 @@
 package processor
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -29,8 +28,9 @@ func NewProtoEncoder(useContainerTimestamp bool) Encoder {
 
 // Encode encodes a message into a protobuf byte array.
 func (p *protoEncoder) Encode(msg *message.Message, hostname string) error {
-	if msg.State != message.StateRendered {
-		return errors.New("message passed to encoder isn't rendered")
+	content, err := msg.RenderMessage()
+	if err != nil {
+		return fmt.Errorf("can't render the message: %v", err)
 	}
 
 	ts := msg.ServerlessExtra.Timestamp
@@ -44,7 +44,7 @@ func (p *protoEncoder) Encode(msg *message.Message, hostname string) error {
 	}
 
 	log := &pb.Log{
-		Message:   toValidUtf8(msg.GetContent()),
+		Message:   toValidUtf8(content),
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano(),
 		Hostname:  hostname,

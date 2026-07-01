@@ -31,6 +31,7 @@ go_test(
     embed = [":socket"],
     gotags = ["test"],
     deps = [
+        "//comp/logs-library/processor",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/logs/internal/parsers/syslog",

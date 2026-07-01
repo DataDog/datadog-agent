@@ -641,7 +641,7 @@ func TestTailerWithStructuredMessage(t *testing.T) {
 	resultMessage := <-tailer.outputChan
 	assert.Equal([]byte("foobar"), resultMessage.GetContent())
 
-	data, err := resultMessage.Render()
+	data, err := resultMessage.RenderMessage()
 	assert.NoError(err)
 	assert.Equal(data, []byte("{\"journald\":{\"_SESSION_UID\":\"a97aaca9-ea7a-4ea5-9ebe-048686f2c78a\"},\"message\":\"foobar\"}"))
 }
@@ -681,8 +681,8 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 	resultMessageV1 := <-tailerV1.outputChan
 	resultMessageV2 := <-tailerV2.outputChan
 
-	v1, err1 := resultMessageV1.Render()
-	v2, err2 := resultMessageV2.Render()
+	v1, err1 := resultMessageV1.RenderMessage()
+	v2, err2 := resultMessageV2.RenderMessage()
 	assert.NoError(err1)
 	assert.NoError(err2)
 

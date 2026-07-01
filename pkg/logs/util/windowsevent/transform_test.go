@@ -126,8 +126,8 @@ func TestCompareUnstructuredAndStructured(t *testing.T) {
 		assert.NoError(err1)
 		assert.NoError(err2)
 
-		rendered1, err1 := messagev1.Render()
-		rendered2, err2 := messagev2.Render()
+		rendered1, err1 := messagev1.RenderMessage()
+		rendered2, err2 := messagev2.RenderMessage()
 
 		assert.NoError(err1)
 		assert.NoError(err2)
@@ -142,10 +142,12 @@ func TestTransformToMessageStructuredContent(t *testing.T) {
 
 	for _, testCase := range testData {
 		actual, _ := eventToMessage(richEventFromXML(testCase[0]), source, processRawMessage)
-		data, err := actual.Render()
+		// structured messages don't populate the content field; it stays empty
+		// until the message is rendered.
+		assert.Equal(t, []byte{}, actual.GetContent())
+		data, err := actual.RenderMessage()
 		assert.NoError(t, err)
 		assert.JSONEq(t, testCase[1], string(data))
-		assert.Equal(t, []byte{}, actual.GetContent()) // this should not be filled anymore
 	}
 }
 
