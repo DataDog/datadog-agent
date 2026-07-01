@@ -43,7 +43,7 @@ var (
 const (
 	// webIdentitySessionName is the RoleSessionName sent with AssumeRoleWithWebIdentity. It is
 	// informational (appears in the assumed-role ARN / CloudTrail); mappings key on the role.
-	webIdentitySessionName = "datadog-agent-delegated-auth"
+	webIdentitySessionName = "datadog-agent-workload-identity-federation"
 	// webIdentityAPIVersion is the STS query-API version.
 	webIdentityAPIVersion = "2011-06-15"
 	// maxSTSResponseBytes bounds the STS response read to avoid unbounded memory use.
@@ -71,6 +71,12 @@ func (a *AWSAuth) resolveCredentials(ctx context.Context) *creds.SecurityCredent
 		log.Warnf("AWS credential retrieval failed: %v", err)
 		return &creds.SecurityCredentials{}
 	}
+
+	// sdkCreds.Source is set by the provider that produced the credentials (ex:
+	// DelegatedAuthWebIdentity, EC2RoleProvider), naming which environment matched. Logged at Info
+	// (once per key fetch, matching the surrounding delegated-auth logs) so operators can confirm
+	// the credential source without enabling debug.
+	log.Infof("delegated auth resolved AWS credentials via %s", sdkCreds.Source)
 
 	return &creds.SecurityCredentials{
 		AccessKeyID:     sdkCreds.AccessKeyID,
