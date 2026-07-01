@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Reduced memory allocations when converting Python strings to C strings
+    across the RTLoader boundary.

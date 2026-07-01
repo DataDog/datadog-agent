@@ -2698,6 +2698,10 @@ properties:
         platform_default:
           linux: true
           other: false
+      service_collection_batch_size:
+        node_type: setting
+        type: integer
+        default: 500
       service_collection_interval:
         node_type: setting
         type: string

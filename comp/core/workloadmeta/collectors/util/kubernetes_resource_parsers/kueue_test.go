@@ -91,6 +91,43 @@ func TestKueueQueueParser(t *testing.T) {
 	}
 }
 
+func TestKueueResourceFlavorParser(t *testing.T) {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":        "a100",
+				"labels":      map[string]interface{}{"team": "ml"},
+				"annotations": map[string]interface{}{"owner": "batch"},
+				"uid":         "uid-a100",
+			},
+			"spec": map[string]interface{}{
+				"nodeLabels": map[string]interface{}{
+					"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB",
+				},
+			},
+		},
+	}
+
+	expected := &workloadmeta.KubernetesKueueResourceFlavor{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+			ID:   "a100",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "a100",
+			Labels:      map[string]string{"team": "ml"},
+			Annotations: map[string]string{"owner": "batch"},
+			UID:         "uid-a100",
+		},
+		NodeAffinityLabels: map[string]string{
+			"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB",
+		},
+	}
+
+	parser := NewKueueResourceFlavorParser()
+	assert.Equal(t, expected, parser.Parse(obj))
+}
+
 func TestGenerateKueueQueueEntityID(t *testing.T) {
 	tests := []struct {
 		name        string
