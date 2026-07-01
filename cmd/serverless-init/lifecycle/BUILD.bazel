@@ -7,6 +7,7 @@ go_library(
         "config.go",
         "forwarder.go",
         "heartbeat.go",
+        "server.go",
         "wire.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle",
@@ -25,6 +26,7 @@ go_test(
         "config_test.go",
         "forwarder_test.go",
         "heartbeat_test.go",
+        "server_test.go",
         "wire_test.go",
     ],
     embed = [":lifecycle"],
@@ -33,5 +35,6 @@ go_test(
         "//pkg/metrics",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
