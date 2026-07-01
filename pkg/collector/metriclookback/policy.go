@@ -1,0 +1,145 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package metriclookback
+
+import (
+	"slices"
+
+	yaml "go.yaml.in/yaml/v2"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
+const (
+	enabledConfigKey       = "metric_lookback.enabled"
+	enabledChecksConfigKey = "metric_lookback.enabled_checks"
+	instanceConfigKey      = "metric_lookback"
+	instanceEnabledKey     = "enabled"
+	shadowIDSuffix         = ":shadow"
+)
+
+// ShadowPolicyOptions controls which source check instances get shadow candidates.
+type ShadowPolicyOptions struct {
+	ShadowChecksEnabled bool
+	ChecksToShadow      []string
+}
+
+// ShadowPolicyOptionsFromConfig reads metric lookback policy options from Agent config.
+func ShadowPolicyOptionsFromConfig(cfg model.Reader) ShadowPolicyOptions {
+	return ShadowPolicyOptions{
+		ShadowChecksEnabled: cfg.GetBool(enabledConfigKey),
+		ChecksToShadow:      cfg.GetStringSlice(enabledChecksConfigKey),
+	}
+}
+
+// ShadowCandidate describes a source check instance selected for shadow execution.
+type ShadowCandidate struct {
+	SourceConfig       integration.Config
+	Instance           integration.Data
+	InstanceIndex      int
+	SourceConfigDigest string
+	SourceCheckID      checkid.ID
+	ShadowCheckID      checkid.ID
+}
+
+// SelectShadowCandidates returns copied shadow candidates for selected config instances.
+// Loader selection stays with the normal check loading path, so default-loader
+// and Python configs are eligible; this is pipeline isolation, not Python
+// runtime isolation.
+func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptions) ([]ShadowCandidate, error) {
+	candidates := []ShadowCandidate{}
+	for _, config := range configs {
+		if !isSupportedCheckConfig(config, opts) {
+			continue
+		}
+
+		for instanceIndex, instance := range config.Instances {
+			instanceEnabled, hasInstanceSetting := instanceLookbackEnabled(instance)
+			if !opts.ShadowChecksEnabled && !instanceEnabled {
+				continue
+			}
+			if opts.ShadowChecksEnabled && hasInstanceSetting && !instanceEnabled {
+				continue
+			}
+
+			shadowInstance, err := WithShadowExecutionMode(instance)
+			if err != nil {
+				return nil, err
+			}
+			sourceCheckID := checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig)
+			candidates = append(candidates, ShadowCandidate{
+				SourceConfig:       cloneConfig(config),
+				Instance:           shadowInstance,
+				InstanceIndex:      instanceIndex,
+				SourceConfigDigest: config.Digest(),
+				SourceCheckID:      sourceCheckID,
+				ShadowCheckID:      shadowCheckID(sourceCheckID),
+			})
+		}
+	}
+	return candidates, nil
+}
+
+func shadowCheckID(sourceID checkid.ID) checkid.ID {
+	return checkid.ID(string(sourceID) + shadowIDSuffix)
+}
+
+func isSupportedCheckConfig(config integration.Config, opts ShadowPolicyOptions) bool {
+	if !config.IsCheckConfig() || config.HasFilter(workloadfilter.MetricsFilter) {
+		return false
+	}
+	if len(opts.ChecksToShadow) > 0 && !slices.Contains(opts.ChecksToShadow, config.Name) {
+		return false
+	}
+	return true
+}
+
+func instanceLookbackEnabled(instance integration.Data) (enabled bool, found bool) {
+	var raw integration.RawMap
+	if err := yaml.Unmarshal(instance, &raw); err != nil {
+		return false, false
+	}
+
+	value, found := raw[instanceConfigKey]
+	if !found {
+		return false, false
+	}
+
+	switch typedValue := value.(type) {
+	case integration.RawMap:
+		enabledValue, ok := typedValue[instanceEnabledKey]
+		return boolSetting(enabledValue, ok)
+	case map[interface{}]interface{}:
+		enabledValue, ok := typedValue[instanceEnabledKey]
+		return boolSetting(enabledValue, ok)
+	default:
+		return false, true
+	}
+}
+
+func boolSetting(value interface{}, found bool) (bool, bool) {
+	if !found {
+		return false, false
+	}
+	enabled, ok := value.(bool)
+	return enabled && ok, true
+}
+
+func cloneConfig(config integration.Config) integration.Config {
+	config.Instances = slices.Clone(config.Instances)
+	for i := range config.Instances {
+		config.Instances[i] = cloneData(config.Instances[i])
+	}
+	config.InitConfig = cloneData(config.InitConfig)
+	config.MetricConfig = cloneData(config.MetricConfig)
+	config.LogsConfig = cloneData(config.LogsConfig)
+	config.ADIdentifiers = slices.Clone(config.ADIdentifiers)
+	config.AdvancedADIdentifiers = slices.Clone(config.AdvancedADIdentifiers)
+	return config
+}
