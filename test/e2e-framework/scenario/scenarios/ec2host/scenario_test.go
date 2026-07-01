@@ -39,6 +39,20 @@ func TestProvisionerBuilds(t *testing.T) {
 	}
 }
 
+func TestProvisionerBuildsWithAgent(t *testing.T) {
+	p := NewEC2HostParams("ubuntu-22.04", "x86_64")
+	if !p.Agent.Install {
+		t.Fatal("NewEC2HostParams should set Agent.Install=true")
+	}
+	prov, err := Provisioner(p)
+	if err != nil {
+		t.Fatalf("Provisioner with agent enabled: %v", err)
+	}
+	if prov == nil {
+		t.Fatal("nil provisioner with agent enabled")
+	}
+}
+
 func TestActionsRegistered(t *testing.T) {
 	s := Scenario()
 	if _, ok := s.Actions["restart-agent"]; !ok {
