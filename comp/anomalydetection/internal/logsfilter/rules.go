@@ -46,8 +46,8 @@ type ProcessingRule struct {
 
 // Rules evaluates the ordered rule list against incoming log sources.
 type Rules struct {
-	rules        []compiledRule
-	hasTagRules  bool // true if any rule has tag predicates, requiring sorted input
+	rules       []compiledRule
+	hasTagRules bool // true if any rule has tag predicates, requiring sorted input
 }
 
 type compiledRule struct {
@@ -113,7 +113,7 @@ func LoadRules(cfg pkgconfigmodel.Reader, key string) (*Rules, error) {
 
 // NeedsSortedTags reports whether any rule has tag predicates requiring sorted input to IsAllowed.
 func (r *Rules) NeedsSortedTags() bool {
-	return r.hasTagRules
+	return r != nil && r.hasTagRules
 }
 
 // IsAllowed returns true if the log should be ingested.
