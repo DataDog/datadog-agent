@@ -897,7 +897,7 @@ func TestClientIncrementalFetch(t *testing.T) {
 			[]byte("payload-4"),
 		}
 
-		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			// Old server: ignores cursor param, returns all payloads, no cursor field
 			var payloads []api.Payload
 			for _, data := range totalPayloads {
