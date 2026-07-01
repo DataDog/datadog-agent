@@ -196,6 +196,12 @@ func (ew *EventWrapper) ConnTuple() types.ConnectionKey {
 	}
 }
 
+// Pid returns the PID associated with the transaction (0 if unknown). Used by
+// the LLMO PoC to resolve the service name in userspace.
+func (ew *EventWrapper) Pid() uint32 {
+	return ew.Tuple.Pid
+}
+
 var (
 	unsupportedMethods = map[http.Method]struct{}{
 		http.MethodConnect: {},

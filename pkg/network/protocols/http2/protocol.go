@@ -62,6 +62,12 @@ const (
 	// TelemetryMap is the name of the map that collects telemetry for plaintext and TLS encrypted HTTP/2 traffic.
 	TelemetryMap = "http2_telemetry"
 
+	// LLMO PoC maps (defined in pkg/network/ebpf/c/protocols/tls/llmo.h).
+	llmMonitoredConnectionsMap = "llm_monitored_connections"
+	llmRequestBodiesMap        = "llm_request_bodies"
+	llmResponseBodiesMap       = "llm_response_bodies"
+	llmResponseHeadsMap        = "llm_response_heads"
+
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
 	tlsFilterTailCall        = "uprobe__http2_tls_filter"
 	tlsHeadersParserTailCall = "uprobe__http2_tls_headers_parser"
@@ -306,6 +312,19 @@ func (p *Protocol) PreStart() (err error) {
 	}
 
 	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg))
+
+	// LLMO PoC: wire up the eBPF maps used to capture decrypted LLM request
+	// bodies so HTTP/2 LLM transactions can be enriched with model + prompt.
+	if connMap, _, errConn := p.mgr.GetMap(llmMonitoredConnectionsMap); errConn == nil {
+		if bodyMap, _, errBody := p.mgr.GetMap(llmRequestBodiesMap); errBody == nil {
+			if respMap, _, errResp := p.mgr.GetMap(llmResponseBodiesMap); errResp == nil {
+				if headMap, _, errHead := p.mgr.GetMap(llmResponseHeadsMap); errHead == nil {
+					p.statkeeper.EnableLLMO(connMap, bodyMap, respMap, headMap)
+				}
+			}
+		}
+	}
+
 	p.eventsConsumer.Start()
 
 	return
