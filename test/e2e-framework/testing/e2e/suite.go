@@ -615,7 +615,8 @@ func (bs *BaseSuite[Env]) getSuiteSessionSubdirectory() string {
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 	// If a previous test failed and fail-fast is enabled, skip this test to
-	// avoid burning cloud spend re-provisioning a known-broken environment.
+	// avoid re-provisioning when a prior failure makes subsequent tests
+	// unlikely to produce useful results.
 	// The skip message names the first failure so triage is easy.
 	if bs.firstFailTest != "" && bs.params.failFast {
 		bs.T().Skipf("skipping due to earlier failure: %s", bs.firstFailTest)
@@ -642,7 +643,8 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 		if bs.firstFailTest == "" {
 			// Store the name of the first failing test. When fail-fast is enabled
 			// (the default), BeforeTest uses this to skip subsequent tests,
-			// avoiding the cost of re-provisioning a known-broken environment.
+			// avoiding re-provisioning when a prior failure makes subsequent tests
+			// unlikely to produce useful results.
 			// Note: using os.Exit(1) prevents other tests from being run but at
 			// the price of having no test output at all.
 			bs.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
