@@ -8,15 +8,13 @@
 package python
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime"
 	"unsafe"
 
 	"go.uber.org/atomic"
-	yaml "go.yaml.in/yaml/v2"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
@@ -53,28 +51,7 @@ type stickyLock struct {
 	locked *atomic.Bool
 }
 
-// PythonStatsEntry are entries for specific object type memory usage
-//
-//nolint:revive
-type PythonStatsEntry struct {
-	Reference string
-	NObjects  int
-	Size      int
-}
-
-// PythonStats contains python memory statistics
-//
-//nolint:revive
-type PythonStats struct {
-	Type     string
-	NObjects int
-	Size     int
-	Entries  []*PythonStatsEntry
-}
-
 const (
-	//pyMemModule           = "utils.py_mem"
-	//pyMemSummaryFunc      = "get_mem_stats"
 	psutilModule   = "psutil"
 	psutilProcPath = "PROCFS_PATH"
 )
@@ -145,7 +122,7 @@ func GetPythonIntegrationList() ([]string, error) {
 	payload := C.GoString(integrationsList)
 
 	ddIntegrations := []string{}
-	if err := yaml.Unmarshal([]byte(payload), &ddIntegrations); err != nil {
+	if err := json.Unmarshal([]byte(payload), &ddIntegrations); err != nil {
 		return nil, fmt.Errorf("Could not Unmarshal integration list payload: %s", err)
 	}
 
@@ -157,65 +134,6 @@ func GetPythonIntegrationList() ([]string, error) {
 		ddPythonPackages = append(ddPythonPackages, pkgName)
 	}
 	return ddPythonPackages, nil
-}
-
-// GetPythonInterpreterMemoryUsage collects a python interpreter memory usage snapshot
-func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
-	glock, err := newStickyLock()
-	if err != nil {
-		return nil, err
-	}
-
-	defer glock.unlock()
-
-	usage := C.get_interpreter_memory_usage(rtloader)
-	if usage == nil {
-		return nil, fmt.Errorf("Could not collect interpreter memory snapshot: %s", getRtLoaderError())
-	}
-	defer C.rtloader_free(rtloader, unsafe.Pointer(usage))
-	payload := C.GoString(usage)
-
-	log.Infof("Interpreter stats received: %v", payload)
-
-	stats := map[interface{}]interface{}{}
-	if err := yaml.Unmarshal([]byte(payload), &stats); err != nil {
-		return nil, fmt.Errorf("Could not Unmarshal python interpreter memory usage payload: %s", err)
-	}
-
-	myPythonStats := []*PythonStats{}
-	// Let's iterate map
-	for entryName, value := range stats {
-		entrySummary := value.(map[interface{}]interface{})
-		num := entrySummary["num"].(int)
-		size := entrySummary["sz"].(int)
-		entries := entrySummary["entries"].([]interface{})
-
-		pyStat := &PythonStats{
-			Type:     entryName.(string),
-			NObjects: num,
-			Size:     size,
-			Entries:  []*PythonStatsEntry{},
-		}
-
-		for _, entry := range entries {
-			contents := entry.([]interface{})
-			ref := contents[0].(string)
-			refNum := contents[1].(int)
-			refSz := contents[2].(int)
-
-			// add to list
-			pyEntry := &PythonStatsEntry{
-				Reference: ref,
-				NObjects:  refNum,
-				Size:      refSz,
-			}
-			pyStat.Entries = append(pyStat.Entries, pyEntry)
-		}
-
-		myPythonStats = append(myPythonStats, pyStat)
-	}
-
-	return myPythonStats, nil
 }
 
 // SetPythonPsutilProcPath sets python psutil.PROCFS_PATH

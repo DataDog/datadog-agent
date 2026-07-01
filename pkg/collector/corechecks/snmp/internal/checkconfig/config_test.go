@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -32,14 +33,14 @@ import (
 func setupHostname(t *testing.T) {
 	mockConfig := configmock.New(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
-	mockConfig.SetWithoutSource("hostname", "my-hostname")
+	mockConfig.SetInTest("hostname", "my-hostname")
 }
 
 func TestConfigurations(t *testing.T) {
 	setupHostname(t)
 
 	profile.SetConfdPathAndCleanProfiles()
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -351,7 +352,7 @@ profiles:
 func TestInlineProfileConfiguration(t *testing.T) {
 	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1076,7 +1077,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
-	mockConfig.SetWithoutSource("network_devices.namespace", "totoro")
+	mockConfig.SetInTest("network_devices.namespace", "totoro")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "totoro", conf.Namespace)
@@ -1104,7 +1105,7 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(`
 namespace: `)
-	mockConfig.SetWithoutSource("network_devices.namespace", "mononoke")
+	mockConfig.SetInTest("network_devices.namespace", "mononoke")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "mononoke", conf.Namespace)
@@ -1116,7 +1117,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
-	mockConfig.SetWithoutSource("network_devices.namespace", "")
+	mockConfig.SetInTest("network_devices.namespace", "")
 	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
@@ -1549,7 +1550,7 @@ ip_address: 1.2.3.4
 func TestCheckConfig_DiscoveryDigest(t *testing.T) {
 	mockConfig := configmock.New(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
-	mockConfig.SetWithoutSource("hostname", "my-hostname")
+	mockConfig.SetInTest("hostname", "my-hostname")
 	baseCaseHash := DeviceDigest("a1d0f0237ee2fe8f")
 	tests := []struct {
 		name         string
@@ -1863,7 +1864,7 @@ func TestCheckConfig_getResolvedSubnetName(t *testing.T) {
 
 func TestCheckConfig_GetStaticTags(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("hostname", "my-hostname")
+	mockConfig.SetInTest("hostname", "my-hostname")
 	tests := []struct {
 		name         string
 		config       CheckConfig
@@ -2116,7 +2117,7 @@ metrics:
 		t.Run(tt.name, func(t *testing.T) {
 			profile.SetGlobalProfileConfigMap(nil)
 			mockConfdPath, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
-			mockConfig.SetWithoutSource("confd_path", mockConfdPath)
+			mockConfig.SetInTest("confd_path", mockConfdPath)
 
 			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			if tt.expectedHaveLegacyProfile {

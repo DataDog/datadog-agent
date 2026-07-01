@@ -816,12 +816,13 @@ func (i *installerImpl) InstallExtensions(ctx context.Context, url string, exten
 		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, existingPkg.Version, pkg.Version)
 	}
 
-	err = extensions.Install(ctx, i.downloader, url, extensionList, false, i.hooks)
+	err = extensions.Install(ctx, i.downloader, url, extensionList, false, i.hooks, nil)
 	if err != nil {
 		return fmt.Errorf("could not install extensions: %w", err)
 	}
 
-	// Special case for Linux & datadog-agent: restart the Agent after installing Agent extensions.
+	// Restart agent services after extension hooks so the core agent (and dependents like
+	// dd-procmgr) pick up new files and config — same on Linux and Windows for datadog-agent.
 	if pkg.Name == packageDatadogAgent {
 		return packages.RestartDatadogAgent(ctx)
 	}
@@ -849,7 +850,7 @@ func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extens
 		return fmt.Errorf("could not remove extensions: %w", err)
 	}
 
-	// Special case for Linux & datadog-agent: restart the Agent after removing Agent extensions.
+	// Restart agent services after extension removal so dependents reload without removed extensions.
 	if pkg == packageDatadogAgent {
 		return packages.RestartDatadogAgent(ctx)
 	}
@@ -874,7 +875,7 @@ func (i *installerImpl) RestoreExtensions(ctx context.Context, url string, path 
 			fmt.Errorf("could not download package: %w", err),
 		)
 	}
-	err = extensions.Restore(ctx, i.downloader, pkg.Name, url, path, false, i.hooks)
+	err = extensions.Restore(ctx, i.downloader, pkg.Name, url, path, false, i.hooks, nil)
 	if err != nil {
 		return fmt.Errorf("could not restore extensions: %w", err)
 	}

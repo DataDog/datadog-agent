@@ -9,11 +9,10 @@ package workload
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/hashicorp/go-multierror"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
@@ -72,12 +71,13 @@ func (p *autoscalingSettingsProcessor) processItem(receivedTimestamp time.Time, 
 	}
 
 	// Creating/Updating received PodAutoscalers
+	var errs []error
 	for _, settings := range settingsList.Settings {
 		// Resolve/Convert .spec to expected version
 		spec := extractConvertAutoscalerSpec(settings)
 
 		if settings.Namespace == "" || settings.Name == "" || spec == nil {
-			err = multierror.Append(err, fmt.Errorf("received invalid PodAutoscaler from config id:%s, version: %d, config key: %s, discarding", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey))
+			errs = append(errs, fmt.Errorf("received invalid PodAutoscaler from config id:%s, version: %d, config key: %s, discarding", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey))
 		}
 
 		podAutoscalerID := autoscaling.BuildObjectID(settings.Namespace, settings.Name)
@@ -90,10 +90,10 @@ func (p *autoscalingSettingsProcessor) processItem(receivedTimestamp time.Time, 
 		}
 	}
 
-	if err != nil {
+	if len(errs) > 0 {
 		p.lastProcessingError = true
 	}
-	return err
+	return errors.Join(errs...)
 }
 
 // postProcess is used after all configs have been processed to clear internal store from missing configs
@@ -149,7 +149,7 @@ func (p *autoscalingSettingsProcessor) reconcile(isLeader bool) {
 	// Handle the potentially new PodAutoscalers, note that there is a chance they have been created since the `Update` call above
 	for paID, item := range p.state {
 		if _, found := inStore[paID]; !found {
-			podAutoscaler, podAutoscalerFound := p.store.LockRead(paID, true)
+			podAutoscaler, podAutoscalerFound, _ := p.store.LockRead(paID, true)
 			if podAutoscalerFound {
 				podAutoscaler.UpdateFromSettings(item.spec, item.receivedTimestamp)
 			} else {

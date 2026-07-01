@@ -14,8 +14,8 @@ import (
 
 	"github.com/cilium/ebpf/rlimit"
 
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 )
 
 var core struct {
@@ -25,15 +25,19 @@ var core struct {
 
 // Setup initializes CO-RE and BTF loaders with the provided config.
 // [Reset] must be called first if you want a different config to take effect
-func Setup(cfg *Config, rcclient rcclient.Component) error {
-	_, err := coreLoader(cfg, rcclient)
+func Setup(cfg *Config, rcclient rcclient.Component, telemetry telemetry.Component) error {
+	_, err := coreLoader(cfg, rcclient, telemetry)
 	return err
 }
 
-func coreLoader(cfg *Config, rcclient rcclient.Component) (*coreAssetLoader, error) {
+func getCORELoader() *coreAssetLoader {
 	core.RLock()
-	loader := core.loader
-	core.RUnlock()
+	defer core.RUnlock()
+	return core.loader
+}
+
+func coreLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telemetry.Component) (*coreAssetLoader, error) {
+	loader := getCORELoader()
 	if loader != nil {
 		return loader, nil
 	}
@@ -43,15 +47,21 @@ func coreLoader(cfg *Config, rcclient rcclient.Component) (*coreAssetLoader, err
 	if err := rlimit.RemoveMemlock(); err != nil {
 		return nil, fmt.Errorf("rlimit memlock: %w", err)
 	}
+
+	btfLoader, err := initBTFLoader(cfg, rcclient, telemetrycomp)
+	if err != nil {
+		return nil, err
+	}
+
 	core.loader = &coreAssetLoader{
 		coreDir:   filepath.Join(cfg.BPFDir, "co-re"),
-		btfLoader: initBTFLoader(cfg, rcclient),
+		btfLoader: btfLoader,
 		telemetry: struct {
 			success telemetry.Counter
 			error   telemetry.Counter
 		}{
-			success: telemetry.NewCounter("ebpf__core__load", "success", []string{"platform", "platform_version", "kernel", "arch", "asset", "btf_type"}, "count of CO-RE load successes"),
-			error:   telemetry.NewCounter("ebpf__core__load", "error", []string{"platform", "platform_version", "kernel", "arch", "asset", "error_type"}, "count of CO-RE load errors"),
+			success: telemetrycomp.NewCounter("ebpf", "core_load_success", []string{"platform", "platform_version", "kernel", "arch", "asset", "btf_type"}, "count of CO-RE load successes"),
+			error:   telemetrycomp.NewCounter("ebpf", "core_load_error", []string{"platform", "platform_version", "kernel", "arch", "asset", "error_type"}, "count of CO-RE load errors"),
 		},
 	}
 	return core.loader, nil

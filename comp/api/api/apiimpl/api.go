@@ -17,7 +17,7 @@ import (
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,8 +30,8 @@ func Module() fxutil.Module {
 type apiServer struct {
 	cfg               config.Component
 	ipc               ipc.Component
-	cmdAddr           *net.TCPAddr
-	ipcAddr           *net.TCPAddr
+	cmdAddr           net.Addr
+	ipcAddr           net.Addr
 	cmdServer         *http.Server
 	ipcServer         *http.Server
 	telemetry         telemetry.Component
@@ -74,11 +74,11 @@ func newAPIServer(deps dependencies) api.Component {
 }
 
 // CMDServerAddress returns the CMD server address.
-func (server *apiServer) CMDServerAddress() *net.TCPAddr {
+func (server *apiServer) CMDServerAddress() net.Addr {
 	return server.cmdAddr
 }
 
 // IPCServerAddress returns the IPC server address.
-func (server *apiServer) IPCServerAddress() *net.TCPAddr {
+func (server *apiServer) IPCServerAddress() net.Addr {
 	return server.ipcAddr
 }

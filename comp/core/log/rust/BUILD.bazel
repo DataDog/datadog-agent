@@ -1,0 +1,23 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+
+rust_library(
+    name = "dd-agent-log",
+    srcs = ["src/lib.rs"],
+    crate_name = "dd_agent_log",
+    edition = "2024",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@crates//:log",
+        "@crates//:time",
+    ],
+)
+
+rust_test(
+    name = "dd-agent-log_test",
+    crate = ":dd-agent-log",
+    edition = "2024",
+    deps = [
+        "@crates//:regex",
+        "@crates//:tempfile",
+    ],
+)

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -117,17 +117,14 @@ func (h *Handler) Run(ctx context.Context) {
 
 		// Leading, start warmup
 		log.Infof("Becoming leader, waiting %s for node-agents to report", h.warmupDuration)
-		finishWarmupSpan := func(_ string) {}
-		if h.dispatcher.tracingEnabled {
-			span := tracer.StartSpan("cluster_checks.handler.leader_warmup",
-				tracer.ResourceName("warmup"),
-				tracer.SpanType("worker"))
-			finishWarmupSpan = func(interrupted string) {
-				if interrupted != "" {
-					span.SetTag("interrupted", interrupted)
-				}
-				span.Finish()
+		span := tracer.StartSpan("cluster_checks.handler.leader_warmup",
+			tracer.ResourceName("leaderWarmup"),
+			tracer.SpanType("worker"))
+		finishWarmupSpan := func(interrupted string) {
+			if interrupted != "" {
+				span.SetTag("interrupted", interrupted)
 			}
+			span.Finish()
 		}
 		select {
 		case <-ctx.Done():
@@ -145,6 +142,7 @@ func (h *Handler) Run(ctx context.Context) {
 
 		// Run discovery and dispatching
 		log.Info("Warmup phase finished, starting to serve configurations")
+		h.dispatcher.logWarmupSummary()
 
 		// Initial mode determination after warmup
 		h.dispatcher.UpdateAdvancedDispatchingMode()
@@ -167,12 +165,10 @@ func (h *Handler) Run(ctx context.Context) {
 
 			if newState != leader {
 				log.Info("Lost leadership, reverting to follower")
-				if h.dispatcher.tracingEnabled {
-					span := tracer.StartSpan("cluster_checks.handler.leadership_lost",
-						tracer.ResourceName("leadership_lost"),
-						tracer.SpanType("worker"))
-					span.Finish()
-				}
+				lostSpan := tracer.StartSpan("cluster_checks.handler.leadership_lost",
+					tracer.ResourceName("leadershipLost"),
+					tracer.SpanType("worker"))
+				lostSpan.Finish()
 				dispatchCancel()
 				break // Return back to main loop start
 			}
@@ -188,9 +184,14 @@ func (h *Handler) runDispatch(ctx context.Context) {
 	// Run dispatcher loop - blocking until context is cancelled
 	h.dispatcher.run(ctx)
 
+	// RemoveScheduler must be called before reset() to close a race window: if autodiscovery
+	// fires a Schedule call between reset() clearing ksmShardedConfigs and RemoveScheduler
+	// stopping new calls, ksmShardedConfigs gets repopulated. On the next leadership cycle,
+	// isAlreadySharded returns true and the KSM check is silently dropped.
+	h.autoconfig.RemoveScheduler(schedulerName)
+
 	// Reset the dispatcher
 	h.dispatcher.reset()
-	h.autoconfig.RemoveScheduler(schedulerName)
 }
 
 func (h *Handler) leaderWatch(ctx context.Context) {

@@ -33,6 +33,7 @@ func NewOSScanner() *OSScanner {
 		scanners: []actualScanner{
 			&dpkgScanner{},
 			&rpmScanner{},
+			&apkScanner{},
 		},
 	}
 }

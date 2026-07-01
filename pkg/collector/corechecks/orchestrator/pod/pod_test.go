@@ -129,14 +129,14 @@ func (suite *PodTestSuite) SetupSuite() {
 	suite.testServer = ts
 
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("orchestrator_explorer.enabled", true)
-	mockConfig.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
-	mockConfig.SetWithoutSource("kubernetes_pod_labels_as_tags", `{"tier":"dd_tier","component":"dd_component"}`)
-	mockConfig.SetWithoutSource("kubernetes_pod_annotations_as_tags", `{"kubernetes.io/config.source":"config_source","kubernetes.io/config.hash":"config_hash"}`)
+	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("orchestrator_explorer.enabled", true)
+	mockConfig.SetInTest("orchestrator_explorer.manifest_collection.enabled", true)
+	mockConfig.SetInTest("kubernetes_pod_labels_as_tags", `{"tier":"dd_tier","component":"dd_component"}`)
+	mockConfig.SetInTest("kubernetes_pod_annotations_as_tags", `{"kubernetes.io/config.source":"config_source","kubernetes.io/config.hash":"config_hash"}`)
 
 	kubeutil, _ := kubelet.GetKubeUtilWithRetrier()
 	require.NotNil(suite.T(), kubeutil)
@@ -196,18 +196,14 @@ func (suite *PodTestSuite) TestPodCheck() {
 		sorted("kube_api_version:v1"))
 	require.Equal(suite.T(),
 		sorted(suite.sender.pods[0].(*process.CollectorPod).Pods[0].Tags...),
-		sorted("kube_condition_podscheduled:true", "pod_status:pending",
-			"dd_component:kube-proxy", "dd_tier:node",
-			"config_hash:260c2b1d43b094af6d6b4ccba082c2db", "config_source:file"))
+		sorted("kube_condition_podscheduled:true", "pod_status:pending"))
 
 	require.Equal(suite.T(),
 		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Tags...),
 		sorted())
 	require.Equal(suite.T(),
 		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Manifests[0].Tags...),
-		sorted("kube_api_version:v1", "kube_condition_podscheduled:true", "pod_status:pending",
-			"dd_component:kube-proxy", "dd_tier:node",
-			"config_hash:260c2b1d43b094af6d6b4ccba082c2db", "config_source:file"))
+		sorted("kube_api_version:v1", "kube_condition_podscheduled:true", "pod_status:pending"))
 }
 
 func sorted(l ...string) []string {

@@ -15,9 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -41,8 +42,8 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	log := logimpl.NewTemporaryLoggerWithoutInit()
-	sharedForwarder := defaultforwarder.NoopForwarder{}
-	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	sharedForwarder := defaultforwardernoop.NewComponent()
+	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwardernoop.NewComponent())
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService(), logscompressionmock.NewMockCompressor()))
 	taggerComponent := nooptagger.NewComponent()
 	filterList := filterlist.NewNoopFilterList()
@@ -78,7 +79,7 @@ func (m *MockSender) GetSenderManager() sender.SenderManager {
 
 // SetupAcceptAll sets mock expectations to accept any call in the Sender interface
 func (m *MockSender) SetupAcceptAll() {
-	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge", "Distribution"}
+	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge", "GaugeNoIndex", "Distribution"}
 	for _, call := range metricCalls {
 		m.On(call,
 			mock.AnythingOfType("string"),   // Metric
@@ -115,16 +116,19 @@ func (m *MockSender) SetupAcceptAll() {
 	// The second argument should have been `mock.AnythingOfType("[]byte")` instead of `mock.AnythingOfType("[]uint8")`
 	// See https://github.com/stretchr/testify/issues/387
 	m.On("EventPlatformEvent", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("string")).Return()
-	m.On("HistogramBucket",
-		mock.AnythingOfType("string"),   // metric name
-		mock.AnythingOfType("int64"),    // value
-		mock.AnythingOfType("float64"),  // lower bound
-		mock.AnythingOfType("float64"),  // upper bound
-		mock.AnythingOfType("bool"),     // monotonic
-		mock.AnythingOfType("string"),   // hostname
-		mock.AnythingOfType("[]string"), // tags
-		mock.AnythingOfType("bool"),     // FlushFirstValue
-	).Return()
+	bucketCalls := []string{"OpenmetricsBucket", "HistogramBucket"}
+	for _, call := range bucketCalls {
+		m.On(call,
+			mock.AnythingOfType("string"),   // metric name
+			mock.AnythingOfType("int64"),    // value
+			mock.AnythingOfType("float64"),  // lower bound
+			mock.AnythingOfType("float64"),  // upper bound
+			mock.AnythingOfType("bool"),     // monotonic
+			mock.AnythingOfType("string"),   // hostname
+			mock.AnythingOfType("[]string"), // tags
+			mock.AnythingOfType("bool"),     // FlushFirstValue
+		).Return()
+	}
 	m.On("GetSenderStats", mock.AnythingOfType("stats.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()

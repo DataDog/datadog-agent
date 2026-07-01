@@ -1,0 +1,21 @@
+---
+name: "Validate Renovate coverage of Bazel native deps"
+on:
+  pull_request:
+    paths:
+      - "deps/**"
+      - "renovate.json"
+      - "tasks/renovate.py"
+      - "tasks/BUILD.bazel"
+      - ".github/workflows/validate-renovate-deps.yml"
+
+permissions: {}
+
+jobs:
+  check_coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: ./.github/actions/bazel-cache
+      - name: Verify every http_archive/http_file in deps/ has Renovate coverage
+        run: bazel run //tasks:check_renovate_bazel_coverage

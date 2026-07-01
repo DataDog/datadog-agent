@@ -1,0 +1,277 @@
+set -euo pipefail
+apk add --no-cache aws-cli 2>/dev/null || true
+helm repo add datadog https://helm.datadoghq.com && helm repo update
+
+# ── Parse image into repo + tag ──────────────────────────────────────────
+IMAGE_REPO="${AGENT_IMAGE%:*}"
+IMAGE_TAG="${AGENT_IMAGE##*:}"
+RUN_ID="eval-$(date -u +%Y%m%d)-${GENSIM_SHA:0:7}"
+
+echo "Orchestrator starting"
+echo "  Run ID:     $RUN_ID"
+echo "  Episodes:   $EPISODES"
+echo "  Image:      $AGENT_IMAGE"
+echo "  Gensim SHA: $GENSIM_SHA"
+echo "  S3 Bucket:  $S3_BUCKET"
+echo "  Namespace:  $KUBE_NAMESPACE"
+echo "  Mode:       $GENSIM_MODE"
+
+# ── Status ConfigMap helpers ────────────────────────────────────────────
+init_status() {
+  local episodes_json="[]"
+  IFS=',' read -ra _EP_INIT <<< "$EPISODES"
+  for _EP in "${_EP_INIT[@]}"; do
+    local _episode="${_EP%%:*}"
+    local _scenario="${_EP##*:}"
+    episodes_json=$(printf '%s' "$episodes_json" | jq -c --arg ep "$_episode" --arg sc "$_scenario" '. + [{"episode":$ep,"scenario":$sc,"status":"queued"}]')
+  done
+  local status_json
+  status_json=$(jq -n -c \
+    --arg runId "$RUN_ID" \
+    --arg image "$AGENT_IMAGE" \
+    --arg sha "$GENSIM_SHA" \
+    --arg started "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson eps "$episodes_json" \
+    '{runId:$runId,image:$image,gensimSha:$sha,startedAt:$started,episodes:$eps}')
+  kubectl create configmap gensim-run-status \
+    --from-literal=status="$status_json" \
+    -n "$KUBE_NAMESPACE" \
+    --dry-run=client -o yaml | kubectl apply -f -
+}
+
+update_episode_status() {
+  local ep_spec="$1" new_status="$2" extra="${3}"
+  [ -z "$extra" ] && extra='{}'
+  local ep="${ep_spec%%:*}"
+  local sc="${ep_spec##*:}"
+  local current
+  current=$(kubectl get configmap gensim-run-status -n "$KUBE_NAMESPACE" -o jsonpath='{.data.status}')
+  local updated
+  updated=$(printf '%s' "$current" | jq -c \
+    --arg ep "$ep" --arg sc "$sc" --arg st "$new_status" --argjson ex "$extra" \
+    '(.episodes[] | select(.episode==$ep and .scenario==$sc)) |= (. + $ex + {status:$st})')
+  kubectl create configmap gensim-run-status \
+    --from-literal=status="$updated" \
+    -n "$KUBE_NAMESPACE" \
+    --dry-run=client -o yaml | kubectl apply -f -
+}
+
+set_run_complete() {
+  local current
+  current=$(kubectl get configmap gensim-run-status -n "$KUBE_NAMESPACE" -o jsonpath='{.data.status}')
+  local updated
+  updated=$(printf '%s' "$current" | jq -c --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {completedAt:$t}')
+  kubectl create configmap gensim-run-status \
+    --from-literal=status="$updated" \
+    -n "$KUBE_NAMESPACE" \
+    --dry-run=client -o yaml | kubectl apply -f -
+}
+
+# ── DD event + metrics helpers ───────────────────────────────────────────
+emit_dd_event() {
+  local episode=$1 scenario=$2 duration=$3 parquet_count=$4 outcome=$5
+  local title="gensim: ${episode}/${scenario} ${outcome}"
+  local text="Duration: ${duration}s, Parquet files: ${parquet_count}, Image: ${AGENT_IMAGE}, SHA: ${GENSIM_SHA}"
+  local alert_type="success"
+  [ "$outcome" != "success" ] && alert_type="error"
+  curl -s -X POST "https://api.${DD_SITE}/api/v1/events" \
+    -H "Content-Type: application/json" \
+    -H "DD-API-KEY: ${DD_API_KEY}" \
+    -d "{ \
+      \"title\": \"${title}\", \
+      \"text\": \"${text}\", \
+      \"alert_type\": \"${alert_type}\", \
+      \"tags\": [ \
+        \"episode:${episode}\", \
+        \"scenario:${scenario}\", \
+        \"image:${IMAGE_TAG}\", \
+        \"gensim_sha:${GENSIM_SHA}\", \
+        \"run_id:${RUN_ID}\" \
+      ] \
+    }" || echo "WARN: Failed to emit DD event" >&2
+}
+
+emit_dd_metrics() {
+  local episode=$1 scenario=$2 duration=$3 parquet_count=$4
+  local now=$(date +%s)
+  local tags="[\"episode:${episode}\",\"scenario:${scenario}\",\"image:${IMAGE_TAG}\",\"gensim_sha:${GENSIM_SHA}\",\"run_id:${RUN_ID}\"]"
+  curl -s -X POST "https://api.${DD_SITE}/api/v1/series" \
+    -H "Content-Type: application/json" \
+    -H "DD-API-KEY: ${DD_API_KEY}" \
+    -d "{ \
+      \"series\": [ \
+        {\"metric\":\"gensim.episode.duration_seconds\",\"type\":\"gauge\",\"points\":[[${now},${duration}]],\"tags\":${tags}}, \
+        {\"metric\":\"gensim.episode.parquet_files\",\"type\":\"gauge\",\"points\":[[${now},${parquet_count}]],\"tags\":${tags}} \
+      ] \
+    }" || echo "WARN: Failed to emit DD metrics" >&2
+}
+
+# ── Post-renderer: fix imagePullPolicy: Never -> Always ──────────────────
+# Some episodes (e.g. 678_heroku) set imagePullPolicy: Never for local dev.
+# This post-renderer patches it to Always for EKS.
+cat > /workspace/fix-pull-policy.sh <<'FIXEOF'
+#!/bin/sh
+sed 's/imagePullPolicy: Never/imagePullPolicy: Always/g'
+FIXEOF
+chmod +x /workspace/fix-pull-policy.sh
+
+# ── Main loop ───────────────────────────────────────────────────────────
+IFS=',' read -ra EP_LIST <<< "$EPISODES"
+
+init_status
+
+for EP_SPEC in "${EP_LIST[@]}"; do
+  EPISODE="${EP_SPEC%%:*}"
+  SCENARIO="${EP_SPEC##*:}"
+  EP_START=$(date +%s)
+
+  echo "=== Episode: $EPISODE / $SCENARIO ==="
+
+  update_episode_status "$EP_SPEC" "running" '{"phase":"episode-install"}'
+
+  # 1. Install episode chart with agent resources disabled
+  EP_RELEASE=""
+  if [ -f "/episodes/$EPISODE/chart.tar.gz" ]; then
+    mkdir -p "/workspace/chart-$EPISODE"
+    tar xzf "/episodes/$EPISODE/chart.tar.gz" -C "/workspace/chart-$EPISODE"
+    CHART_DIR=$(find "/workspace/chart-$EPISODE" -maxdepth 1 -mindepth 1 -type d | head -1)
+    if [ -z "$CHART_DIR" ]; then
+      CHART_DIR="/workspace/chart-$EPISODE"
+    fi
+
+    EP_RELEASE="gensim-$(echo "$EPISODE" | tr '_' '-' | tr '[:upper:]' '[:lower:]')"
+
+    helm install "$EP_RELEASE" "$CHART_DIR" \
+      --set agent.enabled=false \
+      --set imageRegistry="$IMAGE_REGISTRY" \
+      --set namespace="$KUBE_NAMESPACE" \
+      --set datadog.apiKey="$DD_API_KEY" \
+      --set datadog.appKey="$DD_APP_KEY" \
+      --set datadog.site="$DD_SITE" \
+      --set datadog.env="$EP_RELEASE" \
+      -n "$KUBE_NAMESPACE" \
+      --post-renderer /workspace/fix-pull-policy.sh \
+      --wait --timeout 3m
+  fi
+
+  update_episode_status "$EP_SPEC" "running" '{"phase":"agent-install"}'
+
+  # 2. Install agent (autodiscovery handles check configs)
+  cp /config/agent-values.yaml /workspace/agent-values.yaml
+  helm upgrade --install datadog-agent datadog/datadog \
+    -f /workspace/agent-values.yaml \
+    -n "$KUBE_NAMESPACE" \
+    --wait --timeout 5m
+
+  update_episode_status "$EP_SPEC" "running" '{"phase":"episode-running"}'
+
+  # 3. Run play-episode.sh
+  # play-episode.sh uses SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd) and looks
+  # for episodes/<scenario>.yaml relative to SCRIPT_DIR. Copy files so paths work.
+  cp "/episodes/$EPISODE/play-episode.sh" /workspace/play-episode.sh
+  chmod +x /workspace/play-episode.sh
+  mkdir -p /workspace/episodes
+  cp "/episodes/$EPISODE/$SCENARIO.yaml" "/workspace/episodes/$SCENARIO.yaml"
+  mkdir -p /workspace/results
+  cd /workspace
+  # play-episode.sh requires DD_ENV, DD_API_KEY, DD_APP_KEY, KUBE_NAMESPACE.
+  # DD_API_KEY, DD_APP_KEY, KUBE_NAMESPACE are set on the Job env. DD_ENV must
+  # be set to the episode helm release name (used for monitor scoping).
+  export DD_ENV="gensim-$(echo "$EPISODE" | tr '_' '-' | tr '[:upper:]' '[:lower:]')"
+  EP_OUTCOME="success"
+  bash /workspace/play-episode.sh run-episode "$SCENARIO" || EP_OUTCOME="failure"
+  cd /
+
+  # 4. Collect results (mode-dependent)
+  PARQUET_COUNT=0
+  if [ "$GENSIM_MODE" = "record-parquet" ] || [ "$GENSIM_MODE" = "live-and-record" ]; then
+    update_episode_status "$EP_SPEC" "running" '{"phase":"collecting-parquet"}'
+    AGENT_POD=$(kubectl get pod -n "$KUBE_NAMESPACE" -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    if [ -z "$AGENT_POD" ]; then
+      echo "ERROR: no agent pod found (label app=datadog-agent) -- parquet not collected" >&2
+    else
+      echo "Collecting parquet from pod $AGENT_POD..."
+      mkdir -p /workspace/results/parquet
+      if kubectl cp "$KUBE_NAMESPACE/$AGENT_POD:/tmp/observer-parquet" /workspace/results/parquet/; then
+        PARQUET_COUNT=$(find /workspace/results/parquet -type f -name '*.parquet' | wc -l)
+        echo "Parquet collected: $PARQUET_COUNT files"
+      else
+        echo "ERROR: kubectl cp failed -- parquet not collected" >&2
+      fi
+    fi
+
+    # 5. Zip and upload to S3
+    if [ -n "$S3_BUCKET" ]; then
+      if ! command -v zip >/dev/null 2>&1; then
+        apk add --no-cache zip || { echo "ERROR: failed to install zip" >&2; }
+      fi
+
+      ZIP_DATE=$(date -u +%Y%m%d)
+      ZIP_NAME="gensim-results-${EPISODE}-${ZIP_DATE}-${GENSIM_SHA}.zip"
+      ZIP_PATH="/workspace/${ZIP_NAME}"
+
+      echo "Creating ${ZIP_NAME}..."
+      # Structure the zip to match q.py _ensure_parquets expectations:
+      #   tmp/gensim-archive/parquet/*.parquet
+      #   tmp/gensim-archive/results/<scenario>.json  (produced by play-episode.sh)
+      mkdir -p /workspace/zip-staging/tmp/gensim-archive/parquet
+      mkdir -p /workspace/zip-staging/tmp/gensim-archive/results
+      cp /workspace/results/parquet/*.parquet /workspace/zip-staging/tmp/gensim-archive/parquet/ 2>/dev/null || true
+      # play-episode.sh writes results to /workspace/results/<scenario>-<cycle>.json
+      cp /workspace/results/*.json /workspace/zip-staging/tmp/gensim-archive/results/ 2>/dev/null || true
+
+      cd /workspace/zip-staging
+      zip -r "${ZIP_PATH}" tmp/gensim-archive/ -q
+      cd /
+
+      DEST="s3://${S3_BUCKET}/${ZIP_NAME}"
+      echo "Uploading ${ZIP_NAME} to ${DEST}..."
+      aws s3 cp "${ZIP_PATH}" "${DEST}" || echo "ERROR: S3 upload failed" >&2
+      echo "Uploaded to ${DEST}"
+
+      rm -rf /workspace/zip-staging "${ZIP_PATH}"
+
+      # Append to runs.jsonl audit trail (download-append-upload)
+      EP_END_TS=$(date +%s)
+      EP_DUR=$((EP_END_TS - EP_START))
+      RUNS_FILE="/workspace/runs.jsonl"
+      aws s3 cp "s3://${S3_BUCKET}/runs.jsonl" "${RUNS_FILE}" 2>/dev/null || true
+      printf '{"timestamp":"%s","episode":"%s","scenario":"%s","image":"%s","gensim_sha":"%s","zip":"%s","mode":"%s","parquet_count":%d,"duration_seconds":%d}\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$EPISODE" "$SCENARIO" "$AGENT_IMAGE" "$GENSIM_SHA" "$ZIP_NAME" "$GENSIM_MODE" "$PARQUET_COUNT" "$EP_DUR" \
+        >> "${RUNS_FILE}"
+      aws s3 cp "${RUNS_FILE}" "s3://${S3_BUCKET}/runs.jsonl" || echo "WARN: failed to update runs.jsonl" >&2
+      rm -f "${RUNS_FILE}"
+    fi
+  else
+    echo "Mode: $GENSIM_MODE -- skipping parquet collection and S3 upload"
+  fi
+
+  EP_END=$(date +%s)
+  EP_DURATION=$((EP_END - EP_START))
+
+  # 6. Emit DD event + metrics
+  emit_dd_event "$EPISODE" "$SCENARIO" "$EP_DURATION" "$PARQUET_COUNT" "$EP_OUTCOME"
+  emit_dd_metrics "$EPISODE" "$SCENARIO" "$EP_DURATION" "$PARQUET_COUNT"
+
+  # 7. Update status
+  update_episode_status "$EP_SPEC" "done" "{\"parquetFiles\":$PARQUET_COUNT,\"durationSeconds\":$EP_DURATION}"
+
+  # 8. Teardown episode + agent
+  echo "Tearing down episode and agent..."
+  if [ -n "$EP_RELEASE" ]; then
+    helm uninstall "$EP_RELEASE" -n "$KUBE_NAMESPACE" --wait 2>/dev/null || true
+  fi
+  helm uninstall datadog-agent -n "$KUBE_NAMESPACE" --wait 2>/dev/null || true
+
+  # Wait for pods to terminate
+  echo "Waiting for agent pods to terminate..."
+  kubectl wait --for=delete pod -l app=datadog-agent -n "$KUBE_NAMESPACE" --timeout=120s 2>/dev/null || true
+
+  # Clean workspace for next episode
+  rm -rf /workspace/results /workspace/chart-* /workspace/agent-values.yaml /workspace/play-episode.sh /workspace/episodes
+
+  echo "=== Episode $EPISODE / $SCENARIO complete (${EP_DURATION}s) ==="
+done
+
+set_run_complete
+echo "All episodes complete."

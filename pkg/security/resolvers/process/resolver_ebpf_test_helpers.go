@@ -37,7 +37,6 @@ func NewTestEBPFResolver(
 	p := &EBPFResolver{
 		state:                     atomic.NewInt64(Snapshotting),
 		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		SnapshottedBoundSockets:   make(map[uint32][]model.SnapshottedBoundSocket),
 		argsEnvsCache:             argsEnvsCache,
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,

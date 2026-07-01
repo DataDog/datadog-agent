@@ -49,6 +49,7 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 			JMX:                            params.JMX,
 			WindowsImage:                   params.WindowsImage,
 			TimeoutSeconds:                 params.TimeoutSeconds,
+			HelmChartVersion:               params.HelmChartVersion,
 		}, pulumiResourceOptions...)
 		if err != nil {
 			return err

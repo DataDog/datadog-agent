@@ -35,20 +35,22 @@ const (
 // workloadmeta store.
 type ContainerListener struct {
 	workloadmetaListener
-	globalFilter  workloadfilter.FilterBundle
-	metricsFilter workloadfilter.FilterBundle
-	logsFilter    workloadfilter.FilterBundle
-	tagger        tagger.Component
+	globalFilter      workloadfilter.FilterBundle
+	metricsFilter     workloadfilter.FilterBundle
+	logsFilter        workloadfilter.FilterBundle
+	tagger            tagger.Component
+	staticConfigIndex *StaticConfigIndex
 }
 
 // NewContainerListener returns a new ContainerListener.
 func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{
-		globalFilter:  options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
-		metricsFilter: options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
-		logsFilter:    options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
-		tagger:        options.Tagger,
+		globalFilter:      options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter:     options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:        options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:            options.Tagger,
+		staticConfigIndex: options.StaticConfigIndex,
 	}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
@@ -59,7 +61,16 @@ func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error)
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.createContainerService, wmetaInstance, options.Telemetry)
+
+	l.workloadmetaListener, err = newWorkloadmetaListenerWithTagWait(
+		name,
+		filter,
+		l.createContainerService,
+		wmetaInstance,
+		options.Telemetry,
+		l.areTagsComplete,
+		time.Duration(pkgconfigsetup.Datadog().GetInt("ad_tag_completeness_max_wait"))*time.Second,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +110,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		}
 	}
 
-	if !container.State.Running && container.Runtime == workloadmeta.ContainerRuntimeECSFargate {
+	if !container.State.Running && (container.Runtime == workloadmeta.ContainerRuntimeECSFargate || container.Runtime == "") {
 		return
 	}
 
@@ -123,13 +134,14 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			containerImg.RawName,
 			container.Labels,
 		),
-		ports:           ports,
-		pid:             container.PID,
-		hostname:        container.Hostname,
-		metricsExcluded: l.metricsFilter.IsExcluded(filterableContainer),
-		logsExcluded:    l.logsFilter.IsExcluded(filterableContainer),
-		tagger:          l.tagger,
-		wmeta:           l.Store(),
+		ports:             ports,
+		pid:               container.PID,
+		hostname:          container.Hostname,
+		metricsExcluded:   l.metricsFilter.IsExcluded(filterableContainer),
+		logsExcluded:      l.logsFilter.IsExcluded(filterableContainer),
+		tagger:            l.tagger,
+		wmeta:             l.Store(),
+		staticConfigIndex: l.staticConfigIndex,
 	}
 
 	if pod != nil {
@@ -201,4 +213,21 @@ func computeContainerServiceIDs(entity string, image string, labels map[string]s
 		ids = append(ids, short)
 	}
 	return ids
+}
+
+func (l *ContainerListener) areTagsComplete(entity workloadmeta.Entity) bool {
+	container, ok := entity.(*workloadmeta.Container)
+	if !ok {
+		log.Errorf("expected Container entity, got %T", entity)
+		return true
+	}
+
+	containerTaggerID := types.NewEntityID(types.ContainerID, container.ID)
+	_, complete, err := l.tagger.TagWithCompleteness(containerTaggerID, types.ChecksConfigCardinality)
+	if err != nil {
+		log.Debugf("error checking tag completeness for container %s: %s", container.ID, err)
+		return false
+	}
+
+	return complete
 }

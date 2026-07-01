@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/certificatehost"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -121,8 +121,7 @@ func (v *multiVMSuite) writeCheckConfigAndRestart(host *components.RemoteHost, c
 func (v *multiVMSuite) waitForAgentCheckRunning(host *components.RemoteHost) {
 	cmd := fmt.Sprintf(`&'%s' status`, agentBinaryPath)
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		output, err := host.Execute(cmd)
-		assert.NoError(c, err)
+		output := host.MustExecuteOn(c, cmd)
 		assert.Contains(c, output, checkName)
 		v.T().Logf("Agent status: %s", output)
 	}, agentStatusTimeout, retryInterval)
@@ -133,9 +132,7 @@ func (v *multiVMSuite) runCheckAndWaitForMetric(host *components.RemoteHost, exp
 	cmdCheck := fmt.Sprintf(`&'%s' check %s`, agentBinaryPath, checkName)
 	var output string
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		var err error
-		output, err = host.Execute(cmdCheck)
-		assert.NoError(c, err)
+		output = host.MustExecuteOn(c, cmdCheck)
 		assert.Contains(c, output, expectedMetric)
 		assert.NotContains(c, output, "Access is denied")
 		v.T().Logf("Check output: %s", output)

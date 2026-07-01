@@ -1,0 +1,65 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package observerimpl
+
+import (
+	"strings"
+
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+)
+
+// connectionErrorPatterns are the patterns we look for (all lowercase for case-insensitive matching).
+var connectionErrorPatterns = []string{
+	"connection refused",
+	"connection reset",
+	"connection timed out",
+	"econnrefused",
+	"econnreset",
+	"etimedout",
+}
+
+// ConnectionErrorExtractorConfig holds configuration for the ConnectionErrorExtractor.
+type ConnectionErrorExtractorConfig struct{}
+
+// DefaultConnectionErrorExtractorConfig returns a ConnectionErrorExtractorConfig with default values.
+func DefaultConnectionErrorExtractorConfig() ConnectionErrorExtractorConfig {
+	return ConnectionErrorExtractorConfig{}
+}
+
+// ConnectionErrorExtractor detects connection errors in logs and emits a
+// connection.errors metric with inline MetricContext for anomaly enrichment.
+type ConnectionErrorExtractor struct{}
+
+// Name returns the detector name.
+func (c *ConnectionErrorExtractor) Name() string {
+	return "connection_error_extractor"
+}
+
+// ProcessLog checks if a log contains connection error patterns and returns a metric if so.
+// Anomaly detection is handled by metrics detection on the count aggregation of the emitted metric.
+func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
+	content := strings.ToLower(log.GetContent())
+	tags := log.Tags()
+
+	for _, pattern := range connectionErrorPatterns {
+		if strings.Contains(content, pattern) {
+			return observer.LogMetricsExtractorOutput{
+				Metrics: []observer.MetricOutput{{
+					Name:  "connection.errors",
+					Value: 1.0,
+					Tags:  tags,
+					Context: &observer.MetricContext{
+						Pattern: pattern,
+						Example: truncate(log.GetContent(), 160),
+						Source:  "connection_error_extractor",
+					},
+				}},
+			}
+		}
+	}
+
+	return observer.LogMetricsExtractorOutput{}
+}

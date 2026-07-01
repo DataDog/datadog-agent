@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+# This package no longer contains Go source files.
+# All symbols have been moved to sub-packages:
+#   - comp/forwarder/defaultforwarder/def      (Forwarder interface, Component, Params)
+#   - comp/forwarder/defaultforwarder/impl     (DefaultForwarder, Options, NewDefaultForwarder, etc.)
+#   - comp/forwarder/defaultforwarder/fx       (Module)
+#   - comp/forwarder/defaultforwarder/mock     (MockModule, Mock)
+#   - comp/forwarder/defaultforwarder/noop-impl (NoopForwarder, NoopModule)
+
+go_library(
+    name = "defaultforwarder",
+    srcs = [
+        "component.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/defaultforwarder/def",
+        "//comp/forwarder/defaultforwarder/impl",
+    ],
+)

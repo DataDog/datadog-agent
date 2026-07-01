@@ -21,26 +21,25 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
+	agentimpl "github.com/DataDog/datadog-agent/comp/logs/agent/impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -87,7 +86,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadmetafx.Module(defaults.DefaultParams()),
 				workloadfilterfx.Module(),
-				autodiscoveryimpl.Module(),
+				hostnameimpl.Module(),
+				adfx.Module(),
+				healthplatform.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -102,8 +103,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
-func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component, wmeta workloadmeta.Component, taggerComp tagger.Component, filterStore workloadfilter.Component) error {
-	outputChan, launchers, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, ac, wmeta, taggerComp, filterStore)
+func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component) error {
+	outputChan, launchers, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, ac)
 	if err != nil {
 		return err
 	}
@@ -139,9 +140,9 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 }
 
 // Used to make testing easier
-func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component, wmeta workloadmeta.Component, taggerComp tagger.Component, filterStore workloadfilter.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider, error) {
+func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider, error) {
 	configSource := sources.NewConfigSources()
-	sources, err := getSources(ac, cliParams, wmeta, taggerComp, filterStore)
+	sources, err := getSources(ac, cliParams)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -160,13 +161,13 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 	return agentimpl.SetUpLaunchers(config, configSource)
 }
 
-func getSources(ac autodiscovery.Component, cliParams *CliParams, wmeta workloadmeta.Component, taggerComp tagger.Component, filterStore workloadfilter.Component) ([]*sources.LogSource, error) {
+func getSources(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.LogSource, error) {
 	sources, err := resolveFileConfig(cliParams)
 	if err == nil {
 		return sources, nil
 	}
 
-	sources, err = resolveCheckConfig(ac, cliParams, wmeta, taggerComp, filterStore)
+	sources, err = resolveCheckConfig(ac, cliParams)
 	if err != nil {
 		fmt.Println("Invalid check name OR config path, please make sure the check/config is properly set up")
 		return nil, err
@@ -189,11 +190,13 @@ func resolveFileConfig(cliParams *CliParams) ([]*sources.LogSource, error) {
 	return sources, nil
 }
 
-func resolveCheckConfig(ac autodiscovery.Component, cliParams *CliParams, wmeta workloadmeta.Component, taggerComp tagger.Component, filterStore workloadfilter.Component) ([]*sources.LogSource, error) {
+func resolveCheckConfig(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.LogSource, error) {
 	waitTime := time.Duration(1) * time.Second
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), waitTime)
-	common.LoadComponents(nil, wmeta, taggerComp, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+
+	config := pkgconfigsetup.Datadog()
+	common.LoadComponents(ac, config)
 	ac.LoadAndRun(context.Background())
 	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, 1, "", ac)
 	cancelTimeout()

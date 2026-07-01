@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	backoffticker "github.com/cenkalti/backoff/v5"
+	backoffticker "github.com/cenkalti/backoff/v6"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
@@ -263,12 +264,14 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 		if rsa.secInfoReporter == nil {
 			return
 		}
-		rsa.secInfoReporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
+		rsa.secInfoReporter.ReportRaw(evt.GetData(), evt.Service, evt.GetHostname(), evt.Timestamp.AsTime(), evt.GetTags()...)
 	} else {
 		if rsa.reporter == nil {
 			return
 		}
-		rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
+		rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.GetHostname(), evt.Timestamp.AsTime(), evt.GetTags()...)
+
+		log.Tracef("runtime message report : %s", string(evt.GetData()))
 	}
 }
 

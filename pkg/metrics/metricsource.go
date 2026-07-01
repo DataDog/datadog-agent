@@ -61,6 +61,8 @@ const (
 	MetricSourceDisk
 	MetricSourceNetwork
 	MetricSourceSnmp
+	MetricSourceCiscoSdwan
+	MetricSourceVersa
 	MetricSourceCloudFoundry
 	MetricSourceJenkins
 	MetricSourceGPU
@@ -258,7 +260,7 @@ const (
 	MetricSourceOpenstackController
 	MetricSourceOracle
 	MetricSourcePdhCheck
-	MetricSourcePerfect
+	MetricSourcePrefect
 	MetricSourcePgbouncer
 	MetricSourcePhpFpm
 	MetricSourcePostfix
@@ -340,7 +342,9 @@ const (
 	MetricSourceDatadogOperator
 	MetricSourceBattery
 	MetricSourcePinot
-
+	MetricSourceDellPowerFlex
+	MetricSourceHPEArubaEdgeConnect
+	MetricSourceNiFi
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -363,6 +367,7 @@ const (
 	MetricSourceOpenTelemetryCollectorNginxReceiver
 	MetricSourceOpenTelemetryCollectorNsxtReceiver
 	MetricSourceOpenTelemetryCollectorOracledbReceiver
+	MetricSourceOpenTelemetryCollectorPodmanReceiver
 	MetricSourceOpenTelemetryCollectorPostgresqlReceiver
 	MetricSourceOpenTelemetryCollectorPrometheusReceiver
 	MetricSourceOpenTelemetryCollectorRabbitmqReceiver
@@ -441,7 +446,7 @@ func (ms MetricSource) String() string {
 	case MetricSourceContainerd:
 		return "containerd"
 	case MetricSourceControlM:
-		return "controlm"
+		return "control_m"
 	case MetricSourceCri:
 		return "cri"
 	case MetricSourceDocker:
@@ -492,6 +497,10 @@ func (ms MetricSource) String() string {
 		return "network"
 	case MetricSourceSnmp:
 		return "snmp"
+	case MetricSourceCiscoSdwan:
+		return "cisco_sdwan"
+	case MetricSourceVersa:
+		return "versa"
 	case MetricSourceInternal:
 		return "internal"
 	case MetricSourceActiveDirectory:
@@ -696,8 +705,8 @@ func (ms MetricSource) String() string {
 		return "oracle"
 	case MetricSourcePdhCheck:
 		return "pdh_check"
-	case MetricSourcePerfect:
-		return "perfect"
+	case MetricSourcePrefect:
+		return "prefect"
 	case MetricSourcePgbouncer:
 		return "pgbouncer"
 	case MetricSourcePhpFpm:
@@ -1060,6 +1069,8 @@ func (ms MetricSource) String() string {
 		return "opentelemetry_collector_nsxtreceiver"
 	case MetricSourceOpenTelemetryCollectorOracledbReceiver:
 		return "opentelemetry_collector_oracledbreceiver"
+	case MetricSourceOpenTelemetryCollectorPodmanReceiver:
+		return "opentelemetry_collector_podmanreceiver"
 	case MetricSourceOpenTelemetryCollectorPostgresqlReceiver:
 		return "opentelemetry_collector_postgresqlreceiver"
 	case MetricSourceOpenTelemetryCollectorPrometheusReceiver:
@@ -1132,6 +1143,12 @@ func (ms MetricSource) String() string {
 		return "battery"
 	case MetricSourcePinot:
 		return "pinot"
+	case MetricSourceDellPowerFlex:
+		return "dell_powerflex"
+	case MetricSourceHPEArubaEdgeConnect:
+		return "hpe_aruba_edgeconnect"
+	case MetricSourceNiFi:
+		return "nifi"
 	default:
 		return "<unknown>"
 	}
@@ -1146,7 +1163,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceContainer
 	case "containerd":
 		return MetricSourceContainerd
-	case "controlm":
+	case "control_m":
 		return MetricSourceControlM
 	case "cri":
 		return MetricSourceCri
@@ -1398,8 +1415,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOracle
 	case "pdh_check":
 		return MetricSourcePdhCheck
-	case "perfect":
-		return MetricSourcePerfect
+	case "prefect":
+		return MetricSourcePrefect
 	case "pgbouncer":
 		return MetricSourcePgbouncer
 	case "php_fpm":
@@ -1768,6 +1785,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOpenTelemetryCollectorNsxtReceiver
 	case "opentelemetry_collector_oracledbreceiver":
 		return MetricSourceOpenTelemetryCollectorOracledbReceiver
+	case "opentelemetry_collector_podmanreceiver":
+		return MetricSourceOpenTelemetryCollectorPodmanReceiver
 	case "opentelemetry_collector_postgresqlreceiver":
 		return MetricSourceOpenTelemetryCollectorPostgresqlReceiver
 	case "opentelemetry_collector_prometheusreceiver":
@@ -1820,6 +1839,16 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceBattery
 	case "pinot":
 		return MetricSourcePinot
+	case "dell_powerflex":
+		return MetricSourceDellPowerFlex
+	case "hpe_aruba_edgeconnect":
+		return MetricSourceHPEArubaEdgeConnect
+	case "nifi":
+		return MetricSourceNiFi
+	case "cisco_sdwan":
+		return MetricSourceCiscoSdwan
+	case "versa":
+		return MetricSourceVersa
 	default:
 		return MetricSourceUnknown
 	}

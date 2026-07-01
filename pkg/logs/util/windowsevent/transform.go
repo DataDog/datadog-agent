@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/clbanning/mxj"
+	"github.com/clbanning/mxj/v2"
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"

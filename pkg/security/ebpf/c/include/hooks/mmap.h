@@ -26,7 +26,7 @@ int hook_vm_mmap_pgoff(ctx_t *ctx) {
         .mmap.flags = flags,
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -55,8 +55,8 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_MMAP);
+    apply_dentry_resolution_outcome(syscall, EVENT_MMAP);
+    if (syscall->state == DISCARDED) {
         return 0;
     }
 
@@ -107,7 +107,8 @@ int hook_security_mmap_file(ctx_t *ctx) {
     syscall->resolver.dentry = syscall->mmap.dentry;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.event_type = syscall->type;
+    syscall->resolver.flags = get_resolver_flags(syscall, 1);
 
     resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 

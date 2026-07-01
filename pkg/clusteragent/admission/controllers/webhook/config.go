@@ -32,6 +32,8 @@ type Config struct {
 	timeout                  int32
 	failurePolicy            string
 	reinvocationPolicy       string
+	probeEnabled             bool
+	addAKSSelectors          bool
 }
 
 // NewConfig creates a webhook controller configuration
@@ -50,6 +52,8 @@ func NewConfig(admissionV1Enabled, namespaceSelectorEnabled, matchConditionsSupp
 		timeout:                  datadogConfig.GetInt32("admission_controller.timeout_seconds"),
 		failurePolicy:            datadogConfig.GetString("admission_controller.failure_policy"),
 		reinvocationPolicy:       datadogConfig.GetString("admission_controller.reinvocation_policy"),
+		probeEnabled:             datadogConfig.GetBool("admission_controller.probe.enabled"),
+		addAKSSelectors:          datadogConfig.GetBool("admission_controller.add_aks_selectors"),
 	}
 }
 

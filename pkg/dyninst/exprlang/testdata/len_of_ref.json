@@ -1,8 +1,11 @@
 {
-  "type": "unsupported",
-  "operation": "len",
-  "argument": {
-    "ref": "payload"
+  "type": "len",
+  "operation": "",
+  "left": {
+    "type": "ref",
+    "ref": "payload",
+    "operation": "",
+    "error": ""
   },
   "error": ""
 }

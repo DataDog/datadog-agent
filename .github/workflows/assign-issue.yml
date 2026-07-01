@@ -1,0 +1,26 @@
+---
+name: "Assign issue to a team"
+
+on:
+  issues:
+    types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to triage'
+        required: true
+        type: number
+
+jobs:
+  triage:
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+      id-token: write
+    uses: DataDog/issue-triage-action/.github/workflows/issue-triage.yml@ee200860ba35ba6ed3ad565e918afb16811fe975 # v1.0.0
+    with:
+      slack_map_path: tasks/libs/pipeline/github_slack_map.yaml
+      environment_name: main
+      issue_number: ${{ github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.issue_number) || 0 }}
+    secrets: inherit

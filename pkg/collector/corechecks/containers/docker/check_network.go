@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
@@ -126,7 +126,7 @@ func (dn *dockerNetworkExtension) processContainer(rawContainer container.Summar
 	// We keep excluded containers because pause containers are required as they usually hold
 	// the network configuration for other containers.
 	// However stopped containers are not useful there.
-	if rawContainer.State != string(workloadmeta.ContainerStatusRunning) {
+	if string(rawContainer.State) != string(workloadmeta.ContainerStatusRunning) {
 		return
 	}
 
@@ -227,22 +227,12 @@ func findDockerNetworks(procPath string, entry *containerNetworkEntry, container
 			return
 		}
 
-		ipString := netConf.IPAddress
-		// Check if this is a CIDR or just an IP
-		var ip net.IP
-		if strings.Contains(ipString, "/") {
-			ip, _, err = net.ParseCIDR(ipString)
-			if err != nil {
-				log.Warnf("Malformed IP %s for container id %s: %s, skipping", ipString, entry.containerID, err)
-				continue
-			}
-		} else {
-			ip = net.ParseIP(ipString)
-			if ip == nil {
-				log.Warnf("Malformed IP %s for container id %s: %s, skipping", ipString, entry.containerID, err)
-				continue
-			}
+		addr := netConf.IPAddress
+		if !addr.IsValid() {
+			log.Warnf("Invalid IP for container id %s in network %s, skipping", entry.containerID, netName)
+			continue
 		}
+		ip := net.IP(addr.AsSlice())
 
 		// Convert IP to little endian uint64 for comparison to network routes.
 		interfaces[netName] = uint64(binary.LittleEndian.Uint32(ip.To4()))

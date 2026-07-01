@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+# gazelle:exclude bundle_test.go
+
+go_library(
+    name = "trace",
+    srcs = [
+        "bundle.go",
+        "bundle_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/trace/agent/fx",
+        "//comp/trace/agent/fx-mock",
+        "//comp/trace/config/fx",
+        "//comp/trace/config/mock",
+        "//pkg/util/fxutil",
+    ],
+)

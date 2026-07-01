@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/fixtures"
@@ -726,9 +727,56 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, "Docker Permissions Issue", issue.IssueName)
 		assert.Equal(t, "Docker socket permissions error", issue.Title)
 		assert.Equal(t, "permissions", issue.Category)
-		assert.Equal(t, "error", issue.Severity)
+		assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, issue.Severity)
 		assert.Contains(t, issue.Tags, "os:linux")
 		assert.Contains(t, issue.Tags, "docker:installed")
+	})
+
+	t.Run("getAgentTelemetryLogs", func(t *testing.T) {
+		payload := `{"request_type":"agent-logs","payload":{"logs":[{"level":"ERROR","stack_trace":"main.main()","tracer_time":1234567890,"count":3,"is_crash":false,"message":""}]}}`
+		response, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+			Payloads: []api.Payload{
+				{Data: []byte(payload), Encoding: "application/json"},
+			},
+		})
+		require.NoError(t, err)
+
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(response)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err = client.getAgentTelemetryLogs()
+		require.NoError(t, err)
+		assert.True(t, client.agentTelemetryLogAggregator.ContainsPayloadName("agent-errortracking"))
+		assert.False(t, client.agentTelemetryLogAggregator.ContainsPayloadName("totoro"))
+	})
+
+	t.Run("GetAgentTelemetryLogs", func(t *testing.T) {
+		payload := `{"request_type":"agent-logs","payload":{"logs":[{"level":"ERROR","stack_trace":"main.main()","tracer_time":1234567890,"count":3,"is_crash":false,"message":""}]}}`
+		response, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+			Payloads: []api.Payload{
+				{Data: []byte(payload), Encoding: "application/json"},
+			},
+		})
+		require.NoError(t, err)
+
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(response)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		logs, err := client.GetAgentTelemetryLogs()
+		require.NoError(t, err)
+		require.Len(t, logs, 1)
+		assert.Equal(t, "ERROR", logs[0].Level)
+		assert.Equal(t, "main.main()", logs[0].StackTrace)
+		assert.Equal(t, int64(1234567890), logs[0].TracerTime)
+		assert.Equal(t, 3, logs[0].Count)
+		assert.False(t, logs[0].IsCrash)
+		assert.Empty(t, logs[0].Message)
 	})
 
 }

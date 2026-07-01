@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/runtime/restart"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/runtime/restart"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/errdefs"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -128,6 +128,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		Ports:         nil, // Not available
 		Runtime:       workloadmeta.ContainerRuntimeContainerd,
 		RuntimeFlavor: runtimeFlavor,
+		SandboxID:     info.SandboxID,
 		State: workloadmeta.ContainerState{
 			Running:    status == containerd.Running,
 			Status:     extractStatus(status),

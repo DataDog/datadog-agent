@@ -60,7 +60,6 @@ var (
 
 	rootDir             string
 	reqAgentReleasePath string
-	constraintsPath     string
 )
 
 // cliParams are the command-line arguments for the sub-subcommands.
@@ -193,11 +192,6 @@ func loadPythonInfo() error {
 		}
 
 		rootDir = parentDir
-	}
-
-	constraintsPath = filepath.Join(rootDir, "final_constraints-py3.txt")
-	if _, err := os.Lstat(constraintsPath); err != nil {
-		return err
 	}
 
 	return nil
@@ -377,7 +371,6 @@ func install(cliParams *cliParams, _ log.Component) error {
 
 	pipArgs := []string{
 		"install",
-		"--constraint", constraintsPath,
 		// We don't use pip to download wheels, so we don't need a cache
 		"--no-cache-dir",
 		// Specify to not use any index since we won't/shouldn't download anything with pip anyway
@@ -575,13 +568,16 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	if err := downloaderCmd.Start(); err != nil {
 		return "", fmt.Errorf("error running command: %v", err)
 	}
-	lastLine := ""
+	// Buffered so the goroutine can send even if we return early on error.
+	lastLineCh := make(chan string, 1)
 	go func() {
+		var last string
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
-			lastLine = in.Text()
-			fmt.Println(lastLine)
+			last = in.Text()
+			fmt.Println(last)
 		}
+		lastLineCh <- last
 	}()
 
 	if err := downloaderCmd.Wait(); err != nil {
@@ -589,7 +585,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	}
 
 	// The path to the wheel will be at the last line of the output
-	wheelPath := lastLine
+	wheelPath := <-lastLineCh
 
 	// Verify the availability of the wheel file
 	if _, err := os.Stat(wheelPath); err != nil {

@@ -68,8 +68,8 @@ func (h *PodHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resourc
 	return
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+// EnrichModel is a handler called before cache lookup.
+func (h *PodHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	pctx := ctx.(*processors.K8sProcessorContext)
 	r := resource.(*corev1.Pod)
 	m := resourceModel.(*model.Pod)
@@ -158,10 +158,26 @@ func (h *PodHandlers) ResourceList(ctx processors.ProcessorContext, list interfa
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource.DeepCopy())
+		resources = append(resources, resource)
 	}
 
 	return resources
+}
+
+// CloneResource returns a deep copy of the resource.
+//
+//nolint:revive
+func (h *PodHandlers) CloneResource(resource interface{}) interface{} {
+	return resource.(*corev1.Pod).DeepCopy()
+}
+
+// ResourceVersionFromRaw returns an empty string because Pod uses a custom
+// resource version hash computed from the extracted model, not the native
+// Kubernetes ResourceVersion.
+//
+//nolint:revive
+func (h *PodHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, _ interface{}) string {
+	return ""
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

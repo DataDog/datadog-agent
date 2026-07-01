@@ -10,15 +10,18 @@ package python
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"unsafe"
 
-	yaml "go.yaml.in/yaml/v2"
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -33,7 +36,8 @@ import (
 )
 
 /*
-#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo !aix,!windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo aix LDFLAGS: -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 
 #include "datadog_agent_rtloader.h"
@@ -95,39 +99,39 @@ func TracemallocEnabled() C.bool {
 // Headers returns a basic set of HTTP headers that can be used by clients in Python checks.
 //
 //export Headers
-func Headers(yamlPayload **C.char) {
+func Headers(jsonPayload **C.char) {
 	h := httpHeaders()
 
-	data, err := yaml.Marshal(h)
+	data, err := json.Marshal(h)
 	if err != nil {
 		log.Errorf("datadog_agent: could not Marshal headers: %s", err)
-		*yamlPayload = nil
+		*jsonPayload = nil
 		return
 	}
-	// yamlPayload will be free by rtloader when it's done with it
-	*yamlPayload = TrackedCString(string(data))
+	// jsonPayload will be free by rtloader when it's done with it
+	*jsonPayload = TrackedCString(string(data))
 }
 
 // GetConfig returns a value from the agent configuration.
 // Indirectly used by the C function `get_config` that's mapped to `datadog_agent.get_config`.
 //
 //export GetConfig
-func GetConfig(key *C.char, yamlPayload **C.char) {
+func GetConfig(key *C.char, jsonPayload **C.char) {
 	goKey := C.GoString(key)
-	if !pkgconfigsetup.Datadog().IsSet(goKey) {
-		*yamlPayload = nil
+	if !pkgconfigsetup.Datadog().IsKnown(goKey) {
+		*jsonPayload = nil
 		return
 	}
 
 	value := pkgconfigsetup.Datadog().Get(goKey)
-	data, err := yaml.Marshal(value)
+	data, err := json.Marshal(value)
 	if err != nil {
-		log.Errorf("could not convert configuration value '%v' to YAML: %s", value, err)
-		*yamlPayload = nil
+		log.Errorf("could not convert configuration value '%v' to JSON: %s", value, err)
+		*jsonPayload = nil
 		return
 	}
-	// yaml Payload will be free by rtloader when it's done with it
-	*yamlPayload = TrackedCString(string(data))
+	// jsonPayload will be free by rtloader when it's done with it
+	*jsonPayload = TrackedCString(string(data))
 }
 
 // LogMessage logs a message from python through the agent logger (see
@@ -669,6 +673,75 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 	default:
 		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
 	}
+}
+
+func parseIssueJSON(payload string) (*healthplatformpayload.Issue, error) {
+	t := strings.TrimSpace(payload)
+	if t == "" || t == "null" {
+		return nil, errors.New("empty or null payload")
+	}
+	var msg healthplatformpayload.Issue
+	if err := protojson.Unmarshal([]byte(t), &msg); err != nil {
+		return nil, err
+	}
+	if msg.Id == "" {
+		return nil, errors.New("empty or null id")
+	}
+	return &msg, nil
+}
+
+// ReportIssue forwards Python health platform reports to the injected health platform component.
+// reportJSON is protobuf JSON for healthplatform.Issue
+//
+//export ReportIssue
+func ReportIssue(checkName, reportJSON *C.char, errOut **C.char) {
+	*errOut = nil
+
+	hp := getHealthPlatform()
+	if hp == nil {
+		*errOut = TrackedCString("health platform not initialized")
+		return
+	}
+
+	goCheckName := C.GoString(checkName)
+	var goPayload string
+	if reportJSON != nil {
+		goPayload = C.GoString(reportJSON)
+	} else {
+		return
+	}
+
+	report, err := parseIssueJSON(goPayload)
+	if err != nil {
+		*errOut = TrackedCString(err.Error())
+		return
+	}
+
+	report.Source = goCheckName
+
+	err = hp.ReportIssue(report)
+	if err != nil {
+		*errOut = TrackedCString(err.Error())
+	}
+}
+
+// ResolveIssue marks a health platform issue resolved by IssueId (Python: datadog_agent.resolve_issue).
+//
+//export ResolveIssue
+func ResolveIssue(issueID *C.char, errOut **C.char) {
+	*errOut = nil
+
+	hp := getHealthPlatform()
+	if hp == nil {
+		*errOut = TrackedCString("health platform not initialized")
+		return
+	}
+
+	var id string
+	if issueID != nil {
+		id = C.GoString(issueID)
+	}
+	hp.ResolveIssue(id)
 }
 
 // httpHeaders returns a http headers including various basic information (User-Agent, Content-Type...).

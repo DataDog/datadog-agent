@@ -9,21 +9,18 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 // A SketchSeries is a timeseries of quantile sketches.
 type SketchSeries struct {
-	Name       string               `json:"metric"`
-	Tags       tagset.CompositeTags `json:"tags"`
-	Host       string               `json:"host"`
-	Interval   int64                `json:"interval"`
-	Points     []SketchPoint        `json:"points"`
-	ContextKey ckey.ContextKey      `json:"-"`
-	NoIndex    bool                 `json:"-"` // This is only used by api V2
-	Source     MetricSource         `json:"-"` // This is only used by api V2
+	Name     string               `json:"metric"`
+	Tags     tagset.CompositeTags `json:"tags"`
+	Host     string               `json:"host"`
+	Interval int64                `json:"interval"`
+	Points   []SketchPoint        `json:"points"`
+	NoIndex  bool                 `json:"-"` // This is only used by api V2
+	Source   MetricSource         `json:"-"` // This is only used by api V2
 }
 
 // GetName returns the name of the SketchSeries
@@ -39,10 +36,19 @@ func (sl SketchSeries) String() string {
 	return reqBody.String()
 }
 
+// SketchData is the interface the serializer uses to read sketch content.
+// It is satisfied by *quantile.Sketch.
+type SketchData interface {
+	// Cols returns bin keys and per-bin counts in ascending key order.
+	Cols() (k []int32, n []uint32)
+	// BasicStats returns the five summary fields used in the wire format.
+	BasicStats() (cnt int64, min, max, sum, avg float64)
+}
+
 // A SketchPoint represents a quantile sketch at a specific time
 type SketchPoint struct {
-	Sketch *quantile.Sketch `json:"sketch"`
-	Ts     int64            `json:"ts"`
+	Sketch SketchData `json:"sketch"`
+	Ts     int64      `json:"ts"`
 }
 
 // SketchSeriesList is a collection of SketchSeries

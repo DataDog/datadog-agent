@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -26,6 +26,13 @@ import (
 
 const (
 	syntheticsMetricPrefix = "datadog.synthetics.agent."
+
+	// defaultTestTimeoutSeconds is the total test timeout applied when the test
+	// config does not specify one, matching the default added on the RC path.
+	defaultTestTimeoutSeconds = 60
+	// defaultMaxTTL is the fallback max-TTL used only when computing the
+	// per-hop timeout and neither the test config nor cfg.MaxTTL is set.
+	defaultMaxTTL = 30
 )
 
 // runWorkers starts the configured number of worker goroutines and waits for them.
@@ -61,9 +68,13 @@ func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 	}
 }
 
-// flush enqueues tests whose nextRun is due.
+// flush enqueues tests whose nextRun is due. It is a no-op while the test
+// poller is healthy — the backend drives execution in that mode.
 func (s *syntheticsTestScheduler) flush(ctx context.Context, flushTime time.Time) {
 	if !s.running {
+		return
+	}
+	if s.testPoller != nil && s.testPoller.isHealthy() {
 		return
 	}
 
@@ -109,74 +120,100 @@ func (s *syntheticsTestScheduler) flush(ctx context.Context, flushTime time.Time
 // runWorker is the main loop for a single worker.
 func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 	for {
+		// Non-blocking priority check: drain live poller tests first, but respect cancellation
 		select {
 		case <-ctx.Done():
 			s.log.Debugf("worker %d stopping", workerID)
 			return
+		case testCtx := <-s.testPoller.TestsChan:
+			s.processPollerTest(ctx, workerID, testCtx)
+			continue
+		default:
+		}
+
+		// Blocking wait on both sources (poller-delivered + in-memory fallback)
+		select {
+		case <-ctx.Done():
+			s.log.Debugf("worker %d stopping", workerID)
+			return
+		case testCtx := <-s.testPoller.TestsChan:
+			s.processPollerTest(ctx, workerID, testCtx)
 		case syntheticsTestCtx, ok := <-s.syntheticsTestProcessingChan:
 			if !ok {
 				s.log.Debugf("worker %d stopping: processing channel closed", workerID)
 				return
 			}
-			s.log.Debugf("[worker%d] received, publicID %s", workerID, syntheticsTestCtx.cfg.PublicID)
-
-			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
-			if err != nil {
-				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
-				s.statsdClient.Incr(syntheticsMetricPrefix+"error_test_config", []string{"reason:error_test_config", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
-				ErrorTestConfig.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
-			}
-
-			hname, err := s.hostNameService.Get(ctx)
-			if err != nil {
-				s.log.Debugf("[worker%d] error getting hostname: %s", workerID, err)
-			}
-
-			wResult := &workerResult{
-				testCfg:       syntheticsTestCtx,
-				triggeredAt:   syntheticsTestCtx.nextRun,
-				startedAt:     s.timeNowFn(),
-				tracerouteCfg: tracerouteCfg,
-				hostname:      hname,
-			}
-
-			result, tracerouteErr := s.traceroute.Run(ctx, tracerouteCfg)
-			wResult.finishedAt = s.timeNowFn()
-			wResult.duration = wResult.finishedAt.Sub(wResult.startedAt)
-			if tracerouteErr != nil {
-				s.log.Debugf("[worker%d] error running traceroute: %s, publicID %s", workerID, tracerouteErr, syntheticsTestCtx.cfg.PublicID)
-				wResult.tracerouteError = tracerouteErr
-				s.statsdClient.Incr(syntheticsMetricPrefix+"traceroute.error", []string{"reason:error_running_datadog_traceroute", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
-				TracerouteError.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
-				_, err := s.sendResult(wResult)
-				if err != nil {
-					s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
-					s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
-					SendResultFailure.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
-				}
-				continue
-			}
-			wResult.tracerouteResult = result
-
-			wResult.assertionResult = runAssertions(syntheticsTestCtx.cfg, common.NetStats{
-				PacketsSent:          result.E2eProbe.PacketsSent,
-				PacketsReceived:      result.E2eProbe.PacketsReceived,
-				PacketLossPercentage: result.E2eProbe.PacketLossPercentage,
-				Jitter:               &result.E2eProbe.Jitter,
-				Latency:              &result.E2eProbe.RTT,
-				Hops:                 result.Traceroute.HopCount,
-			})
-
-			status, err := s.sendResult(wResult)
-			if err != nil {
-				s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
-				s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
-				SendResultFailure.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
-			}
-			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_processed", []string{"status:" + status, fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
-			ChecksProcessed.Inc(status, string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
+			s.executeTest(ctx, workerID, syntheticsTestCtx)
 		}
 	}
+}
+
+// processPollerTest runs a test delivered by the poller and, if it is a
+// scheduled test, refreshes the in-memory fallback cache entry for it.
+func (s *syntheticsTestScheduler) processPollerTest(ctx context.Context, workerID int, testCtx SyntheticsTestCtx) {
+	if testCtx.cfg.RunType == common.RunTypeScheduled {
+		s.upsertFallbackCache(testCtx.cfg)
+	}
+	s.executeTest(ctx, workerID, testCtx)
+}
+
+// executeTest runs a single test and sends its result.
+func (s *syntheticsTestScheduler) executeTest(ctx context.Context, workerID int, syntheticsTestCtx SyntheticsTestCtx) {
+	tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
+	if err != nil {
+		s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
+		s.statsdClient.Incr(syntheticsMetricPrefix+"error_test_config", []string{"reason:error_test_config", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+		ErrorTestConfig.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
+	}
+
+	hname, err := s.hostNameService.Get(ctx)
+	if err != nil {
+		s.log.Debugf("[worker%d] error getting hostname: %s", workerID, err)
+	}
+
+	wResult := &workerResult{
+		testCfg:       syntheticsTestCtx,
+		triggeredAt:   syntheticsTestCtx.nextRun,
+		startedAt:     s.timeNowFn(),
+		tracerouteCfg: tracerouteCfg,
+		hostname:      hname,
+	}
+
+	result, tracerouteErr := s.traceroute.Run(ctx, tracerouteCfg)
+	wResult.finishedAt = s.timeNowFn()
+	wResult.duration = wResult.finishedAt.Sub(wResult.startedAt)
+	if tracerouteErr != nil {
+		s.log.Debugf("[worker%d] error running traceroute: %s", workerID, tracerouteErr)
+		wResult.tracerouteError = tracerouteErr
+		s.statsdClient.Incr(syntheticsMetricPrefix+"traceroute.error", []string{"reason:error_running_datadog_traceroute", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+		TracerouteError.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
+		_, err := s.sendResult(wResult)
+		if err != nil {
+			s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
+			s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+			SendResultFailure.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
+		}
+		return
+	}
+	wResult.tracerouteResult = result
+	wResult.assertionResult = runAssertions(syntheticsTestCtx.cfg, common.NetStats{
+		PacketsSent:          result.E2eProbe.PacketsSent,
+		PacketsReceived:      result.E2eProbe.PacketsReceived,
+		PacketLossPercentage: result.E2eProbe.PacketLossPercentage,
+		Jitter:               &result.E2eProbe.Jitter,
+		Latency:              &result.E2eProbe.RTT,
+		Hops:                 result.Traceroute.HopCount,
+	})
+
+	status, err := s.sendResult(wResult)
+	if err != nil {
+		s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
+		s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+		SendResultFailure.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
+	}
+
+	s.statsdClient.Incr(syntheticsMetricPrefix+"checks_processed", []string{"status:" + status, fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+	ChecksProcessed.Inc(status, string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
 }
 
 // workerResult represents the result produced by a worker.
@@ -203,10 +240,14 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 	}
 	if ncr.MaxTTL != nil {
 		cfg.MaxTTL = uint8(*ncr.MaxTTL)
+	} else {
+		cfg.MaxTTL = defaultMaxTTL
 	}
+	timeoutSec := defaultTestTimeoutSeconds
 	if ncr.Timeout != nil {
-		cfg.Timeout = time.Duration(float64(*ncr.Timeout) * 0.9 / float64(cfg.MaxTTL) * float64(time.Second))
+		timeoutSec = *ncr.Timeout
 	}
+	cfg.Timeout = time.Duration(float64(timeoutSec) * 0.9 / float64(cfg.MaxTTL) * float64(time.Second))
 	if ncr.TracerouteCount != nil {
 		cfg.TracerouteQueries = *ncr.TracerouteCount
 	}
@@ -214,6 +255,7 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 		cfg.E2eQueries = *ncr.ProbeCount
 	}
 	cfg.ReverseDNS = true
+	cfg.DisableSourcePublicIPCollection = false
 }
 
 // toNetpathConfig converts a SyntheticsTestConfig into a system-probe Config.
@@ -337,9 +379,16 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		Version: w.testCfg.cfg.Version,
 	}
 
-	testResultID, err := s.generateTestResultID(rand.Int)
-	if err != nil {
-		return nil, err
+	// on-demand tests have a result ID generated on the backend
+	testResultID := ""
+	if w.testCfg.cfg.ResultID != "" {
+		testResultID = w.testCfg.cfg.ResultID
+	} else {
+		resultID, err := s.generateTestResultID(rand.Int)
+		if err != nil {
+			return nil, err
+		}
+		testResultID = resultID
 	}
 
 	w.tracerouteResult.Source.Name = w.hostname
@@ -409,16 +458,23 @@ func (s *syntheticsTestScheduler) setResultStatus(w *workerResult, result *commo
 		if !hasAssertionOn100PacketLoss(w.assertionResult) {
 			result.Status = "failed"
 			result.Failure = common.APIError{
-				Code:    "NETUNREACH",
-				Message: "The remote server network is unreachable.",
+				Code:    common.APIErrorCode(payload.TracerouteErrCodeNetUnreach),
+				Message: "The remote network is unreachable.",
 			}
 		}
 	}
 	if w.tracerouteError != nil {
 		result.Status = "failed"
+		code := common.APIErrorCode(payload.TracerouteErrCodeUnknown)
+		message := w.tracerouteError.Error()
+		var trErr *payload.TracerouteError
+		if errors.As(w.tracerouteError, &trErr) {
+			code = common.APIErrorCode(trErr.Code)
+			message = trErr.Message
+		}
 		result.Failure = common.APIError{
-			Code:    "UNKNOWN",
-			Message: w.tracerouteError.Error(),
+			Code:    code,
+			Message: message,
 		}
 	}
 	if result.Status != "failed" {

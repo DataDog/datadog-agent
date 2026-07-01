@@ -14,8 +14,6 @@ import (
 	"time"
 	"unsafe"
 
-	yaml "go.yaml.in/yaml/v2"
-
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -42,6 +40,8 @@ extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
 extern char* obfuscateMongoDBString(char*, char**);
 extern void emitAgentTelemetry(char*, char*, double, char*);
+extern void reportIssue(char*, char*, char**);
+extern void resolveIssue(char*, char**);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -63,6 +63,8 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_get_process_start_time_cb(rtloader, getProcessStartTime);
    set_obfuscate_mongodb_string_cb(rtloader, obfuscateMongoDBString);
    set_emit_agent_telemetry_cb(rtloader, emitAgentTelemetry);
+   set_report_issue_cb(rtloader, reportIssue);
+   set_resolve_issue_cb(rtloader, resolveIssue);
 }
 
 static inline void call_free(void* ptr) {
@@ -77,9 +79,9 @@ var (
 )
 
 type message struct {
-	Name string `yaml:"name"`
-	Body string `yaml:"body"`
-	Time int64  `yaml:"time"`
+	Name string `json:"name"`
+	Body string `json:"body"`
+	Time int64  `json:"time"`
 }
 
 func setUp() error {
@@ -96,9 +98,6 @@ func setUp() error {
 	if err != nil {
 		return err
 	}
-
-	// Updates sys.path so testing Check can be found
-	C.add_python_path(rtloader, C.CString("../python"))
 
 	if ok := C.init(rtloader); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(rtloader)))
@@ -158,7 +157,7 @@ func getConfig(key *C.char, in **C.char) {
 		*in = (*C.char)(helpers.TrackedCString("\"warning\""))
 	case "foo":
 		m := message{C.GoString(key), "Hello", 123456}
-		b, _ := yaml.Marshal(m)
+		b, _ := json.Marshal(m)
 		*in = (*C.char)(helpers.TrackedCString(string(b)))
 	default:
 		*in = (*C.char)(helpers.TrackedCString("null"))
@@ -172,7 +171,7 @@ func headers(in **C.char) {
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}
-	retval, _ := yaml.Marshal(h)
+	retval, _ := json.Marshal(h)
 
 	*in = (*C.char)(helpers.TrackedCString(string(retval)))
 }
@@ -360,6 +359,32 @@ func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 	default:
 		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))
 		return nil
+	}
+}
+
+//export reportIssue
+func reportIssue(checkName, reportJSON *C.char, errOut **C.char) {
+	*errOut = nil
+	name := C.GoString(checkName)
+	if name == "error-check" {
+		*errOut = (*C.char)(helpers.TrackedCString("stub failure"))
+		return
+	}
+}
+
+//export resolveIssue
+func resolveIssue(issueID *C.char, errOut **C.char) {
+	*errOut = nil
+	id := ""
+	if issueID != nil {
+		id = C.GoString(issueID)
+	}
+	if id == "error-resolve" {
+		*errOut = (*C.char)(helpers.TrackedCString("stub resolve failure"))
+		return
+	}
+	if id != "stub-issue" && id != "" {
+		panic(fmt.Sprintf("unexpected issue id: %s", id))
 	}
 }
 

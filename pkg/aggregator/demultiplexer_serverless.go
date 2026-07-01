@@ -15,7 +15,7 @@ import (
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -108,12 +108,10 @@ func (d *ServerlessDemultiplexer) Run() {
 	d.statsdWorker.run()
 }
 
-// Stop stops the wrapped aggregator and the forwarder.
-func (d *ServerlessDemultiplexer) Stop(flush bool) {
-	if flush {
-		forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
-		d.forceFlushToSerializer(time.Now(), true, forceFlushAll)
-	}
+// Stop performs a final flush, then stops the wrapped aggregator and the forwarder.
+func (d *ServerlessDemultiplexer) Stop() {
+	forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
+	d.forceFlushToSerializer(time.Now(), true, forceFlushAll)
 
 	d.statsdWorker.stop()
 
@@ -174,8 +172,6 @@ func (d *ServerlessDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 // The ServerlessDemultiplexer is not using sharding in its DogStatsD pipeline,
 // the `shard` parameter is ignored.
 // In the Serverless Agent, consider using `AggregateSample` instead.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (d *ServerlessDemultiplexer) AggregateSamples(_ TimeSamplerID, samples metrics.MetricSampleBatch) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
@@ -183,8 +179,6 @@ func (d *ServerlessDemultiplexer) AggregateSamples(_ TimeSamplerID, samples metr
 }
 
 // SendSamplesWithoutAggregation is not supported in the Serverless Agent implementation.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.MetricSampleBatch) {
 	panic("not implemented.")
 }
@@ -198,6 +192,12 @@ func (d *ServerlessDemultiplexer) SetSamplersFilterList(_filterList utilstrings.
 // Serializer returns the shared serializer
 func (d *ServerlessDemultiplexer) Serializer() serializer.MetricSerializer {
 	return d.serializer
+}
+
+// PendingSamples returns the number of metric sample batches buffered
+// in the worker's input channel that have not yet been processed.
+func (d *ServerlessDemultiplexer) PendingSamples() int {
+	return len(d.statsdWorker.samplesChan)
 }
 
 // GetMetricSamplePool returns a shared resource used in the whole DogStatsD

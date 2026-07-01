@@ -238,6 +238,7 @@ type RuleSetAction struct {
 	Size         int         `json:"size,omitempty"`
 	TTL          string      `json:"ttl,omitempty"`
 	Inherited    bool        `json:"inherited,omitempty"`
+	Private      bool        `json:"private,omitempty"`
 }
 
 // RuleKillAction is used to report the 'kill' action
@@ -352,6 +353,7 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 				Size:         action.Def.Set.Size,
 				Inherited:    action.Def.Set.Inherited,
 				ScopeField:   action.Def.Set.ScopeField,
+				Private:      action.Def.Set.Private,
 			}
 			if action.Def.Set.TTL != nil {
 				ruleAction.Set.TTL = action.Def.Set.TTL.String()
@@ -420,6 +422,25 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 	var policyState *PolicyState
 	var exists bool
 
+	// ruleStates indexes, per policy, the rule states already reported keyed by rule ID. The same
+	// rule ID can surface from several sources (loaded, load error, filtered) and a single rule can
+	// even yield more than one load error. Indexing lets us update the existing rule state in place
+	// instead of appending a duplicate, so a policy reports at most one rule state per rule ID.
+	ruleStates := make(map[string]map[eval.RuleID]*RuleState)
+	addOrUpdateRuleState := func(policyState *PolicyState, ruleState *RuleState) {
+		states, ok := ruleStates[policyState.Name]
+		if !ok {
+			states = make(map[eval.RuleID]*RuleState)
+			ruleStates[policyState.Name] = states
+		}
+		if existing, ok := states[eval.RuleID(ruleState.ID)]; ok {
+			*existing = *ruleState
+			return
+		}
+		states[eval.RuleID(ruleState.ID)] = ruleState
+		policyState.Rules = append(policyState.Rules, ruleState)
+	}
+
 	ruleIDs := make(map[eval.RuleID]struct{})
 	for _, rule := range rs.GetRules() {
 		if _, found := ruleIDs[rule.Def.ID]; found {
@@ -432,7 +453,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, pInfo.Type, pInfo.ReplacePolicyID, PolicyStatusLoaded, "")
 				mp[pInfo.Name] = policyState
 			}
-			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, pInfo, "loaded", ""))
+			addOrUpdateRuleState(policyState, RuleStateFromRule(rule.PolicyRule, pInfo, "loaded", ""))
 		}
 	}
 
@@ -441,6 +462,13 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
+				// Some errors (e.g. an invalid action) don't prevent the rule from being loaded:
+				// the rule is in the rule set and already reported as loaded by the loop above. Only
+				// rules that were actually rejected can be reported as errors here, otherwise the
+				// same rule ID would be reported both as loaded and as an error in the same policy.
+				if _, loaded := ruleIDs[rerr.Rule.Def.ID]; loaded {
+					continue
+				}
 				for pInfo := range rerr.Rule.Policies(includeInternalPolicies) {
 					policyName := pInfo.Name
 					if policyState, exists = mp[policyName]; !exists {
@@ -450,7 +478,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 					} else if policyState.Status == PolicyStatusLoaded {
 						policyState.Status = PolicyStatusPartiallyLoaded
 					}
-					policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, pInfo, string(rerr.Type()), rerr.Err.Error()))
+					addOrUpdateRuleState(policyState, RuleStateFromRule(rerr.Rule, pInfo, string(rerr.Type()), rerr.Err.Error()))
 				}
 			} else if pErr, ok := err.(*rules.ErrPolicyLoad); ok {
 				policyName := pErr.Name
@@ -476,7 +504,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 			} else if policyState.Status == PolicyStatusLoaded {
 				policyState.Status = PolicyStatusPartiallyFiltered
 			}
-			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule, pInfo, "filtered", ""))
+			addOrUpdateRuleState(policyState, RuleStateFromRule(rule, pInfo, "filtered", ""))
 		}
 	}
 

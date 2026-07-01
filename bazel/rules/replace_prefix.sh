@@ -25,7 +25,7 @@ fi
 
 patch_text_file() {
     f="$1"
-    sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
+    sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|g" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|g" "$f" && rm -f "${f}bak"
 }
 
 for f in "$@"; do
@@ -40,7 +40,7 @@ for f in "$@"; do
     fi
 
     case $f in
-        *.pc)
+        *.pc | *.py)
             patch_text_file "$f"
             ;;
         *)
@@ -48,7 +48,16 @@ for f in "$@"; do
                 ${PATCHELF} --force-rpath --set-rpath "$PREFIX"/lib "$f"
             elif file "$f" | grep -q "Mach-O"; then
                 # Handle macOS binaries (executables and other Mach-O files)
-                install_name_tool -add_rpath "$PREFIX/lib" "$f" 2>/dev/null || true
+                # Match the Linux patchelf --set-rpath behavior: replace existing paths
+                # instead of just appending them.
+                new_rpath="$PREFIX/lib"
+                otool -l "$f" | awk '
+                    $1 == "cmd" && $2 == "LC_RPATH" { in_rpath = 1; next }
+                    in_rpath && $1 == "path" { print $2; in_rpath = 0 }
+                ' | while read -r rpath; do
+                    install_name_tool -delete_rpath "$rpath" "$f" 2>/dev/null || true
+                done
+                install_name_tool -add_rpath "$new_rpath" "$f" 2>/dev/null || true
                 # Get the old install name/ID
                 dylib_name=$(basename "$f")
                 new_id="$PREFIX/lib/$dylib_name"
@@ -65,6 +74,9 @@ for f in "$@"; do
                         install_name_tool -add_rpath "$PREFIX/lib" "$dep" 2>/dev/null || true
                     fi
                 done
+                # Re-sign with an ad-hoc signature after modification as install_name_tool invalidates
+                # any existing code signature.
+                codesign --sign - --force "$f"
             elif file "$f" | grep -q "ASCII text executable"; then
                 patch_text_file "$f"
             else

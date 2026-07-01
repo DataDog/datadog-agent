@@ -2,17 +2,19 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
+
+// stringutils.h includes Python.h which must come before system headers, see
+// https://docs.python.org/3/c-api/intro.html#include-files
+#include "stringutils.h"
+
 #include <stdlib.h>
 
 #include "rtloader_mem.h"
 #include "rtloader_types.h"
-#include "stringutils.h"
 
 
-PyObject * yload = NULL;
-PyObject * ydump = NULL;
-PyObject * loader = NULL;
-PyObject * dumper = NULL;
+PyObject * jloads = NULL;
+PyObject * jdumps = NULL;
 
 /**
  * returns a C (NULL terminated UTF-8) string from a python string.
@@ -29,123 +31,88 @@ char *as_string(PyObject *object)
         return NULL;
     }
 
-    char *retval = NULL;
-
-    PyObject *temp_bytes = NULL;
-
     if (PyBytes_Check(object)) {
-        // We already have an encoded string, we suppose it has the correct encoding (UTF-8)
-        temp_bytes = object;
-        Py_INCREF(temp_bytes);
+        // Already encoded; we assume the correct encoding (UTF-8). PyBytes_AS_STRING borrows the
+        // internal buffer, which stays valid while the caller holds a reference to `object`.
+        return strdupe(PyBytes_AS_STRING(object));
     } else if (PyUnicode_Check(object)) {
-        // Encode the Unicode string that was given
-        temp_bytes = PyUnicode_AsEncodedString(object, "UTF-8", "strict");
-        if (temp_bytes == NULL) {
-            // PyUnicode_AsEncodedString might raise an error if the codec raised an
-            // exception
+        // PyUnicode_AsUTF8 returns a borrowed, NUL-terminated UTF-8 buffer cached on the unicode
+        // object. It uses strict error handling, so strings that cannot be encoded as UTF-8
+        // (e.g. lone surrogates) return NULL.
+        const char *utf8 = PyUnicode_AsUTF8(object);
+        if (utf8 == NULL) {
             PyErr_Clear();
             return NULL;
         }
-    } else {
-        return NULL;
+        return strdupe(utf8);
     }
 
-    retval = strdupe(PyBytes_AS_STRING(temp_bytes));
-    Py_XDECREF(temp_bytes);
-
-    return retval;
+    return NULL;
 }
 
 int init_stringutils(void) {
-    PyObject *yaml = NULL;
+    PyObject *json = NULL;
     int ret = EXIT_FAILURE;
 
-    char module_name[] = "yaml";
-    yaml = PyImport_ImportModule(module_name);
-    if (yaml == NULL) {
+    char module_name[] = "json";
+    json = PyImport_ImportModule(module_name);
+    if (json == NULL) {
         goto done;
     }
 
-    // get pyyaml load()
-    char load_name[] = "load";
-    yload = PyObject_GetAttrString(yaml, load_name);
-    if (yload == NULL) {
+    // get json.loads()
+    char loads_name[] = "loads";
+    jloads = PyObject_GetAttrString(json, loads_name);
+    if (jloads == NULL) {
         goto done;
     }
 
-    // We try to use the C-extensions, if they're available, but it's a best effort
-    char c_loader_name[] = "CSafeLoader";
-    loader = PyObject_GetAttrString(yaml, c_loader_name);
-    if (loader == NULL) {
-        PyErr_Clear();
-        char loader_name[] = "SafeLoader";
-        loader = PyObject_GetAttrString(yaml, loader_name);
-        if (loader == NULL) {
-            goto done;
-        }
-    }
-
-    // get pyyaml dump()
-    char dump_name[] = "dump";
-    ydump = PyObject_GetAttrString(yaml, dump_name);
-    if (ydump == NULL) {
+    // get json.dumps()
+    char dumps_name[] = "dumps";
+    jdumps = PyObject_GetAttrString(json, dumps_name);
+    if (jdumps == NULL) {
         goto done;
-    }
-
-    char c_dumper_name[] = "CSafeDumper";
-    dumper = PyObject_GetAttrString(yaml, c_dumper_name);
-    if (dumper == NULL) {
-        PyErr_Clear();
-        char dumper_name[] = "SafeDumper";
-        dumper = PyObject_GetAttrString(yaml, dumper_name);
-        if (dumper == NULL) {
-            goto done;
-        }
     }
 
     ret = EXIT_SUCCESS;
 
 done:
-    Py_XDECREF(yaml);
+    Py_XDECREF(json);
     return ret;
 }
 
-PyObject *from_yaml(const char *data) {
+PyObject *from_json(const char *data) {
     PyObject *args = NULL;
-    PyObject *kwargs = NULL;
     PyObject *retval = NULL;
 
     if (!data) {
         goto done;
     }
-    if (yload == NULL) {
+    if (jloads == NULL) {
         goto done;
     }
 
-    args = PyTuple_New(0);
+    args = Py_BuildValue("(s)", data);
     if (args == NULL) {
         goto done;
     }
-    kwargs = Py_BuildValue("{s:s, s:O}", "stream", data, "Loader", loader);
-    if (kwargs == NULL) {
-        goto done;
-    }
-    retval = PyObject_Call(yload, args, kwargs);
+    retval = PyObject_Call(jloads, args, NULL);
 
 done:
-    Py_XDECREF(kwargs);
     Py_XDECREF(args);
     return retval;
 }
 
-char *as_yaml(PyObject *object) {
+char *as_json(PyObject *object) {
     char *retval = NULL;
     PyObject *dumped = NULL;
 
-    PyObject *args = PyTuple_New(0);
-    PyObject *kwargs = Py_BuildValue("{s:O, s:O}", "data", object, "Dumper", dumper);
+    PyObject *args = Py_BuildValue("(O)", object);
+    if (args == NULL) {
+        goto done;
+    }
 
-    dumped = PyObject_Call(ydump, args, kwargs);
+    dumped = PyObject_Call(jdumps, args, NULL);
     if (dumped == NULL) {
         goto done;
     }
@@ -154,7 +121,6 @@ char *as_yaml(PyObject *object) {
 done:
     //Py_XDECREF can accept (and ignore) NULL references
     Py_XDECREF(dumped);
-    Py_XDECREF(kwargs);
     Py_XDECREF(args);
     return retval;
 }

@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "sketchtest",
+    srcs = ["quantile.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "sketchtest_test",
+    srcs = ["quantile_test.go"],
+    embed = [":sketchtest"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

@@ -6,7 +6,7 @@
 // Package haagent implements a component to generate the 'ha_agent_metadata' metadata payload for inventory.
 package haagent
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // Component is the component type.
 type Component interface{}

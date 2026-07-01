@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed a memory leak in the ``kubernetes_state_core`` check caused by
+    orphaned reflector goroutines in the KSM store during rebuilds. This led
+    to unbounded memory growth and potential OOM kills.

@@ -28,9 +28,10 @@ type Config struct {
 	CollectContext      bool                                `mapstructure:"collect_context"`
 }
 
-// ServiceNameEnvVars is the list of environment variables used to determine the service name.
+// defaultEnvVars lists environment variables read from profiled processes to populate
+// unified service tags (service, env, version) in OTLP resource attributes.
 // The order indicates which environment variable takes precedence.
-var serviceNameEnvVars = []string{"DD_SERVICE", "OTEL_SERVICE_NAME"}
+var defaultEnvVars = []string{"DD_SERVICE", "OTEL_SERVICE_NAME", "DD_ENV", "DD_VERSION"}
 
 var _ xconfmap.Validator = (*Config)(nil)
 
@@ -59,7 +60,7 @@ func (c *Config) Validate() error {
 		c.EbpfCollectorConfig.Tracers = includeTracers.String()
 	}
 
-	includeEnvVars := append([]string{}, serviceNameEnvVars...)
+	includeEnvVars := append([]string{}, defaultEnvVars...)
 	if c.EbpfCollectorConfig.IncludeEnvVars != "" {
 		includeEnvVars = append(includeEnvVars, c.EbpfCollectorConfig.IncludeEnvVars)
 	}
@@ -82,7 +83,7 @@ func (c *Config) Validate() error {
 }
 
 // This is the default config for the profiles receiver
-func defaultConfig() component.Config {
+func defaultConfig(profilerName string) component.Config {
 	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfconfig.Config)
 	cfg.Tracers = getDefaultTracersString()
 	// 60s batches more samples per report, improving compression and reducing upload bandwidth
@@ -91,7 +92,7 @@ func defaultConfig() component.Config {
 	// With 60s intervals, 20% would mean ~12s variation, so we reduce to 5% (~3s).
 	cfg.ReporterJitter = 0.05
 
-	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig()
+	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig(profilerName)
 	return Config{
 		EbpfCollectorConfig: cfg,
 		SymbolUploader:      symbolUploaderConfig,

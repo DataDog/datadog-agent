@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "startstop",
+    srcs = [
+        "parallel_stopper.go",
+        "serial_stopper.go",
+        "start.go",
+        "starter.go",
+        "startstop.go",
+        "stop.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/startstop",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "startstop_test",
+    srcs = [
+        "helper_test.go",
+        "parallel_stopper_test.go",
+        "serial_stopper_test.go",
+        "starter_test.go",
+    ],
+    embed = [":startstop"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

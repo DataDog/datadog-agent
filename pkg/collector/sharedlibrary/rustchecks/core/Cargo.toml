@@ -1,0 +1,10 @@
+[package]
+name = "core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+libc = "0.2.182"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9.34"

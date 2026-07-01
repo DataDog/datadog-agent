@@ -14,12 +14,12 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/content"
-	containerdevents "github.com/containerd/containerd/events"
-	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/namespaces"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/content"
+	containerdevents "github.com/containerd/containerd/v2/core/events"
+	"github.com/containerd/containerd/v2/core/images"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/protobuf/proto"
 
@@ -152,16 +152,16 @@ func (images *knownImages) getRepoDigests(imageID string) []string {
 
 // getPreferredName will return a user-friendly image name if it exists, otherwise
 // for example the name not including the digest.
+// Priority: repo digest > repo tag > raw image ID (sha256:...)
 func (images *knownImages) getPreferredName(imageID string) string {
 	var res = ""
 	for ref := range images.namesByID[imageID] {
-		if res == "" && isAnImageID(ref) {
-			res = ref
-		} else if isARepoDigest(ref) {
-			res = ref // Prefer the repo digest
-			break
-		} else {
-			res = ref // Then repo tag
+		if isARepoDigest(ref) {
+			return ref // repo digest always wins
+		} else if !isAnImageID(ref) {
+			res = ref // repo tag preferred over raw image ID
+		} else if res == "" {
+			res = ref // raw image ID only if nothing better found yet
 		}
 	}
 	return res
@@ -456,11 +456,12 @@ func getLayersWithHistory(ocispecImage ocispec.Image, manifest ocispec.Manifest)
 
 	historyIndex := 0
 	for manifestIndex, manifestLayer := range manifest.Layers {
-		// Prefer the diffID for the current layer, but fall back to the digest as it appears in the
-		// manifest in the event of a mismatch.
-		digest := manifestLayer.Digest.String()
+		// The diff_id is the layer's uncompressed-content hash from the image
+		// config, not the manifest layer Digest (a compressed-blob hash). Leave
+		// it empty when the config has no entry rather than substitute the digest.
+		var diffID string
 		if manifestIndex < len(ocispecImage.RootFS.DiffIDs) {
-			digest = ocispecImage.RootFS.DiffIDs[manifestIndex].String()
+			diffID = ocispecImage.RootFS.DiffIDs[manifestIndex].String()
 		}
 		// Append all empty layers encountered before a non-empty layer
 		for historyIndex < len(ocispecImage.History) {
@@ -486,7 +487,7 @@ func getLayersWithHistory(ocispecImage ocispec.Image, manifest ocispec.Manifest)
 		// Create and append the layer with manifest and matched history
 		layer := workloadmeta.ContainerImageLayer{
 			MediaType: manifestLayer.MediaType,
-			Digest:    digest,
+			DiffID:    diffID,
 			SizeBytes: manifestLayer.Size,
 			URLs:      manifestLayer.URLs,
 			History:   history,

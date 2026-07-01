@@ -1,0 +1,62 @@
+--- a/printer/print.go	2026-05-28 09:44:36
++++ b/printer/print.go	2026-05-28 10:02:05
+@@ -12,7 +12,7 @@
+ 
+ 	"github.com/tinylib/msgp/gen"
+ 	"github.com/tinylib/msgp/parse"
+-	"golang.org/x/tools/imports"
++	gofmt "go/format"
+ )
+ 
+ var Logf func(s string, v ...any)
+@@ -56,7 +56,7 @@
+ }
+ 
+ func format(file string, data []byte) error {
+-	out, err := imports.Process(file, data, nil)
++	out, err := gofmt.Source(data)
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -90,17 +90,7 @@
+ 	outbuf := bytes.NewBuffer(make([]byte, 0, 4096))
+ 	writePkgHeader(outbuf, f.Package)
+ 
+-	myImports := []string{"github.com/tinylib/msgp/msgp"}
+-	for _, imp := range f.Imports {
+-		if imp.Name != nil {
+-			// have an alias, include it.
+-			myImports = append(myImports, imp.Name.Name+` `+imp.Path.Value)
+-		} else {
+-			myImports = append(myImports, imp.Path.Value)
+-		}
+-	}
+-	dedup := dedupImports(myImports)
+-	writeImportHeader(outbuf, dedup...)
++	writeImportHeader(outbuf, "github.com/tinylib/msgp/msgp")
+ 
+ 	writeLimitConstants(outbuf, file, f)
+ 
+@@ -110,9 +100,9 @@
+ 		testbuf = bytes.NewBuffer(make([]byte, 0, 4096))
+ 		writePkgHeader(testbuf, f.Package)
+ 		if mode&(gen.Encode|gen.Decode) != 0 {
+-			writeImportHeader(testbuf, "bytes", "github.com/tinylib/msgp/msgp", "testing")
++			writeImportHeader(testbuf, "bytes", "testing", "\n", "github.com/tinylib/msgp/msgp")
+ 		} else {
+-			writeImportHeader(testbuf, "github.com/tinylib/msgp/msgp", "testing")
++			writeImportHeader(testbuf, "testing", "\n", "github.com/tinylib/msgp/msgp")
+ 		}
+ 		testwr = testbuf
+ 	}
+@@ -132,6 +122,10 @@
+ func writeImportHeader(b *bytes.Buffer, imports ...string) {
+ 	b.WriteString("import (\n")
+ 	for _, im := range imports {
++		if im == "\n" {
++			b.WriteString(im)
++			continue
++		}
+ 		if im[len(im)-1] == '"' {
+ 			// support aliased imports
+ 			fmt.Fprintf(b, "\t%s\n", im)

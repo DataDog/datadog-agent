@@ -10,6 +10,8 @@ import "testing"
 // Context defines an interface that allows to get information about current test context
 type Context interface {
 	T() *testing.T
+	Logf(format string, args ...any)
+	FailNow(format string, args ...any)
 	SessionOutputDir() string
 }
 
@@ -28,4 +30,10 @@ type Diagnosable interface {
 // and store files in an output directory
 type Coverageable interface {
 	Coverage(outputDir string) (string, error)
+}
+
+// CoverageRequiredOverrideable defines an optional interface for environments that support overriding
+// the default coverage required setting per agent. Each key in the map must match a CoverageTargetSpec.AgentName.
+type CoverageRequiredOverrideable interface {
+	SetCoverageRequiredOverride(overrides map[string]bool)
 }

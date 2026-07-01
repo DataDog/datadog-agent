@@ -43,7 +43,7 @@ func (p *fakeProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilter
 	return policies, errs
 }
 
-func (p *fakeProvider) SetOnNewPoliciesReadyCb(_ func()) {}
+func (p *fakeProvider) SetOnNewPoliciesReadyCb(_ func(silent bool)) {}
 
 func (p *fakeProvider) Start() {}
 
@@ -53,6 +53,54 @@ func (p *fakeProvider) Close() error {
 
 func (p *fakeProvider) Type() string {
 	return "fake"
+}
+
+func TestParseVariableEntry(t *testing.T) {
+	t.Run("old format direct value", func(t *testing.T) {
+		v, opts, err := parseVariableEntry("hello")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v != "hello" {
+			t.Fatalf("expected 'hello', got %v", v)
+		}
+		if opts.Private {
+			t.Fatal("expected private=false")
+		}
+	})
+
+	t.Run("new format value only", func(t *testing.T) {
+		v, opts, err := parseVariableEntry(map[string]any{"value": "hello"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v != "hello" {
+			t.Fatalf("expected 'hello', got %v", v)
+		}
+		if opts.Private {
+			t.Fatal("expected private=false")
+		}
+	})
+
+	t.Run("new format with private", func(t *testing.T) {
+		v, opts, err := parseVariableEntry(map[string]any{"value": "secret", "private": true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v != "secret" {
+			t.Fatalf("expected 'secret', got %v", v)
+		}
+		if !opts.Private {
+			t.Fatal("expected private=true")
+		}
+	})
+
+	t.Run("new format missing value", func(t *testing.T) {
+		_, _, err := parseVariableEntry(map[string]any{"private": true})
+		if err == nil {
+			t.Fatal("expected error for missing 'value' field")
+		}
+	})
 }
 
 func TestEvalRule(t *testing.T) {
@@ -108,6 +156,35 @@ rules:
 			},
 			"variables": {
 				"imds_v1_usage_services": ["wget"]
+			}
+		}
+	`
+
+		decoder := json.NewDecoder(bytes.NewBufferString(testData))
+
+		report, err := evalRule(provider, decoder, EvalRuleParams{})
+		if err != nil {
+			t.Fatalf("error evaluating rule: %s", err)
+		}
+
+		if report.Succeeded {
+			t.Fatalf("expected rule to fail")
+		}
+	})
+
+	t.Run("new variable format with private", func(t *testing.T) {
+		var testData = `
+		{
+			"type": "imds",
+			"values": {
+				"imds.cloud_provider": "aws",
+				"process.file.name": "curl"
+			},
+			"variables": {
+				"imds_v1_usage_services": {
+					"value": ["curl"],
+					"private": true
+				}
 			}
 		}
 	`

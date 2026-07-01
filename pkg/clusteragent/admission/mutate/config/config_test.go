@@ -22,13 +22,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -90,12 +86,11 @@ func Test_injectionMode(t *testing.T) {
 func TestInjectHostIP(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := config.NewMock(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
-	webhook := NewWebhook(wmeta, datadogConfig, mutator)
+	webhook := NewWebhook(datadogConfig, mutator)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -105,12 +100,11 @@ func TestInjectHostIP(t *testing.T) {
 func TestInjectService(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := config.NewMock(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
-	webhook := NewWebhook(wmeta, datadogConfig, mutator)
+	webhook := NewWebhook(datadogConfig, mutator)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -134,15 +128,10 @@ func TestInjectEntityID(t *testing.T) {
 			})
 			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
 			datadogConfig := config.NewMockWithOverrides(t, tt.configOverrides)
-			wmeta := fxutil.Test[workloadmeta.Component](
-				t,
-				core.MockBundle(),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			)
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
-			webhook := NewWebhook(wmeta, datadogConfig, mutator)
+			webhook := NewWebhook(datadogConfig, mutator)
 			injected, err := webhook.inject(pod, "", nil)
 			assert.Nil(t, err)
 			assert.True(t, injected)
@@ -472,7 +461,6 @@ func TestInjectSocket(t *testing.T) {
 			}
 
 			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": mode})
-			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 
 			datadogConfig := config.NewMockWithOverrides(t, map[string]interface{}{
 				"csi.enabled":                  test.withCSIDriver,
@@ -485,7 +473,7 @@ func TestInjectSocket(t *testing.T) {
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
-			webhook := NewWebhook(wmeta, datadogConfig, mutator)
+			webhook := NewWebhook(datadogConfig, mutator)
 			injected, err := webhook.inject(pod, "", nil)
 			assert.Nil(t, err)
 			assert.True(t, injected)
@@ -691,15 +679,10 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 				"apm_config.receiver_socket":                             test.apmSocketFilePath,
 				"dogstatsd_socket":                                       test.dsdSocketFilePath,
 			})
-			wmeta := fxutil.Test[workloadmeta.Component](
-				t,
-				core.MockBundle(),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			)
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
-			webhook := NewWebhook(wmeta, datadogConfig, mutator)
+			webhook := NewWebhook(datadogConfig, mutator)
 			injected, err := webhook.inject(pod, "", nil)
 			assert.Nil(t, err)
 			assert.True(t, injected)
@@ -763,12 +746,11 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 		},
 	}
 
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := config.NewMock(t)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(t, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
-	webhook := NewWebhook(wmeta, datadogConfig, mutator)
+	webhook := NewWebhook(datadogConfig, mutator)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.True(t, injected)
 	assert.Nil(t, err)
@@ -803,14 +785,10 @@ func TestJSONPatchCorrectness(t *testing.T) {
 			podJSON, err := json.Marshal(pod)
 			assert.NoError(t, err)
 			datadogConfig := config.NewMockWithOverrides(t, tt.overrides)
-			wmeta := fxutil.Test[workloadmeta.Component](t,
-				core.MockBundle(),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			)
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
-			webhook := NewWebhook(wmeta, datadogConfig, mutator)
+			webhook := NewWebhook(datadogConfig, mutator)
 			request := admission.Request{
 				Object:    podJSON,
 				Namespace: "bar",
@@ -839,12 +817,11 @@ func BenchmarkJSONPatch(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	wmeta := fxutil.Test[workloadmeta.Component](b, core.MockBundle())
 	datadogConfig := config.NewMock(b)
 	filter, err := NewFilter(datadogConfig)
 	require.NoError(b, err)
 	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
-	webhook := NewWebhook(wmeta, datadogConfig, mutator)
+	webhook := NewWebhook(datadogConfig, mutator)
 	podJSON := obj.(*admiv1.AdmissionReview).Request.Object.Raw
 
 	b.ResetTimer()

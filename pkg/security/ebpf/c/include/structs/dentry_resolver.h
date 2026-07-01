@@ -9,10 +9,31 @@ struct path_key_t {
     u32 path_id;
 };
 
+struct pid_path_key_t {
+    u32 pid;
+    struct path_key_t path_key;
+};
+
 struct path_leaf_t {
     struct path_key_t parent;
     char name[DR_MAX_SEGMENT_LENGTH + 1];
     u16 len;
+};
+
+struct process_path_key_t {
+    u32 ppid;
+    u32 padding;
+    struct path_key_t process_path_key;
+    struct path_key_t file_path_key;
+};
+
+struct bind_connect_sample_key_t {
+    u32 pid;
+    u16 family;
+    u16 port;
+    u16 protocol;
+    u16 padding;
+    u64 addr[2];
 };
 
 struct dr_erpc_state_t {
@@ -33,7 +54,7 @@ struct dentry_resolver_input_t {
     struct path_key_t key;
     struct path_key_t original_key;
     struct dentry *dentry;
-    u64 discarder_event_type;
+    u64 event_type;
     struct {
         u32 cgroup_write_pid;
         u32 cgroup_flags;
@@ -42,7 +63,6 @@ struct dentry_resolver_input_t {
     int ret;
     int iteration;
     u32 flags;
-    u64 type;
 };
 
 #endif

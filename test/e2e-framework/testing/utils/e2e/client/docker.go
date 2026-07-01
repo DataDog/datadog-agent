@@ -14,14 +14,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/docker/cli/cli/connhelper"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
-	"github.com/stretchr/testify/require"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/client"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -32,14 +29,14 @@ import (
 //
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/datadog-agent/test/e2e-framework@main/components/datadog/agent/docker#Deamon
 type Docker struct {
-	t        *testing.T
+	ctx      Context
 	client   *client.Client
 	scrubber *scrubber.Scrubber
 }
 
 // NewDocker creates a new instance of Docker
 // NOTE: docker+ssh does not support password protected SSH keys.
-func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error) {
+func NewDocker(ctx Context, dockerOutput docker.ManagerOutput) (*Docker, error) {
 	deamonURL := fmt.Sprintf("ssh://%v@%v", dockerOutput.Host.Username, dockerOutput.Host.Address)
 
 	sshOpts := []string{"-o", "StrictHostKeyChecking no"}
@@ -59,16 +56,15 @@ func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error)
 
 	opts := []client.Opt{
 		client.WithDialContext(helper.Dialer),
-		client.WithAPIVersionNegotiation(),
 	}
 
-	client, err := client.NewClientWithOpts(opts...)
+	client, err := client.New(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create docker client: %w", err)
 	}
 
 	return &Docker{
-		t:        t,
+		ctx:      ctx,
 		client:   client,
 		scrubber: scrubber.NewWithDefaults(),
 	}, nil
@@ -77,7 +73,9 @@ func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error)
 // ExecuteCommand executes a command on containerName and returns the output.
 func (docker *Docker) ExecuteCommand(containerName string, commands ...string) string {
 	output, err := docker.ExecuteCommandWithErr(containerName, commands...)
-	require.NoErrorf(docker.t, err, "%v: %v", output, err)
+	if err != nil {
+		docker.ctx.FailNow("%v: %v", output, err)
+	}
 	return output
 }
 
@@ -94,25 +92,32 @@ func (docker *Docker) ExecuteCommandWithErr(containerName string, commands ...st
 func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands ...string) (stdout string, stderr string, err error) {
 	cmd := strings.Join(commands, " ")
 	scrubbedCommand := docker.scrubber.ScrubLine(cmd) // scrub the command in case it contains secrets
-	docker.t.Logf("Executing command `%s`", scrubbedCommand)
+	docker.ctx.Logf("Executing command `%s`", scrubbedCommand)
 
-	context := context.Background()
-	execConfig := container.ExecOptions{Cmd: commands, AttachStderr: true, AttachStdout: true}
-	execCreateResp, err := docker.client.ContainerExecCreate(context, containerName, execConfig)
-	require.NoError(docker.t, err)
+	ctx := context.Background()
+	execCreateResp, err := docker.client.ExecCreate(ctx, containerName, client.ExecCreateOptions{Cmd: commands, AttachStderr: true, AttachStdout: true})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create exec on container %s: %w", containerName, err)
+	}
 
-	execAttachResp, err := docker.client.ContainerExecAttach(context, execCreateResp.ID, container.ExecAttachOptions{})
-	require.NoError(docker.t, err)
+	execAttachResp, err := docker.client.ExecAttach(ctx, execCreateResp.ID, client.ExecAttachOptions{})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to attach to exec on container %s: %w", containerName, err)
+	}
 	defer execAttachResp.Close()
 
 	var outBuf, errBuf bytes.Buffer
 	// Use stdcopy.StdCopy to remove prefix for stdout and stderr
 	// See https://stackoverflow.com/questions/52774830/docker-exec-command-from-golang-api for additional context
 	_, err = stdcopy.StdCopy(&outBuf, &errBuf, execAttachResp.Reader)
-	require.NoError(docker.t, err)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to read exec output on container %s: %w", containerName, err)
+	}
 
-	execInspectResp, err := docker.client.ContainerExecInspect(context, execCreateResp.ID)
-	require.NoError(docker.t, err)
+	execInspectResp, err := docker.client.ExecInspect(ctx, execCreateResp.ID, client.ExecInspectOptions{})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to inspect exec on container %s: %w", containerName, err)
+	}
 
 	stdout = outBuf.String()
 	stderr = errBuf.String()
@@ -139,11 +144,11 @@ func (docker *Docker) ListContainers() ([]string, error) {
 
 func (docker *Docker) getContainerIDsByName() (map[string]string, error) {
 	containersMap := make(map[string]string)
-	containers, err := docker.client.ContainerList(context.Background(), container.ListOptions{All: true})
+	result, err := docker.client.ContainerList(context.Background(), client.ContainerListOptions{All: true})
 	if err != nil {
 		return containersMap, err
 	}
-	for _, container := range containers {
+	for _, container := range result.Items {
 		for _, name := range container.Names {
 			// remove leading /
 			name = strings.TrimPrefix(name, "/")
@@ -155,16 +160,16 @@ func (docker *Docker) getContainerIDsByName() (map[string]string, error) {
 
 // DownloadFile downloads a file or directory from the container to the local filesystem.
 func (docker *Docker) DownloadFile(containerName, containerPath, localPath string) error {
-	docker.t.Logf("Downloading from container %s:%s to local path %s", containerName, containerPath, localPath)
+	docker.ctx.Logf("Downloading from container %s:%s to local path %s", containerName, containerPath, localPath)
 
 	ctx := context.Background()
-	reader, _, err := docker.client.CopyFromContainer(ctx, containerName, containerPath)
+	copyResult, err := docker.client.CopyFromContainer(ctx, containerName, client.CopyFromContainerOptions{SourcePath: containerPath})
 	if err != nil {
 		return fmt.Errorf("failed to copy from container %s:%s: %w", containerName, containerPath, err)
 	}
-	defer reader.Close()
+	defer copyResult.Content.Close()
 
-	tarReader := tar.NewReader(reader)
+	tarReader := tar.NewReader(copyResult.Content)
 
 	// Process all entries in the tar archive
 	for {
@@ -203,7 +208,7 @@ func (docker *Docker) DownloadFile(containerName, containerPath, localPath strin
 			if err := os.MkdirAll(target, 0755); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", target, err)
 			}
-			docker.t.Logf("Created directory: %s", target)
+			docker.ctx.Logf("Created directory: %s", target)
 
 		case tar.TypeReg:
 			// Ensure parent directory exists
@@ -226,10 +231,10 @@ func (docker *Docker) DownloadFile(containerName, containerPath, localPath strin
 				return fmt.Errorf("failed to close file %s: %w", target, closeErr)
 			}
 
-			docker.t.Logf("Created file: %s", target)
+			docker.ctx.Logf("Created file: %s", target)
 		}
 	}
 
-	docker.t.Logf("Successfully downloaded to %s", localPath)
+	docker.ctx.Logf("Successfully downloaded to %s", localPath)
 	return nil
 }

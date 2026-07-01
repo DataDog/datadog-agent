@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed an issue in SNMP autodiscovery where the IP processing counter was not
+    reset immediately after processing, potentially delaying or preventing device
+    registration when deduplication was enabled.

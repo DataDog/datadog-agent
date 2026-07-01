@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+exports_files([
+    "types_linux.go",
+    "types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "types_godefs",
+    src = "types.go",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
+)
+
+go_library(
+    name = "tls",
+    srcs = [
+        "tags.go",
+        "tags_linux.go",
+        "tags_nolinux.go",
+        "types_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/tls",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "tls_test",
+    srcs = [
+        "types_linux_test.go",
+        "types_test.go",
+    ],
+    embed = [":tls"],
+)

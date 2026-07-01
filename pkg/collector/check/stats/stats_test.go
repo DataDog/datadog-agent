@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -33,6 +33,7 @@ type mockCheck struct {
 
 // Mock Check interface implementation
 func (mc *mockCheck) ConfigSource() string    { return mc.cfgSource }
+func (mc *mockCheck) ConfigProvider() string  { return "" }
 func (mc *mockCheck) Loader() string          { return mc.loaderName }
 func (mc *mockCheck) ID() checkid.ID          { return mc.id }
 func (mc *mockCheck) String() string          { return mc.stringVal }
@@ -91,7 +92,7 @@ func TestNewStats(t *testing.T) {
 
 func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("telemetry.checks", "*")
+	mockConfig.SetInTest("telemetry.checks", "*")
 
 	NewStats(newMockCheck(), healthplatformmock.Mock(t))
 
@@ -114,28 +115,34 @@ func TestTranslateEventPlatformEventTypes(t *testing.T) {
 	original := map[string]interface{}{
 		"EventPlatformEvents": map[string]interface{}{
 			"dbm-samples":  12,
+			"genresources": 56,
 			"unknown-type": 34,
 		},
 		"EventPlatformEventsErrors": map[string]interface{}{
 			"dbm-samples":  12,
+			"genresources": 56,
 			"unknown-type": 34,
 		},
 		"SomeOtherKey": map[string]interface{}{
 			"dbm-samples":  12,
+			"genresources": 56,
 			"unknown-type": 34,
 		},
 	}
 	expected := map[string]interface{}{
 		"EventPlatformEvents": map[string]interface{}{
 			"Database Monitoring Query Samples": 12,
+			"Generic Resources":                 56,
 			"unknown-type":                      34,
 		},
 		"EventPlatformEventsErrors": map[string]interface{}{
 			"Database Monitoring Query Samples": 12,
+			"Generic Resources":                 56,
 			"unknown-type":                      34,
 		},
 		"SomeOtherKey": map[string]interface{}{
 			"dbm-samples":  12,
+			"genresources": 56,
 			"unknown-type": 34,
 		},
 	}

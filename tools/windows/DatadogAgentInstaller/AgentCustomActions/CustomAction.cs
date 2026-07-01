@@ -60,6 +60,18 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult ConfigureAiUsageMonitorDesktopMonitor(Session session)
+        {
+            return Datadog.CustomActions.AiUsageDesktopMonitorCustomAction.Configure(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveAiUsageMonitorDesktopMonitor(Session session)
+        {
+            return Datadog.CustomActions.AiUsageDesktopMonitorCustomAction.Remove(session);
+        }
+
+        [CustomAction]
         public static ActionResult ReportFailure(Session session)
         {
             return Datadog.CustomActions.Telemetry.ReportFailure(session);
@@ -237,6 +249,24 @@ namespace Datadog.AgentCustomActions
         public static ActionResult RunPostInstallHook(Session session)
         {
             return Datadog.CustomActions.InstallerHooksCustomAction.RunPostInstallHook(session);
+        }
+
+        [CustomAction]
+        public static ActionResult ConfigureAutoLogger(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.ConfigureAutoLogger(session);
+        }
+
+        [CustomAction]
+        public static ActionResult ConfigureAutoLoggerRollback(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.ConfigureAutoLoggerRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveAutoLogger(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.RemoveAutoLogger(session);
         }
     }
 }

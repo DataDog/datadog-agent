@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -39,7 +39,7 @@ terminate_agent_on_threshold: %t`, memoryThreshold, cpuThreshold, ticketID, user
 
 	initConfig := []byte("")
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test", "provider")
 	require.NoError(t, err)
 
 	return check
@@ -104,7 +104,7 @@ cpu_threshold: %d`, memoryThreshold, cpuThreshold))
 
 	initConfig := []byte("")
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test", "provider")
 	require.NoError(t, err)
 
 	return check
@@ -257,7 +257,7 @@ user_email: "user@example.com"`)
 
 	initConfig := []byte("")
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test", "provider")
 	require.NoError(t, err)
 
 	// First attempt fails

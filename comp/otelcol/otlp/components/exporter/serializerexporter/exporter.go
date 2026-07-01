@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
@@ -22,7 +22,6 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
@@ -196,10 +195,8 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		OTLPIngestDDOTMetricsEvents.Add(float64(ld.MetricCount()))
 	}
 	if e.hostmetadata.Enabled {
-		// Consume resources for host metadata
-		for i := 0; i < ld.ResourceMetrics().Len(); i++ {
-			res := ld.ResourceMetrics().At(i).Resource()
-			e.consumeResource(e.reporter, res)
+		if err := e.reporter.ConsumeMetrics(ld); err != nil {
+			e.params.Logger.Warn("failed to consume metrics for host metadata", zap.Error(err))
 		}
 	}
 	consumer := e.createConsumer(e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
@@ -219,10 +216,4 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}
 	return nil
-}
-
-func (e *Exporter) consumeResource(metadataReporter *inframetadata.Reporter, res pcommon.Resource) {
-	if err := metadataReporter.ConsumeResource(res); err != nil {
-		e.params.Logger.Warn("failed to consume resource for host metadata", zap.Error(err), zap.Any("resource", res))
-	}
 }

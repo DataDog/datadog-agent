@@ -21,6 +21,8 @@ type fileQuerier struct {
 	files []uint64
 	pkgs  []*sbomtypes.Package
 
+	usrMerged bool
+
 	lastNegativeCache *fixedSizeQueue[uint64]
 }
 
@@ -34,7 +36,7 @@ and each part group is at the index of the given package
 for example here hash5 would match pkgs[2]
 */
 
-func newFileQuerier(report []sbomtypes.PackageWithInstalledFiles) fileQuerier {
+func newFileQuerier(report []sbomtypes.PackageWithInstalledFiles, usrMerged bool) fileQuerier {
 	fileCount := 0
 	pkgCount := 0
 	for _, pkg := range report {
@@ -45,21 +47,22 @@ func newFileQuerier(report []sbomtypes.PackageWithInstalledFiles) fileQuerier {
 	files := make([]uint64, 0, fileCount)
 	pkgs := make([]*sbomtypes.Package, 0, pkgCount)
 
-	for _, resultPkg := range report {
-		pkg := resultPkg.Package // copy to not bring the whole installed files slice
-		pkgs = append(pkgs, &pkg)
+	for i := range report {
+		// IMPORTANT: Store pointer to Package field in the original slice, not a copy
+		// This ensures LastAccess updates are reflected in the stored packages
+		pkgs = append(pkgs, &report[i].Package)
 
-		files = append(files, uint64(len(resultPkg.InstalledFiles)))
+		files = append(files, uint64(len(report[i].InstalledFiles)))
 
-		for _, file := range resultPkg.InstalledFiles {
-			seclog.Tracef("indexing %s as %+v", file, pkg)
+		for _, file := range report[i].InstalledFiles {
+			seclog.Tracef("indexing %s as %+v", file, report[i].Package)
 
 			hash := murmur3.StringSum64(file)
 			files = append(files, hash)
 		}
 	}
 
-	return fileQuerier{files: files, pkgs: pkgs, lastNegativeCache: newFixedSizeQueue[uint64](2)}
+	return fileQuerier{files: files, pkgs: pkgs, usrMerged: usrMerged, lastNegativeCache: newFixedSizeQueue[uint64](2)}
 }
 
 func (fq *fileQuerier) queryHash(hash uint64) *sbomtypes.Package {
@@ -106,8 +109,20 @@ func (fq *fileQuerier) queryFile(path string) *sbomtypes.Package {
 		return pkg
 	}
 
-	if strings.HasPrefix(path, "/usr") {
-		return fq.queryHashWithNegativeCache(murmur3.StringSum64(path[4:]))
+	// On usr-merged layouts /bin and /usr/bin are the same tree, so the package
+	// database and the resolved exec path may use either prefix for one file.
+	if fq.usrMerged {
+		if !strings.HasPrefix(path, "/usr") && (strings.HasPrefix(path, "/bin") || strings.HasPrefix(path, "/sbin") || strings.HasPrefix(path, "/lib")) {
+			if result := fq.queryHashWithNegativeCache(murmur3.StringSum64("/usr" + path)); result != nil {
+				return result
+			}
+		}
+
+		if after, ok := strings.CutPrefix(path, "/usr"); ok && (strings.HasPrefix(after, "/bin") || strings.HasPrefix(after, "/sbin") || strings.HasPrefix(after, "/lib")) {
+			if result := fq.queryHashWithNegativeCache(murmur3.StringSum64(after)); result != nil {
+				return result
+			}
+		}
 	}
 
 	return nil

@@ -11,26 +11,37 @@ package eval
 import (
 	"slices"
 
-	"golang.org/x/net/publicsuffix"
+	"github.com/weppos/publicsuffix-go/publicsuffix"
 )
+
+// EffectiveTLDPlusOneWithFallback returns the effective top level domain plus one more
+// label. It calls the publicsuffix.DomainFromListWithOptions function.
+// Fallback: if the publicsuffix.DomainFromListWithOptions function returns an error or an empty
+// string, it will return the full domain.
+func EffectiveTLDPlusOneWithFallback(domain string) string {
+	rootDomain, err := publicsuffix.DomainFromListWithOptions(publicsuffix.DefaultList, domain, &publicsuffix.FindOptions{IgnorePrivate: true})
+
+	if err != nil || rootDomain == "" {
+		// Fallback, can't get the root domain, return full domain
+		return domain
+	}
+	return rootDomain
+}
 
 // GetPublicTLD returns the public top-level domain (eTLD+1) from an FQDN.
 // For example: "www.google.com" returns "google.com", "www.abc.co.uk" returns "abc.co.uk".
-// If the input is invalid or cannot be parsed, it returns the input unchanged.
 func GetPublicTLD(fqdn string) string {
-	etldPlusOne, err := publicsuffix.EffectiveTLDPlusOne(fqdn)
-	if err != nil {
-		return fqdn
-	}
-	return etldPlusOne
+	return EffectiveTLDPlusOneWithFallback(fqdn)
 }
 
 // GetPublicTLDs returns the public top-level domains (eTLD+1) from a slice of FQDNs.
+// For example: ["www.google.com", "www.abc.co.uk"] returns ["google.com", "abc.co.uk"].
+// Removes duplicates.
 func GetPublicTLDs(fqdns []string) []string {
 	var etldPlusOnes []string
 	for _, fqdn := range fqdns {
-		etldPlusOne, err := publicsuffix.EffectiveTLDPlusOne(fqdn)
-		if err == nil && !slices.Contains(etldPlusOnes, etldPlusOne) {
+		etldPlusOne := EffectiveTLDPlusOneWithFallback(fqdn)
+		if !slices.Contains(etldPlusOnes, etldPlusOne) {
 			etldPlusOnes = append(etldPlusOnes, etldPlusOne)
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
@@ -39,6 +40,18 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		}
 	}
 	marshalVariable := func(enc *jsontext.Encoder, v *ir.Variable) error {
+		// Synthetic variables (e.g. @duration, @it) are not bound to any
+		// subprogram — emit just their role and name so snapshots
+		// remain deterministic.
+		if v.Role == ir.VariableRoleDuration || v.Role == ir.VariableRoleLoopIt {
+			return json.MarshalEncode(enc, struct {
+				Name string          `json:"name"`
+				Role ir.VariableRole `json:"role"`
+			}{
+				Name: v.Name,
+				Role: v.Role,
+			})
+		}
 		subprogram, ok := variablesToSubprograms[v]
 		if !ok {
 			return fmt.Errorf("variable %s not found in any subprogram", v.Name)
@@ -87,6 +100,8 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 				return enc.WriteToken(jsontext.String("string"))
 			case ir.DynamicSizeHashmap:
 				return enc.WriteToken(jsontext.String("hashmap"))
+			case ir.DynamicSizeFilterDeferred:
+				return enc.WriteToken(jsontext.String("filter_deferred"))
 			case ir.StaticSize:
 				return enc.WriteToken(jsontext.String("static"))
 			default:
@@ -102,10 +117,33 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.VariableRole) error {
 			return enc.WriteToken(jsontext.String(v.String()))
 		}),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, _ *ir.DurationSegment) error {
-			return enc.WriteToken(jsontext.String("@duration"))
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.CmpOp) error {
+			return enc.WriteToken(jsontext.String(v.String()))
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.CmpKind) error {
+			return enc.WriteToken(jsontext.String(v.String()))
 		}),
 	)
+	underOperationMarshalers := json.JoinMarshalers(
+		basicMarshalers,
+		json.MarshalToFunc(marshalVariable),
+	)
+	expressionMarshalers := json.JoinMarshalers(
+		basicMarshalers,
+		json.MarshalToFunc(
+			makeOperationMarshaler(underOperationMarshalers),
+		),
+	)
+	marshalExpression := func(
+		enc *jsontext.Encoder,
+		expr *ir.Expression,
+	) error {
+		type ExprAlias ir.Expression
+		return json.MarshalEncode(
+			enc, (*ExprAlias)(expr),
+			json.WithMarshalers(expressionMarshalers),
+		)
+	}
 	probeMarshalers := json.JoinMarshalers(
 		basicMarshalers,
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v *ir.Subprogram) error {
@@ -115,6 +153,8 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 				SubprogramID: v.ID,
 			})
 		}),
+		json.MarshalToFunc(makeOperationMarshaler(underOperationMarshalers)),
+		json.MarshalToFunc(marshalExpression),
 	)
 
 	// Flattens the ProbeDefinition into the probe json, keeping its
@@ -152,24 +192,28 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 			writeValue(readValue())
 		}
 		endT := readToken()
-		writeToken(jsontext.String("subprogram"))
-		encode(v.Subprogram)
-		writeToken(jsontext.String("events"))
-		encode(v.Events)
-		if v.Template != nil && v.Template.TemplateString != "" {
-			writeToken(jsontext.String("probeTemplate"))
-			encode(v.Template)
+		writeToken(jsontext.String("instances"))
+		must(0, enc.WriteToken(jsontext.BeginArray))
+		for _, inst := range v.Instances {
+			must(0, enc.WriteToken(jsontext.BeginObject))
+			writeToken(jsontext.String("subprogram"))
+			encode(inst.Subprogram)
+			writeToken(jsontext.String("events"))
+			encode(inst.Events)
+			if inst.Template != nil && inst.Template.TemplateString != "" {
+				writeToken(jsontext.String("probeTemplate"))
+				encode(inst.Template)
+			}
+			must(0, enc.WriteToken(jsontext.EndObject))
 		}
+		must(0, enc.WriteToken(jsontext.EndArray))
 		writeToken(endT)
 		return nil
 	}
-	underOperationMarshalers := json.JoinMarshalers(
-		basicMarshalers,
-		json.MarshalToFunc(marshalVariable),
-	)
 	topLevelMarshalers := json.JoinMarshalers(
 		basicMarshalers,
 		json.MarshalToFunc(makeOperationMarshaler(underOperationMarshalers)),
+		json.MarshalToFunc(marshalExpression),
 		json.MarshalToFunc(marshalProbe),
 	)
 	if err := json.MarshalEncode(
@@ -279,6 +323,8 @@ func newTypeMarshaler(typ reflect.Type) *typeMarshaler {
 var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.ArrayType)(nil)),
 	reflect.TypeOf((*ir.BaseType)(nil)),
+	reflect.TypeOf((*ir.DurationType)(nil)),
+	reflect.TypeOf((*ir.TraceContextType)(nil)),
 	reflect.TypeOf((*ir.EventRootType)(nil)),
 	reflect.TypeOf((*ir.GoChannelType)(nil)),
 	reflect.TypeOf((*ir.GoEmptyInterfaceType)(nil)),
@@ -293,8 +339,15 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.GoSubroutineType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapGroupsType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapHeaderType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredSliceType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredSliceDataType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredMapType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredMapDataType)(nil)),
+	reflect.TypeOf((*ir.GoTimeType)(nil)),
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
+	reflect.TypeOf((*ir.GoContextImplementationType)(nil)),
+	reflect.TypeOf((*ir.DDTraceSpanType)(nil)),
 	reflect.TypeOf((*ir.VoidPointerType)(nil)),
 	reflect.TypeOf((*ir.UnresolvedPointeeType)(nil)),
 }
@@ -319,31 +372,93 @@ func marshalTypeAsID(enc *jsontext.Encoder, t ir.Type) error {
 	return enc.WriteToken(jsontext.String(fmt.Sprintf("%d %s %s", t.GetID(), typeName, t.GetName())))
 }
 
+type withKind[T any] struct {
+	Kind string `json:"__kind"`
+	Op   *T     `json:",inline"`
+}
+
+func newWithKind[T any](op *T) withKind[T] {
+	return withKind[T]{
+		Kind: strings.TrimPrefix(reflect.TypeOf(op).Elem().Name(), "ir."),
+		Op:   op,
+	}
+}
+
 func makeOperationMarshaler(
 	marshalers *json.Marshalers,
 ) func(enc *jsontext.Encoder, op ir.ExpressionOp) error {
 	return func(enc *jsontext.Encoder, op ir.ExpressionOp) error {
+		var toMarshal any
 		switch op := op.(type) {
 		case *ir.LocationOp:
-			type locationWithKind struct {
-				Kind string         `json:"__kind"`
-				Op   *ir.LocationOp `json:",inline"`
-			}
-			return json.MarshalEncode(enc, locationWithKind{
-				Kind: "LocationOp",
-				Op:   op,
-			}, json.WithMarshalers(marshalers))
+			toMarshal = newWithKind(op)
 		case *ir.DereferenceOp:
-			type dereferenceWithKind struct {
-				Kind string            `json:"__kind"`
-				Op   *ir.DereferenceOp `json:",inline"`
-			}
-			return json.MarshalEncode(enc, dereferenceWithKind{
-				Kind: "DereferenceOp",
-				Op:   op,
-			}, json.WithMarshalers(marshalers))
+			toMarshal = newWithKind(op)
+		case *ir.ExprPushOffsetOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprLoadLiteralOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprReadStringOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprCmpBaseOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprCmpStringOp:
+			toMarshal = newWithKind(op)
+		case *ir.SliceBoundsCheckOp:
+			toMarshal = newWithKind(op)
+		case *ir.SwissMapLookupOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionCheckOp:
+			toMarshal = newWithKind(op)
+		case *ir.CondNotOp:
+			toMarshal = newWithKind(op)
+		case *ir.CondJumpOp:
+			toMarshal = newWithKind(op)
+		case *ir.CondLabelOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprPrepareOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionStateInitOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionLeafEvalOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionLeafLoadOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionCheckPreserveErrorOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprLoadAddressOp:
+			toMarshal = newWithKind(op)
+		case *ir.ArrayLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.ArrayLoopEndOp:
+			toMarshal = newWithKind(op)
+		case *ir.SliceLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.SliceLoopEndOp:
+			toMarshal = newWithKind(op)
+		case *ir.SwissMapLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.SwissMapLoopEndOp:
+			toMarshal = newWithKind(op)
+		case *ir.PanicUnwindPrepareOp:
+			toMarshal = newWithKind(op)
+		case *ir.PanicUnwindEvictSlotsOp:
+			toMarshal = newWithKind(op)
+		case *ir.EmitFilterSliceMarkerOp:
+			toMarshal = newWithKind(op)
+		case *ir.EmitFilterMapMarkerOp:
+			toMarshal = newWithKind(op)
+		case *ir.InitFilterSliceLoopOp:
+			toMarshal = newWithKind(op)
+		case *ir.FilterSliceLoopStepOp:
+			toMarshal = newWithKind(op)
+		case *ir.InitFilterMapLoopOp:
+			toMarshal = newWithKind(op)
+		case *ir.FilterMapLoopStepOp:
+			toMarshal = newWithKind(op)
 		default:
 			return fmt.Errorf("unknown operation: %T", op)
 		}
+		return json.MarshalEncode(enc, toMarshal, json.WithMarshalers(marshalers))
 	}
 }

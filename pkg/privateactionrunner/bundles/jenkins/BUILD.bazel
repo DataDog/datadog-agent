@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "jenkins",
+    srcs = [
+        "build_job.go",
+        "delete_job.go",
+        "entrypoint.go",
+        "get_job_status.go",
+        "helper.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/jenkins",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/bundle-support/httpclient",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+    ],
+)

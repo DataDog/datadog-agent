@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rconfig",
+    srcs = [
+        "consts.go",
+        "policies.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/rconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//pkg/config/remote/client",
+        "//pkg/config/setup",
+        "//pkg/remoteconfig/state",
+        "//pkg/security/secl/rules",
+        "//pkg/security/utils",
+        "//pkg/util/log",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@com_github_skydive_project_go_debouncer//:go-debouncer",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
@@ -43,18 +43,20 @@ type Kind string
 
 // Defined Kinds
 const (
-	KindContainer              Kind = "container"
-	KindKubernetesPod          Kind = "kubernetes_pod"
-	KindKubernetesMetadata     Kind = "kubernetes_metadata"
-	KindKubeletMetrics         Kind = "kubelet_metrics"
-	KindKubeCapabilities       Kind = "kubernetes_capabilities"
-	KindKubernetesDeployment   Kind = "kubernetes_deployment"
-	KindECSTask                Kind = "ecs_task"
-	KindContainerImageMetadata Kind = "container_image_metadata"
-	KindProcess                Kind = "process"
-	KindGPU                    Kind = "gpu"
-	KindKubelet                Kind = "kubelet"
-	KindCRD                    Kind = "crd"
+	KindContainer                     Kind = "container"
+	KindKubernetesPod                 Kind = "kubernetes_pod"
+	KindKubernetesMetadata            Kind = "kubernetes_metadata"
+	KindKubeletMetrics                Kind = "kubelet_metrics"
+	KindKubeCapabilities              Kind = "kubernetes_capabilities"
+	KindKubernetesDeployment          Kind = "kubernetes_deployment"
+	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
+	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
+	KindECSTask                       Kind = "ecs_task"
+	KindContainerImageMetadata        Kind = "container_image_metadata"
+	KindProcess                       Kind = "process"
+	KindGPU                           Kind = "gpu"
+	KindKubelet                       Kind = "kubelet"
+	KindCRD                           Kind = "crd"
 )
 
 // Source is the source name of an entity.
@@ -92,9 +94,13 @@ const (
 	// workloadmeta.
 	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
 
-	// SourceRemoteProcessCollector reprents processes entities detected
+	// SourceRemoteProcessCollector represents processes entities detected
 	// by the RemoteProcessCollector.
 	SourceRemoteProcessCollector Source = "remote_process_collector"
+
+	// SourceRemoteSBOMCollector represents SBOM entities computed
+	// by the RemoteSBOMCollector.
+	SourceRemoteSBOMCollector Source = "remote_sbom_collector"
 
 	// SourceLanguageDetectionServer represents container languages
 	// detected by node agents
@@ -181,7 +187,6 @@ type AgentType uint8
 const (
 	NodeAgent AgentType = 1 << iota
 	ClusterAgent
-	ProcessAgent
 	Remote
 )
 
@@ -280,7 +285,7 @@ type EntityMeta struct {
 	Namespace   string
 	Annotations map[string]string
 	Labels      map[string]string
-	UID         string
+	UID         string `proto:"ignore"`
 }
 
 // String returns a string representation of EntityMeta.
@@ -308,7 +313,7 @@ type ContainerImage struct {
 	ID         string
 	RawName    string
 	Name       string
-	Registry   string
+	Registry   string `proto:"ignore"`
 	ShortName  string
 	Tag        string
 	RepoDigest string
@@ -364,6 +369,7 @@ type ContainerState struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	ExitCode   *int64
+	SBOM       *SBOM `proto:"ignore"`
 }
 
 // String returns a string representation of ContainerState.
@@ -390,7 +396,7 @@ type ContainerPort struct {
 	Name     string
 	Port     int
 	Protocol string
-	HostPort uint16
+	HostPort uint16 `proto:"ignore"`
 }
 
 // String returns a string representation of ContainerPort.
@@ -468,9 +474,9 @@ const RequestAllGPUs = -1
 
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
-	GPURequest    *int64   // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
-	GPULimit      *int64   // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
-	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
+	GPURequest    *int64   `proto:"ignore"` // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
+	GPULimit      *int64   `proto:"ignore"` // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
+	GPUVendorList []string `proto:"ignore"` // The type of GPU requested (eg. nvidia, amd, intel)
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
@@ -478,14 +484,14 @@ type ContainerResources struct {
 
 	// The container is requesting to use entire core(s)
 	// e.g. 1000m or 1 -- NOT 1500m or 1.5
-	RequestedWholeCores *bool
+	RequestedWholeCores *bool `proto:"ignore"`
 
 	// Raw resources. This duplicates some of the information in other fields,
 	// but it is needed by kubelet check because it needs to emit metrics for
 	// all resources. This includes the typical ones defined above (cpu, memory,
 	// gpu) but also custom resources.
-	RawRequests map[string]string
-	RawLimits   map[string]string
+	RawRequests map[string]string `proto:"ignore"`
+	RawLimits   map[string]string `proto:"ignore"`
 }
 
 // String returns a string representation of ContainerPort.
@@ -545,10 +551,11 @@ func (c ContainerAllocatedResource) String() string {
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
-	ID        string
-	Name      string
-	Image     ContainerImage
-	Resources ContainerResources
+	ID           string
+	Name         string
+	Image        ContainerImage
+	Resources    ContainerResources    `proto:"ignore"`
+	ResizePolicy ContainerResizePolicy `proto:"ignore"`
 }
 
 // String returns a string representation of OrchestratorContainer.
@@ -560,6 +567,7 @@ func (o OrchestratorContainer) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Image:", o.Image.Name)
 		_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 		_, _ = fmt.Fprint(&sb, o.Resources.String(true))
+		_, _ = fmt.Fprint(&sb, o.ResizePolicy.String())
 	}
 	return sb.String()
 }
@@ -614,9 +622,8 @@ func (e ECSContainer) String(verbose bool) string {
 
 // ContainerProbe represents a health check probe for a Container
 type ContainerProbe struct {
-	// This is only used by KSM, so it only includes the fields used by KSM. We
-	// can add the rest later as needed.
 	InitialDelaySeconds int32
+	FailureThreshold    int32
 }
 
 // Container is an Entity representing a containerized workload.
@@ -624,7 +631,7 @@ type Container struct {
 	EntityID
 	EntityMeta
 	// ECSContainer contains properties specific to container running in ECS
-	*ECSContainer
+	*ECSContainer `proto:"ignore"`
 	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
 	EnvVars       map[string]string
 	Hostname      string
@@ -633,16 +640,16 @@ type Container struct {
 	PID           int
 	Ports         []ContainerPort
 	Runtime       ContainerRuntime
-	RuntimeFlavor ContainerRuntimeFlavor
+	RuntimeFlavor ContainerRuntimeFlavor `proto:"ignore"`
 	State         ContainerState
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
 	CollectorTags   []string
 	Owner           *EntityID
-	SecurityContext *ContainerSecurityContext
-	ReadinessProbe  *ContainerProbe
+	SecurityContext *ContainerSecurityContext `proto:"ignore"`
+	ReadinessProbe  *ContainerProbe           `proto:"ignore"`
 	Resources       ContainerResources
-	ResizePolicy    ContainerResizePolicy
+	ResizePolicy    ContainerResizePolicy `proto:"ignore"`
 
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
@@ -651,12 +658,17 @@ type Container struct {
 	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
 	// Note: Currently only reliably populated in ECS environments, where it is extracted
 	// from the NVIDIA_VISIBLE_DEVICES environment variable set by the ECS agent.
-	GPUDeviceIDs []string
+	GPUDeviceIDs []string `proto:"ignore"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
-	CgroupPath   string
-	RestartCount int
+	CgroupPath string
+	// SandboxID is the identifier of the sandbox this container belongs to.
+	// Populated from containerd's container info SandboxID field.
+	SandboxID    string `proto:"ignore"`
+	RestartCount int    `proto:"ignore"`
+
+	SBOM *SBOM `proto:"ignore"`
 }
 
 // GetID implements Entity#GetID.
@@ -814,30 +826,32 @@ type KubernetesPod struct {
 	IP                         string
 	PriorityClass              string
 	QOSClass                   string
-	GPUVendorList              []string
+	GPUVendorList              []string `proto:"ignore"`
 	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string
-	FinishedAt                 time.Time
-	SecurityContext            *PodSecurityContext
+	NamespaceAnnotations       map[string]string   `proto:"ignore"`
+	FinishedAt                 time.Time           `proto:"ignore"`
+	SecurityContext            *PodSecurityContext `proto:"ignore"`
+	Resources                  ContainerResources  `proto:"ignore"`
+	DeletionTimestamp          *time.Time          `proto:"ignore"`
+	ReadyTimestamp             *time.Time          `proto:"ignore"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
 	// the node agent needs them, so for now they're not added to the protobufs.
-	CreationTimestamp          time.Time
-	DeletionTimestamp          *time.Time
-	StartTime                  *time.Time
-	NodeName                   string
-	HostIP                     string
-	HostNetwork                bool
-	InitContainerStatuses      []KubernetesContainerStatus
-	ContainerStatuses          []KubernetesContainerStatus
-	EphemeralContainerStatuses []KubernetesContainerStatus
-	Conditions                 []KubernetesPodCondition
-	Volumes                    []KubernetesPodVolume
-	Tolerations                []KubernetesPodToleration
-	Reason                     string
+	CreationTimestamp          time.Time                   `proto:"ignore"`
+	StartTime                  *time.Time                  `proto:"ignore"`
+	NodeName                   string                      `proto:"ignore"`
+	HostIP                     string                      `proto:"ignore"`
+	HostNetwork                bool                        `proto:"ignore"`
+	InitContainerStatuses      []KubernetesContainerStatus `proto:"ignore"`
+	ContainerStatuses          []KubernetesContainerStatus `proto:"ignore"`
+	EphemeralContainerStatuses []KubernetesContainerStatus `proto:"ignore"`
+	Conditions                 []KubernetesPodCondition    `proto:"ignore"`
+	Volumes                    []KubernetesPodVolume       `proto:"ignore"`
+	Tolerations                []KubernetesPodToleration   `proto:"ignore"`
+	Reason                     string                      `proto:"ignore"`
 }
 
 // GetID implements Entity#GetID.
@@ -997,7 +1011,8 @@ type KubernetesPodOwner struct {
 	Kind       string
 	Name       string
 	ID         string
-	Controller *bool
+	Group      string
+	Controller *bool `proto:"ignore"`
 }
 
 // String returns a string representation of KubernetesPodOwner.
@@ -1079,9 +1094,10 @@ func (t KubernetesPodToleration) String(_ bool) string {
 
 // KubernetesPodCondition represents a condition in a Kubernetes pod status.
 type KubernetesPodCondition struct {
-	Type   string
-	Status string
-	Reason string
+	Type               string
+	Status             string
+	Reason             string
+	LastTransitionTime time.Time
 }
 
 // String returns a string representation of KubernetesPodCondition.
@@ -1408,6 +1424,119 @@ func (d KubernetesDeployment) String(verbose bool) string {
 
 var _ Entity = &KubernetesDeployment{}
 
+// KueueQueueType identifies the Kueue queue resource type.
+type KueueQueueType string
+
+const (
+	// KueueLocalQueue is a namespaced Kueue LocalQueue.
+	KueueLocalQueue KueueQueueType = "localqueue"
+	// KueueClusterQueue is a cluster-scoped Kueue ClusterQueue.
+	KueueClusterQueue KueueQueueType = "clusterqueue"
+)
+
+// GenerateKueueQueueEntityID returns the workloadmeta entity ID for a Kueue queue.
+func GenerateKueueQueueEntityID(queueType KueueQueueType, namespace, name string) (string, error) {
+	switch queueType {
+	case KueueLocalQueue:
+		return string(queueType) + "/" + namespace + "/" + name, nil
+	case KueueClusterQueue:
+		return string(queueType) + "//" + name, nil
+	default:
+		return "", fmt.Errorf("unsupported Kueue queue type %q", queueType)
+	}
+}
+
+// KubernetesKueueQueue is an Entity representing a Kueue LocalQueue or ClusterQueue.
+type KubernetesKueueQueue struct {
+	EntityID
+	EntityMeta
+	QueueType        KueueQueueType
+	ClusterQueueName string
+}
+
+// GetID implements Entity#GetID.
+func (q *KubernetesKueueQueue) GetID() EntityID {
+	return q.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (q *KubernetesKueueQueue) Merge(e Entity) error {
+	qq, ok := e.(*KubernetesKueueQueue)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueQueue with different kind %T", e)
+	}
+
+	return merge(q, qq)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (q KubernetesKueueQueue) DeepCopy() Entity {
+	cq := deepcopy.Copy(q).(KubernetesKueueQueue)
+	return &cq
+}
+
+// String implements Entity#String.
+func (q KubernetesKueueQueue) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, q.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, q.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Queue -----------")
+	_, _ = fmt.Fprintln(&sb, "Queue Type:", q.QueueType)
+	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", q.ClusterQueueName)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueQueue{}
+
+// GenerateKueueResourceFlavorEntityID returns the workloadmeta entity ID for a Kueue ResourceFlavor.
+func GenerateKueueResourceFlavorEntityID(name string) string {
+	return name
+}
+
+// KubernetesKueueResourceFlavor is an Entity representing a Kueue ResourceFlavor.
+type KubernetesKueueResourceFlavor struct {
+	EntityID
+	EntityMeta
+	NodeAffinityLabels map[string]string
+}
+
+// GetID implements Entity#GetID.
+func (rf *KubernetesKueueResourceFlavor) GetID() EntityID {
+	return rf.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (rf *KubernetesKueueResourceFlavor) Merge(e Entity) error {
+	rrf, ok := e.(*KubernetesKueueResourceFlavor)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesKueueResourceFlavor with different kind %T", e)
+	}
+
+	return merge(rf, rrf)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (rf KubernetesKueueResourceFlavor) DeepCopy() Entity {
+	crf := deepcopy.Copy(rf).(KubernetesKueueResourceFlavor)
+	return &crf
+}
+
+// String implements Entity#String.
+func (rf KubernetesKueueResourceFlavor) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, rf.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, rf.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Kueue Resource Flavor -----------")
+	_, _ = fmt.Fprintln(&sb, "Node Affinity Labels:", rf.NodeAffinityLabels)
+	return sb.String()
+}
+
+var _ Entity = &KubernetesKueueResourceFlavor{}
+
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
 
@@ -1421,24 +1550,26 @@ type ECSTask struct {
 	Tags                    MapTags
 	ContainerInstanceTags   MapTags
 	ClusterName             string
-	ContainerInstanceARN    string
-	ClusterARN              string
-	ServiceARN              string
-	TaskDefinitionARN       string
+	ContainerInstanceARN    string `proto:"ignore"`
+	ClusterARN              string `proto:"ignore"`
+	ServiceARN              string `proto:"ignore"`
+	DaemonARN               string `proto:"ignore"`
+	TaskDefinitionARN       string `proto:"ignore"`
 	AWSAccountID            string
 	Region                  string
 	AvailabilityZone        string
 	Family                  string
 	Version                 string
-	DesiredStatus           string
-	KnownStatus             string
-	PullStartedAt           *time.Time
-	PullStoppedAt           *time.Time
-	ExecutionStoppedAt      *time.Time
-	VPCID                   string
-	ServiceName             string
-	EphemeralStorageMetrics map[string]int64
-	Limits                  map[string]float64
+	DesiredStatus           string             `proto:"ignore"`
+	KnownStatus             string             `proto:"ignore"`
+	PullStartedAt           *time.Time         `proto:"ignore"`
+	PullStoppedAt           *time.Time         `proto:"ignore"`
+	ExecutionStoppedAt      *time.Time         `proto:"ignore"`
+	VPCID                   string             `proto:"ignore"`
+	ServiceName             string             `proto:"ignore"`
+	DaemonName              string             `proto:"ignore"`
+	EphemeralStorageMetrics map[string]int64   `proto:"ignore"`
+	Limits                  map[string]float64 `proto:"ignore"`
 	LaunchType              ECSLaunchType
 	Containers              []OrchestratorContainer
 }
@@ -1529,10 +1660,10 @@ type ContainerImageMetadata struct {
 // ContainerImageLayer represents a layer of a container image
 type ContainerImageLayer struct {
 	MediaType string
-	Digest    string
+	DiffID    string
 	SizeBytes int64
 	URLs      []string
-	History   *v1.History
+	History   *v1.History `proto:"ignore"`
 }
 
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
@@ -1567,7 +1698,31 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
 	}
 
-	return merge(i, otherImage)
+	// Save SBOM pointers before the generic merge to prevent mergo from
+	// concatenating the compressed Bom []byte fields across sources. Two
+	// gzip-encoded protobufs appended byte-for-byte form a valid multistream
+	// gzip that decodes to a concatenated protobuf, which duplicates all
+	// repeated Components.  We apply our own "prefer dst if non-nil" rule
+	// instead: the remote SBOM collector (alphabetically first) always
+	// produces an already-enriched SBOM that supersedes the raw Trivy SBOM.
+	dstSBOM := i.SBOM
+	srcSBOM := otherImage.SBOM
+
+	// Shallow-copy src with SBOM cleared so the generic merge skips it.
+	otherImageCopy := *otherImage
+	otherImageCopy.SBOM = nil
+	i.SBOM = nil
+
+	err := merge(i, &otherImageCopy)
+
+	// Restore SBOM: keep dst's enriched SBOM when available, else fall back to src.
+	if dstSBOM != nil {
+		i.SBOM = dstSBOM
+	} else {
+		i.SBOM = srcSBOM
+	}
+
+	return err
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -1626,7 +1781,7 @@ func (layer ContainerImageLayer) String() string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "Media Type:", layer.MediaType)
-	_, _ = fmt.Fprintln(&sb, "Digest:", layer.Digest)
+	_, _ = fmt.Fprintln(&sb, "Diff ID:", layer.DiffID)
 	_, _ = fmt.Fprintln(&sb, "Size in bytes:", layer.SizeBytes)
 	_, _ = fmt.Fprintln(&sb, "URLs:", layer.URLs)
 
@@ -1656,7 +1811,7 @@ type Service struct {
 	GeneratedName string
 
 	// LogFiles are the log files associated with this service
-	LogFiles []string
+	LogFiles []string `proto:"ignore"`
 
 	// GeneratedNameSource indicates the source of the generated name
 	GeneratedNameSource string
@@ -1678,9 +1833,6 @@ type Service struct {
 
 	// APMInstrumentation indicates if the service is instrumented for APM
 	APMInstrumentation bool
-
-	// Type is the service type (e.g., "web_service")
-	Type string
 }
 
 // UST contains Unified Service Tagging environment variables
@@ -1743,13 +1895,13 @@ type Process struct {
 	CreationTime   time.Time // Process Start Time -- /proc/[pid]/stat
 	Language       *languagemodels.Language
 	InjectionState InjectionState // APM auto-injector detection status
-	UsesGPU        bool           // detected via /proc device files or library maps
+	UsesGPU        bool           `proto:"ignore"` // detected via /proc device files or library maps
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
 
 	// GPUs is a reference to a list of GPU entities in WLM that this process is using
-	GPUs []EntityID
+	GPUs []EntityID `proto:"ignore"`
 
 	// Service contains service discovery information for this process
 	Service *Service
@@ -1822,7 +1974,6 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service TCP Ports:", p.Service.TCPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
-			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
 
 			if p.Service.UST != (UST{}) {
 				_, _ = fmt.Fprintln(&sb, "---- Unified Service Tagging ----")
@@ -2184,8 +2335,8 @@ func (crd *CRD) Merge(e Entity) error {
 
 // DeepCopy returns a deep copy of the given CRD entity
 func (crd CRD) DeepCopy() Entity {
-	copyCrd := deepcopy.Copy(crd).(*CRD)
-	return copyCrd
+	copyCrd := deepcopy.Copy(crd).(CRD)
+	return &copyCrd
 }
 
 // String return the string representation of the given CRD entity.

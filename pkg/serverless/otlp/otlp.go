@@ -44,6 +44,10 @@ func NewServerlessOTLPAgent(serializer serializer.MetricSerializer, tagger tagge
 
 // Start starts the OTLP agent listening for traces and metrics
 func (o *ServerlessOTLPAgent) Start() {
+	if o == nil || o.pipeline == nil {
+		log.Warn("OTLP agent is not initialized, skipping start")
+		return
+	}
 	go func() {
 		if err := o.pipeline.Run(context.Background()); err != nil {
 			log.Errorf("Error running the OTLP pipeline: %s", err)
@@ -53,7 +57,8 @@ func (o *ServerlessOTLPAgent) Start() {
 
 // Stop stops the OTLP agent.
 func (o *ServerlessOTLPAgent) Stop() {
-	if o == nil {
+	if o == nil || o.pipeline == nil {
+		log.Warn("OTLP agent is not initialized, skipping stop")
 		return
 	}
 	o.pipeline.Stop()

@@ -7,6 +7,7 @@
 package monitor
 
 import (
+	"os"
 	"runtime"
 	"testing"
 
@@ -1139,6 +1140,337 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "same default rule and custom rules with conflicting set action fields",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Default-A",
+						Source:       "test",
+						InternalType: rules.DefaultPolicyType,
+						Version:      "0.0.3",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Actions: []*rules.ActionDefinition{
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_path_qwuUJ",
+											Field:   "process.file.path", // use field available for both Linux and Windows
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: true,
+										},
+									},
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_parent_qwuUJ",
+											Field:   "process.parent.file.path",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Custom-B",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+						Version:      "0.0.2",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Combine:    "override",
+								OverrideOptions: rules.OverrideOptions{
+									Fields: []rules.OverrideField{
+										"actions",
+									},
+								},
+								Actions: []*rules.ActionDefinition{
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_path_qwuUJ",
+											Field:   "process.file.path", // use field available for both Linux and Windows
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: false,
+										},
+									},
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_parent_qwuUJ",
+											Field:   "process.parent.file.path",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Custom-C",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+						Version:      "0.0.1",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Combine:    "override",
+								OverrideOptions: rules.OverrideOptions{
+									Fields: []rules.OverrideField{
+										"actions",
+									},
+								},
+								Actions: []*rules.ActionDefinition{
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_path_qwuUJ",
+											Field:   "process.file.path", // use field available for both Linux and Windows
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: false,
+										},
+									},
+									{
+										Filter: &[]string{"process.pid != 0 "}[0],
+										Set: &rules.SetDefinition{
+											Name:    "rtl_process_parent_qwuUJ",
+											Field:   "process.parent.file.path",
+											TTL:     &rules.HumanReadableDuration{Duration: 3600000000000},
+											Append:  true,
+											Scope:   "process",
+											Private: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Custom-B",
+						Source:  "test",
+						Version: "0.0.2",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.2",
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Custom-C",
+									Source:  "test",
+									Version: "0.0.1",
+								},
+							},
+							Actions: []RuleAction{
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_path_qwuUJ",
+										Field:   "process.file.path", // use field available for both Linux and Windows
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_parent_qwuUJ",
+										Field:   "process.parent.file.path",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Custom-C",
+						Source:  "test",
+						Version: "0.0.1",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.2",
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Custom-B",
+									Source:  "test",
+									Version: "0.0.2",
+								},
+							},
+							Actions: []RuleAction{
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_path_qwuUJ",
+										Field:   "process.file.path", // use field available for both Linux and Windows
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_parent_qwuUJ",
+										Field:   "process.parent.file.path",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Default-A",
+						Source:  "test",
+						Version: "0.0.3",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.2",
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Custom-B",
+									Source:  "test",
+									Version: "0.0.2",
+								},
+								{
+									Name:    "Custom-C",
+									Source:  "test",
+									Version: "0.0.1",
+								},
+							},
+							Actions: []RuleAction{
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_path_qwuUJ",
+										Field:   "process.file.path", // use field available for both Linux and Windows
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+								{
+									Filter: &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:    "rtl_process_parent_qwuUJ",
+										Field:   "process.parent.file.path",
+										TTL:     "1h0m0s",
+										Append:  true,
+										Scope:   "process",
+										Private: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// an invalid set action (here an unknown scope) is dropped but doesn't prevent the rule
+			// from loading, so the rule must be reported as loaded and not as an error
+			name: "rule loaded despite an invalid set action scope",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Actions: []*rules.ActionDefinition{
+									{
+										Set: &rules.SetDefinition{
+											Name:  "my_var",
+											Value: "foo",
+											Scope: "invalid_scope",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	if runtime.GOOS == "linux" {
@@ -1252,7 +1584,18 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 	var macroFilters []rules.MacroFilter
 	var ruleFilters []rules.RuleFilter
 
-	seclRuleFilter := rules.NewSECLRuleFilter(filtermodel.NewOSOnlyFilterModel(runtime.GOOS))
+	rfmCfg := filtermodel.RuleFilterEventConfig{
+		COREEnabled: false,
+		Origin:      "ebpf",
+	}
+
+	hostname, _ := os.Hostname()
+
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, hostname, runtime.GOOS)
+	if err != nil {
+		t.Fatal("failed to create rule filter:", err)
+	}
+	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
 
 	macroFilters = append(macroFilters, seclRuleFilter)
 	ruleFilters = append(ruleFilters, seclRuleFilter)
@@ -1322,6 +1665,6 @@ func (p *testPolicyProvider) Close() error {
 	return nil
 }
 
-func (p *testPolicyProvider) SetOnNewPoliciesReadyCb(_ func()) {
+func (p *testPolicyProvider) SetOnNewPoliciesReadyCb(_ func(silent bool)) {
 	// No-op for test provider
 }

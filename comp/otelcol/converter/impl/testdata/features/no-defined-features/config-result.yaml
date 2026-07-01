@@ -9,6 +9,9 @@ extensions:
     api:
       key: "ggggg77777"
       site: "datadoghq.eu"
+    deployment_type: daemonset
+    hostname: test-host
+    installation_method: ""
   ddflare/dd-autoconfigured:
   health_check/dd-autoconfigured:
   pprof/dd-autoconfigured:

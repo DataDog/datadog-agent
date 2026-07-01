@@ -10,13 +10,14 @@ package container
 
 import (
 	"context"
+	"sync"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,6 +52,11 @@ type Launcher struct {
 	// (temporary)
 	sources *sourcesPkg.LogSources
 
+	// addedSourcesDone and removedSourcesDone are closed in Stop() to unblock
+	// any pending sends from LogSources.AddSource/RemoveSource.
+	addedSourcesDone   chan struct{}
+	removedSourcesDone chan struct{}
+
 	// tailerFactory builds tailers for sources
 	tailerFactory tailerfactory.Factory
 
@@ -59,16 +65,19 @@ type Launcher struct {
 
 	wmeta option.Option[workloadmeta.Component]
 
-	tagger tagger.Component
+	tagger   tagger.Component
+	stopOnce sync.Once
 }
 
 // NewLauncher returns a new launcher
 func NewLauncher(sources *sourcesPkg.LogSources, wmeta option.Option[workloadmeta.Component], tagger tagger.Component) *Launcher {
 	launcher := &Launcher{
-		sources: sources,
-		tailers: make(map[*sourcesPkg.LogSource]tailerfactory.Tailer),
-		wmeta:   wmeta,
-		tagger:  tagger,
+		sources:            sources,
+		addedSourcesDone:   make(chan struct{}),
+		removedSourcesDone: make(chan struct{}),
+		tailers:            make(map[*sourcesPkg.LogSource]tailerfactory.Tailer),
+		wmeta:              wmeta,
+		tagger:             tagger,
 	}
 	return launcher
 }
@@ -86,12 +95,16 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 
 // Stop stops the Launcher. This call returns when the launcher has stopped.
 func (l *Launcher) Stop() {
-	if l.cancel != nil {
-		l.cancel()
-		l.cancel = nil
-		<-l.stopped
-		l.stopped = nil
-	}
+	l.stopOnce.Do(func() {
+		if l.cancel != nil {
+			close(l.addedSourcesDone)
+			close(l.removedSourcesDone)
+			l.cancel()
+			l.cancel = nil
+			<-l.stopped
+			l.stopped = nil
+		}
+	})
 }
 
 // run is the main loop for this launcher.  It monitors for sources added or
@@ -99,7 +112,7 @@ func (l *Launcher) Stop() {
 func (l *Launcher) run(ctx context.Context, sourceProvider launchers.SourceProvider) {
 	log.Info("Starting Container launcher")
 
-	addedSources, removedSources := sourceProvider.SubscribeAll()
+	addedSources, removedSources := sourceProvider.SubscribeAll(l.addedSourcesDone, l.removedSourcesDone)
 
 	for {
 		if !l.loop(ctx, addedSources, removedSources) {

@@ -98,6 +98,77 @@ func (s *configSuite) TestMultipleConfigs() {
 	}
 }
 
+// TestConfigJQReplaceTag exercises the jq config operation with a realistic
+// tag-replace scenario: an existing datadog.yaml carries a set of tags, and a jq
+// transform rewrites the staging environment tag to production while leaving the
+// other tags untouched. The new environment value is supplied as a typed jq
+// argument rather than being baked into the transform text.
+func (s *configSuite) TestConfigJQReplaceTag() {
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	// Seed a realistic multi-tag config.
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID: "jq-seed-tags",
+		FileOperations: []backend.FileOperation{
+			{
+				FileOperationType: backend.FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{"tags": ["env:staging", "team:fleet", "service:installer"]}`),
+			},
+		},
+	}, nil)
+	require.NoError(s.T(), err)
+	err = s.Backend.PromoteConfigExperiment()
+	require.NoError(s.T(), err)
+
+	// Replace the env:staging tag with the production value, leaving every other
+	// tag in place. Both the matched value ($old) and the replacement ($new) are
+	// supplied as typed jq arguments.
+	//
+	// The transform is written without spaces or string literals on purpose: the
+	// daemon command is dispatched through PowerShell on Windows, and PowerShell
+	// 5.1 cannot pass an argument that contains both spaces and double quotes to a
+	// native executable (it re-quotes the argument and the embedded quotes break
+	// it). Keeping the transform free of spaces means the serialized operations
+	// JSON stays compact, so it survives the PowerShell -> installer.exe handoff.
+	// Any jq transform exercised on Windows must observe the same constraint.
+	err = s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID: "jq-replace-tag",
+		FileOperations: []backend.FileOperation{
+			{
+				FileOperationType: backend.FileOperationJQ,
+				FilePath:          "/datadog.yaml",
+				Transform:         `.tags|=map(if(.==$old)then($new)else(.)end)`,
+				Arguments:         []byte(`{"old":"env:staging","new":"env:prod"}`),
+			},
+		},
+	}, nil)
+	require.NoError(s.T(), err)
+
+	assertTags := func(config map[string]any) {
+		rawTags, ok := config["tags"].([]interface{})
+		require.True(s.T(), ok, "tags should be a list")
+		tags := make([]string, len(rawTags))
+		for i, tag := range rawTags {
+			tags[i], ok = tag.(string)
+			require.True(s.T(), ok, "tag %d is not a string", i)
+		}
+		require.ElementsMatch(s.T(), []string{"env:prod", "team:fleet", "service:installer"}, tags)
+	}
+
+	config, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	assertTags(config)
+
+	err = s.Backend.PromoteConfigExperiment()
+	require.NoError(s.T(), err)
+
+	config, err = s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	assertTags(config)
+}
+
 func (s *configSuite) TestConfigFailureCrash() {
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
@@ -282,18 +353,68 @@ func (s *configSuite) TestSystemProbeConfig() {
 	require.NoError(s.T(), err)
 
 	// Check agent is alive during experiment
-	status, err := s.Agent.Status()
-	require.NoError(s.T(), err, "agent should be running during experiment")
-	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available during experiment")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err, "agent should be running during experiment")
+		require.NotEmpty(c, status.AgentMetadata.AgentVersion, "agent version should be available during experiment")
+	}, 60*time.Second, 5*time.Second)
 
 	// Promote the experiment
 	err = s.Backend.PromoteConfigExperiment()
 	require.NoError(s.T(), err)
 
 	// Check agent is alive after promotion to stable
-	status, err = s.Agent.Status()
-	require.NoError(s.T(), err, "agent should be running after promotion to stable")
-	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err, "agent should be running after promotion to stable")
+		require.NotEmpty(c, status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
+	}, 60*time.Second, 5*time.Second)
+}
+
+// TestExperimentIntegrationLoaded verifies that an integration config deployed
+// via the config experiment flow is picked up by the experiment agent before promotion.
+func (s *configSuite) TestExperimentIntegrationLoaded() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("Skipping on Windows: experiment agent config paths are Linux-specific")
+	}
+
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	nginxConfig := `{"init_config": {}, "instances": [{"nginx_status_url": "http://localhost:8080/nginx_status"}]}`
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID: "integration-loaded-test",
+		FileOperations: []backend.FileOperation{
+			{
+				FileOperationType: backend.FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{}`),
+			},
+			{
+				FileOperationType: backend.FileOperationMergePatch,
+				FilePath:          "/conf.d/nginx.yaml",
+				Patch:             []byte(nginxConfig),
+			},
+		},
+	}, nil)
+	require.NoError(s.T(), err)
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err)
+		_, nginxLoaded := status.RunnerStats.Checks["nginx"]
+		assert.True(c, nginxLoaded, "nginx check should be loaded from the experiment conf.d directory")
+	}, 60*time.Second, 5*time.Second)
+
+	err = s.Backend.PromoteConfigExperiment()
+	require.NoError(s.T(), err)
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err)
+		_, nginxLoaded := status.RunnerStats.Checks["nginx"]
+		assert.True(c, nginxLoaded, "nginx check should still be loaded after promotion")
+	}, 60*time.Second, 5*time.Second)
 }
 
 // TestConfigRollbackDeploymentID tests that rolling back a config experiment

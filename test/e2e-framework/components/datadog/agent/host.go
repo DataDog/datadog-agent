@@ -333,7 +333,7 @@ func (h *HostAgent) writeFileDefinition(
 					Delete: pulumi.String(value.ResetPermissionsCommand(fullPath)),
 					Update: pulumi.String(cmd),
 				},
-				utils.PulumiDependsOn(copyCmd))
+				utils.MergeOptions(opts, utils.PulumiDependsOn(copyCmd))...)
 		}
 	}
 

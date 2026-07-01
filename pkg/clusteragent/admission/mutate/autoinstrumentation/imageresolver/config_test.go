@@ -18,6 +18,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
+var defaultDDRegistries = map[string]struct{}{
+	"gcr.io/datadoghq":                          {},
+	"docker.io/datadog":                         {},
+	"public.ecr.aws/datadog":                    {},
+	"datadoghq.azurecr.io":                      {},
+	"us-docker.pkg.dev/datadoghq/gcr.io":        {},
+	"europe-docker.pkg.dev/datadoghq/eu.gcr.io": {},
+	"asia-docker.pkg.dev/datadoghq/asia.gcr.io": {},
+	"registry.datad0g.com":                      {},
+	"registry.datadoghq.com":                    {},
+}
+
 func TestNewConfig(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -28,12 +40,12 @@ func TestNewConfig(t *testing.T) {
 			name: "default_config",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := config.NewMock(t)
-				mockConfig.SetWithoutSource("site", "datadoghq.com")
+				mockConfig.SetInTest("site", "datadoghq.com")
 				return mockConfig
 			},
 			expectedState: Config{
 				Site:           "datadoghq.com",
-				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				DDRegistries:   defaultDDRegistries,
 				BucketID:       "2",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        true,
@@ -43,8 +55,8 @@ func TestNewConfig(t *testing.T) {
 			name: "custom_dd_registries",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := config.NewMock(t)
-				mockConfig.SetWithoutSource("site", "datadoghq.com")
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.default_dd_registries", []string{"helloworld.io/datadog"})
+				mockConfig.SetInTest("site", "datadoghq.com")
+				mockConfig.SetInTest("admission_controller.auto_instrumentation.default_dd_registries", []string{"helloworld.io/datadog"})
 				return mockConfig
 			},
 			expectedState: Config{
@@ -59,12 +71,12 @@ func TestNewConfig(t *testing.T) {
 			name: "configured_site",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := config.NewMock(t)
-				mockConfig.SetWithoutSource("site", "datad0g.com")
+				mockConfig.SetInTest("site", "datad0g.com")
 				return mockConfig
 			},
 			expectedState: Config{
 				Site:           "datad0g.com",
-				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				DDRegistries:   defaultDDRegistries,
 				BucketID:       "2",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        true,
@@ -74,13 +86,13 @@ func TestNewConfig(t *testing.T) {
 			name: "bucket_id_based_on_api_key",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := config.NewMock(t)
-				mockConfig.SetWithoutSource("site", "datadoghq.com")
-				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
+				mockConfig.SetInTest("site", "datadoghq.com")
+				mockConfig.SetInTest("api_key", "1234567890abcdef")
 				return mockConfig
 			},
 			expectedState: Config{
 				Site:           "datadoghq.com",
-				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				DDRegistries:   defaultDDRegistries,
 				BucketID:       "0",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        true,
@@ -90,14 +102,14 @@ func TestNewConfig(t *testing.T) {
 			name: "gradual_rollout_disabled",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := config.NewMock(t)
-				mockConfig.SetWithoutSource("site", "datadoghq.com")
-				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+				mockConfig.SetInTest("site", "datadoghq.com")
+				mockConfig.SetInTest("api_key", "1234567890abcdef")
+				mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 				return mockConfig
 			},
 			expectedState: Config{
 				Site:           "datadoghq.com",
-				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				DDRegistries:   defaultDDRegistries,
 				BucketID:       "0",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        false,
@@ -107,14 +119,14 @@ func TestNewConfig(t *testing.T) {
 			name: "gradual_rollout_cache_ttl_hours_configured",
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := config.NewMock(t)
-				mockConfig.SetWithoutSource("site", "datadoghq.com")
-				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "2h")
+				mockConfig.SetInTest("site", "datadoghq.com")
+				mockConfig.SetInTest("api_key", "1234567890abcdef")
+				mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "2h")
 				return mockConfig
 			},
 			expectedState: Config{
 				Site:           "datadoghq.com",
-				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				DDRegistries:   defaultDDRegistries,
 				BucketID:       "0",
 				DigestCacheTTL: 2 * time.Hour,
 				Enabled:        true,

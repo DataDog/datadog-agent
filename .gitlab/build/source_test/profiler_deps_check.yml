@@ -1,0 +1,26 @@
+---
+# Validates that shared transitive dependencies (e.g. cilium/ebpf) between the
+# agent and the opentelemetry-ebpf-profiler remain compatible.
+#
+# The profiler's eBPF unwinder depends on specific cilium/ebpf APIs. Bumping
+# cilium/ebpf in the agent without first updating the profiler fork can silently
+# break unwinding at runtime.
+profiler_deps_check:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.except_mergequeue]
+    - changes:
+        paths:
+          - go.mod
+          - go.sum
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - when: manual
+      allow_failure: true
+  needs: ["go_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - dda inv -- -e host-profiler.validate-deps

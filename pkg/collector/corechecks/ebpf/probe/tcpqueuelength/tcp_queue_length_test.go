@@ -44,7 +44,7 @@ func TestTCPQueueLengthCompile(t *testing.T) {
 func TestTCPQueueLengthTracer(t *testing.T) {
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		if kv < kernel.VersionCode(4, 8, 0) {
-			t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
+			t.Skipf("Kernel version %v is not supported by the TCP Queue Length probe", kv)
 		}
 
 		cfg := ebpf.NewConfig()

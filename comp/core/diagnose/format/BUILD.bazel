@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "format",
+    srcs = ["format.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/diagnose/format",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "@com_github_fatih_color//:color",
+    ],
+)
+
+dd_agent_go_test(
+    name = "format_test",
+    srcs = ["format_test.go"],
+    embed = [":format"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

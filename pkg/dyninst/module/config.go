@@ -17,6 +17,8 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -29,6 +31,7 @@ import (
 // Config is the configuration for the dynamic instrumentation module.
 type Config struct {
 	ebpf.Config
+	// The URL to upload logs (with or without snapshots) to.
 	LogUploaderURL     string
 	DiagsUploaderURL   string
 	SymDBUploadEnabled bool
@@ -56,6 +59,26 @@ type Config struct {
 		IRGeneratorOverride       func(IRGenerator) IRGenerator
 		ProcessSubscriberOverride func(ProcessSubscriber) ProcessSubscriber
 		TombstoneSleepKnobs       tombstone.WaitTestingKnobs
+		// SinkOverride, if set, is invoked once per program load. It receives
+		// the production sink along with handles to the eventbuf state owned
+		// by that sink, so tests can both forward events and assert on
+		// userspace-side invariants (Buffer.Len/Bytes, Budget.Used). The
+		// returned dispatcher.Sink is registered in place of the production
+		// sink.
+		SinkOverride func(
+			real dispatcher.Sink,
+			buffer *eventbuf.Buffer,
+			budget *eventbuf.Budget,
+		) dispatcher.Sink
+		// OnLoaderReady, if set, is invoked once during module construction
+		// after the loader has been created (and before the dispatcher takes
+		// ownership of its readers). Tests use this to observe
+		// OutputReader().AvailableBytes().
+		OnLoaderReady func(l *loader.Loader)
+		// OnProgramLoaded, if set, is invoked once per program load with the
+		// loaded *loader.Program, before the sink is registered. Tests use
+		// this to observe DropNotifyLostAt().
+		OnProgramLoaded func(prog *loader.Program)
 	}
 }
 
@@ -147,7 +170,7 @@ const (
 
 	traceAgentURLEnvVar = "DD_TRACE_AGENT_URL"
 
-	logUploaderPath   = "/debugger/v1/input"
+	logUploaderPath   = "/debugger/v2/input"
 	diagsUploaderPath = "/debugger/v1/diagnostics"
 	symdbUploaderPath = "/symdb/v1/input"
 )

@@ -56,8 +56,7 @@ func dockerHostHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerHostN
 			return err
 		}
 
-		// install docker.io
-		manager, err := docker.NewManager(&awsEnv, nginxHost)
+		manager, err := docker.NewAWSManager(&awsEnv, nginxHost)
 		if err != nil {
 			return err
 		}
@@ -91,8 +90,6 @@ func (v *ec2VMContainerizedSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer v.CleanupOnSetupFailure()
-
-	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils")
 
 	// prefetch docker image locally
 	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:" + apps.Version)

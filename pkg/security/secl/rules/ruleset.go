@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/spf13/cast"
 
@@ -75,7 +76,7 @@ type RuleSet struct {
 	opts             *Opts
 	evalOpts         *eval.Opts
 	eventRuleBuckets map[eval.EventType]*RuleBucket
-	policies         []*Policy
+	policies         atomic.Value
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
@@ -153,6 +154,15 @@ func (rs *RuleSet) GetRuleMap() map[eval.RuleID]*Rule {
 // GetRuleBucket returns the rule bucket for the given event type
 func (rs *RuleSet) GetRuleBucket(eventType eval.EventType) *RuleBucket {
 	return rs.eventRuleBuckets[eventType]
+}
+
+// GetPolicies returns the policies loaded in the rule set
+func (rs *RuleSet) GetPolicies() []*Policy {
+	value := rs.policies.Load()
+	if value == nil {
+		return nil
+	}
+	return value.([]*Policy)
 }
 
 // GetOnDemandHookPoints gets the on-demand hook points
@@ -591,6 +601,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					errs = appendRuleLoadError(errs, rule, fmt.Errorf("invalid type '%s' for variable '%s' (%+v): %w", reflect.TypeOf(variableValue), actionDef.Set.Name, actionDef.Set, err))
 					continue
 				}
+				variable.SetVariableOpts(opts)
 
 				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
 					errs = appendRuleLoadError(errs, rule, fmt.Errorf("conflicting types for variable '%s': %s != %s", varName, reflect.TypeOf(variable), reflect.TypeOf(existingVariable)))
@@ -1045,10 +1056,16 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 				}
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {
+						if errors.Is(err, eval.ErrScopeNotAvailable) {
+							break
+						}
 						return fmt.Errorf("append is not supported for type `%s` with variable `%s` in rule `%s`: %w", reflect.TypeOf(value), name, rule.ID, err)
 					}
 				} else {
 					if err := mutable.Set(ctx, value); err != nil {
+						if errors.Is(err, eval.ErrScopeNotAvailable) {
+							break
+						}
 						return err
 					}
 				}
@@ -1291,7 +1308,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 	if err != nil {
 		errs = multierror.Append(errs, err)
 	}
-	rs.policies = policies
+	rs.policies.Store(policies)
 
 	for _, policy := range policies {
 		if len(policy.Macros) == 0 && len(policy.Rules) == 0 && (policy.Info.Name != DefaultPolicyName && !policy.Info.IsInternal) {
@@ -1378,6 +1395,16 @@ func (rs *RuleSet) CleanupExpiredVariables() {
 
 	for _, variableProvider := range rs.scopedVariables {
 		variableProvider.CleanupExpiredVariables()
+	}
+}
+
+// CopyInheritedVariables snapshots the inherited variables visible to scope
+// across every scoped variable provider in the ruleset. Used when the scope's
+// parent chain is about to change (e.g. process reparenting) and the values
+// resolved through inheritance should be preserved at their pre-change state.
+func (rs *RuleSet) CopyInheritedVariables(scope eval.VariableScope) {
+	for _, variableProvider := range rs.scopedVariables {
+		variableProvider.CopyInheritedVariables(scope)
 	}
 }
 

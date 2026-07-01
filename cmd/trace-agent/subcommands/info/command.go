@@ -21,7 +21,8 @@ import (
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -42,7 +43,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 
 func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) error {
 	return fxutil.OneShot(fct,
-		config.Module(),
+		traceconfigfx.Module(),
 		fx.Supply(coreconfig.NewAgentParams(params.ConfPath, coreconfig.WithFleetPoliciesDirPath(params.FleetPoliciesDirPath))),
 		fx.Supply(log.ForOneShot(params.LoggerName, "off", true)),
 		secretsnoopfx.Module(),
@@ -54,7 +55,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 	)
 }
 
-func agentInfo(config config.Component) error {
+func agentInfo(config traceconfigdef.Component) error {
 	tracecfg := config.Object()
 	if tracecfg == nil {
 		return errors.New("Unable to successfully parse config")

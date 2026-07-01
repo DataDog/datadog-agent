@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
+
+go_library(
+    name = "testutil",
+    srcs = [
+        "buildmode.go",
+        "generic_testutil_builder.go",
+        "iis_helper.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/testutil",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/ebpftest",
+        "//pkg/ebpf/prebuilt",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -44,15 +44,6 @@ single_machine_performance-regression_detector-merge_base_check:
           BASELINE_SHA="${SMP_MERGE_BASE}"
       fi
     - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
-    # Check if baseline SHA is too old
-    - |
-      if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
-      then
-          echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-          datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
-          exit 1
-      fi
-    - echo "Commit ${BASELINE_SHA} is recent enough"
     # Setup AWS credentials for single-machine-performance AWS account to check ECR images
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
@@ -63,7 +54,20 @@ single_machine_performance-regression_detector-merge_base_check:
     - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
 
-    # Check if image exists for the baseline SHA
+    # Check if image exists for the baseline SHA, walking backwards on the
+    # commit graph until a container corresponding to the possible baseline is
+    # found, or the possible baseline commit is too old. If the commit is too
+    # old, the container corresponding to that commit has probably expired.
+    #
+    # We intentionally omit checking whether the baseline commit is too old
+    # *before* the loop in order to provide ourselves with a break-glass option
+    # in scenarios where we would like to use an old commit as a baseline (e.g.,
+    # backporting bugfixes to a release branch). In such a scenario, we could
+    # run CI on the release branch to generate a baseline image, even if the
+    # commit is too old. However, we also only omit the commit age check once so
+    # that we can still use it on predecessor commits that are usually older than
+    # the current commit under test -- this check gives us a fast-fail condition so
+    # we avoid wasting time checking for expired images in common cases.
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
     - |
       while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-full-amd64") ]]
@@ -89,12 +93,8 @@ single_machine_performance-regression_detector-merge_base_check:
 # Trigger a child pipeline for SMP regression detection.
 # The parent pipeline does NOT wait for this child pipeline (no strategy: depend),
 # so the main pipeline completes without blocking on the ~1h SMP run.
-trigger-single-machine-performance-regression_detector:
+.trigger-single-machine-performance-regression_detector:
   stage: functional_test
-  rules:
-    - !reference [.except_coverage_pipeline]
-    - !reference [.on_main]  # Run on every main commit
-    - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
   needs:
     - job: single_machine_performance-regression_detector-merge_base_check
       artifacts: true  # Passes BASELINE_SHA dotenv variable to child pipeline
@@ -109,4 +109,25 @@ trigger-single-machine-performance-regression_detector:
     include:
       - local: .gitlab/childs/smp-regression-child-pipeline.yml
     # No strategy: depend — parent pipeline does not wait for the child pipeline to finish
+
+# This job is used to run the regression detector on dev branches. On dev branches, we allow the pipeline to continue.
+trigger-single-machine-performance-regression_detector:
+  extends:
+    - .trigger-single-machine-performance-regression_detector
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
   allow_failure: true
+
+# This job is used to run the regression detector on the main branch. On main, we notify failures 
+trigger-single-machine-performance-regression_detector-main:
+  extends:
+    - .trigger-single-machine-performance-regression_detector
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - !reference [.on_main]  # Run on every main commit
+  trigger:
+    strategy: depend
+  variables:
+    SMP_ALLOW_FAILURE: "false"
+

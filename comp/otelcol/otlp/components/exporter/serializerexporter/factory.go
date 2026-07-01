@@ -21,8 +21,8 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
@@ -98,13 +98,14 @@ func newFactoryForAgentWithType(
 	ipath ingestionPath,
 ) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
-	switch {
-	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
+	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
-	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
-		// old gate, no action needed
-	default:
+	} else {
 		options = append(options, otlpmetrics.WithOTelPrefix())
+	}
+
+	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
 	f := &factory{
@@ -141,15 +142,18 @@ func newFactoryForAgentWithType(
 }
 
 // NewFactoryForOSSExporter creates a new serializer exporter factory for the OSS Datadog exporter.
+// This function is part of the public API consumed by opentelemetry-collector-contrib's datadogexporter.
+// Do not remove or change its signature without coordinating with the upstream repository.
 func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
-	switch {
-	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
+	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
-	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
-		// old gate, no action needed
-	default:
+	} else {
 		options = append(options, otlpmetrics.WithRemapping())
+	}
+
+	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
 	f := &factory{
@@ -175,11 +179,6 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 		newDefaultConfig,
 		exp.WithMetrics(f.createMetricExporter, stability),
 	)
-}
-
-// NewFactory implements the required func to be used in OCB. This interface does not work with APM stats. Do not change the func signature or OCB will fail.
-func NewFactory() exp.Factory {
-	return NewFactoryForOSSExporter(component.MustNewType(TypeStr), nil)
 }
 
 // Reporter builds and returns an *inframetadata.Reporter.
@@ -216,7 +215,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 	if err != nil {
 		return nil, err
 	}
-	var forwarder *defaultforwarder.DefaultForwarder
+	var forwarder *defaultforwarderimpl.DefaultForwarder
 	if f.s == nil {
 		f.s, forwarder, err = InitSerializer(params.Logger, cfg, f.hostProvider)
 		if err != nil {

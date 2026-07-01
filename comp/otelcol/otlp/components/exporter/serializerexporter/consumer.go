@@ -21,7 +21,7 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -54,6 +54,7 @@ var metricOriginsMappings = map[otlpmetrics.OriginProductDetail]metrics.MetricSo
 	otlpmetrics.OriginProductDetailNginxReceiver:             metrics.MetricSourceOpenTelemetryCollectorNginxReceiver,
 	otlpmetrics.OriginProductDetailNSXTReceiver:              metrics.MetricSourceOpenTelemetryCollectorNsxtReceiver,
 	otlpmetrics.OriginProductDetailOracleDBReceiver:          metrics.MetricSourceOpenTelemetryCollectorOracledbReceiver,
+	otlpmetrics.OriginProductDetailPodmanReceiver:            metrics.MetricSourceOpenTelemetryCollectorPodmanReceiver,
 	otlpmetrics.OriginProductDetailPostgreSQLReceiver:        metrics.MetricSourceOpenTelemetryCollectorPostgresqlReceiver,
 	otlpmetrics.OriginProductDetailPrometheusReceiver:        metrics.MetricSourceOpenTelemetryCollectorPrometheusReceiver,
 	otlpmetrics.OriginProductDetailRabbitMQReceiver:          metrics.MetricSourceOpenTelemetryCollectorRabbitmqReceiver,
@@ -159,8 +160,10 @@ func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 		return metrics.APICountType
 	case otlpmetrics.Gauge:
 		return metrics.APIGaugeType
+	case otlpmetrics.Rate:
+		return metrics.APIRateType
 	}
-	panic(fmt.Sprintf("unreachable: received non-count non-gauge type: %d", typ))
+	panic(fmt.Sprintf("unreachable: received unexpected metric type: %d", typ))
 }
 
 func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, interval int64, value float64) {

@@ -14,18 +14,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 // filterSpans returns all finished spans with the given operation name.
-func filterSpans(spans []mocktracer.Span, opName string) []mocktracer.Span {
-	var result []mocktracer.Span
+func filterSpans(spans []*mocktracer.Span, opName string) []*mocktracer.Span {
+	var result []*mocktracer.Span
 	for _, s := range spans {
 		if s.OperationName() == opName {
 			result = append(result, s)
@@ -58,8 +58,6 @@ func TestHandlerWarmupSpan(t *testing.T) {
 		dispatcher:           newDispatcher(fakeTagger),
 		leaderStatusCallback: le.get,
 	}
-	h.dispatcher.tracingEnabled = true
-
 	ctx, cancelRun := context.WithCancel(context.Background())
 	runReturned := make(chan struct{}, 1)
 	go func() {

@@ -150,6 +150,54 @@ func TestToNetpathConfig(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "UDP request without timeout falls back to 60s default",
+			input: common.SyntheticsTestConfig{
+				Config: struct {
+					Assertions []common.Assertion   `json:"assertions"`
+					Request    common.ConfigRequest `json:"request"`
+				}{
+					Request: common.UDPConfigRequest{
+						Host: "dns.example.com",
+						Port: &udpPort,
+						NetworkConfigRequest: common.NetworkConfigRequest{
+							MaxTTL: &udpTTL,
+							// Timeout intentionally absent — API may omit it
+						},
+					},
+				},
+			},
+			expect: config.Config{
+				Protocol:     payload.ProtocolUDP,
+				DestHostname: "dns.example.com",
+				DestPort:     uint16(udpPort),
+				MaxTTL:       uint8(udpTTL),
+				Timeout:      time.Duration(float64(defaultTestTimeoutSeconds) * 0.9 / float64(udpTTL) * float64(time.Second)),
+				ReverseDNS:   true,
+			},
+			expectError: false,
+		},
+		{
+			name: "UDP request without timeout or maxTTL falls back to defaults",
+			input: common.SyntheticsTestConfig{
+				Config: struct {
+					Assertions []common.Assertion   `json:"assertions"`
+					Request    common.ConfigRequest `json:"request"`
+				}{
+					Request: common.UDPConfigRequest{
+						Host: "dns.example.com",
+					},
+				},
+			},
+			expect: config.Config{
+				Protocol:     payload.ProtocolUDP,
+				DestHostname: "dns.example.com",
+				MaxTTL:       defaultMaxTTL,
+				Timeout:      time.Duration(float64(defaultTestTimeoutSeconds) * 0.9 / float64(defaultMaxTTL) * float64(time.Second)),
+				ReverseDNS:   true,
+			},
+			expectError: false,
+		},
+		{
 			name: "Unsupported subtype",
 			input: common.SyntheticsTestConfig{
 				Config: struct {
@@ -475,6 +523,48 @@ func TestNetworkPathToTestResult(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNetworkPathToTestResult_UsesBackendResultID(t *testing.T) {
+	src := "frontend"
+	dst := "backend"
+	icmpTTL := 5
+	icmpTimeout := 2
+
+	sched := &syntheticsTestScheduler{
+		generateTestResultID: func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
+			return "generated-id", nil
+		},
+	}
+
+	worker := workerResult{
+		testCfg: SyntheticsTestCtx{
+			cfg: common.SyntheticsTestConfig{
+				PublicID: "pub-on-demand",
+				ResultID: "backend-result-id",
+				Type:     "network",
+				Config: struct {
+					Assertions []common.Assertion   `json:"assertions"`
+					Request    common.ConfigRequest `json:"request"`
+				}{
+					Request: common.ICMPConfigRequest{
+						Host: "8.8.8.8",
+						NetworkConfigRequest: common.NetworkConfigRequest{
+							SourceService:      &src,
+							DestinationService: &dst,
+							MaxTTL:             &icmpTTL,
+							Timeout:            &icmpTimeout,
+						},
+					},
+				},
+			},
+		},
+		hostname: "agent-host",
+	}
+
+	got, err := sched.networkPathToTestResult(&worker)
+	require.NoError(t, err)
+	require.Equal(t, "backend-result-id", got.Result.ID)
 }
 
 func TestGenerateRandomStringUInt63(t *testing.T) {

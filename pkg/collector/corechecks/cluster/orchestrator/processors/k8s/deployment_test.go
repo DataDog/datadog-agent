@@ -22,12 +22,36 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
+
+func TestDeploymentHandlers_BeforeCacheCheck(t *testing.T) {
+	resourceModel := &model.Deployment{}
+	resource := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deploy",
+			Namespace: "test-ns",
+		},
+	}
+
+	ctx := processorstest.NewProcessorContextBeforeCacheCheck("apps", "deployments")
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesDeployment,
+		resource.Namespace+"/"+resource.Name,
+	)
+	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
+	handlers := NewDeploymentHandlers(tagger)
+
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	assert.False(t, skip)
+	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
+}
 
 func TestDeploymentHandlers_ExtractResource(t *testing.T) {
 	handlers := &DeploymentHandlers{}
@@ -92,16 +116,16 @@ func TestDeploymentHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*appsv1.Deployment)
 	assert.True(t, ok)
 	assert.Equal(t, "deployment-1", resource1.Name)
-	assert.NotSame(t, deployment1, resource1) // Should be a copy
+	assert.Same(t, deployment1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*appsv1.Deployment)
 	assert.True(t, ok)
 	assert.Equal(t, "deployment-2", resource2.Name)
-	assert.NotSame(t, deployment2, resource2) // Should be a copy
+	assert.Same(t, deployment2, resource2) // ResourceList returns raw informer references
 }
 
 func TestDeploymentHandlers_ResourceUID(t *testing.T) {
@@ -296,7 +320,7 @@ func TestDeploymentProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process deployments
-	processor := processors.NewProcessor(&DeploymentHandlers{})
+	processor := processors.NewProcessor(&DeploymentHandlers{tagger: processorstest.NewEmptyFakeTagger()})
 	result, listed, processed := processor.Process(ctx, []*appsv1.Deployment{deployment1, deployment2})
 
 	assert.Equal(t, 2, listed)
@@ -442,4 +466,14 @@ func createTestDeployment(name, namespace string) *appsv1.Deployment {
 			},
 		},
 	}
+}
+
+func TestDeploymentHandlers_CloneResource(t *testing.T) {
+	handlers := &DeploymentHandlers{}
+	original := createTestDeployment("test", "ns")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*appsv1.Deployment)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

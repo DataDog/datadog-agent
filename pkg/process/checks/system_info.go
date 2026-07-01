@@ -3,14 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && !darwin
+//go:build !windows && !darwin && !aix
 
 package checks
 
 import (
-	// waiting for upstream fix to platform collection in containerized environments
-	"github.com/DataDog/gopsutil/host"
 	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/mem"
 
 	model "github.com/DataDog/agent-payload/v5/process"

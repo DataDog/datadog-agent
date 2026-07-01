@@ -2,6 +2,10 @@
 
 set -eo pipefail
 
+# Ensure the build keychain is destroyed on exit (normal, signal, or timeout).
+# This makes cleanup self-contained so it works from both CI and Bazel.
+trap 'security delete-keychain "$KEYCHAIN_NAME" 2>/dev/null || true' EXIT
+
 if [ "${SIGN:-false}" = true ]; then
     echo "Signing enabled"
 else
@@ -38,12 +42,17 @@ if [ "${SIGN:-false}" = true ]; then
     TEAM_ID=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" team-id) || exit $?; export TEAM_ID
     APPLE_ACCOUNT=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" user) || exit $?; export APPLE_ACCOUNT
 
+    # Remove any stale keychain left over from a previous failed/timed-out job.
+    security delete-keychain "$KEYCHAIN_NAME" 2>/dev/null || true
+
     # Create temporary build keychain
     security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
 
-    # Let the keychain stay unlocked for 1 hour, otherwise the OS might lock
-    # it again after a period of inactivity.
-    security set-keychain-settings -lut 3600 "$KEYCHAIN_NAME"
+    # Disable auto-lock entirely: the keychain is ephemeral and destroyed in
+    # after_script, so there is no security benefit to auto-locking.  The
+    # previous 1-hour timeout could cause errSecInternalComponent if the
+    # omnibus build took longer than expected before reaching the signing step.
+    security set-keychain-settings "$KEYCHAIN_NAME"
 
     # Add the build keychain to the list of active keychains
     security list-keychains -d user -s "$KEYCHAIN_NAME" "login.keychain"
@@ -84,14 +93,21 @@ echo Launching omnibus build
 rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
 mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
 rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
+OMNIBUS_BUILD_ARGS=(
+    --skip-deps
+    --go-mod-cache="$GOMODCACHE"
+    --config-directory "$CONFIG_DIR"
+    --install-directory "$INSTALL_DIR"
+    --base-dir "$OMNIBUS_DIR"
+)
 if [ "${SIGN:-false}" = true ]; then
     # Unlock the keychain to get access to the signing certificates
     security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-    dda inv -- -e omnibus.build --hardened-runtime --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+    dda inv -- -e omnibus.build --hardened-runtime "${OMNIBUS_BUILD_ARGS[@]}" || exit 1
     # Lock the keychain once we're done
     security lock-keychain "$KEYCHAIN_NAME"
 else
-    dda inv -- -e omnibus.build --skip-sign --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+    dda inv -- -e omnibus.build --skip-sign "${OMNIBUS_BUILD_ARGS[@]}" || exit 1
 fi
 
 #TODO(regis): consider moving the following check to `DataDog/omnibus-ruby` to benefit other OSes
@@ -173,6 +189,9 @@ if [ "${SIGN:-false}" = true ]; then
     }
     export -f check_notarization_status
     tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" check_notarization_status "$SUBMISSION_ID"
+
+    echo "Stapling notarization ticket to DMG"
+    xcrun stapler staple "$LATEST_DMG"
     printf "\033[0Ksection_end:%s:notarization\r\033[0K\n" "$(date +%s)"
 fi
 

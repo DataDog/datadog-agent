@@ -7,12 +7,14 @@ package semantics
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 )
 
 // Accessor provides attribute access for semantic lookups.
 // Implementations may return not-found from GetInt64/GetFloat64 when the
-// underlying store has no numeric type information (e.g. map[string]string).
+// underlying store has no numeric type information (e.g. map[string]string),
+// or not-found from GetString when the store has no string values (e.g. map[string]float64).
 type Accessor interface {
 	GetString(key string) string
 	GetInt64(key string) (int64, bool)
@@ -51,10 +53,84 @@ func (a StringMapAccessor) GetFloat64(_ string) (float64, bool) {
 	return 0, false
 }
 
+// MetricsMapAccessor adapts a map[string]float64 into an Accessor (e.g. DD span Metrics).
+// GetString always returns ""; string-typed registry entries are intentionally skipped
+// because map[string]float64 holds no string values. Use DDSpanAccessor, which routes
+// string lookups to StringMapAccessor (meta) instead.
+type MetricsMapAccessor struct {
+	m map[string]float64
+}
+
+// NewMetricsMapAccessor returns a MetricsMapAccessor for a map[string]float64.
+func NewMetricsMapAccessor(m map[string]float64) MetricsMapAccessor {
+	return MetricsMapAccessor{m: m}
+}
+
+// GetString always returns "". map[string]float64 holds no string values.
+func (a MetricsMapAccessor) GetString(_ string) string { return "" }
+
+// GetFloat64 returns the value directly, or (0, false) if missing or nil map.
+func (a MetricsMapAccessor) GetFloat64(key string) (float64, bool) {
+	if a.m == nil {
+		return 0, false
+	}
+	v, ok := a.m[key]
+	return v, ok
+}
+
+// GetInt64 converts the float64 value to int64 if it is an exact integer, or (0, false) otherwise.
+func (a MetricsMapAccessor) GetInt64(key string) (int64, bool) {
+	v, ok := a.GetFloat64(key)
+	if !ok {
+		return 0, false
+	}
+	i := int64(v)
+	if float64(i) != v || math.IsInf(v, 0) || math.IsNaN(v) {
+		return 0, false
+	}
+	return i, true
+}
+
 // LookupResult contains the result of a semantic attribute lookup.
 type LookupResult struct {
 	TagInfo     TagInfo
 	StringValue string
+}
+
+// conditionMatches reports whether a single Condition holds against the accessor's raw
+// attribute store. Conditions read attributes by exact key — fallback chains are not
+// followed. To gate on a renamed attribute (e.g. rpc.system → rpc.system.name), list
+// one fallback entry per condition attribute in mappings.json.
+//
+// A Condition has up to two predicate fields, all of which must hold (logical AND)
+// for the condition to match:
+//
+//   - Present: requires the attribute to be present (true) or absent (false).
+//   - Eq:      requires the attribute's value to equal the literal string. Implies presence.
+//
+// A Condition with no predicates set always matches (empty conjunction is true).
+func conditionMatches[A Accessor](accessor A, c Condition) bool {
+	value := accessor.GetString(c.Attribute)
+	found := value != ""
+
+	if c.Present != nil && found != *c.Present {
+		return false
+	}
+	if c.Eq != nil {
+		if !found || value != *c.Eq {
+			return false
+		}
+	}
+	return true
+}
+
+func conditionsMatch[A Accessor](accessor A, conditions []Condition) bool {
+	for _, c := range conditions {
+		if !conditionMatches(accessor, c) {
+			return false
+		}
+	}
+	return true
 }
 
 // Lookup performs a semantic attribute lookup in precedence order and returns the first match.
@@ -67,6 +143,9 @@ func Lookup[A Accessor](r Registry, accessor A, concept Concept) (LookupResult, 
 		return LookupResult{}, false
 	}
 	for _, tag := range tags {
+		if len(tag.When) > 0 && !conditionsMatch(accessor, tag.When) {
+			continue
+		}
 		switch tag.Type {
 		case ValueTypeInt64:
 			if v, ok := accessor.GetInt64(tag.Name); ok {
@@ -103,6 +182,9 @@ func LookupFloat64[A Accessor](r Registry, accessor A, concept Concept) (float64
 		return 0, false
 	}
 	for _, tag := range tags {
+		if len(tag.When) > 0 && !conditionsMatch(accessor, tag.When) {
+			continue
+		}
 		switch tag.Type {
 		case ValueTypeFloat64:
 			if v, ok := accessor.GetFloat64(tag.Name); ok {
@@ -132,6 +214,9 @@ func LookupInt64[A Accessor](r Registry, accessor A, concept Concept) (int64, bo
 		return 0, false
 	}
 	for _, tag := range tags {
+		if len(tag.When) > 0 && !conditionsMatch(accessor, tag.When) {
+			continue
+		}
 		switch tag.Type {
 		case ValueTypeInt64:
 			if v, ok := accessor.GetInt64(tag.Name); ok {

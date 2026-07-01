@@ -10,8 +10,11 @@ package collectorimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,5 +29,28 @@ func TestExtraFactoriesWithoutAgentCore_GetProcessors(t *testing.T) {
 
 	_, found = processors[attributesprocessor.NewFactory().Type()]
 	require.True(t, found)
+}
 
+func TestExtraFactoriesWithoutAgentCore_GetReceivers(t *testing.T) {
+	extraFactories := NewExtraFactoriesWithoutAgentCore()
+	factories, err := createFactories(extraFactories)()
+	require.NoError(t, err)
+
+	_, found := factories.Receivers[filelogreceiver.NewFactory().Type()]
+	assert.True(t, found, "filelog receiver should be registered for standalone mode")
+}
+
+func TestExtraFactoriesWithAgentCore_GetReceivers(t *testing.T) {
+	extra := extraFactoriesWithAgentCore{}
+	assert.Nil(t, extra.GetReceivers(), "agent core mode should not add extra receivers")
+}
+
+func TestExtraFactoriesWithoutAgentCore_GetProfilerName(t *testing.T) {
+	extraFactories := NewExtraFactoriesWithoutAgentCore()
+	assert.Equal(t, version.StandaloneProfilerName, extraFactories.GetProfilerName())
+}
+
+func TestExtraFactoriesWithAgentCore_GetProfilerName(t *testing.T) {
+	extraFactories := extraFactoriesWithAgentCore{}
+	assert.Equal(t, version.BundledProfilerName, extraFactories.GetProfilerName())
 }

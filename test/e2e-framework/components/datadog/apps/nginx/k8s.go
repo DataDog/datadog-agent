@@ -29,9 +29,29 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 )
 
-func nginxConfFromPort(port int) string {
+const defaultWorkerProcesses = "auto"
+
+// K8sAppOption configures the Kubernetes nginx workload.
+type K8sAppOption func(*k8sAppOptions)
+
+type k8sAppOptions struct {
+	workerProcesses string
+}
+
+// WithWorkerProcesses overrides the nginx worker_processes directive.
+func WithWorkerProcesses(workerProcesses string) K8sAppOption {
+	return func(opts *k8sAppOptions) {
+		opts.workerProcesses = workerProcesses
+	}
+}
+
+func nginxConfFromPort(port int, workerProcesses string) string {
+	if workerProcesses == "" {
+		workerProcesses = defaultWorkerProcesses
+	}
+
 	return `
-worker_processes  auto;
+worker_processes  ` + workerProcesses + `;
 events {
     worker_connections  4096;
 }
@@ -52,7 +72,17 @@ http {
 // K8sAppDefinition defines a Kubernetes application, with a deployment, a service, a pod disruption budget and an HPA.
 // It also creates a DatadogMetric and an HPA if dependsOnCrd is not nil.
 func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, nginxPort int, runtimeClass string, withDatadogAutoscaling bool, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
+	return K8sAppDefinitionWithOptions(e, kubeProvider, namespace, nginxPort, runtimeClass, withDatadogAutoscaling, nil, opts...)
+}
+
+// K8sAppDefinitionWithOptions defines a Kubernetes nginx application with additional app options.
+func K8sAppDefinitionWithOptions(e config.Env, kubeProvider *kubernetes.Provider, namespace string, nginxPort int, runtimeClass string, withDatadogAutoscaling bool, appOptions []K8sAppOption, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
 	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
+
+	config := k8sAppOptions{}
+	for _, opt := range appOptions {
+		opt(&config)
+	}
 
 	k8sComponent := &componentskube.Workload{}
 	// The pulumi component resource names need to be unique. We adopt a naming convention of `namespace/componentName`.
@@ -127,14 +157,25 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 			},
 		},
 		Data: pulumi.StringMap{
-			"nginx.conf": pulumi.String(nginxConfFromPort(nginxPort)),
+			"nginx.conf": pulumi.String(nginxConfFromPort(nginxPort, config.workerProcesses)),
 		},
 	}, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, nginxPort, k8s.WithRuntimeClass(runtimeClass), k8s.WithServiceAccount(sa), k8s.WithConfigMap())
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+	}
+
+	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, nginxPort, k8s.WithRuntimeClass(runtimeClass), k8s.WithServiceAccount(sa), k8s.WithConfigMap(), k8s.WithImagePullSecrets(imagePullSecrets))
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +366,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		return nil, err
 	}
 
-	nginxQueryManifest, err := k8s.NewNginxQueryDeploymentManifest(namespace)
+	nginxQueryManifest, err := k8s.NewNginxQueryDeploymentManifest(namespace, k8s.WithImagePullSecrets(imagePullSecrets))
 	if err != nil {
 		return nil, err
 	}
@@ -401,11 +442,22 @@ func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 			},
 		},
 		Data: pulumi.StringMap{
-			"nginx.conf": pulumi.String(nginxConfFromPort(nginxPort)),
+			"nginx.conf": pulumi.String(nginxConfFromPort(nginxPort, "")),
 		},
 	}, opts...)
 	if err != nil {
 		return nil, err
+	}
+
+	var rolloutImagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		rolloutImagePullSecrets = append(rolloutImagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
 	}
 
 	err = argorollouts.RolloutFromDeployment(e.Ctx(), namespace+"/nginx", &appsv1.DeploymentArgs{
@@ -430,6 +482,7 @@ func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ImagePullSecrets: rolloutImagePullSecrets,
 					Containers: &corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("nginx"),

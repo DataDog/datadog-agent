@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -53,17 +53,18 @@ func (c *Check) Run() error {
 	metricSender := metricsender.NewMetricSenderAgent(senderInstance)
 
 	cfg := config.Config{
-		DestHostname:              c.config.DestHostname,
-		DestPort:                  c.config.DestPort,
-		MaxTTL:                    c.config.MaxTTL,
-		Timeout:                   c.config.Timeout,
-		Protocol:                  c.config.Protocol,
-		TCPMethod:                 c.config.TCPMethod,
-		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
-		DisableWindowsDriver:      c.config.DisableWindowsDriver,
-		ReverseDNS:                true,
-		TracerouteQueries:         c.config.TracerouteQueries,
-		E2eQueries:                c.config.E2eQueries,
+		DestHostname:                    c.config.DestHostname,
+		DestPort:                        c.config.DestPort,
+		MaxTTL:                          c.config.MaxTTL,
+		Timeout:                         c.config.Timeout,
+		Protocol:                        c.config.Protocol,
+		TCPMethod:                       c.config.TCPMethod,
+		TCPSynParisTracerouteMode:       c.config.TCPSynParisTracerouteMode,
+		DisableWindowsDriver:            c.config.DisableWindowsDriver,
+		DisableSourcePublicIPCollection: c.config.DisableSourcePublicIPCollection,
+		ReverseDNS:                      true,
+		TracerouteQueries:               c.config.TracerouteQueries,
+		E2eQueries:                      c.config.E2eQueries,
 	}
 
 	path, err := c.traceroute.Run(context.TODO(), cfg)
@@ -130,11 +131,11 @@ func (c *Check) Interval() time.Duration {
 }
 
 // Configure the networkpath check
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
 	// Must be called before c.CommonConfigure
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source, provider)
 	if err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}

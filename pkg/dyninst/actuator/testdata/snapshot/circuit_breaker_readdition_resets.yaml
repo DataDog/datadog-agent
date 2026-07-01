@@ -1,0 +1,411 @@
+# Tests that removing a circuit-broken probe (via a processes-updated
+# event with a different probe set) clears its entry from
+# circuitBrokenProbes, so a later re-addition of the same probe
+# identity is treated as a fresh attempt.
+- !config { discovered_types_limit: 0, per_probe_cpu_limit: 0.5, all_probes_cpu_limit: 100 }
+- !processes-updated
+  updated:
+    - process_id: { pid: 1001 }
+      executable: { path: /usr/bin/test }
+      probes:
+        - { type: LOG_PROBE, id: hot, where: { methodName: hot }, captureSnapshot: true }
+        - { type: LOG_PROBE, id: cold, where: { methodName: cold }, captureSnapshot: true }
+- !loaded
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+- !attached { program_id: 1, process_id: 1001 }
+- !heartbeat-check
+- !runtime-stats
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 5
+      throttled_cnt: 0
+      cpu: 100ns
+    - hit_cnt: 100000
+      throttled_cnt: 0
+      cpu: 5s
+# Trip hot.
+- !heartbeat-check
+- !detached { program_id: 1, process_id: 1001 }
+- !unloaded { program_id: 1 }
+# Recompile fires; new program 2 has only cold.
+- !loaded
+  program_id: 2
+  runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+- !attached { program_id: 2, process_id: 1001 }
+# Operator removes hot from the configuration entirely.
+- !processes-updated
+  updated:
+    - process_id: { pid: 1001 }
+      executable: { path: /usr/bin/test }
+      probes:
+        - { type: LOG_PROBE, id: cold, where: { methodName: cold }, captureSnapshot: true }
+- !detached { program_id: 2, process_id: 1001 }
+- !unloaded { program_id: 2 }
+- !loaded
+  program_id: 3
+  runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+- !attached { program_id: 3, process_id: 1001 }
+# Operator re-adds hot. Without the readdition-resets logic, hot
+# would still be in circuitBrokenProbes and would be filtered out
+# on the next compile. With it, hot is freshly evaluated.
+- !processes-updated
+  updated:
+    - process_id: { pid: 1001 }
+      executable: { path: /usr/bin/test }
+      probes:
+        - { type: LOG_PROBE, id: hot, where: { methodName: hot }, captureSnapshot: true }
+        - { type: LOG_PROBE, id: cold, where: { methodName: cold }, captureSnapshot: true }
+- !detached { program_id: 3, process_id: 1001 }
+- !unloaded { program_id: 3 }
+# Expect program 4 to contain BOTH cold and hot.
+- !loaded
+  program_id: 4
+  runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+- !attached { program_id: 4, process_id: 1001 }
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: hot, where: {methodName: hot}, captureSnapshot: true}
+        - {type: LOG_PROBE, id: cold, where: {methodName: cold}, captureSnapshot: true}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [cold, hot], process_id: 1001, program_id: 1}
+state:
+  currently_loading: <nil> -> 1
+  queued_programs: '[]'
+  processes:
+    1001: <nil> -> WaitingForProgram (prog 1)
+  programs:
+    1: <nil> -> Loading (proc 1001)
+  stats:
+    numProcesses: 0 -> 1
+    numPrograms: 0 -> 1
+    numWaitingForProgram: 0 -> 1
+---
+event: !loaded
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+effects:
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 1}
+state:
+  currently_loading: 1 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 1) -> Attaching (prog 1)
+  programs:
+    1: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 0 -> 1
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 1, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 1) -> Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+  stats:
+    attached: 0 -> 1
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---
+event: !heartbeat-check
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+---
+event: !runtime-stats
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 5
+      throttled_cnt: 0
+      cpu: 100ns
+    - hit_cnt: 100000
+      throttled_cnt: 0
+      cpu: 5s
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+---
+event: !heartbeat-check
+effects:
+  - !report-probe-error {probe_id: hot, process_id: 1001, program_id: 1, reason: "yes"}
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 1}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1) -> Detaching (prog 1) circuitBroken=[hot]
+  programs:
+    1: Loaded (proc 1001) -> Draining (proc 1001)
+  stats:
+    numAttached: 1 -> 0
+    numDetaching: 0 -> 1
+    typeRecompilationsTriggered: 0 -> 1
+---
+event: !detached {program_id: 1, process_id: 1001}
+effects:
+  - !unload-program {program_id: 1}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1) circuitBroken=[hot]
+  programs:
+    1: Draining (proc 1001) -> Unloading (proc 1001)
+  stats:
+    detached: 0 -> 1
+---
+event: !unloaded {program_id: 1}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [cold], process_id: 1001, program_id: 2}
+state:
+  currently_loading: <nil> -> 2
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1) circuitBroken=[hot] -> WaitingForProgram (prog 2) circuitBroken=[hot]
+  programs:
+    1: Unloading (proc 1001) -> <nil>
+    2: <nil> -> Loading (proc 1001)
+  stats:
+    numDetaching: 1 -> 0
+    numWaitingForProgram: 0 -> 1
+    unloaded: 0 -> 1
+---
+event: !loaded
+  program_id: 2
+  runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+effects:
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 2}
+state:
+  currently_loading: 2 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 2) circuitBroken=[hot] -> Attaching (prog 2) circuitBroken=[hot]
+  programs:
+    2: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 1 -> 2
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 2, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 2) circuitBroken=[hot] -> Attached (prog 2) circuitBroken=[hot]
+  programs:
+    2: Loaded (proc 1001)
+  stats:
+    attached: 1 -> 2
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: cold, where: {methodName: cold}, captureSnapshot: true}
+effects:
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 2}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 2) circuitBroken=[hot] -> Detaching (prog 2)
+  programs:
+    2: Loaded (proc 1001) -> Draining (proc 1001)
+  stats:
+    numAttached: 1 -> 0
+    numDetaching: 0 -> 1
+---
+event: !detached {program_id: 2, process_id: 1001}
+effects:
+  - !unload-program {program_id: 2}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 2)
+  programs:
+    2: Draining (proc 1001) -> Unloading (proc 1001)
+  stats:
+    detached: 1 -> 2
+---
+event: !unloaded {program_id: 2}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [cold], process_id: 1001, program_id: 3}
+state:
+  currently_loading: <nil> -> 3
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 2) -> WaitingForProgram (prog 3)
+  programs:
+    2: Unloading (proc 1001) -> <nil>
+    3: <nil> -> Loading (proc 1001)
+  stats:
+    numDetaching: 1 -> 0
+    numWaitingForProgram: 0 -> 1
+    unloaded: 1 -> 2
+---
+event: !loaded
+  program_id: 3
+  runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+effects:
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 3}
+state:
+  currently_loading: 3 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 3) -> Attaching (prog 3)
+  programs:
+    3: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 2 -> 3
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 3, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 3) -> Attached (prog 3)
+  programs:
+    3: Loaded (proc 1001)
+  stats:
+    attached: 2 -> 3
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: hot, where: {methodName: hot}, captureSnapshot: true}
+        - {type: LOG_PROBE, id: cold, where: {methodName: cold}, captureSnapshot: true}
+effects:
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 3}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 3) -> Detaching (prog 3)
+  programs:
+    3: Loaded (proc 1001) -> Draining (proc 1001)
+  stats:
+    numAttached: 1 -> 0
+    numDetaching: 0 -> 1
+---
+event: !detached {program_id: 3, process_id: 1001}
+effects:
+  - !unload-program {program_id: 3}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 3)
+  programs:
+    3: Draining (proc 1001) -> Unloading (proc 1001)
+  stats:
+    detached: 2 -> 3
+---
+event: !unloaded {program_id: 3}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [cold, hot], process_id: 1001, program_id: 4}
+state:
+  currently_loading: <nil> -> 4
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 3) -> WaitingForProgram (prog 4)
+  programs:
+    3: Unloading (proc 1001) -> <nil>
+    4: <nil> -> Loading (proc 1001)
+  stats:
+    numDetaching: 1 -> 0
+    numWaitingForProgram: 0 -> 1
+    unloaded: 2 -> 3
+---
+event: !loaded
+  program_id: 4
+  runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+effects:
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 4}
+state:
+  currently_loading: 4 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 4) -> Attaching (prog 4)
+  programs:
+    4: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 3 -> 4
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 4, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 4) -> Attached (prog 4)
+  programs:
+    4: Loaded (proc 1001)
+  stats:
+    attached: 3 -> 4
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---

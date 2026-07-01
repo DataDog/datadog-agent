@@ -819,3 +819,68 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	assert.True(t, child3.ProcessCacheEntry.IsExecExec)
 	assert.True(t, child3.ProcessCacheEntry.IsExec)
 }
+
+// TestAWSSecurityCredentialsScopedToProcess ensures AWS security credentials
+// obtained from an IMDS request are attributed only to the process that made
+// the request, and never leak onto its ancestors. This is a regression test
+// for a serialization bug where FetchAWSSecurityCredentials ignored the
+// process being serialized and always returned the triggering process's
+// credentials, causing them to be reported for every ancestor.
+func TestAWSSecurityCredentialsScopedToProcess(t *testing.T) {
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// parent(pid:3) -> child(pid:4); the child performs the IMDS request
+	parent := newFakeForkEvent(0, 3, 123, resolver)
+	child := newFakeForkEvent(3, 4, 123, resolver)
+
+	resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
+	resolver.AddForkEntry(child, model.CGroupContext{}, nil)
+	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+
+	// the child receives credentials from an IMDS v2 response
+	child.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
+		Code:        "Success",
+		Type:        "AWS-HMAC",
+		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
+		Expiration:  time.Now().Add(time.Hour),
+	}
+	resolver.UpdateAWSSecurityCredentials(child.ProcessCacheEntry.Pid, child)
+
+	// the requesting process reports the credentials
+	childCreds := resolver.FetchAWSSecurityCredentials(child, &child.ProcessCacheEntry.Process)
+	assert.Len(t, childCreds, 1, "the requesting process should report its credentials")
+	if len(childCreds) == 1 {
+		assert.Equal(t, "AKIAIOSFODNN7EXAMPLE", childCreds[0].AccessKeyID)
+	}
+
+	// the ancestor must NOT report the child's credentials, even though the
+	// event's process context still points to the child
+	parentCreds := resolver.FetchAWSSecurityCredentials(child, &parent.ProcessCacheEntry.Process)
+	assert.Empty(t, parentCreds, "ancestors must not report the requesting process's credentials")
+}
+
+// TestAWSSecurityCredentialsExpiration ensures expired credentials are pruned
+// from the owning process on fetch.
+func TestAWSSecurityCredentialsExpiration(t *testing.T) {
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	proc := newFakeForkEvent(0, 3, 123, resolver)
+	resolver.AddForkEntry(proc, model.CGroupContext{}, nil)
+
+	proc.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
+		Code:        "Success",
+		Type:        "AWS-HMAC",
+		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
+		Expiration:  proc.ResolveEventTime().Add(-time.Hour),
+	}
+	resolver.UpdateAWSSecurityCredentials(proc.ProcessCacheEntry.Pid, proc)
+
+	creds := resolver.FetchAWSSecurityCredentials(proc, &proc.ProcessCacheEntry.Process)
+	assert.Empty(t, creds, "expired credentials should be pruned on fetch")
+}

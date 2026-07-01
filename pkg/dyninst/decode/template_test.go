@@ -227,6 +227,31 @@ func TestReadUint(t *testing.T) {
 	}
 }
 
+func TestFormatUnresolvedPointeeType(t *testing.T) {
+	typ := &ir.UnresolvedPointeeType{
+		TypeCommon: ir.TypeCommon{ID: 1, Name: "unresolved"},
+	}
+
+	ctx := &encodingContext{
+		typesByID: map[ir.TypeID]decoderType{
+			typ.GetID(): (*unresolvedPointeeType)(typ),
+		},
+		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
+		currentlyEncoding:    make(map[typeAndAddr]struct{}),
+		dataItems:            make(map[typeAndAddr]output.DataItem),
+	}
+
+	var buf bytes.Buffer
+	limits := &formatLimits{
+		maxBytes:           maxLogLineBytes,
+		maxCollectionItems: maxLogCollectionItems,
+		maxFields:          maxLogFieldCount,
+	}
+	err := formatType(ctx, &buf, typ, nil, limits)
+	assert.NoError(t, err)
+	assert.Equal(t, "{...}", buf.String())
+}
+
 // Helper functions - use NativeEndian for consistency with code
 
 func int64ToBytes(v int64) []byte {

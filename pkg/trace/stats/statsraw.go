@@ -32,14 +32,14 @@ const (
 
 type groupedStats struct {
 	// using float64 here to avoid the accumulation of rounding issues.
-	hits                   float64
-	topLevelHits           float64
-	errors                 float64
-	duration               float64
-	okDistribution         *ddsketch.DDSketch
-	errDistribution        *ddsketch.DDSketch
-	peerTags               []string
-	spanDerivedPrimaryTags []string
+	hits                 float64
+	topLevelHits         float64
+	errors               float64
+	duration             float64
+	okDistribution       *ddsketch.DDSketch
+	errDistribution      *ddsketch.DDSketch
+	peerTags             []string
+	additionalMetricTags []string
 }
 
 // round a float to an int, uniformly choosing
@@ -64,26 +64,26 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		return &pb.ClientGroupedStats{}, err
 	}
 	return &pb.ClientGroupedStats{
-		Service:                a.Service,
-		Name:                   a.Name,
-		Resource:               a.Resource,
-		HTTPStatusCode:         a.StatusCode,
-		Type:                   a.Type,
-		Hits:                   round(s.hits),
-		Errors:                 round(s.errors),
-		Duration:               round(s.duration),
-		TopLevelHits:           round(s.topLevelHits),
-		OkSummary:              okSummary,
-		ErrorSummary:           errSummary,
-		Synthetics:             a.Synthetics,
-		SpanKind:               a.SpanKind,
-		PeerTags:               s.peerTags,
-		SpanDerivedPrimaryTags: s.spanDerivedPrimaryTags,
-		ServiceSource:          a.ServiceSource,
-		IsTraceRoot:            a.IsTraceRoot,
-		GRPCStatusCode:         a.GRPCStatusCode,
-		HTTPMethod:             a.HTTPMethod,
-		HTTPEndpoint:           a.HTTPEndpoint,
+		Service:              a.Service,
+		Name:                 a.Name,
+		Resource:             a.Resource,
+		HTTPStatusCode:       a.StatusCode,
+		Type:                 a.Type,
+		Hits:                 round(s.hits),
+		Errors:               round(s.errors),
+		Duration:             round(s.duration),
+		TopLevelHits:         round(s.topLevelHits),
+		OkSummary:            okSummary,
+		ErrorSummary:         errSummary,
+		Synthetics:           a.Synthetics,
+		SpanKind:             a.SpanKind,
+		PeerTags:             s.peerTags,
+		AdditionalMetricTags: s.additionalMetricTags,
+		ServiceSource:        a.ServiceSource,
+		IsTraceRoot:          a.IsTraceRoot,
+		GRPCStatusCode:       a.GRPCStatusCode,
+		HTTPMethod:           a.HTTPMethod,
+		HTTPEndpoint:         a.HTTPEndpoint,
 	}, nil
 }
 
@@ -114,19 +114,26 @@ type RawBucket struct {
 	// this should really remain private as it's subject to refactoring
 	data map[Aggregation]*groupedStats
 
+	additionalMetricTagValueBlockSentinel string
+	additionalTagsCardinalityLimit        int
+	additionalTagsEntries                 int
+	warnedThisBucket                      bool
+
 	containerTagsByID map[string][]string // a map from container ID to container tags
 	processTagsByHash map[uint64]string   // a map from process hash to process tags
 }
 
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly
-func NewRawBucket(ts, d uint64) *RawBucket {
+func NewRawBucket(ts, d uint64, additionalTagsCardinalityLimit int) *RawBucket {
 	// The only non-initialized value is the Duration which should be set by whoever closes that bucket
 	return &RawBucket{
-		start:             ts,
-		duration:          d,
-		data:              make(map[Aggregation]*groupedStats),
-		containerTagsByID: make(map[string][]string),
-		processTagsByHash: make(map[uint64]string),
+		start:                                 ts,
+		duration:                              d,
+		data:                                  make(map[Aggregation]*groupedStats),
+		additionalMetricTagValueBlockSentinel: blockedByTracerSentinel,
+		additionalTagsCardinalityLimit:        additionalTagsCardinalityLimit,
+		containerTagsByID:                     make(map[string][]string),
+		processTagsByHash:                     make(map[uint64]string),
 	}
 }
 
@@ -150,6 +157,7 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 			ImageTag:        k.ImageTag,
 			Lang:            k.Lang,
 			ProcessTagsHash: k.ProcessTagsHash,
+			BaseService:     k.BaseService,
 		}
 		s, ok := m[key]
 		if !ok {
@@ -164,13 +172,43 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 	return m
 }
 
-// HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggKey PayloadAggregationKey) {
+// HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators.
+// It returns the number of additional metric tag cardinality block events applied to this span.
+func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggKey PayloadAggregationKey) int {
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
 	aggr := NewAggregationFromSpan(s, origin, aggKey)
+	capBlocked := 0
+	if len(s.matchingAdditionalMetricTags) > 0 && sb.additionalTagsCardinalityLimit > 0 {
+		// Only new tag-bearing aggregations are counted, before they are added below.
+		if _, exists := sb.data[aggr]; !exists {
+			if sb.additionalTagsEntries >= sb.additionalTagsCardinalityLimit {
+				if !sb.warnedThisBucket {
+					log.Warnf("additional_metric_tags cardinality limit (%d) reached for this bucket; masking %d tag value(s)", sb.additionalTagsCardinalityLimit, len(s.matchingAdditionalMetricTags))
+					sb.warnedThisBucket = true
+				}
+				// Cap reached: collapse this span's tag values onto the shared masked
+				// aggregation. The masked entry is deliberately NOT counted toward the
+				// limit — all over-cap spans fold into it, so it stays a single overflow
+				// bucket rather than consuming a slot.
+				s.matchingAdditionalMetricTags = maskAdditionalMetricTagValues(s.matchingAdditionalMetricTags, sb.getAdditionalMetricTagValueBlockSentinel())
+				aggr = NewAggregationFromSpan(s, origin, aggKey)
+				capBlocked = 1
+			} else {
+				sb.additionalTagsEntries++
+			}
+		}
+	}
 	sb.add(s, weight, aggr)
+	return capBlocked
+}
+
+func (sb *RawBucket) getAdditionalMetricTagValueBlockSentinel() string {
+	if sb.additionalMetricTagValueBlockSentinel == "" {
+		return blockedByTracerSentinel
+	}
+	return sb.additionalMetricTagValueBlockSentinel
 }
 
 func (sb *RawBucket) add(s *StatSpan, weight float64, aggr Aggregation) {
@@ -180,7 +218,7 @@ func (sb *RawBucket) add(s *StatSpan, weight float64, aggr Aggregation) {
 	if gs, ok = sb.data[aggr]; !ok {
 		gs = newGroupedStats()
 		gs.peerTags = s.matchingPeerTags
-		gs.spanDerivedPrimaryTags = s.matchingSpanDerivedPrimaryTags
+		gs.additionalMetricTags = s.matchingAdditionalMetricTags
 		sb.data[aggr] = gs
 	}
 	if s.isTopLevel {

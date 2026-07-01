@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -65,7 +65,7 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	// Handle error response for the first request
 	if s.errorResponse {
 		s.errorResponse = false // Reset error response for subsequent requests
-		return xerrors.New("dummy first error")
+		return errors.New("dummy first error")
 	}
 
 	for _, response := range s.responses {
@@ -256,8 +256,7 @@ func TestCollection(t *testing.T) {
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) config.Component {
 					return config.NewMockWithOverrides(t, map[string]interface{}{
-						"language_detection.enabled":               true,
-						"process_config.run_in_core_agent.enabled": false,
+						"language_detection.enabled": true,
 					})
 				}),
 				workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
@@ -292,8 +291,10 @@ func TestCollection(t *testing.T) {
 				StreamHandler: &streamHandler{
 					Reader: mockStore.GetConfig(),
 					port:   port,
+					ipc:    ipcComp,
 				},
-				IPC: ipcComp,
+				Config: mockStore.GetConfig(),
+				IPC:    ipcComp,
 			}
 
 			mockStore.Notify(test.preEvents)

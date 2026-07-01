@@ -51,7 +51,7 @@ type Webhook struct {
 	name              string
 	isEnabled         bool
 	endpoint          string
-	resources         map[string][]string
+	resources         []common.WebhookResourceRule
 	operations        []admissionregistrationv1.OperationType
 	matchConditions   []admissionregistrationv1.MatchCondition
 	namespaceSelector *metav1.LabelSelector
@@ -91,7 +91,7 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 		name:              webhookName,
 		isEnabled:         datadogConfig.GetBool("admission_controller.agent_sidecar.enabled"),
 		endpoint:          datadogConfig.GetString("admission_controller.agent_sidecar.endpoint"),
-		resources:         map[string][]string{"": {"pods"}},
+		resources:         []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}},
 		operations:        []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions:   []admissionregistrationv1.MatchCondition{},
 		namespaceSelector: nsSelector,
@@ -137,7 +137,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() map[string][]string {
+func (w *Webhook) Resources() []common.WebhookResourceRule {
 	return w.resources
 }
 

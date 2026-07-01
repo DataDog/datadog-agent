@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,7 +38,9 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Builder struct represents the metric store generator
@@ -297,6 +300,7 @@ func (b *Builder) GenerateStores(
 	expectedType interface{},
 	listWatchFunc func(kubeClient clientset.Interface, ns string, fieldSelector string) cache.ListerWatcher,
 	useAPIServerCache bool,
+	_ int64,
 ) []cache.Store {
 	return GenerateStores(b, metricFamilies, expectedType, b.kubeClient, listWatchFunc, useAPIServerCache)
 }
@@ -316,6 +320,7 @@ func (b *Builder) GenerateCustomResourceStoresFunc(
 	expectedType interface{},
 	listWatchFunc func(kubeClient interface{}, ns string, fieldSelector string) cache.ListerWatcher,
 	useAPIServerCache bool,
+	_ int64,
 ) []cache.Store {
 	return GenerateStores(b, metricFamilies,
 		expectedType,
@@ -334,21 +339,23 @@ func (b *Builder) startReflector(
 	useAPIServerCache bool,
 ) {
 	if useAPIServerCache {
-		listWatcher = newCacheEnabledListerWatcher(listWatcher)
+		listWatcher = newCacheEnabledListerWatcher(b.ctx, listWatcher)
 	}
-	reflector := cache.NewReflector(listWatcher, expectedType, store, b.resync*time.Second)
+	reflector := cache.NewReflector(listWatcher, expectedType, store, b.resync)
 	go reflector.Run(b.ctx.Done())
 }
 
 type cacheEnabledListerWatcher struct {
-	lw cache.ListerWatcherWithContext
-	rv string
+	lw  cache.ListerWatcherWithContext
+	rv  string
+	ctx context.Context
 }
 
-func newCacheEnabledListerWatcher(lw cache.ListerWatcher) cache.ListerWatcher {
+func newCacheEnabledListerWatcher(ctx context.Context, lw cache.ListerWatcher) cache.ListerWatcher {
 	return &cacheEnabledListerWatcher{
-		lw: cache.ToListerWatcherWithContext(lw),
-		rv: "0",
+		ctx: ctx,
+		lw:  cache.ToListerWatcherWithContext(lw),
+		rv:  "0",
 	}
 }
 
@@ -361,7 +368,7 @@ func newCacheEnabledListerWatcher(lw cache.ListerWatcher) cache.ListerWatcher {
 func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object, error) {
 	options.ResourceVersion = c.rv
 	options.ResourceVersionMatch = v1.ResourceVersionMatchNotOlderThan
-	res, err := c.lw.ListWithContext(context.TODO(), options)
+	res, err := c.lw.ListWithContext(c.ctx, options)
 	if err == nil {
 		metadataAccessor, err := meta.ListAccessor(res)
 		if err != nil {
@@ -375,7 +382,7 @@ func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object
 
 // Watch simply delegates to the wrapped ListerWatcherWithContext
 func (c *cacheEnabledListerWatcher) Watch(options v1.ListOptions) (apiwatch.Interface, error) {
-	return c.lw.WatchWithContext(context.TODO(), options)
+	return c.lw.WatchWithContext(c.ctx, options)
 }
 
 func handlePodCollection[T any](b *Builder, store cache.Store, client T, listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher, namespace string, useAPIServerCache bool) {
@@ -419,6 +426,7 @@ func generateConfigMapStores(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create in-cluster config for metadata client: %w", err)
 	}
+	restConfig.UserAgent = fmt.Sprintf("datadog-%s/%s", strings.ReplaceAll(flavor.GetFlavor(), "_", "-"), version.AgentVersion)
 
 	metadataClient, err := metadata.NewForConfig(restConfig)
 	if err != nil {

@@ -27,8 +27,9 @@ import (
 )
 
 const (
-	// remoteAgentMetricTagName is the name of the label that will be added to all metrics coming from the remote agent
-	remoteAgentMetricTagName = "remote_agent"
+	// emitterMetricTagName is the label added to all metrics forwarded from a remote agent
+	// to identify which agent produced them. Value is the agent display name (e.g. "adp", "system-probe").
+	emitterMetricTagName = "emitter"
 )
 
 func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData {
@@ -65,7 +66,7 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistr
 	return callAgentsForService(ra, StatusServiceName, client, processor)
 }
 
-func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) error {
+func (ra *remoteAgentRegistry) fillFlare(_ context.Context, builder flarebuilder.FlareBuilder) error {
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetFlareFilesResponse, error) {
 		return remoteAgent.GetFlareFiles(ctx, &pb.GetFlareFilesRequest{}, opts...)
 	}
@@ -89,7 +90,7 @@ func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) erro
 			// The flare builder already logs errors, so we can ignore them here.
 			// an error here should not prevent the flare from being created.
 			//nolint:errcheck
-			builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegisteredAgent.String(), registryutil.SanitizeFileName(fileName)), fileData)
+			builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegisteredAgent.SanitizedDisplayName, registryutil.SanitizeFileName(fileName)), fileData)
 		}
 	}
 
@@ -158,18 +159,18 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 				continue
 			}
 
-			// Check if the metric already has a remote_agent label.
+			// Check if the metric already has an emitter label.
 			// With explicit agent identity, metrics should already have the correct value.
 			// We only add the label if it's missing (for backward compatibility).
-			hasRemoteAgentLabel := slices.ContainsFunc(metric.Label, func(label *dto.LabelPair) bool {
-				return *label.Name == remoteAgentMetricTagName
+			hasEmitterLabel := slices.ContainsFunc(metric.Label, func(label *dto.LabelPair) bool {
+				return *label.Name == emitterMetricTagName
 			})
 
 			labelNames := make([]string, 0, len(metric.Label)+1)
 			labelValues := make([]string, 0, len(metric.Label)+1)
-			// Only add remote_agent label if the metric doesn't already have one
-			if !hasRemoteAgentLabel {
-				labelNames = append(labelNames, remoteAgentMetricTagName)
+			// Only add emitter label if the metric doesn't already have one
+			if !hasEmitterLabel {
+				labelNames = append(labelNames, emitterMetricTagName)
 				labelValues = append(labelValues, remoteAgentName)
 			}
 			for _, label := range metric.Label {

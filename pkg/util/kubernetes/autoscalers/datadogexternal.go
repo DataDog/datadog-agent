@@ -16,38 +16,39 @@ import (
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	ddRequests = telemetry.NewCounterWithOpts("", "datadog_requests",
+	ddRequests = telemetryimpl.GetCompatComponent().NewCounterWithOpts("", "datadog_requests",
 		[]string{"status", le.JoinLeaderLabel}, "Counter of requests made to Datadog",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	metricsEval = telemetry.NewGaugeWithOpts("", "external_metrics_processed_value",
+	metricsEval = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("", "external_metrics_processed_value",
 		[]string{"metric", le.JoinLeaderLabel}, "value processed from querying Datadog",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	metricsUpdated = telemetry.NewCounterWithOpts("", "external_metrics_updated",
+	metricsUpdated = telemetryimpl.GetCompatComponent().NewCounterWithOpts("", "external_metrics_updated",
 		[]string{"metric", le.JoinLeaderLabel}, "increased by 1 everytime a metric value is updated",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	metricsDelay = telemetry.NewGaugeWithOpts("", "external_metrics_delay_seconds",
+	metricsDelay = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("", "external_metrics_delay_seconds",
 		[]string{"metric", le.JoinLeaderLabel}, "freshness of the metric evaluated from querying Datadog",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	rateLimitsRemaining = telemetry.NewGaugeWithOpts("", "rate_limit_queries_remaining",
+	rateLimitsRemaining = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("", "rate_limit_queries_remaining",
 		[]string{"endpoint", le.JoinLeaderLabel}, "number of queries remaining before next reset",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	rateLimitsRemainingMin = telemetry.NewGaugeWithOpts("", "rate_limit_queries_remaining_min",
+	rateLimitsRemainingMin = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("", "rate_limit_queries_remaining_min",
 		[]string{"endpoint", le.JoinLeaderLabel}, "minimum number of queries remaining before next reset observed during an expiration interval of 2*refresh period",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	rateLimitsReset = telemetry.NewGaugeWithOpts("", "rate_limit_queries_reset",
+	rateLimitsReset = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("", "rate_limit_queries_reset",
 		[]string{"endpoint", le.JoinLeaderLabel}, "number of seconds before next reset",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	rateLimitsPeriod = telemetry.NewGaugeWithOpts("", "rate_limit_queries_period",
+	rateLimitsPeriod = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("", "rate_limit_queries_period",
 		[]string{"endpoint", le.JoinLeaderLabel}, "period of rate limiting",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
-	rateLimitsLimit = telemetry.NewGaugeWithOpts("", "rate_limit_queries_limit",
+	rateLimitsLimit = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("", "rate_limit_queries_limit",
 		[]string{"endpoint", le.JoinLeaderLabel}, "maximum number of queries allowed in the period",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )

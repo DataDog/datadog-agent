@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -55,7 +55,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 		testName := fmt.Sprintf("%s %s %d %s", tc.method, tc.path, tc.code, tc.duration)
 		t.Run(testName, func(t *testing.T) {
 			clock := clock.NewMock()
-			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+			telemetry := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 			tm := newTelemetryMiddlewareFactory(telemetry, clock, NoopAuthTagGetter)
 			telemetryHandler := tm.Middleware(serverName)
 
@@ -63,7 +63,12 @@ func TestTelemetryMiddleware(t *testing.T) {
 				clock.Add(tc.duration)
 				w.WriteHeader(tc.code)
 			}
-			server := httptest.NewServer(telemetryHandler(tcHandler))
+
+			// Use WrapWithRouteTemplate so the telemetry middleware resolves the route
+			// template instead of the raw request path for the metric tag.
+			mux := http.NewServeMux()
+			WrapWithRouteTemplate(mux, tc.method, tc.path, tcHandler)
+			server := httptest.NewServer(telemetryHandler(mux))
 			defer server.Close()
 
 			url := url.URL{
@@ -101,8 +106,29 @@ func TestTelemetryMiddleware(t *testing.T) {
 	}
 }
 
+func TestTelemetryMiddlewareUnmatchedRouteUsesUnknown(t *testing.T) {
+	telemetry := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
+	tm := newTelemetryMiddlewareFactory(telemetry, clock.NewMock(), NoopAuthTagGetter)
+	telemetryHandler := tm.Middleware("test")
+
+	// No routes registered — no WrapWithRouteTemplate wrapping, so template stays empty.
+	mux := http.NewServeMux()
+	server := httptest.NewServer(telemetryHandler(mux))
+	defer server.Close()
+
+	resp, err := server.Client().Get(server.URL + "/arbitrary/user/input")
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	observabilityMetric, err := telemetry.GetHistogramMetric(MetricSubsystem, MetricName)
+	require.NoError(t, err)
+	require.Len(t, observabilityMetric, 1)
+
+	assert.Equal(t, "unknown", observabilityMetric[0].Tags()["path"])
+}
+
 func TestTelemetryMiddlewareDuration(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetry := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	telemetryHandler := NewTelemetryMiddlewareFactory(telemetry, NoopAuthTagGetter).Middleware("test")
 
 	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
@@ -122,7 +148,7 @@ func TestTelemetryMiddlewareDuration(t *testing.T) {
 }
 
 func TestTelemetryMiddlewareTwice(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetry := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	tm := NewTelemetryMiddlewareFactory(telemetry, NoopAuthTagGetter)
 
 	// test that we can create multiple middleware instances

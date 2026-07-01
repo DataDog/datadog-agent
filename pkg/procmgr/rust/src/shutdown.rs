@@ -26,16 +26,21 @@ pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::process::tests::make_config;
     use crate::state::ProcessState;
+    use crate::test_helpers;
+
+    fn sleep_config() -> crate::config::ProcessConfig {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        test_helpers::make_config(cmd, args)
+    }
 
     #[tokio::test]
     async fn test_shutdown_all_graceful() {
-        let cfg1 = make_config("/bin/sleep", vec!["60"]);
-        let cfg2 = make_config("/bin/sleep", vec!["60"]);
+        let cfg1 = sleep_config();
+        let cfg2 = sleep_config();
 
-        let mut p1 = ManagedProcess::new("p1".into(), cfg1);
-        let mut p2 = ManagedProcess::new("p2".into(), cfg2);
+        let mut p1 = ManagedProcess::new_config("p1".into(), test_helpers::test_uuid(), cfg1);
+        let mut p2 = ManagedProcess::new_config("p2".into(), test_helpers::test_uuid(), cfg2);
         p1.spawn().unwrap();
         p2.spawn().unwrap();
 
@@ -56,9 +61,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_all_sigkill_on_timeout() {
-        let mut cfg = make_config("/bin/sh", vec!["-c", "trap '' TERM; sleep 60"]);
+        let (cmd, args) = test_helpers::trap_term_sleep();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.stop_timeout = Some(1);
-        let mut proc = ManagedProcess::new("stubborn".into(), cfg);
+        let mut proc =
+            ManagedProcess::new_config("stubborn".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
 
         let mut procs = vec![proc];
@@ -69,7 +76,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_all_after_take_child() {
-        let mut proc = ManagedProcess::new("t".into(), make_config("/bin/sleep", vec!["60"]));
+        let mut proc =
+            ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), sleep_config());
         proc.spawn().unwrap();
         let _child = proc.take_child();
 
@@ -85,9 +93,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_ordered_reverse() {
-        let mut p1 = ManagedProcess::new("p1".into(), make_config("/bin/sleep", vec!["60"]));
-        let mut p2 = ManagedProcess::new("p2".into(), make_config("/bin/sleep", vec!["60"]));
-        let mut p3 = ManagedProcess::new("p3".into(), make_config("/bin/sleep", vec!["60"]));
+        let mut p1 =
+            ManagedProcess::new_config("p1".into(), test_helpers::test_uuid(), sleep_config());
+        let mut p2 =
+            ManagedProcess::new_config("p2".into(), test_helpers::test_uuid(), sleep_config());
+        let mut p3 =
+            ManagedProcess::new_config("p3".into(), test_helpers::test_uuid(), sleep_config());
         p1.spawn().unwrap();
         p2.spawn().unwrap();
         p3.spawn().unwrap();

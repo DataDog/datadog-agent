@@ -27,7 +27,7 @@ func TestGetPayloadRefreshesCachedValues(t *testing.T) {
 		{DisplayName: "FooApp", ProductCode: "foo", Source: "app"},
 		{DisplayName: "BarApp", ProductCode: "bar", Source: "pkg"},
 	})
-	is := f.sut().WaitForSystemProbe()
+	is := f.sut().WaitForPayload()
 
 	// Status JSON should trigger a refresh of cached values
 	stats := make(map[string]interface{})
@@ -42,7 +42,7 @@ func TestGetPayloadRefreshesCachedValues(t *testing.T) {
 	assert.Equal(t, 2, stats["software_inventory_total"])
 	// Note: The exact structure of stats depends on how the JSON is marshaled
 	// This test may need adjustment based on the actual output format
-	f.sysProbeClient.AssertNumberOfCalls(t, "GetCheck", 1)
+	f.sysProbeClientAsMock().AssertNumberOfCalls(t, "GetCheck", 1)
 }
 
 func TestStatusTemplates(t *testing.T) {
@@ -111,7 +111,7 @@ func TestStatusTemplates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFixtureWithData(t, true, tt.mockData)
-			is := f.sut().WaitForSystemProbe()
+			is := f.sut().WaitForPayload()
 
 			// Test Text template
 			var buf bytes.Buffer
@@ -129,14 +129,14 @@ func TestStatusTemplates(t *testing.T) {
 			}
 
 			// Verify that we only call GetCheck once per test case
-			f.sysProbeClient.AssertNumberOfCalls(t, "GetCheck", 1)
+			f.sysProbeClientAsMock().AssertNumberOfCalls(t, "GetCheck", 1)
 		})
 	}
 }
 
 func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
 	f := newFixtureWithData(t, true, []software.Entry{})
-	is := f.sut().WaitForSystemProbe()
+	is := f.sut().WaitForPayload()
 
 	// Test Text template
 	var buf bytes.Buffer
@@ -154,7 +154,7 @@ func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
 	assert.Contains(t, buf.String(), "<strong>Summary:</strong> 0 entries")
 
 	// The populateStatus caches the values once.
-	f.sysProbeClient.AssertNumberOfCalls(t, "GetCheck", 1)
+	f.sysProbeClientAsMock().AssertNumberOfCalls(t, "GetCheck", 1)
 }
 
 func TestStatusStatsComputation(t *testing.T) {
@@ -167,7 +167,7 @@ func TestStatusStatsComputation(t *testing.T) {
 		{DisplayName: "curl", ProductCode: "curl", Source: "homebrew"},
 		{DisplayName: "Python Driver", ProductCode: "python-driver", Source: "pkg"},
 	})
-	is := f.sut().WaitForSystemProbe()
+	is := f.sut().WaitForPayload()
 
 	stats := make(map[string]interface{})
 	err := is.JSON(false, stats)
@@ -196,7 +196,7 @@ func TestStatusBrokenCount(t *testing.T) {
 		{DisplayName: "AnotherGood", ProductCode: "good2", Source: "pkg", Status: "installed"},
 		{DisplayName: "AnotherBroken", ProductCode: "broken2", Source: "pkg", Status: "broken"},
 	})
-	is := f.sut().WaitForSystemProbe()
+	is := f.sut().WaitForPayload()
 
 	stats := make(map[string]interface{})
 	err := is.JSON(false, stats)
@@ -217,7 +217,7 @@ func TestStatusTextTemplateWithStats(t *testing.T) {
 		{DisplayName: "App2", ProductCode: "app2", Source: "app"},
 		{DisplayName: "Brew1", ProductCode: "brew1", Source: "homebrew"},
 	})
-	is := f.sut().WaitForSystemProbe()
+	is := f.sut().WaitForPayload()
 
 	var buf bytes.Buffer
 	err := is.Text(false, &buf)
@@ -235,7 +235,7 @@ func TestStatusTextTemplateWithBrokenEntries(t *testing.T) {
 		{DisplayName: "GoodApp", ProductCode: "good", Source: "app", Status: "installed"},
 		{DisplayName: "BrokenApp", ProductCode: "broken", Source: "app", Status: "broken"},
 	})
-	is := f.sut().WaitForSystemProbe()
+	is := f.sut().WaitForPayload()
 
 	var buf bytes.Buffer
 	err := is.Text(false, &buf)
@@ -251,7 +251,7 @@ func TestStatusHTMLTemplateWithStats(t *testing.T) {
 		{DisplayName: "App1", ProductCode: "app1", Source: "app"},
 		{DisplayName: "Brew1", ProductCode: "brew1", Source: "homebrew"},
 	})
-	is := f.sut().WaitForSystemProbe()
+	is := f.sut().WaitForPayload()
 
 	var buf bytes.Buffer
 	err := is.HTML(false, &buf)

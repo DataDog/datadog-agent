@@ -65,8 +65,7 @@ func assertCurlAgentRcServiceContainsEventually(t *testing.T, rh *components.Rem
 	copy(missingContents, expectedKeys)
 	foundContents := make(map[string]bool, len(expectedKeys))
 	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
-		curlOutput, err := rh.Execute(fmt.Sprintf("curl -sSL localhost:8126/v0.7/config -d @- <<EOF\n%sEOF", payload))
-		assert.NoError(c, err)
+		curlOutput := rh.MustExecuteOn(c, fmt.Sprintf("curl -sSL localhost:8126/v0.7/config -d @- <<EOF\n%sEOF", payload))
 		for _, content := range missingContents {
 			if strings.Contains(curlOutput, content) {
 				t.Logf("found content: %s", content)

@@ -17,7 +17,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	ssistatus "github.com/DataDog/datadog-agent/comp/updater/ssistatus/def"
 )
 
@@ -131,6 +131,8 @@ func (c *ssiStatusComponent) populateStatus(stats map[string]interface{}) {
 	modes := make(map[string]bool)
 	switch os := runtime.GOOS; os {
 	case "windows":
+		modes["iis"] = slices.Contains(instrumentationModes, "iis")
+		modes["host"] = slices.Contains(instrumentationModes, "host")
 	case "linux":
 		modes["host"] = slices.Contains(instrumentationModes, "host")
 		modes["docker"] = slices.Contains(instrumentationModes, "docker")

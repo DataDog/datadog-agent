@@ -52,7 +52,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 	"github.com/samber/lo"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
@@ -66,6 +66,8 @@ import (
 const (
 	fakeintakeIDHeader           = "Fakeintake-ID"
 	metricsEndpoint              = "/api/v2/series"
+	metricsV3Endpoint            = "/api/intake/metrics/v3/series"
+	sketchesEndpoint             = "/api/beta/sketches"
 	intakeEndpoint               = "/intake/"
 	checkRunsEndpoint            = "/api/v1/check_run"
 	logsEndpoint                 = "/api/v2/logs"
@@ -129,6 +131,8 @@ type Client struct {
 	getBackoffDelay   time.Duration
 
 	metricAggregator               aggregator.MetricAggregator
+	metricAggregatorV3             aggregator.MetricAggregator
+	sketchAggregator               aggregator.SketchAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
 	eventAggregator                aggregator.EventAggregator
 	logAggregator                  aggregator.LogAggregator
@@ -150,6 +154,7 @@ type Client struct {
 	ncmAggregator                  aggregator.NCMAggregator
 	hostAggregator                 aggregator.HostTagsAggregator
 	agentHealthAggregator          aggregator.AgentHealthAggregator
+	agentTelemetryLogAggregator    aggregator.AgentTelemetryLogAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -162,6 +167,8 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		getBackoffDelay:                5 * time.Second,
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
+		metricAggregatorV3:             aggregator.NewMetricAggregatorV3(),
+		sketchAggregator:               aggregator.NewSketchAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
 		eventAggregator:                aggregator.NewEventAggregator(),
 		logAggregator:                  aggregator.NewLogAggregator(),
@@ -183,6 +190,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ncmAggregator:                  aggregator.NewNCMAggregator(),
 		hostAggregator:                 aggregator.NewHostTagsAggregator(),
 		agentHealthAggregator:          aggregator.NewAgentHealthAggregator(),
+		agentTelemetryLogAggregator:    aggregator.NewAgentTelemetryLogAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -358,6 +366,14 @@ func (c *Client) getHostTags() error {
 	return c.hostAggregator.UnmarshallPayloads(payloads)
 }
 
+func (c *Client) getSketches() error {
+	payloads, err := c.getFakePayloads(sketchesEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.sketchAggregator.UnmarshallPayloads(payloads)
+}
+
 func (c *Client) getAgentHealth() error {
 	payloads, err := c.getFakePayloads(agentHealthEndpoint)
 	if err != nil {
@@ -366,14 +382,41 @@ func (c *Client) getAgentHealth() error {
 	return c.agentHealthAggregator.UnmarshallPayloads(payloads)
 }
 
-// FilterMetrics fetches fakeintake on `/api/v2/series` endpoint and returns
-// metrics matching `name` and any [MatchOpt](#MatchOpt) options
+func (c *Client) getAgentTelemetryLogs() error {
+	payloads, err := c.getFakePayloads(apmTelemetryEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.agentTelemetryLogAggregator.UnmarshallPayloads(payloads)
+}
+
+// FilterMetrics fetches fakeintake on both `/api/v2/series` and `/api/intake/metrics/v3/series`
+// and returns metrics matching `name` and any [MatchOpt](#MatchOpt) options.
+// Results from both endpoints are merged.
 func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.MetricSeries]) ([]*aggregator.MetricSeries, error) {
 	metrics, err := c.getMetric(name)
 	if err != nil {
 		return nil, err
 	}
 	return filterPayload(metrics, options...)
+}
+
+// FilterSketches fetches fakeintake on `/api/beta/sketches` and returns sketches
+// matching `name` and any [MatchOpt](#MatchOpt) options. Use this for distribution
+// metrics — counters/gauges go through FilterMetrics instead.
+func (c *Client) FilterSketches(name string, options ...MatchOpt[*aggregator.Sketch]) ([]*aggregator.Sketch, error) {
+	if err := c.getSketches(); err != nil {
+		return nil, err
+	}
+	return filterPayload(c.sketchAggregator.GetPayloadsByName(name), options...)
+}
+
+func (c *Client) getMetricsV3() error {
+	payloads, err := c.getFakePayloads(metricsV3Endpoint)
+	if err != nil {
+		return err
+	}
+	return c.metricAggregatorV3.UnmarshallPayloads(payloads)
 }
 
 // FilterCheckRuns fetches fakeintake on `/api/v1/check_run` endpoint and returns
@@ -497,24 +540,48 @@ func (c *Client) GetLastAPIKey() (string, error) {
 }
 
 func (c *Client) getMetric(name string) ([]*aggregator.MetricSeries, error) {
-	err := c.getMetrics()
-	if err != nil {
+	if err := c.getMetrics(); err != nil {
 		return nil, err
 	}
-	return c.metricAggregator.GetPayloadsByName(name), nil
+	if err := c.getMetricsV3(); err != nil {
+		return nil, err
+	}
+	return append(
+		c.metricAggregator.GetPayloadsByName(name),
+		c.metricAggregatorV3.GetPayloadsByName(name)...,
+	), nil
 }
 
 // A MatchOpt to filter fakeintake payloads
 type MatchOpt[P aggregator.PayloadItem] func(payload P) (bool, error)
 
-// GetMetricNames fetches fakeintake on `/api/v2/series` endpoint and returns
-// all received metric names
+// GetMetricNames fetches fakeintake on both `/api/v2/series` and `/api/intake/metrics/v3/series`
+// and returns all received metric names.
 func (c *Client) GetMetricNames() ([]string, error) {
-	err := c.getMetrics()
-	if err != nil {
+	if err := c.getMetrics(); err != nil {
 		return nil, err
 	}
-	return c.metricAggregator.GetNames(), nil
+	if err := c.getMetricsV3(); err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{}
+	for _, name := range append(c.metricAggregator.GetNames(), c.metricAggregatorV3.GetNames()...) {
+		seen[name] = struct{}{}
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	return names, nil
+}
+
+// GetSketchNames fetches fakeintake on `/api/beta/sketches` and returns every
+// distinct sketch metric name received.
+func (c *Client) GetSketchNames() ([]string, error) {
+	if err := c.getSketches(); err != nil {
+		return nil, err
+	}
+	return c.sketchAggregator.GetNames(), nil
 }
 
 // WithTags filters by `tags`
@@ -680,9 +747,12 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.checkRunAggregator.Reset()
 	c.connectionAggregator.Reset()
 	c.metricAggregator.Reset()
+	c.metricAggregatorV3.Reset()
+	c.sketchAggregator.Reset()
 	c.logAggregator.Reset()
 	c.apmStatsAggregator.Reset()
 	c.traceAggregator.Reset()
+	c.agentTelemetryLogAggregator.Reset()
 	return nil
 }
 
@@ -1126,6 +1196,21 @@ func (c *Client) GetHosts() ([]string, error) {
 	}
 
 	return c.hostAggregator.GetNames(), nil
+}
+
+// GetAgentTelemetryLogs fetches fakeintake on `/api/v2/apmtelemetry` and returns
+// all agent-logs telemetry records received since the last flush. Each call
+// fetches the server's full accumulated state (UnmarshallPayloads replaces, not
+// appends). Payloads whose request_type is not "agent-logs" are silently skipped.
+func (c *Client) GetAgentTelemetryLogs() ([]*aggregator.AgentTelemetryLog, error) {
+	if err := c.getAgentTelemetryLogs(); err != nil {
+		return nil, err
+	}
+	var logs []*aggregator.AgentTelemetryLog
+	for _, name := range c.agentTelemetryLogAggregator.GetNames() {
+		logs = append(logs, c.agentTelemetryLogAggregator.GetPayloadsByName(name)...)
+	}
+	return logs, nil
 }
 
 // GetAgentHealth fetches fakeintake on `/api/v2/agenthealth` endpoint and returns all received agent health payloads

@@ -44,7 +44,7 @@ func TestUSMEventStream(t *testing.T) {
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_event_stream", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.enable_event_stream", false)
 		cfg := New()
 
 		assert.False(t, cfg.EnableUSMEventStream)
@@ -69,7 +69,7 @@ func TestUSMKernelBufferPages(t *testing.T) {
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.kernel_buffer_pages", 109)
+		mockSystemProbe.SetInTest("service_monitoring_config.kernel_buffer_pages", 109)
 		cfg := New()
 
 		assert.Equal(t, cfg.USMKernelBufferPages, 109)
@@ -94,7 +94,7 @@ func TestUSMDataChannelSize(t *testing.T) {
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.data_channel_size", 109)
+		mockSystemProbe.SetInTest("service_monitoring_config.data_channel_size", 109)
 		cfg := New()
 
 		assert.Equal(t, cfg.USMDataChannelSize, 109)
@@ -121,7 +121,7 @@ func TestMaxUSMConcurrentRequests(t *testing.T) {
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_concurrent_requests", 1000)
+		mockSystemProbe.SetInTest("service_monitoring_config.max_concurrent_requests", 1000)
 		cfg := New()
 
 		assert.Equal(t, uint32(1000), cfg.MaxUSMConcurrentRequests)
@@ -145,7 +145,7 @@ func TestUSMDirectBufferWakeupCount(t *testing.T) {
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.buffer_wakeup_count_per_cpu", 64)
+		mockSystemProbe.SetInTest("service_monitoring_config.direct_consumer.buffer_wakeup_count_per_cpu", 64)
 		cfg := New()
 		assert.Equal(t, 64, cfg.DirectConsumerBufferWakeupCountPerCPU)
 	})
@@ -167,7 +167,7 @@ func TestUSMDirectChannelSize(t *testing.T) {
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.channel_size", 2000)
+		mockSystemProbe.SetInTest("service_monitoring_config.direct_consumer.channel_size", 2000)
 		cfg := New()
 		assert.Equal(t, 2000, cfg.DirectConsumerChannelSize)
 	})
@@ -189,7 +189,7 @@ func TestUSMDirectKernelBufferSize(t *testing.T) {
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.kernel_buffer_size_per_cpu", 131072)
+		mockSystemProbe.SetInTest("service_monitoring_config.direct_consumer.kernel_buffer_size_per_cpu", 131072)
 		cfg := New()
 		assert.Equal(t, 131072, cfg.DirectConsumerKernelBufferSizePerCPU)
 	})
@@ -215,7 +215,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.enable_http_monitoring", false)
+		mockSystemProbe.SetInTest("network_config.enable_http_monitoring", false)
 		cfg := New()
 
 		assert.False(t, cfg.EnableHTTPMonitoring)
@@ -234,7 +234,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 
 	t.Run("via deprecated flat YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http_monitoring", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.enable_http_monitoring", false)
 		cfg := New()
 
 		assert.False(t, cfg.EnableHTTPMonitoring)
@@ -253,7 +253,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 
 	t.Run("via tree structure YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.enabled", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.enabled", false)
 		cfg := New()
 
 		assert.False(t, cfg.EnableHTTPMonitoring)
@@ -340,11 +340,8 @@ func TestHTTPReplaceRules(t *testing.T) {
 
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.http_replace_rules", []map[string]string{
-			{"pattern": "/users/(.*)", "repl": "/users/?"},
-			{"pattern": "foo", "repl": "bar"},
-			{"pattern": "payment_id"},
-		})
+		mockSystemProbe.SetInTest("network_config.http_replace_rules", []map[string]string{{"pattern": "/users/(.*)", "repl": "/users/?"}, {"pattern": "foo", "repl": "bar"}, {"pattern": "payment_id"}})
+
 		cfg := New()
 
 		require.Len(t, cfg.HTTPReplaceRules, 3)
@@ -366,11 +363,8 @@ func TestHTTPReplaceRules(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.http_replace_rules", []map[string]string{
-			{"pattern": "/users/(.*)", "repl": "/users/?"},
-			{"pattern": "foo", "repl": "bar"},
-			{"pattern": "payment_id"},
-		})
+		mockSystemProbe.SetInTest("network_config.http_replace_rules", []map[string]string{{"pattern": "/users/(.*)", "repl": "/users/?"}, {"pattern": "foo", "repl": "bar"}, {"pattern": "payment_id"}})
+
 		cfg := New()
 
 		require.Len(t, cfg.HTTPReplaceRules, 3)
@@ -392,11 +386,8 @@ func TestHTTPReplaceRules(t *testing.T) {
 
 	t.Run("via tree structure YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.replace_rules", []map[string]string{
-			{"pattern": "/users/(.*)", "repl": "/users/?"},
-			{"pattern": "foo", "repl": "bar"},
-			{"pattern": "payment_id"},
-		})
+		mockSystemProbe.SetInTest("service_monitoring_config.http.replace_rules", []map[string]string{{"pattern": "/users/(.*)", "repl": "/users/?"}, {"pattern": "foo", "repl": "bar"}, {"pattern": "payment_id"}})
+
 		cfg := New()
 
 		require.Len(t, cfg.HTTPReplaceRules, 3)
@@ -469,7 +460,7 @@ func TestHTTPReplaceRules(t *testing.T) {
 func TestMaxTrackedHTTPConnections(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.max_tracked_http_connections", 1025)
+		mockSystemProbe.SetInTest("network_config.max_tracked_http_connections", 1025)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
@@ -485,7 +476,7 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_tracked_http_connections", 1025)
+		mockSystemProbe.SetInTest("service_monitoring_config.max_tracked_http_connections", 1025)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
@@ -536,7 +527,7 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 func TestMaxHTTPStatsBuffered(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.max_http_stats_buffered", 513)
+		mockSystemProbe.SetInTest("network_config.max_http_stats_buffered", 513)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
@@ -552,7 +543,7 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_http_stats_buffered", 513)
+		mockSystemProbe.SetInTest("service_monitoring_config.max_http_stats_buffered", 513)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
@@ -603,7 +594,7 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 func TestHTTPMapCleanerInterval(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("system_probe_config.http_map_cleaner_interval_in_s", 1025)
+		mockSystemProbe.SetInTest("system_probe_config.http_map_cleaner_interval_in_s", 1025)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
@@ -619,7 +610,7 @@ func TestHTTPMapCleanerInterval(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_map_cleaner_interval_in_s", 1025)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_map_cleaner_interval_in_s", 1025)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
@@ -670,7 +661,7 @@ func TestHTTPMapCleanerInterval(t *testing.T) {
 func TestHTTPIdleConnectionTTL(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("system_probe_config.http_idle_connection_ttl_in_s", 1025)
+		mockSystemProbe.SetInTest("system_probe_config.http_idle_connection_ttl_in_s", 1025)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTPIdleConnectionTTL, 1025*time.Second)
@@ -686,7 +677,7 @@ func TestHTTPIdleConnectionTTL(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_idle_connection_ttl_in_s", 1025)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_idle_connection_ttl_in_s", 1025)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTPIdleConnectionTTL, 1025*time.Second)
@@ -737,7 +728,7 @@ func TestHTTPIdleConnectionTTL(t *testing.T) {
 func TestHTTPNotificationThreshold(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.http_notification_threshold", validNotificationThreshold)
+		mockSystemProbe.SetInTest("network_config.http_notification_threshold", validNotificationThreshold)
 		cfg := New()
 		require.Equal(t, cfg.HTTPNotificationThreshold, int64(validNotificationThreshold))
 	})
@@ -752,7 +743,7 @@ func TestHTTPNotificationThreshold(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_notification_threshold", validNotificationThreshold)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_notification_threshold", validNotificationThreshold)
 		cfg := New()
 		require.Equal(t, cfg.HTTPNotificationThreshold, int64(validNotificationThreshold))
 	})
@@ -803,7 +794,7 @@ func TestHTTPNotificationThreshold(t *testing.T) {
 func TestHTTPNotificationThresholdOverLimit(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.http_notification_threshold", invalidNotificationThreshold)
+		mockSystemProbe.SetInTest("network_config.http_notification_threshold", invalidNotificationThreshold)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
@@ -819,7 +810,7 @@ func TestHTTPNotificationThresholdOverLimit(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_notification_threshold", invalidNotificationThreshold)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_notification_threshold", invalidNotificationThreshold)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
@@ -870,7 +861,7 @@ func TestHTTPNotificationThresholdOverLimit(t *testing.T) {
 func TestHTTPMaxRequestFragment(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.http_max_request_fragment", 155)
+		mockSystemProbe.SetInTest("network_config.http_max_request_fragment", 155)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(155))
@@ -886,7 +877,7 @@ func TestHTTPMaxRequestFragment(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_max_request_fragment", 155)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_max_request_fragment", 155)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(155))
@@ -938,7 +929,7 @@ func TestHTTPMaxRequestFragment(t *testing.T) {
 func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.http_max_request_fragment", invalidHTTPRequestFragment)
+		mockSystemProbe.SetInTest("network_config.http_max_request_fragment", invalidHTTPRequestFragment)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
@@ -954,7 +945,7 @@ func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_max_request_fragment", invalidHTTPRequestFragment)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_max_request_fragment", invalidHTTPRequestFragment)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
@@ -1009,7 +1000,7 @@ func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 func TestEnableHTTP2Monitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.http2.enabled", true)
 		cfg := New()
 
 		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
@@ -1044,7 +1035,7 @@ func TestDefaultDisabledHTTP2Support(t *testing.T) {
 func TestHTTP2DynamicTableMapCleanerInterval(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 1025)
+		mockSystemProbe.SetInTest("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 1025)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 1025*time.Second)
@@ -1074,7 +1065,7 @@ func TestHTTP2DynamicTableMapCleanerInterval(t *testing.T) {
 func TestEnableKafkaMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.kafka.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.kafka.enabled", true)
 		cfg := New()
 
 		assert.True(t, cfg.EnableKafkaMonitoring)
@@ -1093,7 +1084,7 @@ func TestEnableKafkaMonitoring(t *testing.T) {
 
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_kafka_monitoring", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.enable_kafka_monitoring", true)
 		cfg := New()
 
 		assert.True(t, cfg.EnableKafkaMonitoring)
@@ -1132,7 +1123,7 @@ func TestEnableKafkaMonitoring(t *testing.T) {
 func TestMaxKafkaStatsBuffered(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.kafka.max_stats_buffered", 30000)
+		mockSystemProbe.SetInTest("service_monitoring_config.kafka.max_stats_buffered", 30000)
 		cfg := New()
 
 		assert.Equal(t, 30000, cfg.MaxKafkaStatsBuffered)
@@ -1148,7 +1139,7 @@ func TestMaxKafkaStatsBuffered(t *testing.T) {
 
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_kafka_stats_buffered", 30000)
+		mockSystemProbe.SetInTest("service_monitoring_config.max_kafka_stats_buffered", 30000)
 		cfg := New()
 
 		assert.Equal(t, 30000, cfg.MaxKafkaStatsBuffered)
@@ -1165,8 +1156,8 @@ func TestMaxKafkaStatsBuffered(t *testing.T) {
 	t.Run("both enabled - new config takes precedence", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		// Set both old and new config keys
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_kafka_stats_buffered", 40000)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.kafka.max_stats_buffered", 50000)
+		mockSystemProbe.SetInTest("service_monitoring_config.max_kafka_stats_buffered", 40000)
+		mockSystemProbe.SetInTest("service_monitoring_config.kafka.max_stats_buffered", 50000)
 		cfg := New()
 
 		// New config should take precedence
@@ -1188,7 +1179,7 @@ func TestMaxKafkaStatsBuffered(t *testing.T) {
 func TestEnablePostgresMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.postgres.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.postgres.enabled", true)
 		cfg := New()
 
 		assert.True(t, cfg.EnablePostgresMonitoring)
@@ -1224,7 +1215,7 @@ func TestMaxPostgresTelemetryBuffered(t *testing.T) {
 
 	t.Run("value set through yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.postgres.max_telemetry_buffer", 30000)
+		mockSystemProbe.SetInTest("service_monitoring_config.postgres.max_telemetry_buffer", 30000)
 
 		cfg := New()
 		assert.Equal(t, 30000, cfg.MaxPostgresTelemetryBuffer)
@@ -1242,7 +1233,7 @@ func TestMaxPostgresStatsBuffered(t *testing.T) {
 
 	t.Run("value set through yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.postgres.max_stats_buffered", 30000)
+		mockSystemProbe.SetInTest("service_monitoring_config.postgres.max_stats_buffered", 30000)
 		cfg := New()
 
 		assert.Equal(t, 30000, cfg.MaxPostgresStatsBuffered)
@@ -1263,7 +1254,7 @@ func TestMaxPostgresStatsBuffered(t *testing.T) {
 func TestEnableRedisMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.redis.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.redis.enabled", true)
 		cfg := New()
 
 		// Redis may be disabled by adjust_usm.go on kernels < 5.4
@@ -1295,7 +1286,7 @@ func TestEnableRedisMonitoring(t *testing.T) {
 func TestRedisTrackResources(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.redis.track_resources", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.redis.track_resources", true)
 		cfg := New()
 
 		assert.True(t, cfg.RedisTrackResources)
@@ -1328,7 +1319,7 @@ func TestMaxRedisStatsBuffered(t *testing.T) {
 
 	t.Run("value set through yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.redis.max_stats_buffered", 30000)
+		mockSystemProbe.SetInTest("service_monitoring_config.redis.max_stats_buffered", 30000)
 		cfg := New()
 
 		assert.Equal(t, 30000, cfg.MaxRedisStatsBuffered)
@@ -1356,7 +1347,7 @@ func TestUSMTLSNativeEnabled(t *testing.T) {
 
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.enable_https_monitoring", false)
+		mockSystemProbe.SetInTest("network_config.enable_https_monitoring", false)
 		cfg := New()
 
 		assert.False(t, cfg.EnableNativeTLSMonitoring)
@@ -1372,7 +1363,7 @@ func TestUSMTLSNativeEnabled(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.native.enabled", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.tls.native.enabled", false)
 		cfg := New()
 
 		assert.False(t, cfg.EnableNativeTLSMonitoring)
@@ -1421,7 +1412,7 @@ func TestUSMTLSNativeEnabled(t *testing.T) {
 func TestUSMTLSGoEnabled(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_go_tls_support", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.enable_go_tls_support", false)
 		cfg := New()
 
 		require.False(t, cfg.EnableGoTLSSupport)
@@ -1437,7 +1428,7 @@ func TestUSMTLSGoEnabled(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.go.enabled", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.tls.go.enabled", false)
 		cfg := New()
 
 		require.False(t, cfg.EnableGoTLSSupport)
@@ -1480,7 +1471,7 @@ func TestUSMTLSGoEnabled(t *testing.T) {
 
 	t.Run("Deprecated is disabled takes precedence over default", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_go_tls_support", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.enable_go_tls_support", false)
 		cfg := New()
 
 		require.False(t, cfg.EnableGoTLSSupport)
@@ -1497,7 +1488,7 @@ func TestUSMTLSGoEnabled(t *testing.T) {
 func TestUSMTLSGoExcludeSelf(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.go.exclude_self", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.tls.go.exclude_self", false)
 		cfg := New()
 
 		require.False(t, cfg.GoTLSExcludeSelf)
@@ -1534,7 +1525,7 @@ func TestNodeJSMonitoring(t *testing.T) {
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.nodejs.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.tls.nodejs.enabled", true)
 		cfg := New()
 
 		assert.True(t, cfg.EnableNodeJSMonitoring)
@@ -1563,7 +1554,7 @@ func TestIstioMonitoring(t *testing.T) {
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.istio.enabled", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.tls.istio.enabled", false)
 		cfg := New()
 
 		assert.False(t, cfg.EnableIstioMonitoring)
@@ -1588,7 +1579,7 @@ func TestEnvoyPathConfig(t *testing.T) {
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.istio.envoy_path", "/test/envoy")
+		mockSystemProbe.SetInTest("service_monitoring_config.tls.istio.envoy_path", "/test/envoy")
 		cfg := New()
 
 		assert.EqualValues(t, "/test/envoy", cfg.EnvoyPath)
@@ -1606,8 +1597,8 @@ func TestEnvoyPathConfig(t *testing.T) {
 func TestHTTP2ConfigMigration(t *testing.T) {
 	t.Run("new tree structure config", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.enabled", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 45)
+		mockSystemProbe.SetInTest("service_monitoring_config.http2.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 45)
 		cfg := New()
 
 		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
@@ -1618,8 +1609,8 @@ func TestHTTP2ConfigMigration(t *testing.T) {
 
 	t.Run("backward compatibility with old flat keys", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http2_monitoring", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 60)
+		mockSystemProbe.SetInTest("service_monitoring_config.enable_http2_monitoring", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 60)
 		cfg := New()
 
 		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
@@ -1631,10 +1622,10 @@ func TestHTTP2ConfigMigration(t *testing.T) {
 	t.Run("new tree structure takes precedence", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		// Set both old and new
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http2_monitoring", false)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.enabled", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 30)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 90)
+		mockSystemProbe.SetInTest("service_monitoring_config.enable_http2_monitoring", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.http2.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 30)
+		mockSystemProbe.SetInTest("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 90)
 		cfg := New()
 
 		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
@@ -1667,13 +1658,13 @@ func TestHTTP2ConfigMigration(t *testing.T) {
 func TestHTTPConfigMigration(t *testing.T) {
 	t.Run("new tree structure config", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.enabled", false)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_stats_buffered", 50000)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_tracked_connections", 2048)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.notification_threshold", 256)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_request_fragment", 256)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.map_cleaner_interval_seconds", 600)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.idle_connection_ttl_seconds", 60)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.enabled", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.max_stats_buffered", 50000)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.max_tracked_connections", 2048)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.notification_threshold", 256)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.max_request_fragment", 256)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.map_cleaner_interval_seconds", 600)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.idle_connection_ttl_seconds", 60)
 		cfg := New()
 
 		assert.False(t, cfg.EnableHTTPMonitoring)
@@ -1687,13 +1678,13 @@ func TestHTTPConfigMigration(t *testing.T) {
 
 	t.Run("backward compatibility with old flat keys", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http_monitoring", false)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_http_stats_buffered", 75000)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_tracked_http_connections", 4096)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_notification_threshold", 128)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_max_request_fragment", 128)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_map_cleaner_interval_in_s", 900)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_idle_connection_ttl_in_s", 90)
+		mockSystemProbe.SetInTest("service_monitoring_config.enable_http_monitoring", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.max_http_stats_buffered", 75000)
+		mockSystemProbe.SetInTest("service_monitoring_config.max_tracked_http_connections", 4096)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_notification_threshold", 128)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_max_request_fragment", 128)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_map_cleaner_interval_in_s", 900)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_idle_connection_ttl_in_s", 90)
 		cfg := New()
 
 		assert.False(t, cfg.EnableHTTPMonitoring)
@@ -1708,20 +1699,20 @@ func TestHTTPConfigMigration(t *testing.T) {
 	t.Run("new tree structure takes precedence", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		// Set both old and new
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http_monitoring", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.enabled", false)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_http_stats_buffered", 75000)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_stats_buffered", 50000)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_tracked_http_connections", 4096)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_tracked_connections", 2048)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_notification_threshold", 128)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.notification_threshold", 256)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_max_request_fragment", 128)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_request_fragment", 256)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_map_cleaner_interval_in_s", 900)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.map_cleaner_interval_seconds", 600)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_idle_connection_ttl_in_s", 90)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.idle_connection_ttl_seconds", 60)
+		mockSystemProbe.SetInTest("service_monitoring_config.enable_http_monitoring", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.enabled", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.max_http_stats_buffered", 75000)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.max_stats_buffered", 50000)
+		mockSystemProbe.SetInTest("service_monitoring_config.max_tracked_http_connections", 4096)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.max_tracked_connections", 2048)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_notification_threshold", 128)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.notification_threshold", 256)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_max_request_fragment", 128)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.max_request_fragment", 256)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_map_cleaner_interval_in_s", 900)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.map_cleaner_interval_seconds", 600)
+		mockSystemProbe.SetInTest("service_monitoring_config.http_idle_connection_ttl_in_s", 90)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.idle_connection_ttl_seconds", 60)
 		cfg := New()
 
 		assert.False(t, cfg.EnableHTTPMonitoring)                    // new tree structure wins
@@ -1777,7 +1768,7 @@ func TestHTTPUseDirectConsumer(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.use_direct_consumer", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.use_direct_consumer", true)
 		cfg := New()
 
 		assert.True(t, cfg.HTTPUseDirectConsumer)

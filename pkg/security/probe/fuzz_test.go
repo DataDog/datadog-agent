@@ -150,7 +150,6 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 		fileHasher:          &FileHasher{},
 		replayEventsState:   atomic.NewBool(false),
 		ctx:                 context.Background(),
-		tcRequests:          make(chan tcClassifierRequest, 10),
 		dnsLayer:            &layers.DNS{},
 		numCPU:              1,
 		BPFFilterTruncated:  atomic.NewUint64(0),

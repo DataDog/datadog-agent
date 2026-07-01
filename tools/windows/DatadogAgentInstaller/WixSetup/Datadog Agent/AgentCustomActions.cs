@@ -20,6 +20,10 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction SetupInstaller { get; set; }
 
+        public ManagedAction ConfigureAiUsageMonitorDesktopMonitor { get; }
+
+        public ManagedAction RemoveAiUsageMonitorDesktopMonitor { get; }
+
         public ManagedAction EnsureGeneratedFilesRemoved { get; }
 
         public ManagedAction WriteConfig { get; }
@@ -91,6 +95,12 @@ namespace WixSetup.Datadog_Agent
         public ManagedAction RunPreRemoveHook { get; }
 
         public ManagedAction RunPostInstallHook { get; }
+
+        public ManagedAction ConfigureAutoLogger { get; }
+
+        public ManagedAction ConfigureAutoLoggerRollback { get; }
+
+        public ManagedAction RemoveAutoLogger { get; }
 
         /// <summary>
         /// Registers and sequences our custom actions
@@ -326,6 +336,21 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], FLEET_INSTALL=[FLEET_INSTALL], DATABASE=[DATABASE]");
 
+            ConfigureAiUsageMonitorDesktopMonitor = new CustomAction<CustomActions>(
+                    new Id(nameof(ConfigureAiUsageMonitorDesktopMonitor)),
+                    CustomActions.ConfigureAiUsageMonitorDesktopMonitor,
+                    Return.ignore,
+                    When.After,
+                    new Step(WriteConfig.Id),
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnUninstall)),
@@ -341,6 +366,19 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RemoveAiUsageMonitorDesktopMonitor = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveAiUsageMonitorDesktopMonitor)),
+                    CustomActions.RemoveAiUsageMonitorDesktopMonitor,
+                    Return.ignore,
+                    When.Before,
+                    new Step(CleanupOnUninstall.Id),
+                    Conditions.RemovingForUpgrade | Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            };
 
             RunPreRemovePythonScript = new CustomAction<CustomActions>(
                     new Id(nameof(RunPreRemovePythonScript)),
@@ -390,6 +428,7 @@ namespace WixSetup.Datadog_Agent
                                "DDAGENTUSER_FOUND=[DDAGENTUSER_FOUND], " +
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
                                "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD], " +
+                               "DDAGENTUSER_KEEP_RIGHTS=[DDAGENTUSER_KEEP_RIGHTS], " +
                                "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
                                "DDAGENTUSER_IS_SERVICE_ACCOUNT=[DDAGENTUSER_IS_SERVICE_ACCOUNT]")
                 .HideTarget(true);
@@ -503,6 +542,9 @@ namespace WixSetup.Datadog_Agent
                            "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT=[DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT]," +
                            "DD_REMOTE_UPDATES=[DD_REMOTE_UPDATES]," +
                            "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]," +
+                           "DD_APP_KEY=[DD_APP_KEY]," +
+                           "DD_PRIVATE_ACTION_RUNNER_ENABLED=[DD_PRIVATE_ACTION_RUNNER_ENABLED]," +
+                           "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=[DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST]," +
                            "FLEET_INSTALL=[FLEET_INSTALL]," +
                            "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]");
 
@@ -670,7 +712,8 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
-                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
+                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
+                               "DDAGENTUSER_KEEP_RIGHTS=[DDAGENTUSER_KEEP_RIGHTS]");
 
             DeleteInstallState = new CustomAction<CustomActions>(
                     new Id(nameof(DeleteInstallState)),
@@ -772,8 +815,55 @@ namespace WixSetup.Datadog_Agent
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
-                               "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD]")
+                               "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD], " +
+                               "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]")
                 .HideTarget(true);
+
+            ConfigureAutoLogger = new CustomAction<CustomActions>(
+                    new Id(nameof(ConfigureAutoLogger)),
+                    CustomActions.ConfigureAutoLogger,
+                    Return.check,
+                    When.After,
+                    new Step(ConfigureUser.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                               "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
+                               "DD_LOGON_DURATION_AUTOLOGGER=[DD_LOGON_DURATION_AUTOLOGGER]");
+
+            ConfigureAutoLoggerRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(ConfigureAutoLoggerRollback)),
+                    CustomActions.ConfigureAutoLoggerRollback,
+                    Return.ignore,
+                    When.Before,
+                    new Step(ConfigureAutoLogger.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                               "DD_LOGON_DURATION_AUTOLOGGER=[DD_LOGON_DURATION_AUTOLOGGER]");
+
+            RemoveAutoLogger = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveAutoLogger)),
+                    CustomActions.RemoveAutoLogger,
+                    Return.ignore,
+                    When.Before,
+                    Step.RemoveFiles,
+                    Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
         }
     }
 }

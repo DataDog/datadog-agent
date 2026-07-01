@@ -1,0 +1,22 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_go//go:def.bzl", "go_library")
+
+# strip the leading _ solely meant to prevent `go mod tidy` from adding @gazelle deps to the root go.mod
+copy_file(
+    name = "gazelle_extension_src",
+    src = "_gazelle_extension.go",
+    out = "gazelle_extension.go",
+)
+
+# prevent `bazel run //:gazelle` from removing @gazelle deps (reentrancy guard)
+# gazelle:ignore
+go_library(
+    name = "gazelle_extension",
+    srcs = [":gazelle_extension_src"],
+    importpath = "github.com/DataDog/datadog-agent/bazel/rules/go_stringer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@gazelle//language",
+        "@gazelle//rule",
+    ],
+)

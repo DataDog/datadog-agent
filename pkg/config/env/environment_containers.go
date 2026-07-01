@@ -53,6 +53,7 @@ func init() {
 	registerFeature(PodResources)
 	registerFeature(KubernetesDevicePlugins)
 	registerFeature(NVML)
+	registerFeature(Process)
 	registerFeature(NonstandardCRIRuntime)
 }
 
@@ -72,7 +73,7 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(NonstandardCRIRuntime)
 }
 
-func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
+func detectContainerFeatures(features FeatureMap, cfg model.ReaderWriter) {
 	detectKubernetes(features, cfg)
 	detectDocker(features)
 	detectCriRuntimes(features, cfg)
@@ -82,6 +83,13 @@ func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectPodResources(features, cfg)
 	detectDevicePlugins(features, cfg)
 	detectNVML(features, cfg)
+	detectProcess(features)
+}
+
+func detectProcess(features FeatureMap) {
+	if runtime.GOOS == "linux" {
+		features[Process] = struct{}{}
+	}
 }
 
 func detectKubernetes(features FeatureMap, cfg model.Reader) {
@@ -121,7 +129,7 @@ func detectDocker(features FeatureMap) {
 }
 
 // detectCriRuntimes checks for both containerd and crio runtimes
-func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
+func detectCriRuntimes(features FeatureMap, cfg model.ReaderWriter) {
 	// CRI Socket - Do not automatically default socket path if the Agent runs in Docker
 	// as we'll very likely discover the containerd instance wrapped by Docker.
 	criSocket := cfg.GetString("cri_socket_path")
@@ -132,7 +140,7 @@ func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
 			// Check default CRI paths
 			criSocket = checkCriSocket(defaultCriPath)
 			if criSocket != "" {
-				model.AddOverride("cri_socket_path", criSocket)
+				cfg.Set("cri_socket_path", criSocket, model.SourceAgentRuntime)
 				// Currently we do not support multiple CRI paths
 				break
 			}
@@ -170,7 +178,7 @@ func checkCriSocket(socketPath string) string {
 	return ""
 }
 
-func mergeContainerdNamespaces(cfg model.Reader) {
+func mergeContainerdNamespaces(cfg model.ReaderWriter) {
 	// Merge containerd_namespace with containerd_namespaces
 	namespaces := merge(
 		cfg.GetStringSlice("containerd_namespaces"),
@@ -178,19 +186,15 @@ func mergeContainerdNamespaces(cfg model.Reader) {
 	)
 
 	// Workaround: convert to []interface{}.
-	// The MergeConfigOverride func in "github.com/DataDog/viper" (tested in
-	// v1.10.0) raises an error if we send a []string{} in AddOverride():
-	// "svType != tvType; key=containerd_namespace, st=[]interface {}, tt=[]string, sv=[], tv=[]"
-	// The reason is that when reading from a config file, all the arrays are
-	// considered as []interface{} by Viper, and the merge fails when the types
-	// are different.
+	// Arrays read from a config file are decoded as []interface{}, so setting a []string{}
+	// here could raise a type-mismatch error when the value is merged with the existing one.
 	convertedNamespaces := make([]interface{}, len(namespaces))
 	for i, namespace := range namespaces {
 		convertedNamespaces[i] = namespace
 	}
 
-	model.AddOverride("containerd_namespace", convertedNamespaces)
-	model.AddOverride("containerd_namespaces", convertedNamespaces)
+	cfg.Set("containerd_namespace", convertedNamespaces, model.SourceAgentRuntime)
+	cfg.Set("containerd_namespaces", convertedNamespaces, model.SourceAgentRuntime)
 }
 
 func isCriSupported() bool {
@@ -247,6 +251,27 @@ func detectPodman(features FeatureMap, cfg model.Reader) {
 	}
 	for _, defaultPath := range getDefaultPodmanPaths() {
 		if _, err := os.Stat(defaultPath); err == nil {
+			features[Podman] = struct{}{}
+			return
+		}
+	}
+	// Scan /home/ for rootless Podman installations.
+	detectPodmanInHomeDir("/home", features)
+}
+
+// detectPodmanInHomeDir scans the given base directory for rootless Podman
+// storage directories and sets the Podman feature if any are found.
+func detectPodmanInHomeDir(homeBase string, features FeatureMap) {
+	homeEntries, err := os.ReadDir(homeBase)
+	if err != nil {
+		return
+	}
+	for _, entry := range homeEntries {
+		if !entry.IsDir() {
+			continue
+		}
+		storagePath := path.Join(homeBase, entry.Name(), ".local/share/containers/storage")
+		if _, err := os.Stat(storagePath); err == nil {
 			features[Podman] = struct{}{}
 			return
 		}

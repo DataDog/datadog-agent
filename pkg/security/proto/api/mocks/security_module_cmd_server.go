@@ -74,7 +74,7 @@ type SecurityModuleCmdServer_DumpActivity_Call struct {
 // DumpActivity is a helper method to define mock.On call
 //   - context1 context.Context
 //   - activityDumpParams *api.ActivityDumpParams
-func (_e *SecurityModuleCmdServer_Expecter) DumpActivity(context1 interface{}, activityDumpParams interface{}) *SecurityModuleCmdServer_DumpActivity_Call {
+func (_e *SecurityModuleCmdServer_Expecter) DumpActivity(context1 any, activityDumpParams any) *SecurityModuleCmdServer_DumpActivity_Call {
 	return &SecurityModuleCmdServer_DumpActivity_Call{Call: _e.mock.On("DumpActivity", context1, activityDumpParams)}
 }
 
@@ -142,7 +142,7 @@ type SecurityModuleCmdServer_DumpDiscarders_Call struct {
 // DumpDiscarders is a helper method to define mock.On call
 //   - context1 context.Context
 //   - dumpDiscardersParams *api.DumpDiscardersParams
-func (_e *SecurityModuleCmdServer_Expecter) DumpDiscarders(context1 interface{}, dumpDiscardersParams interface{}) *SecurityModuleCmdServer_DumpDiscarders_Call {
+func (_e *SecurityModuleCmdServer_Expecter) DumpDiscarders(context1 any, dumpDiscardersParams any) *SecurityModuleCmdServer_DumpDiscarders_Call {
 	return &SecurityModuleCmdServer_DumpDiscarders_Call{Call: _e.mock.On("DumpDiscarders", context1, dumpDiscardersParams)}
 }
 
@@ -210,7 +210,7 @@ type SecurityModuleCmdServer_DumpNetworkNamespace_Call struct {
 // DumpNetworkNamespace is a helper method to define mock.On call
 //   - context1 context.Context
 //   - dumpNetworkNamespaceParams *api.DumpNetworkNamespaceParams
-func (_e *SecurityModuleCmdServer_Expecter) DumpNetworkNamespace(context1 interface{}, dumpNetworkNamespaceParams interface{}) *SecurityModuleCmdServer_DumpNetworkNamespace_Call {
+func (_e *SecurityModuleCmdServer_Expecter) DumpNetworkNamespace(context1 any, dumpNetworkNamespaceParams any) *SecurityModuleCmdServer_DumpNetworkNamespace_Call {
 	return &SecurityModuleCmdServer_DumpNetworkNamespace_Call{Call: _e.mock.On("DumpNetworkNamespace", context1, dumpNetworkNamespaceParams)}
 }
 
@@ -278,7 +278,7 @@ type SecurityModuleCmdServer_DumpProcessCache_Call struct {
 // DumpProcessCache is a helper method to define mock.On call
 //   - context1 context.Context
 //   - dumpProcessCacheParams *api.DumpProcessCacheParams
-func (_e *SecurityModuleCmdServer_Expecter) DumpProcessCache(context1 interface{}, dumpProcessCacheParams interface{}) *SecurityModuleCmdServer_DumpProcessCache_Call {
+func (_e *SecurityModuleCmdServer_Expecter) DumpProcessCache(context1 any, dumpProcessCacheParams any) *SecurityModuleCmdServer_DumpProcessCache_Call {
 	return &SecurityModuleCmdServer_DumpProcessCache_Call{Call: _e.mock.On("DumpProcessCache", context1, dumpProcessCacheParams)}
 }
 
@@ -346,7 +346,7 @@ type SecurityModuleCmdServer_GetConfig_Call struct {
 // GetConfig is a helper method to define mock.On call
 //   - context1 context.Context
 //   - getConfigParams *api.GetConfigParams
-func (_e *SecurityModuleCmdServer_Expecter) GetConfig(context1 interface{}, getConfigParams interface{}) *SecurityModuleCmdServer_GetConfig_Call {
+func (_e *SecurityModuleCmdServer_Expecter) GetConfig(context1 any, getConfigParams any) *SecurityModuleCmdServer_GetConfig_Call {
 	return &SecurityModuleCmdServer_GetConfig_Call{Call: _e.mock.On("GetConfig", context1, getConfigParams)}
 }
 
@@ -374,6 +374,74 @@ func (_c *SecurityModuleCmdServer_GetConfig_Call) Return(securityConfigMessage *
 }
 
 func (_c *SecurityModuleCmdServer_GetConfig_Call) RunAndReturn(run func(context1 context.Context, getConfigParams *api.GetConfigParams) (*api.SecurityConfigMessage, error)) *SecurityModuleCmdServer_GetConfig_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetLoadedPolicies provides a mock function for the type SecurityModuleCmdServer
+func (_mock *SecurityModuleCmdServer) GetLoadedPolicies(context1 context.Context, getLoadedPoliciesParams *api.GetLoadedPoliciesParams) (*api.GetLoadedPoliciesMessage, error) {
+	ret := _mock.Called(context1, getLoadedPoliciesParams)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetLoadedPolicies")
+	}
+
+	var r0 *api.GetLoadedPoliciesMessage
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *api.GetLoadedPoliciesParams) (*api.GetLoadedPoliciesMessage, error)); ok {
+		return returnFunc(context1, getLoadedPoliciesParams)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *api.GetLoadedPoliciesParams) *api.GetLoadedPoliciesMessage); ok {
+		r0 = returnFunc(context1, getLoadedPoliciesParams)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.GetLoadedPoliciesMessage)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *api.GetLoadedPoliciesParams) error); ok {
+		r1 = returnFunc(context1, getLoadedPoliciesParams)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// SecurityModuleCmdServer_GetLoadedPolicies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetLoadedPolicies'
+type SecurityModuleCmdServer_GetLoadedPolicies_Call struct {
+	*mock.Call
+}
+
+// GetLoadedPolicies is a helper method to define mock.On call
+//   - context1 context.Context
+//   - getLoadedPoliciesParams *api.GetLoadedPoliciesParams
+func (_e *SecurityModuleCmdServer_Expecter) GetLoadedPolicies(context1 any, getLoadedPoliciesParams any) *SecurityModuleCmdServer_GetLoadedPolicies_Call {
+	return &SecurityModuleCmdServer_GetLoadedPolicies_Call{Call: _e.mock.On("GetLoadedPolicies", context1, getLoadedPoliciesParams)}
+}
+
+func (_c *SecurityModuleCmdServer_GetLoadedPolicies_Call) Run(run func(context1 context.Context, getLoadedPoliciesParams *api.GetLoadedPoliciesParams)) *SecurityModuleCmdServer_GetLoadedPolicies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *api.GetLoadedPoliciesParams
+		if args[1] != nil {
+			arg1 = args[1].(*api.GetLoadedPoliciesParams)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *SecurityModuleCmdServer_GetLoadedPolicies_Call) Return(getLoadedPoliciesMessage *api.GetLoadedPoliciesMessage, err error) *SecurityModuleCmdServer_GetLoadedPolicies_Call {
+	_c.Call.Return(getLoadedPoliciesMessage, err)
+	return _c
+}
+
+func (_c *SecurityModuleCmdServer_GetLoadedPolicies_Call) RunAndReturn(run func(context1 context.Context, getLoadedPoliciesParams *api.GetLoadedPoliciesParams) (*api.GetLoadedPoliciesMessage, error)) *SecurityModuleCmdServer_GetLoadedPolicies_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -414,7 +482,7 @@ type SecurityModuleCmdServer_GetRuleSetReport_Call struct {
 // GetRuleSetReport is a helper method to define mock.On call
 //   - context1 context.Context
 //   - getRuleSetReportParams *api.GetRuleSetReportParams
-func (_e *SecurityModuleCmdServer_Expecter) GetRuleSetReport(context1 interface{}, getRuleSetReportParams interface{}) *SecurityModuleCmdServer_GetRuleSetReport_Call {
+func (_e *SecurityModuleCmdServer_Expecter) GetRuleSetReport(context1 any, getRuleSetReportParams any) *SecurityModuleCmdServer_GetRuleSetReport_Call {
 	return &SecurityModuleCmdServer_GetRuleSetReport_Call{Call: _e.mock.On("GetRuleSetReport", context1, getRuleSetReportParams)}
 }
 
@@ -482,7 +550,7 @@ type SecurityModuleCmdServer_GetStatus_Call struct {
 // GetStatus is a helper method to define mock.On call
 //   - context1 context.Context
 //   - getStatusParams *api.GetStatusParams
-func (_e *SecurityModuleCmdServer_Expecter) GetStatus(context1 interface{}, getStatusParams interface{}) *SecurityModuleCmdServer_GetStatus_Call {
+func (_e *SecurityModuleCmdServer_Expecter) GetStatus(context1 any, getStatusParams any) *SecurityModuleCmdServer_GetStatus_Call {
 	return &SecurityModuleCmdServer_GetStatus_Call{Call: _e.mock.On("GetStatus", context1, getStatusParams)}
 }
 
@@ -550,7 +618,7 @@ type SecurityModuleCmdServer_ListActivityDumps_Call struct {
 // ListActivityDumps is a helper method to define mock.On call
 //   - context1 context.Context
 //   - activityDumpListParams *api.ActivityDumpListParams
-func (_e *SecurityModuleCmdServer_Expecter) ListActivityDumps(context1 interface{}, activityDumpListParams interface{}) *SecurityModuleCmdServer_ListActivityDumps_Call {
+func (_e *SecurityModuleCmdServer_Expecter) ListActivityDumps(context1 any, activityDumpListParams any) *SecurityModuleCmdServer_ListActivityDumps_Call {
 	return &SecurityModuleCmdServer_ListActivityDumps_Call{Call: _e.mock.On("ListActivityDumps", context1, activityDumpListParams)}
 }
 
@@ -618,7 +686,7 @@ type SecurityModuleCmdServer_ListSecurityProfiles_Call struct {
 // ListSecurityProfiles is a helper method to define mock.On call
 //   - context1 context.Context
 //   - securityProfileListParams *api.SecurityProfileListParams
-func (_e *SecurityModuleCmdServer_Expecter) ListSecurityProfiles(context1 interface{}, securityProfileListParams interface{}) *SecurityModuleCmdServer_ListSecurityProfiles_Call {
+func (_e *SecurityModuleCmdServer_Expecter) ListSecurityProfiles(context1 any, securityProfileListParams any) *SecurityModuleCmdServer_ListSecurityProfiles_Call {
 	return &SecurityModuleCmdServer_ListSecurityProfiles_Call{Call: _e.mock.On("ListSecurityProfiles", context1, securityProfileListParams)}
 }
 
@@ -686,7 +754,7 @@ type SecurityModuleCmdServer_ReloadPolicies_Call struct {
 // ReloadPolicies is a helper method to define mock.On call
 //   - context1 context.Context
 //   - reloadPoliciesParams *api.ReloadPoliciesParams
-func (_e *SecurityModuleCmdServer_Expecter) ReloadPolicies(context1 interface{}, reloadPoliciesParams interface{}) *SecurityModuleCmdServer_ReloadPolicies_Call {
+func (_e *SecurityModuleCmdServer_Expecter) ReloadPolicies(context1 any, reloadPoliciesParams any) *SecurityModuleCmdServer_ReloadPolicies_Call {
 	return &SecurityModuleCmdServer_ReloadPolicies_Call{Call: _e.mock.On("ReloadPolicies", context1, reloadPoliciesParams)}
 }
 
@@ -754,7 +822,7 @@ type SecurityModuleCmdServer_RunSelfTest_Call struct {
 // RunSelfTest is a helper method to define mock.On call
 //   - context1 context.Context
 //   - runSelfTestParams *api.RunSelfTestParams
-func (_e *SecurityModuleCmdServer_Expecter) RunSelfTest(context1 interface{}, runSelfTestParams interface{}) *SecurityModuleCmdServer_RunSelfTest_Call {
+func (_e *SecurityModuleCmdServer_Expecter) RunSelfTest(context1 any, runSelfTestParams any) *SecurityModuleCmdServer_RunSelfTest_Call {
 	return &SecurityModuleCmdServer_RunSelfTest_Call{Call: _e.mock.On("RunSelfTest", context1, runSelfTestParams)}
 }
 
@@ -822,7 +890,7 @@ type SecurityModuleCmdServer_SaveSecurityProfile_Call struct {
 // SaveSecurityProfile is a helper method to define mock.On call
 //   - context1 context.Context
 //   - securityProfileSaveParams *api.SecurityProfileSaveParams
-func (_e *SecurityModuleCmdServer_Expecter) SaveSecurityProfile(context1 interface{}, securityProfileSaveParams interface{}) *SecurityModuleCmdServer_SaveSecurityProfile_Call {
+func (_e *SecurityModuleCmdServer_Expecter) SaveSecurityProfile(context1 any, securityProfileSaveParams any) *SecurityModuleCmdServer_SaveSecurityProfile_Call {
 	return &SecurityModuleCmdServer_SaveSecurityProfile_Call{Call: _e.mock.On("SaveSecurityProfile", context1, securityProfileSaveParams)}
 }
 
@@ -890,7 +958,7 @@ type SecurityModuleCmdServer_StopActivityDump_Call struct {
 // StopActivityDump is a helper method to define mock.On call
 //   - context1 context.Context
 //   - activityDumpStopParams *api.ActivityDumpStopParams
-func (_e *SecurityModuleCmdServer_Expecter) StopActivityDump(context1 interface{}, activityDumpStopParams interface{}) *SecurityModuleCmdServer_StopActivityDump_Call {
+func (_e *SecurityModuleCmdServer_Expecter) StopActivityDump(context1 any, activityDumpStopParams any) *SecurityModuleCmdServer_StopActivityDump_Call {
 	return &SecurityModuleCmdServer_StopActivityDump_Call{Call: _e.mock.On("StopActivityDump", context1, activityDumpStopParams)}
 }
 
@@ -958,7 +1026,7 @@ type SecurityModuleCmdServer_TranscodingRequest_Call struct {
 // TranscodingRequest is a helper method to define mock.On call
 //   - context1 context.Context
 //   - transcodingRequestParams *api.TranscodingRequestParams
-func (_e *SecurityModuleCmdServer_Expecter) TranscodingRequest(context1 interface{}, transcodingRequestParams interface{}) *SecurityModuleCmdServer_TranscodingRequest_Call {
+func (_e *SecurityModuleCmdServer_Expecter) TranscodingRequest(context1 any, transcodingRequestParams any) *SecurityModuleCmdServer_TranscodingRequest_Call {
 	return &SecurityModuleCmdServer_TranscodingRequest_Call{Call: _e.mock.On("TranscodingRequest", context1, transcodingRequestParams)}
 }
 

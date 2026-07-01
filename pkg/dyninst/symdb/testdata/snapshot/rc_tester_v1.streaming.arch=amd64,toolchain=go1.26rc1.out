@@ -1,4 +1,4 @@
-Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+=== yield 1 [final=true] ===
 Package: main
 	Function: HandleHTTP (main.HandleHTTP) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [79:88] injectible: [79-88]
 		Arg: w: net/http.ResponseWriter (declared at line 79, available: [79-88])
@@ -40,7 +40,7 @@ Package: main
 		Arg: b: []uint8 (declared at line 416, available: [416-417])
 		Arg: ~r0: []uint8 (declared at line 416, available: )
 		Var: v: []interface {} (declared at line 417, available: [417-417])
-	Function: main.WithAgentAddr.func3 (main.main.WithAgentAddr.func3) in gopkg.in/DataDog/dd-trace-go.v1@v1.73.1/ddtrace/tracer/option.go [1009:1014] injectible: [1009-1012], [1014-1014]
+	Function: main.WithAgentAddr.func3 (main.main.WithAgentAddr.func3) in gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer/option.go [1009:1014] injectible: [1009-1012], [1014-1014]
 		Arg: c: *gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.config (declared at line 1009, available: [1009-1014])
 		Var: addr: string (declared at line 1012, available: [1009-1014])
 	Function: main.func1 (main.main.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [29:31] injectible: [29-31]

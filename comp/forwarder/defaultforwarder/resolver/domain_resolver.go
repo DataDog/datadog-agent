@@ -10,6 +10,7 @@ package resolver
 
 import (
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -61,7 +62,8 @@ type domainResolver struct {
 	overrides           map[string]destination
 	alternateDomainList []string
 
-	isMRF bool
+	isMRF            bool
+	isMetricToVector bool
 }
 
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
@@ -94,13 +96,13 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 			resolver.UpdateAPIKey(setting, oldAPIKey, newAPIKey)
 
 			if health := resolver.GetForwarderHealth(); health != nil {
-				health.UpdateAPIKeys(resolver.GetBaseDomain(), []string{oldAPIKey}, []string{newAPIKey})
+				health.UpdateAPIKeys(resolver.GetConfigName(), []string{oldAPIKey}, []string{newAPIKey})
 			}
 
 			log.Infof("rotating API key for '%s': %s -> %s",
 				setting,
-				scrubber.HideKeyExceptLastFiveChars(oldAPIKey),
-				scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+				scrubber.HideKeyExceptLastChars(oldAPIKey),
+				scrubber.HideKeyExceptLastChars(newAPIKey),
 			)
 
 			return
@@ -136,7 +138,7 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 	added := missing(newKeys, oldKeys)
 
 	if health := resolver.GetForwarderHealth(); health != nil {
-		health.UpdateAPIKeys(resolver.GetBaseDomain(), removed, added)
+		health.UpdateAPIKeys(resolver.GetConfigName(), removed, added)
 	}
 
 	removed = scrubKeys(removed)
@@ -233,7 +235,7 @@ func missing(a []string, b []string) []string {
 // scrubKeys scrubs the API key to avoid leaking the key when logging.
 func scrubKeys(keys []string) []string {
 	for i, key := range keys {
-		keys[i] = scrubber.HideKeyExceptLastFiveChars(key)
+		keys[i] = scrubber.HideKeyExceptLastChars(key)
 	}
 	return keys
 }
@@ -374,7 +376,9 @@ func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.AP
 	}
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.V1SeriesEndpoint.Name, Vector)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SeriesEndpoint.Name, Vector)
+	r.RegisterAlternateDestination(vectorEndpoint, endpoints.V3SeriesEndpoint.Name, Vector)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SketchSeriesEndpoint.Name, Vector)
+	r.isMetricToVector = true
 	return r, nil
 }
 
@@ -404,13 +408,19 @@ func (r *domainResolver) IsMRF() bool {
 	return r.isMRF
 }
 
+// IsMetricToVector returns true when the resolver was constructed to divert metrics to a
+// Vector/Observability Pipelines Worker endpoint via NewDomainResolverWithMetricToVector.
+func (r *domainResolver) IsMetricToVector() bool {
+	return r.isMetricToVector
+}
+
 type authHeader struct {
 	key, value string
 }
 
-// Authorize configures required headers on a transaction.
-func (ah authHeader) Authorize(t *transaction.HTTPTransaction) {
-	t.Headers.Set(ah.key, ah.value)
+// Authorize sets the auth header on the provided headers map.
+func (ah authHeader) Authorize(headers http.Header) {
+	headers.Set(ah.key, ah.value)
 }
 
 // GetAuthHeaders returns
@@ -429,6 +439,16 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 		}
 	}
 	return
+}
+
+func (r *domainResolver) Authorize(apiKeyIdx uint, headers http.Header, log log.Component) {
+	authorizers := r.GetAuthorizers()
+
+	if apiKeyIdx >= uint(len(authorizers)) {
+		log.Errorf("API key index %d is greater than the number of available authorizers (%d)", apiKeyIdx, len(authorizers))
+	} else {
+		authorizers[apiKeyIdx].Authorize(headers)
+	}
 }
 
 // GetConfigName returns the base url as it was originally written in the config.

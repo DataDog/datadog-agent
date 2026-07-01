@@ -108,20 +108,35 @@ func testCircuitBreaker(
 	// Start the busy loop.
 	sampleStdin.Write([]byte("\n"))
 
+	// Wait for the hot probe (a, on main.noop) to receive an
+	// ExecutionFailed diagnostic.
 	deadline := time.Now().Add(10 * time.Second)
-	var diags []receivedDiag
-	for time.Now().Before(deadline) {
-		diags = testServer.getDiags()
-		if len(diags) > 0 && diags[len(diags)-1].diagnosticMessage.Debugger.Diagnostic.Status == uploader.StatusError {
-			break
+	var noopFailed *uploader.Diagnostic
+	for time.Now().Before(deadline) && noopFailed == nil {
+		for _, rd := range testServer.getDiags() {
+			d := rd.diagnosticMessage.Debugger.Diagnostic
+			if d.ProbeID == "a" && d.Status == uploader.StatusError {
+				cp := d
+				noopFailed = &cp
+				break
+			}
 		}
-		time.Sleep(5 * time.Millisecond)
+		if noopFailed == nil {
+			time.Sleep(5 * time.Millisecond)
+		}
 	}
-	require.Greater(t, len(diags), 0)
-	d := diags[len(diags)-1].diagnosticMessage.Debugger.Diagnostic
-	require.Equal(t, d.Status, uploader.StatusError)
-	e := d.DiagnosticException
-	require.NotNil(t, e)
-	require.Equal(t, "ExecutionFailed", e.Type)
-	require.Contains(t, e.Message, "exceeded CPU limit")
+	require.NotNil(t, noopFailed, "expected ExecutionFailed diagnostic for probe a")
+	require.NotNil(t, noopFailed.DiagnosticException)
+	require.Equal(t, "ExecutionFailed", noopFailed.DiagnosticException.Type)
+	require.Contains(t, noopFailed.DiagnosticException.Message, "exceeded CPU limit")
+
+	// Per-probe enforcement: the cold probe (b, on main.busyloop)
+	// must not receive an ExecutionFailed diagnostic, even after the
+	// recompile that excludes probe a.
+	for _, rd := range testServer.getDiags() {
+		d := rd.diagnosticMessage.Debugger.Diagnostic
+		if d.ProbeID == "b" && d.Status == uploader.StatusError {
+			t.Fatalf("probe b should not have failed: %+v", d.DiagnosticException)
+		}
+	}
 }

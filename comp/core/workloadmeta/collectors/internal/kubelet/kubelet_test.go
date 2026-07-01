@@ -34,6 +34,7 @@ import (
 func TestPodParser(t *testing.T) {
 	creationTimestamp := time.Date(2025, time.January, 1, 12, 0, 0, 0, time.UTC)
 	startTime := creationTimestamp.Add(time.Minute)
+	conditionTransitionTime := creationTimestamp.Add(30 * time.Second)
 
 	referencePod := []*kubelet.Pod{
 		{
@@ -87,7 +88,7 @@ func TestPodParser(t *testing.T) {
 					{
 						Name:  "nginx-container",
 						Image: "nginx:1.25.2",
-						Resources: &kubelet.ContainerResourcesSpec{
+						Resources: &kubelet.ResourcesSpec{
 							Requests: kubelet.ResourceList{
 								"nvidia.com/gpu":              resource.MustParse("1"),
 								"cpu":                         resource.MustParse("100m"),
@@ -129,8 +130,9 @@ func TestPodParser(t *testing.T) {
 				Reason:    "SomeReason",
 				Conditions: []kubelet.Conditions{
 					{
-						Type:   string(corev1.PodReady),
-						Status: string(corev1.ConditionTrue),
+						Type:               string(corev1.PodReady),
+						Status:             string(corev1.ConditionTrue),
+						LastTransitionTime: conditionTransitionTime,
 					},
 				},
 				PodIP:    "127.0.0.1",
@@ -388,8 +390,9 @@ func TestPodParser(t *testing.T) {
 		},
 		Conditions: []workloadmeta.KubernetesPodCondition{
 			{
-				Type:   "Ready",
-				Status: "True",
+				Type:               "Ready",
+				Status:             "True",
+				LastTransitionTime: conditionTransitionTime,
 			},
 		},
 		Volumes: []workloadmeta.KubernetesPodVolume{

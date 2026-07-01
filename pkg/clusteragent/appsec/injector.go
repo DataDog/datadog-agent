@@ -262,6 +262,13 @@ func (si *securityInjector) runLeader(ctx context.Context, proxyType appsecconfi
 
 	si.logger.Debug("Watching resource as leader:", proxyType)
 
+	if s, ok := pattern.(appsecconfig.Starter); ok {
+		if err := s.Start(ctx); err != nil {
+			si.logger.Errorf("failed to start reconciler for %s: %v", proxyType, err)
+			return fmt.Errorf("failed to start reconciler for %s: %w", proxyType, err)
+		}
+	}
+
 	for quit := false; !quit && isLeader(); {
 		quit = si.processWorkItem(ctx, proxyType, pattern, queue)
 	}
@@ -353,7 +360,10 @@ func instantiatePatterns(config appsecconfig.Config, logger logComp.Component, k
 // This is used by the admission controller to register the appsec sidecar webhook
 func GetSidecarPatterns() []appsecconfig.SidecarInjectionPattern {
 	if injector == nil {
-		log.Error("Appsec Injector not initialized, cannot setup sidecar patterns")
+		log.Debug("Appsec Injector not initialized, cannot setup sidecar patterns")
+		return nil
+	}
+	if !injector.config.Injection.Enabled || !injector.config.Product.Enabled {
 		return nil
 	}
 
