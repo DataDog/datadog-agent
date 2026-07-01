@@ -79,13 +79,12 @@ func (suite *checkFailureSuite) TestCheckFailureIssueLifecycle() {
 			for _, p := range payloads {
 				for _, iss := range findIssuesByPrefix(p, issuePrefix) {
 					if iss.PersistedIssue != nil &&
-						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_NEW ||
-							iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ONGOING) {
+						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE) {
 						issues = append(issues, iss)
 					}
 				}
 			}
-			assert.NotEmpty(ct, issues, "check execution failure not found as NEW or ONGOING in fakeintake")
+			assert.NotEmpty(ct, issues, "check execution failure not found as ACTIVE in fakeintake")
 		}, defaultIssueTimeout, defaultIssuePollInterval, "check execution failure not detected in fakeintake")
 
 		require.NotEmpty(t, issues)
