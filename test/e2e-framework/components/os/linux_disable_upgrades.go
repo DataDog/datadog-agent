@@ -17,3 +17,6 @@ var SSHAllowSFTPRootScriptContent string
 
 //go:embed scripts/zypper-disable-unattended-upgrades.sh
 var ZypperDisableUnattendedUpgradesScriptContent string
+
+//go:embed scripts/dnf-disable-automatic.sh
+var DNFDisableAutomaticScriptContent string

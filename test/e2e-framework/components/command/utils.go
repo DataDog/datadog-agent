@@ -29,3 +29,15 @@ func WaitForSuccessfulConnection(runner Runner) (Command, error) {
 			Create: pulumi.String("echo \"OK\""),
 		})
 }
+
+// WaitForGCEStartupScripts waits for google-startup-scripts.service to finish before
+// returning. GCE startup scripts send SIGHUP to sshd when they complete; waiting here
+// ensures sshd has stabilised before any subsequent provisioning command opens a new
+// SSH connection.
+func WaitForGCEStartupScripts(runner Runner) (Command, error) {
+	return runner.Command(
+		"wait-successful-connection",
+		&Args{
+			Create: pulumi.String("while systemctl is-active google-startup-scripts.service 2>/dev/null; do sleep 1; done && echo OK"),
+		})
+}

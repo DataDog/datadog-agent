@@ -45,6 +45,12 @@ func NewVM(e gcp.Environment, name string, option ...VMOption) (*remote.Host, er
 		startupScript = os.APTDisableUnattendedUpgradesScriptContent
 	case os.Suse:
 		startupScript = os.ZypperDisableUnattendedUpgradesScriptContent
+	case os.RedHat:
+		// GCE startup scripts send SIGHUP to sshd when they complete (~13s after boot).
+		// Wait for the service to finish so subsequent provisioning commands open
+		// connections against a stable sshd.
+		readyFunc = command.WaitForGCEStartupScripts
+		startupScript = os.DNFDisableAutomaticScriptContent
 	}
 
 	return components.NewComponent(&e, name, func(h *remote.Host) error {

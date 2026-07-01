@@ -219,19 +219,21 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 			return err
 		}
 
-		if _, err := prometheus.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-prometheus"); err != nil {
+		// Deploy after the agent to avoid saturating the CRC API server rate limiter
+		// while the agent DaemonSet is still rolling out.
+		if _, err := prometheus.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-prometheus", dependsOnDDAgent); err != nil {
 			return err
 		}
 
-		if _, err := etcd.K8sAppDefinition(&gcpEnv, openshiftKubeProvider); err != nil {
+		if _, err := etcd.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, dependsOnDDAgent); err != nil {
 			return err
 		}
 
-		if _, err := cpustress.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-cpustress"); err != nil {
+		if _, err := cpustress.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-cpustress", dependsOnDDAgent); err != nil {
 			return err
 		}
 
-		if _, err := tracegen.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-tracegen"); err != nil {
+		if _, err := tracegen.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-tracegen", dependsOnDDAgent); err != nil {
 			return err
 		}
 

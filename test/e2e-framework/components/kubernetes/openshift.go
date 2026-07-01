@@ -156,7 +156,7 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 			Create: pulumi.String(`
 # Wait for API server to be responsive
 for i in {1..30}; do
-  if curl -sk https://127.0.0.1:6443/healthz 2>/dev/null | grep -q ok; then
+  if curl -sk https://127.0.0.1:6443/healthz | grep -q ok; then
     echo "API server responsive"
     break
   fi
@@ -164,12 +164,12 @@ for i in {1..30}; do
   sleep 10
 done
 
-export KUBECONFIG=~/.crc/machines/crc/kubeconfig
+eval $(crc oc-env)
 
 # Wait for nodes to be ready
 echo "Waiting for nodes to be Ready..."
 for i in {1..60}; do
-  ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready ')
+  ready_nodes=$(oc get nodes --no-headers | grep -c ' Ready ')
   if [ "$ready_nodes" -gt 0 ]; then
     echo "Found $ready_nodes Ready nodes"
     break
@@ -182,7 +182,7 @@ done
 echo "Waiting for system pods to be running..."
 for namespace in openshift-kube-apiserver openshift-kube-controller-manager; do
   for i in {1..60}; do
-    running_pods=$(kubectl get pods -n "$namespace" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
+    running_pods=$(oc get pods -n "$namespace" --field-selector=status.phase=Running --no-headers | wc -l)
     if [ "$running_pods" -gt 0 ]; then
       echo "Namespace $namespace has $running_pods running pod(s)"
       break
