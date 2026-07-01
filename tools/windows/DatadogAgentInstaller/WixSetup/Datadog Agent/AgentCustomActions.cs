@@ -262,8 +262,8 @@ namespace WixSetup.Datadog_Agent
                     "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]")
                 .HideTarget(true);
 
-            // Cleanup leftover files on rollback. Must be before DecompressPythonDistributions so a
-            // decompression failure still runs these rollback actions.
+            // Cleanup leftover files on rollback. DecompressPythonDistributions must be sequenced
+            // after every rollback cleanup action so a decompression failure still runs them all.
             // Rollback CAs run in reverse install-sequence order, so schedule RemoveEmptyInstallDirOnRollback
             // before CleanupOnRollback if it should run after fleet/config cleanup on rollback.
             CleanupOnRollback = new CustomAction<CustomActions>(
@@ -314,7 +314,7 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.DecompressPythonDistributions,
                     Return.check,
                     When.After,
-                    new Step(RemoveEmptyInstallDirOnRollback.Id),
+                    new Step(RemoveFleetProcmgrConfigOnRollback.Id),
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
             {
