@@ -104,6 +104,36 @@ func TestProcessManagerEnabledYAML(t *testing.T) {
 	assert.False(t, cfg.GetBool("process_manager.enabled"))
 }
 
+func TestMetricLookbackDefaults(t *testing.T) {
+	config := newTestConf(t)
+
+	assert.False(t, config.GetBool("metric_lookback.enabled"))
+	assert.Empty(t, config.GetStringSlice("metric_lookback.enabled_checks"))
+}
+
+func TestMetricLookbackEnvOverride(t *testing.T) {
+	t.Setenv("DD_METRIC_LOOKBACK_ENABLED", "true")
+	t.Setenv("DD_METRIC_LOOKBACK_ENABLED_CHECKS", `["cpu","disk"]`)
+
+	config := newTestConf(t)
+
+	assert.True(t, config.GetBool("metric_lookback.enabled"))
+	assert.Equal(t, []string{"cpu", "disk"}, config.GetStringSlice("metric_lookback.enabled_checks"))
+}
+
+func TestMetricLookbackYAML(t *testing.T) {
+	cfg := confFromYAML(t, `
+metric_lookback:
+  enabled: true
+  enabled_checks:
+    - cpu
+    - disk
+`)
+
+	assert.True(t, cfg.GetBool("metric_lookback.enabled"))
+	assert.Equal(t, []string{"cpu", "disk"}, cfg.GetStringSlice("metric_lookback.enabled_checks"))
+}
+
 func TestUnexpectedUnicode(t *testing.T) {
 	keyYaml := "api_\u202akey: fakeapikey\n"
 	valueYaml := "api_key: fa\u202akeapikey\n"
