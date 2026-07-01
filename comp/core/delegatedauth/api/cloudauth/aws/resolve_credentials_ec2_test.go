@@ -247,9 +247,11 @@ func TestContainerCredentialsHTTPClient_NoProxy(t *testing.T) {
 	t.Setenv("HTTP_PROXY", "http://proxy.example:3128")
 	t.Setenv("HTTPS_PROXY", "http://proxy.example:3128")
 
-	transport, ok := containerCredentialsHTTPClient().Transport.(*http.Transport)
+	client := containerCredentialsHTTPClient()
+	transport, ok := client.Transport.(*http.Transport)
 	require.True(t, ok)
 	assert.Nil(t, transport.Proxy, "container credential client must not consult environment proxies")
+	assert.Positive(t, client.Timeout, "container credential client must have a timeout so a stalled endpoint cannot hang the fetch")
 }
 
 // TestContainerCredentialsProvider_HostAllowlist verifies the SSRF guard on an http

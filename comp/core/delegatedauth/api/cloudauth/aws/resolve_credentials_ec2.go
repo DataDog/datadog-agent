@@ -47,6 +47,9 @@ const (
 	webIdentityAPIVersion = "2011-06-15"
 	// maxSTSResponseBytes bounds the STS response read to avoid unbounded memory use.
 	maxSTSResponseBytes = 1 << 20
+	// containerCredentialsTimeout bounds a container credential fetch so a local endpoint that
+	// accepts the connection but stalls cannot hang the initial fetch or a background refresh.
+	containerCredentialsTimeout = 10 * time.Second
 )
 
 // resolveCredentials (ec2 build) selects the AWS credential provider matching the runtime
@@ -328,10 +331,11 @@ func containerCredentialsProvider() (aws.CredentialsProvider, error) {
 // 169.254.170.23) or loopback, which a forward proxy cannot reach; routing the request through
 // HTTP_PROXY/http_proxy would break the fetch and send AWS_CONTAINER_AUTHORIZATION_TOKEN to the
 // proxy. The default aws-sdk client's transport consults environment proxies, so this overrides it.
+// The client also carries a timeout so a stalled endpoint cannot hang the fetch or a refresh.
 func containerCredentialsHTTPClient() *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
-	return &http.Client{Transport: transport}
+	return &http.Client{Timeout: containerCredentialsTimeout, Transport: transport}
 }
 
 // validateContainerEndpoint guards an http AWS_CONTAINER_CREDENTIALS_FULL_URI: the host must be
