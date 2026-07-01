@@ -222,7 +222,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/ebpf/features
 # gazelle:exclude pkg/ebpf/uprobes
 # gazelle:exclude pkg/ebpf/verifier
-# gazelle:exclude pkg/eventmonitor/consumers
 # gazelle:exclude pkg/eventmonitor/testutil
 # Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
