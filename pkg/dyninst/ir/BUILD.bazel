@@ -25,7 +25,10 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/ir",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/dyninst/exprlang"],
+    deps = [
+        "//pkg/dyninst/exprlang",
+        "//pkg/dyninst/redaction",
+    ],
 )
 
 go_stringer(
