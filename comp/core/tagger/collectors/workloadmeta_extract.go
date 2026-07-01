@@ -170,6 +170,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubeKueueQueue(ev)...)
 			case workloadmeta.KindKubernetesKueueResourceFlavor:
 				tagInfos = append(tagInfos, c.handleKubeKueueResourceFlavor(ev)...)
+			case workloadmeta.KindKubernetesKueueWorkload:
+				tagInfos = append(tagInfos, c.handleKubeKueueWorkload(ev)...)
 			case workloadmeta.KindGPU:
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			case workloadmeta.KindCRD:
@@ -815,6 +817,30 @@ func (c *WorkloadMetaCollector) handleKubeKueueResourceFlavor(ev workloadmeta.Ev
 	}
 }
 
+func (c *WorkloadMetaCollector) handleKubeKueueWorkload(ev workloadmeta.Event) []*types.TagInfo {
+	workload := ev.Entity.(*workloadmeta.KubernetesKueueWorkload)
+
+	tagList := taglist.NewTagList()
+	c.extractKueueWorkloadAndRelatedTags(workload, "", tagList)
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	return []*types.TagInfo{
+		{
+			Source:               kueueWorkloadSource,
+			EntityID:             common.BuildTaggerEntityID(workload.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
+		},
+	}
+}
+
 func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInfo {
 	gpu := ev.Entity.(*workloadmeta.GPU)
 
@@ -990,19 +1016,85 @@ func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadm
 			}
 		}
 	}
+}
 
-	groupResource := kubernetes.KueueResourceFlavorResourceName + "." + kubernetes.KueueGroupName
+func (c *WorkloadMetaCollector) extractKueueWorkloadTags(workload *workloadmeta.KubernetesKueueWorkload, tagList *taglist.TagList) {
+	tagList.AddOrchestrator(tags.KueueWorkload, workload.Name)
+	if workload.UID != "" {
+		tagList.AddOrchestrator(tags.KueueWorkloadUID, workload.UID)
+	}
+	if workload.QueueName != "" {
+		tagList.AddLow(tags.KueueLocalQueue, workload.QueueName)
+	}
+	if workload.ClusterQueueName != "" {
+		tagList.AddLow(tags.KueueClusterQueue, workload.ClusterQueueName)
+	}
+
+	groupResource := kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName
 	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
 	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
 	globLabels := c.globK8sResourcesLabels[groupResource]
 	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
 
-	for name, value := range flavor.Labels {
+	for name, value := range workload.Labels {
 		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
 	}
 
-	for name, value := range flavor.Annotations {
+	for name, value := range workload.Annotations {
 		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+	}
+}
+
+func (c *WorkloadMetaCollector) extractKueueWorkloadAndRelatedTags(workload *workloadmeta.KubernetesKueueWorkload, podSetName string, tagList *taglist.TagList) {
+	c.extractKueueWorkloadTags(workload, tagList)
+
+	clusterQueueName := workload.ClusterQueueName
+	if workload.QueueName != "" {
+		localQueueID, err := workloadmeta.GenerateKueueQueueEntityID(workloadmeta.KueueLocalQueue, workload.Namespace, workload.QueueName)
+		if err != nil {
+			log.Debugf("Could not generate Kueue LocalQueue entity ID for workload %s/%s: %v", workload.Namespace, workload.Name, err)
+		} else if queue, err := c.store.GetKubernetesKueueQueue(localQueueID); err == nil && queue != nil {
+			c.extractKueueQueueTags(queue, tagList)
+			if clusterQueueName == "" {
+				clusterQueueName = queue.ClusterQueueName
+			}
+		}
+	}
+
+	if clusterQueueName != "" {
+		clusterQueueID, err := workloadmeta.GenerateKueueQueueEntityID(workloadmeta.KueueClusterQueue, "", clusterQueueName)
+		if err != nil {
+			log.Debugf("Could not generate Kueue ClusterQueue entity ID for workload %s/%s: %v", workload.Namespace, workload.Name, err)
+		} else if queue, err := c.store.GetKubernetesKueueQueue(clusterQueueID); err == nil && queue != nil {
+			c.extractKueueQueueTags(queue, tagList)
+		}
+	}
+
+	c.extractKueueWorkloadResourceFlavorTags(workload, podSetName, tagList)
+}
+
+func (c *WorkloadMetaCollector) extractKueueWorkloadResourceFlavorTags(workload *workloadmeta.KubernetesKueueWorkload, podSetName string, tagList *taglist.TagList) {
+	flavorNames := make(map[string]struct{})
+	for _, assignment := range workload.PodSetAssignments {
+		if podSetName != "" && assignment.Name != podSetName {
+			continue
+		}
+		for _, flavorName := range assignment.Flavors {
+			if flavorName != "" {
+				flavorNames[flavorName] = struct{}{}
+			}
+		}
+	}
+
+	for flavorName := range flavorNames {
+		flavorID := workloadmeta.GenerateKueueResourceFlavorEntityID(flavorName)
+		flavor, err := c.store.GetKubernetesKueueResourceFlavor(flavorID)
+		if err != nil || flavor == nil {
+			tagList.AddLow(tags.KueueResourceFlavor, flavorName)
+			continue
+		}
+
+		c.extractKueueResourceFlavorTags(flavor, tagList)
 	}
 }
 
@@ -1027,6 +1119,10 @@ func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
+	if c.extractTagsFromPodKueueWorkloadInfo(pod, tagList) {
+		return
+	}
+
 	clusterQueueName := pod.Labels[kubernetes.KueueClusterQueueNameLabelKey]
 	localQueueName := pod.Labels[kubernetes.KueueLocalQueueNameLabelKey]
 	if localQueueName == "" {
@@ -1072,6 +1168,26 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 			c.extractKueueQueueTags(queue, tagList)
 		}
 	}
+}
+
+func (c *WorkloadMetaCollector) extractTagsFromPodKueueWorkloadInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) bool {
+	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
+	if workloadName == "" {
+		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
+	}
+	if workloadName == "" {
+		return false
+	}
+
+	workloadID := workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
+	workload, err := c.store.GetKubernetesKueueWorkload(workloadID)
+	if err != nil || workload == nil {
+		return false
+	}
+
+	podSetName := pod.Labels[kubernetes.KueuePodSetLabelKey]
+	c.extractKueueWorkloadAndRelatedTags(workload, podSetName, tagList)
+	return true
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {
