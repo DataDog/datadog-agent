@@ -144,6 +144,7 @@ func TestSetupWithoutAPIKey(t *testing.T) {
 	assert.NotPanics(t, func() {
 		traceAgent.Flush()
 		traceAgent.SetTags(map[string]string{"test": "value"})
+		traceAgent.UpdateRuntimeTags(map[string]string{"test": "value"})
 		traceAgent.Stop()
 	})
 }

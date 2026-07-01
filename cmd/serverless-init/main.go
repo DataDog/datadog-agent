@@ -182,7 +182,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 				}),
 				BaseTags: logTagsBase,
 				TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
-					traceAgent.SetTags(tags)
+					traceAgent.UpdateRuntimeTags(tags)
 				}),
 				BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
 			},
@@ -219,7 +219,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 			}),
 			BaseTags: logTagsBase,
 			TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
-				traceAgent.SetTags(tags)
+				traceAgent.UpdateRuntimeTags(tags)
 			}),
 			BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
 		},
