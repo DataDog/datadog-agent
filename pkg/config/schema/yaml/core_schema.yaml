@@ -2027,6 +2027,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -2069,6 +2077,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -2182,6 +2198,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -2224,6 +2248,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -2521,8 +2553,7 @@ properties:
     description: How many workers are used by the no-aggregation pipeline.
     tags:
     - template_section:Dogstatsd
-    comment: How many workers are used by the no-aggregation pipeline. Default of
-      1 applies when the pipeline is enabled via dogstatsd_no_aggregation_pipeline.
+    comment: How many workers are used by the no-aggregation pipeline.
   statsd_forward_host:
     node_type: setting
     type: string
@@ -4751,6 +4782,14 @@ properties:
                 default: false
                 tags:
                 - no-env
+              force_use_http:
+                node_type: setting
+                type: boolean
+                default: false
+              force_use_tcp:
+                node_type: setting
+                type: boolean
+                default: false
               input_chan_size:
                 node_type: setting
                 type: integer
@@ -4793,6 +4832,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
+              use_http:
+                node_type: setting
+                type: boolean
+                default: false
+              use_tcp:
+                node_type: setting
+                type: boolean
+                default: false
               use_v2_api:
                 node_type: setting
                 type: boolean
@@ -4956,6 +5003,14 @@ properties:
                 default: false
                 tags:
                 - no-env
+              force_use_http:
+                node_type: setting
+                type: boolean
+                default: false
+              force_use_tcp:
+                node_type: setting
+                type: boolean
+                default: false
               input_chan_size:
                 node_type: setting
                 type: integer
@@ -4998,6 +5053,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
+              use_http:
+                node_type: setting
+                type: boolean
+                default: false
+              use_tcp:
+                node_type: setting
+                type: boolean
+                default: false
               use_v2_api:
                 node_type: setting
                 type: boolean
@@ -5060,6 +5123,14 @@ properties:
                 default: false
                 tags:
                 - no-env
+              force_use_http:
+                node_type: setting
+                type: boolean
+                default: false
+              force_use_tcp:
+                node_type: setting
+                type: boolean
+                default: false
               input_chan_size:
                 node_type: setting
                 type: integer
@@ -5102,6 +5173,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
+              use_http:
+                node_type: setting
+                type: boolean
+                default: false
+              use_tcp:
+                node_type: setting
+                type: boolean
+                default: false
               use_v2_api:
                 node_type: setting
                 type: boolean
@@ -5169,6 +5248,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -5211,6 +5298,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -6060,6 +6155,89 @@ properties:
     node_type: section
     type: object
     properties:
+      anomaly_scorer:
+        node_type: section
+        type: object
+        properties:
+          alpha:
+            node_type: setting
+            type: number
+            default: 0.014
+            tags:
+            - golang_type:float64
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          high_threshold:
+            node_type: setting
+            type: number
+            default: 0.4
+            tags:
+            - golang_type:float64
+          low_threshold:
+            node_type: setting
+            type: number
+            default: 0.15
+            tags:
+            - golang_type:float64
+          margin_pct:
+            node_type: setting
+            type: number
+            default: 0.2
+            tags:
+            - golang_type:float64
+          output:
+            node_type: section
+            type: object
+            properties:
+              cooldown_secs:
+                node_type: setting
+                type: integer
+                default: 300
+              correlation_events:
+                node_type: setting
+                type: boolean
+                default: false
+              logs:
+                node_type: setting
+                type: boolean
+                default: false
+              max_anomalies:
+                node_type: setting
+                type: integer
+                default: 50
+          saturation_k:
+            node_type: setting
+            type: number
+            default: 5
+            tags:
+            - golang_type:float64
+          window_secs:
+            node_type: setting
+            type: integer
+            default: 15
+      baseline_analysis:
+        node_type: section
+        type: object
+        properties:
+          duration:
+            node_type: setting
+            type: string
+            default: 10m
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: Baseline analysis window.
+          mute_noisy_metrics:
+            node_type: setting
+            type: boolean
+            default: true
+          verbose:
+            node_type: setting
+            type: boolean
+            default: false
       debug:
         node_type: section
         type: object
@@ -6077,70 +6255,6 @@ properties:
             node_type: setting
             type: string
             default: ''
-      anomaly_scorer:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-          alpha:
-            node_type: setting
-            type: number
-            default: 0.014
-            tags:
-            - golang_type:float64
-          saturation_k:
-            node_type: setting
-            type: number
-            default: 5
-            tags:
-            - golang_type:float64
-          window_secs:
-            node_type: setting
-            type: integer
-            default: 15
-            comment: Sliding deduplication window in seconds. An anomaly series is counted at most once per window.
-          low_threshold:
-            node_type: setting
-            type: number
-            golang_type: float64
-            default: 0.15
-          high_threshold:
-            node_type: setting
-            type: number
-            golang_type: float64
-            default: 0.40
-          margin_pct:
-            node_type: setting
-            type: number
-            golang_type: float64
-            default: 0.20
-          output:
-            node_type: section
-            type: object
-            properties:
-              correlation_events:
-                node_type: setting
-                type: boolean
-                default: false
-                comment: Emit closed High-severity periods as v2 change events.
-              logs:
-                node_type: setting
-                type: boolean
-                default: false
-                comment: Log every severity transition via pkglog.
-              cooldown_secs:
-                node_type: setting
-                type: integer
-                default: 300
-                comment: Minimum seconds before a de-escalation callback can fire.
-              max_anomalies:
-                node_type: setting
-                type: integer
-                default: 50
-                comment: Maximum anomalies tracked per High-severity episode.
       detectors:
         node_type: section
         type: object
@@ -6389,38 +6503,10 @@ properties:
             node_type: setting
             type: array
             default: []
-            description: |-
-              Ordered metric processing rules applied at the observer handle boundary.
-              Rules are evaluated in sequence and the first match wins. Metrics that
-              do not match any rule are allowed. Metrics from `log_metrics_extractor`
-              are always allowed. Because unmatched metrics are already allowed,
-              `include_at_match` rules are mainly useful as earlier exceptions to
-              later excludes, including the built-in internal agent metric exclude.
-            example: |2-
-
-                - type: exclude_at_match
-                  name: drop_dev_dogstatsd
-                  source: dogstatsd
-                  tags: ["env:dev"]
-                - type: include_at_match
-                  name: keep_prod_kubernetes
-                  name_pattern: kubernetes.*
-                  tags: ["env:prod"]
             items:
               type: object
-              properties:
-                type:
-                  type: string
-                name:
-                  type: string
-                name_pattern:
-                  type: string
-                tags:
-                  type: array
-                  items:
-                    type: string
-                source:
-                  type: string
+            comment: Ordered metric-processing rules applied at the observer handle
+              boundary.
       recording:
         node_type: section
         type: object
@@ -6493,26 +6579,6 @@ properties:
             node_type: setting
             type: integer
             default: 120
-      baseline_analysis:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: true
-          mute_noisy_metrics:
-            node_type: setting
-            type: boolean
-            default: true
-          duration:
-            node_type: setting
-            type: string
-            default: 10m
-          verbose:
-            node_type: setting
-            type: boolean
-            default: false
   appsec:
     node_type: section
     type: object
@@ -7093,6 +7159,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7135,6 +7209,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7318,6 +7400,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7360,6 +7450,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7422,6 +7520,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7464,6 +7570,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7596,6 +7710,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7638,6 +7760,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7696,6 +7826,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7738,6 +7876,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -8193,6 +8339,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -8235,6 +8389,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -8439,6 +8601,14 @@ properties:
     type: integer
     default: 0
     comment: Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
+  forwarder_stop_wait_for_inflight:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: |-
+      forwarder_stop_wait_for_inflight controls whether Worker.Stop waits for
+      in-flight HTTP transactions to finish before returning (true) or cancels
+      them immediately (false).
   forwarder_storage_path:
     node_type: setting
     type: string
@@ -8494,6 +8664,14 @@ properties:
         default: false
         tags:
         - no-env
+      force_use_http:
+        node_type: setting
+        type: boolean
+        default: false
+      force_use_tcp:
+        node_type: setting
+        type: boolean
+        default: false
       input_chan_size:
         node_type: setting
         type: integer
@@ -8536,6 +8714,14 @@ properties:
         node_type: setting
         type: boolean
         default: true
+      use_http:
+        node_type: setting
+        type: boolean
+        default: false
+      use_tcp:
+        node_type: setting
+        type: boolean
+        default: false
       use_v2_api:
         node_type: setting
         type: boolean
@@ -8575,12 +8761,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-            comment: |-
-              health_platform.invalidconfig_check.enabled is off by default because the check calls
-              schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
-              (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
-              This adds ~8 MiB of permanent heap even when the agent config is valid.
-              Enable it deliberately if you need schema validation at startup.
       persist_on_kubernetes:
         node_type: setting
         type: boolean
@@ -9094,6 +9274,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -9136,6 +9324,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -9953,6 +10149,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -9995,6 +10199,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -10079,6 +10291,14 @@ properties:
             default: false
             tags:
             - no-env
+          force_use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          force_use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -10121,6 +10341,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+          use_http:
+            node_type: setting
+            type: boolean
+            default: false
+          use_tcp:
+            node_type: setting
+            type: boolean
+            default: false
           use_v2_api:
             node_type: setting
             type: boolean
