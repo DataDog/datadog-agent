@@ -78,10 +78,10 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 	})
 }
 
-// KnownDirectives registers dd_agent_go_test alongside the Go extension's
-// directives so Gazelle's -strict mode accepts it.
+// KnownDirectives registers dd_agent_go_test and dd_linux_bpf alongside the Go
+// extension's directives so Gazelle's -strict mode accepts them.
 func (l *lang) KnownDirectives() []string {
-	return append(l.Language.KnownDirectives(), extName)
+	return append(l.Language.KnownDirectives(), extName, linuxBPFExtName)
 }
 
 // Configure reads the # gazelle:dd_agent_go_test directive from the BUILD file.
@@ -106,6 +106,7 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 		}
 	}
 	c.Exts[extName] = cfg
+	configureLinuxBPF(c, f)
 }
 
 // GenerateRules calls the Go extension's GenerateRules and replaces each go_test
@@ -113,7 +114,9 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 // sync so the resolver can still add deps to each dd_agent_go_test.
 func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	result := l.Language.GenerateRules(args)
-	if !shouldReplace(args.Config) {
+	if shouldReplace(args.Config) {
+		result = l.replaceGoTests(result, args.File, args.Dir)
+	} else {
 		// Preserve the go_build_tags extension's behaviour for non-opted packages:
 		// every go_test still needs gotags = ["test"] so that rules_go's
 		// configuration transition propagates the "test" build tag to transitive
@@ -123,9 +126,11 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 				addStringToListIfMissing(r, "gotags", "test")
 			}
 		}
-		return result
 	}
-	return l.replaceGoTests(result, args.File, args.Dir)
+	if linuxBPFEnabled(args.Config) {
+		result = l.applyLinuxBPF(result, args)
+	}
+	return result
 }
 
 // shouldReplace decides whether go_test rules in this package should be

@@ -218,31 +218,11 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance/cli
 # gazelle:exclude pkg/compliance/tests
-# gazelle:exclude pkg/dyninst/module/*.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester
+# rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
+# Bazel go_deps graph (progs is a separate module outside go.work). Keep this
+# binary out of Bazel, consistent with testprogs binaries relying on the
+# ninja-built Go toolchain matrix (see PR #50629).
 # gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester_v1
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/arrays.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/basics.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/complex.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/context.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/continuation.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/continuation_strings.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/esoteric.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/generics.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/inlined.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/interfaces.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/main.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/maps.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/multi_params.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/other.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/pointers.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/ranges.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/returns.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/slices.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/stacktraces.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/strings.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/structs.go
-# gazelle:exclude pkg/dyninst/testprogs/progs/sample/times.go
 # gazelle:exclude pkg/ebpf/_obj
 # It is a generated via genrule src that shouldn't be added to the runtime
 # library.
