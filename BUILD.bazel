@@ -167,7 +167,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet
 # gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
 # gazelle:exclude pkg/collector/corechecks/gpu/nvidia
-# gazelle:exclude pkg/collector/corechecks/gpu/spec
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/sdwan_test.go
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/sdwan.go
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/*.go
