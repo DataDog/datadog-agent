@@ -194,6 +194,12 @@ build do
     end
   end
 
+  # Remove entrypoints under Scripts on windows, as they come out with an unusable shebang anyways
+  # (due to the installation folder being arbitrary and not matching the build one)
+  if windows_target?
+    delete "#{windows_safe_path(python_3_embedded)}/Scripts/*.exe"
+  end
+
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
   # older than the one shipped in the agent
