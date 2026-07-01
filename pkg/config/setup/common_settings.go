@@ -1043,6 +1043,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Data Observability
 	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
+	// Sensitive Data Scanner results forwarder
+	bindEnvAndSetLogsConfigKeys(config, "sds_result.forwarder.")
 
 	// Reverse DNS Enrichment
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.workers", 10)
