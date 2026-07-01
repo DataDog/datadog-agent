@@ -32,6 +32,8 @@ const (
 
 var (
 	k8sTypeMap map[string]int
+
+	errSkipUnsupportedRecord = errors.New("unsupported log record")
 )
 
 func init() {
@@ -49,9 +51,12 @@ func init() {
 //
 // Returns the manifest and a boolean indicating if it's from a watch event.
 func ToManifest(logRecord plog.LogRecord) (*agentmodel.Manifest, bool, error) {
-	// Try to parse the body to detect the mode
+	// Try to parse the body to detect the mode; non-JSON bodies (k8s Events) are a routine skip.
 	var bodyMap map[string]interface{}
 	if err := json.Unmarshal([]byte(logRecord.Body().AsString()), &bodyMap); err != nil {
+		if v, ok := logRecord.Attributes().Get("k8s.resource.name"); ok && v.AsString() == "events" {
+			return nil, false, errSkipUnsupportedRecord
+		}
 		return nil, false, fmt.Errorf("failed to unmarshal log body: %w", err)
 	}
 
@@ -475,7 +480,17 @@ func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger)
 				lr := sl.LogRecords().At(k)
 				manifest, isWatch, err := ToManifest(lr)
 				if err != nil {
-					logger.Error("Failed to convert to manifest: "+err.Error(), zap.Error(err))
+					if errors.Is(err, errSkipUnsupportedRecord) {
+						resourceName := "unknown"
+						if v, ok := lr.Attributes().Get("k8s.resource.name"); ok {
+							resourceName = v.AsString()
+						}
+						logger.Debug("Skipping log record: body is not a supported k8s manifest",
+							zap.String("k8s.resource.name", resourceName),
+						)
+					} else {
+						logger.Error("Failed to convert to manifest: "+err.Error(), zap.Error(err))
+					}
 					continue
 				}
 				isWatchEvent = isWatch
