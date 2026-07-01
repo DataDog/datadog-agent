@@ -68,15 +68,17 @@ func (p *Preprocessor) Process(msg *message.Message) {
 // are labeled noAggregate so the CombiningAggregator emits them standalone.
 func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
 	tokens, tokenIndices := p.tokenizer.Tokenize(msg.GetContent())
-
-	var label Label
-	if msg.ParsingExtra.IsMultiLine {
-		label = noAggregate
-	} else {
-		labelTokens, labelIndices := limitTokensToBytes(tokens, tokenIndices, p.labelerMaxBytes)
-		label = p.labeler.Label(msg.GetContent(), labelTokens, labelIndices)
-	}
-
+var label Label
+if msg.ParsingExtra.IsMultiLine {
+    label = noAggregate
+} else if tokens != nil {
+    labelTokens, labelIndices := limitTokensToBytes(tokens, tokenIndices, p.labelerMaxBytes)
+    label = p.labeler.Label(msg.GetContent(), labelTokens, labelIndices)
+} else {
+    // Empty lines produce nil tokens; skip the labeler to avoid spurious error logs
+    // from heuristics that require non-nil tokens (UserSamples, TimestampDetector, PatternTable).
+    label = noAggregate
+}
 	for _, completed := range p.aggregator.Process(msg, label, tokens) {
 		p.sample(completed)
 	}
