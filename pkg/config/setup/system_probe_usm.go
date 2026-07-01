@@ -96,6 +96,7 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Tree structure
 	cfg.BindEnvAndSetDefault("service_monitoring_config.http2.enabled", false)
 	cfg.BindEnvAndSetDefault("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 30)
+	cfg.BindEnvAndSetDefault("service_monitoring_config.http2.use_direct_consumer", false)
 
 	// Legacy bindings for backward compatibility (deprecated)
 	cfg.BindEnvAndSetDefault("service_monitoring_config.enable_http2_monitoring", false)

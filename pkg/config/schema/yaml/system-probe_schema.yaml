@@ -880,6 +880,10 @@ properties:
             node_type: setting
             type: boolean
             default: false
+          use_direct_consumer:
+            node_type: setting
+            type: boolean
+            default: false
       http2_dynamic_table_map_cleaner_interval_seconds:
         node_type: setting
         type: integer
