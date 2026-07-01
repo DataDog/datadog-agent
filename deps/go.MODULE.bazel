@@ -463,6 +463,7 @@ use_repo(
     "io_opentelemetry_go_collector_confmap_xconfmap",
     "io_opentelemetry_go_collector_connector",
     "io_opentelemetry_go_collector_consumer",
+    "io_opentelemetry_go_collector_consumer_consumererror",
     "io_opentelemetry_go_collector_consumer_consumertest",
     "io_opentelemetry_go_collector_consumer_xconsumer",
     "io_opentelemetry_go_collector_exporter",
