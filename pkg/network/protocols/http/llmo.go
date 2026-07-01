@@ -39,7 +39,7 @@ const (
 
 	// llmBodyBufferSize must match LLM_BODY_BUFFER_SIZE in the eBPF code
 	// (pkg/network/ebpf/c/protocols/tls/llmo.h).
-	llmBodyBufferSize = 512
+	llmBodyBufferSize = 1024
 )
 
 // llmConnKey mirrors both pkg/network/types.ConnectionKey and the eBPF
@@ -109,6 +109,7 @@ type llmSpanInfo struct {
 	service          string
 	model            string
 	prompt           string
+	response         string
 	promptTokens     int64
 	completionTokens int64
 	totalTokens      int64
@@ -191,6 +192,13 @@ func parseLLMUsage(raw []byte) (promptTokens, completionTokens, totalTokens int6
 // prompt may be empty if the body was not captured (e.g. the first request on
 // a connection) or could not be parsed.
 func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.ConnectionKey, latencyNs float64, info llmSpanInfo) {
+	// Only emit a span when we actually captured LLM payload data. Without it
+	// (e.g. the first request on a connection, before the body was captured),
+	// the span would carry no model/prompt/response and just be noise — the
+	// request is still counted in USM's HTTP metrics.
+	if info.model == "" && info.prompt == "" && info.response == "" {
+		return
+	}
 	if !ensureLLMOTracer() {
 		return
 	}
@@ -224,6 +232,9 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	}
 	if info.prompt != "" {
 		span.SetTag("llm.request.prompt", info.prompt)
+	}
+	if info.response != "" {
+		span.SetTag("llm.response.content", info.response)
 	}
 	if info.totalTokens > 0 {
 		span.SetTag("llm.usage.prompt_tokens", info.promptTokens)
@@ -277,6 +288,21 @@ func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (in
 				n = llmBodyBufferSize
 			}
 			info.promptTokens, info.completionTokens, info.totalTokens = parseLLMUsage(respBody.Data[:n])
+		}
+	}
+
+	// Response body head -> assistant message content (the AI's answer).
+	if h.llmRespHeadMap != nil {
+		var respHead llmBody
+		if err := h.llmRespHeadMap.Lookup(&key, &respHead); err == nil {
+			n := respHead.Len
+			if n > llmBodyBufferSize {
+				n = llmBodyBufferSize
+			}
+			// The response head's only "content" field is the assistant message.
+			if c := llmContentRe.FindSubmatch(respHead.Data[:n]); c != nil {
+				info.response = string(c[1])
+			}
 		}
 	}
 

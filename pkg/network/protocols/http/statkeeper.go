@@ -63,6 +63,7 @@ type StatKeeper struct {
 	llmConnMap     *ebpf.Map
 	llmBodyMap     *ebpf.Map
 	llmRespBodyMap *ebpf.Map
+	llmRespHeadMap *ebpf.Map
 	// llmServiceExtractor resolves the span service name from the client PID in
 	// userspace, using the same inference as USM (process_service_inference).
 	llmServiceExtractor *parser.ServiceExtractor
@@ -70,12 +71,13 @@ type StatKeeper struct {
 
 // EnableLLMO wires up the eBPF maps used to capture decrypted LLM request and
 // response bodies. When set, LLM-detected transactions are enriched with the
-// model and prompt (from the request body), token usage (from the response
-// body), and a service name resolved from the client PID in userspace.
-func (h *StatKeeper) EnableLLMO(connMap, bodyMap, respBodyMap *ebpf.Map) {
+// model and prompt (from the request body), token usage + response content
+// (from the response body), and a service name resolved from the client PID.
+func (h *StatKeeper) EnableLLMO(connMap, bodyMap, respBodyMap, respHeadMap *ebpf.Map) {
 	h.llmConnMap = connMap
 	h.llmBodyMap = bodyMap
 	h.llmRespBodyMap = respBodyMap
+	h.llmRespHeadMap = respHeadMap
 	// Same inference USM uses for service names (enabled, non-Windows,
 	// improved algorithm).
 	h.llmServiceExtractor = parser.NewServiceExtractor(true, false, true)

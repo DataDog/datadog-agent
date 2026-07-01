@@ -66,6 +66,7 @@ const (
 	llmMonitoredConnectionsMap = "llm_monitored_connections"
 	llmRequestBodiesMap        = "llm_request_bodies"
 	llmResponseBodiesMap       = "llm_response_bodies"
+	llmResponseHeadsMap        = "llm_response_heads"
 
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
 	tlsFilterTailCall        = "uprobe__http2_tls_filter"
@@ -317,7 +318,9 @@ func (p *Protocol) PreStart() (err error) {
 	if connMap, _, errConn := p.mgr.GetMap(llmMonitoredConnectionsMap); errConn == nil {
 		if bodyMap, _, errBody := p.mgr.GetMap(llmRequestBodiesMap); errBody == nil {
 			if respMap, _, errResp := p.mgr.GetMap(llmResponseBodiesMap); errResp == nil {
-				p.statkeeper.EnableLLMO(connMap, bodyMap, respMap)
+				if headMap, _, errHead := p.mgr.GetMap(llmResponseHeadsMap); errHead == nil {
+					p.statkeeper.EnableLLMO(connMap, bodyMap, respMap, headMap)
+				}
 			}
 		}
 	}

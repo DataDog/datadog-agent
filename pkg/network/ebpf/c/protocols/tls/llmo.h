@@ -12,7 +12,7 @@
 // LLM Observability (LLMO) PoC: capture a fixed-size window of the decrypted
 // request body for connections that userspace has flagged as LLM traffic.
 
-#define LLM_BODY_BUFFER_SIZE 512
+#define LLM_BODY_BUFFER_SIZE 1024
 
 // llm_conn_key_t mirrors pkg/network/types.ConnectionKey (4x u64 + 2x u16) so
 // that userspace can build the exact same key from a transaction's ConnTuple().
@@ -40,15 +40,41 @@ BPF_HASH_MAP(llm_request_bodies, llm_conn_key_t, llm_body_t, 1024)
 // Latest captured response body TAIL per LLM connection (read by userspace).
 // The token usage object lives near the end of the response JSON.
 BPF_HASH_MAP(llm_response_bodies, llm_conn_key_t, llm_body_t, 1024)
+// Latest captured response body HEAD per LLM connection. The assistant's
+// message content lives near the start of the response JSON.
+BPF_HASH_MAP(llm_response_heads, llm_conn_key_t, llm_body_t, 1024)
 // Per-CPU scratch to build the body off-stack (avoids the 512B stack limit).
 BPF_PERCPU_ARRAY_MAP(llm_body_scratch, llm_body_t, 1)
 
-READ_INTO_USER_BUFFER(llmo, LLM_BODY_BUFFER_SIZE)
+// bpf_memset (used by READ_INTO_USER_BUFFER) can only unroll up to ~512 bytes,
+// so we read the LLM_BODY_BUFFER_SIZE window in LLM_BODY_CHUNK-sized chunks.
+#define LLM_BODY_CHUNK 512
+
+// Minimum read/write size to capture. HTTP/2 writes/reads include tiny control
+// frames (WINDOW_UPDATE, PING, SETTINGS, 9-byte frame headers); without this
+// floor a trailing tiny frame would overwrite the JSON body we captured.
+#define LLM_MIN_CAPTURE 32
+READ_INTO_USER_BUFFER(llmo, LLM_BODY_CHUNK)
+
+// llmo_read_body reads LLM_BODY_BUFFER_SIZE bytes from src into dst, in
+// LLM_BODY_CHUNK chunks (LLM_BODY_BUFFER_SIZE must be a multiple of the chunk).
+static __always_inline void llmo_read_body(__u8 *dst, char *src) {
+#pragma unroll
+    for (int i = 0; i < LLM_BODY_BUFFER_SIZE / LLM_BODY_CHUNK; i++) {
+        read_into_user_buffer_llmo((char *)dst + i * LLM_BODY_CHUNK, src + i * LLM_BODY_CHUNK);
+    }
+}
 
 // llmo_maybe_capture_body copies up to LLM_BODY_BUFFER_SIZE bytes of the
 // decrypted request buffer into llm_request_bodies, but only for connections
 // userspace has marked as LLM traffic in llm_monitored_connections.
 static __always_inline void llmo_maybe_capture_body(conn_tuple_t *t, char *buffer, __u64 len) {
+    // Skip tiny writes (HTTP/2 control frames) so they don't overwrite the
+    // captured request JSON body.
+    if (len < LLM_MIN_CAPTURE) {
+        return;
+    }
+
     llm_conn_key_t key;
     // Zero the whole key (including padding) so it byte-matches the key written
     // by userspace, which is required for the hash map lookup to hit.
@@ -74,7 +100,7 @@ static __always_inline void llmo_maybe_capture_body(conn_tuple_t *t, char *buffe
     }
 
     body->len = len < LLM_BODY_BUFFER_SIZE ? len : LLM_BODY_BUFFER_SIZE;
-    read_into_user_buffer_llmo((char *)body->data, buffer);
+    llmo_read_body(body->data, buffer);
     bpf_map_update_with_telemetry(llm_request_bodies, &key, body, BPF_ANY);
     log_debug("[llmo] body stored len=%u", body->len);
 }
@@ -82,13 +108,8 @@ static __always_inline void llmo_maybe_capture_body(conn_tuple_t *t, char *buffe
 // llmo_maybe_capture_response captures the TAIL of the decrypted response
 // buffer for LLM-flagged connections. The token usage object is near the end
 // of the response JSON, so we grab the last LLM_BODY_BUFFER_SIZE bytes.
-// Minimum response read size to capture. HTTP/2 reads include tiny (9-byte)
-// frame headers and control frames; without this floor a trailing tiny read
-// would overwrite the usage-bearing chunk in llm_response_bodies.
-#define LLM_MIN_RESPONSE_CAPTURE 32
-
 static __always_inline void llmo_maybe_capture_response(conn_tuple_t *t, char *buffer, __u64 len) {
-    if (len < LLM_MIN_RESPONSE_CAPTURE) {
+    if (len < LLM_MIN_CAPTURE) {
         return;
     }
 
@@ -111,10 +132,16 @@ static __always_inline void llmo_maybe_capture_response(conn_tuple_t *t, char *b
         return;
     }
 
-    __u64 off = len > LLM_BODY_BUFFER_SIZE ? len - LLM_BODY_BUFFER_SIZE : 0;
     body->len = len < LLM_BODY_BUFFER_SIZE ? len : LLM_BODY_BUFFER_SIZE;
-    read_into_user_buffer_llmo((char *)body->data, buffer + off);
+
+    // TAIL capture (token usage lives near the end of the response JSON).
+    __u64 off = len > LLM_BODY_BUFFER_SIZE ? len - LLM_BODY_BUFFER_SIZE : 0;
+    llmo_read_body(body->data, buffer + off);
     bpf_map_update_with_telemetry(llm_response_bodies, &key, body, BPF_ANY);
+
+    // HEAD capture (the assistant's message content lives near the start).
+    llmo_read_body(body->data, buffer);
+    bpf_map_update_with_telemetry(llm_response_heads, &key, body, BPF_ANY);
     log_debug("[llmo] response stored len=%u off=%llu", body->len, off);
 }
 
