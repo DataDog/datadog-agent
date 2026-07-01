@@ -10,8 +10,9 @@
 //   - their go_library gets tags=["manual"], keeping it out of //... wildcard
 //     builds (it would otherwise build empty and mislead consumers);
 //   - the go_binary / go_test that compile those sources get the linux_bpf
-//     gotag so rules_go's build transition turns the tag on, and the go_binary
-//     additionally gets target_compatible_with = ["@platforms//os:linux"].
+//     gotag so rules_go's build transition turns the tag on, plus
+//     target_compatible_with = ["@platforms//os:linux"] so //... builds skip
+//     them off-linux instead of failing (they're not manual, unlike the lib).
 //
 // The behaviour is opt-in per subtree via "# gazelle:dd_linux_bpf on" and
 // inheritable, mirroring dd_agent_go_test.
@@ -142,6 +143,7 @@ func (l *lang) applyLinuxBPF(result language.GenerateResult, args language.Gener
 		case "go_test":
 			if embedsRequiringLib(r) || srcsRequireLinuxBPF(r.AttrStrings("srcs"), args.Dir) {
 				addValue(r, "gotags", linuxBPFTag)
+				addValue(r, "target_compatible_with", linuxPlatform)
 			}
 		}
 	}

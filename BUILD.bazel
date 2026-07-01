@@ -222,7 +222,7 @@ exports_files(["go.mod"])
 # Bazel go_deps graph (progs is a separate module outside go.work). Keep this
 # binary out of Bazel, consistent with testprogs binaries relying on the
 # ninja-built Go toolchain matrix (see PR #50629).
-# gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester_v1
+# gazelle:exclude pkg/dyninst/testprogs/progs
 # gazelle:exclude pkg/ebpf/_obj
 # It is a generated via genrule src that shouldn't be added to the runtime
 # library.

@@ -128,8 +128,14 @@ func TestApplyLinuxBPF_TagsAndGotags(t *testing.T) {
 	if got := test.AttrStrings("gotags"); !stringSlicesEqual(got, []string{linuxBPFTag}) {
 		t.Errorf("mylib_test gotags = %v, want [linux_bpf]", got)
 	}
+	if got := test.AttrStrings("target_compatible_with"); !stringSlicesEqual(got, []string{linuxPlatform}) {
+		t.Errorf("mylib_test target_compatible_with = %v, want [%s]", got, linuxPlatform)
+	}
 	if got := plainTest.AttrStrings("gotags"); len(got) != 0 {
 		t.Errorf("plainlib_test gotags = %v, want none", got)
+	}
+	if got := plainTest.AttrStrings("target_compatible_with"); len(got) != 0 {
+		t.Errorf("plainlib_test target_compatible_with = %v, want none", got)
 	}
 }
 
@@ -146,6 +152,9 @@ func TestApplyLinuxBPF_TestSrcsGated(t *testing.T) {
 
 	if got := test.AttrStrings("gotags"); !stringSlicesEqual(got, []string{linuxBPFTag}) {
 		t.Errorf("gotags = %v, want [linux_bpf]", got)
+	}
+	if got := test.AttrStrings("target_compatible_with"); !stringSlicesEqual(got, []string{linuxPlatform}) {
+		t.Errorf("target_compatible_with = %v, want [%s]", got, linuxPlatform)
 	}
 }
 
@@ -170,6 +179,9 @@ func TestApplyLinuxBPF_RetrofitsExisting(t *testing.T) {
 
 	if got := existingTest.AttrStrings("gotags"); !stringSlicesEqual(got, []string{"test", linuxBPFTag}) {
 		t.Errorf("existing gotags = %v, want [test linux_bpf]", got)
+	}
+	if got := existingTest.AttrStrings("target_compatible_with"); !stringSlicesEqual(got, []string{linuxPlatform}) {
+		t.Errorf("existing target_compatible_with = %v, want [%s]", got, linuxPlatform)
 	}
 }
 
