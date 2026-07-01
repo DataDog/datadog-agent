@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessInitTrace "github.com/DataDog/datadog-agent/cmd/serverless-init/trace"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -134,6 +136,11 @@ func (c *CloudRunJobs) GetSource() metrics.MetricSource {
 }
 
 // Init records the start time for CloudRunJobs and initializes the job span
+// Run uses the default run behaviour for CloudRunJobs.
+func (c *CloudRunJobs) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
+}
+
 func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 	c.startTime = time.Now()
 	if ctx != nil {
