@@ -1190,17 +1190,6 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueWorkloadInfo(pod *workloa
 	return true
 }
 
-func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
-	switch queueType {
-	case workloadmeta.KueueLocalQueue:
-		return kubernetes.KueueLocalQueueResourceName + "." + kubernetes.KueueGroupName
-	case workloadmeta.KueueClusterQueue:
-		return kubernetes.KueueClusterQueueResourceName + "." + kubernetes.KueueGroupName
-	default:
-		return ""
-	}
-}
-
 func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {
 	switch owner.Kind {
 	case kubernetes.DeploymentKind:
