@@ -18,11 +18,5 @@ func Schedule(delay time.Duration) {
 		return
 	}
 
-	go func() {
-		timer := time.NewTimer(delay)
-		defer timer.Stop()
-
-		<-timer.C
-		Shrink()
-	}()
+	time.AfterFunc(delay, Shrink)
 }
