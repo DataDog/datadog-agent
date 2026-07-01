@@ -54,7 +54,9 @@ message PrivateActionTask {
 }
 
 message SystemInputs {
-  RemoteAction remote_action = 1;
+  oneof input {
+    RemoteAction remote_action = 1;
+  }
 }
 
 message RemoteAction {

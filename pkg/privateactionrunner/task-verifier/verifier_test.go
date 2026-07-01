@@ -23,9 +23,11 @@ func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
 		TaskId:     "task-id",
 		Inputs:     &structpb.Struct{},
 		SystemInputs: &privateactionspb.SystemInputs{
-			RemoteAction: &privateactionspb.RemoteAction{
-				TargetCommands: []string{"rshell:cat"},
-				TargetPaths:    []string{"/host/var/log"},
+			Input: &privateactionspb.SystemInputs_RemoteAction{
+				RemoteAction: &privateactionspb.RemoteAction{
+					TargetCommands: []string{"rshell:cat"},
+					TargetPaths:    []string{"/host/var/log"},
+				},
 			},
 		},
 	}
