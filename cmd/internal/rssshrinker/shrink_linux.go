@@ -74,8 +74,10 @@ func pageOutFileBackedMemory() {
 			continue
 		}
 
-		// We only want to page out read-only memory.
-		if len(perms) != 4 || perms[0] != 'r' || perms[1] != '-' {
+		// We only want to page out non-executable read-only memory. Paging out
+		// executable mappings is memory-safe, but it can cause sustained refault
+		// CPU in idle processes that periodically wake up on many code paths.
+		if len(perms) != 4 || perms[0] != 'r' || perms[1] != '-' || perms[2] == 'x' {
 			continue
 		}
 
