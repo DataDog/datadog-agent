@@ -67,3 +67,35 @@ Resolution: introduced `registerFlagsSafe(s scenario.Schema, fs *pflag.FlagSet)`
 2. **Duplicate schema field**: `EC2HostParams` exposes `use-fakeintake` twice in the schema JSON. The CLI silently uses only the first occurrence for the flag; the second is dropped. This may confuse users reading the JSON schema vs. the CLI help. Should be fixed upstream in the ec2host params.
 
 3. **No registry reset between tests**: the two tests both call `ec2host.Register()` without resetting the global registry between runs. Since the registry is a map and `Register` overwrites by name, duplicate calls are idempotent. This is safe but slightly fragile if a future test expects a clean registry state.
+
+---
+
+## Fix: Remove Duplicate `use-fakeintake` Field (Root Cause)
+
+### Changes Made
+
+1. **`test/e2e-framework/scenario/params/agent.go`**: Deleted `Fakeintake bool` field (was `scenario:"name=use-fakeintake,..."`) — dead field never used in `ToOptions()`.
+
+2. **`test/e2e-framework/scenario/scenarios/ec2host/scenario.go:64`**: Changed `if p.Agent.Fakeintake || p.Fakeintake.Enabled {` to `if p.Fakeintake.Enabled {`.
+
+3. **`test/e2e-framework/cmd/scenariorun/main.go`**: Replaced both `registerFlagsSafe(sc, sub.Flags())` and `registerFlagsSafe(asc, actSub.Flags())` with `scenario.RegisterFlags(...)`. Deleted `registerFlagsSafe` helper function and removed the `pflag` import.
+
+4. **`test/e2e-framework/go.mod`**: `github.com/spf13/cobra v1.10.2` promoted from `// indirect` to direct dependency.
+
+### Verification
+
+```
+go test ./scenario/... -v
+ok  github.com/DataDog/datadog-agent/test/e2e-framework/scenario (cached)
+ok  github.com/DataDog/datadog-agent/test/e2e-framework/scenario/params 1.712s
+ok  github.com/DataDog/datadog-agent/test/e2e-framework/scenario/scenarios/ec2host 2.090s
+
+go test ./cmd/scenariorun/ -v
+ok  github.com/DataDog/datadog-agent/test/e2e-framework/cmd/scenariorun 1.849s
+
+go build ./... && go vet ./scenario/... ./cmd/scenariorun/
+(no output — clean)
+
+./bin/scenariorun describe --json | grep -c use-fakeintake
+1
+```

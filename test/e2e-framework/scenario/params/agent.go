@@ -21,7 +21,6 @@ type AgentParams struct {
 	Flavor     string `scenario:"name=agent-flavor,help=Agent package flavor,enum=datadog-agent|datadog-fips-agent"`
 	ConfigPath string `scenario:"name=agent-config-path,help=Path to a datadog.yaml whose contents are applied"`
 	PipelineID string `scenario:"name=pipeline-id,help=GitLab pipeline build to install"`
-	Fakeintake bool   `scenario:"name=use-fakeintake,help=Point the agent at a provisioned fakeintake"`
 	Install    bool   `scenario:"name=install-agent,default=true,help=Install the agent"`
 
 	// AdvancedOptions is a Go-only escape hatch for the full agentparams surface.

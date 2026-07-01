@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenario"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/standalone"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 func main() {
@@ -93,7 +92,7 @@ func createCmd() *cobra.Command {
 				return r.Create(newCtx(), stack, cfg)
 			},
 		}
-		registerFlagsSafe(sc, sub.Flags())
+		scenario.RegisterFlags(sc, sub.Flags())
 		sub.Flags().String("stack", r.Name()+"-stack", "Pulumi stack name")
 		c.AddCommand(sub)
 	}
@@ -119,7 +118,7 @@ func actionCmd() *cobra.Command {
 					return r.RunAction(newCtx(), stack, name, cfg)
 				},
 			}
-			registerFlagsSafe(asc, actSub.Flags())
+			scenario.RegisterFlags(asc, actSub.Flags())
 			actSub.Flags().String("stack", r.Name()+"-stack", "Pulumi stack name")
 			scenarioCmd.AddCommand(actSub)
 		}
@@ -145,19 +144,3 @@ func destroyCmd() *cobra.Command {
 	return c
 }
 
-// registerFlagsSafe calls scenario.RegisterFlags but skips any flag that is
-// already defined on fs. This guards against parameter structs that embed
-// multiple components with the same flag name (e.g. two "use-fakeintake" bools
-// from AgentParams.Fakeintake and FakeintakeParams.Enabled).
-func registerFlagsSafe(s scenario.Schema, fs *pflag.FlagSet) {
-	var safe scenario.Schema
-	seen := map[string]bool{}
-	for _, f := range s.Fields {
-		if seen[f.Name] || fs.Lookup(f.Name) != nil {
-			continue
-		}
-		seen[f.Name] = true
-		safe.Fields = append(safe.Fields, f)
-	}
-	scenario.RegisterFlags(safe, fs)
-}

@@ -61,7 +61,7 @@ func Provisioner(p *EC2HostParams) (provisioners.TypedProvisioner[environments.H
 		runOpts = append(runOpts, ec2.WithoutAgent())
 	}
 
-	if p.Agent.Fakeintake || p.Fakeintake.Enabled {
+	if p.Fakeintake.Enabled {
 		runOpts = append(runOpts, ec2.WithFakeIntakeOptions(fakeOpts...))
 	} else {
 		runOpts = append(runOpts, ec2.WithoutFakeIntake())
