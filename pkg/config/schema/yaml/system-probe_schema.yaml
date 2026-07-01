@@ -26,7 +26,7 @@ properties:
         tags: []
         platform_default:
           linux: ${run_path}/sysprobe.sock
-          darwin: /opt/datadog-agent/run/sysprobe.sock
+          darwin: ${run_path}/sysprobe.sock
           windows: \\.\pipe\dd_system_probe
       log_file:
         node_type: setting
@@ -659,9 +659,7 @@ properties:
       direct_send:
         node_type: setting
         type: boolean
-        platform_default:
-          linux: true
-          other: false
+        default: false
       dns_recorded_query_types:
         node_type: setting
         type: array
@@ -1168,8 +1166,8 @@ properties:
             description: Path from where the policy files are loaded
             tags: []
             platform_default:
-              windows: ${conf_path}/runtime-security.d
               other: /etc/datadog-agent/runtime-security.d
+              windows: ${conf_path}/runtime-security.d
           monitor:
             node_type: section
             type: object
@@ -2696,6 +2694,7 @@ properties:
         node_type: setting
         type: boolean
         platform_default:
+          fargate: false
           linux: true
           other: false
       service_collection_batch_size:

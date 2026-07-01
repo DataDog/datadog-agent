@@ -2319,7 +2319,6 @@ properties:
     platform_default:
       linux: /var/run/datadog/dsd.socket
       other: ''
-    comment: Only enabled on unix systems
   dogstatsd_origin_detection:
     node_type: setting
     type: boolean
@@ -3060,6 +3059,9 @@ properties:
       and "/sys/fs/cgroup" if not.
     tags:
     - template_section:CoreAgent
+    comment: |-
+      The correct default is deduce at runtime by scanning for mounted volumes (see fixupContainerSyspath).
+      The value here is a generic place holder used for our configuration examples.
   container_proc_root:
     node_type: setting
     type: string
@@ -3070,6 +3072,9 @@ properties:
       Default if environment variable "DOCKER_DD_AGENT" is set "/host/proc" and "/proc" if not.
     tags:
     - template_section:CoreAgent
+    comment: |-
+      The correct default is deduce at runtime by scanning for mounted volumes (see fixupContainerSyspath).
+      The value here is a generic place holder used for our configuration examples.
   listeners:
     node_type: setting
     type: array
@@ -5719,6 +5724,8 @@ properties:
               (one per container instead of one per host). This may impact your custom metrics billing.
             tags:
             - template_section:CoreAgent
+            comment: This only partially works. The environment variable is also manually
+              checked in comp/otelcol/otlp/config.go
           delta_ttl:
             node_type: setting
             type: integer
@@ -5868,7 +5875,6 @@ properties:
             node_type: setting
             type: string
             default: ''
-            comment: Metrics settings
       traces:
         node_type: section
         type: object
@@ -5888,7 +5894,6 @@ properties:
               To enable the OTLP ingest, the otlp_config.receiver section must be set.
             tags:
             - template_section:CoreAgent
-            comment: Traces settings
           span_name_as_resource_name:
             node_type: setting
             type: boolean
@@ -5986,10 +5991,6 @@ properties:
             example: 'true'
             tags:
             - template_section:CoreAgent
-            comment: |-
-              NOTE: This only partially works.
-              The environment variable is also manually checked in comp/otelcol/otlp/config.go
-              Logs
           batch:
             node_type: section
             type: object
@@ -6057,6 +6058,7 @@ properties:
         node_type: setting
         type: integer
         default: 0
+        comment: Legacy port keys (unused; 0 = disabled)
   private_action_runner:
     $ref: private_action_runner.yaml
   GUI_host:
@@ -9014,6 +9016,10 @@ properties:
             - windows_service
             items:
               type: string
+            comment: |-
+              Infrastructure basic mode section [UNDOCUMENTED]
+              Note: All checks starting with "custom_" are always allowed.
+              integration.basic.allowed: default allowed checks (internal, should not need user configuration)
       enabled:
         node_type: setting
         type: boolean
@@ -9617,8 +9623,9 @@ properties:
         node_type: setting
         type: boolean
         platform_default:
-          darwin: false
-          other: true
+          linux: true
+          windows: true
+          other: false
     tags:
     - full-agent-only:true
   notable_events:
@@ -10514,8 +10521,9 @@ properties:
     node_type: setting
     type: boolean
     platform_default:
-      darwin: false
-      other: true
+      linux: true
+      windows: true
+      other: false
     tags:
     - full-agent-only:true
     comment: |-
