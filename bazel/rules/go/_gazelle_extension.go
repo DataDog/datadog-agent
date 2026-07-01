@@ -47,10 +47,10 @@ func NewLanguage() language.Language {
 	return &lang{Language: goLanguage.NewLanguage()}
 }
 
-// Kinds extends the Go extension's kinds with dd_agent_go_test. srcs, gotags, and
-// flavors are mergeable so each Gazelle run regenerates them from current
-// source analysis; all other attrs (deps, embed, data, ...) are preserved
-// from the existing rule.
+// Kinds extends the Go extension's kinds with dd_agent_go_test. srcs, gotags,
+// flavors, and deps are mergeable so each Gazelle run regenerates them from
+// current source analysis (deps via Resolve, below); all other attrs (embed,
+// data, ...) are preserved from the existing rule.
 func (l *lang) Kinds() map[string]rule.KindInfo {
 	kinds := make(map[string]rule.KindInfo, len(l.Language.Kinds())+1)
 	for k, v := range l.Language.Kinds() {
@@ -58,7 +58,7 @@ func (l *lang) Kinds() map[string]rule.KindInfo {
 	}
 	kinds["dd_agent_go_test"] = rule.KindInfo{
 		NonEmptyAttrs:  map[string]bool{"embed": true},
-		MergeableAttrs: map[string]bool{"srcs": true, "gotags": true, "flavors": true},
+		MergeableAttrs: map[string]bool{"srcs": true, "gotags": true, "flavors": true, "deps": true},
 	}
 	return kinds
 }

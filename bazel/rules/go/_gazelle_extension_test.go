@@ -455,6 +455,11 @@ func TestApplicableFlavors(t *testing.T) {
 	}
 }
 
+// TestKinds guards deps staying in MergeableAttrs: Gazelle's post-Resolve
+// MergeFile pass treats a non-mergeable attr present on the on-disk rule as
+// authoritative, discarding whatever Resolve just computed. Without deps
+// marked mergeable here, Resolve's dd_agent_go_test deps never take effect
+// past the first conversion.
 func TestKinds(t *testing.T) {
 	kinds := NewLanguage().(*lang).Kinds()
 	info, ok := kinds["dd_agent_go_test"]
@@ -466,6 +471,9 @@ func TestKinds(t *testing.T) {
 	}
 	if !info.MergeableAttrs["srcs"] {
 		t.Error("expected srcs in MergeableAttrs")
+	}
+	if !info.MergeableAttrs["deps"] {
+		t.Error("expected deps in MergeableAttrs")
 	}
 }
 
