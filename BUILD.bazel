@@ -241,7 +241,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/serverless/trace/trace.go
 # gazelle:exclude pkg/status/clusteragent
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
 # Keep hostname.go out of //pkg/util/kubernetes:kubernetes: adding it pulls deps
 #   kubernetes -> clustername -> hostinfo -> kubelet -> kubernetes
