@@ -90,21 +90,15 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult RemoveGeneratedArtifacts(Session session)
+        public static ActionResult CleanupFiles(Session session)
         {
-            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveGeneratedArtifacts(session);
+            return Datadog.CustomActions.CleanUpFilesCustomAction.CleanupFiles(session);
         }
 
         [CustomAction]
         public static ActionResult RemoveFleetProcmgrConfigOnRollback(Session session)
         {
             return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveFleetProcmgrConfigOnRollback(session);
-        }
-
-        [CustomAction]
-        public static ActionResult RemoveGeneratedArtifactsOnRollback(Session session)
-        {
-            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveGeneratedArtifactsOnRollback(session);
         }
 
         [CustomAction]

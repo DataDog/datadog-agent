@@ -50,7 +50,7 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RemoveFleetProcmgrConfigOnRollback { get; }
 
-        public ManagedAction RemoveGeneratedArtifactsOnRollback { get; }
+        public ManagedAction CleanupOnRollback { get; }
 
         public ManagedAction RemoveEmptyInstallDirOnRollback { get; }
 
@@ -210,7 +210,7 @@ namespace WixSetup.Datadog_Agent
 
             EnsureGeneratedFilesRemoved = new CustomAction<CustomActions>(
                 new Id(nameof(EnsureGeneratedFilesRemoved)),
-                CustomActions.RemoveGeneratedArtifacts,
+                CustomActions.CleanupFiles,
                 Return.check,
                 When.Before,
                 Step.InstallFiles,
@@ -283,9 +283,9 @@ namespace WixSetup.Datadog_Agent
                     "REMOVE=[REMOVE], " +
                     "PROJECTLOCATION=[PROJECTLOCATION]");
 
-            RemoveGeneratedArtifactsOnRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveGeneratedArtifactsOnRollback)),
-                    CustomActions.RemoveGeneratedArtifactsOnRollback,
+            CleanupOnRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(CleanupOnRollback)),
+                    CustomActions.CleanupFiles,
                     Return.check,
                     When.After,
                     new Step(RemoveFleetProcmgrConfigOnRollback.Id),
@@ -303,7 +303,7 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.RemoveEmptyInstallDirOnRollback,
                     Return.check,
                     When.After,
-                    new Step(RemoveGeneratedArtifactsOnRollback.Id),
+                    new Step(CleanupOnRollback.Id),
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
             {
@@ -397,7 +397,7 @@ namespace WixSetup.Datadog_Agent
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnUninstall)),
-                    CustomActions.RemoveGeneratedArtifacts,
+                    CustomActions.CleanupFiles,
                     Return.check,
                     When.Before,
                     Step.RemoveFiles,

@@ -14,11 +14,11 @@ namespace Datadog.CustomActions
 
         /// <summary>
         /// Removes generated install artifacts (embedded2/embedded3, python-scripts, session-generated paths).
-        /// Used before InstallFiles and during uninstall.
+        /// Used before InstallFiles, during uninstall, and on rollback.
         /// </summary>
-        public static ActionResult RemoveGeneratedArtifacts(Session session)
+        public static ActionResult CleanupFiles(Session session)
         {
-            return RemoveGeneratedArtifacts(new SessionWrapper(session));
+            return CleanupFiles(new SessionWrapper(session));
         }
 
         /// <summary>
@@ -28,14 +28,6 @@ namespace Datadog.CustomActions
         public static ActionResult RemoveFleetProcmgrConfigOnRollback(Session session)
         {
             return RemoveFleetProcmgrConfigOnRollback(new SessionWrapper(session));
-        }
-
-        /// <summary>
-        /// Rollback-only: remove generated install artifacts after a failed install.
-        /// </summary>
-        public static ActionResult RemoveGeneratedArtifactsOnRollback(Session session)
-        {
-            return RemoveGeneratedArtifactsOnRollback(new SessionWrapper(session));
         }
 
         /// <summary>
@@ -55,7 +47,7 @@ namespace Datadog.CustomActions
             return RemoveEmptyInstallDirAfterUninstall(new SessionWrapper(session));
         }
 
-        private static ActionResult RemoveGeneratedArtifacts(ISession session)
+        private static ActionResult CleanupFiles(ISession session)
         {
             RemoveGeneratedArtifactPaths(session, session.Property("PROJECTLOCATION"));
             return ActionResult.Success;
@@ -70,12 +62,6 @@ namespace Datadog.CustomActions
             }
 
             TryRemoveFleetProcmgrConfigFiles(session, session.Property("PROJECTLOCATION"));
-            return ActionResult.Success;
-        }
-
-        private static ActionResult RemoveGeneratedArtifactsOnRollback(ISession session)
-        {
-            RemoveGeneratedArtifactPaths(session, session.Property("PROJECTLOCATION"));
             return ActionResult.Success;
         }
 
