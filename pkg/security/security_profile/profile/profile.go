@@ -101,14 +101,6 @@ func (p *Profile) IsEnabled() bool {
 	return p.isEnabled
 }
 
-// Enable enables the profile
-func (p *Profile) Enable() {
-	p.Lock()
-	defer p.Unlock()
-
-	p.isEnabled = true
-}
-
 // Disable disables the profile and drops its activity tree to free the memory it held.
 func (p *Profile) Disable() {
 	p.Lock()
