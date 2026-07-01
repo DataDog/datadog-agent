@@ -924,6 +924,9 @@ def eval_bayesian(
         print(color_message(f"Error: {e}", Color.RED))
         return
 
+    if not _validate_ddeval_scenario_filter(eval_backend, scenarios):
+        return
+
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
@@ -1174,6 +1177,19 @@ def _ddeval_options_kwargs(options: _DDEvalOptions | None) -> dict[str, object]:
         "ddeval_limit": options.limit,
         "ddeval_where_in": options.where_in,
     }
+
+
+def _validate_ddeval_scenario_filter(eval_backend: str, scenarios: str) -> bool:
+    if eval_backend != "ddeval" or not scenarios:
+        return True
+    print(
+        color_message(
+            "Error: --scenarios only filters local scenario directories. "
+            "Use --ddeval-where-in to filter remote ddeval dataset records.",
+            Color.RED,
+        )
+    )
+    return False
 
 
 def _log_trial_config(logger: StepLogger, config: dict) -> None:
@@ -1464,6 +1480,9 @@ def eval_pipeline(
         )
     except ValueError as e:
         print(color_message(f"Error: {e}", Color.RED))
+        return
+
+    if not _validate_ddeval_scenario_filter(eval_backend, scenarios):
         return
 
     if seed is not None:
