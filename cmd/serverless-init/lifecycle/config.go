@@ -30,6 +30,11 @@ const ReadyTimeoutMsEnvVar = "DD_AWS_MICROVM_READY_TIMEOUT_MS"
 // ValidateTimeoutMsEnvVar overrides the timeout (ms) for /validate.
 const ValidateTimeoutMsEnvVar = "DD_AWS_MICROVM_VALIDATE_TIMEOUT_MS"
 
+// RunSignalEnvVar opts in to sending SIGUSR2 to the child on /run.
+// SIGUSR2's default Linux disposition is termination; enable only when the
+// user application installs a SIGUSR2 handler (e.g. dd-trace-js).
+const RunSignalEnvVar = "DD_AWS_MICROVM_SEND_RUN_SIGNAL"
+
 // parsePort parses a port number from a raw env-var string.
 // Returns defaultVal when raw is empty. Parsed port must not equal any value in forbidden.
 func parsePort(envVar, raw string, defaultVal int, forbidden ...int) (int, error) {

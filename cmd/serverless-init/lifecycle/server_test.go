@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package lifecycle
 
 import (
@@ -75,6 +77,17 @@ func newTestServer() (*Server, *mockFlusher, *mockFlusher, *mockLogsAgent, *mock
 	// after construction.
 	srv := NewServer(0, metric, trace, logs, emitter, drainer, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, nil)
 	return srv, metric, trace, logs, emitter, drainer
+}
+
+func TestNewServer_RunSignalDisabledByDefault(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	assert.False(t, srv.runSignalEnabled, "runSignalEnabled must be false when %s is unset", RunSignalEnvVar)
+}
+
+func TestNewServer_RunSignalEnabledByEnvVar(t *testing.T) {
+	t.Setenv(RunSignalEnvVar, "true")
+	srv, _, _, _, _, _ := newTestServer()
+	assert.True(t, srv.runSignalEnabled, "runSignalEnabled must be true when %s=true", RunSignalEnvVar)
 }
 
 // /ready with a nil ChildHandle is a wiring bug. The handler logs WARN and
@@ -1524,4 +1537,81 @@ func TestHandleRun_WithForwarder_UpdatesTraceTags(t *testing.T) {
 
 	require.Equal(t, 1, setter.callCount(), "SetTraceTags must be called even when forwarder is configured")
 	assert.Equal(t, "vm-fwd789", setter.lastCall()["lambda_microvm_id"])
+}
+
+func TestHandleRun_NoForwarder_SendsRunSignalToChild(t *testing.T) {
+	t.Setenv(RunSignalEnvVar, "true")
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGUSR2)
+	defer signal.Stop(sigCh)
+
+	srv, _, _, _, _, _ := newTestServer()
+	srv.child = NewChild()
+	self, err := os.FindProcess(os.Getpid())
+	require.NoError(t, err)
+	srv.child.StoreProcess(self)
+
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
+
+	select {
+	case sig := <-sigCh:
+		assert.Equal(t, syscall.SIGUSR2, sig, "/run must deliver RunSignal to child")
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("/run must deliver RunSignal to child; SIGUSR2 not received within 500ms")
+	}
+}
+
+func TestHandleRun_NoForwarder_RunSignalDisabled_NoSignalSent(t *testing.T) {
+	// DD_AWS_MICROVM_SEND_RUN_SIGNAL is intentionally NOT set — default behavior.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGUSR2)
+	defer signal.Stop(sigCh)
+
+	srv, _, _, _, _, _ := newTestServer()
+	srv.child = NewChild()
+	self, err := os.FindProcess(os.Getpid())
+	require.NoError(t, err)
+	srv.child.StoreProcess(self)
+
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
+
+	select {
+	case sig := <-sigCh:
+		t.Fatalf("/run without %s must NOT send RunSignal; got %v", RunSignalEnvVar, sig)
+	case <-time.After(100 * time.Millisecond):
+		// Pass — no signal observed.
+	}
+}
+
+func TestHandleRun_WithForwarder_NoSignalSent(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGUSR2)
+	defer signal.Stop(sigCh)
+
+	srv, _, _, _, _, _ := newTestServer()
+	srv.child = NewChild()
+	self, err := os.FindProcess(os.Getpid())
+	require.NoError(t, err)
+	srv.child.StoreProcess(self)
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
+
+	select {
+	case sig := <-sigCh:
+		t.Fatalf("/run with forwarder must NOT send RunSignal; got %v", sig)
+	case <-time.After(100 * time.Millisecond):
+		// Pass — no signal observed.
+	}
 }
