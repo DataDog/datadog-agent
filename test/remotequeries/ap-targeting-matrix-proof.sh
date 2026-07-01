@@ -28,6 +28,7 @@ RQ_REMOTE_QUERY=${RQ_REMOTE_QUERY:-SELECT city, country FROM cities ORDER BY cit
 RQ_POLL_INTERVAL=${RQ_POLL_INTERVAL:-1}
 RQ_MAX_POLLS=${RQ_MAX_POLLS:-45}
 DD_SITE=${DD_SITE:-datad0g.com}
+KEEP_ALIVE=${KEEP_ALIVE:-0}
 
 POSTGRES_COMPOSE_STARTED=0
 AGENT_A_PID=""
@@ -50,6 +51,38 @@ MATRIX_CASES=(
 
 log() { printf '\n[%s] %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$TMP_ROOT/results/harness.log"; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing required command: $1" >&2; exit 1; }; }
+
+usage() {
+  cat <<'TXT'
+Usage: ap-targeting-matrix-proof.sh [--keep-alive]
+
+Options:
+  --keep-alive   Set up the Agent/PAR/Postgres/AP connection matrix, write
+                 connection/PID metadata under $TMP_ROOT/results, print a
+                 KEEPALIVE_READY marker, and block until SIGINT/SIGTERM.
+                 Equivalent: KEEP_ALIVE=1 ap-targeting-matrix-proof.sh
+TXT
+}
+
+parse_args() {
+  while (($#)); do
+    case "$1" in
+      --keep-alive)
+        KEEP_ALIVE=1
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "unknown argument: $1" >&2
+        usage >&2
+        exit 2
+        ;;
+    esac
+    shift
+  done
+}
 
 docker_compose() { POSTGRES_IMAGE="$POSTGRES_IMAGE" docker compose -f "$POSTGRES_COMPOSE_FILE" -p "$POSTGRES_COMPOSE_PROJECT" "$@"; }
 
@@ -523,7 +556,33 @@ Each positive AP execution called /api/unstable/actions/execute with an explicit
 TXT
 }
 
+write_keepalive_metadata() {
+  cat > "$TMP_ROOT/results/keepalive-connections.tsv" <<TXT
+a	$CONNECTION_A
+b	$CONNECTION_B
+TXT
+  cat > "$TMP_ROOT/results/keepalive-pids.tsv" <<TXT
+harness	$$
+agent_a	$AGENT_A_PID
+agent_b	$AGENT_B_PID
+par_a	$PAR_A_PID
+par_b	$PAR_B_PID
+TXT
+}
+
+keep_alive_until_interrupted() {
+  write_keepalive_metadata
+  printf 'KEEPALIVE_READY tmp_root=%s connection_a=%s connection_b=%s\n' "$TMP_ROOT" "$CONNECTION_A" "$CONNECTION_B"
+  log "Keep-alive mode is ready; waiting for SIGINT/SIGTERM"
+  trap 'log "Keep-alive mode received interrupt; exiting for cleanup"; exit 0' INT TERM
+  while true; do
+    sleep 3600 &
+    wait "$!"
+  done
+}
+
 main() {
+  parse_args "$@"
   require_cmd docker; require_cmd psql; require_cmd python3; require_cmd curl; require_cmd jq
   : "${DD_API_KEY:?DD_API_KEY missing}"
   : "${DD_APP_KEY:?DD_APP_KEY missing}"
@@ -540,9 +599,13 @@ main() {
   setup_tmp_tree
   start_postgres_fixture
   start_agents_and_pars
-  run_ap_matrix
-  write_summary
-  log "Done. Sanitized AP targeting results are under $TMP_ROOT/results"
+  if [[ "$KEEP_ALIVE" == "1" ]]; then
+    keep_alive_until_interrupted
+  else
+    run_ap_matrix
+    write_summary
+    log "Done. Sanitized AP targeting results are under $TMP_ROOT/results"
+  fi
 }
 
 main "$@"
