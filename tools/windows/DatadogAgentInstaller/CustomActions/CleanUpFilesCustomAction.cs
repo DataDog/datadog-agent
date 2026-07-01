@@ -23,7 +23,7 @@ namespace Datadog.CustomActions
 
         /// <summary>
         /// Rollback-only: remove fleet-written processes.d YAML that MSI does not track.
-        /// Skips upgrade and maintenance rollbacks so existing DDOT/ADP configs are preserved.
+        /// Scheduled only on fresh install rollbacks (see Conditions.FirstInstall on the WiX action).
         /// </summary>
         public static ActionResult RemoveFleetProcmgrConfigOnRollback(Session session)
         {
@@ -55,24 +55,13 @@ namespace Datadog.CustomActions
 
         private static ActionResult RemoveFleetProcmgrConfigOnRollback(ISession session)
         {
-            if (!ShouldRemoveFleetProcmgrConfigOnRollback(session))
-            {
-                session.Log("Skipping fleet process manager config cleanup (upgrade or maintenance rollback).");
-                return ActionResult.Success;
-            }
-
             TryRemoveFleetProcmgrConfigFiles(session, session.Property("PROJECTLOCATION"));
             return ActionResult.Success;
         }
 
         private static ActionResult RemoveEmptyInstallDirOnRollback(ISession session)
         {
-            var projectLocation = session.Property("PROJECTLOCATION");
-            if (ShouldRemoveFleetProcmgrConfigOnRollback(session))
-            {
-                TryRemoveFleetProcmgrConfigFiles(session, projectLocation);
-            }
-            TryRemoveEmptyInstallDir(session, projectLocation);
+            TryRemoveEmptyInstallDir(session, session.Property("PROJECTLOCATION"));
             return ActionResult.Success;
         }
 
@@ -80,32 +69,6 @@ namespace Datadog.CustomActions
         {
             TryRemoveEmptyInstallDir(session, session.Property("PROJECTLOCATION"));
             return ActionResult.Success;
-        }
-
-        /// <summary>
-        /// True when rollback should remove fleet-written processes.d YAML and empty install dirs.
-        /// Skips upgrade and maintenance rollbacks so existing DDOT/ADP configs are preserved.
-        /// Do not use the Installed property: it is set during first-install rollback after
-        /// InstallFinalize even when WIXFAILWHENDEFERRED fails at the end of the transaction.
-        /// Upgrade rollbacks are scheduled under Conditions.Upgrading (WIX_UPGRADE_DETECTED), not
-        /// UPGRADINGPRODUCTCODE, so both must be checked.
-        /// </summary>
-        private static bool ShouldRemoveFleetProcmgrConfigOnRollback(ISession session)
-        {
-            if (!string.IsNullOrEmpty(session.Property("UPGRADINGPRODUCTCODE"))
-                || !string.IsNullOrEmpty(session.Property("WIX_UPGRADE_DETECTED")))
-            {
-                return false;
-            }
-
-            // Repair/change/remove maintenance modes set REINSTALL or REMOVE.
-            if (!string.IsNullOrEmpty(session.Property("REINSTALL"))
-                || !string.IsNullOrEmpty(session.Property("REMOVE")))
-            {
-                return false;
-            }
-
-            return true;
         }
 
         private static void RemoveGeneratedArtifactPaths(ISession session, string projectLocation)

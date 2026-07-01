@@ -264,9 +264,9 @@ namespace WixSetup.Datadog_Agent
 
             // Cleanup leftover files on rollback. Must be before DecompressPythonDistributions so a
             // decompression failure still runs these rollback actions.
-            RemoveFleetProcmgrConfigOnRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveFleetProcmgrConfigOnRollback)),
-                    CustomActions.RemoveFleetProcmgrConfigOnRollback,
+            CleanupOnRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(CleanupOnRollback)),
+                    CustomActions.CleanupFiles,
                     Return.check,
                     When.After,
                     new Step(WriteConfig.Id),
@@ -277,26 +277,21 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties(
-                    "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
-                    "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
-                    "REINSTALL=[REINSTALL], " +
-                    "REMOVE=[REMOVE], " +
-                    "PROJECTLOCATION=[PROJECTLOCATION]");
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            CleanupOnRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(CleanupOnRollback)),
-                    CustomActions.CleanupFiles,
+            RemoveFleetProcmgrConfigOnRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveFleetProcmgrConfigOnRollback)),
+                    CustomActions.RemoveFleetProcmgrConfigOnRollback,
                     Return.check,
-                    When.After,
-                    new Step(RemoveFleetProcmgrConfigOnRollback.Id),
-                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                    When.Before,
+                    new Step(CleanupOnRollback.Id),
+                    Conditions.FirstInstall
                 )
             {
                 Execute = Execute.rollback,
                 Impersonate = false
             }
-                .SetProperties(
-                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             RemoveEmptyInstallDirOnRollback = new CustomAction<CustomActions>(
                     new Id(nameof(RemoveEmptyInstallDirOnRollback)),
@@ -304,18 +299,13 @@ namespace WixSetup.Datadog_Agent
                     Return.check,
                     When.After,
                     new Step(CleanupOnRollback.Id),
-                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                    Conditions.FirstInstall
                 )
             {
                 Execute = Execute.rollback,
                 Impersonate = false
             }
-                .SetProperties(
-                    "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
-                    "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
-                    "REINSTALL=[REINSTALL], " +
-                    "REMOVE=[REMOVE], " +
-                    "PROJECTLOCATION=[PROJECTLOCATION]");
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             DecompressPythonDistributions = new CustomAction<CustomActions>(
                     new Id(nameof(DecompressPythonDistributions)),
