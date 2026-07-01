@@ -18,7 +18,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/clusteragent/autoscaling",
-        "//pkg/util/kubernetes",
         "//pkg/util/pointer",
         "@com_github_datadog_agent_payload_v5//autoscaling/kubernetes",
         "@com_github_datadog_datadog_operator_api//datadoghq/common",
@@ -26,7 +25,6 @@ go_library(
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
         "@com_github_google_go_cmp//cmp",
         "@com_github_stretchr_testify//assert",
-        "@com_github_twmb_murmur3//:murmur3",
         "@io_k8s_api//autoscaling/v2:autoscaling",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
