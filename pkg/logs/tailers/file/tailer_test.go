@@ -110,6 +110,19 @@ func (suite *TailerTestSuite) TearDownTest() {
 	suite.testFile.Close()
 }
 
+// TestSetupCachesFileSize asserts that starting the tailer caches the file's current size (used by
+// the rotation-mismatch detector). A regression here would leave the cached size at 0.
+func (suite *TailerTestSuite) TestSetupCachesFileSize() {
+	content := "0123456789\n"
+	_, err := suite.testFile.WriteString(content)
+	suite.Nil(err)
+
+	err = suite.tailer.StartFromBeginning()
+	suite.Nil(err)
+
+	suite.Equal(int64(len(content)), suite.tailer.cachedFileSize.Load())
+}
+
 func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
 	// Write more messages than the output channel capacity
 	for i := 0; i < chanSize+2; i++ {
