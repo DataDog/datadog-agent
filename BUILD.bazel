@@ -182,10 +182,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet/provider
 # gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
 # gazelle:exclude pkg/collector/corechecks/gpu/nvidia
-# gazelle:exclude pkg/collector/corechecks/gpu/spec/allowlist
-# gazelle:exclude pkg/collector/corechecks/gpu/spec/metadata
-# gazelle:exclude pkg/collector/corechecks/gpu/spec/metrics-list
-# gazelle:exclude pkg/collector/corechecks/gpu/spec/metrics-validator
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/*.go
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/payload
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/report
