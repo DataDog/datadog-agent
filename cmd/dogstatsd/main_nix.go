@@ -13,12 +13,15 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/command"
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func main() {
+	rssshrinker.ScheduleDefault()
+
 	flavor.SetFlavor(flavor.Dogstatsd)
 
 	if err := command.MakeRootCommand(defaultpaths.GetDefaultDogstatsDServiceLogFile()).Execute(); err != nil {

@@ -39,12 +39,11 @@ go_library(
     srcs = [
         "docs.go",
         "main_nix.go",
-        "memory_darwin.go",
-        "memory_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/loader",
     deps = select({
         "@rules_go//go/platform:android": [
+            "//cmd/internal/rssshrinker",
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
             "//comp/core/secrets/noop-impl/types",
@@ -60,6 +59,7 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
+            "//cmd/internal/rssshrinker",
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
             "//comp/core/secrets/noop-impl/types",
@@ -75,6 +75,7 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
+            "//cmd/internal/rssshrinker",
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
             "//comp/core/secrets/noop-impl/types",
@@ -90,6 +91,7 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
+            "//cmd/internal/rssshrinker",
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
             "//comp/core/secrets/noop-impl/types",
