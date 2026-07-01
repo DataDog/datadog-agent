@@ -10,7 +10,6 @@ import (
 
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 func setupProcesses(config pkgconfigmodel.Setup) {
@@ -47,7 +46,12 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.intervals.container_realtime", 2)
 	procBindEnvAndSetDefault(config, "process_config.intervals.connections", 30)
 
-	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", defaultpaths.GetDefaultDDAgentBin())
+	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", GetPlatformDefault(map[string]interface{}{
+		"linux":   "${install_path}/bin/agent/agent",
+		"darwin":  "${install_path}/bin/agent/agent",
+		"windows": "${install_path}/bin/agent.exe",
+	}))
+
 	config.BindEnvAndSetDefault("process_config.custom_sensitive_words", []string{},
 		"DD_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",
@@ -77,10 +81,11 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.ignore_zombie_processes", false)
 
 	// Process Discovery Check
+	// We also bind old environment variables for this setting
 	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", true,
 		"DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED",
 		"DD_PROCESS_AGENT_PROCESS_DISCOVERY_ENABLED",
-		"DD_PROCESS_CONFIG_DISCOVERY_ENABLED", // Also bind old environment variables
+		"DD_PROCESS_CONFIG_DISCOVERY_ENABLED",
 		"DD_PROCESS_AGENT_DISCOVERY_ENABLED",
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
