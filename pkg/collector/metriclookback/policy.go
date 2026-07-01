@@ -95,12 +95,14 @@ func isSupportedCheckConfig(config integration.Config, opts ShadowPolicyOptions)
 		return false
 	}
 	if len(opts.ChecksToShadow) > 0 && !slices.Contains(opts.ChecksToShadow, config.Name) {
+		// ChecksToShadow is a config-level allowlist and intentionally gates
+		// per-instance opt-in.
 		return false
 	}
 	return true
 }
 
-func instanceLookbackEnabled(instance integration.Data) (enabled bool, found bool) {
+func instanceLookbackEnabled(instance integration.Data) (enabled bool, validOverride bool) {
 	var raw integration.RawMap
 	if err := yaml.Unmarshal(instance, &raw); err != nil {
 		return false, false
@@ -119,7 +121,7 @@ func instanceLookbackEnabled(instance integration.Data) (enabled bool, found boo
 		enabledValue, ok := typedValue[instanceEnabledKey]
 		return boolSetting(enabledValue, ok)
 	default:
-		return false, true
+		return false, false
 	}
 }
 
@@ -128,7 +130,7 @@ func boolSetting(value interface{}, found bool) (bool, bool) {
 		return false, false
 	}
 	enabled, ok := value.(bool)
-	return enabled && ok, true
+	return enabled, ok
 }
 
 func cloneConfig(config integration.Config) integration.Config {

@@ -85,6 +85,25 @@ func TestSelectShadowCandidatesAllowsPerInstanceEnablement(t *testing.T) {
 	assert.Equal(t, checkid.BuildID("cpu", configs[0].FastDigest(), configs[0].Instances[1], configs[0].InitConfig), candidates[0].SourceCheckID)
 }
 
+func TestSelectShadowCandidatesTreatsMalformedInstanceSettingAsUnset(t *testing.T) {
+	configs := []integration.Config{
+		{
+			Name: "cpu",
+			Instances: []integration.Data{
+				integration.Data("name: malformed\nmetric_lookback: true\n"),
+			},
+		},
+	}
+
+	candidates, err := SelectShadowCandidates(configs, ShadowPolicyOptions{})
+	require.NoError(t, err)
+	assert.Empty(t, candidates)
+
+	candidates, err = SelectShadowCandidates(configs, ShadowPolicyOptions{ShadowChecksEnabled: true})
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+}
+
 func TestSelectShadowCandidatesSkipsNonCheckAndMetricsFilteredConfigs(t *testing.T) {
 	configs := []integration.Config{
 		{
