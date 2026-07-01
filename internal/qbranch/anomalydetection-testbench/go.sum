@@ -1,6 +1,6 @@
 dario.cat/mergo v1.0.2 h1:85+piFYR1tMbRrLcDwR18y4UKJ3aH1Tbzi24VRW1TK8=
 dario.cat/mergo v1.0.2/go.mod h1:E/hbnu0NxMFBjpMIE34DRGLWqDy0g5FuKDhCb31ngxA=
-github.com/DataDog/agent-payload/v5 v5.0.203 h1:B57Nb2tHceG4vNPReokdKqoUQ6iDhQTbihPHF9JFumA=
+github.com/DataDog/agent-payload/v5 v5.0.203 h1:H5jLFXyCT3daFJXVgcjowNj+cBK6lGkQtt8BWV5FI/U=
 github.com/DataDog/agent-payload/v5 v5.0.203/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE8QkOVNAFDqsH8VNF5M=
 github.com/DataDog/datadog-api-client-go/v2 v2.61.0 h1:PEwppagAlD6Y6BU6GcG0+bwLr0k+SBnTjOvbaUbNhyw=
 github.com/DataDog/datadog-api-client-go/v2 v2.61.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
