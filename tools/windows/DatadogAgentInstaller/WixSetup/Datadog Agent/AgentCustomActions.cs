@@ -277,8 +277,9 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties(
-                    "INSTALLED=[Installed], " +
                     "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                    "REINSTALL=[REINSTALL], " +
+                    "REMOVE=[REMOVE], " +
                     "PROJECTLOCATION=[PROJECTLOCATION]");
 
             RemoveGeneratedArtifactsOnRollback = new CustomAction<CustomActions>(
@@ -308,7 +309,11 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.rollback,
                 Impersonate = false
             }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
+                .SetProperties(
+                    "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                    "REINSTALL=[REINSTALL], " +
+                    "REMOVE=[REMOVE], " +
+                    "PROJECTLOCATION=[PROJECTLOCATION]");
 
             DecompressPythonDistributions = new CustomAction<CustomActions>(
                     new Id(nameof(DecompressPythonDistributions)),

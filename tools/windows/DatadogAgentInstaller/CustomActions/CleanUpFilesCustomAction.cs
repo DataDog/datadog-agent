@@ -63,9 +63,9 @@ namespace Datadog.CustomActions
 
         private static ActionResult RemoveFleetProcmgrConfigOnRollback(ISession session)
         {
-            if (!IsFreshInstallRollback(session))
+            if (!ShouldRemoveFleetProcmgrConfigOnRollback(session))
             {
-                session.Log("Skipping fleet process manager config cleanup (not a fresh-install rollback).");
+                session.Log("Skipping fleet process manager config cleanup (upgrade or maintenance rollback).");
                 return ActionResult.Success;
             }
 
@@ -81,7 +81,12 @@ namespace Datadog.CustomActions
 
         private static ActionResult RemoveEmptyInstallDirOnRollback(ISession session)
         {
-            TryRemoveEmptyInstallDir(session, session.Property("PROJECTLOCATION"));
+            var projectLocation = session.Property("PROJECTLOCATION");
+            if (ShouldRemoveFleetProcmgrConfigOnRollback(session))
+            {
+                TryRemoveFleetProcmgrConfigFiles(session, projectLocation);
+            }
+            TryRemoveEmptyInstallDir(session, projectLocation);
             return ActionResult.Success;
         }
 
@@ -91,12 +96,27 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        private static bool IsFreshInstallRollback(ISession session)
+        /// <summary>
+        /// True when rollback should remove fleet-written processes.d YAML and empty install dirs.
+        /// Skips upgrade and maintenance rollbacks so existing DDOT/ADP configs are preserved.
+        /// Do not use the Installed property: it is set during first-install rollback after
+        /// InstallFinalize even when WIXFAILWHENDEFERRED fails at the end of the transaction.
+        /// </summary>
+        private static bool ShouldRemoveFleetProcmgrConfigOnRollback(ISession session)
         {
-            // Upgrade rollback passes UPGRADINGPRODUCTCODE; repair/change (maintenance) rollbacks
-            // have Installed set because the Agent was already on the machine.
-            return string.IsNullOrEmpty(session.Property("UPGRADINGPRODUCTCODE"))
-                && string.IsNullOrEmpty(session.Property("INSTALLED"));
+            if (!string.IsNullOrEmpty(session.Property("UPGRADINGPRODUCTCODE")))
+            {
+                return false;
+            }
+
+            // Repair/change/remove maintenance modes set REINSTALL or REMOVE.
+            if (!string.IsNullOrEmpty(session.Property("REINSTALL"))
+                || !string.IsNullOrEmpty(session.Property("REMOVE")))
+            {
+                return false;
+            }
+
+            return true;
         }
 
         private static void RemoveGeneratedArtifactPaths(ISession session, string projectLocation)
