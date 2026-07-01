@@ -167,7 +167,7 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/util/infratags
 # gazelle:exclude pkg/collector/corechecks/agentprofiling
 # gazelle:exclude pkg/collector/corechecks/cluster/helm
-# gazelle:exclude pkg/collector/corechecks/cluster/ksm
+# gazelle:exclude pkg/collector/corechecks/cluster/ksm/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/kubernetesapiserver
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/collectors
