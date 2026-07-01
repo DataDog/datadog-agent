@@ -73,6 +73,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
+	// TEMPORARY: stands in for the real (Python) openmetrics check for the
+	// VBR compression project's end-to-end verification, since this
+	// sandbox can't build Python/rtloader support. Remove once that's no
+	// longer needed (see pkg/collector/corechecks/vbrscrapeprobe).
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/vbrscrapeprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -152,6 +157,8 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg, ncmComp))
 	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
 	corecheckLoader.RegisterCheck(thermal.CheckName, thermal.Factory())
+	// TEMPORARY: see the import comment above.
+	corecheckLoader.RegisterCheck(vbrscrapeprobe.CheckName, vbrscrapeprobe.Factory())
 
 	registerSystemProbeChecks(tagger)
 }

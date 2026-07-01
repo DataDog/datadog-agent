@@ -19,6 +19,7 @@ go_library(
         "//comp/core/workloadfilter/def",
         "//comp/logs/integrations/def",
         "//pkg/aggregator/sender",
+        "//pkg/aggregator/sender/vbrsender",
         "//pkg/collector/aggregator",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
