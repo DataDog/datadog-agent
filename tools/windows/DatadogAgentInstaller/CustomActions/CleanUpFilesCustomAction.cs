@@ -101,10 +101,13 @@ namespace Datadog.CustomActions
         /// Skips upgrade and maintenance rollbacks so existing DDOT/ADP configs are preserved.
         /// Do not use the Installed property: it is set during first-install rollback after
         /// InstallFinalize even when WIXFAILWHENDEFERRED fails at the end of the transaction.
+        /// Upgrade rollbacks are scheduled under Conditions.Upgrading (WIX_UPGRADE_DETECTED), not
+        /// UPGRADINGPRODUCTCODE, so both must be checked.
         /// </summary>
         private static bool ShouldRemoveFleetProcmgrConfigOnRollback(ISession session)
         {
-            if (!string.IsNullOrEmpty(session.Property("UPGRADINGPRODUCTCODE")))
+            if (!string.IsNullOrEmpty(session.Property("UPGRADINGPRODUCTCODE"))
+                || !string.IsNullOrEmpty(session.Property("WIX_UPGRADE_DETECTED")))
             {
                 return false;
             }

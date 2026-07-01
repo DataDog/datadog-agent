@@ -278,6 +278,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                    "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
                     "REINSTALL=[REINSTALL], " +
                     "REMOVE=[REMOVE], " +
                     "PROJECTLOCATION=[PROJECTLOCATION]");
@@ -311,6 +312,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                    "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
                     "REINSTALL=[REINSTALL], " +
                     "REMOVE=[REMOVE], " +
                     "PROJECTLOCATION=[PROJECTLOCATION]");
