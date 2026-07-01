@@ -374,7 +374,7 @@ func run(
 		cloudService, tagConfig, metricTags, demux,
 	)
 
-	err := modeConf.Runner(logConfig)
+	err := cloudService.Run(modeConf, logConfig)
 
 	// Defers are LIFO. Order of execution:
 	//   1. Watchdog timer starts (debug log if shutdown exceeds the budget).
