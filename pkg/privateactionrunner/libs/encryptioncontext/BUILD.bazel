@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "encryptioncontext",
+    srcs = ["store.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "encryptioncontext_test",
+    srcs = ["store_test.go"],
+    embed = [":encryptioncontext"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//require"],
+)
