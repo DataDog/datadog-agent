@@ -162,11 +162,20 @@ func writeTagAttribute(resourceAttributes pcommon.Map, k, v string, promote Cont
 	switch promote {
 	case ContainerTagPromotionDuplicate:
 		resourceAttributes.PutStr(k, v)
-		resourceAttributes.PutStr(attributes.CustomContainerTagPrefix+k, v)
+		putStrIfAbsent(resourceAttributes, attributes.CustomContainerTagPrefix+k, v)
 	case ContainerTagPromotionRename:
-		resourceAttributes.PutStr(attributes.CustomContainerTagPrefix+k, v)
+		putStrIfAbsent(resourceAttributes, attributes.CustomContainerTagPrefix+k, v)
 	default: // "", ContainerTagPromotionOff
 		resourceAttributes.PutStr(k, v)
+	}
+}
+
+// putStrIfAbsent writes k=v only when k is not already present in attrs.
+// Used by the promotion logic to avoid overwriting a `datadog.container.tag.<X>`
+// value the user set themselves.
+func putStrIfAbsent(attrs pcommon.Map, k, v string) {
+	if _, exists := attrs.Get(k); !exists {
+		attrs.PutStr(k, v)
 	}
 }
 

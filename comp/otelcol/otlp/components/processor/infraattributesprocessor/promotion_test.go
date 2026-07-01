@@ -25,6 +25,10 @@ type promotionTest struct {
 	mode                  ContainerTagPromotionMode
 	allowHostnameOverride bool
 	taggerTags            []string
+	// inResourceAttributes are extra attributes seeded on the incoming resource
+	// alongside `container.id: test`. Used to verify preservation semantics
+	// (e.g. a pre-existing `datadog.container.tag.<X>` set by the sender).
+	inResourceAttributes  map[string]any
 	outResourceAttributes map[string]any
 }
 
@@ -204,6 +208,40 @@ var promotionTests = []promotionTest{
 			"datadog.host.name":              "test-host",
 		},
 	},
+
+	// ---- preserve user-supplied prefixed key ----
+	{
+		// Regression guard: if the sender already put a datadog.container.tag.X
+		// attribute on the resource (typical workaround before this feature
+		// existed), the processor must not overwrite it with the tagger's copy.
+		// Raw key is still written from the tagger (existing IAP semantic).
+		name:       "duplicate, pre-existing user-set prefixed key is preserved",
+		mode:       ContainerTagPromotionDuplicate,
+		taggerTags: []string{"team:tagger-value"},
+		inResourceAttributes: map[string]any{
+			"datadog.container.tag.team": "user-canonical-value",
+		},
+		outResourceAttributes: map[string]any{
+			"container.id":               "test",
+			"team":                       "tagger-value",
+			"datadog.container.tag.team": "user-canonical-value",
+		},
+	},
+	{
+		// Symmetric to the duplicate case: rename must also preserve the
+		// user-supplied prefixed key. In rename mode the raw key is not
+		// written, so the user's value is the only value in the resource.
+		name:       "rename, pre-existing user-set prefixed key is preserved",
+		mode:       ContainerTagPromotionRename,
+		taggerTags: []string{"team:tagger-value"},
+		inResourceAttributes: map[string]any{
+			"datadog.container.tag.team": "user-canonical-value",
+		},
+		outResourceAttributes: map[string]any{
+			"container.id":               "test",
+			"datadog.container.tag.team": "user-canonical-value",
+		},
+	},
 }
 
 // TestKnownConventionKeysCoversContainerMappings is a structural invariant
@@ -288,7 +326,12 @@ func TestContainerTagPromotion(t *testing.T) {
 
 			td := ptrace.NewTraces()
 			rs := td.ResourceSpans().AppendEmpty()
-			rs.Resource().Attributes().PutStr("container.id", "test")
+			in := map[string]any{"container.id": "test"}
+			for k, v := range tt.inResourceAttributes {
+				in[k] = v
+			}
+			//nolint:errcheck
+			rs.Resource().Attributes().FromRaw(in)
 			rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetName("span")
 
 			cErr := tp.ConsumeTraces(ctx, td)

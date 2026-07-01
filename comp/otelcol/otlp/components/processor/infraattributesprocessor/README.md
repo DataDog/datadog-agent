@@ -52,6 +52,7 @@ The `container_tag_promotion` option opts into rewriting these custom tags so th
 * USM keys (`service`, `env`, `version`) — flow through their own path to `service.name` / `deployment.environment` / `service.version`.
 * `datadog.host.name` (when `allow_hostname_override: true`) — reserved host attribute.
 * Keys already starting with `datadog.container.tag.` — idempotent, never re-prefixed.
+* A `datadog.container.tag.<X>` attribute already present on the incoming resource (typically set by the sender as a manual workaround) — preserved as-is. The processor only writes its prefixed copy when the key is absent, so a user-supplied value is never overwritten by the tagger-derived one.
 
 Note that DD-format keys emitted by the tagger that are **not** in `ContainerMappings` (`kube_service`, `pod_phase`, `kube_qos`, `kube_priority_class`, `kube_app_*`, `image_id`, `docker_image`, `git.commit.sha`, ...) are treated as custom for this feature and **are** prefixed by `duplicate` / `rename` — trace-agent does not recognize them for container-tag promotion on their own.
 
