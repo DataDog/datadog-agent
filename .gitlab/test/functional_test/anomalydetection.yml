@@ -29,7 +29,7 @@ observer-ablation-ddeval:
     OBSERVER_ABLATION_DD_SITE: "datadoghq.com"
     OBSERVER_ABLATION_TOOLS_DIR: "$CI_PROJECT_DIR/.observer-ablation-tools"
     OBSERVER_ABLATION_DDSOURCE_REPO: "http://gitretriever.codesync.all-clusters.local-dc.fabric.dog:8080/DataDog/dd-source.git"
-    OBSERVER_ABLATION_DDSOURCE_REF: "main"
+    OBSERVER_ABLATION_DDSOURCE_REF: "codex/observer-log-ad-ddeval-worker"
     OBSERVER_ABLATION_DDSOURCE_RAPID_JSON: "domains/ai_platform/apps/apis/eval_worker_observer_log_ad/rapid.json"
     OBSERVER_ABLATION_ATLAS_VERSION: "v2.29.0"
     OBSERVER_ABLATION_ATLAS_TARBALL: "https://binaries.ddbuild.io/dd-source/atlas/$OBSERVER_ABLATION_ATLAS_VERSION/atlas-tar.tar.gz"
