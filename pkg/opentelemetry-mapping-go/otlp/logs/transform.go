@@ -96,6 +96,10 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 			l.Message = v.AsString()
 		case "status", "severity", "level", "syslog.severity":
 			status = v.AsString()
+		case otelLibraryName:
+			l.AdditionalProperties[otelScopeName] = v.AsString()
+		case otelLibraryVersion:
+			l.AdditionalProperties[otelScopeVersion] = v.AsString()
 		case "traceid", "trace_id", "contextmap.traceid", "oteltraceid":
 			traceID, err := decodeTraceID(v.AsString())
 			if err != nil {
@@ -131,11 +135,16 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 		return true
 	})
 	res.Attributes().Range(func(k string, v pcommon.Value) bool {
-		// "hostname" and "service" are reserved keywords in HTTPLogItem
-		// Prefix the keys so they aren't overwritten when marshalling
-		if k == "hostname" || k == "service" {
+		switch k {
+		case "hostname", "service":
+			// "hostname" and "service" are reserved keywords in HTTPLogItem
+			// Prefix the keys so they aren't overwritten when marshalling
 			l.AdditionalProperties["otel."+k] = v.AsString()
-		} else {
+		case otelLibraryName:
+			l.AdditionalProperties[otelScopeName] = v.AsString()
+		case otelLibraryVersion:
+			l.AdditionalProperties[otelScopeVersion] = v.AsString()
+		default:
 			l.AdditionalProperties[k] = v.AsString()
 		}
 		return true
@@ -145,11 +154,9 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 	}
 	if name := scope.Name(); name != "" {
 		l.AdditionalProperties[otelScopeName] = name
-		l.AdditionalProperties[otelLibraryName] = name
 	}
 	if version := scope.Version(); version != "" {
 		l.AdditionalProperties[otelScopeVersion] = version
-		l.AdditionalProperties[otelLibraryVersion] = version
 	}
 	if traceID := lr.TraceID(); !traceID.IsEmpty() {
 		l.AdditionalProperties[ddTraceID] = strconv.FormatUint(traceIDToUint64(traceID), 10)
