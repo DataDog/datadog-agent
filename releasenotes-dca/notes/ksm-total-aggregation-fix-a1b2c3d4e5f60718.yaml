@@ -1,0 +1,16 @@
+---
+fixes:
+  - |
+    Fixed an issue in the KSM check where cluster-aggregate metrics
+    (``kubernetes_state.container.<cpu|memory|gpu|mig>_<requested|limit>.total``
+    and the ``initcontainer`` equivalents) reported incorrect cluster totals
+    when the check ran with ``pod_collection_mode: node_kubelet``. The
+    aggregate metrics are now computed from a dedicated instance (running on
+    the cluster-agent or a cluster-checks runner) in the new
+    ``pod_collection_mode: cluster_aggregates_only`` mode, which watches all
+    pods directly from the API server. Node agents in ``node_kubelet`` mode
+    and the cluster-checks runner in
+    ``cluster_unassigned`` mode now suppress the affected accumulators,
+    eliminating multi-source gauge collision at ingestion. The fix preserves
+    the per-pod metric scaling benefit of ``node_kubelet`` mode while
+    restoring correct cluster aggregates.
