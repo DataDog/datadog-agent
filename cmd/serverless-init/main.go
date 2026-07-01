@@ -496,7 +496,7 @@ func setup(
 				}),
 				BaseTags: logTagsBase,
 				TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
-					traceAgent.SetTags(tags)
+					traceAgent.UpdateRuntimeTags(tags)
 				}),
 				BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
 			},
@@ -532,7 +532,7 @@ func setup(
 			}),
 			BaseTags: logTagsBase,
 			TraceTagSetter: lifecycle.TraceTagSetterFunc(func(tags map[string]string) {
-				traceAgent.SetTags(tags)
+				traceAgent.UpdateRuntimeTags(tags)
 			}),
 			BaseTraceTags: serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags),
 		},

@@ -143,7 +143,7 @@ type LogsTagSetterFunc func([]string)
 func (f LogsTagSetterFunc) SetLogsTags(tags []string) { f(tags) }
 
 // TraceTagSetter can replace the full tag map on the live trace pipeline.
-// Satisfied by trace.ServerlessTraceAgent.SetTags (wrapped via TraceTagSetterFunc).
+// Satisfied by trace.ServerlessTraceAgent.UpdateRuntimeTags (wrapped via TraceTagSetterFunc).
 type TraceTagSetter interface {
 	SetTraceTags(tags map[string]string)
 }
