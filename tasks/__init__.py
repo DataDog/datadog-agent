@@ -74,6 +74,7 @@ from tasks import (
     renovate,
     rtloader,
     sbomgen,
+    scenario,
     schema,
     secret_generic_connector,
     security_agent,
@@ -252,6 +253,7 @@ ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(privateactionrunner)
 ns.add_collection(testwasher)
+ns.add_collection(scenario)
 ns.add_collection(secret_generic_connector)
 ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)
