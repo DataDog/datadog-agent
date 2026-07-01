@@ -69,7 +69,7 @@ const (
 )
 
 // perEventTypeMetrics holds the precomputed statsd tags and the counters for a
-// (source, event_type) pair. Counters are incremented on the hot path and flushed in SendStats.
+// (source, event_type) pair.
 type perEventTypeMetrics struct {
 	tags            []string
 	eventsReceived  *atomic.Uint64
@@ -95,9 +95,6 @@ type ManagerV2 struct {
 
 	insertionErrors map[model.EventType]*atomic.Uint64
 
-	// eventMetrics holds per-(source, event_type) event counters, indexed by source then event
-	// type. Prefilled at startup so the hot path only reads the array and increments the pointer
-	// atomics (no lock, no allocation), then flushed in SendStats.
 	eventMetrics [metricSourceCount][model.MaxKernelEventType]*perEventTypeMetrics
 
 	// storage
