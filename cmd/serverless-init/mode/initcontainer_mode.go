@@ -21,12 +21,11 @@ import (
 	"github.com/spf13/afero"
 )
 
-// ProcessHooks carries optional callbacks that are invoked around subprocess
-// lifecycle transitions. MicroVM supplies OnAlive/OnDead to drive its /ready
-// alive-check; other cloud services pass nil.
+// ProcessHooks carries optional callbacks around subprocess lifecycle events.
 type ProcessHooks struct {
-	OnAlive func() // called after cmd.Start succeeds
-	OnDead  func() // called when cmd.Wait returns (deferred, fires on panic too)
+	OnProcess func(*os.Process) // called after cmd.Start succeeds
+	OnAlive   func()            // called after cmd.Start succeeds
+	OnDead    func()            // called when cmd.Wait returns (deferred, fires on panic too)
 }
 
 // RunInit is the entrypoint of the init process. It spawns the customer
@@ -66,6 +65,9 @@ func execute(logConfig *serverlessLog.Config, args []string, hooks *ProcessHooks
 
 	if err := cmd.Start(); err != nil {
 		return err
+	}
+	if hooks != nil && hooks.OnProcess != nil {
+		hooks.OnProcess(cmd.Process)
 	}
 	if hooks != nil && hooks.OnAlive != nil {
 		hooks.OnAlive()

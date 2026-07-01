@@ -23,6 +23,7 @@ import (
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestDetectMode_Sidecar_HasRunnerSet verifies that sidecar mode (no args)
@@ -105,6 +106,38 @@ func TestPropagateChildError(t *testing.T) {
 		err := execute(&serverlessLog.Config{}, []string{"bash", "-c", "exit " + strconv.Itoa(expectedError)}, nil)
 		assert.Equal(t, expectedError<<8, int(err.(*exec.ExitError).ProcessState.Sys().(syscall.WaitStatus)))
 	})
+}
+
+// TestExecute_OnProcessHookCalled verifies that OnProcess receives the actual
+// OS process immediately after cmd.Start succeeds (before OnAlive).
+func TestExecute_OnProcessHookCalled(t *testing.T) {
+	runTestOnLinuxOnly(t, func(t *testing.T) {
+		var gotProcess *os.Process
+		hooks := &ProcessHooks{
+			OnProcess: func(p *os.Process) { gotProcess = p },
+			OnAlive:   func() {},
+			OnDead:    func() {},
+		}
+		err := execute(&serverlessLog.Config{}, []string{"sh", "-c", "exit 0"}, hooks)
+		assert.NoError(t, err)
+		require.NotNil(t, gotProcess, "OnProcess must be called with the OS process after cmd.Start succeeds")
+		assert.Positive(t, gotProcess.Pid, "process PID must be positive")
+	})
+}
+
+// TestExecute_StartFailure_NeverCallsOnProcess verifies that OnProcess is not
+// invoked when cmd.Start fails (binary not found). Mirrors the existing
+// TestExecute_StartFailure_NeverCallsOnAlive test for OnAlive.
+func TestExecute_StartFailure_NeverCallsOnProcess(t *testing.T) {
+	var onProcessCalled bool
+	hooks := &ProcessHooks{
+		OnProcess: func(*os.Process) { onProcessCalled = true },
+		OnAlive:   func() {},
+		OnDead:    func() {},
+	}
+	err := execute(&serverlessLog.Config{}, []string{"/nonexistent/binary/that/cannot/be/found"}, hooks)
+	assert.Error(t, err, "cmd.Start must fail for a missing binary")
+	assert.False(t, onProcessCalled, "OnProcess must not be called when cmd.Start fails")
 }
 
 // When cmd.Start fails (e.g. binary not found), execute must return the error

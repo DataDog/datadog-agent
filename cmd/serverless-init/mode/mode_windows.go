@@ -10,6 +10,7 @@ package mode
 
 import (
 	"errors"
+	"os"
 
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 )
@@ -31,8 +32,9 @@ type Conf struct {
 // which construct it (e.g. cloudservice.MicroVM) still build on windows.
 // serverless-init is not supported on windows, so these hooks are never invoked.
 type ProcessHooks struct {
-	OnAlive func()
-	OnDead  func()
+	OnProcess func(*os.Process)
+	OnAlive   func()
+	OnDead    func()
 }
 
 // RunInit is unsupported on windows.
