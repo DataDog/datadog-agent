@@ -11,6 +11,7 @@ import (
 	"context"
 	"os"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 )
 
@@ -25,7 +26,7 @@ const (
 // resolveCredentials returns static credentials from environment variables for non-ec2 builds.
 // Only AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (and optionally AWS_SESSION_TOKEN) are checked.
 // IRSA and container credential sources are not supported in this build variant.
-func (a *AWSAuth) resolveCredentials(_ context.Context) *creds.SecurityCredentials {
+func (a *AWSAuth) resolveCredentials(_ context.Context, _ pkgconfigmodel.Reader) *creds.SecurityCredentials {
 	accessKeyID := os.Getenv(awsAccessKeyIDEnvVar)
 	secretAccessKey := os.Getenv(awsSecretAccessKeyEnvVar)
 	if accessKeyID != "" && secretAccessKey != "" {

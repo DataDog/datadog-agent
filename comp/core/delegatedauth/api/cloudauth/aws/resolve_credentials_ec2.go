@@ -26,7 +26,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/endpointcreds"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -57,8 +59,8 @@ const (
 // also link SSO, credential_process and shared-profile (~/.aws) support that the Agent does not
 // need and which materially grows the binary. Each provider is from aws-sdk-go-v2 (except the
 // web-identity provider, hand-rolled to avoid linking service/sts); only the selection is ours.
-func (a *AWSAuth) resolveCredentials(ctx context.Context) *creds.SecurityCredentials {
-	provider, err := a.credentialProvider()
+func (a *AWSAuth) resolveCredentials(ctx context.Context, cfg pkgconfigmodel.Reader) *creds.SecurityCredentials {
+	provider, err := a.credentialProvider(cfg)
 	if err != nil {
 		log.Warnf("AWS credential provider setup failed: %v", err)
 		return &creds.SecurityCredentials{}
@@ -89,7 +91,7 @@ func (a *AWSAuth) resolveCredentials(ctx context.Context) *creds.SecurityCredent
 // credentialProvider picks the credential provider for the current environment, matching the AWS
 // SDK default-chain precedence: static env vars, then IRSA web identity, then container
 // credentials (ECS / EKS Pod Identity), then EC2 IMDS instance role.
-func (a *AWSAuth) credentialProvider() (aws.CredentialsProvider, error) {
+func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.CredentialsProvider, error) {
 	switch {
 	case creds.HasAWSCredentialsInEnvironment():
 		return credentials.NewStaticCredentialsProvider(
@@ -104,11 +106,14 @@ func (a *AWSAuth) credentialProvider() (aws.CredentialsProvider, error) {
 		// GetCallerIdentity proof) rather than through service/sts, which would link the full STS
 		// client and materially grow the binary. resolveRegion always yields a region (defaulting
 		// to defaultRegion) so an IRSA-only pod with no AWS_REGION/AWS_DEFAULT_REGION still works.
+		// This is the only outbound external call in credential resolution (static needs no
+		// network; container/IMDS use link-local addresses), so it uses the Agent's configured
+		// HTTP transport for proxy / custom CA / TLS settings, matching the intake-key call.
 		return &webIdentityProvider{
 			roleARN:   os.Getenv("AWS_ROLE_ARN"),
 			tokenFile: os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE"),
 			stsURL:    "https://" + fmt.Sprintf(regionalStsHost, a.resolveRegion()) + "/",
-			client:    &http.Client{Timeout: 10 * time.Second},
+			client:    &http.Client{Timeout: 10 * time.Second, Transport: httputils.CreateHTTPTransport(cfg)},
 		}, nil
 
 	case creds.HasAWSContainerCredentialsInEnvironment():

@@ -22,6 +22,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/endpointcreds"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // TestResolveCredentials_EC2_StaticEnvVarsReturned verifies the static-env provider is selected
@@ -33,7 +35,7 @@ func TestResolveCredentials_EC2_StaticEnvVarsReturned(t *testing.T) {
 	t.Setenv("AWS_SESSION_TOKEN", "EKSTATICTOKEN")
 
 	auth := &AWSAuth{region: "eu-west-1"}
-	got := auth.resolveCredentials(context.Background())
+	got := auth.resolveCredentials(context.Background(), configmock.New(t))
 	require.NotNil(t, got)
 	assert.Equal(t, "EKSTATICKEY", got.AccessKeyID)
 	assert.Equal(t, "EKSTATICSECRET", got.SecretAccessKey)
@@ -72,7 +74,7 @@ func TestCredentialProvider_EC2_Selection(t *testing.T) {
 		isolateAWSEnv(t)
 		t.Setenv("AWS_ACCESS_KEY_ID", "k")
 		t.Setenv("AWS_SECRET_ACCESS_KEY", "s")
-		p, err := (&AWSAuth{}).credentialProvider()
+		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
 		assert.IsType(t, credentials.StaticCredentialsProvider{}, p)
 	})
@@ -80,20 +82,20 @@ func TestCredentialProvider_EC2_Selection(t *testing.T) {
 		isolateAWSEnv(t)
 		t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/example")
 		t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")
-		p, err := (&AWSAuth{}).credentialProvider()
+		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
 		assert.IsType(t, &webIdentityProvider{}, p)
 	})
 	t.Run("container credentials", func(t *testing.T) {
 		isolateAWSEnv(t)
 		t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc")
-		p, err := (&AWSAuth{}).credentialProvider()
+		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
 		assert.IsType(t, &endpointcreds.Provider{}, p)
 	})
 	t.Run("IMDS default", func(t *testing.T) {
 		isolateAWSEnv(t)
-		p, err := (&AWSAuth{}).credentialProvider()
+		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
 		assert.IsType(t, &ec2rolecreds.Provider{}, p)
 	})

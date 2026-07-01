@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // isolateAWSEnv makes credential resolution hermetic: it clears every AWS
@@ -45,7 +47,7 @@ func TestResolveCredentials_StaticEnvVars(t *testing.T) {
 	t.Setenv("AWS_SESSION_TOKEN", "token456")
 
 	auth := &AWSAuth{region: "us-east-1"}
-	got := auth.resolveCredentials(context.Background())
+	got := auth.resolveCredentials(context.Background(), configmock.New(t))
 	require.NotNil(t, got)
 	assert.Equal(t, "AKIAIOSFODNN7EXAMPLE", got.AccessKeyID)
 	assert.Equal(t, "secret123", got.SecretAccessKey)
@@ -58,7 +60,7 @@ func TestResolveCredentials_StaticEnvVars_NoToken(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "secret123")
 
 	auth := &AWSAuth{region: "us-east-1"}
-	got := auth.resolveCredentials(context.Background())
+	got := auth.resolveCredentials(context.Background(), configmock.New(t))
 	require.NotNil(t, got)
 	assert.Equal(t, "AKIAIOSFODNN7EXAMPLE", got.AccessKeyID)
 	assert.Equal(t, "secret123", got.SecretAccessKey)
@@ -69,7 +71,7 @@ func TestResolveCredentials_NoCredsReturnsEmpty(t *testing.T) {
 	isolateAWSEnv(t)
 
 	auth := &AWSAuth{region: "us-east-1"}
-	got := auth.resolveCredentials(context.Background())
+	got := auth.resolveCredentials(context.Background(), configmock.New(t))
 	require.NotNil(t, got)
 	// AccessKeyID will be empty; downstream generateAwsAuthData returns "missing AWS credentials"
 	assert.Empty(t, got.AccessKeyID)

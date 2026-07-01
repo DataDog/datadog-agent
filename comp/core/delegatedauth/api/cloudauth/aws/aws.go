@@ -69,14 +69,15 @@ func NewAWSAuth(config *cloudauthconfig.AWSProviderConfig) *AWSAuth {
 // GenerateAuthProof generates an AWS-specific authentication proof using SigV4 signing.
 // This proof includes a signed AWS STS GetCallerIdentity request that proves access to AWS credentials.
 // The context parameter allows for cancellation of the proof generation.
-func (a *AWSAuth) GenerateAuthProof(ctx context.Context, _ pkgconfigmodel.Reader, config *common.AuthConfig) (string, error) {
+func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *common.AuthConfig) (string, error) {
 	// Check for context cancellation early
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
 
-	// Get local AWS Credentials
-	credentials := a.getCredentials(ctx)
+	// Get local AWS Credentials. cfg is threaded through so the IRSA web-identity STS call can use
+	// the Agent's configured HTTP transport (proxy / custom CA / TLS settings).
+	credentials := a.getCredentials(ctx, cfg)
 
 	if config == nil || config.OrgUUID == "" {
 		return "", errors.New("missing org UUID in config")
@@ -101,8 +102,8 @@ func (a *AWSAuth) GenerateAuthProof(ctx context.Context, _ pkgconfigmodel.Reader
 // getCredentials retrieves AWS credentials using the build-tag-selected chain:
 //   - ec2 build: AWS SDK chain limited to env -> web identity -> container -> IMDS (shared config/SSO/profiles disabled)
 //   - non-ec2 build: static env vars only (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY)
-func (a *AWSAuth) getCredentials(ctx context.Context) *creds.SecurityCredentials {
-	resolved := a.resolveCredentials(ctx)
+func (a *AWSAuth) getCredentials(ctx context.Context, cfg pkgconfigmodel.Reader) *creds.SecurityCredentials {
+	resolved := a.resolveCredentials(ctx, cfg)
 	if resolved == nil {
 		return &creds.SecurityCredentials{}
 	}
