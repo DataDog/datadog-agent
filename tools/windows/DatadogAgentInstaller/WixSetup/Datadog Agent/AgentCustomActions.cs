@@ -264,6 +264,8 @@ namespace WixSetup.Datadog_Agent
 
             // Cleanup leftover files on rollback. Must be before DecompressPythonDistributions so a
             // decompression failure still runs these rollback actions.
+            // Rollback CAs run in reverse install-sequence order, so schedule RemoveEmptyInstallDirOnRollback
+            // before CleanupOnRollback if it should run after fleet/config cleanup on rollback.
             CleanupOnRollback = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnRollback)),
                     CustomActions.CleanupFiles,
@@ -279,9 +281,9 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            RemoveFleetProcmgrConfigOnRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveFleetProcmgrConfigOnRollback)),
-                    CustomActions.RemoveFleetProcmgrConfigOnRollback,
+            RemoveEmptyInstallDirOnRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveEmptyInstallDirOnRollback)),
+                    CustomActions.RemoveEmptyInstallDirOnRollback,
                     Return.check,
                     When.Before,
                     new Step(CleanupOnRollback.Id),
@@ -293,9 +295,9 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
-            RemoveEmptyInstallDirOnRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveEmptyInstallDirOnRollback)),
-                    CustomActions.RemoveEmptyInstallDirOnRollback,
+            RemoveFleetProcmgrConfigOnRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveFleetProcmgrConfigOnRollback)),
+                    CustomActions.RemoveFleetProcmgrConfigOnRollback,
                     Return.check,
                     When.After,
                     new Step(CleanupOnRollback.Id),
