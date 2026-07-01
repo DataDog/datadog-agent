@@ -49,17 +49,21 @@ core_defaults = {
         "linux": "${install_path}/bin/agent/agent",
         "darwin": "${install_path}/bin/agent/agent",
         "windows": "${install_path}/bin/agent.exe",
+        "aix": "${install_path}/bin/agent/agent",
     },
     "GUI_port": {
         "linux": -1,
+        "aix": -1,
         "other": 5002,
     },
     "dogstatsd_socket": {
         "linux": "/var/run/datadog/dsd.socket",
+        "aix": "/var/run/datadog/dsd.socket",
         "other": "",
     },
     "apm_config.receiver_socket": {
         "linux": "/var/run/datadog/apm.socket",
+        "aix": "/var/run/datadog/apm.socket",
         "other": "",
     },
     # setting duplicated for some reasons between system-probe and core-agent config
@@ -78,6 +82,7 @@ sysprobe_defaults = {
         "linux": "${run_path}/sysprobe.sock",
         "darwin": "/opt/datadog-agent/run/sysprobe.sock",
         "windows": "\\\\.\\pipe\\dd_system_probe",
+        "aix": "${run_path}/sysprobe.sock",
     },
     "runtime_security_config.policies.dir": {
         "windows": "${conf_path}/runtime-security.d",
