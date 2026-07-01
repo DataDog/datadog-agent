@@ -107,9 +107,9 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "Azure Container Apps (semconv v1.35.0 or later)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):     conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):     conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
-				string(conventions.ServiceInstanceIDKey): "replica-1",
+				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey): conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				string(conventions.FaaSInstanceKey):  "replica-1",
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: "replica-1"},
@@ -117,9 +117,9 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "Azure Container Apps (legacy)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):     conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):     "azure_container_apps",
-				string(conventions.ServiceInstanceIDKey): "replica-1",
+				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey): "azure_container_apps",
+				string(conventions.FaaSInstanceKey):  "replica-1",
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.AzureContainerAppsKind, Identifier: "replica-1"},
