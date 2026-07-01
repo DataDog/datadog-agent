@@ -13,7 +13,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/openshift"
@@ -76,13 +75,17 @@ func deployClusterResourceQuota(ctx *pulumi.Context, kubeProvider *kubernetesPro
 	return nil
 }
 
+// Run is the entry point for the scenario when run via pulumi.
 func Run(ctx *pulumi.Context) error {
 	localEnv, err := local.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
+	return RunWithParams(ctx, localEnv, ParamsFromEnvironment(localEnv))
+}
 
-	cluster, err := kubernetes.NewLocalOpenShiftCluster(&localEnv, "openshift", localEnv.OpenShiftPullSecretPath(), localEnv.OpenShiftCPUs(), localEnv.OpenShiftMemory(), localEnv.OpenShiftDisk())
+func RunWithParams(ctx *pulumi.Context, localEnv local.Environment, params *Params) error {
+	cluster, err := kubernetes.NewLocalOpenShiftCluster(&localEnv, "openshift", params.OpenShiftClusterArgs)
 	if err != nil {
 		return err
 	}
@@ -107,7 +110,7 @@ func Run(ctx *pulumi.Context) error {
 	}
 
 	var fakeIntake *fakeintakeComp.Fakeintake
-	if localEnv.AgentUseFakeintake() {
+	if params.deployFakeIntake {
 		fakeIntake, err = fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
 		if err != nil {
 			return err
@@ -117,15 +120,5 @@ func Run(ctx *pulumi.Context) error {
 		}
 	}
 
-	var extraAgentOptions []kubernetesagentparams.Option
-	extraAgentOptions = append(
-		extraAgentOptions,
-		kubernetesagentparams.WithHelmValues(localOpenShiftAgentHelmValues),
-		kubernetesagentparams.WithOpenShiftControlPlaneMonitoring(),
-	)
-	if localEnv.AgentUseDualShipping() {
-		extraAgentOptions = append(extraAgentOptions, kubernetesagentparams.WithDualShipping())
-	}
-
-	return openshift.DeployComponents(ctx, &localEnv, kubeProvider, cluster, fakeIntake, extraAgentOptions...)
+	return openshift.DeployComponents(ctx, &localEnv, kubeProvider, cluster, fakeIntake, params.AgentOptions)
 }

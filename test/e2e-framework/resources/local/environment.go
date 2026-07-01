@@ -72,7 +72,7 @@ func (e *Environment) DefaultPublicKeyPath() string {
 	return e.InfraConfig.Get(DDInfraDefaultPublicKeyPath)
 }
 
-// OpenShiftPullSecretPath returns the path to the OpenShift pull secret file
+// OpenShiftPullSecretPath returns the path to the OpenShift pull secret file.
 func (e *Environment) OpenShiftPullSecretPath() string {
 	return e.InfraConfig.Get(DDInfraOpenShiftPullSecretPath)
 }

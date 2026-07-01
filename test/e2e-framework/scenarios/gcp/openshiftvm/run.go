@@ -10,7 +10,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	resGcp "github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
@@ -19,12 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/openshift"
 )
 
+// Run is the entry point for the scenario when run via pulumi.
 func Run(ctx *pulumi.Context) error {
 	gcpEnv, err := resGcp.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
+	return RunWithParams(ctx, gcpEnv, ParamsFromEnvironment(gcpEnv))
+}
 
+func RunWithParams(ctx *pulumi.Context, gcpEnv resGcp.Environment, params *Params) error {
 	osDesc := os.DescriptorFromString("redhat:9", os.RedHat9)
 	vm, err := compute.NewVM(gcpEnv, "openshift",
 		compute.WithOS(osDesc),
@@ -38,7 +41,7 @@ func Run(ctx *pulumi.Context) error {
 		return err
 	}
 
-	openshiftCluster, err := kubernetes.NewOpenShiftCluster(&gcpEnv, vm, "openshift", gcpEnv.OpenShiftPullSecretPath(), gcpEnv.OpenShiftCPUs(), gcpEnv.OpenShiftMemory(), gcpEnv.OpenShiftDisk())
+	openshiftCluster, err := kubernetes.NewOpenShiftCluster(&gcpEnv, vm, "openshift", params.OpenShiftClusterArgs)
 	if err != nil {
 		return err
 	}
@@ -60,20 +63,8 @@ func Run(ctx *pulumi.Context) error {
 	}
 
 	var fakeIntake *fakeintakeComp.Fakeintake
-	if gcpEnv.AgentUseFakeintake() {
-		fakeIntakeOptions := []fakeintake.Option{
-			fakeintake.WithMemory(2048),
-		}
-		if gcpEnv.InfraShouldDeployFakeintakeWithLB() {
-			fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithLoadBalancer())
-		}
-		if gcpEnv.AgentUseDualShipping() {
-			fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithoutDDDevForwarding())
-		}
-		if retentionPeriod := gcpEnv.AgentFakeintakeRetentionPeriod(); retentionPeriod != "" {
-			fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithRetentionPeriod(retentionPeriod))
-		}
-		if fakeIntake, err = fakeintake.NewVMInstance(gcpEnv, fakeIntakeOptions...); err != nil {
+	if params.fakeintakeOptions != nil {
+		if fakeIntake, err = fakeintake.NewVMInstance(gcpEnv, params.fakeintakeOptions...); err != nil {
 			return err
 		}
 		if err := fakeIntake.Export(gcpEnv.Ctx(), nil); err != nil {
@@ -81,10 +72,5 @@ func Run(ctx *pulumi.Context) error {
 		}
 	}
 
-	var extraAgentOptions []kubernetesagentparams.Option
-	if gcpEnv.AgentUseDualShipping() {
-		extraAgentOptions = append(extraAgentOptions, kubernetesagentparams.WithDualShipping())
-	}
-
-	return openshift.DeployComponents(ctx, &gcpEnv, kubeProvider, openshiftCluster, fakeIntake, extraAgentOptions...)
+	return openshift.DeployComponents(ctx, &gcpEnv, kubeProvider, openshiftCluster, fakeIntake, params.AgentOptions)
 }

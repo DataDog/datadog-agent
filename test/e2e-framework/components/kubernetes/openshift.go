@@ -21,19 +21,27 @@ import (
 
 const crcVersion = "2.58.0"
 
-func NewLocalOpenShiftCluster(env config.Env, name string, pullSecretPath, cpus, memory, disk string, opts ...pulumi.ResourceOption) (*Cluster, error) {
+// OpenShiftClusterArgs holds the configuration parameters for a CRC-based OpenShift cluster.
+type OpenShiftClusterArgs struct {
+	PullSecretPath string
+	CPUs           string
+	Memory         string
+	Disk           string
+}
+
+func NewLocalOpenShiftCluster(env config.Env, name string, args OpenShiftClusterArgs, pulumiResourceOptions ...pulumi.ResourceOption) (*Cluster, error) {
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
 		openShiftClusterName := env.CommonNamer().DisplayName(49)
-		opts = utils.MergeOptions[pulumi.ResourceOption](opts, pulumi.Parent(clusterComp))
+		pulumiResourceOptions = utils.MergeOptions[pulumi.ResourceOption](pulumiResourceOptions, pulumi.Parent(clusterComp))
 		commonEnvironment := env
 		runner := command.NewLocalRunner(env, command.LocalRunnerArgs{
 			OSCommand: command.NewUnixOSCommand(),
 		})
 
 		crcSetup, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-setup"), &command.Args{
-			Create: pulumi.Sprintf("crc config set cpus %s && crc config set memory %s && crc config set disk-size %s && crc setup", cpus, memory, disk),
+			Create: pulumi.Sprintf("crc config set cpus %s && crc config set memory %s && crc config set disk-size %s && crc setup", args.CPUs, args.Memory, args.Disk),
 			Delete: pulumi.String("crc cleanup"),
-		}, opts...)
+		}, pulumiResourceOptions...)
 		if err != nil {
 			return err
 		}
@@ -42,22 +50,22 @@ func NewLocalOpenShiftCluster(env config.Env, name string, pullSecretPath, cpus,
 		// provider uses Setpgid + CommandKiller to kill the entire process group on
 		// cleanup; without setsid, vfkit gets SIGTERM'd when pulumi exits.
 		startCluster, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-start"), &command.Args{
-			Create: pulumi.Sprintf(`python3 -c "import os,subprocess,sys; os.setsid(); sys.exit(subprocess.call(sys.argv[1:]))" crc start -p %s`, pullSecretPath),
+			Create: pulumi.Sprintf(`python3 -c "import os,subprocess,sys; os.setsid(); sys.exit(subprocess.call(sys.argv[1:]))" crc start -p %s`, args.PullSecretPath),
 			Delete: pulumi.String("(crc stop || true) && crc delete -f"),
 			Triggers: pulumi.Array{
-				pulumi.String(pullSecretPath),
-				pulumi.String(cpus),
-				pulumi.String(memory),
-				pulumi.String(disk),
+				pulumi.String(args.PullSecretPath),
+				pulumi.String(args.CPUs),
+				pulumi.String(args.Memory),
+				pulumi.String(args.Disk),
 			},
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(crcSetup), pulumi.DeleteBeforeReplace(true))...)
+		}, utils.MergeOptions(pulumiResourceOptions, utils.PulumiDependsOn(crcSetup), pulumi.DeleteBeforeReplace(true))...)
 		if err != nil {
 			return err
 		}
 
 		kubeConfigCmd, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("get-kubeconfig"), &command.Args{
 			Create: pulumi.String("cat ~/.crc/machines/crc/kubeconfig"),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(startCluster))...)
+		}, utils.MergeOptions(pulumiResourceOptions, utils.PulumiDependsOn(startCluster))...)
 		if err != nil {
 			return err
 		}
@@ -65,10 +73,10 @@ func NewLocalOpenShiftCluster(env config.Env, name string, pullSecretPath, cpus,
 		clusterComp.KubeConfig = kubeConfigCmd.StdoutOutput()
 		clusterComp.ClusterName = openShiftClusterName.ToStringOutput()
 		return nil
-	}, opts...)
+	}, pulumiResourceOptions...)
 }
 
-func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecretPath, cpus, memory, disk string, opts ...pulumi.ResourceOption) (*Cluster, error) {
+func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, args OpenShiftClusterArgs, opts ...pulumi.ResourceOption) (*Cluster, error) {
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
 		openShiftClusterName := env.CommonNamer().DisplayName(49)
 		opts = utils.MergeOptions[pulumi.ResourceOption](opts, pulumi.Parent(clusterComp))
@@ -80,7 +88,7 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 			return err
 		}
 
-		pullSecretContent, err := utils.ReadSecretFile(pullSecretPath)
+		pullSecretContent, err := utils.ReadSecretFile(args.PullSecretPath)
 		if err != nil {
 			return err
 		}
@@ -108,7 +116,7 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 		}
 
 		setupCRC, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-setup"), &command.Args{
-			Create: pulumi.Sprintf("crc config set cpus %s && crc config set memory %s && crc config set disk-size %s && crc setup", cpus, memory, disk),
+			Create: pulumi.Sprintf("crc config set cpus %s && crc config set memory %s && crc config set disk-size %s && crc setup", args.CPUs, args.Memory, args.Disk),
 			Delete: pulumi.String("crc cleanup"),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(pullSecretFile, enableLinger))...)
 		if err != nil {
@@ -119,10 +127,10 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 			Create: pulumi.String(`crc start -p /tmp/pull-secret.txt`),
 			Delete: pulumi.String("(crc stop || true) && crc delete -f"),
 			Triggers: pulumi.Array{
-				pulumi.String(pullSecretPath),
-				pulumi.String(cpus),
-				pulumi.String(memory),
-				pulumi.String(disk),
+				pulumi.String(args.PullSecretPath),
+				pulumi.String(args.CPUs),
+				pulumi.String(args.Memory),
+				pulumi.String(args.Disk),
 			},
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(setupCRC), pulumi.DeleteBeforeReplace(true))...)
 		if err != nil {

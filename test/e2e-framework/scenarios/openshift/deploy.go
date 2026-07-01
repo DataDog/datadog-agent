@@ -29,19 +29,20 @@ import (
 )
 
 // DeployComponents deploys the OpenShift agent and test workloads onto an existing Kubernetes provider.
-// fakeIntake may be nil. extraAgentOptions are appended to the standard OpenShift agent options
-// (e.g. kubernetesagentparams.WithDualShipping for GCP environments).
+// fakeIntake may be nil. agentOptions is the full set of agent options to use; pass nil to skip
+// agent deployment entirely (e.g. when WithoutAgent() was called). Use agentOptions to pass
+// scenario-specific extras such as kubernetesagentparams.WithDualShipping.
 func DeployComponents(
 	ctx *pulumi.Context,
 	env config.Env,
 	kubeProvider *kubernetesProvider.Provider,
 	cluster *kubeComp.Cluster,
 	fakeIntake *fakeintakeComp.Fakeintake,
-	extraAgentOptions ...kubernetesagentparams.Option,
+	agentOptions []kubernetesagentparams.Option,
 ) error {
 	var dependsOnDDAgent pulumi.ResourceOption
 
-	if env.AgentDeploy() {
+	if agentOptions != nil {
 		k8sAgentOptions := []kubernetesagentparams.Option{
 			func(p *kubernetesagentparams.Params) error {
 				p.HelmValues = append(p.HelmValues, agentComp.BuildOpenShiftHelmValues().ToYAMLPulumiAssetOutput())
@@ -54,7 +55,7 @@ func DeployComponents(
 		if fakeIntake != nil {
 			k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithFakeintake(fakeIntake))
 		}
-		k8sAgentOptions = append(k8sAgentOptions, extraAgentOptions...)
+		k8sAgentOptions = append(k8sAgentOptions, agentOptions...)
 
 		k8sAgent, err := helm.NewKubernetesAgent(env, env.CommonNamer().ResourceName("datadog-agent"), kubeProvider, k8sAgentOptions...)
 		if err != nil {
