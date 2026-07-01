@@ -1209,26 +1209,23 @@ func TestFallbackInconsistency_Status2ErrorHTTPCodePrecedence(t *testing.T) {
 	}
 }
 
-// TestScopeConvention verifies that OtelSpanToDDSpan uses otel.scope.* keys by default
-// and falls back to the deprecated otel.library.* keys when disable_otel_scope_convention is set.
+// TestScopeConvention verifies OtelSpanToDDSpan always reports the deprecated
+// otel.library.* aliases, and adds the otel.scope.* keys unless disable_otel_scope_convention is set.
 func TestScopeConvention(t *testing.T) {
 	tests := []struct {
 		name             string
 		disableScopeConv bool
-		expectedNameKey  string
-		expectedVerKey   string
+		expectScopeKeys  bool
 	}{
 		{
-			name:             "default: uses otel.scope convention",
+			name:             "default: emits both otel.scope and otel.library conventions",
 			disableScopeConv: false,
-			expectedNameKey:  string(semconv117.OtelScopeNameKey),
-			expectedVerKey:   string(semconv117.OtelScopeVersionKey),
+			expectScopeKeys:  true,
 		},
 		{
-			name:             "disable_otel_scope_convention: falls back to otel.library convention",
+			name:             "disable_otel_scope_convention: only emits otel.library convention",
 			disableScopeConv: true,
-			expectedNameKey:  string(semconv117.OtelLibraryNameKey),
-			expectedVerKey:   string(semconv117.OtelLibraryVersionKey),
+			expectScopeKeys:  false,
 		},
 	}
 
@@ -1255,16 +1252,16 @@ func TestScopeConvention(t *testing.T) {
 
 			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
 
-			assert.Equal(t, "my-lib", ddspan.Meta[tt.expectedNameKey])
-			assert.Equal(t, "1.2.3", ddspan.Meta[tt.expectedVerKey])
+			// The deprecated otel.library.* aliases must always be reported.
+			assert.Equal(t, "my-lib", ddspan.Meta[string(semconv117.OtelLibraryNameKey)])
+			assert.Equal(t, "1.2.3", ddspan.Meta[string(semconv117.OtelLibraryVersionKey)])
 
-			// Ensure the opposite key is NOT set
-			if tt.disableScopeConv {
+			if tt.expectScopeKeys {
+				assert.Equal(t, "my-lib", ddspan.Meta[string(semconv117.OtelScopeNameKey)])
+				assert.Equal(t, "1.2.3", ddspan.Meta[string(semconv117.OtelScopeVersionKey)])
+			} else {
 				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelScopeNameKey))
 				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelScopeVersionKey))
-			} else {
-				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelLibraryNameKey))
-				assert.NotContains(t, ddspan.Meta, string(semconv117.OtelLibraryVersionKey))
 			}
 		})
 	}
