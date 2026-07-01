@@ -103,7 +103,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/system-probe/subcommands/run
 # gazelle:exclude cmd/system-probe/subcommands/usm
 # gazelle:exclude cmd/system-probe/windows
-# gazelle:exclude cmd/systray
 # gazelle:exclude comp/api/authtoken
 # gazelle:exclude comp/checks/windowseventlog/fx
 # gazelle:exclude comp/checks/windowseventlog/impl/*.go
@@ -166,8 +165,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/process/status/impl
 # gazelle:exclude comp/process/submitter
 # gazelle:exclude comp/process/types
-# gazelle:exclude comp/systray/systray/fx
-# gazelle:exclude comp/systray/systray/impl
 # gazelle:exclude pkg/cli/subcommands/autoscalerlist
 # gazelle:exclude pkg/cli/subcommands/check
 # gazelle:exclude pkg/cli/subcommands/clusterchecks
