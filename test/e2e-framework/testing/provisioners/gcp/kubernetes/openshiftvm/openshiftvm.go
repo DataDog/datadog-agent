@@ -102,7 +102,8 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 	}
 
 	// Create the OpenShift cluster
-	openshiftCluster, err := kubernetes.NewOpenShiftCluster(&gcpEnv, vm, "openshift", gcpEnv.OpenShiftPullSecretPath(), params.openshiftOptions...)
+	openshiftCluster, err := kubernetes.NewOpenShiftCluster(&gcpEnv, vm, "openshift", gcpEnv.OpenShiftPullSecretPath(), gcpEnv.OpenShiftCPUs(),
+		gcpEnv.OpenShiftMemory(), gcpEnv.OpenShiftDisk(), params.openshiftOptions...)
 	if err != nil {
 		return err
 	}

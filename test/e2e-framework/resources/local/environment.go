@@ -17,6 +17,9 @@ const (
 	// local Infra (local)
 	DDInfraDefaultPublicKeyPath    = "local/defaultPublicKeyPath"
 	DDInfraOpenShiftPullSecretPath = "local/openshift/pullSecretPath"
+	DDInfraOpenShiftCPUs           = "local/openshift/cpus"
+	DDInfraOpenShiftMemory         = "local/openshift/memory"
+	DDInfraOpenShiftDisk           = "local/openshift/disk"
 )
 
 type Environment struct {
@@ -72,4 +75,28 @@ func (e *Environment) DefaultPublicKeyPath() string {
 // OpenShiftPullSecretPath returns the path to the OpenShift pull secret file
 func (e *Environment) OpenShiftPullSecretPath() string {
 	return e.InfraConfig.Get(DDInfraOpenShiftPullSecretPath)
+}
+
+// OpenShiftCPUs returns the number of CPUs to allocate to the CRC cluster (default: 8).
+func (e *Environment) OpenShiftCPUs() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftCPUs); v != "" {
+		return v
+	}
+	return "8"
+}
+
+// OpenShiftMemory returns the memory in MB to allocate to the CRC cluster (default: 16384).
+func (e *Environment) OpenShiftMemory() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftMemory); v != "" {
+		return v
+	}
+	return "16384"
+}
+
+// OpenShiftDisk returns the disk size in GB to allocate to the CRC cluster (default: 50).
+func (e *Environment) OpenShiftDisk() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftDisk); v != "" {
+		return v
+	}
+	return "50"
 }
