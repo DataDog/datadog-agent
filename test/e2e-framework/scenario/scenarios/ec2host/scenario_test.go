@@ -53,6 +53,25 @@ func TestProvisionerBuildsWithAgent(t *testing.T) {
 	}
 }
 
+func TestProvisionerBuildsArm64(t *testing.T) {
+	p := NewEC2HostParams("ubuntu-22.04", "arm64")
+	prov, err := Provisioner(p)
+	if err != nil {
+		t.Fatalf("Provisioner with arm64: %v", err)
+	}
+	if prov == nil {
+		t.Fatal("nil provisioner for arm64")
+	}
+}
+
+func TestProvisionerRejectsUnknownArch(t *testing.T) {
+	p := NewEC2HostParams("ubuntu-22.04", "mips64")
+	_, err := Provisioner(p)
+	if err == nil {
+		t.Fatal("expected error for unknown arch, got nil")
+	}
+}
+
 func TestActionsRegistered(t *testing.T) {
 	s := Scenario()
 	if _, ok := s.Actions["restart-agent"]; !ok {

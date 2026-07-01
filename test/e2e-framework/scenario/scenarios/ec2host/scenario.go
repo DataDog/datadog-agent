@@ -31,9 +31,28 @@ func osDescriptor(name string) (e2eos.Descriptor, error) {
 	}
 }
 
+// archFromString maps the schema arch enum values ("x86_64", "arm64") to the
+// framework Architecture type. It returns an explicit error rather than panicking
+// so callers get a clear message for invalid inputs.
+func archFromString(arch string) (e2eos.Architecture, error) {
+	switch arch {
+	case "x86_64", "":
+		return e2eos.AMD64Arch, nil
+	case "arm64":
+		return e2eos.ARM64Arch, nil
+	default:
+		return "", fmt.Errorf("unknown arch %q (valid: x86_64, arm64)", arch)
+	}
+}
+
 // Provisioner adapts canonical EC2HostParams to the existing awshost provisioner.
 func Provisioner(p *EC2HostParams) (provisioners.TypedProvisioner[environments.Host], error) {
 	osDesc, err := osDescriptor(p.OS)
+	if err != nil {
+		return nil, err
+	}
+
+	arch, err := archFromString(p.Arch)
 	if err != nil {
 		return nil, err
 	}
@@ -48,10 +67,10 @@ func Provisioner(p *EC2HostParams) (provisioners.TypedProvisioner[environments.H
 		return nil, err
 	}
 
-	// Always set the OS; append any caller-supplied VM tweaks.
+	// Set OS with explicit architecture; append any caller-supplied VM tweaks.
 	runOpts := []ec2.Option{
 		ec2.WithEC2InstanceOptions(
-			append([]ec2.VMOption{ec2.WithOS(osDesc)}, p.InstanceOptions...)...,
+			append([]ec2.VMOption{ec2.WithOSArch(osDesc, arch)}, p.InstanceOptions...)...,
 		),
 	}
 
