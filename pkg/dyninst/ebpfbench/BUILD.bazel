@@ -14,8 +14,8 @@ go_library(
         "//pkg/dyninst/object",
         "//pkg/dyninst/output",
         "//pkg/dyninst/process",
+        "//pkg/dyninst/testprogs",
         "//pkg/dyninst/uprobe",
-        "@//pkg/dyninst/testprogs",
         "@com_github_cilium_ebpf//ringbuf",
     ],
 )

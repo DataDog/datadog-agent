@@ -16,10 +16,10 @@ go_library(
         "//pkg/dyninst/irprinter",
         "//pkg/dyninst/loader",
         "//pkg/dyninst/object",
+        "//pkg/dyninst/testprogs",
         "//pkg/proto/pbgo/core",
         "//pkg/util/kernel",
         "//pkg/util/log",
-        "@//pkg/dyninst/testprogs",
         "@com_github_stretchr_testify//require",
     ],
 )

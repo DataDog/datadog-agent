@@ -568,6 +568,7 @@ go_deps.module_override(
     patches = ["//bazel/rules/go_systemd:sdjournal-cdeps.patch"],
     path = "github.com/coreos/go-systemd/v22",
 )
+
 inject_repo(go_deps, "systemd")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")

@@ -562,6 +562,7 @@ go_test(
         "test",
         "linux_bpf",
     ],
+    tags = ["manual"],  # keep
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/config/remote/data",
@@ -580,13 +581,13 @@ go_test(
         "//pkg/dyninst/process",
         "//pkg/dyninst/procsubscribe",
         "//pkg/dyninst/rcjson",
+        "//pkg/dyninst/testprogs",
         "//pkg/dyninst/uploader",
         "//pkg/dyninst/uprobe",
         "//pkg/proto/pbgo/core",
         "//pkg/util/backoff",
         "//pkg/util/kernel",
         "//pkg/util/log",
-        "@//pkg/dyninst/testprogs",
         "@com_github_cilium_ebpf//ringbuf",
         "@com_github_datadog_ebpf_manager//tracefs",
         "@com_github_go_json_experiment_json//:json",

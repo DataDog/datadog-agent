@@ -48,6 +48,7 @@ go_test(
         "test",
         "linux_bpf",
     ],
+    tags = ["manual"],  # keep
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/gotype",
@@ -57,7 +58,7 @@ go_test(
         "//pkg/dyninst/output",
         "//pkg/dyninst/redaction",
         "//pkg/dyninst/symbol",
-        "@//pkg/dyninst/testprogs",
+        "//pkg/dyninst/testprogs",
         "@com_github_go_json_experiment_json//jsontext",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

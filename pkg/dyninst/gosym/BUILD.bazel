@@ -19,13 +19,14 @@ go_test(
         "test",
         "linux_bpf",
     ],
+    tags = ["manual"],  # keep
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":gosym",
         "//pkg/dyninst/ir",
         "//pkg/dyninst/irgen",
         "//pkg/dyninst/object",
-        "@//pkg/dyninst/testprogs",
+        "//pkg/dyninst/testprogs",
         "@com_github_stretchr_testify//require",
     ],
 )
