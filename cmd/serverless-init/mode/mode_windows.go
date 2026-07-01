@@ -27,8 +27,16 @@ type Conf struct {
 	EnvDefaults                   map[string]string
 }
 
+// ProcessHooks mirrors the init-container ProcessHooks type so that packages
+// which construct it (e.g. cloudservice.MicroVM) still build on windows.
+// serverless-init is not supported on windows, so these hooks are never invoked.
+type ProcessHooks struct {
+	OnAlive func()
+	OnDead  func()
+}
+
 // RunInit is unsupported on windows.
-func RunInit(_ *serverlessLog.Config) error {
+func RunInit(_ *serverlessLog.Config, _ *ProcessHooks) error {
 	return errors.New("serverless-init is not supported on windows")
 }
 
