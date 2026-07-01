@@ -122,11 +122,11 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
 		} else {
-			context, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			tc.AdditionalProfileTags = args.AdditionalProfileTags
-			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
+			ta := agent.NewAgent(ctx, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 
 			// Check if trace stats should be disabled for serverless
 			if disabled, _ := strconv.ParseBool(os.Getenv(disableTraceStatsEnvVar)); disabled {
@@ -142,6 +142,11 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			ta.DiscardSpan = filterSpan
 			startTraceAgentConfigEndpoint(args.RCService, tc)
 			go ta.Run()
+			if err := ta.WaitForStarted(ctx); err != nil {
+				log.Errorf("Trace agent failed to start: %v", err)
+				cancel()
+				return noopTraceAgent{}
+			}
 			return &serverlessTraceAgent{
 				ta:     ta,
 				cancel: cancel,
