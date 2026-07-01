@@ -240,6 +240,18 @@ func TestContainerCredentialsEndpoint_Precedence(t *testing.T) {
 	})
 }
 
+// TestContainerCredentialsHTTPClient_NoProxy verifies the container credential client never routes
+// through an environment proxy: the link-local/loopback endpoint is unreachable via a proxy and the
+// authorization token must not be sent to one.
+func TestContainerCredentialsHTTPClient_NoProxy(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://proxy.example:3128")
+	t.Setenv("HTTPS_PROXY", "http://proxy.example:3128")
+
+	transport, ok := containerCredentialsHTTPClient().Transport.(*http.Transport)
+	require.True(t, ok)
+	assert.Nil(t, transport.Proxy, "container credential client must not consult environment proxies")
+}
+
 // TestContainerCredentialsProvider_HostAllowlist verifies the SSRF guard on an http
 // AWS_CONTAINER_CREDENTIALS_FULL_URI: link-local ECS/EKS and loopback hosts are accepted, an
 // arbitrary host is rejected, and https is trusted as-is.

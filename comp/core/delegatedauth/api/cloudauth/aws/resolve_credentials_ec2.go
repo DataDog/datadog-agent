@@ -298,6 +298,8 @@ func containerCredentialsEndpoint() (string, error) {
 // (resolved against the ECS endpoint) takes precedence, falling back to
 // AWS_CONTAINER_CREDENTIALS_FULL_URI (validated to a loopback/ECS/EKS host), with an optional
 // authorization token from AWS_CONTAINER_AUTHORIZATION_TOKEN or AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.
+// It uses a proxy-less HTTP client (see containerCredentialsHTTPClient) so the local credential
+// request is never routed through an environment proxy.
 func containerCredentialsProvider() (aws.CredentialsProvider, error) {
 	endpoint, err := containerCredentialsEndpoint()
 	if err != nil {
@@ -305,6 +307,7 @@ func containerCredentialsProvider() (aws.CredentialsProvider, error) {
 	}
 
 	return endpointcreds.New(endpoint, func(o *endpointcreds.Options) {
+		o.HTTPClient = containerCredentialsHTTPClient()
 		if token := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN"); token != "" {
 			o.AuthorizationToken = token
 		}
@@ -318,6 +321,17 @@ func containerCredentialsProvider() (aws.CredentialsProvider, error) {
 			})
 		}
 	}), nil
+}
+
+// containerCredentialsHTTPClient returns an HTTP client that never uses a proxy. The supported
+// container credential endpoints are link-local (ECS 169.254.170.2 / EKS Pod Identity
+// 169.254.170.23) or loopback, which a forward proxy cannot reach; routing the request through
+// HTTP_PROXY/http_proxy would break the fetch and send AWS_CONTAINER_AUTHORIZATION_TOKEN to the
+// proxy. The default aws-sdk client's transport consults environment proxies, so this overrides it.
+func containerCredentialsHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	return &http.Client{Transport: transport}
 }
 
 // validateContainerEndpoint guards an http AWS_CONTAINER_CREDENTIALS_FULL_URI: the host must be
