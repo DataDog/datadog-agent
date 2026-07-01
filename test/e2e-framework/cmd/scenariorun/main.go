@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"text/tabwriter"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenario"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/standalone"
@@ -27,7 +29,7 @@ func main() {
 
 func rootCmd() *cobra.Command {
 	root := &cobra.Command{Use: "scenariorun", Short: "Drive e2e scenarios"}
-	root.AddCommand(listCmd(), describeCmd(), createCmd(), actionCmd(), destroyCmd())
+	root.AddCommand(listCmd(), describeCmd(), createCmd(), actionCmd(), destroyCmd(), psCmd())
 	return root
 }
 
@@ -125,6 +127,25 @@ func actionCmd() *cobra.Command {
 		c.AddCommand(scenarioCmd)
 	}
 	return c
+}
+
+func psCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "ps",
+		Short: "List provisioned scenario stacks",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			stacks, err := scenario.ListProvisionedStacks()
+			if err != nil {
+				return err
+			}
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "STACK\tSCENARIO\tCREATED")
+			for _, ps := range stacks {
+				fmt.Fprintf(w, "%s\t%s\t%s\n", ps.Stack, ps.Scenario, ps.CreatedAt.Format(time.RFC3339))
+			}
+			return w.Flush()
+		},
+	}
 }
 
 func destroyCmd() *cobra.Command {

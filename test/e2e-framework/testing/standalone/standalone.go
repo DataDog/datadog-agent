@@ -80,6 +80,13 @@ func newLogWriter(ctx common.Context) io.Writer { return ctxLogWriter{ctx: ctx} 
 // The returned environment is ready to use (e.g. env.RemoteHost.Execute). Callers are
 // responsible for calling [Destroy] when done.
 func Provision[Env any](ctx common.Context, stackName string, p provisioners.Provisioner) (*Env, error) {
+	env, _, err := ProvisionWithResources[Env](ctx, stackName, p)
+	return env, err
+}
+
+// ProvisionWithResources is like [Provision] but also returns the raw stack outputs so
+// that callers can persist them without a second Pulumi read.
+func ProvisionWithResources[Env any](ctx common.Context, stackName string, p provisioners.Provisioner) (*Env, provisioners.RawResources, error) {
 	pCtx, cancel := context.WithTimeout(context.Background(), createTimeout)
 	defer cancel()
 
@@ -87,7 +94,7 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioners.Pro
 
 	env, fields, values, err := environments.CreateEnv[Env]()
 	if err != nil {
-		return nil, fmt.Errorf("unable to create env %T for stack %s: %w", env, stackName, err)
+		return nil, nil, fmt.Errorf("unable to create env %T for stack %s: %w", env, stackName, err)
 	}
 
 	var resources provisioners.RawResources
@@ -97,10 +104,10 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioners.Pro
 	case provisioners.UntypedProvisioner:
 		resources, err = pType.Provision(pCtx, stackName, logger)
 	default:
-		return nil, fmt.Errorf("provisioner of type %T implements neither TypedProvisioner nor UntypedProvisioner", p)
+		return nil, nil, fmt.Errorf("provisioner of type %T implements neither TypedProvisioner nor UntypedProvisioner", p)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("provisioning stack %s with provisioner %s failed: %w", stackName, p.ID(), err)
+		return nil, nil, fmt.Errorf("provisioning stack %s with provisioner %s failed: %w", stackName, p.ID(), err)
 	}
 
 	// Refresh field values from env to capture any changes made by the provisioner
@@ -111,16 +118,16 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioners.Pro
 	}
 
 	if err := environments.BuildEnvFromResources(ctx, resources, fields, values); err != nil {
-		return nil, fmt.Errorf("unable to build env %T from resources for stack %s: %w", env, stackName, err)
+		return nil, nil, fmt.Errorf("unable to build env %T from resources for stack %s: %w", env, stackName, err)
 	}
 
 	if initializable, ok := any(env).(common.Initializable); ok {
 		if err := initializable.Init(ctx); err != nil {
-			return nil, fmt.Errorf("failed to init environment: %w", err)
+			return nil, nil, fmt.Errorf("failed to init environment: %w", err)
 		}
 	}
 
-	return env, nil
+	return env, resources, nil
 }
 
 // Hydrate builds an environment of type Env from an EXISTING stack's outputs
@@ -154,6 +161,35 @@ func Hydrate[Env any](ctx common.Context, stackName string) (*Env, error) {
 	if initializable, ok := any(env).(common.Initializable); ok {
 		if err := initializable.Init(ctx); err != nil {
 			return nil, fmt.Errorf("failed to init environment: %w", err)
+		}
+	}
+
+	return env, nil
+}
+
+// HydrateFromResources builds an environment of type Env from already-captured
+// RawResources (e.g. persisted at create time), with NO Pulumi interaction.
+// It mirrors Hydrate but skips the StackOutputs call, using the supplied
+// resources directly.
+func HydrateFromResources[Env any](ctx common.Context, resources provisioners.RawResources) (*Env, error) {
+	env, fields, values, err := environments.CreateEnv[Env]()
+	if err != nil {
+		return nil, fmt.Errorf("unable to create env %T from cached resources: %w", env, err)
+	}
+
+	// Refresh field values from env (mirrors Provision's pattern).
+	envValue := reflect.ValueOf(env)
+	for idx, field := range fields {
+		values[idx] = envValue.Elem().FieldByIndex(field.Index)
+	}
+
+	if err := environments.BuildEnvFromResources(ctx, resources, fields, values); err != nil {
+		return nil, fmt.Errorf("unable to build env %T from cached resources: %w", env, err)
+	}
+
+	if initializable, ok := any(env).(common.Initializable); ok {
+		if err := initializable.Init(ctx); err != nil {
+			return nil, fmt.Errorf("failed to init environment from cached resources: %w", err)
 		}
 	}
 

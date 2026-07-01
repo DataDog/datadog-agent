@@ -269,6 +269,34 @@ never hand-declared. Create-time config is persisted (keyed by stack name, under
 `$SCENARIORUN_STATE_DIR` or `~/.scenariorun/stacks`) and replayed on
 `action`/`destroy` so they operate on the topology `create` built.
 
+### Local state store
+
+The CLI keeps a local state store of every provisioned stack. Each JSON file
+records the scenario name, stack name, create-time config, and the full Pulumi
+stack outputs (`resources` field). State files are written to
+`$SCENARIORUN_STATE_DIR` when set, otherwise `~/.scenariorun/stacks/`. The
+directory is created with 0700; files are written with 0600.
+
+`scenariorun ps` lists all currently-provisioned stacks with their scenario
+name and creation time:
+
+```bash
+./bin/scenariorun ps
+# STACK            SCENARIO   CREATED
+# my-stack         ec2-host   2025-07-01T12:00:00Z
+```
+
+**Action hydration** uses the cached outputs — no Pulumi call is made. If the
+local state file is absent (e.g. created by an older CLI version), the action
+falls back to a read-only `StackOutputs` read from the live Pulumi stack. A
+successful `destroy` deletes the state file (best-effort; destroy never fails
+because of a state-cleanup error).
+
+Key implementation files:
+- `scenario/state.go` — `ProvisionedStack`, `SaveProvisionedStack`, `LoadProvisionedStack`, `ListProvisionedStacks`, `DeleteProvisionedStack`
+- `testing/standalone/standalone.go` — `ProvisionWithResources` (returns raw outputs alongside the env), `HydrateFromResources` (hydrates from cached resources without Pulumi)
+- `scenario/runnable.go` — wires the state store into `Create`/`RunAction`/`Destroy`
+
 ### Service
 
 `cmd/scenario-service` (stub) builds and drives the `scenariorun` binary from
