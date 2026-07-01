@@ -119,13 +119,8 @@ func (r *EmbeddedRegistry) Version() string {
 	return r.version
 }
 
-// contentHasher is implemented by Registry types that can report a
-// content-bound hash of their concept mappings.
-type contentHasher interface {
-	contentHash() string
-}
-
-func (r *EmbeddedRegistry) contentHash() string {
+// ContentHash returns the content-bound hash of the registry's concept mappings.
+func (r *EmbeddedRegistry) ContentHash() string {
 	return r.hash
 }
 
@@ -135,10 +130,5 @@ func RegistryEqual(a, b Registry) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
 	}
-	ah, aOK := a.(contentHasher)
-	bh, bOK := b.(contentHasher)
-	if !aOK || !bOK {
-		return false
-	}
-	return ah.contentHash() == bh.contentHash()
+	return a.ContentHash() == b.ContentHash()
 }
