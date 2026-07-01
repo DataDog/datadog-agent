@@ -11,8 +11,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"runtime"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -25,9 +23,6 @@ import (
 )
 
 func TestOOMKill(t *testing.T) {
-	if strings.Contains(runtime.Version(), "rc") {
-		t.Skip("skipping: 50 concurrent http.Post calls deadlock in Go 1.27 RC due to socket buffer changes")
-	}
 	kills := atomic.NewUint64(0)
 
 	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
@@ -45,6 +40,15 @@ func TestOOMKill(t *testing.T) {
 	conf.WatchdogInterval = time.Millisecond
 	conf.MaxMemory = 0.1 * 1000 * 1000 // 100KB
 	conf.ReceiverPort = port
+	// Match the production default (apm_config.max_connections = 1000).
+	// Without this, config.New() leaves MaxConnections=0 which the listener
+	// converts to 1, serialising all 50 connections. With Go 1.27's new
+	// maybeDrainBody logic in net/http's readLoop, the shared DefaultTransport
+	// recycles connections into the idle pool after a 50ms drain attempt. The
+	// next goroutine then reuses that connection, but the server (capped at 1
+	// concurrent connection) has already moved on to a new socket, so writes
+	// on the recycled connection never get drained and the test deadlocks.
+	conf.MaxConnections = 1000
 
 	r := newTestReceiverFromConfig(conf)
 	r.Start()
@@ -66,7 +70,11 @@ func TestOOMKill(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			resp, err := http.Post(fmt.Sprintf("http://localhost:%d/v0.4/traces", port), "application/msgpack", bytes.NewReader(data))
+			// Use a per-goroutine client to avoid shared-pool connection reuse
+			// across goroutines, which interacts badly with server-side connection
+			// limits in Go 1.27+.
+			client := &http.Client{Transport: &http.Transport{}}
+			resp, err := client.Post(fmt.Sprintf("http://localhost:%d/v0.4/traces", port), "application/msgpack", bytes.NewReader(data))
 			if err != nil {
 				t.Log("Error posting payload", err)
 				return
