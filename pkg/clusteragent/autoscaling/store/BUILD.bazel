@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "store",
+    srcs = [
+        "locked_item.go",
+        "store.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "store_test",
+    srcs = ["store_test.go"],
+    gotags = ["test"],
+    deps = [
+        ":store",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
