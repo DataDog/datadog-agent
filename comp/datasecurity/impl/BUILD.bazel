@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/def",
+        "//comp/core/autodiscovery/integration",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/tagger/def",
@@ -20,10 +21,10 @@ go_library(
         "//comp/remote-config/rcclient/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/aggregator",
-        "//pkg/collector/sharedlibrary/sharedlibraryimpl",
         "//pkg/config/remote/data",
         "//pkg/remoteconfig/state",
         "//pkg/util/option",
+        "@//pkg/collector/sharedlibrary/sharedlibraryimpl",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ],
 )
