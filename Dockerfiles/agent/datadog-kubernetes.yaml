@@ -3,7 +3,7 @@
 ## The Kubernetes autodetected defaults that used to live in this file
 ## (apm_config.apm_non_local_traffic, jmx_use_container_support) are now applied
 ## directly by the Agent binary when it detects a Kubernetes environment
-## (see env.IsKubernetes() usage in pkg/config/setup).
+## (see applyKubernetesContainerDefaults in pkg/config/setup/fixup_init.go).
 ##
 ## This is intentional: external tooling (Datadog Operator, Helm chart) replaces
 ## /etc/datadog-agent/datadog.yaml — which this file is symlinked to — and any
