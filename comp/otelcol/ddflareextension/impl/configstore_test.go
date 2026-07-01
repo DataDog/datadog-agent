@@ -19,7 +19,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/apmstats"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -44,13 +44,18 @@ import (
 	"go.yaml.in/yaml/v2"
 )
 
+var datadogConnectorType = component.MustNewType("datadog")
+
+const tracesToTracesStability = component.StabilityLevel(component.StabilityLevelDevelopment)
+const tracesToMetricsStability = component.StabilityLevel(component.StabilityLevelDevelopment)
+
 // this is only used for config unmarshalling.
 func addFactories(factories otelcol.Factories) {
 	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{})
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil, func(context.Context) (string, error) {
 		return "hostname", nil
 	})
-	factories.Connectors[datadogconnector.Type] = datadogconnector.NewFactory(nil, nil, nil)
+	factories.Connectors[datadogConnectorType] = apmstats.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, nil, nil, nil)
 	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{}, option.None[ipc.Component](), false)
 	factories.Telemetry = otelconftelemetry.NewFactory()
 }

@@ -1,9 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-//go:build !aix
-
-package datadogconnector
+package apmstats
 
 import (
 	"context"
@@ -41,7 +39,7 @@ var datadogComponentType = component.MustNewType("datadog")
 
 // create test to create a connector, check that basic code compiles
 func TestNewConnector(t *testing.T) {
-	factory := NewFactory(nil, nil, nil)
+	factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil)
 
 	creationParams := connectortest.NewNopSettings(datadogComponentType)
 	cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
@@ -54,7 +52,7 @@ func TestNewConnector(t *testing.T) {
 }
 
 func TestTraceToTraceConnector(t *testing.T) {
-	factory := NewFactory(nil, nil, nil)
+	factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil)
 
 	creationParams := connectortest.NewNopSettings(datadogComponentType)
 	cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
@@ -67,7 +65,7 @@ func TestTraceToTraceConnector(t *testing.T) {
 }
 
 func createConnector(t *testing.T) (*traceToMetricConnector, *consumertest.MetricsSink) {
-	cfg := NewFactory(nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
 	cfg.Traces.ResourceAttributesAsContainerTags = []string{"cloud.availability_zone", "cloud.region", "az"}
 	return createConnectorCfg(t, cfg)
 }
@@ -77,7 +75,7 @@ const (
 )
 
 func createConnectorCfg(t *testing.T, cfg *datadogconfig.ConnectorComponentConfig) (*traceToMetricConnector, *consumertest.MetricsSink) {
-	factory := NewFactory(testutil.NewTestTaggerClient(), func(_ context.Context) (string, error) {
+	factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, testutil.NewTestTaggerClient(), func(_ context.Context) (string, error) {
 		return fallBackHostname, nil
 	}, nil)
 
@@ -287,7 +285,7 @@ func testMeasuredAndClientKind(t *testing.T, enableOperationAndResourceNameV2 bo
 	if err := featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", enableOperationAndResourceNameV2); err != nil {
 		t.Fatal(err)
 	}
-	cfg := NewFactory(nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
 	cfg.Traces.ComputeTopLevelBySpanKind = true
 	connector, metricsSink := createConnectorCfg(t, cfg)
 	err := connector.Start(t.Context(), componenttest.NewNopHost())
@@ -414,7 +412,7 @@ func testMeasuredAndClientKind(t *testing.T, enableOperationAndResourceNameV2 bo
 }
 
 func TestObfuscate(t *testing.T) {
-	cfg := NewFactory(nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
 	cfg.Traces.BucketInterval = time.Second
 
 	prevVal := featuregates.ReceiveResourceSpansV2FeatureGate.IsEnabled()
@@ -536,7 +534,7 @@ func (es *errorSink) ConsumeMetrics(ctx context.Context, md pmetric.Metrics) err
 }
 
 func TestError(t *testing.T) {
-	factory := NewFactory(nil, nil, nil)
+	factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil)
 	cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
 	cfg.Traces.BucketInterval = time.Millisecond * 100
 	metricsSink := &errorSink{}

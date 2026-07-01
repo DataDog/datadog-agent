@@ -1,9 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-//go:build !aix
-
-package datadogconnector
+package apmstats
 
 import (
 	"context"
@@ -20,20 +18,17 @@ import (
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 )
 
-// SourceProviderFunc is a function that returns the source of the host.
-type SourceProviderFunc func(context.Context) (string, error)
-
 type factory struct {
 	tagger       types.TaggerClient
 	concentrator *stats.Concentrator
 	hostname     option.Option[string]
 }
 
-// NewFactory creates a factory for the Datadog connector for use in the OTel Agent.
-//
-// It accepts the Agent's tagger, hostname provider, and (optionally) an existing
-// stats Concentrator so the connector can reuse the Agent's internals.
-func NewFactory(tagger types.TaggerClient, hostGetter SourceProviderFunc, concentrator *stats.Concentrator) connector.Factory {
+// SourceProviderFunc is a function that returns the source of the host.
+type SourceProviderFunc func(context.Context) (string, error)
+
+// NewConnectorFactory creates a factory for datadog connector for use in OTel agent
+func NewConnectorFactory(componentType component.Type, metricsStability, traceStability component.StabilityLevel, tagger types.TaggerClient, hostGetter SourceProviderFunc, concentrator *stats.Concentrator) connector.Factory {
 	f := &factory{
 		tagger:       tagger,
 		concentrator: concentrator,
@@ -47,10 +42,10 @@ func NewFactory(tagger types.TaggerClient, hostGetter SourceProviderFunc, concen
 
 	//  OTel connector factory to make a factory for connectors
 	return connector.NewFactory(
-		Type,
+		componentType,
 		createDefaultConfig,
-		connector.WithTracesToMetrics(f.createTracesToMetricsConnector, TracesToMetricsStability),
-		connector.WithTracesToTraces(createTracesToTracesConnector, TracesToTracesStability))
+		connector.WithTracesToMetrics(f.createTracesToMetricsConnector, metricsStability),
+		connector.WithTracesToTraces(createTracesToTracesConnector, traceStability))
 }
 
 func createDefaultConfig() component.Config {

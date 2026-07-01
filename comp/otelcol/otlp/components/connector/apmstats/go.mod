@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector
+module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/apmstats
 
 go 1.25.0
 
