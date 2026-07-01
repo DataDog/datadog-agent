@@ -174,7 +174,7 @@ foreign_cc_runnable = rule(
             executable = True,
         ),
         "_install_name_tool": attr.label(
-            default = "@llvm_toolchain_llvm//:install-name-tool",
+            default = "@@//bazel/tools:install_name_tool",
             executable = True,
             cfg = "exec",
         ),
