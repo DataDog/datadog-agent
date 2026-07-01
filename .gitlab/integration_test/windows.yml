@@ -9,7 +9,11 @@
   variables:
     VARIANT: ltsc2022
   before_script:
-    - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name $VCPKG_BLOB_SAS_URL_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+    - $tmpfile = [System.IO.Path]::GetTempFileName()
+    - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$Env:VCPKG_BLOB_SAS_URL" -parameterField url -tempFile "$tmpfile")
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - $vcpkgBlobSaSUrl = $(cat "$tmpfile")
+    - Remove-Item "$tmpfile"
   script:
     - $ErrorActionPreference = "Stop"
     # we pass in CI_JOB_URL and CI_JOB_NAME so that they can be added to additional tags

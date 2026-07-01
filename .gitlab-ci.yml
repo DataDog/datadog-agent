@@ -202,7 +202,13 @@ variables:
     # Vault path identifiers for secret retrieval via tools/ci/fetch_secret.sh
     AGENT_QA_E2E: agent-qa-e2e # agent-devx
     AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
+    AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
+    ATLASSIAN_WRITE: atlassian-write # agent-delivery
     DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
+    E2E_AZURE: e2e-azure # agent-devx
+    INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
+    SMP_ACCOUNT: smp # single-machine-performance
+    VCPKG_BLOB_SAS_URL: vcpkg-blob-sas # windows-products
 
     # List of parameters retrieved from AWS SSM (kept for non-migrated jobs)
     # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed

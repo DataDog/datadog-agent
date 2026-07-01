@@ -13,7 +13,7 @@ datadog-sca-ci:
   # This specifies the job does not have any dependency, meaning it can start as soon as it can.
   needs: []
   script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh "$API_KEY_ORG2_SSM_NAME")
-    - export DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh "$APP_KEY_ORG2_SSM_NAME")
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token) || exit $?; export DD_API_KEY
+    - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token) || exit $?; export DD_APP_KEY
     - osv-scanner --skip-git --recursive --experimental-only-packages --format=cyclonedx-1-4 --output=/tmp/sbom.json .
     - datadog-ci sbom upload --service integrations-core --env ci /tmp/sbom.json
