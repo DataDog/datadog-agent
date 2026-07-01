@@ -559,9 +559,9 @@ properties:
         default: []
         items:
           type: string
-        comment: Sources listed here will not have adaptive sampling or noisy log
-          detection applied, even if enabled globally. Matches against the configured
-          source tag of each log source.
+        comment: |-
+          Sources listed here will not have adaptive sampling or noisy log detection applied, even if enabled globally.
+          Useful for auto-discovered sources that cannot be configured via integration-level YAML.
       enabled:
         node_type: setting
         type: boolean
@@ -799,7 +799,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: DEPRECATED in favor of `logs_config.force_use_http`.
   use_podman_logs:
     node_type: setting
     type: boolean
@@ -823,7 +822,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: DEPRECATED in favor of `logs_config.force_use_tcp`.
   use_v2_api:
     node_type: setting
     type: boolean
