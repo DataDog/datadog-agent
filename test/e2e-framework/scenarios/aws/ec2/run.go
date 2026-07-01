@@ -72,6 +72,22 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 	} else {
 		// Mark FakeIntake as not provisioned
 		env.DisableFakeIntake()
+		// When not using fakeintake, apply the configured Datadog site so the
+		// agent reports to the correct backend (e.g. datad0g.com for dev stacks).
+		if params.agentOptions != nil {
+			if site := awsEnv.Site(); site != "" {
+				params.agentOptions = append(params.agentOptions, func(p *agentparams.Params) error {
+					p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String("site: "+site))
+					return nil
+				})
+			}
+		}
+	}
+	// Tags are agent metadata and apply regardless of fakeintake.
+	if params.agentOptions != nil {
+		if tags := awsEnv.Tags(); len(tags) > 0 {
+			params.agentOptions = append(params.agentOptions, agentparams.WithTags(tags))
+		}
 	}
 	if !params.installUpdater {
 		// Mark Updater as not provisioned
@@ -124,3 +140,62 @@ func VMRun(ctx *pulumi.Context) error {
 	return Run(ctx, awsEnv, env, ParamsFromEnvironment(awsEnv))
 }
 
+// VMRunWithParams is like VMRun but merges the provided params on top of
+// ParamsFromEnvironment. The override wins on nil/disabled decisions; its
+// options are appended to the environment-derived base options otherwise.
+func VMRunWithParams(ctx *pulumi.Context, override *Params) error {
+	awsEnv, err := aws.NewEnvironment(ctx)
+	if err != nil {
+		return err
+	}
+
+	env := outputs.NewHost()
+
+	return Run(ctx, awsEnv, env, mergeParams(ParamsFromEnvironment(awsEnv), override))
+}
+
+// mergeParams applies override on top of base. For slice fields, nil in override
+// means "disabled" (result is nil); otherwise override's entries are appended to
+// base's. Boolean fields are OR-ed. Name uses override when it differs from the
+// default.
+func mergeParams(base, override *Params) *Params {
+	merged := &Params{
+		Name:           base.Name,
+		installDocker:  base.installDocker || override.installDocker,
+		installUpdater: base.installUpdater || override.installUpdater,
+	}
+
+	if override.Name != "" && override.Name != defaultVMName {
+		merged.Name = override.Name
+	}
+
+	if override.instanceOptions == nil {
+		merged.instanceOptions = base.instanceOptions
+	} else {
+		merged.instanceOptions = append(base.instanceOptions, override.instanceOptions...)
+	}
+
+	if override.agentOptions == nil {
+		merged.agentOptions = nil
+	} else if len(override.agentOptions) == 0 {
+		merged.agentOptions = base.agentOptions
+	} else {
+		merged.agentOptions = append(base.agentOptions, override.agentOptions...)
+	}
+
+	if override.agentClientOptions == nil {
+		merged.agentClientOptions = base.agentClientOptions
+	} else {
+		merged.agentClientOptions = append(base.agentClientOptions, override.agentClientOptions...)
+	}
+
+	if override.fakeintakeOptions == nil {
+		merged.fakeintakeOptions = nil
+	} else if len(override.fakeintakeOptions) == 0 {
+		merged.fakeintakeOptions = base.fakeintakeOptions
+	} else {
+		merged.fakeintakeOptions = append(base.fakeintakeOptions, override.fakeintakeOptions...)
+	}
+
+	return merged
+}

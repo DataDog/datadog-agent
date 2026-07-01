@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
@@ -10,6 +11,23 @@ from dda.cli.base import dynamic_command, pass_app
 
 if TYPE_CHECKING:
     from dda.cli.application import Application
+
+_MODULE_PREFIX = "github.com/DataDog/datadog-agent"
+
+
+def _demo_pulumi_dir_fallback() -> str:
+    """Return the standard demo Pulumi program directory for backward compatibility.
+
+    Envs created before pulumi_dir was stored in metadata lack that key.
+    We reconstruct the path by walking up to the repo root.
+    """
+    candidate = Path(__file__).resolve().parent
+    while candidate != candidate.parent:
+        go_mod = candidate / "go.mod"
+        if go_mod.exists() and _MODULE_PREFIX in go_mod.read_text():
+            return str(candidate / "test" / "new-e2e" / "run")
+        candidate = candidate.parent
+    raise RuntimeError("Could not find repo root — this extended command must run inside the agent repo")
 
 
 @dynamic_command(short_help="Delete a lab environment")
@@ -92,7 +110,46 @@ def cmd(app: Application, *, id: str | None, yes: bool) -> None:
 
         provider.destroy(app, id)
     except ValueError:
-        app.display_warning(f"Provider '{env.env_type}' not found, removing from storage only.")
+        # No registered provider for this env type.  If the environment was
+        # created by a Pulumi-backed command (e.g. dda lab demo), the
+        # pulumi_dir and stack name are stored in metadata — use them to
+        # destroy the stack before removing the local record.
+        stack = env.metadata.get("stack")
+        # pulumi_dir was added to metadata in a later version; fall back to the
+        # known standard path for envs created before that migration.
+        pulumi_dir = env.metadata.get("pulumi_dir") or _demo_pulumi_dir_fallback()
+        if stack and pulumi_dir:
+            import os
+
+            from dda.utils.process import EnvVars
+
+            from lab.config import load_config as _load_config
+
+            _passphrase = _load_config().pulumi.passphrase
+            _pulumi_env = (
+                EnvVars({"PULUMI_CONFIG_PASSPHRASE": _passphrase})
+                if _passphrase and "PULUMI_CONFIG_PASSPHRASE" not in os.environ
+                else None
+            )
+            app.display_info(f"Destroying Pulumi stack '{stack}' ...")
+            exit_code = app.subprocess.run(
+                ["pulumi", "destroy", "--yes", "-s", stack, "-C", pulumi_dir],
+                check=False,
+                env=_pulumi_env,
+            )
+            if exit_code != 0:
+                app.abort(
+                    f"pulumi destroy failed (exit {exit_code}). "
+                    f"Local record kept — re-run 'dda lab delete {id}' after fixing credentials."
+                )
+                return
+            app.subprocess.run(
+                ["pulumi", "stack", "rm", "--yes", "-s", stack, "-C", pulumi_dir],
+                check=False,
+                env=_pulumi_env,
+            )
+        else:
+            app.display_warning(f"Provider '{env.env_type}' not found, removing from storage only.")
 
     try:
         env.delete()
