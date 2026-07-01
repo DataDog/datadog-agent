@@ -11,13 +11,14 @@ go_library(
         "worker.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer",
-    tags = ["manual"],
+    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/telemetry",
         "//comp/core/workloadmeta/def",
+        "//pkg/collector/python",
         "//pkg/util/log",
-        "@//pkg/collector/python",
         "@io_k8s_apimachinery//pkg/util/wait",
         "@io_k8s_client_go//util/workqueue",
     ],
@@ -34,7 +35,11 @@ dd_agent_go_test(
     tags = ["manual"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/telemetry",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
         "//comp/core/workloadmeta/def",
+        "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_atomic//:atomic",

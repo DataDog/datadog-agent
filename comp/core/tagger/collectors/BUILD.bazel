@@ -31,6 +31,7 @@ go_library(
         "//pkg/util/docker",
         "//pkg/util/fargate",
         "//pkg/util/flavor",
+        "//pkg/util/gpu",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",
