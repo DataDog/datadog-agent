@@ -230,6 +230,14 @@ func TestContainerCredentialsEndpoint_Precedence(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "https://creds.internal.example/v1", got)
 	})
+	t.Run("relative URI not starting with slash is rejected", func(t *testing.T) {
+		isolateAWSEnv(t)
+		// Would otherwise become http://169.254.170.2@attacker.example/creds (host attacker.example),
+		// bypassing the allowlist and leaking the container authorization token.
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "@attacker.example/creds")
+		_, err := containerCredentialsEndpoint()
+		require.Error(t, err)
+	})
 }
 
 // TestContainerCredentialsProvider_HostAllowlist verifies the SSRF guard on an http

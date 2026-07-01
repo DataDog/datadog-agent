@@ -266,13 +266,25 @@ func (p *webIdentityProvider) Retrieve(ctx context.Context) (aws.Credentials, er
 }
 
 // containerCredentialsEndpoint resolves the container-credential endpoint following the AWS
-// contract: AWS_CONTAINER_CREDENTIALS_RELATIVE_URI (resolved against the trusted ECS endpoint)
-// takes precedence, falling back to AWS_CONTAINER_CREDENTIALS_FULL_URI (validated to a
-// loopback/ECS/EKS host). Relative wins because an ECS task carries the ECS-injected relative URI
-// and may also see a stale full URI from the image or environment.
+// contract: AWS_CONTAINER_CREDENTIALS_RELATIVE_URI (required to be a path and resolved against the
+// trusted ECS endpoint) takes precedence, falling back to AWS_CONTAINER_CREDENTIALS_FULL_URI
+// (validated to a loopback/ECS/EKS host). Relative wins because an ECS task carries the
+// ECS-injected relative URI and may also see a stale full URI from the image or environment.
 func containerCredentialsEndpoint() (string, error) {
 	if relative := os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"); relative != "" {
-		return ecsContainerEndpoint + relative, nil
+		// The relative URI is joined onto the trusted ECS endpoint, so it must be a path. A value
+		// that does not start with "/" could alter the URL authority and bypass the host allowlist
+		// (ex: "@attacker.example/creds" -> "http://169.254.170.2@attacker.example/creds", whose
+		// host is attacker.example), leaking the container authorization token to an arbitrary host.
+		if !strings.HasPrefix(relative, "/") {
+			return "", fmt.Errorf("container credentials relative URI must be a path starting with %q: %q", "/", relative)
+		}
+		endpoint := ecsContainerEndpoint + relative
+		// Defense in depth: confirm the joined URL still resolves to an allowed ECS/EKS/loopback host.
+		if err := validateContainerEndpoint(endpoint); err != nil {
+			return "", err
+		}
+		return endpoint, nil
 	}
 	endpoint := os.Getenv("AWS_CONTAINER_CREDENTIALS_FULL_URI")
 	if err := validateContainerEndpoint(endpoint); err != nil {
