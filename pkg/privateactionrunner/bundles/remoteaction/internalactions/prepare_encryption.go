@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"golang.org/x/crypto/nacl/box"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -31,26 +30,20 @@ func NewPrepareEncryptionHandler(store encryptioncontext.Store) *PrepareEncrypti
 }
 
 type PrepareEncryptionInputs struct {
-	BoundTaskID string `json:"boundTaskId"`
-}
-
-type EncryptionContext struct {
-	KeyType             string `json:"keyType"`
-	PublicKey           string `json:"publicKey"`
 	EncryptionContextID string `json:"encryptionContextId"`
-	BoundTaskID         string `json:"boundTaskId"`
 }
 
 type PrepareEncryptionOutputs struct {
-	KeyType           string            `json:"keyType"`
-	EncryptionContext EncryptionContext `json:"encryptionContext"`
+	KeyType             string `json:"keyType"`
+	PublicKey           string `json:"publicKey"`
+	EncryptionContextID string `json:"encryptionContextId"`
 }
 
 // Run generates an ephemeral Curve25519 key pair, stashes the private key in
-// the shared encryption-context store under (boundTaskId, encryptionContextId),
-// and returns the public key plus the lookup identifiers to the caller. A
-// subsequent task on the same runner (e.g. testConnectivity) can then retrieve
-// the private key from the store to decrypt secret inputs sealed with the
+// the shared encryption-context store under (this task's ID, encryptionContextId),
+// and returns the public key to the caller. A subsequent task on the same
+// runner (e.g. testConnectivity) can then retrieve the private key from the
+// store, by encryptionContextId, to decrypt secret inputs sealed with the
 // returned public key.
 func (handler *PrepareEncryptionHandler) Run(
 	_ context.Context,
@@ -61,8 +54,8 @@ func (handler *PrepareEncryptionHandler) Run(
 	if err != nil {
 		return nil, err
 	}
-	if inputs.BoundTaskID == "" {
-		return nil, errors.New("boundTaskId is required")
+	if inputs.EncryptionContextID == "" {
+		return nil, errors.New("encryptionContextId is required")
 	}
 
 	publicKey, privateKey, err := box.GenerateKey(rand.Reader)
@@ -70,16 +63,11 @@ func (handler *PrepareEncryptionHandler) Run(
 		return nil, fmt.Errorf("failed to generate Curve25519 key pair: %w", err)
 	}
 
-	encryptionContextID := uuid.NewString()
-	handler.store.Put(inputs.BoundTaskID, encryptionContextID, privateKey)
+	handler.store.Put(task.Data.ID, inputs.EncryptionContextID, privateKey)
 
 	return &PrepareEncryptionOutputs{
-		KeyType: keyTypeCurve25519,
-		EncryptionContext: EncryptionContext{
-			KeyType:             keyTypeCurve25519,
-			PublicKey:           base64.StdEncoding.EncodeToString(publicKey[:]),
-			EncryptionContextID: encryptionContextID,
-			BoundTaskID:         inputs.BoundTaskID,
-		},
+		KeyType:             keyTypeCurve25519,
+		PublicKey:           base64.StdEncoding.EncodeToString(publicKey[:]),
+		EncryptionContextID: inputs.EncryptionContextID,
 	}, nil
 }
