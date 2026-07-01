@@ -86,7 +86,7 @@ func ReleaseToUnstructured(r *Release) *unstructured.Unstructured {
 				"name":            fmt.Sprintf("%s.v%d", r.Name, r.Version),
 				"namespace":       r.Namespace,
 				"uid":             releaseUID(r),
-				"resourceVersion": "1", // a given revision is immutable once stored
+				"resourceVersion": r.ResourceVersion,
 				"labels": map[string]interface{}{
 					"helm_release":  r.Name,
 					"helm_revision": strconv.Itoa(r.Version),

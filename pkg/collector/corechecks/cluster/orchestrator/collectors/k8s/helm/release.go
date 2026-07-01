@@ -26,6 +26,8 @@ type Release struct {
 	Config map[string]interface{} `json:"config,omitempty"`
 	// Manifest is the fully rendered Kubernetes YAML applied to the cluster.
 	Manifest string `json:"manifest,omitempty"`
+	// ResourceVersion is the backing storage object's resourceVersion. 
+	ResourceVersion string `json:"-"`
 }
 
 // Info describes the deployment state of a release.

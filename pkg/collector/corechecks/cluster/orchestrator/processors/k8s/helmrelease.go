@@ -43,18 +43,32 @@ func redactSecretData(r *unstructured.Unstructured) {
 		return
 	}
 	for _, res := range resources {
-		m, ok := res.(map[string]interface{})
-		if !ok {
-			continue
+		if m, ok := res.(map[string]interface{}); ok {
+			redactResourceSecrets(m)
 		}
-		if kind, _ := m["kind"].(string); kind != "Secret" {
-			continue
-		}
+	}
+}
+
+// redactResourceSecrets redacts a Secret manifest's payload, recursing into the
+// items of a Kubernetes List so nested Secrets are not shipped in the clear.
+func redactResourceSecrets(m map[string]interface{}) {
+	switch kind, _ := m["kind"].(string); kind {
+	case "Secret":
 		if _, ok := m["data"]; ok {
 			m["data"] = redactedValue
 		}
 		if _, ok := m["stringData"]; ok {
 			m["stringData"] = redactedValue
+		}
+	case "List":
+		items, ok := m["items"].([]interface{})
+		if !ok {
+			return
+		}
+		for _, item := range items {
+			if im, ok := item.(map[string]interface{}); ok {
+				redactResourceSecrets(im)
+			}
 		}
 	}
 }

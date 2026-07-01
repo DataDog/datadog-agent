@@ -17,6 +17,11 @@ import (
 const StorageLabelSelector = "owner=helm"
 
 // ReleasesFromConfigMaps decodes the given Helm-managed ConfigMaps into Releases.
+//
+// NOTE: this is currently called independently by both the Helm release and Helm
+// chart collectors, so every ConfigMap is decoded twice
+// per collection cycle. Future optimization: decode releases once and share the
+// result between the two collectors.
 func ReleasesFromConfigMaps(configMaps []*corev1.ConfigMap) []*Release {
 	releases := make([]*Release, 0, len(configMaps))
 	for _, cm := range configMaps {
@@ -28,6 +33,7 @@ func ReleasesFromConfigMaps(configMaps []*corev1.ConfigMap) []*Release {
 			log.Debugf("Skipping Helm ConfigMap %s/%s: %v", cm.Namespace, cm.Name, err)
 			continue
 		}
+		release.ResourceVersion = cm.ResourceVersion
 		releases = append(releases, release)
 	}
 	return releases
