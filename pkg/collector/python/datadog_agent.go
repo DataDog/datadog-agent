@@ -748,6 +748,7 @@ func ResolveIssue(issueID *C.char, errOut **C.char) {
 //
 //export ParsePrometheusMetrics
 func ParsePrometheusMetrics(rawText *C.char, contentType *C.char, errResult **C.char) *C.char {
+	_ = contentType // reserved for future OpenMetrics vs Prometheus format selection
 	data := []byte(C.GoString(rawText))
 	jsonResult, err := promutil.ParseMetricsToJSON(data)
 	if err != nil {
