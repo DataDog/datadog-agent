@@ -42,6 +42,9 @@ type Schema struct {
 // BuildSchema reflects a pointer-to-struct into a Schema, recursing into nested
 // struct fields (reusable param components) and skipping `scenario:"-"` and
 // untagged fields.
+//
+// It returns an error if two fields share the same flag name, which would
+// otherwise cause silent collision bugs at decode time.
 func BuildSchema(v any) (Schema, error) {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
@@ -50,6 +53,13 @@ func BuildSchema(v any) (Schema, error) {
 	var s Schema
 	if err := walk(rv.Elem().Type(), nil, &s); err != nil {
 		return Schema{}, err
+	}
+	seen := make(map[string]bool, len(s.Fields))
+	for _, f := range s.Fields {
+		if seen[f.Name] {
+			return Schema{}, fmt.Errorf("duplicate scenario flag name %q", f.Name)
+		}
+		seen[f.Name] = true
 	}
 	return s, nil
 }

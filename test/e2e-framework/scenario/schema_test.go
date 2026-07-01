@@ -5,7 +5,10 @@
 
 package scenario
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 type compChild struct {
 	Flavor string `scenario:"name=agent-flavor,enum=datadog-agent|datadog-fips-agent"`
@@ -19,6 +22,28 @@ type schemaSample struct {
 	Child    compChild // embedded component, recurse
 	Hidden   []string  `scenario:"-"`            // escape hatch, skipped
 	Untagged string                              // no tag, skipped
+}
+
+// dupParent has two fields that resolve to the same flag name "dup-flag".
+type dupChild1 struct {
+	A string `scenario:"name=dup-flag"`
+}
+type dupChild2 struct {
+	B string `scenario:"name=dup-flag"`
+}
+type dupParent struct {
+	dupChild1
+	dupChild2
+}
+
+func TestBuildSchemaRejectsDuplicateNames(t *testing.T) {
+	_, err := BuildSchema(&dupParent{})
+	if err == nil {
+		t.Fatal("expected error for duplicate flag name, got nil")
+	}
+	if !strings.Contains(err.Error(), "duplicate scenario flag name") {
+		t.Errorf("error message unexpected: %v", err)
+	}
 }
 
 func TestBuildSchema(t *testing.T) {

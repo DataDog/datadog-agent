@@ -21,7 +21,7 @@ CLI_BIN = "bin/scenariorun"
 def lab(ctx, args=""):
     """Build (if needed) and run the scenariorun CLI, forwarding ARGS.
 
-    Example: dda inv lab --args="create ec2-host --os debian-12"
+    Example: dda inv scenario.lab --args="create ec2-host --os debian-12"
     """
     # `go build -o` does not create the output's parent directory, and bin/ is
     # gitignored (absent in a clean checkout), so create it first.
