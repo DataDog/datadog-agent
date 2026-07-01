@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "childhandle.go",
         "config.go",
+        "forwarder.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle",
     visibility = ["//visibility:public"],
@@ -18,6 +19,7 @@ go_test(
     srcs = [
         "childhandle_test.go",
         "config_test.go",
+        "forwarder_test.go",
     ],
     embed = [":lifecycle"],
     gotags = ["test"],
