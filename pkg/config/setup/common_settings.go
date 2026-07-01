@@ -802,6 +802,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods_improved.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.helm_releases.enabled", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.gateway_api", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.service_mesh", false)

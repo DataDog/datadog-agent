@@ -12,12 +12,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
@@ -31,10 +33,11 @@ func NewCRDCollectorVersions() collectors.CollectorVersions {
 
 // CRDCollector is a collector for Kubernetes CRDs.
 type CRDCollector struct {
-	informer  informers.GenericInformer
-	lister    cache.GenericLister
-	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	informer      informers.GenericInformer
+	lister        cache.GenericLister
+	metadata      *collectors.CollectorMetadata
+	processor     *processors.Processor
+	syntheticCRDs []runtime.Object
 }
 
 // NewCRDCollector creates a new collector for the Kubernetes CRD
@@ -72,6 +75,11 @@ func (c *CRDCollector) Init(rcfg *collectors.CollectorRunConfig) {
 		log.Errorc(err.Error(), orchestrator.ExtraLogContext...)
 	}
 	c.lister = c.informer.Lister() // return that Lister
+
+	// Ship schemas for the synthetic Helm custom resources.
+	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.helm_releases.enabled") {
+		c.syntheticCRDs = append(syntheticHelmReleaseCRDs(), syntheticHelmChartCRDs()...)
+	}
 }
 
 // Metadata is used to access information about the collector.
@@ -85,6 +93,8 @@ func (c *CRDCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 	if err != nil {
 		return nil, collectors.NewListingError(err)
 	}
+
+	list = append(list, c.syntheticCRDs...)
 
 	return c.Process(rcfg, list)
 }
