@@ -21,6 +21,9 @@ func seedStack(t *testing.T, stack, scenarioName string) ProvisionedStack {
 		Resources: map[string]json.RawMessage{
 			"host": json.RawMessage(`{"ip":"10.0.0.1"}`),
 		},
+		Keys: map[string]string{
+			"RemoteHost": "dd-Host-main",
+		},
 		CreatedAt: time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC),
 	}
 	if err := SaveProvisionedStack(ps); err != nil {
@@ -50,6 +53,9 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	}
 	if string(got.Resources["host"]) != string(want.Resources["host"]) {
 		t.Errorf("Resources[host]: got %s, want %s", got.Resources["host"], want.Resources["host"])
+	}
+	if got.Keys["RemoteHost"] != want.Keys["RemoteHost"] {
+		t.Errorf("Keys[RemoteHost]: got %q, want %q", got.Keys["RemoteHost"], want.Keys["RemoteHost"])
 	}
 	if !got.CreatedAt.Equal(want.CreatedAt) {
 		t.Errorf("CreatedAt: got %v, want %v", got.CreatedAt, want.CreatedAt)

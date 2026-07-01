@@ -286,15 +286,20 @@ name and creation time:
 # my-stack         ec2-host   2025-07-01T12:00:00Z
 ```
 
-**Action hydration** uses the cached outputs — no Pulumi call is made. If the
-local state file is absent (e.g. created by an older CLI version), the action
-falls back to a read-only `StackOutputs` read from the live Pulumi stack. A
-successful `destroy` deletes the state file (best-effort; destroy never fails
-because of a state-cleanup error).
+**Action hydration** uses the cached outputs and import keys captured at create
+time — no Pulumi call is ever made. The local state file records both the raw
+Pulumi stack outputs (`resources` field) and the field→import-key mapping
+(`keys` field, populated by `environments.ImportKeys`). `HydrateFromResources`
+replays those keys via `Importable.SetKey` before calling
+`BuildEnvFromResources`, so resource lookup uses the correct export name. If
+the local state file is absent the action fails with a clear error; there is no
+Pulumi fallback. A successful `destroy` deletes the state file (best-effort;
+destroy never fails because of a state-cleanup error).
 
 Key implementation files:
-- `scenario/state.go` — `ProvisionedStack`, `SaveProvisionedStack`, `LoadProvisionedStack`, `ListProvisionedStacks`, `DeleteProvisionedStack`
-- `testing/standalone/standalone.go` — `ProvisionWithResources` (returns raw outputs alongside the env), `HydrateFromResources` (hydrates from cached resources without Pulumi)
+- `scenario/state.go` — `ProvisionedStack` (including `Keys` field), `SaveProvisionedStack`, `LoadProvisionedStack`, `ListProvisionedStacks`, `DeleteProvisionedStack`
+- `testing/environments/environments.go` — `ImportKeys` (snapshots field→key from a provisioned env)
+- `testing/standalone/standalone.go` — `ProvisionWithResources` (returns raw outputs alongside the env), `HydrateFromResources` (replays keys then hydrates from cached resources, no Pulumi)
 - `scenario/runnable.go` — wires the state store into `Create`/`RunAction`/`Destroy`
 
 ### Service

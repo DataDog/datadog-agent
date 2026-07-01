@@ -28,6 +28,7 @@ type ProvisionedStack struct {
 	Stack     string                     `json:"stack"`
 	Config    map[string]string          `json:"config"`
 	Resources map[string]json.RawMessage `json:"resources"` // provisioned outputs
+	Keys      map[string]string          `json:"keys"`      // field-name → import key, captured at create time
 	CreatedAt time.Time                  `json:"created_at"`
 }
 

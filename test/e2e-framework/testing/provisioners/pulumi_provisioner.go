@@ -121,16 +121,6 @@ func rawResourcesFromOutputs(outputs auto.OutputMap) (RawResources, error) {
 	return resources, nil
 }
 
-// StackOutputs reads an existing stack's already-applied outputs (no up) and
-// converts them to RawResources for read-only environment hydration.
-func StackOutputs(ctx context.Context, stackName string) (RawResources, error) {
-	outputs, err := infra.GetStackManager().GetStackOutputs(ctx, stackName)
-	if err != nil {
-		return nil, err
-	}
-	return rawResourcesFromOutputs(outputs)
-}
-
 func dumpRawResources(resources RawResources) string {
 	var builder strings.Builder
 	for key, value := range resources {

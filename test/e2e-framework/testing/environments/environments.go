@@ -62,6 +62,50 @@ func CreateEnv[Env any]() (*Env, []reflect.StructField, []reflect.Value, error) 
 	return &env, retainedFields, retainedValues, nil
 }
 
+// ImportKeys snapshots the field→import-key mapping from an already-provisioned
+// environment. It reflects over env's exported fields using the same importable
+// detection as [CreateEnv]: for each non-nil field that implements
+// [components.Importable] and whose [components.Importable.Key] is non-empty,
+// it records the mapping {FieldName: key}. Fields that are nil or have an empty
+// key are silently skipped.
+//
+// The returned map can be persisted and later passed to
+// [standalone.HydrateFromResources] so that import keys are replayed without
+// needing a Pulumi program run.
+func ImportKeys(env any) map[string]string {
+	keys := make(map[string]string)
+	if env == nil {
+		return keys
+	}
+
+	v := reflect.ValueOf(env)
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return keys
+		}
+		v = v.Elem()
+	}
+
+	t := v.Type()
+	for _, field := range reflect.VisibleFields(t) {
+		if !field.IsExported() {
+			continue
+		}
+		fv := v.FieldByIndex(field.Index)
+		if !field.Type.Implements(reflect.TypeOf((*components.Importable)(nil)).Elem()) {
+			continue
+		}
+		if fv.IsNil() {
+			continue
+		}
+		imp := fv.Interface().(components.Importable)
+		if k := imp.Key(); k != "" {
+			keys[field.Name] = k
+		}
+	}
+	return keys
+}
+
 // BuildEnvFromResources imports the raw resources returned by a provisioner into the
 // importable fields of an environment, and initializes each imported component.
 //

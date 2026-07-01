@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/standalone"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
@@ -77,18 +78,24 @@ func (g genericRunnable[Env]) Create(ctx common.Context, stack string, cfg map[s
 	if err != nil {
 		return err
 	}
-	// ProvisionWithResources returns the raw outputs directly — no second Pulumi call needed.
-	_, res, err := standalone.ProvisionWithResources[Env](ctx, stack, prov)
+	// ProvisionWithResources returns the raw outputs and the hydrated env directly
+	// — no second Pulumi call needed.
+	env, res, err := standalone.ProvisionWithResources[Env](ctx, stack, prov)
 	if err != nil {
 		return err
 	}
 
-	// Persist the outputs so future actions can hydrate without Pulumi.
+	// Snapshot the import keys from the provisioned env so they can be replayed
+	// at action time without running the Pulumi program again.
+	keys := environments.ImportKeys(env)
+
+	// Persist the outputs and keys so future actions can hydrate without Pulumi.
 	ps := ProvisionedStack{
 		Scenario:  g.s.Name,
 		Stack:     stack,
 		Config:    cfg,
 		Resources: toRawMessage(res),
+		Keys:      keys,
 		CreatedAt: time.Now(),
 	}
 	if err := SaveProvisionedStack(ps); err != nil {
@@ -116,23 +123,19 @@ func (g genericRunnable[Env]) RunAction(ctx common.Context, stack, action string
 	}
 
 	// Hydrate the environment from the local state cache (no Pulumi call).
-	// Fall back to a read-only Pulumi outputs read when no local record exists.
+	// If there is no local record the action cannot proceed — we need the
+	// cached import keys that were captured at create time.
 	var env *Env
 	ps, loadErr := LoadProvisionedStack(stack)
-	if loadErr == nil {
-		env, loadErr = standalone.HydrateFromResources[Env](ctx, fromRawMessage(ps.Resources))
-		if loadErr != nil {
-			return fmt.Errorf("hydrate env for action %q from cached state: %w", action, loadErr)
-		}
-	} else if errors.Is(loadErr, ErrNoProvisionedStack) {
-		// No cached state — fall back to a Pulumi read of the live stack outputs.
-		var hydrateErr error
-		env, hydrateErr = standalone.Hydrate[Env](ctx, stack)
-		if hydrateErr != nil {
-			return fmt.Errorf("hydrate env for action %q: %w", action, hydrateErr)
-		}
-	} else {
+	if errors.Is(loadErr, ErrNoProvisionedStack) {
+		return fmt.Errorf("no local record for stack %q; actions require a stack created via 'scenariorun create'", stack)
+	}
+	if loadErr != nil {
 		return fmt.Errorf("load provisioned stack state for action %q: %w", action, loadErr)
+	}
+	env, loadErr = standalone.HydrateFromResources[Env](ctx, fromRawMessage(ps.Resources), ps.Keys)
+	if loadErr != nil {
+		return fmt.Errorf("hydrate env for action %q from cached state: %w", action, loadErr)
 	}
 
 	return a.Run(context.Background(), env, ap)
