@@ -2425,8 +2425,8 @@ code.cloudfoundry.org/diego-db-helpers v0.3.0 h1:LPVZ47sOr4e3MLbTUbBX7pTDWhP2XWI
 code.cloudfoundry.org/diego-db-helpers v0.3.0/go.mod h1:eFhaHV7SOqZWV+lV9ZSjPTXfq3AO3e55lsAnfKvUozg=
 code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5 h1:qzFDi35GOoKwh4wx4W0SnpexLOeZtnBYP1/Ia5Xjo1M=
 code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5/go.mod h1:ap2gRuUzfTHIqW0xmGZjjUoljsyEiTEAnk/1s3ftm/w=
-code.cloudfoundry.org/lager/v3 v3.74.0 h1:gRJj1CAI4hjfPYmynLKADvVTnlIbAz0W+YGRQqPQuRs=
-code.cloudfoundry.org/lager/v3 v3.74.0/go.mod h1:LXtRzpY16oMUJ46zxyRgB/touvG7Ltklt1tWbV4VwzI=
+code.cloudfoundry.org/lager/v3 v3.75.0 h1:Q9L1/hvs6ZF+5CWVDU9Aom+x3AAYxSweFsRLWM/XvUo=
+code.cloudfoundry.org/lager/v3 v3.75.0/go.mod h1:sPIue4zrU2aGOxIGhEgcWkAgjIjeOH+QkInOpQnfYgE=
 code.cloudfoundry.org/locket v1.1.0 h1:UW1NmuPzDHNNOuYnZ0tyLanL7aQHXnto1Ej3BCp7uS4=
 code.cloudfoundry.org/locket v1.1.0/go.mod h1:uHOC1u/FKBvYHW0wTzFjI3WT85O2jGxz1I4+2nrjWLk=
 code.cloudfoundry.org/tlsconfig v0.60.0 h1:bB+VlWZ1Y3RTHJBNMnUx0pnkSN0DrzmJI3A0g1YSnVw=
@@ -4341,8 +4341,8 @@ github.com/oliveagle/jsonpath v0.1.4 h1:Sr/ffH5YSyQKjSNfvDFkQqAqh3kn/QxF/7j2jjpf
 github.com/oliveagle/jsonpath v0.1.4/go.mod h1:diWEHhuLqib29heQcHYHyaLcxFC3KpKa/5ihkZBs1Z8=
 github.com/onsi/ginkgo v1.16.5 h1:8xi0RTUf59SOSfEtZMvwTvXYMzG4gV23XVHOZiXNtnE=
 github.com/onsi/ginkgo v1.16.5/go.mod h1:+E8gABHa3K6zRBolWtd+ROzc/U5bkGt0FwiG042wbpU=
-github.com/onsi/ginkgo/v2 v2.31.0 h1:GtuJos5DFUV9EerYJo8RhYxosYNGvOdDE5haKq6Grfs=
-github.com/onsi/ginkgo/v2 v2.31.0/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
+github.com/onsi/ginkgo/v2 v2.32.0 h1:Hw7s2pVrQo/8Yz5N77qdnpHaoc+c6cC9WIV1Jce+J6E=
+github.com/onsi/ginkgo/v2 v2.32.0/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/gomega v1.42.0 h1:CJby8u36xb7v34W78F8WKvqTQP7PCMIPB78IVDB73l4=
 github.com/onsi/gomega v1.42.0/go.mod h1:M/Uqpu/8qTjtzCLUA2zJHX9Iilrau25x1PdoSRbWh5A=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.155.0 h1:sDGsm7+TfeNaBGPxJPtdZ+X2TVKzdjQI3tE1Qnpk6nE=
