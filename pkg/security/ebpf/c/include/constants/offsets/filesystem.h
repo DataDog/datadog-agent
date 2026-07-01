@@ -287,18 +287,22 @@ static unsigned long __attribute__((always_inline)) get_path_ino(struct path *pa
     return get_dentry_ino(dentry);
 }
 
-static struct qstr __attribute__((always_inline)) get_dentry_qstr(struct dentry *dentry) {
+static const char *__attribute__((always_inline)) get_dentry_name_ptr(struct dentry *dentry) {
 	u64 dentry_d_name_offset;
 	LOAD_CONSTANT("dentry_d_name_offset", dentry_d_name_offset);
+	u64 qstr_name_offset;
+	LOAD_CONSTANT("qstr_name_offset", qstr_name_offset);
 
-    struct qstr qstr;
-    bpf_probe_read(&qstr, sizeof(qstr), (void *)dentry + dentry_d_name_offset);
-    return qstr;
+    // read the qstr.name pointer directly using load-time offsets, so we don't
+    // rely on the compile-time layout of struct qstr from the kernel headers
+    const char *name;
+    bpf_probe_read(&name, sizeof(name), (void *)dentry + dentry_d_name_offset + qstr_name_offset);
+    return name;
 }
 
 static void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
-    struct qstr qstr = get_dentry_qstr(dentry);
-    bpf_probe_read_str(buffer, n, (void *)qstr.name);
+    const char *name = get_dentry_name_ptr(dentry);
+    bpf_probe_read_str(buffer, n, (void *)name);
 }
 
 static int __attribute__((always_inline)) get_sizeof_inode() {
