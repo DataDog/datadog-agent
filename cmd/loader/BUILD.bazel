@@ -39,8 +39,6 @@ go_library(
     srcs = [
         "docs.go",
         "main_nix.go",
-        "memory_darwin.go",
-        "memory_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/loader",
     deps = select({
