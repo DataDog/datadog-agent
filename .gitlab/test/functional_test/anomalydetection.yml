@@ -1,0 +1,104 @@
+observer-ablation-ddeval:
+  stage: functional_test
+  extends: .dd_octo_sts
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  timeout: 6h
+  rules:
+    - !reference [.except_mergequeue]
+    - when: manual
+      allow_failure: true
+  needs: []
+  allow_failure: true
+  interruptible: false
+  variables:
+    GIT_STRATEGY: clone
+    KUBERNETES_CPU_REQUEST: "4"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+    OBSERVER_ABLATION_OUTPUT_DIR: "$CI_PROJECT_DIR/observer-ablation-ddeval"
+    OBSERVER_ABLATION_N_COMBOS: "1"
+    OBSERVER_ABLATION_N_TRIALS_SEARCH: "1"
+    OBSERVER_ABLATION_N_TRIALS_TUNE: "1"
+    OBSERVER_ABLATION_DDEVAL_LIMIT: "1"
+    OBSERVER_ABLATION_DDEVAL_JOBS: "2"
+    OBSERVER_ABLATION_DDEVAL_MAX_ATTEMPTS: "1"
+    OBSERVER_ABLATION_DDEVAL_WHERE_IN: ""
+    OBSERVER_ABLATION_DDEVAL_SERVICE: "eval_worker_observer_log_ad"
+    OBSERVER_ABLATION_DDEVAL_TEST_DRIVE: "observer-log-ad-ddeval-worker"
+    OBSERVER_ABLATION_DD_SITE: "datadoghq.com"
+    OBSERVER_ABLATION_TOOLS_DIR: "$CI_PROJECT_DIR/.observer-ablation-tools"
+    OBSERVER_ABLATION_DDSOURCE_REPO: "http://gitretriever.codesync.all-clusters.local-dc.fabric.dog:8080/DataDog/dd-source.git"
+    OBSERVER_ABLATION_DDSOURCE_REF: "codex/observer-log-ad-ddeval-worker"
+    OBSERVER_ABLATION_DDSOURCE_RAPID_JSON: "domains/ai_platform/apps/apis/eval_worker_observer_log_ad/rapid.json"
+    OBSERVER_ABLATION_ATLAS_VERSION: "v2.29.0"
+    OBSERVER_ABLATION_ATLAS_TARBALL: "https://binaries.ddbuild.io/dd-source/atlas/$OBSERVER_ABLATION_ATLAS_VERSION/atlas-tar.tar.gz"
+    DDEVAL_PACKAGE_SPEC: "https://binaries.ddbuild.io/dd-source/python/ddeval-0.0.120641177-py3-none-any.whl"
+  script:
+    - mkdir -p "$OBSERVER_ABLATION_OUTPUT_DIR"
+    - DD_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DD_API_KEY
+    - DD_APP_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token)" || exit $?; export DD_APP_KEY
+    - export DD_SITE="$OBSERVER_ABLATION_DD_SITE"
+    - python3 -m pip install "$DDEVAL_PACKAGE_SPEC" optuna
+    - mkdir -p "$OBSERVER_ABLATION_TOOLS_DIR/bin"
+    - curl --fail --location --show-error "$OBSERVER_ABLATION_ATLAS_TARBALL" | tar -xz -C "$OBSERVER_ABLATION_TOOLS_DIR/bin" atlas-linux-amd64
+    - mv "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas-linux-amd64" "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas"
+    - chmod +x "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas"
+    - |
+      git clone \
+        --depth 1 \
+        --filter=blob:none \
+        --no-checkout \
+        --sparse \
+        --branch "$OBSERVER_ABLATION_DDSOURCE_REF" \
+        "$OBSERVER_ABLATION_DDSOURCE_REPO" \
+        "$OBSERVER_ABLATION_TOOLS_DIR/dd-source"
+      git -C "$OBSERVER_ABLATION_TOOLS_DIR/dd-source" sparse-checkout set --no-cone "$OBSERVER_ABLATION_DDSOURCE_RAPID_JSON"
+      git -C "$OBSERVER_ABLATION_TOOLS_DIR/dd-source" checkout "$OBSERVER_ABLATION_DDSOURCE_REF"
+      if [[ ! -f "$OBSERVER_ABLATION_TOOLS_DIR/dd-source/$OBSERVER_ABLATION_DDSOURCE_RAPID_JSON" ]]; then
+        echo "Missing $OBSERVER_ABLATION_DDSOURCE_RAPID_JSON in $OBSERVER_ABLATION_DDSOURCE_REPO@$OBSERVER_ABLATION_DDSOURCE_REF"
+        echo "Set OBSERVER_ABLATION_DDSOURCE_REF and OBSERVER_ABLATION_DDSOURCE_RAPID_JSON to the ref/path containing the ddeval worker rapid.json."
+        exit 1
+      fi
+    - |
+      cat > "$OBSERVER_ABLATION_TOOLS_DIR/bin/ddeval-with-atlas" <<'EOF'
+      #!/usr/bin/env bash
+      set -euo pipefail
+      export PATH="$(dirname "$0"):$PATH"
+      cd "$DDEVAL_DDSOURCE_DIR"
+      exec ddeval "$@"
+      EOF
+      chmod +x "$OBSERVER_ABLATION_TOOLS_DIR/bin/ddeval-with-atlas"
+    - export PATH="$OBSERVER_ABLATION_TOOLS_DIR/bin:$PATH"
+    - export DDEVAL_DDSOURCE_DIR="$OBSERVER_ABLATION_TOOLS_DIR/dd-source"
+    - atlas --help
+    - ddeval --help
+    - |
+      if [[ -n "${OBSERVER_ABLATION_SCENARIOS:-}" ]]; then
+        echo "OBSERVER_ABLATION_SCENARIOS is only supported for local scenario directories."
+        echo "Use OBSERVER_ABLATION_DDEVAL_WHERE_IN to filter remote ddeval dataset records."
+        exit 1
+      fi
+      WHERE_IN_ARG=""
+      if [[ -n "$OBSERVER_ABLATION_DDEVAL_WHERE_IN" ]]; then
+        WHERE_IN_ARG="--ddeval-where-in $OBSERVER_ABLATION_DDEVAL_WHERE_IN"
+      fi
+      dda inv --dep optuna anomalydetection.eval-pipeline \
+        --eval-backend ddeval \
+        --ddeval-command "$OBSERVER_ABLATION_TOOLS_DIR/bin/ddeval-with-atlas" \
+        --ddeval-service "$OBSERVER_ABLATION_DDEVAL_SERVICE" \
+        --ddeval-test-drive "$OBSERVER_ABLATION_DDEVAL_TEST_DRIVE" \
+        --n-combos "$OBSERVER_ABLATION_N_COMBOS" \
+        --n-trials-search "$OBSERVER_ABLATION_N_TRIALS_SEARCH" \
+        --n-trials-tune "$OBSERVER_ABLATION_N_TRIALS_TUNE" \
+        --ddeval-limit "$OBSERVER_ABLATION_DDEVAL_LIMIT" \
+        --ddeval-jobs "$OBSERVER_ABLATION_DDEVAL_JOBS" \
+        --ddeval-max-attempts "$OBSERVER_ABLATION_DDEVAL_MAX_ATTEMPTS" \
+        --output-dir "$OBSERVER_ABLATION_OUTPUT_DIR" \
+        --overwrite \
+        $WHERE_IN_ARG
+  artifacts:
+    when: always
+    expire_in: 2 weeks
+    paths:
+      - observer-ablation-ddeval/

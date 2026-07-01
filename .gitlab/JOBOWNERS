@@ -35,6 +35,7 @@ prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 procmgr_rust_tests                      @DataDog/agent-runtimes
 test_kmt_local_setup*                   @DataDog/ebpf-platform
+observer-ablation-ddeval                @DataDog/q-branch
 
 # Send count metrics about Golang dependencies
 golang_deps_send_count_metrics       @DataDog/agent-runtimes
