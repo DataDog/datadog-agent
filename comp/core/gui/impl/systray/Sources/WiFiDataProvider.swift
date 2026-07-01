@@ -35,6 +35,25 @@ struct WiFiData: Codable {
     }
 }
 
+/// AccessPointData represents a single visible access point from a WiFi scan.
+struct AccessPointData: Codable {
+    let rssi: Int
+    let ssid: String
+    let bssid: String
+}
+
+/// WiFiScanData is the payload returned for a get_wifi_scan command: the list
+/// of all visible access points (connected and nearby).
+struct WiFiScanData: Codable {
+    let accessPoints: [AccessPointData]
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case accessPoints = "access_points"
+        case error
+    }
+}
+
 /// WiFiDataProvider handles CoreLocation permissions and WiFi data collection.
 /// When authorization is `.notDetermined`, the system location prompt is requested via
 /// `requestWhenInUseAuthorization()` (gated by the WLAN check flag on each IPC request).
@@ -183,6 +202,46 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
 
         Logger.debug("Collected WiFi data: SSID=\(ssid.isEmpty ? "<empty>" : ssid), RSSI=\(wifiData.rssi), locationAuthorized=\(isAuthorized)", context: "WiFiDataProvider")
         return wifiData
+    }
+
+    /// Scan for all visible access points (connected and nearby) and return
+    /// their RSSI. requestLocationPermission behaves the same as getWiFiInfo:
+    /// SSID/BSSID require Location Services on macOS 11+, so without permission
+    /// those fields come back empty while RSSI is still reported.
+    func scanForNetworks(requestLocationPermission: Bool) -> WiFiScanData {
+        let authStatus = getAuthorizationStatus()
+
+        // Mirror getWiFiInfo's permission-prompt behavior.
+        let timeSinceInit = Date().timeIntervalSince(initializationTime)
+        if authStatus == .notDetermined && timeSinceInit >= 10.0 {
+            if requestLocationPermission && isGUIAvailable() {
+                attemptPermissionPrompt(authStatus: authStatus)
+            }
+        }
+
+        let client = CWWiFiClient.shared()
+        guard let interface = client.interface() else {
+            Logger.error("No WiFi interface available for scan", context: "WiFiDataProvider")
+            return WiFiScanData(accessPoints: [], error: "No WiFi interface")
+        }
+
+        do {
+            // Passing nil scans for all networks. This is an active scan and
+            // can take a few seconds to complete.
+            let networks = try interface.scanForNetworks(withName: nil)
+            let accessPoints = networks.map { network in
+                AccessPointData(
+                    rssi: network.rssiValue,
+                    ssid: network.ssid ?? "",
+                    bssid: network.bssid ?? ""
+                )
+            }
+            Logger.debug("WiFi scan found \(accessPoints.count) access point(s)", context: "WiFiDataProvider")
+            return WiFiScanData(accessPoints: accessPoints, error: nil)
+        } catch {
+            Logger.error("WiFi scan failed: \(error)", context: "WiFiDataProvider")
+            return WiFiScanData(accessPoints: [], error: "scan failed: \(error.localizedDescription)")
+        }
     }
 
     // CLLocationManagerDelegate
