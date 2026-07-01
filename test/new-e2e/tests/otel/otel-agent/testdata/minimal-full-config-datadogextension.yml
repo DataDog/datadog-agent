@@ -144,6 +144,7 @@ processors:
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
+    container_tag_promotion: ""
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
     error_mode: ignore
     log_conditions: null
