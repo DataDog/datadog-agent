@@ -22,9 +22,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go-v2/credentials/endpointcreds"
-	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
@@ -57,8 +55,10 @@ const (
 // actually encounters: static env vars, IRSA web identity, ECS / EKS Pod Identity container
 // credentials, and EC2 IMDS. It deliberately does not use config.LoadDefaultConfig, which would
 // also link SSO, credential_process and shared-profile (~/.aws) support that the Agent does not
-// need and which materially grows the binary. Each provider is from aws-sdk-go-v2 (except the
-// web-identity provider, hand-rolled to avoid linking service/sts); only the selection is ours.
+// need and which materially grows the binary. The static and container providers are from
+// aws-sdk-go-v2; the web-identity and IMDS legs are handled directly (hand-rolled STS to avoid
+// linking service/sts, and the Agent's IMDS helper to honor ec2_metadata_timeout). Only the
+// selection is ours.
 func (a *AWSAuth) resolveCredentials(ctx context.Context, cfg pkgconfigmodel.Reader) *creds.SecurityCredentials {
 	provider, err := a.credentialProvider(cfg)
 	if err != nil {
@@ -120,10 +120,35 @@ func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.Credentials
 		return containerCredentialsProvider()
 
 	default:
-		return ec2rolecreds.New(func(o *ec2rolecreds.Options) {
-			o.Client = imds.New(imds.Options{})
-		}), nil
+		// No env / IRSA / container credentials: fall back to the EC2 instance role via IMDS.
+		// Use the Agent's IMDS helper (creds.GetSecurityCredentials) rather than a default aws-sdk
+		// IMDS client so the call honors ec2_metadata_timeout and the Agent's IMDSv2 configuration
+		// (ec2_prefer_imdsv2 / ec2_imdsv2_transition_payload_enabled), matching every other Agent
+		// IMDS access.
+		return imdsProvider{fetch: creds.GetSecurityCredentials}, nil
 	}
+}
+
+// imdsProvider resolves EC2 instance-role credentials through the Agent's IMDS helper, which
+// applies the Agent's ec2_metadata_timeout and IMDSv2 configuration. It implements
+// aws.CredentialsProvider so it slots into the same resolution path as the other providers. fetch
+// is creds.GetSecurityCredentials in production and is injected in tests.
+type imdsProvider struct {
+	fetch func(ctx context.Context) (*creds.SecurityCredentials, error)
+}
+
+// Retrieve fetches the instance-role credentials and maps them to aws.Credentials.
+func (p imdsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+	c, err := p.fetch(ctx)
+	if err != nil {
+		return aws.Credentials{}, err
+	}
+	return aws.Credentials{
+		AccessKeyID:     c.AccessKeyID,
+		SecretAccessKey: c.SecretAccessKey,
+		SessionToken:    c.Token,
+		Source:          "DelegatedAuthIMDS",
+	}, nil
 }
 
 // resolveRegion returns the region for the STS web-identity call, in the same precedence the SDK

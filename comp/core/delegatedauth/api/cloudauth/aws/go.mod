@@ -12,7 +12,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.24
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.29
 	github.com/stretchr/testify v1.11.1
 )
 

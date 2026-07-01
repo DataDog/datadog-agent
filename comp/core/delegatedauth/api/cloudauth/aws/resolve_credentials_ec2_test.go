@@ -9,6 +9,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,12 +19,12 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go-v2/credentials/endpointcreds"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 )
 
 // TestResolveCredentials_EC2_StaticEnvVarsReturned verifies the static-env provider is selected
@@ -97,7 +98,32 @@ func TestCredentialProvider_EC2_Selection(t *testing.T) {
 		isolateAWSEnv(t)
 		p, err := (&AWSAuth{}).credentialProvider(configmock.New(t))
 		require.NoError(t, err)
-		assert.IsType(t, &ec2rolecreds.Provider{}, p)
+		assert.IsType(t, imdsProvider{}, p)
+	})
+}
+
+// TestIMDSProvider_Retrieve verifies the IMDS adapter maps the Agent IMDS helper's credentials
+// onto aws.Credentials (notably Token -> SessionToken) and propagates fetch errors. The IMDS leg
+// cannot be exercised end-to-end off an EC2 instance, so this covers the mapping directly.
+func TestIMDSProvider_Retrieve(t *testing.T) {
+	t.Run("maps fields", func(t *testing.T) {
+		p := imdsProvider{fetch: func(context.Context) (*creds.SecurityCredentials, error) {
+			return &creds.SecurityCredentials{AccessKeyID: "AKID", SecretAccessKey: "SK", Token: "TK"}, nil
+		}}
+		got, err := p.Retrieve(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "AKID", got.AccessKeyID)
+		assert.Equal(t, "SK", got.SecretAccessKey)
+		assert.Equal(t, "TK", got.SessionToken)
+		assert.Equal(t, "DelegatedAuthIMDS", got.Source)
+	})
+	t.Run("propagates fetch error", func(t *testing.T) {
+		p := imdsProvider{fetch: func(context.Context) (*creds.SecurityCredentials, error) {
+			return nil, errors.New("imds unreachable")
+		}}
+		got, err := p.Retrieve(context.Background())
+		require.Error(t, err)
+		assert.Empty(t, got.AccessKeyID)
 	})
 }
 
