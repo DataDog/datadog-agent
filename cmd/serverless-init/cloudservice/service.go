@@ -214,6 +214,10 @@ func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 func GetCloudServiceType() CloudService {
 	arch := runtime.GOARCH
 
+	if isMicroVM() {
+		return &MicroVM{}
+	}
+
 	if arch != archAMD64 {
 		log.Errorf(unsupportedArchMsg, arch)
 	}

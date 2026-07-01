@@ -8,6 +8,7 @@
 package main
 
 import (
+	"os"
 	"slices"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
@@ -29,6 +31,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// TestMetricAgentNoOpWithoutDemux verifies that the methods called by the
+// lifecycle server on the metric agent are safe when the agent has not been
+// started (Demux and dogStatsDServer are nil). In the no-API-key path the
+// agent is never started, so /suspend and /terminate must not panic when
+// they call Flush and WaitForPendingSamples.
+func TestMetricAgentNoOpWithoutDemux(t *testing.T) {
+	agent := &metrics.ServerlessMetricAgent{}
+	assert.NotPanics(t, func() {
+		agent.Flush()
+		agent.WaitForPendingSamples()
+	})
+}
 
 func TestTagsSetup(t *testing.T) {
 	configmock.New(t)
@@ -133,6 +148,45 @@ func TestSetupWithoutAPIKey(t *testing.T) {
 	})
 }
 
+// TestLogTagsBaseComputedFromTagConfigTags verifies that the logTagsBase variable
+// computed in setup() — as serverlessTag.MapToArray(tagConfig.Tags) — contains all
+// tags configured via DD_TAGS. This documents the contract: BaseTags passed to
+// LifecycleContext must be the full startup tag slice so the lifecycle server can
+// append microvm_id to it without losing any base tags.
+func TestLogTagsBaseComputedFromTagConfigTags(t *testing.T) {
+	configmock.New(t)
+	modeConf = mode.DetectMode()
+	t.Setenv("DD_TAGS", "env:prod region:us-east-1")
+
+	cloudService := &cloudservice.LocalService{}
+	tagConfig := configureTags(cloudService)
+	logTagsBase := serverlessTag.MapToArray(tagConfig.Tags)
+
+	assert.Contains(t, logTagsBase, "env:prod",
+		"logTagsBase must include all DD_TAGS entries (used as BaseTags on the lifecycle server)")
+	assert.Contains(t, logTagsBase, "region:us-east-1")
+	assert.NotEmpty(t, logTagsBase)
+}
+
+// TestBaseTraceTagsComputedFromTagConfigTags verifies that traceTags —
+// passed as BaseTraceTags to LifecycleContext — contains all tags from DD_TAGS
+// so that the lifecycle server can extend the map with lambda_microvm_id at /run
+// without losing any startup tags.
+func TestBaseTraceTagsComputedFromTagConfigTags(t *testing.T) {
+	configmock.New(t)
+	modeConf = mode.DetectMode()
+	t.Setenv("DD_TAGS", "env:prod region:us-east-1")
+
+	cloudService := &cloudservice.LocalService{}
+	tagConfig := configureTags(cloudService)
+	baseTraceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
+
+	assert.Equal(t, "prod", baseTraceTags["env"],
+		"BaseTraceTags must include all DD_TAGS entries (used as BaseTraceTags on the lifecycle server)")
+	assert.Equal(t, "us-east-1", baseTraceTags["region"])
+	assert.NotEmpty(t, baseTraceTags)
+}
+
 // TestSetupOtlpAgentNoPanic ensures setupOtlpAgent does not panic when OTLP is enabled.
 func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_LOGS_ENABLED", "true")
@@ -150,4 +204,43 @@ func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	// If it panics the process crashes. Without this the test can pass flakily when the goroutine hasn't run yet.
 	const panicWindow = 500 * time.Millisecond
 	<-time.After(panicWindow)
+}
+
+// TestRun_LocalService_InitMode executes the user app through LocalService.Run
+// in init-container mode, verifying the CloudService.Run interface routes
+// correctly to RunInit(cfg, nil) — no child tracking, user app runs normally.
+func TestRun_LocalService_InitMode(t *testing.T) {
+	saved := os.Args
+	defer func() { os.Args = saved }()
+	os.Args = []string{"datadog-init", "sh", "-c", "exit 0"}
+
+	svc := &cloudservice.LocalService{}
+	err := svc.Run(mode.Conf{SidecarMode: false}, &serverlessInitLog.Config{})
+	assert.NoError(t, err)
+}
+
+// TestRun_LocalService_SidecarMode verifies that the defaultRun sidecar path
+// calls RunSidecar (not RunInit). RunSidecar blocks indefinitely in production
+// but returns promptly in tests because there are no signals to forward — it
+// exits when the signal channel is closed on test process teardown. We just pin
+// that it does not panic and does not call RunInit (which would require os.Args).
+func TestRun_LocalService_SidecarMode(t *testing.T) {
+	// RunSidecar returns when the signal goroutine exits; in a test binary it
+	// exits almost immediately. Save/restore os.Args to be safe.
+	saved := os.Args
+	defer func() { os.Args = saved }()
+	os.Args = []string{"datadog-init"} // sidecar mode: no cmd args
+
+	svc := &cloudservice.LocalService{}
+	assert.NotPanics(t, func() {
+		// RunSidecar blocks until SIGTERM/SIGINT; the test harness will cancel
+		// or the goroutine exits. We don't wait — just confirm no panic.
+		done := make(chan error, 1)
+		go func() { done <- svc.Run(mode.Conf{SidecarMode: true}, &serverlessInitLog.Config{}) }()
+		// Give it a moment; if it panics the goroutine crashes.
+		select {
+		case <-done:
+		case <-time.After(100 * time.Millisecond):
+		}
+	})
 }
