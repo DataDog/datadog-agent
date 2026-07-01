@@ -14,6 +14,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -200,6 +201,7 @@ type MapSpecEditorOpts struct {
 	TracedCgroupSize              int
 	UseMmapableMaps               bool
 	UseRingBuffers                bool
+	UseSyscallTaskStorage         bool
 	RingBufferSize                uint32
 	PathResolutionEnabled         bool
 	SecurityProfileMaxCount       int
@@ -245,10 +247,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	}
 
 	editors := map[string]manager.MapSpecEditor{
-		"syscalls": {
-			MaxEntries: 8192,
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"proc_cache": {
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
@@ -414,6 +412,22 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 		editors["inet_bind_args"] = manager.MapSpecEditor{
 			MaxEntries: superReducedProcPidCacheSize,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.UseSyscallTaskStorage {
+		editors["syscalls"] = manager.MapSpecEditor{
+			Type:       ebpf.TaskStorage,
+			MaxEntries: 0,
+			KeySize:    4, // sizeof(unsigned int)
+			Key:        &btf.Int{Name: "unsigned int", Size: 4, Encoding: btf.Unsigned},
+			Flags:      unix.BPF_F_NO_PREALLOC,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKey | manager.EditFlags,
+		}
+	} else {
+		editors["syscalls"] = manager.MapSpecEditor{
+			MaxEntries: 8192,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
