@@ -24,55 +24,37 @@ func newKey(seed byte) *[32]byte {
 func TestStoreTake(t *testing.T) {
 	cases := []struct {
 		name                string
-		putBoundTaskID      string
 		putContextID        string
 		advance             time.Duration
-		takeBoundTaskID     string
 		takeContextID       string
 		wantErr             error
 		wantKeyOnSecondTake error
 	}{
 		{
 			name:                "put then take succeeds and evicts entry",
-			putBoundTaskID:      "task-1",
 			putContextID:        "ctx-1",
-			takeBoundTaskID:     "task-1",
 			takeContextID:       "ctx-1",
 			wantKeyOnSecondTake: ErrNotFound,
 		},
 		{
-			name:            "mismatched boundTaskId fails",
-			putBoundTaskID:  "task-1",
-			putContextID:    "ctx-1",
-			takeBoundTaskID: "task-2",
-			takeContextID:   "ctx-1",
-			wantErr:         ErrNotFound,
+			name:          "mismatched encryptionContextId fails",
+			putContextID:  "ctx-1",
+			takeContextID: "ctx-2",
+			wantErr:       ErrNotFound,
 		},
 		{
-			name:            "mismatched encryptionContextId fails",
-			putBoundTaskID:  "task-1",
-			putContextID:    "ctx-1",
-			takeBoundTaskID: "task-1",
-			takeContextID:   "ctx-2",
-			wantErr:         ErrNotFound,
+			name:          "expired entry is not retrievable",
+			putContextID:  "ctx-1",
+			advance:       6 * time.Second,
+			takeContextID: "ctx-1",
+			wantErr:       ErrNotFound,
 		},
 		{
-			name:            "expired entry is not retrievable",
-			putBoundTaskID:  "task-1",
-			putContextID:    "ctx-1",
-			advance:         6 * time.Second,
-			takeBoundTaskID: "task-1",
-			takeContextID:   "ctx-1",
-			wantErr:         ErrNotFound,
-		},
-		{
-			name:            "expiry at TTL boundary is treated as expired",
-			putBoundTaskID:  "task-1",
-			putContextID:    "ctx-1",
-			advance:         5 * time.Second,
-			takeBoundTaskID: "task-1",
-			takeContextID:   "ctx-1",
-			wantErr:         ErrNotFound,
+			name:          "expiry at TTL boundary is treated as expired",
+			putContextID:  "ctx-1",
+			advance:       5 * time.Second,
+			takeContextID: "ctx-1",
+			wantErr:       ErrNotFound,
 		},
 	}
 
@@ -83,10 +65,10 @@ func TestStoreTake(t *testing.T) {
 			store := NewStore(5*time.Second, clock)
 
 			privateKey := newKey(0x42)
-			store.Put(testCase.putBoundTaskID, testCase.putContextID, privateKey)
+			store.Put(testCase.putContextID, privateKey)
 			now = now.Add(testCase.advance)
 
-			retrieved, err := store.Take(testCase.takeBoundTaskID, testCase.takeContextID)
+			retrieved, err := store.Take(testCase.takeContextID)
 			if testCase.wantErr != nil {
 				require.ErrorIs(t, err, testCase.wantErr)
 				return
@@ -95,7 +77,7 @@ func TestStoreTake(t *testing.T) {
 			require.Equal(t, privateKey, retrieved)
 
 			// Subsequent take must miss because Take evicts the entry on success.
-			_, err = store.Take(testCase.takeBoundTaskID, testCase.takeContextID)
+			_, err = store.Take(testCase.takeContextID)
 			require.ErrorIs(t, err, testCase.wantKeyOnSecondTake)
 		})
 	}
@@ -103,12 +85,12 @@ func TestStoreTake(t *testing.T) {
 
 func TestStoreMismatchedTakeDoesNotEvictOriginalEntry(t *testing.T) {
 	store := NewStore(time.Minute, time.Now)
-	store.Put("task-1", "ctx-1", newKey(0x01))
+	store.Put("ctx-1", newKey(0x01))
 
-	_, err := store.Take("task-2", "ctx-1")
+	_, err := store.Take("ctx-2")
 	require.ErrorIs(t, err, ErrNotFound)
 
-	_, err = store.Take("task-1", "ctx-1")
+	_, err = store.Take("ctx-1")
 	require.NoError(t, err)
 }
 
@@ -121,11 +103,11 @@ func TestStoreConcurrentAccess(t *testing.T) {
 	for index := range goroutineCount {
 		go func(index int) {
 			defer waitGroup.Done()
-			store.Put("task", string(rune('a'+index%26)), newKey(byte(index)))
+			store.Put(string(rune('a'+index%26)), newKey(byte(index)))
 		}(index)
 	}
 	waitGroup.Wait()
 
-	_, err := store.Take("task", "a")
+	_, err := store.Take("a")
 	require.NoError(t, err)
 }

@@ -18,11 +18,11 @@ import (
 // ErrNotFound is returned when no matching entry exists or it has expired.
 var ErrNotFound = errors.New("encryption context not found")
 
-// Store keeps Curve25519 private keys indexed by (boundTaskID, encryptionContextID).
+// Store keeps Curve25519 private keys indexed by encryptionContextID.
 // Keys are evicted on Take or when their TTL expires.
 type Store interface {
-	Put(boundTaskID, encryptionContextID string, privateKey *[32]byte)
-	Take(boundTaskID, encryptionContextID string) (*[32]byte, error)
+	Put(encryptionContextID string, privateKey *[32]byte)
+	Take(encryptionContextID string) (*[32]byte, error)
 }
 
 type entry struct {
@@ -51,28 +51,23 @@ func NewStore(ttl time.Duration, now func() time.Time) Store {
 	}
 }
 
-func entryKey(boundTaskID, encryptionContextID string) string {
-	return boundTaskID + "|" + encryptionContextID
-}
-
-func (store *memoryStore) Put(boundTaskID, encryptionContextID string, privateKey *[32]byte) {
+func (store *memoryStore) Put(encryptionContextID string, privateKey *[32]byte) {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
-	store.entries[entryKey(boundTaskID, encryptionContextID)] = entry{
+	store.entries[encryptionContextID] = entry{
 		privateKey: privateKey,
 		expiresAt:  store.now().Add(store.ttl),
 	}
 }
 
-func (store *memoryStore) Take(boundTaskID, encryptionContextID string) (*[32]byte, error) {
+func (store *memoryStore) Take(encryptionContextID string) (*[32]byte, error) {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
-	key := entryKey(boundTaskID, encryptionContextID)
-	storedEntry, ok := store.entries[key]
+	storedEntry, ok := store.entries[encryptionContextID]
 	if !ok {
 		return nil, ErrNotFound
 	}
-	delete(store.entries, key)
+	delete(store.entries, encryptionContextID)
 	if !store.now().Before(storedEntry.expiresAt) {
 		return nil, ErrNotFound
 	}

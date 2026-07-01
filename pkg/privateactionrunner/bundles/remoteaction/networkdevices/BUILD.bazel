@@ -10,9 +10,13 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/networkdevice/pinger",
+        "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
         "//pkg/snmp/gosnmplib",
+        "//pkg/util/log",
         "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@org_golang_x_crypto//curve25519",
+        "@org_golang_x_crypto//nacl/box",
     ],
 )

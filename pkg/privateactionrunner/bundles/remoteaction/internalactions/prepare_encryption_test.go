@@ -47,7 +47,7 @@ func TestPrepareEncryptionRun(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, publicKey, 32, "Curve25519 public key must be 32 bytes")
 
-				privateKey, err := store.Take("task-abc", result.EncryptionContextID)
+				privateKey, err := store.Take(result.EncryptionContextID)
 				require.NoError(t, err)
 				require.NotNil(t, privateKey)
 

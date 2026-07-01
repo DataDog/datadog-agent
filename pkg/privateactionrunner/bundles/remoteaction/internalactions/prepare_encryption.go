@@ -40,11 +40,11 @@ type PrepareEncryptionOutputs struct {
 }
 
 // Run generates an ephemeral Curve25519 key pair, stashes the private key in
-// the shared encryption-context store under (this task's ID, encryptionContextId),
-// and returns the public key to the caller. A subsequent task on the same
-// runner (e.g. testConnectivity) can then retrieve the private key from the
-// store, by encryptionContextId, to decrypt secret inputs sealed with the
-// returned public key.
+// the shared encryption-context store keyed by encryptionContextId, and
+// returns the public key to the caller. A subsequent task on the same runner
+// (e.g. testConnectivity) can then retrieve the private key from the store,
+// by encryptionContextId, to decrypt secret inputs sealed with the returned
+// public key.
 func (handler *PrepareEncryptionHandler) Run(
 	_ context.Context,
 	task *types.Task,
@@ -63,7 +63,7 @@ func (handler *PrepareEncryptionHandler) Run(
 		return nil, fmt.Errorf("failed to generate Curve25519 key pair: %w", err)
 	}
 
-	handler.store.Put(task.Data.ID, inputs.EncryptionContextID, privateKey)
+	handler.store.Put(inputs.EncryptionContextID, privateKey)
 
 	return &PrepareEncryptionOutputs{
 		KeyType:             keyTypeCurve25519,
