@@ -163,7 +163,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/pkg/version v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-go/v5 v5.8.3
-	github.com/DataDog/datadog-operator/api v0.0.0-20260626143205-3481300263ec
+	github.com/DataDog/datadog-operator/api v0.0.0-20260626172128-45c4b00ac27b
 	github.com/DataDog/datadog-traceroute v1.0.17
 	github.com/DataDog/dd-trace-go/v2 v2.9.0
 	github.com/DataDog/ebpf-manager v0.7.18
