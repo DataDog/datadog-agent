@@ -48,12 +48,14 @@ go_library(
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:android": [
+            "//cmd/internal/rssshrinker",
             "//comp/core/pid/def",
             "//comp/updater/localapi/def",
             "//comp/updater/telemetry/def",
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:darwin": [
+            "//cmd/internal/rssshrinker",
             "//comp/core/pid/def",
             "//comp/updater/localapi/def",
             "//comp/updater/telemetry/def",
@@ -78,6 +80,7 @@ go_library(
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:ios": [
+            "//cmd/internal/rssshrinker",
             "//comp/core/pid/def",
             "//comp/updater/localapi/def",
             "//comp/updater/telemetry/def",
@@ -90,6 +93,7 @@ go_library(
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:linux": [
+            "//cmd/internal/rssshrinker",
             "//comp/core/pid/def",
             "//comp/updater/localapi/def",
             "//comp/updater/telemetry/def",
