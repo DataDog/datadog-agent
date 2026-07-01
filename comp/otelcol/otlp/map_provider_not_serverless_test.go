@@ -56,7 +56,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -75,7 +75,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 					},
@@ -119,7 +119,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes":        nil,
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -156,7 +157,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"metrics": map[string]any{
@@ -205,7 +206,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes":        nil,
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -242,7 +244,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"metrics": map[string]any{
@@ -279,7 +281,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -298,7 +300,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 					},
@@ -397,7 +399,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -419,7 +421,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp", "debug"},
 						},
 					},
@@ -533,7 +535,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes":        nil,
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -572,7 +575,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp", "debug"},
 						},
 						"metrics": map[string]any{
@@ -607,7 +610,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -631,7 +635,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"logs": map[string]any{
@@ -688,7 +692,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -734,7 +739,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"metrics": map[string]any{
@@ -796,7 +801,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -842,7 +848,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"metrics": map[string]any{
@@ -892,7 +898,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -920,7 +927,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"logs": map[string]any{
@@ -1054,7 +1061,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -1085,7 +1093,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp", "debug"},
 						},
 						"logs": map[string]any{
@@ -1234,7 +1242,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -1282,7 +1291,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp", "debug"},
 						},
 						"metrics": map[string]any{

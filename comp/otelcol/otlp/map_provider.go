@@ -95,16 +95,20 @@ func buildReceiverMap(cfg PipelineConfig) *confmap.Conf {
 	return confmap.NewFromStringMap(map[string]interface{}{"receivers": rcvs})
 }
 
-// removeInfraAttributesProcessor removes the infraattributes processor from the pipeline config
+// removeInfraAttributesProcessor removes any infraattributes processor
+// instance (base `infraattributes` or a named variant such as
+// `infraattributes/traces`) from the given pipeline's processor list.
 func removeInfraAttributesProcessor(cfg *confmap.Conf, pipelineType string) error {
 	// Remove from processors section
 	processorsKey := buildKey("service", "pipelines", pipelineType, "processors")
 	if processors, ok := cfg.Get(processorsKey).([]interface{}); ok {
 		filtered := make([]interface{}, 0, len(processors))
 		for _, p := range processors {
-			if p != "infraattributes" {
-				filtered = append(filtered, p)
+			name, _ := p.(string)
+			if name == "infraattributes" || strings.HasPrefix(name, "infraattributes/") {
+				continue
 			}
+			filtered = append(filtered, p)
 		}
 		return cfg.Merge(confmap.NewFromStringMap(map[string]interface{}{
 			processorsKey: filtered,
