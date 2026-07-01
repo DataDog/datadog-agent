@@ -196,6 +196,26 @@ func TestCredentialProvider_WebIdentitySessionName(t *testing.T) {
 	})
 }
 
+// TestContainerCredentialsEndpoint_Precedence verifies the AWS contract: the relative URI wins
+// over the full URI when both are set, so a stale full URI does not override the ECS task role.
+func TestContainerCredentialsEndpoint_Precedence(t *testing.T) {
+	t.Run("relative wins over full", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc")
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "https://stale.example/creds")
+		got, err := containerCredentialsEndpoint()
+		require.NoError(t, err)
+		assert.Equal(t, ecsContainerEndpoint+"/v2/credentials/abc", got)
+	})
+	t.Run("full used when relative unset", func(t *testing.T) {
+		isolateAWSEnv(t)
+		t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "https://creds.internal.example/v1")
+		got, err := containerCredentialsEndpoint()
+		require.NoError(t, err)
+		assert.Equal(t, "https://creds.internal.example/v1", got)
+	})
+}
+
 // TestContainerCredentialsProvider_HostAllowlist verifies the SSRF guard on an http
 // AWS_CONTAINER_CREDENTIALS_FULL_URI: link-local ECS/EKS and loopback hosts are accepted, an
 // arbitrary host is rejected, and https is trusted as-is.

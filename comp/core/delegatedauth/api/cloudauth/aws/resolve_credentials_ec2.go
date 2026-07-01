@@ -255,19 +255,31 @@ func (p *webIdentityProvider) Retrieve(ctx context.Context) (aws.Credentials, er
 	}, nil
 }
 
-// containerCredentialsProvider builds the ECS task-role / EKS Pod Identity provider from the
-// standard container-credential env vars, mirroring the AWS SDK: AWS_CONTAINER_CREDENTIALS_FULL_URI
-// (validated to a loopback/ECS/EKS host) or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI (resolved
-// against the ECS endpoint), with an optional authorization token from
-// AWS_CONTAINER_AUTHORIZATION_TOKEN or AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.
-func containerCredentialsProvider() (aws.CredentialsProvider, error) {
+// containerCredentialsEndpoint resolves the container-credential endpoint following the AWS
+// contract: AWS_CONTAINER_CREDENTIALS_RELATIVE_URI (resolved against the trusted ECS endpoint)
+// takes precedence, falling back to AWS_CONTAINER_CREDENTIALS_FULL_URI (validated to a
+// loopback/ECS/EKS host). Relative wins because an ECS task carries the ECS-injected relative URI
+// and may also see a stale full URI from the image or environment.
+func containerCredentialsEndpoint() (string, error) {
+	if relative := os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"); relative != "" {
+		return ecsContainerEndpoint + relative, nil
+	}
 	endpoint := os.Getenv("AWS_CONTAINER_CREDENTIALS_FULL_URI")
-	if endpoint != "" {
-		if err := validateContainerEndpoint(endpoint); err != nil {
-			return nil, err
-		}
-	} else {
-		endpoint = ecsContainerEndpoint + os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
+	if err := validateContainerEndpoint(endpoint); err != nil {
+		return "", err
+	}
+	return endpoint, nil
+}
+
+// containerCredentialsProvider builds the ECS task-role / EKS Pod Identity provider from the
+// standard container-credential env vars, mirroring the AWS SDK: AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
+// (resolved against the ECS endpoint) takes precedence, falling back to
+// AWS_CONTAINER_CREDENTIALS_FULL_URI (validated to a loopback/ECS/EKS host), with an optional
+// authorization token from AWS_CONTAINER_AUTHORIZATION_TOKEN or AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.
+func containerCredentialsProvider() (aws.CredentialsProvider, error) {
+	endpoint, err := containerCredentialsEndpoint()
+	if err != nil {
+		return nil, err
 	}
 
 	return endpointcreds.New(endpoint, func(o *endpointcreds.Options) {
