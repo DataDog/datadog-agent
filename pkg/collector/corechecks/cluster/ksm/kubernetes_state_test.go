@@ -9,6 +9,7 @@ package ksm
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -1989,4 +1991,152 @@ func BenchmarkOwnerTags(b *testing.B) {
 			_ = ownerTags("Job", "foo-1627309500")
 		}
 	})
+}
+
+func TestProcessMetrics_SuppressModeMatrix(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	sourceMetric := map[string][]ksmstore.DDMetricsFam{
+		"kube_pod_container_resource_with_owner_tag_requests": {{
+			Name: "kube_pod_container_resource_with_owner_tag_requests",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"},
+				Val:    0.1,
+			}},
+		}},
+		// A non-.total aggregator source (pod.count) must not double-count in aggregatesOnly mode.
+		"kube_pod_info": {{
+			Name: "kube_pod_info",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"},
+				Val:    1,
+			}},
+		}},
+	}
+
+	hasTotalGauge := func(s *mocksender.MockSender) bool {
+		for _, call := range s.Mock.Calls {
+			if call.Method == "Gauge" {
+				if name, ok := call.Arguments.Get(0).(string); ok && strings.Contains(name, ".total") {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	tests := []struct {
+		name         string
+		mode         podCollectionMode
+		flagEnabled  bool
+		wantSuppress bool // node should NOT emit .total when true
+		wantHasTotal bool // node SHOULD emit .total when true
+	}{
+		{
+			name: "node_kubelet + flag=true → suppress (DCA is authoritative)",
+			mode: nodeKubeletPodCollection, flagEnabled: true,
+			wantSuppress: true, wantHasTotal: false,
+		},
+		{
+			name: "node_kubelet + flag=false → emit (safe rollout, DCA not ready)",
+			mode: nodeKubeletPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "cluster_unassigned + flag=true → suppress",
+			mode: clusterUnassignedPodCollection, flagEnabled: true,
+			wantSuppress: true, wantHasTotal: false,
+		},
+		{
+			name: "cluster_unassigned + flag=false → emit",
+			mode: clusterUnassignedPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "default + flag=true → emit (single full-pod check is authoritative, design goal #5)",
+			mode: defaultPodCollection, flagEnabled: true,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "default + flag=false → emit (backwards-compat: feature off, no change)",
+			mode: defaultPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := configmock.New(t)
+			conf.Set("kubernetes_state_core.cluster_aggregates.enabled", tt.flagEnabled, configmodel.SourceAgentRuntime)
+
+			k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: tt.mode}, fakeTagger, nil)
+			k.agentConfig = conf
+
+			s := mocksender.NewMockSender(k.ID())
+			s.SetupAcceptAll()
+
+			k.processMetrics(s, sourceMetric, newLabelJoiner(nil), time.Now())
+			for _, agg := range k.metricAggregators {
+				agg.flush(s, k, newLabelJoiner(nil))
+			}
+
+			if tt.wantSuppress {
+				for _, call := range s.Mock.Calls {
+					if call.Method == "Gauge" {
+						name, _ := call.Arguments.Get(0).(string)
+						assert.NotContains(t, name, ".total", "mode=%s flag=%v must suppress .total", tt.mode, tt.flagEnabled)
+					}
+				}
+			}
+			if tt.wantHasTotal {
+				assert.True(t, hasTotalGauge(s), "mode=%s flag=%v must emit .total", tt.mode, tt.flagEnabled)
+			}
+		})
+	}
+}
+
+func TestProcessMetrics_ClusterAggregatesOnly_EmitsOnlyTotalFamily(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	conf := configmock.New(t)
+	conf.Set("kubernetes_state_core.cluster_aggregates.enabled", true, configmodel.SourceAgentRuntime)
+
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: clusterAggregatesOnlyPodCollection}, fakeTagger, nil)
+	k.agentConfig = conf
+
+	metrics := map[string][]ksmstore.DDMetricsFam{
+		"kube_pod_container_resource_with_owner_tag_requests": {{
+			Name: "kube_pod_container_resource_with_owner_tag_requests",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"},
+				Val:    0.1,
+			}},
+		}},
+		// pod.count source: must NOT be accumulated (double-count prevention)
+		"kube_pod_info": {{
+			Name: "kube_pod_info",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"},
+				Val:    1,
+			}},
+		}},
+	}
+
+	s := mocksender.NewMockSender(k.ID())
+	s.SetupAcceptAll()
+
+	k.processMetrics(s, metrics, newLabelJoiner(nil), time.Now())
+	for _, agg := range k.metricAggregators {
+		agg.flush(s, k, newLabelJoiner(nil))
+	}
+
+	for _, call := range s.Mock.Calls {
+		if call.Method == "Gauge" {
+			name, _ := call.Arguments.Get(0).(string)
+			// Only .total metrics should be emitted
+			assert.True(t, strings.HasSuffix(name, ".total") || strings.HasPrefix(name, "kubernetes_state.telemetry"),
+				"cluster_aggregates_only must not emit non-.total metric %q", name)
+			// pod.count must not appear (it's a non-.total aggregator)
+			assert.NotContains(t, name, "pod.count")
+		}
+	}
 }

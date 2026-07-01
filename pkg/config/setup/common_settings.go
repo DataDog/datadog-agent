@@ -325,6 +325,12 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
 	config.BindEnvAndSetDefault("cluster_agent.collect_kubernetes_tags", false)
+	// Tells node-agent/CLC-runner KSM instances in node_kubelet/cluster_unassigned
+	// mode to suppress their .total accumulators, because a dedicated instance in
+	// pod_collection_mode: cluster_aggregates_only is deployed elsewhere in the
+	// cluster as the sole authoritative source. Set by the operator/helm alongside
+	// that deployment.
+	config.BindEnvAndSetDefault("kubernetes_state_core.cluster_aggregates.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude", []string{
 		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
 		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
