@@ -289,7 +289,7 @@ exports_files(["go.mod"])
 # gazelle:exclude test/e2e-framework/testing/e2e
 # gazelle:exclude test/e2e-framework/testing/environments
 # gazelle:exclude test/e2e-framework/testing/provisioners
-# gazelle:exclude test/e2e-framework/testing/runner
+# gazelle:exclude test/e2e-framework/testing/runner/*.go
 # gazelle:exclude test/e2e-framework/testing/utils/infra
 # gazelle:exclude test/files
 # gazelle:exclude test/integration
