@@ -7,7 +7,6 @@ package scenario
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
@@ -28,7 +27,7 @@ type Runnable interface {
 
 type genericRunnable[Env any] struct{ s Scenario[Env] }
 
-func (g genericRunnable[Env]) Name() string       { return g.s.Name }
+func (g genericRunnable[Env]) Name() string        { return g.s.Name }
 func (g genericRunnable[Env]) Description() string { return g.s.Description }
 
 func (g genericRunnable[Env]) ParamsSchema() (Schema, error) {
@@ -76,14 +75,8 @@ func (g genericRunnable[Env]) Create(ctx common.Context, stack string, cfg map[s
 	if err != nil {
 		return err
 	}
-	if _, err = standalone.Provision[Env](ctx, stack, prov); err != nil {
-		return err
-	}
-	// Persist the provisioning config so RunAction and Destroy replay the same topology.
-	if err := SaveStackConfig(stack, cfg); err != nil {
-		return fmt.Errorf("provisioned but failed to persist config: %w", err)
-	}
-	return nil
+	_, err = standalone.Provision[Env](ctx, stack, prov)
+	return err
 }
 
 func (g genericRunnable[Env]) RunAction(ctx common.Context, stack, action string, cfg map[string]string) error {
@@ -103,19 +96,8 @@ func (g genericRunnable[Env]) RunAction(ctx common.Context, stack, action string
 			return err
 		}
 	}
-	// Reload the create-time provisioning config so Pulumi up re-uses the same topology.
-	provCfg, err := LoadStackConfig(stack)
-	if err != nil {
-		if errors.Is(err, ErrNoStackConfig) {
-			return fmt.Errorf("no persisted config for stack %q; was it created with scenariorun create?", stack)
-		}
-		return fmt.Errorf("load stack config: %w", err)
-	}
-	prov, err := g.buildProvisioner(provCfg)
-	if err != nil {
-		return err
-	}
-	env, err := standalone.Provision[Env](ctx, stack, prov)
+	// Hydrate the environment read-only from the existing stack's outputs — no re-provision.
+	env, err := standalone.Hydrate[Env](ctx, stack)
 	if err != nil {
 		return fmt.Errorf("hydrate env for action %q: %w", action, err)
 	}
@@ -123,24 +105,9 @@ func (g genericRunnable[Env]) RunAction(ctx common.Context, stack, action string
 }
 
 func (g genericRunnable[Env]) Destroy(ctx common.Context, stack string) error {
-	// Best-effort: replay the create-time topology so Pulumi destroys the right stack.
-	// If no persisted config exists (e.g. pre-migration stack), fall back to defaults.
-	provCfg, err := LoadStackConfig(stack)
-	if err != nil {
-		if !errors.Is(err, ErrNoStackConfig) {
-			return fmt.Errorf("load stack config for destroy: %w", err)
-		}
-		// No persisted config — fall back to scenario defaults (safe for teardown).
-		provCfg = nil
-	}
-	prov, err := g.buildProvisioner(provCfg)
+	prov, err := g.buildProvisioner(nil)
 	if err != nil {
 		return err
 	}
-	if err := standalone.Destroy(ctx, stack, prov); err != nil {
-		return err
-	}
-	// Best-effort cleanup of the state file.
-	_ = DeleteStackConfig(stack)
-	return nil
+	return standalone.Destroy(ctx, stack, prov)
 }

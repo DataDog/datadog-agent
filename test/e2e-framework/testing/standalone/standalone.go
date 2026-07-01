@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	createTimeout = 60 * time.Minute
-	deleteTimeout = 30 * time.Minute
+	createTimeout  = 60 * time.Minute
+	deleteTimeout  = 30 * time.Minute
+	hydrateTimeout = 5 * time.Minute
 )
 
 // Context is a non-test implementation of [common.Context], usable from standalone binaries.
@@ -104,6 +105,43 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioners.Pro
 
 	// Refresh field values from env to capture any changes made by the provisioner
 	// (e.g. fields set to nil when certain components are not deployed).
+	envValue := reflect.ValueOf(env)
+	for idx, field := range fields {
+		values[idx] = envValue.Elem().FieldByIndex(field.Index)
+	}
+
+	if err := environments.BuildEnvFromResources(ctx, resources, fields, values); err != nil {
+		return nil, fmt.Errorf("unable to build env %T from resources for stack %s: %w", env, stackName, err)
+	}
+
+	if initializable, ok := any(env).(common.Initializable); ok {
+		if err := initializable.Init(ctx); err != nil {
+			return nil, fmt.Errorf("failed to init environment: %w", err)
+		}
+	}
+
+	return env, nil
+}
+
+// Hydrate builds an environment of type Env from an EXISTING stack's outputs
+// WITHOUT provisioning (no Pulumi up). Use it to attach to a running stack and
+// initialize its component clients (e.g. to run an action). The stack must
+// already exist.
+func Hydrate[Env any](ctx common.Context, stackName string) (*Env, error) {
+	pCtx, cancel := context.WithTimeout(context.Background(), hydrateTimeout)
+	defer cancel()
+
+	env, fields, values, err := environments.CreateEnv[Env]()
+	if err != nil {
+		return nil, fmt.Errorf("unable to create env %T for stack %s: %w", env, stackName, err)
+	}
+
+	resources, err := provisioners.StackOutputs(pCtx, stackName)
+	if err != nil {
+		return nil, fmt.Errorf("read stack outputs for %s: %w", stackName, err)
+	}
+
+	// Refresh field values from env (mirrors Provision's pattern).
 	envValue := reflect.ValueOf(env)
 	for idx, field := range fields {
 		values[idx] = envValue.Elem().FieldByIndex(field.Index)

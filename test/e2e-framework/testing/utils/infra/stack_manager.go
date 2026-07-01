@@ -645,6 +645,30 @@ func sendEventToDatadog(sender datadogEventSender, title string, message string,
 	})
 }
 
+// GetStackOutputs selects an existing stack and returns its already-applied
+// outputs WITHOUT running the Pulumi program (no up). Errors if the stack does
+// not exist.
+func (sm *StackManager) GetStackOutputs(ctx context.Context, name string) (auto.OutputMap, error) {
+	profile := runner.GetProfile()
+	stackName := buildStackName(profile.NamePrefix(), name)
+
+	stack, ok := sm.stacks.Get(name)
+	if !ok {
+		workspace, err := buildWorkspace(ctx, profile, stackName, func(*pulumi.Context) error { return nil })
+		if err != nil {
+			return nil, fmt.Errorf("build workspace for stack %q: %w", name, err)
+		}
+		newStack, err := auto.SelectStack(ctx, stackName, workspace)
+		if err != nil {
+			return nil, err
+		}
+		stack = &newStack
+		sm.stacks.Set(name, stack)
+	}
+
+	return stack.Outputs(ctx)
+}
+
 // GetPulumiStackName returns the Pulumi stack name
 // The internal Pulumi stack name should normally remain hidden as all the Pulumi interactions
 // should be done via the StackManager.
