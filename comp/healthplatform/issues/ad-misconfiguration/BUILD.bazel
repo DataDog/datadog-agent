@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ad-misconfiguration",
+    srcs = [
+        "annotation_issue.go",
+        "template_issue.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "ad-misconfiguration_test",
+    srcs = [
+        "annotation_issue_test.go",
+        "template_issue_test.go",
+    ],
+    embed = [":ad-misconfiguration"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

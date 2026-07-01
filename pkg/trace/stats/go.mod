@@ -13,7 +13,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
 )
 
@@ -33,7 +33,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
+	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
@@ -162,7 +162,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface

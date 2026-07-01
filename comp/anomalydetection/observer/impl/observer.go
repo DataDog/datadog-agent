@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -171,6 +172,21 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 		settings.configs["anomaly_scorer"] = readAnomalyScorerConfig(cfg, scorerPrefix)
 	}
 
+	settings.Baseline = DefaultBaselineConfig()
+	const basePrefix = "anomaly_detection.baseline_analysis."
+	if cfg.IsConfigured(basePrefix + "enabled") {
+		settings.Baseline.Enabled = cfg.GetBool(basePrefix + "enabled")
+	}
+	if cfg.IsConfigured(basePrefix + "mute_noisy_metrics") {
+		settings.Baseline.MuteNoisyMetrics = cfg.GetBool(basePrefix + "mute_noisy_metrics")
+	}
+	if cfg.IsConfigured(basePrefix + "duration") {
+		settings.Baseline.DurationSec = int64(cfg.GetDuration(basePrefix + "duration").Seconds())
+	}
+	if cfg.IsConfigured(basePrefix + "verbose") {
+		settings.Baseline.Verbose = cfg.GetBool(basePrefix + "verbose")
+	}
+
 	return settings
 }
 
@@ -186,10 +202,21 @@ func (*disabledObserver) SubscribeScorer(_ observerdef.AnomalyScorerConfiguratio
 }
 
 // NewComponent creates an observer.Component.
-func NewComponent(deps Requires) Provides {
+func NewComponent(deps Requires) (Provides, error) {
 	cfg := deps.Config
 	if cfg == nil {
-		return Provides{Comp: &disabledObserver{}}
+		return Provides{Comp: &disabledObserver{}}, nil
+	}
+
+	// Off-by-default fast path: when neither analysis nor recording is active the
+	// live observer noops every handle (see handleFunc below) and installs no log
+	// tap, so skip building the catalog, engine, storage, 1000-cap channel, and
+	// dispatch goroutine — return the zero-allocation stub instead. The predicate
+	// mirrors the analysisEnabled/recorderEnabled gates used further down.
+	if !cfg.GetBool("anomaly_detection.enabled") {
+		if _, recorderEnabled := deps.Recorder.Get(); !recorderEnabled {
+			return Provides{Comp: &disabledObserver{}}, nil
+		}
 	}
 
 	catalog := defaultCatalog()
@@ -207,6 +234,11 @@ func NewComponent(deps Requires) Provides {
 		if cfg.IsConfigured("anomaly_detection.storage.point_retention_secs") {
 			storageCfg.PointRetentionSecs = cfg.GetInt64("anomaly_detection.storage.point_retention_secs")
 		}
+	}
+
+	compiledMetricFilter, err := loadMetricFilter(cfg)
+	if err != nil {
+		return Provides{}, fmt.Errorf("%s: %w", metricProcessingRulesConfigKey, err)
 	}
 
 	telemetryComp := deps.Telemetry
@@ -233,6 +265,7 @@ func NewComponent(deps Requires) Provides {
 		correlators: correlators,
 		scorer:      scorer,
 		scheduler:   &currentBehaviorPolicy{},
+		baseline:    settings.Baseline,
 	})
 
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
@@ -269,6 +302,14 @@ func NewComponent(deps Requires) Provides {
 		obsCh:                make(chan observation, 1000),
 		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
+		metricFilter:         compiledMetricFilter,
+	}
+
+	// When baseline muting is enabled, subscribe a sink that publishes the mute
+	// hash set to the shared filter on window end. Handles on all goroutines share
+	// the same *metricsFilterRules pointer, so the atomic Store is visible to all.
+	if settings.Baseline.Enabled && settings.Baseline.MuteNoisyMetrics {
+		eng.Subscribe(&baselineEventSink{filter: compiledMetricFilter})
 	}
 
 	if !obs.ingestMetricsEnabled {
@@ -360,7 +401,7 @@ func NewComponent(deps Requires) Provides {
 		}()
 	}
 
-	return Provides{Comp: obs}
+	return Provides{Comp: obs}, nil
 }
 
 // observerImpl is the implementation of the observer component.
@@ -382,6 +423,7 @@ type observerImpl struct {
 	// virtual metrics produced inside the engine by LogMetricsExtractors are
 	// unaffected because they bypass the handle.
 	ingestMetricsEnabled bool
+	metricFilter         *metricsFilterRules
 
 	// replayMu serialises engine access between the run() dispatch loop and
 	// the testbench's IngestLogSync/IngestMetricSync direct-ingest path.
@@ -592,7 +634,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // metricDropHandle so external metrics are dropped at the edge, while
 // ObserveLog calls still pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry}
+	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry, filter: o.metricFilter}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
 	if !o.ingestMetricsEnabled {
@@ -694,8 +736,70 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 	o.Flush()
 	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
 	o.replayMu.Lock()
-	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg)
+	o.metricFilter.muted.Store(nil)
+	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)
 	o.replayMu.Unlock()
+}
+
+// baselineEventSink publishes the mute hash set to the shared filter when the
+// baseline window ends.
+type baselineEventSink struct {
+	filter *metricsFilterRules
+}
+
+func (s *baselineEventSink) onEngineEvent(evt engineEvent) {
+	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil {
+		return
+	}
+	if len(evt.baselineCompleted.mutedHashes) > 0 {
+		s.filter.setMuted(evt.baselineCompleted.mutedHashes)
+	}
+}
+
+// Compile-time assertion: observerImpl satisfies the testbench-extended surface.
+// testbenchView in the bench package embeds DebugView and adds this method;
+// the assertion ensures it is never silently dropped from observerImpl.
+var _ interface{ DebugSubscribeBaselineCompleted(func(int64, []string)) } = (*observerImpl)(nil)
+
+// DebugSubscribeBaselineCompleted registers a one-time callback invoked when the
+// baseline window closes. Testbench-only — never called by the live agent.
+// The callback receives the freeze timestamp (Unix seconds) and sorted
+// "namespace/metricName" group keys for all muted series, resolved from
+// storage while series are still alive (before reclaim).
+func (o *observerImpl) DebugSubscribeBaselineCompleted(callback func(endSec int64, mutedGroups []string)) {
+	if o.engine.baseline == nil {
+		return
+	}
+	o.engine.Subscribe(&baselineCompletedCallbackSink{
+		engine:   o.engine,
+		callback: callback,
+	})
+}
+
+type baselineCompletedCallbackSink struct {
+	engine   *engine
+	callback func(int64, []string)
+}
+
+func (s *baselineCompletedCallbackSink) onEngineEvent(evt engineEvent) {
+	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil {
+		return
+	}
+	seen := make(map[string]struct{}, len(evt.baselineCompleted.mutedRefs))
+	var groups []string
+	for _, ref := range evt.baselineCompleted.mutedRefs {
+		meta := s.engine.storage.GetSeriesMeta(ref)
+		if meta == nil {
+			continue
+		}
+		key := meta.Namespace + "/" + meta.Name
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			groups = append(groups, key)
+		}
+	}
+	sort.Strings(groups)
+	s.callback(evt.timestamp, groups)
 }
 
 // GetReplayProgress returns lock-free replay progress counters. Implements DebugView.
@@ -794,27 +898,49 @@ func normalizeMetricSource(name, source string) string {
 	return source
 }
 
-// IngestMetricSync feeds a metric directly into the engine, bypassing the
-// dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
-// the non-blocking channel send. Implements DebugView.
-func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
+type metricIngestDecision struct {
+	source string
+	metric *metricObs
+}
+
+func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.GetName()
-	source = normalizeMetricSource(name, source)
-	if source == observerdef.AgentNamespace {
-		return
+	normalizedSource := normalizeMetricSource(name, source)
+	// Canonicalize once so the mute hash in isAllowed matches seriesKeyHash in
+	// storage, and downstream Add calls hit the tagsSorted fast path.
+	tags := canonicalizeTags(sample.GetRawTags())
+	if !filter.isAllowed(name, normalizedSource, tags) {
+		return metricIngestDecision{source: normalizedSource}
 	}
+
 	timestamp := sample.GetTimestampUnix()
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
 	}
-	mo := &metricObs{
-		name:      name,
-		value:     sample.GetValue(),
-		tags:      copyTags(sample.GetRawTags()),
-		timestamp: timestamp,
+	return metricIngestDecision{
+		source: normalizedSource,
+		metric: &metricObs{
+			name:      name,
+			value:     sample.GetValue(),
+			tags:      tags,
+			timestamp: timestamp,
+		},
+	}
+}
+
+// IngestMetricSync feeds a metric directly into the engine, bypassing the
+// dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
+// the non-blocking channel send. Implements DebugView.
+func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
+	decision := prepareMetricIngest(source, sample, o.metricFilter)
+	if decision.metric == nil {
+		if o.telemetry != nil && decision.source != "" {
+			o.telemetry.recordFilteredMetric(decision.source)
+		}
+		return
 	}
 	o.replayMu.Lock()
-	requests := o.engine.IngestMetric(source, mo)
+	requests := o.engine.IngestMetric(decision.source, decision.metric)
 	for _, req := range requests {
 		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 	}
@@ -831,6 +957,7 @@ type handle struct {
 	source    string
 	dropCount atomic.Int64 // per-handle drop counter, collected by engine at advance time
 	telemetry *observerTelemetry
+	filter    *metricsFilterRules
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -839,28 +966,20 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 }
 
 // ObserveMetricAndReportDrop observes a metric and reports whether this
-// specific call was dropped by the observer channel.
+// specific call was dropped by observer backpressure (channel full).
+// Metrics rejected by processing rules are counted via telemetry but do not
+// report a channel drop.
 func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
-	timestamp := sample.GetTimestampUnix()
-	if timestamp == 0 {
-		timestamp = time.Now().Unix()
-	}
-
-	name := sample.GetName()
-
-	source := normalizeMetricSource(name, h.source)
-	if source == observerdef.AgentNamespace {
+	decision := prepareMetricIngest(h.source, sample, h.filter)
+	if decision.metric == nil {
+		if h.telemetry != nil && decision.source != "" {
+			h.telemetry.recordFilteredMetric(decision.source)
+		}
 		return false
 	}
-
 	obs := observation{
-		source: source,
-		metric: &metricObs{
-			name:      name,
-			value:     sample.GetValue(),
-			tags:      copyTags(sample.GetRawTags()),
-			timestamp: timestamp,
-		},
+		source: decision.source,
+		metric: decision.metric,
 	}
 
 	// Non-blocking send - drop if channel is full.

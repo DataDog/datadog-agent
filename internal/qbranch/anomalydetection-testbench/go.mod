@@ -11,6 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.80.2
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.80.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/log v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/option v0.81.0-devel.0.20260603133502-a41610237dba
@@ -22,7 +23,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.202-0.20260608085134-d08b6ebf99eb // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.203 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.80.2 // indirect
@@ -53,7 +54,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
@@ -114,7 +114,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
+	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
@@ -158,7 +158,7 @@ require (
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -273,10 +273,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../pkg/logs/client
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
-	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../pkg/logs/status/utils
