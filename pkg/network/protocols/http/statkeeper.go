@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
@@ -57,18 +58,27 @@ type StatKeeper struct {
 
 	oversizedLogLimit *log.Limit
 
-	// LLMO PoC: eBPF maps used to capture decrypted LLM request bodies.
+	// LLMO PoC: eBPF maps used to capture decrypted LLM request/response bodies.
 	// nil unless EnableLLMO has been called (only wired up for HTTP/2).
-	llmConnMap *ebpf.Map
-	llmBodyMap *ebpf.Map
+	llmConnMap     *ebpf.Map
+	llmBodyMap     *ebpf.Map
+	llmRespBodyMap *ebpf.Map
+	// llmServiceExtractor resolves the span service name from the client PID in
+	// userspace, using the same inference as USM (process_service_inference).
+	llmServiceExtractor *parser.ServiceExtractor
 }
 
-// EnableLLMO wires up the eBPF maps used to capture decrypted LLM request
-// bodies. When set, LLM-detected transactions are enriched with the model and
-// prompt parsed from the captured body.
-func (h *StatKeeper) EnableLLMO(connMap, bodyMap *ebpf.Map) {
+// EnableLLMO wires up the eBPF maps used to capture decrypted LLM request and
+// response bodies. When set, LLM-detected transactions are enriched with the
+// model and prompt (from the request body), token usage (from the response
+// body), and a service name resolved from the client PID in userspace.
+func (h *StatKeeper) EnableLLMO(connMap, bodyMap, respBodyMap *ebpf.Map) {
 	h.llmConnMap = connMap
 	h.llmBodyMap = bodyMap
+	h.llmRespBodyMap = respBodyMap
+	// Same inference USM uses for service names (enabled, non-Windows,
+	// improved algorithm).
+	h.llmServiceExtractor = parser.NewServiceExtractor(true, false, true)
 }
 
 // NewStatkeeper returns a new StatKeeper.
@@ -239,8 +249,12 @@ func (h *StatKeeper) add(tx Transaction) {
 	// LLMO maps are wired up, also flag the connection and parse the captured
 	// request body to enrich the span with the model and prompt.
 	if llmTraffic {
-		model, prompt := h.captureLLMBody(tx.ConnTuple())
-		emitLLMSpan(llmPath, tx.Method(), statusCode, tx.ConnTuple(), latency, model, prompt)
+		var pid uint32
+		if p, ok := tx.(interface{ Pid() uint32 }); ok {
+			pid = p.Pid()
+		}
+		info := h.captureLLMBody(tx.ConnTuple(), pid)
+		emitLLMSpan(llmPath, tx.Method(), statusCode, tx.ConnTuple(), latency, info)
 	}
 
 	key := NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())

@@ -276,6 +276,10 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
     normalize_tuple(&copy);
     char *buffer_ptr = (char*)call_data_ptr->b_data;
     bpf_map_delete_elem(&go_tls_read_args, &call_key);
+    // LLMO PoC: capture the decrypted response body tail (where token usage
+    // lives) before tls_process()'s tail call. Use the raw tuple `t` so the
+    // key matches the request-side flag/capture.
+    llmo_maybe_capture_response(t, buffer_ptr, bytes_read);
     tls_process(ctx, &copy, buffer_ptr, bytes_read, GO);
     return 0;
 

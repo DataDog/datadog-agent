@@ -109,6 +109,48 @@ func TestParseLLMBodyExtractsFirstMessageAsPrompt(t *testing.T) {
 	assert.Equal(t, "be terse", prompt)
 }
 
+func TestParseLLMUsage(t *testing.T) {
+	tests := []struct {
+		name                 string
+		raw                  []byte
+		wantP, wantC, wantT int64
+	}{
+		{
+			name:  "response tail with usage",
+			raw:   []byte(`"finish_reason":"stop"}],"usage":{"prompt_tokens":17,"completion_tokens":55,"total_tokens":72},"system_fingerprint":"fp_abc"}`),
+			wantP: 17, wantC: 55, wantT: 72,
+		},
+		{
+			name:  "nul padded tail",
+			raw:   padTo([]byte(`,"usage":{"prompt_tokens":9,"completion_tokens":24,"total_tokens":33}}`), llmBodyBufferSize),
+			wantP: 9, wantC: 24, wantT: 33,
+		},
+		{
+			name:  "spaced usage",
+			raw:   []byte(`"usage" : { "prompt_tokens" : 100 , "completion_tokens" : 200 , "total_tokens" : 300 }`),
+			wantP: 100, wantC: 200, wantT: 300,
+		},
+		{
+			name:  "no usage present",
+			raw:   []byte(`{"id":"x","choices":[{"delta":{}}]}`),
+			wantP: 0, wantC: 0, wantT: 0,
+		},
+		{
+			name:  "empty",
+			raw:   nil,
+			wantP: 0, wantC: 0, wantT: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, c, tot := parseLLMUsage(tt.raw)
+			assert.Equal(t, tt.wantP, p, "prompt_tokens")
+			assert.Equal(t, tt.wantC, c, "completion_tokens")
+			assert.Equal(t, tt.wantT, tot, "total_tokens")
+		})
+	}
+}
+
 func TestIsLLMPath(t *testing.T) {
 	tests := []struct {
 		path string

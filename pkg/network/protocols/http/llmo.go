@@ -8,7 +8,9 @@
 package http
 
 import (
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,7 +39,7 @@ const (
 
 	// llmBodyBufferSize must match LLM_BODY_BUFFER_SIZE in the eBPF code
 	// (pkg/network/ebpf/c/protocols/tls/llmo.h).
-	llmBodyBufferSize = 256
+	llmBodyBufferSize = 512
 )
 
 // llmConnKey mirrors both pkg/network/types.ConnectionKey and the eBPF
@@ -93,7 +96,23 @@ var (
 	// and possibly truncated at llmBodyBufferSize), not guaranteed-valid JSON.
 	llmModelRe   = regexp.MustCompile(`"model"\s*:\s*"([^"]*)"`)
 	llmContentRe = regexp.MustCompile(`"content"\s*:\s*"([^"]*)"`)
+
+	// Token usage extractors (from the response body).
+	llmPromptTokRe = regexp.MustCompile(`"prompt_tokens"\s*:\s*(\d+)`)
+	llmComplTokRe  = regexp.MustCompile(`"completion_tokens"\s*:\s*(\d+)`)
+	llmTotalTokRe  = regexp.MustCompile(`"total_tokens"\s*:\s*(\d+)`)
 )
+
+// llmSpanInfo holds everything parsed from the captured request/response
+// bodies to enrich an LLM span.
+type llmSpanInfo struct {
+	service          string
+	model            string
+	prompt           string
+	promptTokens     int64
+	completionTokens int64
+	totalTokens      int64
+}
 
 // ensureLLMOTracer lazily starts the dd-trace-go tracer pointed at the local
 // trace-agent. It is started on the first LLM request observed.
@@ -148,11 +167,30 @@ func parseLLMBody(raw []byte) (model string, prompt string) {
 	return model, prompt
 }
 
+// parseLLMUsage extracts token usage from a captured response body window.
+// The window is the tail of the response, where the usage object lives, and
+// may contain surrounding binary/NUL bytes; extraction is tolerant.
+func parseLLMUsage(raw []byte) (promptTokens, completionTokens, totalTokens int64) {
+	if len(raw) == 0 {
+		return 0, 0, 0
+	}
+	if m := llmPromptTokRe.FindSubmatch(raw); m != nil {
+		promptTokens, _ = strconv.ParseInt(string(m[1]), 10, 64)
+	}
+	if m := llmComplTokRe.FindSubmatch(raw); m != nil {
+		completionTokens, _ = strconv.ParseInt(string(m[1]), 10, 64)
+	}
+	if m := llmTotalTokRe.FindSubmatch(raw); m != nil {
+		totalTokens, _ = strconv.ParseInt(string(m[1]), 10, 64)
+	}
+	return promptTokens, completionTokens, totalTokens
+}
+
 // emitLLMSpan emits a single APM span for one LLM request transaction.
 // One span per request — there is intentionally no aggregation. model and
 // prompt may be empty if the body was not captured (e.g. the first request on
 // a connection) or could not be parsed.
-func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.ConnectionKey, latencyNs float64, model, prompt string) {
+func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.ConnectionKey, latencyNs float64, info llmSpanInfo) {
 	if !ensureLLMOTracer() {
 		return
 	}
@@ -162,9 +200,15 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 
 	destIP := util.FromLowHigh(connKey.DstIPLow, connKey.DstIPHigh)
 
+	// Use the USM-resolved service name when available, else the PoC default.
+	service := info.service
+	if service == "" {
+		service = llmoServiceName
+	}
+
 	span := tracer.StartSpan(
 		llmoSpanName,
-		tracer.ServiceName(llmoServiceName),
+		tracer.ServiceName(service),
 		tracer.ResourceName(path),
 		tracer.SpanType("http"),
 		tracer.StartTime(start),
@@ -174,12 +218,17 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 	span.SetTag("http.url", path)
 	span.SetTag("out.host", destIP.String())
 	span.SetTag("network.destination.port", connKey.DstPort)
-	span.SetTag("llm.source", "usm-ebpf")
-	if model != "" {
-		span.SetTag("llm.request.model", model)
+	span.SetTag("llm.source", "apm-lite-ebpf")
+	if info.model != "" {
+		span.SetTag("llm.request.model", info.model)
 	}
-	if prompt != "" {
-		span.SetTag("llm.request.prompt", prompt)
+	if info.prompt != "" {
+		span.SetTag("llm.request.prompt", info.prompt)
+	}
+	if info.totalTokens > 0 {
+		span.SetTag("llm.usage.prompt_tokens", info.promptTokens)
+		span.SetTag("llm.usage.completion_tokens", info.completionTokens)
+		span.SetTag("llm.usage.total_tokens", info.totalTokens)
 	}
 	if statusCode >= 400 {
 		span.SetTag("error", true)
@@ -192,26 +241,87 @@ func emitLLMSpan(path string, method Method, statusCode uint16, connKey types.Co
 // captured request body for this connection, returning the parsed model and
 // prompt. Returns empty strings when the LLMO maps are not wired up or no body
 // has been captured yet for this connection.
-func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey) (model, prompt string) {
+func (h *StatKeeper) captureLLMBody(connKey types.ConnectionKey, pid uint32) (info llmSpanInfo) {
 	if h.llmConnMap == nil || h.llmBodyMap == nil {
-		return "", ""
+		return info
 	}
+
+	// Resolve the service name from the client PID in userspace, using the same
+	// inference USM uses (process_service_inference).
+	info.service = h.resolveLLMService(pid)
+
 	key := newLLMConnKey(connKey)
 
-	// Flag the connection so future writes on it get their body captured.
+	// Flag the connection so future writes/reads on it get captured.
 	flag := uint8(1)
 	if err := h.llmConnMap.Put(&key, &flag); err != nil {
 		log.Debugf("LLMO: failed to flag connection: %v", err)
 	}
 
-	var body llmBody
-	if err := h.llmBodyMap.Lookup(&key, &body); err != nil {
-		// No body captured yet for this connection (e.g. first request).
-		return "", ""
+	// Request body -> model + prompt.
+	var reqBody llmBody
+	if err := h.llmBodyMap.Lookup(&key, &reqBody); err == nil {
+		n := reqBody.Len
+		if n > llmBodyBufferSize {
+			n = llmBodyBufferSize
+		}
+		info.model, info.prompt = parseLLMBody(reqBody.Data[:n])
 	}
-	n := body.Len
-	if n > llmBodyBufferSize {
-		n = llmBodyBufferSize
+
+	// Response body tail -> token usage.
+	if h.llmRespBodyMap != nil {
+		var respBody llmBody
+		if err := h.llmRespBodyMap.Lookup(&key, &respBody); err == nil {
+			n := respBody.Len
+			if n > llmBodyBufferSize {
+				n = llmBodyBufferSize
+			}
+			info.promptTokens, info.completionTokens, info.totalTokens = parseLLMUsage(respBody.Data[:n])
+		}
 	}
-	return parseLLMBody(body.Data[:n])
+
+	return info
+}
+
+// resolveLLMService resolves the service name for a client PID using the same
+// userspace inference USM uses (process_service_inference / ServiceExtractor).
+// It feeds the extractor the process cmdline read from /proc on demand and
+// returns the inferred service name (empty if it can't be resolved).
+func (h *StatKeeper) resolveLLMService(pid uint32) string {
+	if pid == 0 || h.llmServiceExtractor == nil {
+		return ""
+	}
+
+	cmdline := readProcCmdline(pid)
+	if len(cmdline) == 0 {
+		return ""
+	}
+	h.llmServiceExtractor.ExtractSingle(&procutil.Process{
+		Pid:     int32(pid),
+		Cmdline: cmdline,
+	})
+
+	for _, tag := range h.llmServiceExtractor.GetServiceContext(int32(pid)) {
+		// Tags look like "process_context:<service>".
+		if _, name, ok := strings.Cut(tag, ":"); ok && name != "" {
+			return name
+		}
+	}
+	return ""
+}
+
+// readProcCmdline reads /proc/<pid>/cmdline and splits it into args.
+func readProcCmdline(pid uint32) []string {
+	raw, err := os.ReadFile("/proc/" + strconv.FormatUint(uint64(pid), 10) + "/cmdline")
+	if err != nil || len(raw) == 0 {
+		return nil
+	}
+	parts := strings.Split(strings.TrimRight(string(raw), "\x00"), "\x00")
+	out := parts[:0]
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

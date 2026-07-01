@@ -65,6 +65,7 @@ const (
 	// LLMO PoC maps (defined in pkg/network/ebpf/c/protocols/tls/llmo.h).
 	llmMonitoredConnectionsMap = "llm_monitored_connections"
 	llmRequestBodiesMap        = "llm_request_bodies"
+	llmResponseBodiesMap       = "llm_response_bodies"
 
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
 	tlsFilterTailCall        = "uprobe__http2_tls_filter"
@@ -315,7 +316,9 @@ func (p *Protocol) PreStart() (err error) {
 	// bodies so HTTP/2 LLM transactions can be enriched with model + prompt.
 	if connMap, _, errConn := p.mgr.GetMap(llmMonitoredConnectionsMap); errConn == nil {
 		if bodyMap, _, errBody := p.mgr.GetMap(llmRequestBodiesMap); errBody == nil {
-			p.statkeeper.EnableLLMO(connMap, bodyMap)
+			if respMap, _, errResp := p.mgr.GetMap(llmResponseBodiesMap); errResp == nil {
+				p.statkeeper.EnableLLMO(connMap, bodyMap, respMap)
+			}
 		}
 	}
 
