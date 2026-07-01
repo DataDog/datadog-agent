@@ -247,19 +247,27 @@ ec2-host scenario: `restart-agent` (no params) and `run-command` (tagged params)
 
 ### CLI
 
+The CLI is the `scenariorun` binary (`test/e2e-framework/cmd/scenariorun`).
+Run it directly from the module so flags pass through as normal argv — there is
+deliberately no `dda inv` wrapper (invoke cannot cleanly forward cobra-style
+flags):
+
 ```bash
-dda inv scenario.lab --args="list"
-dda inv scenario.lab --args="describe --json"
-dda inv scenario.lab --args="create ec2-host --os debian-12"
-dda inv scenario.lab --args="action ec2-host my-stack restart-agent"
-dda inv scenario.lab --args="destroy ec2-host my-stack"
+cd test/e2e-framework
+go build -o bin/scenariorun ./cmd/scenariorun   # or: go run ./cmd/scenariorun <args>
+
+./bin/scenariorun list
+./bin/scenariorun describe --json                # carries protocolVersion
+./bin/scenariorun create ec2-host --os debian-12 --arch arm64 --use-fakeintake --stack my-stack
+./bin/scenariorun action ec2-host run-command --command "uname -a" --stack my-stack
+./bin/scenariorun action ec2-host restart-agent --stack my-stack
+./bin/scenariorun destroy ec2-host --stack my-stack
 ```
 
-`dda inv scenario.lab` (defined in `tasks/scenario.py`, registered as the
-`scenario` collection in `tasks/__init__.py`) builds and forwards to the
-`scenariorun` binary (`test/e2e-framework/cmd/scenariorun`). The command tree
-and flags are generated from the registry by reflection — never hand-declared.
-`describe --json` carries `protocolVersion`.
+The command tree and flags are generated from the registry by reflection —
+never hand-declared. Create-time config is persisted (keyed by stack name, under
+`$SCENARIORUN_STATE_DIR` or `~/.scenariorun/stacks`) and replayed on
+`action`/`destroy` so they operate on the topology `create` built.
 
 ### Service
 
