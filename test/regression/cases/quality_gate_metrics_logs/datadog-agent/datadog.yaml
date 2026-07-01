@@ -19,3 +19,14 @@ telemetry.enabled: true
 telemetry.checks: '*'
 
 dogstatsd_socket: '/tmp/dsd.socket'
+
+# Temporary DogStatsD metric lookback SMP probe. The metric name is deliberately
+# not present in the generated DogStatsD workload so this measures enabled
+# exact-name admission overhead without bucket materialization, retention writes,
+# monitor evaluations, or egress.
+metric_lookback:
+  enabled: true
+  dogstatsd:
+    enabled: true
+    metric_names:
+      - "__metric_lookback_unmatched_smp_probe__"
