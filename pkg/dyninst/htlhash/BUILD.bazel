@@ -11,10 +11,14 @@ go_library(
 go_test(
     name = "htlhash_test",
     srcs = ["htlhash_test.go"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":htlhash",
-        "//pkg/dyninst/testprogs",
+        "@//pkg/dyninst/testprogs",
         "@com_github_stretchr_testify//require",
     ],
 )

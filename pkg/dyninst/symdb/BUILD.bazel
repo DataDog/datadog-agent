@@ -12,6 +12,7 @@ go_library(
         "types_by_package_index.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symdb",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/dwarf",
@@ -37,13 +38,17 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":symdb"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/dyninsttest",
         "//pkg/dyninst/object",
         "//pkg/dyninst/symdb/symdbprinter",
         "//pkg/dyninst/symdb/uploader",
-        "//pkg/dyninst/testprogs",
+        "@//pkg/dyninst/testprogs",
         "@com_github_google_uuid//:uuid",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

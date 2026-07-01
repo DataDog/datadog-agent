@@ -19,6 +19,7 @@ go_library(
         "visit_type_references.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/irgen",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/dwarf/loclist",
@@ -54,7 +55,11 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":irgen"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/compiler",
         "//pkg/dyninst/dyninsttest",
@@ -66,7 +71,7 @@ go_test(
         "//pkg/dyninst/rcjson",
         "//pkg/dyninst/redaction",
         "//pkg/dyninst/symdb",
-        "//pkg/dyninst/testprogs",
+        "@//pkg/dyninst/testprogs",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

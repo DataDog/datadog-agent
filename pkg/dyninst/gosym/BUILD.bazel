@@ -4,6 +4,7 @@ go_library(
     name = "gosym",
     srcs = ["symtab.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gosym",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
 )
 
@@ -14,13 +15,17 @@ go_test(
         "symtab_test.go",
     ],
     data = glob(["testdata/**"]),
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":gosym",
         "//pkg/dyninst/ir",
         "//pkg/dyninst/irgen",
         "//pkg/dyninst/object",
-        "//pkg/dyninst/testprogs",
+        "@//pkg/dyninst/testprogs",
         "@com_github_stretchr_testify//require",
     ],
 )

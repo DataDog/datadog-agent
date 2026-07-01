@@ -14,6 +14,7 @@ go_library(
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/decode",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/exprlang",
@@ -43,7 +44,11 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":decode"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/gotype",
         "//pkg/dyninst/ir",
@@ -52,7 +57,7 @@ go_test(
         "//pkg/dyninst/output",
         "//pkg/dyninst/redaction",
         "//pkg/dyninst/symbol",
-        "//pkg/dyninst/testprogs",
+        "@//pkg/dyninst/testprogs",
         "@com_github_go_json_experiment_json//jsontext",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

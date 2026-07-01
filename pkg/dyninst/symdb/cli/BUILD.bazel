@@ -4,6 +4,7 @@ go_library(
     name = "cli_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symdb/cli",
+    tags = ["manual"],
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/dyninst/object",
@@ -34,7 +35,11 @@ go_test(
     name = "cli_test",
     srcs = ["main_test.go"],
     embed = [":cli_lib"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/object",
         "//pkg/dyninst/symdb",
