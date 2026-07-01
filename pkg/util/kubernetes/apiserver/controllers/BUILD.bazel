@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "controllers",
@@ -54,7 +55,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "controllers_test",
     srcs = [
         "hpa_controller_test.go",
@@ -63,7 +64,10 @@ go_test(
         "wpa_controller_test.go",
     ],
     embed = [":controllers"],
-    gotags = ["test"],
+    flavors = [
+        "base",
+        "fips",
+    ],
     deps = [
         "//comp/autoscaling/datadogclient/mock",
         "//comp/core/config",
