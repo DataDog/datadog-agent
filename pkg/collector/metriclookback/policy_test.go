@@ -45,12 +45,11 @@ func TestSelectShadowCandidatesSelectsEnabledChecks(t *testing.T) {
 		},
 	}
 
-	candidates, err := SelectShadowCandidates(configs, ShadowPolicyOptions{
+	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{
 		ShadowChecksEnabled: true,
 		ChecksToShadow:      []string{"cpu"},
 	})
 
-	require.NoError(t, err)
 	require.Len(t, candidates, 1)
 	candidate := candidates[0]
 	assert.Equal(t, "cpu", candidate.SourceConfig.Name)
@@ -77,9 +76,8 @@ func TestSelectShadowCandidatesAllowsPerInstanceEnablement(t *testing.T) {
 		},
 	}
 
-	candidates, err := SelectShadowCandidates(configs, ShadowPolicyOptions{})
+	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{})
 
-	require.NoError(t, err)
 	require.Len(t, candidates, 1)
 	assert.Equal(t, 1, candidates[0].InstanceIndex)
 	assert.Equal(t, checkid.BuildID("cpu", configs[0].FastDigest(), configs[0].Instances[1], configs[0].InitConfig), candidates[0].SourceCheckID)
@@ -95,13 +93,28 @@ func TestSelectShadowCandidatesTreatsMalformedInstanceSettingAsUnset(t *testing.
 		},
 	}
 
-	candidates, err := SelectShadowCandidates(configs, ShadowPolicyOptions{})
-	require.NoError(t, err)
+	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{})
 	assert.Empty(t, candidates)
 
-	candidates, err = SelectShadowCandidates(configs, ShadowPolicyOptions{ShadowChecksEnabled: true})
-	require.NoError(t, err)
+	candidates = SelectShadowCandidates(configs, ShadowPolicyOptions{ShadowChecksEnabled: true})
 	require.Len(t, candidates, 1)
+}
+
+func TestSelectShadowCandidatesSkipsInvalidShadowInstance(t *testing.T) {
+	configs := []integration.Config{
+		{
+			Name: "cpu",
+			Instances: []integration.Data{
+				integration.Data("name: valid\n"),
+				integration.Data("name: invalid\n_datadog: [\n"),
+			},
+		},
+	}
+
+	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{ShadowChecksEnabled: true})
+
+	require.Len(t, candidates, 1)
+	assert.Equal(t, 0, candidates[0].InstanceIndex)
 }
 
 func TestSelectShadowCandidatesSkipsNonCheckAndMetricsFilteredConfigs(t *testing.T) {
@@ -118,9 +131,8 @@ func TestSelectShadowCandidatesSkipsNonCheckAndMetricsFilteredConfigs(t *testing
 		},
 	}
 
-	candidates, err := SelectShadowCandidates(configs, ShadowPolicyOptions{ShadowChecksEnabled: true})
+	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{ShadowChecksEnabled: true})
 
-	require.NoError(t, err)
 	assert.Empty(t, candidates)
 }
 
@@ -137,9 +149,8 @@ func TestSelectShadowCandidatesDoesNotMutateSourceConfig(t *testing.T) {
 	}
 	original := cloneConfig(source)
 
-	candidates, err := SelectShadowCandidates([]integration.Config{source}, ShadowPolicyOptions{ShadowChecksEnabled: true})
+	candidates := SelectShadowCandidates([]integration.Config{source}, ShadowPolicyOptions{ShadowChecksEnabled: true})
 
-	require.NoError(t, err)
 	require.Len(t, candidates, 1)
 	assert.Equal(t, original, source)
 	assert.Equal(t, original, candidates[0].SourceConfig)
@@ -163,9 +174,8 @@ func TestSelectShadowCandidatesIncludesPythonAndDefaultLoaderConfigs(t *testing.
 		},
 	}
 
-	candidates, err := SelectShadowCandidates(configs, ShadowPolicyOptions{ShadowChecksEnabled: true})
+	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{ShadowChecksEnabled: true})
 
-	require.NoError(t, err)
 	require.Len(t, candidates, 2)
 	assert.Equal(t, "python_check", candidates[0].SourceConfig.Name)
 	assert.Equal(t, "default_loader_check", candidates[1].SourceConfig.Name)

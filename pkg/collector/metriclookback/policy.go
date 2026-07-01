@@ -49,10 +49,8 @@ type ShadowCandidate struct {
 }
 
 // SelectShadowCandidates returns copied shadow candidates for selected config instances.
-// Loader selection stays with the normal check loading path, so default-loader
-// and Python configs are eligible; this is pipeline isolation, not Python
-// runtime isolation.
-func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptions) ([]ShadowCandidate, error) {
+// Loading, scheduling, and execution routing are handled by the caller.
+func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptions) []ShadowCandidate {
 	candidates := []ShadowCandidate{}
 	for _, config := range configs {
 		if !isSupportedCheckConfig(config, opts) {
@@ -70,7 +68,7 @@ func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptio
 
 			shadowInstance, err := WithShadowExecutionMode(instance)
 			if err != nil {
-				return nil, err
+				continue
 			}
 			sourceCheckID := checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig)
 			candidates = append(candidates, ShadowCandidate{
@@ -83,7 +81,7 @@ func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptio
 			})
 		}
 	}
-	return candidates, nil
+	return candidates
 }
 
 func shadowCheckID(sourceID checkid.ID) checkid.ID {
