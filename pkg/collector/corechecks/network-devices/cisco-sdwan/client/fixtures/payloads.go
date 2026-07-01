@@ -437,7 +437,7 @@ const GetCloudExpressMetrics = `
 ]
 `
 
-// GetBGPNeighbors /dataservice/data/device/state/BGPNeighbor
+// GetBGPNeighbors /dataservice/device/bgp/neighbors
 const GetBGPNeighbors = `
 [
 	{

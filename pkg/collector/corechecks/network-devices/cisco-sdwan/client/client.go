@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -17,6 +18,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const timeFormat = "2006-01-02T15:04:05"
@@ -346,18 +349,33 @@ func (client *Client) GetCloudExpressMetrics() ([]CloudXStatistics, error) {
 	return cloudApplications.Data, nil
 }
 
-// GetBGPNeighbors gets BGP neighbors
-func (client *Client) GetBGPNeighbors() ([]BGPNeighbor, error) {
-	params := map[string]string{
-		"count": client.maxCount,
+// GetBGPNeighbors gets BGP neighbors per device using the real-time endpoint
+func (client *Client) GetBGPNeighbors(devices []Device) ([]BGPNeighbor, error) {
+	var allNeighbors []BGPNeighbor
+	var failed int
+	for _, device := range devices {
+		params := map[string]string{
+			"deviceId": device.SystemIP,
+		}
+		bgpNeighbors, err := getAllEntries[BGPNeighbor](client, "/dataservice/device/bgp/neighbors", params)
+		if err != nil {
+			log.Warnf("Error getting BGP neighbors for device %s: %s", device.SystemIP, err)
+			failed++
+			continue
+		}
+		for i := range bgpNeighbors.Data {
+			if bgpNeighbors.Data[i].VmanageSystemIP == "" {
+				bgpNeighbors.Data[i].VmanageSystemIP = device.SystemIP
+			}
+		}
+		allNeighbors = append(allNeighbors, bgpNeighbors.Data...)
 	}
 
-	bgpNeighbors, err := getAllEntries[BGPNeighbor](client, "/dataservice/data/device/state/BGPNeighbor", params)
-	if err != nil {
-		return nil, err
+	if failed > 0 && failed == len(devices) {
+		return nil, fmt.Errorf("failed to get BGP neighbors for all %d devices", failed)
 	}
 
-	return bgpNeighbors.Data, nil
+	return allNeighbors, nil
 }
 
 func (client *Client) statisticsTimeRange() (string, string) {
