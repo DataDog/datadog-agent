@@ -36,5 +36,11 @@ INSERT INTO remote_query_identity (
   '${dbname}',
   '${marker}'
 );
+
+-- Keep the existing Remote Queries AP/PAR proof query allowlist usable while
+-- still proving exact target identity. The Agent bridge currently only permits
+-- SELECT city, country FROM cities ORDER BY city for small CSV proof payloads.
+CREATE TABLE cities (city text NOT NULL, country text NOT NULL);
+INSERT INTO cities(city, country) VALUES ('${marker}', '${EXPECTED_AGENT_HOSTNAME}');
 SQL
 done
