@@ -116,7 +116,6 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.max_memory", 5e8, "DD_APM_MAX_MEMORY")
 	config.BindEnvAndSetDefault("apm_config.max_cpu_percent", 50.0, "DD_APM_MAX_CPU_PERCENT")
 	config.BindEnvAndSetDefault("apm_config.env", "", "DD_APM_ENV")
-	// Defaults to true in Kubernetes via applyKubernetesContainerDefaults (in fixup_init.go).
 	config.BindEnvAndSetDefault("apm_config.apm_non_local_traffic", false, "DD_APM_NON_LOCAL_TRAFFIC")
 	config.BindEnvAndSetDefault("apm_config.apm_dd_url", "", "DD_APM_DD_URL")
 	config.BindEnvAndSetDefault("apm_config.connection_limit", 2000, "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")
