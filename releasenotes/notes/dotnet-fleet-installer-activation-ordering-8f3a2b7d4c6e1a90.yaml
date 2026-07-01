@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix Windows .NET APM library fleet installer upgrades so the new version is only activated after GAC registration completes.

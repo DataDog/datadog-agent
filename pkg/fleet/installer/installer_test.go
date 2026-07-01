@@ -7,6 +7,7 @@ package installer
 
 import (
 	"context"
+	"errors"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -45,7 +46,7 @@ type testPackageManager struct {
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
 	extensionsPkg.ExtensionsDBDir = filepath.Join(rootPath, "run")
 	os.MkdirAll(extensionsPkg.ExtensionsDBDir, 0755)
-	packages := repository.NewRepositories(rootPath, nil)
+	packages := repository.NewRepositories(rootPath, nil, nil)
 	err := os.MkdirAll(filepath.Join(rootPath, "run"), 0755)
 	assert.NoError(t, err)
 	db, err := db.New(context.Background(), filepath.Join(rootPath, "packages.db"))
@@ -80,120 +81,120 @@ func (h *testHooks) PreInstall(ctx context.Context, pkg string, pkgType packages
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg, pkgType, upgrade)
-	return nil
+	args := h.Called(ctx, pkg, pkgType, upgrade)
+	return args.Error(0)
 }
 
 func (h *testHooks) PostInstall(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool, winArgs []string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg, pkgType, upgrade, winArgs)
-	return nil
+	args := h.Called(ctx, pkg, pkgType, upgrade, winArgs)
+	return args.Error(0)
 }
 
 func (h *testHooks) PreRemove(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg, pkgType, upgrade)
-	return nil
+	args := h.Called(ctx, pkg, pkgType, upgrade)
+	return args.Error(0)
 }
 
 func (h *testHooks) PreStartExperiment(ctx context.Context, pkg string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg)
-	return nil
+	args := h.Called(ctx, pkg)
+	return args.Error(0)
 }
 
 func (h *testHooks) PostStartExperiment(ctx context.Context, pkg string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg)
-	return nil
+	args := h.Called(ctx, pkg)
+	return args.Error(0)
 }
 
 func (h *testHooks) PreStopExperiment(ctx context.Context, pkg string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg)
-	return nil
+	args := h.Called(ctx, pkg)
+	return args.Error(0)
 }
 
 func (h *testHooks) PostStopExperiment(ctx context.Context, pkg string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg)
-	return nil
+	args := h.Called(ctx, pkg)
+	return args.Error(0)
 }
 
 func (h *testHooks) PrePromoteExperiment(ctx context.Context, pkg string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg)
-	return nil
+	args := h.Called(ctx, pkg)
+	return args.Error(0)
 }
 
 func (h *testHooks) PostPromoteExperiment(ctx context.Context, pkg string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg)
-	return nil
+	args := h.Called(ctx, pkg)
+	return args.Error(0)
 }
 
 func (h *testHooks) PostStartConfigExperiment(ctx context.Context, pkg string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg)
-	return nil
+	args := h.Called(ctx, pkg)
+	return args.Error(0)
 }
 
 func (h *testHooks) PreStopConfigExperiment(ctx context.Context, pkg string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg)
-	return nil
+	args := h.Called(ctx, pkg)
+	return args.Error(0)
 }
 
 func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg)
-	return nil
+	args := h.Called(ctx, pkg)
+	return args.Error(0)
 }
 
 func (h *testHooks) PreInstallExtension(ctx context.Context, pkg string, extension string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg, extension)
-	return nil
+	args := h.Called(ctx, pkg, extension)
+	return args.Error(0)
 }
 
 func (h *testHooks) PreRemoveExtension(ctx context.Context, pkg string, extension string) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg, extension)
-	return nil
+	args := h.Called(ctx, pkg, extension)
+	return args.Error(0)
 }
 
 func (h *testHooks) PostInstallExtension(ctx context.Context, pkg string, extension string, _ bool) error {
 	if h.noop {
 		return nil
 	}
-	h.Called(ctx, pkg, extension)
-	return nil
+	args := h.Called(ctx, pkg, extension)
+	return args.Error(0)
 }
 
 func (i *testPackageManager) ConfigFS(_ fixtures.Fixture) fs.FS {
@@ -244,6 +245,68 @@ func TestInstallUpgrade(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
 	})
+}
+
+func TestInstallClearsDBBeforePostInstall(t *testing.T) {
+	sentinel := errors.New("post-install failed")
+	s := fixtures.NewServer(t)
+	installer := newTestPackageManager(t, s, t.TempDir())
+	defer installer.db.Close()
+
+	preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
+	installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
+
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	assert.NoError(t, err)
+
+	preRemoveCall := installer.testHooks.On("PreRemove", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil)
+	preInstallCall = installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil).NotBefore(preRemoveCall)
+	installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true, mock.Anything).Return(sentinel).NotBefore(preInstallCall)
+
+	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV2), nil)
+	assert.ErrorIs(t, err, sentinel)
+
+	installed, err := installer.IsInstalled(testCtx, fixtures.FixtureSimpleV1.Package)
+	assert.NoError(t, err)
+	assert.False(t, installed)
+}
+
+func TestInstallRestoresDBWhenPreActivateFails(t *testing.T) {
+	sentinel := errors.New("pre-activate failed")
+	s := fixtures.NewServer(t)
+	rootPath := t.TempDir()
+	installer := newTestPackageManager(t, s, rootPath)
+	defer installer.db.Close()
+
+	preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
+	installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
+
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	assert.NoError(t, err)
+
+	installer.packages = repository.NewRepositories(rootPath, nil, map[string]repository.PreActivateHook{
+		fixtures.FixtureSimpleV1.Package: func(_ context.Context, _ string) error {
+			return sentinel
+		},
+	})
+	preRemoveCall := installer.testHooks.On("PreRemove", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil)
+	installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil).NotBefore(preRemoveCall)
+
+	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV2), nil)
+	assert.ErrorIs(t, err, repository.ErrPreActivateFailed)
+	assert.ErrorIs(t, err, sentinel)
+
+	installed, err := installer.IsInstalled(testCtx, fixtures.FixtureSimpleV1.Package)
+	assert.NoError(t, err)
+	assert.True(t, installed)
+
+	dbPkg, err := installer.db.GetPackage(fixtures.FixtureSimpleV1.Package)
+	assert.NoError(t, err)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, dbPkg.Version)
+
+	state, err := installer.packages.Get(fixtures.FixtureSimpleV1.Package).GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 }
 
 func TestInstallExperiment(t *testing.T) {
