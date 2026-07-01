@@ -284,6 +284,9 @@ func (sc *SpanConcentrator) getResourceMaxBytes() int {
 // Should be called when the agent's obfuscation version is known (e.g. after /info is fetched).
 // bigResource should be true when the agent's /info feature_flags contains "big_resource".
 func (sc *SpanConcentrator) SetObfuscationEnabled(enabled bool, bigResource bool) {
+	if sc.obfuscationEnabled == nil || sc.resourceMaxBytes == nil {
+		return
+	}
 	sc.obfuscationEnabled.Store(enabled)
 	if enabled {
 		if bigResource {

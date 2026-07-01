@@ -284,9 +284,9 @@ func TestRawBucketAdditionalMetricTagsCardinalityLimit(t *testing.T) {
 	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanA, 1, "", aggKey))
 	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanB, 1, "", aggKey))
 	assert.Equal(t, SpanCollapseResult{AdditionalTagsCapBlock: true}, sb.HandleSpan(spanC, 1, "", aggKey))
-	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, spanC.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:c"}, spanC.matchingAdditionalMetricTags) // span not mutated
 	assert.Equal(t, SpanCollapseResult{AdditionalTagsCapBlock: true}, sb.HandleSpan(spanD, 1, "", aggKey))
-	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, spanD.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:d"}, spanD.matchingAdditionalMetricTags) // span not mutated
 	assert.Equal(t, SpanCollapseResult{}, sb.HandleSpan(spanAAgain, 1, "", aggKey))
 	assert.Equal(t, []string{"customer_id:a"}, spanAAgain.matchingAdditionalMetricTags)
 
@@ -296,7 +296,8 @@ func TestRawBucketAdditionalMetricTagsCardinalityLimit(t *testing.T) {
 
 	spanAAggr := NewAggregationFromSpan(spanA, "", aggKey)
 	spanBAggr := NewAggregationFromSpan(spanB, "", aggKey)
-	maskedAggr := NewAggregationFromSpan(spanC, "", aggKey)
+	// maskedAggr uses sentinel tags directly — spanC is no longer mutated by HandleSpan
+	maskedAggr := NewAggregationFromSpan(newAdditionalMetricTagStatSpan("tracer_blocked_value"), "", aggKey)
 
 	spanAStats, ok := sb.data[spanAAggr]
 	require.True(t, ok)
@@ -353,10 +354,11 @@ func TestSpanConcentratorAdditionalMetricTagsCardinalityLimitResetsPerBucket(t *
 	sc.addSpan(secondAdmitted, aggKey, infraTags{}, "", 1)
 	sc.addSpan(secondBlocked, aggKey, infraTags{}, "", 1)
 
+	// HandleSpan no longer mutates spans — each span retains its original tags.
 	assert.Equal(t, []string{"customer_id:first-admitted"}, firstAdmitted.matchingAdditionalMetricTags)
-	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, firstBlocked.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:first-blocked"}, firstBlocked.matchingAdditionalMetricTags)
 	assert.Equal(t, []string{"customer_id:second-admitted"}, secondAdmitted.matchingAdditionalMetricTags)
-	assert.Equal(t, []string{"customer_id:tracer_blocked_value"}, secondBlocked.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:second-blocked"}, secondBlocked.matchingAdditionalMetricTags)
 
 	require.Len(t, sc.buckets, 2)
 	firstBucket, ok := sc.buckets[0]

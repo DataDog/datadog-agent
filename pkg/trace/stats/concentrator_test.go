@@ -180,8 +180,9 @@ func TestNewConcentratorAdditionalMetricTagsCardinalityLimitUsesAgentSentinel(t 
 	c.spanConcentrator.addSpan(admitted, aggKey, infraTags{}, "", 1)
 	c.spanConcentrator.addSpan(blocked, aggKey, infraTags{}, "", 1)
 
+	// HandleSpan no longer mutates spans — each span retains its original tags.
 	assert.Equal(t, []string{"customer_id:admitted"}, admitted.matchingAdditionalMetricTags)
-	assert.Equal(t, []string{"customer_id:agent_blocked_value"}, blocked.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:blocked"}, blocked.matchingAdditionalMetricTags)
 	assert.Equal(t, BlockCounts{CapBlocks: 1}, c.spanConcentrator.DrainBlockCounts())
 }
 

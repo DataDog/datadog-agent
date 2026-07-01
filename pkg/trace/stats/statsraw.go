@@ -233,6 +233,7 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators.
 // It returns a SpanCollapseResult indicating which cardinality collapses were applied.
+// HandleSpan does not modify s.
 func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggKey PayloadAggregationKey) SpanCollapseResult {
 	if aggKey.Env == "" {
 		panic("env should never be empty")
@@ -251,22 +252,10 @@ func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggK
 					sb.warnedThisBucket = true
 				}
 				sentinel := sb.getAdditionalMetricTagValueBlockSentinel()
-				s.resource = sentinel
-				s.name = sentinel
-				s.typ = sentinel
-				s.spanKind = sentinel
-				s.httpMethod = sentinel
-				s.httpEndpoint = sentinel
-				s.service = sentinel
-				s.serviceSource = sentinel
-				s.matchingPeerTags = []string{sentinel}
-				s.matchingAdditionalMetricTags = []string{sentinel}
-				s.statusCode = 0
-				s.grpcStatusCode = ""
-				// isTraceRoot becomes NOT_SET (0) via parentID trick: use a special collapsed aggregation
 				aggr = wholeKeyCollapsedAggregation(aggKey, sentinel)
 				result.WholeKeyCollapsed = true
-				sb.add(s, weight, aggr)
+				sentinelSlice := []string{sentinel}
+				sb.add(s, weight, aggr, sentinelSlice, sentinelSlice)
 				return result
 			}
 			sb.distinctWholeKeys[aggr.BucketsAggregationKey] = struct{}{}
@@ -274,36 +263,48 @@ func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggK
 	}
 
 	// --- Per-field cardinality checks ---
-	// Each field is checked independently; collapsed fields use the sentinel value.
-	// After any per-field collapse, aggr is recomputed.
+	// Each field is checked independently. Collapsed values are applied directly to aggr
+	// without modifying s, so the caller's span is never mutated.
 	sentinel := sb.getAdditionalMetricTagValueBlockSentinel()
-	result.ResourceCollapsed = sb.checkStringField(sb.resourceCardinalityLimit, sb.distinctResources, &s.resource, "resource", sentinel)
-	result.HTTPEndpointCollapsed = sb.checkStringField(sb.httpEndpointCardinalityLimit, sb.distinctHTTPEndpoints, &s.httpEndpoint, "http_endpoint", sentinel)
-	result.PeerTagsCollapsed = sb.checkPeerTagsField(sb.peerTagsCardinalityLimit, sb.distinctPeerTagHashes, &s.matchingPeerTags, sentinel)
+	var resource string
+	resource, result.ResourceCollapsed = sb.checkStringField(sb.resourceCardinalityLimit, sb.distinctResources, s.resource, "resource", sentinel)
+	var httpEndpoint string
+	httpEndpoint, result.HTTPEndpointCollapsed = sb.checkStringField(sb.httpEndpointCardinalityLimit, sb.distinctHTTPEndpoints, s.httpEndpoint, "http_endpoint", sentinel)
+	peerTags := s.matchingPeerTags
+	peerTags, result.PeerTagsCollapsed = sb.checkPeerTagsField(sb.peerTagsCardinalityLimit, sb.distinctPeerTagHashes, peerTags, sentinel)
 	// Origin is not a field on StatSpan — it controls the Synthetics flag in the aggregation.
 	// Collapsing clears origin so the overflow aggregation has Synthetics=false.
-	result.OriginCollapsed = sb.checkStringField(sb.originCardinalityLimit, sb.distinctOrigins, &origin, "origin", sentinel)
-	recomputeAggr := result.ResourceCollapsed || result.HTTPEndpointCollapsed || result.PeerTagsCollapsed || result.OriginCollapsed
+	_, result.OriginCollapsed = sb.checkStringField(sb.originCardinalityLimit, sb.distinctOrigins, origin, "origin", sentinel)
 
-	if recomputeAggr {
-		aggr = NewAggregationFromSpan(s, origin, aggKey)
+	if result.ResourceCollapsed {
+		aggr.BucketsAggregationKey.Resource = resource
+	}
+	if result.HTTPEndpointCollapsed {
+		aggr.BucketsAggregationKey.HTTPEndpoint = httpEndpoint
+	}
+	if result.PeerTagsCollapsed {
+		aggr.BucketsAggregationKey.PeerTagsHash = tagsFnvHash(peerTags)
+	}
+	if result.OriginCollapsed {
+		aggr.BucketsAggregationKey.Synthetics = false
 	}
 
 	// --- additional_metric_tags per-bucket cardinality cap (pre-existing logic) ---
-	if len(s.matchingAdditionalMetricTags) > 0 && sb.additionalTagsCardinalityLimit > 0 {
+	additionalMetricTags := s.matchingAdditionalMetricTags
+	if len(additionalMetricTags) > 0 && sb.additionalTagsCardinalityLimit > 0 {
 		// Only new tag-bearing aggregations are counted, before they are added below.
 		if _, exists := sb.data[aggr]; !exists {
 			if sb.additionalTagsEntries >= sb.additionalTagsCardinalityLimit {
 				if !sb.warnedThisBucket {
-					log.Debugf("stats cardinality additional_metric_tags limit (%d) reached for this bucket; masking %d tag value(s)", sb.additionalTagsCardinalityLimit, len(s.matchingAdditionalMetricTags))
+					log.Debugf("stats cardinality additional_metric_tags limit (%d) reached for this bucket; masking %d tag value(s)", sb.additionalTagsCardinalityLimit, len(additionalMetricTags))
 					sb.warnedThisBucket = true
 				}
 				// Cap reached: collapse this span's tag values onto the shared masked
 				// aggregation. The masked entry is deliberately NOT counted toward the
 				// limit — all over-cap spans fold into it, so it stays a single overflow
 				// bucket rather than consuming a slot.
-				s.matchingAdditionalMetricTags = maskAdditionalMetricTagValues(s.matchingAdditionalMetricTags, sb.getAdditionalMetricTagValueBlockSentinel())
-				aggr = NewAggregationFromSpan(s, origin, aggKey)
+				additionalMetricTags = maskAdditionalMetricTagValues(additionalMetricTags, sb.getAdditionalMetricTagValueBlockSentinel())
+				aggr.BucketsAggregationKey.AdditionalMetricTagsHash = tagsFnvHash(additionalMetricTags)
 				result.AdditionalTagsCapBlock = true
 			} else {
 				sb.additionalTagsEntries++
@@ -311,7 +312,7 @@ func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggK
 		}
 	}
 
-	sb.add(s, weight, aggr)
+	sb.add(s, weight, aggr, peerTags, additionalMetricTags)
 	return result
 }
 
@@ -348,14 +349,14 @@ func (sb *RawBucket) getAdditionalMetricTagValueBlockSentinel() string {
 	return sb.additionalMetricTagValueBlockSentinel
 }
 
-func (sb *RawBucket) add(s *StatSpan, weight float64, aggr Aggregation) {
+func (sb *RawBucket) add(s *StatSpan, weight float64, aggr Aggregation, peerTags []string, additionalMetricTags []string) {
 	var gs *groupedStats
 	var ok bool
 
 	if gs, ok = sb.data[aggr]; !ok {
 		gs = newGroupedStats()
-		gs.peerTags = s.matchingPeerTags
-		gs.additionalMetricTags = s.matchingAdditionalMetricTags
+		gs.peerTags = peerTags
+		gs.additionalMetricTags = additionalMetricTags
 		sb.data[aggr] = gs
 	}
 	if s.isTopLevel {
@@ -380,47 +381,46 @@ func (sb *RawBucket) add(s *StatSpan, weight float64, aggr Aggregation) {
 }
 
 // checkStringField enforces a per-field cardinality limit for a plain string aggregation field.
-// It returns true (collapsing *value to sentinel) when the limit is reached and the value is new.
-// It returns false when the limit is disabled (0), the value is empty, or the value is already tracked.
-func (sb *RawBucket) checkStringField(limit int, distinct map[string]struct{}, value *string, fieldName, sentinel string) bool {
-	if limit <= 0 || *value == "" {
-		return false
+// It returns the (possibly-sentinel) value and true when the limit is reached and the value is new.
+// It returns the original value and false when the limit is disabled (0), the value is empty, or already tracked.
+func (sb *RawBucket) checkStringField(limit int, distinct map[string]struct{}, value string, fieldName, sentinel string) (string, bool) {
+	if limit <= 0 || value == "" {
+		return value, false
 	}
-	if _, exists := distinct[*value]; exists {
-		return false
+	if _, exists := distinct[value]; exists {
+		return value, false
 	}
 	if len(distinct) < limit {
-		distinct[*value] = struct{}{}
-		return false
+		distinct[value] = struct{}{}
+		return value, false
 	}
 	if !sb.warnedThisBucket {
 		log.Debugf("stats cardinality %s limit (%d) reached for this bucket; collapsing %s to sentinel", fieldName, limit, fieldName)
 		sb.warnedThisBucket = true
 	}
-	*value = sentinel
-	return true
+	return sentinel, true
 }
 
 // checkPeerTagsField enforces the peer_tags cardinality limit.
-// It uses the FNV hash of the tag slice as the distinct key and overwrites *tags with a singleton sentinel slice on collapse.
-func (sb *RawBucket) checkPeerTagsField(limit int, distinct map[uint64]struct{}, tags *[]string, sentinel string) bool {
-	if limit <= 0 || len(*tags) == 0 {
-		return false
+// It uses the FNV hash of the tag slice as the distinct key.
+// It returns the (possibly-sentinel) slice and true when the limit is reached and the tag set is new.
+func (sb *RawBucket) checkPeerTagsField(limit int, distinct map[uint64]struct{}, tags []string, sentinel string) ([]string, bool) {
+	if limit <= 0 || len(tags) == 0 {
+		return tags, false
 	}
-	h := tagsFnvHash(*tags)
+	h := tagsFnvHash(tags)
 	if _, exists := distinct[h]; exists {
-		return false
+		return tags, false
 	}
 	if len(distinct) < limit {
 		distinct[h] = struct{}{}
-		return false
+		return tags, false
 	}
 	if !sb.warnedThisBucket {
 		log.Debugf("stats cardinality peer_tags limit (%d) reached for this bucket; collapsing peer_tags to sentinel", limit)
 		sb.warnedThisBucket = true
 	}
-	*tags = []string{sentinel}
-	return true
+	return []string{sentinel}, true
 }
 
 // nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
