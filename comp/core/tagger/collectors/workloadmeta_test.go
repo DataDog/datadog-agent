@@ -1740,6 +1740,18 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 
 	cfg := configmock.New(t)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector.initK8sResourcesMetaAsTags(
+		map[string]map[string]string{
+			kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName: {
+				"team": "workload_team",
+			},
+		},
+		map[string]map[string]string{
+			kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName: {
+				"owner": "workload_owner",
+			},
+		},
+	)
 
 	actual := collector.handleKubeKueueWorkload(workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
@@ -1768,12 +1780,10 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 
 	expected := []*types.TagInfo{
 		{
-			Source:     kueueWorkloadSource,
-			EntityID:   types.NewEntityID(types.KueueWorkload, workloadID.ID),
-			IsComplete: true,
-			HighCardTags: []string{
-				"workload_owner:team-a",
-			},
+			Source:       kueueWorkloadSource,
+			EntityID:     types.NewEntityID(types.KueueWorkload, workloadID.ID),
+			IsComplete:   true,
+			HighCardTags: []string{},
 			OrchestratorCardTags: []string{
 				"kueue_workload:job-sample",
 				"kueue_workload_uid:uid-job-sample",
@@ -1787,6 +1797,7 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 				"kueue_local_queue:batch",
 				"kueue_resource_flavor:a100",
 				"kueue_resource_flavor:default",
+				"workload_owner:team-a",
 				"workload_team:ml",
 			},
 			StandardTags: []string{},
