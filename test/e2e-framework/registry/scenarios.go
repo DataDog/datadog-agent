@@ -32,7 +32,7 @@ import (
 type ScenarioRegistry map[string]pulumi.RunFunc
 
 func Scenarios() ScenarioRegistry {
-	return ScenarioRegistry{
+	scenarios := ScenarioRegistry{
 		"aws/vm":                  ec2.VMRun,
 		"aws/dockervm":            ec2docker.DockerRun,
 		"aws/ecs":                 ecs.Run,
