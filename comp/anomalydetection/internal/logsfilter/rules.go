@@ -46,7 +46,8 @@ type ProcessingRule struct {
 
 // Rules evaluates the ordered rule list against incoming log sources.
 type Rules struct {
-	rules []compiledRule
+	rules        []compiledRule
+	hasTagRules  bool // true if any rule has tag predicates, requiring sorted input
 }
 
 type compiledRule struct {
@@ -87,7 +88,14 @@ func NewRules(rules []ProcessingRule) (*Rules, error) {
 			tags:    tags,
 		})
 	}
-	return &Rules{rules: compiled}, nil
+	hasTagRules := false
+	for _, r := range compiled {
+		if len(r.tags) > 0 {
+			hasTagRules = true
+			break
+		}
+	}
+	return &Rules{rules: compiled, hasTagRules: hasTagRules}, nil
 }
 
 // LoadRules reads processing rules from the given config key and compiles them.
@@ -105,8 +113,13 @@ func LoadRules(cfg config.Component, key string) (*Rules, error) {
 	return NewRules(raw)
 }
 
+// NeedsSortedTags reports whether any rule has tag predicates requiring sorted input to IsAllowed.
+func (r *Rules) NeedsSortedTags() bool {
+	return r.hasTagRules
+}
+
 // IsAllowed returns true if the log should be ingested.
-// tags must be sorted in ascending order.
+// tags must be sorted when NeedsSortedTags returns true.
 // A nil receiver always allows.
 func (r *Rules) IsAllowed(source string, tags []string) bool {
 	if r == nil {
