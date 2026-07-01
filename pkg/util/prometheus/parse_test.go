@@ -6,6 +6,7 @@
 package prometheus
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -239,6 +240,39 @@ func TestMetricsWithLeadingWhitespace(t *testing.T) {
 		assert.True(t, ok, "__name__ label should be present")
 		assert.Equal(t, "grpc_server_handled_total", string(name))
 	}
+}
+
+func TestParseMetricsToJSON(t *testing.T) {
+	testData := `# TYPE http_requests_total counter
+http_requests_total{method="GET",status="200"} 1234
+http_requests_total{method="POST",status="500"} 5
+# TYPE temperature gauge
+temperature 23.5`
+
+	jsonStr, err := ParseMetricsToJSON([]byte(testData))
+	require.NoError(t, err)
+
+	var families []MetricFamily
+	err = json.Unmarshal([]byte(jsonStr), &families)
+	require.NoError(t, err)
+
+	require.Len(t, families, 2)
+	assert.Equal(t, "http_requests_total", families[0].Name)
+	assert.Equal(t, "COUNTER", families[0].Type)
+	require.Len(t, families[0].Samples, 2)
+	assert.Equal(t, 1234.0, families[0].Samples[0].Value)
+	assert.Equal(t, "GET", families[0].Samples[0].Metric["method"])
+
+	assert.Equal(t, "temperature", families[1].Name)
+	assert.Equal(t, "GAUGE", families[1].Type)
+	require.Len(t, families[1].Samples, 1)
+	assert.Equal(t, 23.5, families[1].Samples[0].Value)
+}
+
+func TestParseMetricsToJSONEmpty(t *testing.T) {
+	jsonStr, err := ParseMetricsToJSON([]byte(""))
+	require.NoError(t, err)
+	assert.Equal(t, "null", jsonStr)
 }
 
 func findFamily(families []MetricFamily, name string) *MetricFamily {

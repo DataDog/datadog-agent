@@ -32,6 +32,7 @@ import (
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	promutil "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -742,6 +743,18 @@ func ResolveIssue(issueID *C.char, errOut **C.char) {
 		id = C.GoString(issueID)
 	}
 	hp.ResolveIssue(id)
+// ParsePrometheusMetrics parses Prometheus/OpenMetrics text format using the Go parser
+// and returns the result as a JSON string.
+//
+//export ParsePrometheusMetrics
+func ParsePrometheusMetrics(rawText *C.char, contentType *C.char, errResult **C.char) *C.char {
+	data := []byte(C.GoString(rawText))
+	jsonResult, err := promutil.ParseMetricsToJSON(data)
+	if err != nil {
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+	return TrackedCString(jsonResult)
 }
 
 // httpHeaders returns a http headers including various basic information (User-Agent, Content-Type...).

@@ -1123,6 +1123,9 @@ void Three::setReportIssueCb(cb_report_issue_t cb)
 void Three::setResolveIssueCb(cb_resolve_issue_t cb)
 {
     _set_resolve_issue_cb(cb);
+void Three::setParsePrometheusMetricsCb(cb_parse_prometheus_metrics_t cb)
+{
+    _set_parse_prometheus_metrics_cb(cb);
 }
 
 // Python Helpers

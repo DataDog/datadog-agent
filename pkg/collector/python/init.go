@@ -97,8 +97,12 @@ char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
 char* ObfuscateMongoDBString(char *, char **);
 void EmitAgentTelemetry(char *, char *, double, char *);
+<<<<<<< HEAD
 void ReportIssue(char *, char *, char **);
 void ResolveIssue(char *, char **);
+=======
+char* ParsePrometheusMetrics(char *, char *, char **);
+>>>>>>> 6b474ee1c1d (Add prometheus go parser bridge)
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
@@ -120,6 +124,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_emit_agent_telemetry_cb(rtloader, EmitAgentTelemetry);
 	set_report_issue_cb(rtloader, ReportIssue);
 	set_resolve_issue_cb(rtloader, ResolveIssue);
+	set_parse_prometheus_metrics_cb(rtloader, ParsePrometheusMetrics);
 }
 
 //
