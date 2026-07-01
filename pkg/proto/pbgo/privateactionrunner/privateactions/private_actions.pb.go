@@ -417,8 +417,11 @@ func (x *PrivateActionTask) GetSystemInputs() *SystemInputs {
 }
 
 type SystemInputs struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RemoteAction  *RemoteAction          `protobuf:"bytes,1,opt,name=remote_action,json=remoteAction,proto3" json:"remote_action,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Input:
+	//
+	//	*SystemInputs_RemoteAction
+	Input         isSystemInputs_Input `protobuf_oneof:"input"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -453,12 +456,31 @@ func (*SystemInputs) Descriptor() ([]byte, []int) {
 	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *SystemInputs) GetRemoteAction() *RemoteAction {
+func (x *SystemInputs) GetInput() isSystemInputs_Input {
 	if x != nil {
-		return x.RemoteAction
+		return x.Input
 	}
 	return nil
 }
+
+func (x *SystemInputs) GetRemoteAction() *RemoteAction {
+	if x != nil {
+		if x, ok := x.Input.(*SystemInputs_RemoteAction); ok {
+			return x.RemoteAction
+		}
+	}
+	return nil
+}
+
+type isSystemInputs_Input interface {
+	isSystemInputs_Input()
+}
+
+type SystemInputs_RemoteAction struct {
+	RemoteAction *RemoteAction `protobuf:"bytes,1,opt,name=remote_action,json=remoteAction,proto3,oneof"`
+}
+
+func (*SystemInputs_RemoteAction) isSystemInputs_Input() {}
 
 type RemoteAction struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -858,9 +880,10 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\x0fexpiration_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\x0eexpirationTime\x12I\n" +
 	"\x06client\x18\f \x01(\x0e21.datadog.privateactionrunner.actionsclient.ClientR\x06client\x12]\n" +
 	"\rsystem_inputs\x18\r \x01(\v28.datadog.privateactionrunner.privateactions.SystemInputsR\fsystemInputsJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
-	"\"m\n" +
-	"\fSystemInputs\x12]\n" +
-	"\rremote_action\x18\x01 \x01(\v28.datadog.privateactionrunner.privateactions.RemoteActionR\fremoteAction\"Z\n" +
+	"\"x\n" +
+	"\fSystemInputs\x12_\n" +
+	"\rremote_action\x18\x01 \x01(\v28.datadog.privateactionrunner.privateactions.RemoteActionH\x00R\fremoteActionB\a\n" +
+	"\x05input\"Z\n" +
 	"\fRemoteAction\x12'\n" +
 	"\x0ftarget_commands\x18\x01 \x03(\tR\x0etargetCommands\x12!\n" +
 	"\ftarget_paths\x18\x02 \x03(\tR\vtargetPaths\"\x8f\x02\n" +
@@ -960,6 +983,9 @@ func init() { file_datadog_privateactionrunner_private_actions_proto_init() }
 func file_datadog_privateactionrunner_private_actions_proto_init() {
 	if File_datadog_privateactionrunner_private_actions_proto != nil {
 		return
+	}
+	file_datadog_privateactionrunner_private_actions_proto_msgTypes[3].OneofWrappers = []any{
+		(*SystemInputs_RemoteAction)(nil),
 	}
 	file_datadog_privateactionrunner_private_actions_proto_msgTypes[6].OneofWrappers = []any{
 		(*ConnectionToken_PlainText_)(nil),
