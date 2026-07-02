@@ -33,18 +33,30 @@ type rawCall struct {
 	tags     []string
 }
 
+// monotonicCountWithFlushCall records one call to
+// MonotonicCountWithFlushFirstValue, including the flushFirstValue flag —
+// which a plain rawCall has no field for.
+type monotonicCountWithFlushCall struct {
+	metric          string
+	value           float64
+	hostname        string
+	tags            []string
+	flushFirstValue bool
+}
+
 // fakeSender is a minimal sender.Sender: it records GaugeWithTimestamp/
 // CountWithTimestamp calls (what vbrsender ships breakpoints through), and
-// plain Gauge/Count/Rate/MonotonicCount calls (what dry-run mode forwards
-// unmodified instead), and no-ops everything else.
+// plain Gauge/Count/Rate/MonotonicCountWithFlushFirstValue calls (what
+// dry-run mode forwards unmodified instead), and no-ops everything else.
 type fakeSender struct {
 	gauges []timestampedCall
 	counts []timestampedCall
 
-	rawGauges          []rawCall
-	rawCounts          []rawCall
-	rawRates           []rawCall
-	rawMonotonicCounts []rawCall
+	rawGauges                   []rawCall
+	rawCounts                   []rawCall
+	rawRates                    []rawCall
+	rawMonotonicCounts          []rawCall
+	rawMonotonicCountsWithFlush []monotonicCountWithFlushCall
 }
 
 func (f *fakeSender) Commit() {}
@@ -61,11 +73,13 @@ func (f *fakeSender) Count(metric string, value float64, hostname string, tags [
 func (f *fakeSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
 	f.rawMonotonicCounts = append(f.rawMonotonicCounts, rawCall{metric, value, hostname, tags})
 }
-func (f *fakeSender) MonotonicCountWithFlushFirstValue(string, float64, string, []string, bool) {}
-func (f *fakeSender) Counter(string, float64, string, []string)                                 {}
-func (f *fakeSender) Histogram(string, float64, string, []string)                               {}
-func (f *fakeSender) Historate(string, float64, string, []string)                               {}
-func (f *fakeSender) Distribution(string, float64, string, []string)                            {}
+func (f *fakeSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
+	f.rawMonotonicCountsWithFlush = append(f.rawMonotonicCountsWithFlush, monotonicCountWithFlushCall{metric, value, hostname, tags, flushFirstValue})
+}
+func (f *fakeSender) Counter(string, float64, string, []string)      {}
+func (f *fakeSender) Histogram(string, float64, string, []string)    {}
+func (f *fakeSender) Historate(string, float64, string, []string)    {}
+func (f *fakeSender) Distribution(string, float64, string, []string) {}
 func (f *fakeSender) ServiceCheck(string, servicecheck.ServiceCheckStatus, string, []string, string) {
 }
 func (f *fakeSender) OpenmetricsBucket(string, int64, float64, float64, bool, string, []string, bool) {
@@ -108,7 +122,7 @@ func TestGauge_FlatSignalCompressesUntilWindowFlush(t *testing.T) {
 	s, fake := newTestSender()
 
 	for i := 0; i < 10; i++ {
-		s.compressAt(kindGauge, "my.gauge", 42, "host", nil, float64(i))
+		s.compressAt(kindGauge, "my.gauge", 42, "host", nil, float64(i), false)
 	}
 	// Warmup (2) ships verbatim; nothing else changes, so no more
 	// breakpoints until a window boundary.
@@ -116,7 +130,7 @@ func TestGauge_FlatSignalCompressesUntilWindowFlush(t *testing.T) {
 
 	// Cross the 15s window boundary: the flat signal's pending point (the
 	// last warmup sample) must ship as the window's key point.
-	s.compressAt(kindGauge, "my.gauge", 42, "host", nil, 16)
+	s.compressAt(kindGauge, "my.gauge", 42, "host", nil, 16, false)
 	require.Len(t, fake.gauges, 3)
 	last := fake.gauges[2]
 	require.Equal(t, "my.gauge", last.metric)
@@ -132,7 +146,7 @@ func TestGauge_SpikeShipsViaGaugeWithTimestamp(t *testing.T) {
 		if i == 5 {
 			v = 5000.0
 		}
-		s.compressAt(kindGauge, "my.gauge", v, "host", []string{"env:prod"}, float64(i))
+		s.compressAt(kindGauge, "my.gauge", v, "host", []string{"env:prod"}, float64(i), false)
 	}
 
 	found := false
@@ -157,7 +171,7 @@ func TestCount_ShipsViaCountWithTimestampNotGauge(t *testing.T) {
 			v = 500.0
 		}
 		total += v
-		s.compressAt(kindCount, "my.count", v, "host", nil, float64(i))
+		s.compressAt(kindCount, "my.count", v, "host", nil, float64(i), false)
 	}
 
 	require.Empty(t, fake.gauges, "count calls must never ship via GaugeWithTimestamp")
@@ -184,7 +198,7 @@ func TestCount_SumIsConservedAcrossWarmupCloseAndWindowFlush(t *testing.T) {
 	total := 0.0
 	for i, v := range values {
 		total += v
-		s.compressAt(kindCount, "my.count", v, "host", nil, float64(i))
+		s.compressAt(kindCount, "my.count", v, "host", nil, float64(i), false)
 	}
 
 	shipped := 0.0
@@ -198,7 +212,7 @@ func TestCount_SumIsConservedAcrossWarmupCloseAndWindowFlush(t *testing.T) {
 func TestRate_FirstSampleProducesNoValue(t *testing.T) {
 	s, fake := newTestSender()
 
-	s.compressAt(kindRate, "my.rate", 100, "host", nil, 0)
+	s.compressAt(kindRate, "my.rate", 100, "host", nil, 0, false)
 	require.Empty(t, fake.gauges, "a lone first Rate sample has no previous sample to derive a rate from")
 }
 
@@ -207,8 +221,8 @@ func TestRate_ComputesDerivativeLocally(t *testing.T) {
 
 	// raw counter goes 100 -> 200 over 10s => rate of 10/s. Warmup(2) ships
 	// both computed rate points verbatim regardless of magnitude.
-	s.compressAt(kindRate, "my.rate", 100, "host", nil, 0)
-	s.compressAt(kindRate, "my.rate", 200, "host", nil, 10)
+	s.compressAt(kindRate, "my.rate", 100, "host", nil, 0, false)
+	s.compressAt(kindRate, "my.rate", 200, "host", nil, 10, false)
 
 	require.Len(t, fake.gauges, 1)
 	require.InDelta(t, 10.0, fake.gauges[0].value, 1e-9)
@@ -218,9 +232,9 @@ func TestRate_ComputesDerivativeLocally(t *testing.T) {
 func TestRate_NegativeRateIsTreatedAsReset(t *testing.T) {
 	s, fake := newTestSender()
 
-	s.compressAt(kindRate, "my.rate", 200, "host", nil, 0)
+	s.compressAt(kindRate, "my.rate", 200, "host", nil, 0, false)
 	// counter went down: underlying raw counter must have reset.
-	s.compressAt(kindRate, "my.rate", 100, "host", nil, 10)
+	s.compressAt(kindRate, "my.rate", 100, "host", nil, 10, false)
 
 	require.Empty(t, fake.gauges, "a negative derivative must be dropped, not shipped as a negative rate")
 }
@@ -228,10 +242,10 @@ func TestRate_NegativeRateIsTreatedAsReset(t *testing.T) {
 func TestMonotonicCount_ComputesDiffLocally(t *testing.T) {
 	s, fake := newTestSender()
 
-	s.compressAt(kindMonotonicCount, "my.mc", 10, "host", nil, 0)
+	s.compressAt(kindMonotonicCount, "my.mc", 10, "host", nil, 0, false)
 	require.Empty(t, fake.counts, "first sample has no previous value to diff against")
 
-	s.compressAt(kindMonotonicCount, "my.mc", 16, "host", nil, 1)
+	s.compressAt(kindMonotonicCount, "my.mc", 16, "host", nil, 1, false)
 	require.Len(t, fake.counts, 1)
 	require.InDelta(t, 6.0, fake.counts[0].value, 1e-9)
 }
@@ -239,9 +253,9 @@ func TestMonotonicCount_ComputesDiffLocally(t *testing.T) {
 func TestMonotonicCount_ResetIsDropped(t *testing.T) {
 	s, fake := newTestSender()
 
-	s.compressAt(kindMonotonicCount, "my.mc", 100, "host", nil, 0)
+	s.compressAt(kindMonotonicCount, "my.mc", 100, "host", nil, 0, false)
 	// raw counter reset back to a lower value.
-	s.compressAt(kindMonotonicCount, "my.mc", 5, "host", nil, 1)
+	s.compressAt(kindMonotonicCount, "my.mc", 5, "host", nil, 1, false)
 
 	require.Empty(t, fake.counts, "a reset (decreasing raw value) must be dropped, not shipped as a negative diff")
 }
@@ -260,7 +274,7 @@ func TestMonotonicCount_SumIsConservedAcrossWarmupCloseAndWindowFlush(t *testing
 		}
 	}
 	for i, v := range raw {
-		s.compressAt(kindMonotonicCount, "my.mc", v, "host", nil, float64(i))
+		s.compressAt(kindMonotonicCount, "my.mc", v, "host", nil, float64(i), false)
 	}
 
 	shipped := 0.0
@@ -271,29 +285,52 @@ func TestMonotonicCount_SumIsConservedAcrossWarmupCloseAndWindowFlush(t *testing
 	require.InDelta(t, totalDiff, shipped+ctx.pendingSum, 1e-9)
 }
 
+func TestMonotonicCount_FlushFirstValueShipsFirstSampleImmediately(t *testing.T) {
+	s, fake := newTestSender()
+
+	s.compressAt(kindMonotonicCount, "my.mc", 42, "host", nil, 0, true)
+
+	require.Len(t, fake.counts, 1, "flushFirstValue must ship the very first sample instead of waiting for a second to diff against")
+	require.Equal(t, 42.0, fake.counts[0].value)
+}
+
+func TestMonotonicCount_FlushFirstValueShipsResetBaseline(t *testing.T) {
+	s, fake := newTestSender()
+
+	s.compressAt(kindMonotonicCount, "my.mc", 100, "host", nil, 0, false)
+	require.Empty(t, fake.counts, "first sample has no previous value to diff against")
+
+	// raw counter reset back to a lower value, with flushFirstValue set: the
+	// new value must ship as the reset baseline, not be dropped.
+	s.compressAt(kindMonotonicCount, "my.mc", 5, "host", nil, 1, true)
+
+	require.Len(t, fake.counts, 1)
+	require.Equal(t, 5.0, fake.counts[0].value)
+}
+
 func TestWindowFlush_DrivenBySampleTimestampsNotWallClock(t *testing.T) {
 	s, fake := newTestSender()
 
-	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0)
+	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0, false)
 	require.Len(t, fake.gauges, 1, "warmup ships the first sample verbatim")
 
 	// Still well inside the window: no extra ship for a flat signal.
-	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 1)
+	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 1, false)
 	require.Len(t, fake.gauges, 2, "warmup(2) ships the second sample verbatim too")
 
-	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 5)
+	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 5, false)
 	require.Len(t, fake.gauges, 2, "flat signal after warmup: no new breakpoint before the window boundary")
 
 	// Cross 15 sample-seconds since the last flush (t=0): must force-close.
-	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 16)
+	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 16, false)
 	require.Len(t, fake.gauges, 3, "window boundary crossed: the pending point must ship")
 }
 
 func TestDifferentTagsAreIndependentContexts(t *testing.T) {
 	s, fake := newTestSender()
 
-	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"env:prod"}, 0)
-	s.compressAt(kindGauge, "my.gauge", 999, "host", []string{"env:staging"}, 0)
+	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"env:prod"}, 0, false)
+	s.compressAt(kindGauge, "my.gauge", 999, "host", []string{"env:staging"}, 0, false)
 
 	require.Len(t, fake.gauges, 2, "different tag sets must not share compressor state")
 }
@@ -301,8 +338,8 @@ func TestDifferentTagsAreIndependentContexts(t *testing.T) {
 func TestTagOrderDoesNotCreateNewContext(t *testing.T) {
 	s, _ := newTestSender()
 
-	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"a:1", "b:2"}, 0)
-	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"b:2", "a:1"}, 1)
+	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"a:1", "b:2"}, 0, false)
+	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"b:2", "a:1"}, 1, false)
 	// Warmup(2) ships both verbatim regardless; the point of this test is
 	// that both calls hit the SAME context (single entry), not two.
 	require.Len(t, s.contexts, 1)
@@ -323,7 +360,7 @@ func TestDryRun_ForwardsRawGaugeUnmodified(t *testing.T) {
 	s, fake := newTestSenderDryRun()
 
 	for i := 0; i < 10; i++ {
-		s.compressAt(kindGauge, "my.gauge", 42, "host", []string{"env:prod"}, float64(i))
+		s.compressAt(kindGauge, "my.gauge", 42, "host", []string{"env:prod"}, float64(i), false)
 	}
 
 	require.Len(t, fake.rawGauges, 10, "every raw call must be forwarded unmodified in dry-run mode")
@@ -339,26 +376,41 @@ func TestDryRun_ForwardsRawGaugeUnmodified(t *testing.T) {
 func TestDryRun_ForwardsRawCountRateMonotonicCountToTheirOwnMethods(t *testing.T) {
 	s, fake := newTestSenderDryRun()
 
-	s.compressAt(kindCount, "my.count", 5, "host", nil, 0)
-	s.compressAt(kindRate, "my.rate", 100, "host", nil, 0)
-	s.compressAt(kindMonotonicCount, "my.mc", 10, "host", nil, 0)
+	s.compressAt(kindCount, "my.count", 5, "host", nil, 0, false)
+	s.compressAt(kindRate, "my.rate", 100, "host", nil, 0, false)
+	s.compressAt(kindMonotonicCount, "my.mc", 10, "host", nil, 0, false)
 
 	require.Len(t, fake.rawCounts, 1)
 	require.Equal(t, 5.0, fake.rawCounts[0].value)
 	require.Len(t, fake.rawRates, 1)
 	require.Equal(t, 100.0, fake.rawRates[0].value, "Rate forwards the RAW value, not vbrsender's locally-reduced derivative — the real sender does its own diffing")
-	require.Len(t, fake.rawMonotonicCounts, 1)
-	require.Equal(t, 10.0, fake.rawMonotonicCounts[0].value, "MonotonicCount forwards the RAW cumulative value, not vbrsender's locally-reduced diff")
+
+	// MonotonicCount always forwards via MonotonicCountWithFlushFirstValue
+	// (never the plain MonotonicCount method), since that form is
+	// behaviorally identical when flushFirstValue is false.
+	require.Empty(t, fake.rawMonotonicCounts)
+	require.Len(t, fake.rawMonotonicCountsWithFlush, 1)
+	require.Equal(t, 10.0, fake.rawMonotonicCountsWithFlush[0].value, "MonotonicCount forwards the RAW cumulative value, not vbrsender's locally-reduced diff")
+	require.False(t, fake.rawMonotonicCountsWithFlush[0].flushFirstValue)
 
 	require.Empty(t, fake.gauges)
 	require.Empty(t, fake.counts)
+}
+
+func TestDryRun_ForwardsFlushFirstValueFlag(t *testing.T) {
+	s, fake := newTestSenderDryRun()
+
+	s.compressAt(kindMonotonicCount, "my.mc", 10, "host", nil, 0, true)
+
+	require.Len(t, fake.rawMonotonicCountsWithFlush, 1)
+	require.True(t, fake.rawMonotonicCountsWithFlush[0].flushFirstValue, "the flushFirstValue flag must be forwarded unmodified in dry-run mode")
 }
 
 func TestDryRun_StillMeasuresCompressionViaTelemetryOnly(t *testing.T) {
 	s, fake := newTestSenderDryRun()
 
 	for i := 0; i < 10; i++ {
-		s.compressAt(kindGauge, "my.gauge", 42, "host", nil, float64(i))
+		s.compressAt(kindGauge, "my.gauge", 42, "host", nil, float64(i), false)
 	}
 
 	// The underlying compressor still ran (warmup(2) would have produced its
@@ -381,24 +433,24 @@ func TestTlmContexts_TracksDistinctContextCountPerSender(t *testing.T) {
 
 	require.Equal(t, 0.0, s.tlmContexts.Get())
 
-	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"env:prod"}, 0)
+	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"env:prod"}, 0, false)
 	require.Equal(t, 1.0, s.tlmContexts.Get())
 
 	// Same metric, same tags (different order): must not count as a new
 	// context.
-	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"env:prod"}, 1)
+	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"env:prod"}, 1, false)
 	require.Equal(t, 1.0, s.tlmContexts.Get())
 
 	// Different tags: a genuinely new context.
-	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"env:staging"}, 0)
+	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"env:staging"}, 0, false)
 	require.Equal(t, 2.0, s.tlmContexts.Get())
 
 	// A different metric entirely: another new context.
-	s.compressAt(kindCount, "my.count", 1, "host", nil, 0)
+	s.compressAt(kindCount, "my.count", 1, "host", nil, 0, false)
 	require.Equal(t, 3.0, s.tlmContexts.Get())
 
 	// Contexts never expire: repeating earlier calls must not double-count.
-	s.compressAt(kindGauge, "my.gauge", 2, "host", []string{"env:prod"}, 2)
+	s.compressAt(kindGauge, "my.gauge", 2, "host", []string{"env:prod"}, 2, false)
 	require.Equal(t, 3.0, s.tlmContexts.Get())
 }
 
@@ -408,9 +460,9 @@ func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {
 	fakeB := &fakeSender{}
 	sB := newSender(fakeB, false, "check_b")
 
-	sA.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0)
-	sA.compressAt(kindGauge, "my.gauge2", 1, "host", nil, 0)
-	sB.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0)
+	sA.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0, false)
+	sA.compressAt(kindGauge, "my.gauge2", 1, "host", nil, 0, false)
+	sB.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0, false)
 
 	require.Equal(t, 2.0, sA.tlmContexts.Get())
 	require.Equal(t, 1.0, sB.tlmContexts.Get())

@@ -237,7 +237,20 @@ func (s *Sender) Rate(metric string, value float64, hostname string, tags []stri
 
 // MonotonicCount compresses metric instead of forwarding every call.
 func (s *Sender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
-	s.compress(kindMonotonicCount, metric, value, hostname, tags)
+	s.compressMonotonicCount(metric, value, hostname, tags, false)
+}
+
+// MonotonicCountWithFlushFirstValue compresses metric instead of forwarding
+// every call. flushFirstValue is not sticky per-context state — real checks
+// (e.g. the kubelet provider) pass a different value call to call for the
+// same metric+tags — so it's threaded through per call, matching
+// pkg/metrics/monotonic_count.go's own re-read-every-call behavior.
+func (s *Sender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
+	s.compressMonotonicCount(metric, value, hostname, tags, flushFirstValue)
+}
+
+func (s *Sender) compressMonotonicCount(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
+	s.compressAt(kindMonotonicCount, metric, value, hostname, tags, nowSeconds(), flushFirstValue)
 }
 
 func contextKeyFor(metric, hostname string, tags []string) string {
@@ -248,20 +261,21 @@ func contextKeyFor(metric, hostname string, tags []string) string {
 }
 
 func (s *Sender) compress(kind metricKind, metric string, rawValue float64, hostname string, tags []string) {
-	s.compressAt(kind, metric, rawValue, hostname, tags, nowSeconds())
+	s.compressAt(kind, metric, rawValue, hostname, tags, nowSeconds(), false)
 }
 
 // compressAt is compress with an explicit sample timestamp, so tests can
 // drive the compressor/window-flush deterministically without depending on
-// real elapsed wall-clock time between calls.
-func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, hostname string, tags []string, now float64) {
+// real elapsed wall-clock time between calls. flushFirstValue is only
+// meaningful for kindMonotonicCount (see reduce()); other kinds ignore it.
+func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, hostname string, tags []string, now float64, flushFirstValue bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.dryRun {
 		// The real, unmodified call is what actually ships in dry-run mode;
 		// the compressor below only measures what compression would do.
-		s.forwardRaw(kind, metric, rawValue, hostname, tags)
+		s.forwardRaw(kind, metric, rawValue, hostname, tags, flushFirstValue)
 	}
 
 	key := contextKeyFor(metric, hostname, tags)
@@ -282,7 +296,7 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 		s.tlmContexts.Inc()
 	}
 
-	value, ok := reduce(ctx, rawValue, now)
+	value, ok := reduce(ctx, rawValue, now, flushFirstValue)
 	if ok {
 		ctx.tlmSamples.Inc()
 		if ctx.kind == kindCount || ctx.kind == kindMonotonicCount {
@@ -303,7 +317,7 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 // real underlying sender, with the raw value as given — used only in
 // dry-run mode, letting the real sender's own aggregation (e.g. Rate's own
 // derivative) run exactly as if this decorator weren't present.
-func (s *Sender) forwardRaw(kind metricKind, metric string, value float64, hostname string, tags []string) {
+func (s *Sender) forwardRaw(kind metricKind, metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
 	switch kind {
 	case kindGauge:
 		s.Sender.Gauge(metric, value, hostname, tags)
@@ -312,7 +326,11 @@ func (s *Sender) forwardRaw(kind metricKind, metric string, value float64, hostn
 	case kindRate:
 		s.Sender.Rate(metric, value, hostname, tags)
 	case kindMonotonicCount:
-		s.Sender.MonotonicCount(metric, value, hostname, tags)
+		// MonotonicCountWithFlushFirstValue(..., false) is behaviorally
+		// identical to plain MonotonicCount (matches checkSender's own
+		// implementation), so always use this one form regardless of
+		// which method the check originally called.
+		s.Sender.MonotonicCountWithFlushFirstValue(metric, value, hostname, tags, flushFirstValue)
 	}
 }
 
@@ -322,8 +340,9 @@ func (s *Sender) forwardRaw(kind metricKind, metric string, value float64, hostn
 // pkg/metrics/monotonic_count.go). ok is false when there isn't yet enough
 // state to produce a value (first sample of a Rate/MonotonicCount series,
 // or a detected counter reset) — matching how those types produce no serie
-// on their first commit either.
-func reduce(ctx *contextState, rawValue, ts float64) (float64, bool) {
+// on their first commit either. flushFirstValue is only consulted for
+// kindMonotonicCount.
+func reduce(ctx *contextState, rawValue, ts float64, flushFirstValue bool) (float64, bool) {
 	switch ctx.kind {
 	case kindGauge, kindCount:
 		return rawValue, true
@@ -349,11 +368,25 @@ func reduce(ctx *contextState, rawValue, ts float64) (float64, bool) {
 	case kindMonotonicCount:
 		if !ctx.hasPreviousMonotonicCount {
 			ctx.previousMonotonicCount, ctx.hasPreviousMonotonicCount = rawValue, true
+			if flushFirstValue {
+				// The very first-ever sample ships as-is instead of
+				// waiting for a second sample to diff against, matching
+				// MonotonicCount.addSample's flushFirstValue handling
+				// (assumption: the raw counter started at 0).
+				return rawValue, true
+			}
 			return 0, false
 		}
 		diff := rawValue - ctx.previousMonotonicCount
 		ctx.previousMonotonicCount = rawValue
 		if diff < 0 {
+			if flushFirstValue {
+				// Not a drop: the raw counter is assumed to have reset to
+				// 0, so the current value is the count since reset,
+				// matching MonotonicCount.addSample's flushFirstValue
+				// reset-baseline handling.
+				return rawValue, true
+			}
 			// underlying raw counter was reset; drop, matching
 			// MonotonicCount.addSample's own reset handling.
 			return 0, false
