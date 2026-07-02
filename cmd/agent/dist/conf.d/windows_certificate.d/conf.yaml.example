@@ -182,8 +182,10 @@ instances:
 
     ## @param filters - mapping - optional
     ## Filters which collected certificates are reported to Datadog.
-    ## Each rule maps a tag key (as emitted by this check) to a Go regexp
-    ## pattern matched against the tag's value.
+    ## Each rule maps a tag key to a Go regexp pattern matched against the
+    ## tag's value. Filter rules work independently of the `*_tag` flags:
+    ## opt-in tag keys can be used in filters even when their flag is false
+    ## (the tag will still not appear in the emitted metrics).
     ##
     ## `include`: a certificate must satisfy ALL include rules to be reported.
     ##   A certificate that has no tag for a given include key is excluded.
