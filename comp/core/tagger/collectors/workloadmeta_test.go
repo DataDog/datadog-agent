@@ -1806,6 +1806,57 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 	assertTagInfoListEqual(t, expected, actual)
 }
 
+func TestHandleKubeKueueWorkloadClusterQueueFromLocalQueue(t *testing.T) {
+	workloadID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesKueueWorkload,
+		ID:   "default/job-sample",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	// Local queue carries the cluster queue association; the workload itself
+	// has no ClusterQueueName, so it must be resolved from the local queue.
+	store.Set(&workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   "localqueue/default/batch",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "batch",
+			Namespace: "default",
+		},
+		QueueType:        workloadmeta.KueueLocalQueue,
+		ClusterQueueName: "cluster-batch",
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubeKueueWorkload(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesKueueWorkload{
+			EntityID: workloadID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "job-sample",
+				Namespace: "default",
+			},
+			QueueName: "batch",
+			// ClusterQueueName intentionally empty.
+		},
+		IsComplete: true,
+	})
+
+	require.Len(t, actual, 1)
+	assert.Subset(t, actual[0].LowCardTags, []string{
+		"kueue_local_queue:batch",
+		"kueue_cluster_queue:cluster-batch",
+	})
+}
+
 func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 	tests := []struct {
 		name        string
