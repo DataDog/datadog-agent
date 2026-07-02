@@ -15,6 +15,7 @@
 package metrics
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,4 +166,32 @@ func TestRenameMetrics_SDKTraceMetricUnchanged(t *testing.T) {
 	m := sdkTraceMetric("s", 1, 1.0, nil)
 	renameMetrics(m)
 	assert.Equal(t, sdkTraceMetricName, m.Name())
+}
+
+// TestSDKTraceMetric_NoHistogramPassthrough verifies that the SDK trace histogram
+// is fully consumed by remapping and does not also flow through the normal histogram
+// path (i.e. no DDSketch series are emitted alongside the remapped Sums).
+func TestSDKTraceMetric_NoHistogramPassthrough(t *testing.T) {
+	translator := NewTestTranslator(t, WithRemapping())
+
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	sm := rm.ScopeMetrics().AppendEmpty()
+	sdkTraceMetric("s", 3, 1.5, map[string]string{
+		"datadog.operation.name": "http.request",
+		"span.name":              "checkout",
+	}).CopyTo(sm.Metrics().AppendEmpty())
+
+	consumer := newTestConsumer()
+	_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
+	require.NoError(t, err)
+
+	assert.Empty(t, consumer.data.Metrics.Sketches, "SDK trace histogram must not produce DDSketch series")
+
+	var names []string
+	for _, ts := range consumer.data.Metrics.TimeSeries {
+		names = append(names, ts.Name)
+	}
+	assert.Contains(t, names, "trace.http.request.hits")
+	assert.Contains(t, names, "trace.http.request.duration")
 }

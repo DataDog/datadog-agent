@@ -43,15 +43,18 @@ const (
 var emptyAttributesMapping = attributesMapping{}
 
 // remapMetrics extracts any Datadog specific metrics from m and appends them to all.
-func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
+// It reports whether the original metric was fully consumed by remapping and should
+// not be processed further (e.g. through the normal histogram path).
+func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) (consumed bool) {
 	if m.Name() == sdkTraceMetricName {
 		remapSDKTraceMetrics(all, m)
-		return
+		return true
 	}
 	remapSystemMetrics(all, m)
 	remapContainerMetrics(all, m)
 	remapKafkaMetrics(all, m)
 	remapJvmMetrics(all, m)
+	return false
 }
 
 // renameMetrics adds the `otel.` or `otelcol_` prefix to metrics.

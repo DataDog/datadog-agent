@@ -578,13 +578,17 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					seenNonAPMMetrics = true
 				}
 
+				consumed := false
 				if t.cfg.withRemapping {
-					remapMetrics(newMetrics, md)
+					consumed = remapMetrics(newMetrics, md)
 				}
 				if t.cfg.withOTelPrefix {
 					renameMetrics(md)
 				}
 
+				if consumed {
+					continue
+				}
 				err := t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
 				if err != nil {
 					return metadata, err
