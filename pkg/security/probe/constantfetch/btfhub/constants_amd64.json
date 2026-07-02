@@ -75,7 +75,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -152,7 +154,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -229,7 +233,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -306,7 +312,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -383,7 +391,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -460,7 +470,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -534,7 +546,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -608,7 +622,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -685,7 +701,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -762,7 +780,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -839,7 +859,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -916,7 +938,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -993,7 +1017,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1070,7 +1096,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1146,7 +1174,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1222,7 +1252,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1299,7 +1331,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1376,7 +1410,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -1455,7 +1491,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -1533,7 +1571,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -1613,7 +1653,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1692,7 +1734,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1771,7 +1815,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1850,7 +1896,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1929,7 +1977,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2008,7 +2058,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2087,7 +2139,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2166,7 +2220,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2245,7 +2301,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2324,7 +2382,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2403,7 +2463,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2482,7 +2544,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -2562,7 +2626,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -2642,7 +2708,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -2722,7 +2790,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -2802,7 +2872,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -2882,7 +2954,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -2962,7 +3036,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3036,7 +3112,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3110,7 +3188,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3185,7 +3265,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3259,7 +3341,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3336,7 +3420,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3410,7 +3496,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3485,7 +3573,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3564,7 +3654,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3644,7 +3736,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3723,7 +3817,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 176,
@@ -3802,7 +3898,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3883,7 +3981,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3963,7 +4063,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4044,7 +4146,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4118,7 +4222,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4192,7 +4298,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4269,7 +4377,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4346,7 +4456,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4427,7 +4539,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4508,7 +4622,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4589,7 +4705,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4670,7 +4788,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -4748,7 +4868,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -4828,7 +4950,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4909,7 +5033,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4986,7 +5112,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5063,7 +5191,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5141,7 +5271,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5219,7 +5351,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5300,7 +5434,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5381,7 +5517,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5462,7 +5600,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5543,7 +5683,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5619,7 +5761,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5695,7 +5839,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -5773,7 +5919,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -5853,7 +6001,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5927,7 +6077,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -6001,7 +6153,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -6078,7 +6232,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -6155,7 +6311,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -6233,7 +6391,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6314,7 +6474,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6395,7 +6557,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -6470,7 +6634,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -6545,7 +6711,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -6620,7 +6788,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -6695,7 +6865,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -6770,7 +6942,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -6845,7 +7019,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -6922,7 +7098,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7001,7 +7179,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7080,7 +7260,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7159,7 +7341,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7238,7 +7422,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7317,7 +7503,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7396,7 +7584,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7475,7 +7665,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7555,7 +7747,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7629,7 +7823,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7703,7 +7899,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7777,7 +7975,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7851,7 +8051,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7925,7 +8127,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -7999,7 +8203,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8073,7 +8279,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8147,7 +8355,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8221,7 +8431,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8295,7 +8507,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8369,7 +8583,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8443,7 +8659,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8517,7 +8735,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8591,7 +8811,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8665,7 +8887,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8739,7 +8963,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8813,7 +9039,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8887,7 +9115,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -8961,7 +9191,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -9038,7 +9270,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -9117,7 +9351,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -9196,7 +9432,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -9275,7 +9513,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -9354,7 +9594,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -9433,7 +9675,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -9512,7 +9756,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -9592,7 +9838,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -9672,7 +9920,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -9752,7 +10002,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 176,
@@ -9831,7 +10083,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 176,
@@ -9910,7 +10164,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 176,
@@ -9989,7 +10245,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 176,
@@ -10068,7 +10326,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 176,
@@ -10147,7 +10407,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -10228,7 +10490,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -10309,7 +10573,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -10390,7 +10656,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -10471,7 +10739,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -10552,7 +10822,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -10633,7 +10905,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -10714,7 +10988,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -10795,7 +11071,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -10876,7 +11154,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -10957,7 +11237,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -11038,7 +11320,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -11119,7 +11403,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -11200,7 +11486,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -11280,7 +11568,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -11360,7 +11650,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -11440,7 +11732,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -11521,7 +11815,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -11602,7 +11898,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -11683,7 +11981,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -11764,7 +12064,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -11845,7 +12147,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -11926,7 +12230,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -12007,7 +12313,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -12088,7 +12396,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -12169,7 +12479,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -12250,7 +12562,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -12331,7 +12645,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -12412,7 +12728,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -12493,7 +12811,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -12574,7 +12894,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -12655,7 +12977,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -12735,7 +13059,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -12815,7 +13141,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -12895,7 +13223,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -12975,7 +13305,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -13055,7 +13387,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -13135,7 +13469,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		}
 	],
 	"kernels": [
@@ -14131,6 +14467,13 @@
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.355-284.735.amzn2.x86_64",
+			"cindex": 4
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.355-284.737.amzn2.x86_64",
 			"cindex": 4
 		},
 		{
