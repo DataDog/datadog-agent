@@ -56,7 +56,7 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore encryptioncontext.Store) *Registry {
+func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.remoteaction":                         com_datadoghq_remoteaction.NewRemoteAction(configuration),

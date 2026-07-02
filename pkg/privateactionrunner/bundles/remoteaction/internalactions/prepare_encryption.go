@@ -22,10 +22,10 @@ import (
 const keyTypeCurve25519 = "curve25519"
 
 type PrepareEncryptionHandler struct {
-	store encryptioncontext.Store
+	store *encryptioncontext.Store
 }
 
-func NewPrepareEncryptionHandler(store encryptioncontext.Store) *PrepareEncryptionHandler {
+func NewPrepareEncryptionHandler(store *encryptioncontext.Store) *PrepareEncryptionHandler {
 	return &PrepareEncryptionHandler{store: store}
 }
 
@@ -57,10 +57,7 @@ func (handler *PrepareEncryptionHandler) Run(
 		return nil, fmt.Errorf("failed to generate Curve25519 key pair: %w", err)
 	}
 
-	err = handler.store.Put(inputs.EncryptionContextID, privateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to store encryption context: %w", err)
-	}
+	handler.store.Set(inputs.EncryptionContextID, privateKey)
 
 	return &PrepareEncryptionOutputs{
 		KeyType:   keyTypeCurve25519,

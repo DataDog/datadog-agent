@@ -18,7 +18,7 @@ type InternalBundle struct {
 	actions map[string]types.Action
 }
 
-func NewInternal(store encryptioncontext.Store) types.Bundle {
+func NewInternal(store *encryptioncontext.Store) types.Bundle {
 	return &InternalBundle{
 		actions: map[string]types.Action{
 			"prepareEncryption": NewPrepareEncryptionHandler(store),

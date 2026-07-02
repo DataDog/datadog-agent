@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/base64"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/nacl/box"
@@ -29,15 +28,15 @@ func newTask(taskID string, inputs map[string]any) *types.Task {
 	return task
 }
 
-func assertSealRoundTrip(t *testing.T, store encryptioncontext.Store, encryptionContextID string, result *PrepareEncryptionOutputs) {
+func assertSealRoundTrip(t *testing.T, store *encryptioncontext.Store, encryptionContextID string, result *PrepareEncryptionOutputs) {
 	t.Helper()
 
 	publicKey, err := base64.StdEncoding.DecodeString(result.PublicKey)
 	require.NoError(t, err)
 	require.Len(t, publicKey, 32, "Curve25519 public key must be 32 bytes")
 
-	privateKey, err := store.Take(encryptionContextID)
-	require.NoError(t, err)
+	privateKey, found := store.GetAndDelete(encryptionContextID)
+	require.True(t, found)
 	require.NotNil(t, privateKey)
 
 	var publicKeyArray [32]byte
@@ -74,7 +73,7 @@ func TestPrepareEncryptionRun(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			store := encryptioncontext.NewStore(time.Now)
+			store := encryptioncontext.NewStore()
 			handler := NewPrepareEncryptionHandler(store)
 
 			output, err := handler.Run(context.Background(), newTask("task-abc", testCase.inputs), nil)
@@ -93,7 +92,7 @@ func TestPrepareEncryptionRun(t *testing.T) {
 }
 
 func TestPrepareEncryptionGeneratesUniqueContextsPerRun(t *testing.T) {
-	store := encryptioncontext.NewStore(time.Now)
+	store := encryptioncontext.NewStore()
 	handler := NewPrepareEncryptionHandler(store)
 
 	runs := []string{"first", "second"}
@@ -121,7 +120,7 @@ func TestInternalBundleGetAction(t *testing.T) {
 		{name: "unknown action", actionName: "doesNotExist", wantPresent: false},
 	}
 
-	store := encryptioncontext.NewStore(time.Now)
+	store := encryptioncontext.NewStore()
 	bundle := NewInternal(store)
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

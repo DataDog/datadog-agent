@@ -10,89 +10,55 @@
 package encryptioncontext
 
 import (
-	"errors"
-	"sync"
 	"time"
+
+	"github.com/jellydator/ttlcache/v3"
 )
 
-var ErrNotFound = errors.New("encryption context not found")
-
-var ErrAlreadyExists = errors.New("encryption context already exists")
-
-// Store keeps private keys indexed by encryptionContextID.
-// Keys are evicted on Take, or automatically after their TTL elapses.
-type Store interface {
-	Put(encryptionContextID string, privateKey *[32]byte) error
-	Take(encryptionContextID string) (*[32]byte, error)
-}
-
-type entry struct {
-	privateKey *[32]byte
-	expiresAt  time.Time
-	timer      *time.Timer
-}
-
-type memoryStore struct {
-	mutex   sync.Mutex
-	entries map[string]entry
-	ttl     time.Duration
-	now     func() time.Time
-}
-
-// DefaultTTL is how long a key remains retrievable after Put when using NewStore.
+// DefaultTTL is how long a key remains retrievable after being stored,
+// when using NewStore.
 const DefaultTTL = 5 * time.Minute
 
+// Store keeps private keys indexed by encryptionContextID, evicted after
+// their TTL elapses or once explicitly deleted.
+type Store struct {
+	cache *ttlcache.Cache[string, *[32]byte]
+}
+
 // NewStore returns an in-memory Store using DefaultTTL.
-func NewStore(now func() time.Time) Store {
-	return NewStoreWithTTL(DefaultTTL, now)
+func NewStore() *Store {
+	return NewStoreWithTTL(DefaultTTL)
 }
 
 // NewStoreWithTTL returns an in-memory Store. ttl is how long a key remains
-// retrievable after Put.
-func NewStoreWithTTL(ttl time.Duration, now func() time.Time) Store {
-	if now == nil {
-		now = time.Now
-	}
-	return &memoryStore{
-		entries: make(map[string]entry),
-		ttl:     ttl,
-		now:     now,
+// retrievable after being stored.
+func NewStoreWithTTL(ttl time.Duration) *Store {
+	return &Store{
+		cache: ttlcache.New(ttlcache.WithTTL[string, *[32]byte](ttl)),
 	}
 }
 
-func (store *memoryStore) Put(encryptionContextID string, privateKey *[32]byte) error {
-	store.mutex.Lock()
-	defer store.mutex.Unlock()
-	if _, ok := store.entries[encryptionContextID]; ok {
-		return ErrAlreadyExists
-	}
-	store.entries[encryptionContextID] = entry{
-		privateKey: privateKey,
-		expiresAt:  store.now().Add(store.ttl),
-		timer:      time.AfterFunc(store.ttl, func() { store.evict(encryptionContextID) }),
-	}
-	return nil
+// Set stores privateKey under encryptionContextID, overwriting any existing entry.
+func (store *Store) Set(encryptionContextID string, privateKey *[32]byte) {
+	store.cache.Set(encryptionContextID, privateKey, ttlcache.DefaultTTL)
 }
 
-// evict removes encryptionContextID's entry once its wall-clock timer fires,
-// guaranteeing removal after ttl.
-func (store *memoryStore) evict(encryptionContextID string) {
-	store.mutex.Lock()
-	defer store.mutex.Unlock()
-	delete(store.entries, encryptionContextID)
+// GetAndDelete retrieves and evicts the entry for encryptionContextID.
+// Returns (nil, false) if no live entry exists.
+func (store *Store) GetAndDelete(encryptionContextID string) (*[32]byte, bool) {
+	item, found := store.cache.GetAndDelete(encryptionContextID)
+	if !found {
+		return nil, false
+	}
+	return item.Value(), true
 }
 
-func (store *memoryStore) Take(encryptionContextID string) (*[32]byte, error) {
-	store.mutex.Lock()
-	defer store.mutex.Unlock()
-	storedEntry, ok := store.entries[encryptionContextID]
-	if !ok {
-		return nil, ErrNotFound
-	}
-	delete(store.entries, encryptionContextID)
-	storedEntry.timer.Stop()
-	if !store.now().Before(storedEntry.expiresAt) {
-		return nil, ErrNotFound
-	}
-	return storedEntry.privateKey, nil
+// Start runs the eviction loop until Stop is called. Blocking; call in a goroutine.
+func (store *Store) Start() {
+	store.cache.Start()
+}
+
+// Stop terminates the eviction loop started by Start.
+func (store *Store) Stop() {
+	store.cache.Stop()
 }
