@@ -577,13 +577,15 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 		pb.txn.Sint64(columnValueSint64, bCnt)
 		pb.stats.valuesSint64++
 
-		k, n := pnt.Sketch.Cols()
 		kDelta := deltaEncoder{}
-		for i := range k {
-			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))
-			pb.txn.Uint64(columnSketchBinCnts, uint64(n[i]))
-		}
-		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
+		numBins := uint64(0)
+		pnt.Sketch.Range(func(k int32, n uint32) bool {
+			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k)))
+			pb.txn.Uint64(columnSketchBinCnts, uint64(n))
+			numBins++
+			return true
+		})
+		pb.txn.Uint64(columnSketchNumBins, numBins)
 	}
 }
 
