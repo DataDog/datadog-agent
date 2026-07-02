@@ -200,6 +200,7 @@ rules:
     resources:
       - localqueues
       - clusterqueues
+      - resourceflavors
     verbs:
       - list
       - get

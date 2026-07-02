@@ -19,7 +19,7 @@ import (
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	criutil "github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	containerdoci "github.com/containerd/containerd/oci"
+	containerdoci "github.com/containerd/containerd/v2/pkg/oci"
 )
 
 const (
