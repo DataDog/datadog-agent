@@ -113,6 +113,7 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameNetStructNS:                 getNetNSOffset,
 		OffsetNameSocketStructSK:              getSocketSockOffset,
 		OffsetNameNFConnStructCTNet:           getNFConnCTNetOffset,
+		OffsetNameNFConnStructTuplehash:       getNFConnTuplehashOffset,
 		OffsetNameFlowI4StructSADDR:           getFlowi4SAddrOffset,
 		OffsetNameFlowI6StructSADDR:           getFlowi6SAddrOffset,
 		OffsetNameFlowI4StructULI:             getFlowi4ULIOffset,
@@ -774,6 +775,15 @@ func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
 		return 136
 	default:
 		return 144
+	}
+}
+
+func getNFConnTuplehashOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsCOSKernel():
+		return 40
+	default:
+		return 16
 	}
 }
 
