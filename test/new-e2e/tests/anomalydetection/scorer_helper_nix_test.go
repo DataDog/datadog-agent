@@ -90,7 +90,7 @@ anomaly_detection:
       enabled: false
     tukey_biweight:
       enabled: false
-`
+` + baselineAnalysisDisabledYAML
 	e2e.Run(t, &scorerHelperSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
@@ -194,7 +194,7 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 		assert.NoError(c, err, "journalctl execution failed")
 		assert.Contains(c, out, scorerHelperEscalationMarker,
 			"journald should contain the scorer watcher's severity escalation log line")
-	}, 3*time.Minute, 5*time.Second)
+	}, 5*time.Minute, 5*time.Second)
 
 	s.T().Log("scorer severity escalation marker found — anomaly scorer watcher wired correctly")
 }

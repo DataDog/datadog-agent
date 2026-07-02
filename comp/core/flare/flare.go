@@ -248,9 +248,8 @@ func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration,
 		if ipcError != nil {
 			msg = fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError)
 		}
-		content := fmt.Sprintf("%s\nFlare creation time: %s", msg, time.Now().UTC().Format(time.RFC3339))
+		content := fmt.Sprintf("%s\nFlare creation time: %s\nGo version: %s", msg, time.Now().UTC().Format(time.RFC3339), runtime.Version())
 		if bi, ok := runtimedebug.ReadBuildInfo(); ok {
-			content += "\nGo version: " + bi.GoVersion
 			for _, s := range bi.Settings {
 				switch s.Key {
 				case "vcs.revision", "vcs.time", "vcs.modified":

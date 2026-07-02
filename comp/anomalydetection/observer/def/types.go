@@ -288,6 +288,41 @@ type SeriesDetector interface {
 	Detect(series Series) DetectionResult
 }
 
+// CorrelatorEventKind identifies the type of a correlator lifecycle event.
+type CorrelatorEventKind int
+
+const (
+	// CorrelatorEventEpisodeStarted fires when the scorer enters High severity.
+	CorrelatorEventEpisodeStarted CorrelatorEventKind = iota + 1
+	// CorrelatorEventEpisodeEnded fires when the scorer leaves High severity.
+	CorrelatorEventEpisodeEnded
+	// CorrelatorEventCorrelationDetected fires when a correlator observes a
+	// pattern for the first time (or after it has gone inactive and recurred).
+	CorrelatorEventCorrelationDetected
+)
+
+// CorrelatorEvent is a typed lifecycle event produced by a correlator during Advance.
+// Reporters receive these via ReportOutput.CorrelatorEvents and can emit backend
+// notifications without relying on the one-shot dedup logic in ActiveCorrelations.
+// Correlators own recurrence detection and produce CorrelationDetected events via
+// a shared emitter; scorer-type correlators produce EpisodeStarted/EpisodeEnded.
+type CorrelatorEvent struct {
+	Kind CorrelatorEventKind
+	// CorrelatorName identifies the correlator that produced this event.
+	CorrelatorName string
+	// Timestamp is the data time (unix seconds) when the event occurred.
+	Timestamp int64
+	// Correlation is the pattern associated with this event.
+	// For EpisodeStarted: the newly opened episode (no end time yet).
+	// For EpisodeEnded: the closed episode with the final LastUpdated.
+	// For CorrelationDetected: the full active correlation at first-seen time.
+	Correlation ActiveCorrelation
+	// FromLevel and ToLevel carry the scorer severity transition.
+	// Populated only for EpisodeStarted/EpisodeEnded; zero for CorrelationDetected.
+	FromLevel SeverityLevel
+	ToLevel   SeverityLevel
+}
+
 // Correlator accumulates anomaly events and produces correlated patterns.
 // Correlators are stateful and cluster/filter/summarize anomaly streams.
 //
@@ -305,6 +340,11 @@ type Correlator interface {
 	Advance(dataTime int64)
 	// ActiveCorrelations returns currently detected correlation patterns.
 	ActiveCorrelations() []ActiveCorrelation
+	// PendingEvents returns and drains typed lifecycle events accumulated during
+	// the last Advance call. The caller owns the returned slice; the correlator
+	// discards it after this call. Returns nil when no events are pending.
+	// Correlators with no lifecycle events (e.g. time-cluster) always return nil.
+	PendingEvents() []CorrelatorEvent
 	// Reset clears all internal state for reanalysis.
 	Reset()
 }
