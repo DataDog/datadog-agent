@@ -14,7 +14,12 @@ from tasks.libs.code_review.prompt import (
     render_prompt,
     select_guideline_paths,
 )
-from tasks.libs.code_review.providers import ProviderInvocation, build_provider_invocation, expand_providers, run_provider
+from tasks.libs.code_review.providers import (
+    ProviderInvocation,
+    build_provider_invocation,
+    expand_providers,
+    run_provider,
+)
 
 
 class NoopContext:

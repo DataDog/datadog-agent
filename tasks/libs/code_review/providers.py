@@ -10,7 +10,6 @@ from pathlib import Path
 from tasks.libs.code_review.prompt import CodeReviewError, ReviewPrompt
 from tasks.libs.common.utils import is_installed
 
-
 PROVIDERS = ("codex", "claude", "gemini")
 PROVIDER_CHOICES = (*PROVIDERS, "all")
 

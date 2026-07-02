@@ -5,7 +5,6 @@ from pathlib import Path, PurePosixPath
 
 from tasks.libs.common.git import get_changed_files, get_origin_default_branch
 
-
 DEFAULT_PROMPT_FILES = (
     "codereview_guideline.md",
     "bazel/codereview_guideline.md",
