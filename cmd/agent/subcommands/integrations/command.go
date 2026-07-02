@@ -174,6 +174,8 @@ You must specify a version of the package to install using the syntax: <package>
 	showCmd.Flags().BoolVarP(&cliParams.versionOnly, "show-version-only", "q", false, "only display version information")
 	integrationCmd.AddCommand(showCmd)
 
+	integrationCmd.AddCommand(newSetupCommand(globalParams, cliParams))
+
 	return []*cobra.Command{integrationCmd}
 }
 
