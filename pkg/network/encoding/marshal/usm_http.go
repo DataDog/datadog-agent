@@ -71,12 +71,9 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 	return staticTags, dynamicTags
 }
 
-// encodeUSMEndpoint writes a single endpoint aggregation (path/method plus the
-// per-status-code stats) into the shared HTTPStatsBuilder used by both the HTTP
-// and HTTP/2 encoders. In discovery mode the path/method are dropped from the
-// output and latencies are reported as a running sum (LatencySum) instead of a
-// DDSketch. It accumulates static/dynamic tags into the caller-provided
-// containers.
+// encodeUSMEndpoint encodes one endpoint aggregation into the shared builder used
+// by the HTTP and HTTP/2 encoders. Discovery mode drops path/method and uses
+// LatencySum instead of a DDSketch.
 func encodeUSMEndpoint(builder *model.HTTPStatsBuilder, key http.Key, stats *http.RequestStats, discoveryMode bool, sketchBuilder *ddsketch.DDSketchCollectionBuilder, staticTags *uint64, dynamicTags map[string]struct{}) {
 	if !discoveryMode {
 		builder.SetPath(key.Path.Content.Get())
