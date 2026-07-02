@@ -1,35 +1,39 @@
-// Copyright The OpenTelemetry Authors
-// SPDX-License-Identifier: Apache-2.0
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
-package datadogconnector
+package transform
 
 import (
 	"strconv"
 
-	"go.uber.org/zap"
-
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // keySamplingRateGlobal mirrors the unexported constant in
 // github.com/DataDog/datadog-agent/pkg/trace/stats (weight.go).
-// Must stay in sync: the Concentrator reads this key to compute span weight.
+// Must stay in sync: the Concentrator reads this key to compute span weight
+// (weight = 1/_sample_rate).
 const keySamplingRateGlobal = "_sample_rate"
 
 // pValueNotSampled is the reserved p-value sentinel meaning "not sampled"
 // in the consistent-probability sampling encoding (p:63 has no probability).
 const pValueNotSampled = 63
 
-// samplingProbFromTracestate extracts the sampling probability from a raw W3C
-// tracestate string. Returns (probability, true) on success, (0, false)
-// otherwise.
+// samplingProbFromTracestate extracts the head-based sampling probability from a
+// raw W3C tracestate string. Returns (probability, true) on success,
+// (0, false) otherwise.
 //
 // Two encodings are supported:
 //   - th (threshold): OTel collector-contrib pkg/sampling samplers.
 //     e.g. "ot=th:8" → probability 0.5
 //   - p (power-of-two): go.opentelemetry.io/contrib/samplers/probability/consistent.
 //     e.g. "ot=p:1;r:1" → probability 2^-1 = 0.5
-func samplingProbFromTracestate(raw string, logger *zap.Logger) (float64, bool) {
+func samplingProbFromTracestate(raw string) (float64, bool) {
 	if raw == "" {
 		return 0, false
 	}
@@ -37,10 +41,7 @@ func samplingProbFromTracestate(raw string, logger *zap.Logger) (float64, bool) 
 	if err != nil {
 		// Malformed tracestate — log at debug so misconfigured tracers are
 		// diagnosable without being noisy in healthy pipelines.
-		if logger != nil {
-			logger.Debug("Failed to parse W3C tracestate for sampling probability",
-				zap.String("tracestate", raw), zap.Error(err))
-		}
+		log.Debugf("Failed to parse W3C tracestate %q for sampling probability: %v", raw, err)
 		return 0, false
 	}
 	otel := w3c.OTelValue()
@@ -73,4 +74,30 @@ func samplingProbFromTracestate(raw string, logger *zap.Logger) (float64, bool) 
 	}
 
 	return 0, false
+}
+
+// SetSampleRateFromTracestate decodes the head-based sampling probability from
+// the raw W3C tracestate and sets it as _sample_rate on the span's Metrics —
+// but only when a valid probability is decoded and _sample_rate is not already
+// present (an explicit upstream value is preserved). This lets the APM stats
+// Concentrator scale stats back up by the head-sampling weight (1/_sample_rate).
+//
+// The Concentrator reads weight only from the chunk root, so setting the value
+// on non-root spans is harmless. Returns true if _sample_rate was set.
+func SetSampleRateFromTracestate(span *pb.Span, rawTracestate string) bool {
+	if span == nil {
+		return false
+	}
+	if _, exists := span.Metrics[keySamplingRateGlobal]; exists {
+		return false // preserve an explicitly set value from upstream
+	}
+	prob, ok := samplingProbFromTracestate(rawTracestate)
+	if !ok {
+		return false
+	}
+	if span.Metrics == nil {
+		span.Metrics = make(map[string]float64)
+	}
+	span.Metrics[keySamplingRateGlobal] = prob
+	return true
 }

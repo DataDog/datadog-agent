@@ -116,6 +116,11 @@ func otelSpanToDDSpanMinimal(
 	// conversion already does this; mirror it here.
 	if ts := otelspan.TraceState().AsRaw(); ts != "" {
 		ddspan.Meta["w3c.tracestate"] = ts
+		// Decode the head-based sampling probability from the tracestate and set
+		// _sample_rate so the APM stats Concentrator scales stats back up by the
+		// head-sampling weight (1/_sample_rate). Gated on absence to preserve any
+		// explicit upstream value.
+		SetSampleRateFromTracestate(ddspan, ts)
 	}
 	return ddspan
 }

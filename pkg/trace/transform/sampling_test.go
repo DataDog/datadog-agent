@@ -1,12 +1,16 @@
-// Copyright The OpenTelemetry Authors
-// SPDX-License-Identifier: Apache-2.0
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
-package datadogconnector
+package transform
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
 func TestSamplingProbFromTracestate(t *testing.T) {
@@ -68,7 +72,7 @@ func TestSamplingProbFromTracestate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prob, ok := samplingProbFromTracestate(tt.traceState, nil)
+			prob, ok := samplingProbFromTracestate(tt.traceState)
 			assert.Equal(t, tt.wantOK, ok)
 			if tt.wantOK {
 				assert.InDelta(t, tt.wantProb, prob, 1e-9)
@@ -83,8 +87,45 @@ func TestSamplingProbFromTracestate_Malformed(t *testing.T) {
 	// the th field, so NewW3CTraceState may return an error or silently skip;
 	// either way ok=false.
 	assert.NotPanics(t, func() {
-		prob, ok := samplingProbFromTracestate("ot=th:zz", nil)
+		prob, ok := samplingProbFromTracestate("ot=th:zz")
 		assert.False(t, ok)
 		assert.Equal(t, float64(0), prob)
+	})
+}
+
+func TestSetSampleRateFromTracestate(t *testing.T) {
+	t.Run("sets rate when decodable and absent", func(t *testing.T) {
+		s := &pb.Span{Metrics: map[string]float64{}}
+		ok := SetSampleRateFromTracestate(s, "ot=th:8")
+		assert.True(t, ok)
+		assert.InDelta(t, 0.5, s.Metrics[keySamplingRateGlobal], 1e-9)
+	})
+
+	t.Run("preserves explicit upstream value", func(t *testing.T) {
+		s := &pb.Span{Metrics: map[string]float64{keySamplingRateGlobal: 0.25}}
+		ok := SetSampleRateFromTracestate(s, "ot=th:8")
+		assert.False(t, ok)
+		assert.InDelta(t, 0.25, s.Metrics[keySamplingRateGlobal], 1e-9)
+	})
+
+	t.Run("no-op when tracestate has no probability", func(t *testing.T) {
+		s := &pb.Span{Metrics: map[string]float64{}}
+		ok := SetSampleRateFromTracestate(s, "zz=vendor")
+		assert.False(t, ok)
+		_, exists := s.Metrics[keySamplingRateGlobal]
+		assert.False(t, exists)
+	})
+
+	t.Run("nil Metrics map is allocated", func(t *testing.T) {
+		s := &pb.Span{}
+		ok := SetSampleRateFromTracestate(s, "ot=p:1;r:1")
+		assert.True(t, ok)
+		assert.InDelta(t, 0.5, s.Metrics[keySamplingRateGlobal], 1e-9)
+	})
+
+	t.Run("nil span is safe", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			assert.False(t, SetSampleRateFromTracestate(nil, "ot=th:8"))
+		})
 	})
 }

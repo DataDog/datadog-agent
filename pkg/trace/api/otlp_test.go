@@ -258,6 +258,52 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}
 }
 
+// TestOTLPSampleRateFromTracestate verifies that a head-based sampling
+// probability encoded in the W3C tracestate (ot=th:8 → 50%) is decoded during
+// OTLP ingestion and set as _sample_rate=0.5 on the emitted pb.Span, so the
+// downstream Concentrator scales APM stats by the head-sampling weight. Covers
+// both the V1 (convertSpan) and V2 (transform.OtelSpanToDDSpan) receiver paths.
+func TestOTLPSampleRateFromTracestate(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPSampleRateFromTracestate(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPSampleRateFromTracestate(true, t)
+	})
+}
+
+func testOTLPSampleRateFromTracestate(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	t.Helper()
+	cfg := NewTestConfig(t)
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	}
+	out := make(chan *Payload, 1)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		{
+			LibName:    "libname",
+			LibVersion: "1.2",
+			Attributes: map[string]interface{}{},
+			Spans: []*testutil.OTLPSpan{
+				{Name: "sampled", TraceState: "ot=th:8"},
+			},
+		},
+	}).Traces().ResourceSpans().At(0), http.Header{}, nil)
+	timeout := time.After(500 * time.Millisecond)
+	select {
+	case <-timeout:
+		t.Fatal("timed out")
+	case p := <-out:
+		span := p.TracerPayload.Chunks[0].Spans[0]
+		assert.Equal(t, "ot=th:8", span.Meta["w3c.tracestate"])
+		rate, ok := span.Metrics["_sample_rate"]
+		require.True(t, ok, "_sample_rate must be set from tracestate")
+		assert.InDelta(t, 0.5, rate, 1e-9)
+	}
+}
+
 func TestOTLPSpanNameV2(t *testing.T) {
 	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
 		testOTLPSpanNameV2(false, t)
