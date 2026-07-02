@@ -33,6 +33,7 @@ go_library(
         "//pkg/metrics/servicecheck",
         "//pkg/serializer/types",
         "//pkg/util/option",
+        "@//pkg/util/infratags",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
     ],
