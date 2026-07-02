@@ -15,9 +15,14 @@
 package metrics
 
 import (
+	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 )
 
 const (
@@ -25,12 +30,24 @@ const (
 	divMebibytes = 1024 * 1024
 	// divPercentage specifies the division necessary for converting fractions to percentages.
 	divPercentage = 0.01
+
+	// sdkTraceMetricName is the histogram emitted by Datadog SDKs that ship trace
+	// metrics via OTLP (see the OTLP Trace Metrics Export RFC). The otlp-intake
+	// backend remaps this metric into the trace.* namespace, but that intake
+	// endpoint (otlp.datadoghq.com) is not yet GA. Duplicating the remapping here
+	// lets customers sending OTLP through the Agent/DDOT obtain trace metric
+	// series without relying on it.
+	sdkTraceMetricName = "traces.span.sdk.metrics.duration"
 )
 
 var emptyAttributesMapping = attributesMapping{}
 
 // remapMetrics extracts any Datadog specific metrics from m and appends them to all.
 func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
+	if m.Name() == sdkTraceMetricName {
+		remapSDKTraceMetrics(all, m)
+		return
+	}
 	remapSystemMetrics(all, m)
 	remapContainerMetrics(all, m)
 	remapKafkaMetrics(all, m)
@@ -39,6 +56,10 @@ func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
 
 // renameMetrics adds the `otel.` or `otelcol_` prefix to metrics.
 func renameMetrics(m pmetric.Metric) {
+	if m.Name() == sdkTraceMetricName {
+		// The SDK trace metric is remapped into the trace.* namespace; never prefix it.
+		return
+	}
 	renameHostMetrics(m)
 	renameKafkaMetrics(m)
 	renameAgentInternalOTelMetric(m)
@@ -249,4 +270,153 @@ func renameAgentInternalOTelMetric(m pmetric.Metric) {
 	if isAgentInternalOTelMetric(m.Name()) {
 		m.SetName("otelcol_" + m.Name())
 	}
+}
+
+// remapSDKTraceMetrics remaps the SDK-emitted histogram traces.span.sdk.metrics.duration
+// into Datadog trace.<operation>.* series (hits, errors, duration), duplicating the
+// TraceMetrics remapping the otlp-intake backend applies. Each histogram datapoint yields
+// one operation, keyed on the datapoint attributes:
+//
+//   - trace.<operation>.hits     — count == histogram datapoint count
+//   - trace.<operation>.errors   — count == hits when the datapoint is an error, else absent
+//   - trace.<operation>.duration — total duration in nanoseconds (histogram Sum scaled by unit)
+//
+// The metric name is left as its span-derived operation; the resource, span.kind and
+// status information are carried as datapoint attributes so downstream aggregation
+// mirrors the trace-stats produced by the intake path.
+func remapSDKTraceMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
+	if m.Type() != pmetric.MetricTypeHistogram {
+		return
+	}
+	scaleToNanos := getTimeUnitScaleToNanos(m.Unit())
+	dps := m.Histogram().DataPoints()
+	for i := 0; i < dps.Len(); i++ {
+		dp := dps.At(i)
+		if dp.Flags().NoRecordedValue() {
+			continue
+		}
+		attrs := dp.Attributes()
+		operation := sdkOperationName(attrs)
+
+		hits := dp.Count()
+		duration := dp.Sum() * scaleToNanos
+		isError := sdkIsError(attrs)
+		topLevelHits := sdkTopLevelHits(hits, attrs)
+
+		ts := dp.Timestamp()
+		start := dp.StartTimestamp()
+		tags := sdkTraceTags(attrs)
+
+		appendSDKTraceSum(all, "trace."+operation+".hits", ts, start, float64(hits), tags)
+		if isError {
+			appendSDKTraceSum(all, "trace."+operation+".errors", ts, start, float64(hits), tags)
+		}
+		if topLevelHits > 0 {
+			appendSDKTraceSum(all, "trace."+operation+".hits.by_type", ts, start, float64(topLevelHits), tags)
+		}
+		if duration > 0 {
+			appendSDKTraceSum(all, "trace."+operation+".duration", ts, start, duration, tags)
+		}
+	}
+}
+
+// appendSDKTraceSum appends a delta monotonic Sum metric with a single datapoint.
+// Delta sums are mapped to Datadog counts by the translator.
+func appendSDKTraceSum(all pmetric.MetricSlice, name string, ts, start pcommon.Timestamp, value float64, tags []kv) {
+	metric := all.AppendEmpty()
+	metric.SetName(name)
+	sum := metric.SetEmptySum()
+	sum.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	sum.SetIsMonotonic(true)
+	ndp := sum.DataPoints().AppendEmpty()
+	ndp.SetTimestamp(ts)
+	ndp.SetStartTimestamp(start)
+	ndp.SetDoubleValue(value)
+	for _, t := range tags {
+		ndp.Attributes().PutStr(t.K, t.V)
+	}
+}
+
+// sdkOperationName resolves the DD operation name for the SDK trace metric.
+// Default-mode SDK payloads pre-split the operation via datadog.operation.name;
+// OTel-semantics payloads omit it and fall back to semconv.
+func sdkOperationName(attrs pcommon.Map) string {
+	if op := attributes.GetOTelAttrVal(attrs, false, "datadog.operation.name"); op != "" {
+		return op
+	}
+	spanKind := spanKindFromAttr(attrs)
+	if op := attributes.GetOperationName(attrs, spanKind); op != "" {
+		return op
+	}
+	return "unknown"
+}
+
+// sdkIsError gates errors on the RFC status.code wire forms. HTTP heuristics and
+// error.type used by the SMC path do not apply to the SDK duration metric.
+func sdkIsError(attrs pcommon.Map) bool {
+	switch attributes.GetOTelAttrVal(attrs, false, "status.code") {
+	case "ERROR", "STATUS_CODE_ERROR", "2":
+		return true
+	}
+	return false
+}
+
+// sdkTopLevelHits returns hits only when the datapoint is flagged top-level.
+func sdkTopLevelHits(hits uint64, attrs pcommon.Map) uint64 {
+	switch attributes.GetOTelAttrVal(attrs, false, "datadog.span.top_level") {
+	case "true", "1":
+		return hits
+	}
+	return 0
+}
+
+// sdkTraceTags carries the identifying dimensions for the remapped trace series.
+// http.status_code is left unset for non-HTTP spans (the SMC path defaults it to 200).
+func sdkTraceTags(attrs pcommon.Map) []kv {
+	spanKind := spanKindFromAttr(attrs)
+	tags := []kv{
+		{"resource", sdkResourceName(attrs)},
+		{"span.kind", spanKind.String()},
+	}
+	if status := attributes.GetStatusCode(attrs); status != 0 {
+		tags = append(tags, kv{"http.status_code", uintToStr(status)})
+	}
+	for _, m := range []struct{ key, attr string }{
+		{"span.type", "datadog.span.type"},
+		{"origin", "datadog.origin"},
+	} {
+		if v := attributes.GetOTelAttrVal(attrs, false, m.attr); v != "" {
+			tags = append(tags, kv{m.key, v})
+		}
+	}
+	return tags
+}
+
+func sdkResourceName(attrs pcommon.Map) string {
+	if v := attributes.GetOTelAttrVal(attrs, false, "span.name"); v != "" {
+		return v
+	}
+	return "unspecified"
+}
+
+// spanKindFromAttr maps the span.kind attribute to a ptrace.SpanKind.
+func spanKindFromAttr(attrs pcommon.Map) ptrace.SpanKind {
+	switch strings.ToUpper(attributes.GetOTelAttrVal(attrs, false, "span.kind")) {
+	case "SERVER", "SPAN_KIND_SERVER":
+		return ptrace.SpanKindServer
+	case "CLIENT", "SPAN_KIND_CLIENT":
+		return ptrace.SpanKindClient
+	case "PRODUCER", "SPAN_KIND_PRODUCER":
+		return ptrace.SpanKindProducer
+	case "CONSUMER", "SPAN_KIND_CONSUMER":
+		return ptrace.SpanKindConsumer
+	case "INTERNAL", "SPAN_KIND_INTERNAL":
+		return ptrace.SpanKindInternal
+	default:
+		return ptrace.SpanKindUnspecified
+	}
+}
+
+func uintToStr(v uint32) string {
+	return strconv.FormatUint(uint64(v), 10)
 }
