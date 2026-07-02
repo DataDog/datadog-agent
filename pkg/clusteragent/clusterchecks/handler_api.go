@@ -45,10 +45,16 @@ func (h *Handler) RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.R
 // GetState returns the state of the dispatching, for the clusterchecks cmd
 func (h *Handler) GetState(scrub bool) (types.StateResponse, error) {
 	h.m.RLock()
-	defer h.m.RUnlock()
+	currentState := h.state
+	h.m.RUnlock()
 
-	switch h.state {
+	switch currentState {
 	case leader:
+		// dispatcher.getState scans every check config and, when scrub is
+		// true, re-serializes each one's YAML; that's too slow to do while
+		// holding h.m, which would starve h.m.Lock() callers like
+		// updateLeaderIP (see CONS-8400). The dispatcher guards its own
+		// state with d.store, so it's safe to call after releasing h.m.
 		return h.dispatcher.getState(scrub)
 	case follower:
 		return types.StateResponse{NotRunning: "currently follower"}, nil
