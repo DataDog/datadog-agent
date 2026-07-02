@@ -16,6 +16,7 @@ services:
             "format": "syslog",
             "source": "syslog-e2e",
             "service": "syslog-e2e",
+            "attribute_parsing": true,
             "debug_attr_parsing": true
           }
         ]
