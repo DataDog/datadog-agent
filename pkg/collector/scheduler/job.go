@@ -60,7 +60,7 @@ func (jb *jobBucket) removeJob(id checkid.ID) bool {
 // scheduled at a certain interval.
 type jobQueue struct {
 	interval            time.Duration
-	shadow              bool
+	isShadow            bool
 	stop                chan bool // to stop this queue
 	stopped             chan bool // signals that this queue has stopped
 	buckets             []*jobBucket
@@ -75,14 +75,14 @@ type jobQueue struct {
 }
 
 // newJobQueue creates a new jobQueue instance
-func newJobQueue(interval time.Duration, shadow bool) *jobQueue {
+func newJobQueue(interval time.Duration, isShadow bool) *jobQueue {
 	healthName := fmt.Sprintf("collector-queue-%vs", interval.Seconds())
-	if shadow {
+	if isShadow {
 		healthName += "-shadow"
 	}
 	jq := &jobQueue{
 		interval:     interval,
-		shadow:       shadow,
+		isShadow:     isShadow,
 		stop:         make(chan bool),
 		stopped:      make(chan bool),
 		health:       health.RegisterLiveness(healthName),
@@ -159,7 +159,7 @@ func (jq *jobQueue) stats() map[string]interface{} {
 		"Interval": jq.interval / time.Second,
 		"Buckets":  nBuckets,
 		"Size":     nJobs,
-		"Shadow":   jq.shadow,
+		"Shadow":   jq.isShadow,
 	}
 }
 
@@ -220,7 +220,7 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 
 func (jq *jobQueue) dispatchJobs(s *Scheduler, jobs []check.Check) bool {
 	checksPipe := s.checksPipe
-	if jq.shadow {
+	if jq.isShadow {
 		checksPipe = s.shadowChecksPipe
 	}
 
