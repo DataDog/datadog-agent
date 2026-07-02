@@ -357,7 +357,8 @@ func (b *Buffer) PointsBetween(source Source, metricName string, from, to time.T
 // PointsBetweenSources returns retained points for a metric from any of the
 // provided sources in the inclusive [from, to] window, ordered by point
 // timestamp. A zero from or to leaves that side of the window unbounded. The
-// returned points are a stable snapshot.
+// returned points are a stable snapshot. A source with an empty ID matches every
+// source with the same kind, which lets monitors read all shadow-check instances.
 func (b *Buffer) PointsBetweenSources(sources []Source, metricName string, from, to time.Time) []Point {
 	if b == nil || len(sources) == 0 || metricName == "" || invalidRange(from, to) {
 		return nil
@@ -368,10 +369,6 @@ func (b *Buffer) PointsBetweenSources(sources []Source, metricName string, from,
 		return nil
 	}
 	contexts := b.contexts.snapshot()
-	sourceSet := make(map[Source]struct{}, len(sources))
-	for _, source := range sources {
-		sourceSet[source] = struct{}{}
-	}
 
 	points := make([]Point, 0)
 	for i := range records {
@@ -383,7 +380,7 @@ func (b *Buffer) PointsBetweenSources(sources []Source, metricName string, from,
 		if !found || ctx.name != metricName {
 			continue
 		}
-		if _, found := sourceSet[ctx.source]; !found {
+		if !sourceMatchesAny(sources, ctx.source) {
 			continue
 		}
 		points = append(points, Point{
@@ -459,6 +456,15 @@ func (s *serieSliceSource) Current() *metrics.Serie {
 
 func (s *serieSliceSource) Count() uint64 {
 	return uint64(len(s.series))
+}
+
+func sourceMatchesAny(queries []Source, actual Source) bool {
+	for _, query := range queries {
+		if query == actual || (query.ID == "" && query.Kind == actual.Kind) {
+			return true
+		}
+	}
+	return false
 }
 
 func recordValue(source Source, sample metrics.MetricSample) float64 {

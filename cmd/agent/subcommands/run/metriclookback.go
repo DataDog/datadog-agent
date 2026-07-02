@@ -18,9 +18,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
-func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Component) aggregator.DogStatsDLookbackFactory {
+func newMetricLookbackRetention(cfg config.Component) *metriclookback.Retention {
+	// Construct the retention owner eagerly, but keep the backing rings lazy. This
+	// lets per-instance shadow-check opt-in share the same retention path without
+	// reserving ring memory when no selected metric is written.
+	return metriclookback.NewRetention(ringbuffer.Options{
+		Capacity:   cfg.GetInt("metric_lookback.capacity"),
+		ShardCount: cfg.GetInt("metric_lookback.shard_count"),
+	})
+}
+
+func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Component, retention *metriclookback.Retention) aggregator.DogStatsDLookbackFactory {
 	return func(metricSerializer serializer.MetricSerializer) aggregator.DogStatsDLookback {
-		if !cfg.GetBool("metric_lookback.enabled") {
+		if retention == nil || !cfg.GetBool("metric_lookback.enabled") {
 			return nil
 		}
 
@@ -30,16 +40,12 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 			return nil
 		}
 
-		retention := metriclookback.NewRetention(ringbuffer.Options{
-			Capacity:   cfg.GetInt("metric_lookback.capacity"),
-			ShardCount: cfg.GetInt("metric_lookback.shard_count"),
-		})
-
 		var egressController *metriclookback.EgressController
 		if monitorEnabled {
 			egressController = metriclookback.NewEgressController(retention, metricSerializer, metriclookback.EgressControllerOptions{})
 		}
 		watcher := newMetricLookbackMonitor(cfg, logger, retention, egressController)
+		retention.SetMonitor(watcher)
 		materializer := metriclookback.NewDogStatsDBucketMaterializer(retention, metriclookback.DogStatsDBucketMaterializerOptions{
 			Monitor: watcher,
 		})
@@ -74,16 +80,17 @@ func newMetricLookbackMonitor(cfg config.Component, logger log.Component, retent
 	}
 
 	metricName := cfg.GetString("metric_lookback.monitor.metric_name")
-	dogstatsdSources := []ringbuffer.Source{
+	monitorSources := []ringbuffer.Source{
 		{Kind: ringbuffer.SourceDogStatsDBucketed},
 		{Kind: ringbuffer.SourceDogStatsDNoAggregation},
+		{Kind: ringbuffer.SourceCheckShadow},
 	}
 	reader := monitor.PointReaderFunc(func(metricName string, from, to time.Time) []monitor.Point {
-		points := retention.PointsBetweenSources(dogstatsdSources, metricName, from, to)
+		points := retention.PointsBetweenSources(monitorSources, metricName, from, to)
 		// PlaceholderAverageSketchProjection is intentionally isolated from retention
 		// and egress serialization. It only lets the current scalar monitor evaluate
 		// selected distribution sketches until a sketch-aware monitor design is chosen.
-		sketchPoints := retention.ProjectedSketchPointsBetweenSources(dogstatsdSources, metricName, from, to, metriclookback.PlaceholderAverageSketchProjection{})
+		sketchPoints := retention.ProjectedSketchPointsBetweenSources(monitorSources, metricName, from, to, metriclookback.PlaceholderAverageSketchProjection{})
 		out := make([]monitor.Point, 0, len(points)+len(sketchPoints))
 		for _, point := range points {
 			out = append(out, monitor.Point{Ts: point.Ts, Value: point.Value})

@@ -2471,7 +2471,8 @@ properties:
         type: boolean
         default: false
         visibility: public
-        description: Enable metric lookback globally. For shadow checks, this enables shadowing for checks allowed by enabled_checks.
+        description: Enable metric lookback globally. For shadow checks, this enables
+          shadowing for checks allowed by enabled_checks.
         tags:
         - template_section:Dogstatsd
       enabled_checks:
@@ -2481,7 +2482,8 @@ properties:
         items:
           type: string
         visibility: public
-        description: Optional check-name allowlist for metric lookback shadow checks. When empty, all supported checks are eligible.
+        description: Optional check-name allowlist for metric lookback shadow checks.
+          When empty, all supported checks are eligible.
         tags:
         - template_section:Dogstatsd
       capacity:
@@ -2489,7 +2491,8 @@ properties:
         type: integer
         default: 262144
         visibility: public
-        description: Total number of point records retained across all lookback ring shards.
+        description: Total number of point records retained across all lookback ring
+          shards.
         tags:
         - template_section:Dogstatsd
       shard_count:

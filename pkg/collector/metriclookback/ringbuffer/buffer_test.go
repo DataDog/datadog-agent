@@ -170,6 +170,25 @@ func TestPointsBetweenSourcesReadsMultipleDogStatsDSources(t *testing.T) {
 	}, points)
 }
 
+func TestPointsBetweenSourcesEmptyIDMatchesAllSourcesWithKind(t *testing.T) {
+	buf := New(Options{Capacity: 8, ShardCount: 1})
+	require.NoError(t, buf.AppendSamples(context.Background(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
+		{Name: "metric", Value: 1, Mtype: metrics.GaugeType, Timestamp: 10},
+	}))
+	require.NoError(t, buf.AppendSamples(context.Background(), Source{Kind: SourceCheckShadow, ID: "check:2"}, []metrics.MetricSample{
+		{Name: "metric", Value: 2, Mtype: metrics.GaugeType, Timestamp: 11},
+	}))
+	require.NoError(t, buf.AppendSamples(context.Background(), Source{Kind: SourceDogStatsDNoAggregation}, []metrics.MetricSample{
+		{Name: "metric", Value: 3, Mtype: metrics.GaugeType, Timestamp: 12},
+	}))
+
+	points := buf.PointsBetweenSources([]Source{{Kind: SourceCheckShadow}}, "metric", time.Time{}, time.Time{})
+	require.Equal(t, []Point{
+		{Ts: time.Unix(10, 0), Value: 1},
+		{Ts: time.Unix(11, 0), Value: 2},
+	}, points)
+}
+
 func TestAppendSamplesUsesNowForUntimestampedSamples(t *testing.T) {
 	now := time.Unix(123, 456000)
 	buf := New(Options{Capacity: 4, ShardCount: 1, Now: func() time.Time { return now }})
