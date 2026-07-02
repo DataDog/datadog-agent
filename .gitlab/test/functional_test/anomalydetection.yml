@@ -28,6 +28,7 @@ observer-ablation-ddeval:
     OBSERVER_ABLATION_DDEVAL_TEST_DRIVE: "observer-log-ad-ddeval-worker"
     OBSERVER_ABLATION_DD_SITE: "datadoghq.com"
     OBSERVER_ABLATION_TOOLS_DIR: "$CI_PROJECT_DIR/.observer-ablation-tools"
+    OBSERVER_ABLATION_DDSOURCE_DIR: "/tmp/observer-ablation-dd-source"
     OBSERVER_ABLATION_DDSOURCE_SERVICE_DIR: "domains/ai_platform/apps/apis/eval_worker_observer_log_ad"
     OBSERVER_ABLATION_DDSOURCE_RAPID_JSON: "domains/ai_platform/apps/apis/eval_worker_observer_log_ad/rapid.json"
     OBSERVER_ABLATION_ATLAS_VERSION: "v2.29.0"
@@ -44,8 +45,8 @@ observer-ablation-ddeval:
     - mv "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas-linux-amd64" "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas"
     - chmod +x "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas"
     - |
-      mkdir -p "$OBSERVER_ABLATION_TOOLS_DIR/dd-source/$OBSERVER_ABLATION_DDSOURCE_SERVICE_DIR"
-      cat > "$OBSERVER_ABLATION_TOOLS_DIR/dd-source/$OBSERVER_ABLATION_DDSOURCE_RAPID_JSON" <<'EOF'
+      mkdir -p "$OBSERVER_ABLATION_DDSOURCE_DIR/$OBSERVER_ABLATION_DDSOURCE_SERVICE_DIR"
+      cat > "$OBSERVER_ABLATION_DDSOURCE_DIR/$OBSERVER_ABLATION_DDSOURCE_RAPID_JSON" <<'EOF'
       {
           "flavor": {
               "language": "py",
@@ -134,7 +135,7 @@ observer-ablation-ddeval:
       EOF
       chmod +x "$OBSERVER_ABLATION_TOOLS_DIR/bin/ddeval-with-atlas"
     - export PATH="$OBSERVER_ABLATION_TOOLS_DIR/bin:$PATH"
-    - export DDEVAL_DDSOURCE_DIR="$OBSERVER_ABLATION_TOOLS_DIR/dd-source"
+    - export DDEVAL_DDSOURCE_DIR="$OBSERVER_ABLATION_DDSOURCE_DIR"
     - atlas --help
     - ddeval --help
     - |
