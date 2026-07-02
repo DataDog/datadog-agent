@@ -39,6 +39,8 @@ The cardinality option sets the [TagCardinality](../../../../../../comp/core/tag
 
 ### Container tag promotion
 
+**This option only affects the traces pipeline.** `_dd.tags.container` promotion is a trace-agent-specific mechanism; logs, metrics, and profiles never go through it, so the logs/metrics/profiles processors always behave as `off` regardless of this setting. (Metrics in particular already recognize DD-format keys directly, so prefixing them would only risk stranding data under `rename`.)
+
 Downstream (trace-agent / Datadog exporter) only promotes a resource attribute into `_dd.tags.container` (visible in the Infrastructure tab of a span) if its key matches a known DD or OTel container-tag convention, or if it carries the `datadog.container.tag.` prefix. Custom tags emitted by this processor — for example tags produced by `podLabelsAsTags` — fall into neither category and are therefore silently dropped from container tags.
 
 The `container_tag_promotion` option opts into rewriting these custom tags so the downstream promotion path picks them up:

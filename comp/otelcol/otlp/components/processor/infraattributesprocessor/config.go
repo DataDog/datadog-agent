@@ -51,6 +51,12 @@ type Config struct {
 	// surfaced for promotion into Datadog container tags. See the
 	// ContainerTagPromotionMode constants for the supported values.
 	// An empty value is treated as "off".
+	//
+	// This only affects the traces pipeline: `_dd.tags.container` promotion
+	// is a trace-agent-specific mechanism
+	// (attributes.ConsumeContainerTagsFromResource), so the logs, metrics,
+	// and profiles processors always behave as if this were "off",
+	// regardless of the configured value.
 	ContainerTagPromotion ContainerTagPromotionMode `mapstructure:"container_tag_promotion"`
 }
 
