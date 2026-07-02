@@ -26,6 +26,7 @@ observer-ablation-ddeval:
     OBSERVER_ABLATION_DDEVAL_WHERE_IN: ""
     OBSERVER_ABLATION_DD_SITE: "datadoghq.com"
     OBSERVER_ABLATION_TOOLS_DIR: "$CI_PROJECT_DIR/.observer-ablation-tools"
+    OBSERVER_ABLATION_AGENT_CI_API_ENV: "prod"
     OBSERVER_ABLATION_ATLAS_VERSION: "v2.29.0"
     OBSERVER_ABLATION_ATLAS_TARBALL: "https://binaries.ddbuild.io/dd-source/atlas/$OBSERVER_ABLATION_ATLAS_VERSION/atlas-tar.tar.gz"
   script:
@@ -33,6 +34,7 @@ observer-ablation-ddeval:
     - DD_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DD_API_KEY
     - DD_APP_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token)" || exit $?; export DD_APP_KEY
     - export DD_SITE="$OBSERVER_ABLATION_DD_SITE"
+    - dda inv agent-ci-api.hello --env "$OBSERVER_ABLATION_AGENT_CI_API_ENV"
     - python3 -m pip install optuna
     - mkdir -p "$OBSERVER_ABLATION_TOOLS_DIR/bin"
     - curl --fail --location --show-error "$OBSERVER_ABLATION_ATLAS_TARBALL" | tar -xz -C "$OBSERVER_ABLATION_TOOLS_DIR/bin" atlas-linux-amd64
