@@ -37,9 +37,6 @@ Key patterns:
   single source of truth. Do not hardcode tag lists in task code.
 - `libs/common/go.py` contains pure Go-related helpers (module downloading, etc.)
   that do not depend on `@task`.
-- Do not run multiple `dda inv` commands in parallel from the same checkout.
-  The legacy-task virtualenv dependency sync can race on its temporary `uv`
-  wrapper; run `dda inv` validations serially.
 
 ### CI / Pipeline
 
