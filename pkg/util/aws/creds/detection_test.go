@@ -55,7 +55,6 @@ func TestHasAWSCredentialsInEnvironment(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Set up environment
 			if tc.accessKeyID != "" {
 				t.Setenv("AWS_ACCESS_KEY_ID", tc.accessKeyID)
 			}
@@ -67,6 +66,46 @@ func TestHasAWSCredentialsInEnvironment(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+func TestIsRunningOnECS(t *testing.T) {
+	tests := []struct {
+		name         string
+		relativeURI  string
+		fullURI      string
+		expected     bool
+	}{
+		{
+			name:        "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI set",
+			relativeURI: "/v2/credentials/abc123",
+			expected:    true,
+		},
+		{
+			name:     "AWS_CONTAINER_CREDENTIALS_FULL_URI set",
+			fullURI:  "http://169.254.170.2/v2/credentials/abc123",
+			expected: true,
+		},
+		{
+			name:     "neither ECS env var set",
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", tc.relativeURI)
+			t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", tc.fullURI)
+			assert.Equal(t, tc.expected, IsRunningOnECS())
+		})
+	}
+}
+
+func TestIsRunningOnAWSWithECSCredentials(t *testing.T) {
+	// IsRunningOnAWS should return true when ECS container credential env vars are set,
+	// even without IMDS access.
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc123")
+	result := IsRunningOnAWS(context.Background())
+	assert.True(t, result)
 }
 
 func TestGetAWSRegionFromEnvironment(t *testing.T) {
@@ -102,8 +141,6 @@ func TestGetAWSRegionFromEnvironment(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Explicitly set both env vars to ensure isolation from any pre-existing values
-			// t.Setenv will restore the original value (or unset) after the test
 			t.Setenv("AWS_REGION", tc.awsRegion)
 			t.Setenv("AWS_DEFAULT_REGION", tc.awsDefaultReg)
 
@@ -120,8 +157,6 @@ func TestGetAWSRegionFromEnvironment(t *testing.T) {
 }
 
 func TestIsRunningOnAWSWithCredentials(t *testing.T) {
-	// When AWS credentials are set in environment, IsRunningOnAWS should return true
-	// even without IMDS access
 	t.Setenv("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
 
@@ -130,7 +165,6 @@ func TestIsRunningOnAWSWithCredentials(t *testing.T) {
 }
 
 func TestIsRunningOnAWSWithIMDS(t *testing.T) {
-	// Create a mock IMDS server
 	identityDoc := ec2internal.EC2Identity{
 		Region:     "us-west-2",
 		InstanceID: "i-1234567890abcdef0",
@@ -140,17 +174,12 @@ func TestIsRunningOnAWSWithIMDS(t *testing.T) {
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Handle token request for IMDSv2
 		if r.URL.Path == "/latest/api/token" {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("mock-token"))
 			return
 		}
-		// Handle instance identity request
 		if r.URL.Path == "/latest/dynamic/instance-identity/document/" {
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
 			w.Write(identityJSON)
 			return
 		}
@@ -158,7 +187,6 @@ func TestIsRunningOnAWSWithIMDS(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Override the internal URLs to point to our mock server
 	originalTokenURL := ec2internal.TokenURL
 	originalIdentityURL := ec2internal.InstanceIdentityURL
 	ec2internal.TokenURL = server.URL + "/latest/api/token"
@@ -173,11 +201,9 @@ func TestIsRunningOnAWSWithIMDS(t *testing.T) {
 }
 
 func TestGetAWSRegionFromIMDS(t *testing.T) {
-	// Clear environment variables to ensure IMDS is used
 	t.Setenv("AWS_REGION", "")
 	t.Setenv("AWS_DEFAULT_REGION", "")
 
-	// Create a mock IMDS server
 	identityDoc := ec2internal.EC2Identity{
 		Region:     "ap-northeast-1",
 		InstanceID: "i-1234567890abcdef0",
@@ -187,17 +213,12 @@ func TestGetAWSRegionFromIMDS(t *testing.T) {
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Handle token request for IMDSv2
 		if r.URL.Path == "/latest/api/token" {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("mock-token"))
 			return
 		}
-		// Handle instance identity request
 		if r.URL.Path == "/latest/dynamic/instance-identity/document/" {
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
 			w.Write(identityJSON)
 			return
 		}
@@ -205,7 +226,6 @@ func TestGetAWSRegionFromIMDS(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Override the internal URLs to point to our mock server
 	originalTokenURL := ec2internal.TokenURL
 	originalIdentityURL := ec2internal.InstanceIdentityURL
 	ec2internal.TokenURL = server.URL + "/latest/api/token"

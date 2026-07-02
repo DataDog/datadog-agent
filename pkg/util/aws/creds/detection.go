@@ -23,13 +23,27 @@ func HasAWSCredentialsInEnvironment() bool {
 	return accessKeyID != "" && secretAccessKey != ""
 }
 
-// IsRunningOnAWS returns true if the code is running on an AWS EC2 instance.
-// This attempts to detect AWS using both IMDSv2 (preferred) and IMDSv1 (fallback).
-// It also checks for AWS credentials in environment variables as an additional signal.
+// IsRunningOnECS returns true if the code is running inside an ECS task (Fargate or EC2).
+// ECS tasks receive credentials via the container metadata endpoint rather than EC2 IMDS.
+func IsRunningOnECS() bool {
+	return os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") != "" ||
+		os.Getenv("AWS_CONTAINER_CREDENTIALS_FULL_URI") != ""
+}
+
+// IsRunningOnAWS returns true if the code is running on an AWS EC2 instance or ECS task.
+// Detection order:
+//  1. Static credentials in environment variables
+//  2. ECS container credential endpoint (Fargate and ECS EC2 tasks)
+//  3. EC2 IMDS (EC2 instances)
 func IsRunningOnAWS(ctx context.Context) bool {
 	// First, check if AWS credentials are explicitly set in environment
 	// This is a strong signal that the user intends to use AWS
 	if HasAWSCredentialsInEnvironment() {
+		return true
+	}
+
+	// Check for ECS task credentials (Fargate and ECS EC2 tasks)
+	if IsRunningOnECS() {
 		return true
 	}
 

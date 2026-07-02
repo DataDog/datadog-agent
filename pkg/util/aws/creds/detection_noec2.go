@@ -17,6 +17,11 @@ func IsRunningOnAWS(_ context.Context) bool {
 	return false
 }
 
+// IsRunningOnECS returns false when compiled without ec2 build tag
+func IsRunningOnECS() bool {
+	return false
+}
+
 // GetAWSRegion returns an error when compiled without ec2 build tag
 func GetAWSRegion(_ context.Context) (string, error) {
 	return "", errors.New("ec2 support not compiled in")

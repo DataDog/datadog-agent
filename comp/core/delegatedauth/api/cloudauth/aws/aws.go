@@ -21,13 +21,12 @@ import (
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 )
 
 // signingData is the data structure that represents the Data used to generate an AWS Proof
@@ -104,28 +103,35 @@ func (a *AWSAuth) GenerateAuthProof(ctx context.Context, _ pkgconfigmodel.Reader
 	return authProof, nil
 }
 
-// getCredentials retrieves AWS credentials using the same approach as EC2 tags fetching.
-// It first tries environment variables, then falls back to EC2 instance metadata service.
-//
-// Note: This function fetches credentials on every call rather than caching them.
-// Since GenerateAuthProof is called at the refresh interval (typically 60 minutes),
-// and IMDS credentials are valid for several hours, this is acceptable. Future
-// optimization could add credential caching with expiration handling if needed.
+// getCredentials retrieves AWS credentials using a three-step fallback chain:
+//  1. Static credentials from environment variables (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
+//  2. ECS container credential endpoint (Fargate and ECS EC2 tasks via AWS_CONTAINER_CREDENTIALS_*_URI)
+//  3. EC2 instance metadata service (IMDS) for EC2 instances
 func (a *AWSAuth) getCredentials(ctx context.Context) *creds.SecurityCredentials {
 	awsCredentials := &creds.SecurityCredentials{}
 
-	// Try to get credentials from environment variables
+	// 1. Try static credentials from environment variables
 	awsCredentials.AccessKeyID = os.Getenv(awsAccessKeyIDEnvVar)
 	awsCredentials.SecretAccessKey = os.Getenv(awsSecretAccessKeyEnvVar)
 	awsCredentials.Token = os.Getenv(awsSessionTokenEnvVar)
 
-	// If we have explicit credentials, return them
 	if awsCredentials.AccessKeyID != "" && awsCredentials.SecretAccessKey != "" {
 		return awsCredentials
 	}
 
-	// Fall back to EC2 instance metadata service (same as ec2_tags.go does)
-	log.Debugf("No explicit AWS credentials found in config or environment, trying EC2 instance metadata service")
+	// 2. Try ECS container credential endpoint (Fargate and ECS EC2 tasks)
+	if creds.IsRunningOnECS() {
+		ecsCreds, err := creds.GetECSSecurityCredentials(ctx)
+		if err != nil {
+			log.Warnf("Failed to get credentials from ECS container metadata service: %v", err)
+		} else {
+			log.Infof("Successfully retrieved AWS credentials from ECS container metadata service")
+			return ecsCreds
+		}
+	}
+
+	// 3. Fall back to EC2 instance metadata service
+	log.Debugf("No explicit AWS credentials found, trying EC2 instance metadata service")
 	ec2Creds, err := creds.GetSecurityCredentials(ctx)
 	if err != nil {
 		log.Warnf("Failed to get credentials from EC2 instance metadata: %v", err)

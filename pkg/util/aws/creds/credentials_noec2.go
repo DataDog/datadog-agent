@@ -25,3 +25,8 @@ type SecurityCredentials struct {
 func GetSecurityCredentials(_ context.Context) (*SecurityCredentials, error) {
 	return nil, errors.New("EC2 metadata service is not available (not compiled with ec2 build tag)")
 }
+
+// GetECSSecurityCredentials is a no-op when not compiled with the ec2 build tag.
+func GetECSSecurityCredentials(_ context.Context) (*SecurityCredentials, error) {
+	return nil, errors.New("ECS container credential service is not available (not compiled with ec2 build tag)")
+}
