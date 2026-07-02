@@ -4,6 +4,7 @@ using WixToolset.Dtf.WindowsInstaller;
 using System;
 using System.IO;
 using System.Linq;
+using Microsoft.Win32;
 
 namespace Datadog.CustomActions
 {
@@ -41,6 +42,14 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
+        /// Clear the install-session marker after a successful MSI install/upgrade.
+        /// </summary>
+        public static ActionResult ClearPARProcmgrConfigWrittenThisInstallMarker(Session session)
+        {
+            return ClearPARProcmgrConfigWrittenThisInstallMarker(new SessionWrapper(session));
+        }
+
+        /// <summary>
         /// Rollback-only: drop an otherwise-empty install root left by a failed fresh install.
         /// </summary>
         public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
@@ -72,7 +81,19 @@ namespace Datadog.CustomActions
 
         private static ActionResult RemoveParFleetProcmgrConfigOnUpgradeRollback(ISession session)
         {
+            if (!PARProcmgrConfigMarkedWrittenThisInstall(session))
+            {
+                session.Log("PAR processes.d was not written this install; skip upgrade rollback cleanup.");
+                return ActionResult.Success;
+            }
             TryRemoveFleetProcmgrConfigFiles(session, session.Property("PROJECTLOCATION"), ParProcmgrConfigFileName);
+            clearParProcmgrInstallMarkerRegistry(session);
+            return ActionResult.Success;
+        }
+
+        private static ActionResult ClearPARProcmgrConfigWrittenThisInstallMarker(ISession session)
+        {
+            clearParProcmgrInstallMarkerRegistry(session);
             return ActionResult.Success;
         }
 
@@ -190,6 +211,39 @@ namespace Datadog.CustomActions
             catch (Exception e)
             {
                 session.Log($"Error while deleting empty install directory: {e}");
+            }
+        }
+
+        private static bool PARProcmgrConfigMarkedWrittenThisInstall(ISession session)
+        {
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(Constants.DatadogAgentRegistryKey, writable: false);
+                if (key == null)
+                {
+                    return false;
+                }
+
+                var value = key.GetValue(Constants.PARProcmgrConfigWrittenThisInstallValue);
+                return value is int marker && marker != 0;
+            }
+            catch (Exception e)
+            {
+                session.Log($"Error reading PAR procmgr install marker: {e}");
+                return false;
+            }
+        }
+
+        private static void clearParProcmgrInstallMarkerRegistry(ISession session)
+        {
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(Constants.DatadogAgentRegistryKey, writable: true);
+                key?.DeleteValue(Constants.PARProcmgrConfigWrittenThisInstallValue, throwOnMissingValue: false);
+            }
+            catch (Exception e)
+            {
+                session.Log($"Error clearing PAR procmgr install marker: {e}");
             }
         }
     }

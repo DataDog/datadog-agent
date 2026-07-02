@@ -17,6 +17,7 @@ go_library(
             "//pkg/fleet/installer/paths",
             "//pkg/util/log",
             "//pkg/util/winutil",
+            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),

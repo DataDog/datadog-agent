@@ -17,9 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/windows/registry"
 )
 
-const parProcmgrConfigFileName = "datadog-agent-action.yaml"
+const (
+	parProcmgrConfigFileName = "datadog-agent-action.yaml"
+
+	datadogAgentRegistryKey                       = `SOFTWARE\Datadog\Datadog Agent`
+	parProcmgrConfigWrittenThisInstallRegistryKey = "PARProcmgrConfigWrittenThisInstall"
+)
 
 // WritePARProcmgrConfig writes datadog-agent-action.yaml next to the MSI install layout so
 // dd-procmgrd picks it up (default_config_dir is InstallPath\processes.d on Windows).
@@ -56,8 +62,18 @@ func WritePARProcmgrConfig(installRootResolved string) error {
 	config = strings.ReplaceAll(config, "__PAR_FLEET_POLICIES_DIR__", fleetPoliciesRepl)
 
 	path := filepath.Join(processesDir, parProcmgrConfigFileName)
+	_, statErr := os.Stat(path)
+	existedBefore := statErr == nil
 	log.Debugf("PAR processes.d: writing %q", path)
-	return os.WriteFile(path, []byte(config), 0o644)
+	if err := os.WriteFile(path, []byte(config), 0o644); err != nil {
+		return err
+	}
+	if !existedBefore {
+		if err := setPARProcmgrConfigWrittenThisInstall(); err != nil {
+			log.Warnf("PAR processes.d: could not mark config written this install: %v", err)
+		}
+	}
+	return nil
 }
 
 // RemovePARProcmgrConfig removes the PAR processes.d YAML from the install layout and from
@@ -89,6 +105,35 @@ func RemovePARProcmgrConfig(packageRootResolved string) error {
 	}
 	if installPF := paths.DatadogProgramFilesDir; installPF != "" {
 		removeEmptyProcessesDir(installPF)
+	}
+	if err := clearPARProcmgrConfigWrittenThisInstall(); err != nil {
+		log.Debugf("PAR processes.d: clear install marker: %v", err)
+	}
+	return nil
+}
+
+func setPARProcmgrConfigWrittenThisInstall() error {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, datadogAgentRegistryKey, registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer k.Close()
+	return k.SetDWordValue(parProcmgrConfigWrittenThisInstallRegistryKey, 1)
+}
+
+func clearPARProcmgrConfigWrittenThisInstall() error {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, datadogAgentRegistryKey, registry.SET_VALUE)
+	if err != nil {
+		if err == registry.ErrNotExist {
+			return nil
+		}
+		return err
+	}
+	defer k.Close()
+	if err := k.DeleteValue(parProcmgrConfigWrittenThisInstallRegistryKey); err == registry.ErrNotExist {
+		return nil
+	} else if err != nil {
+		return err
 	}
 	return nil
 }

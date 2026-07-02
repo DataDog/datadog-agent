@@ -873,7 +873,7 @@ namespace WixSetup.Datadog_Agent
                 .HideTarget(true);
 
             // Upgrade rollback only: postinst may have written PAR processes.d YAML that older
-            // agents do not suppress via SCM, so remove it before restoring the previous install.
+            // agents do not suppress via SCM. Only remove YAML created during this install session.
             RemoveParFleetProcmgrConfigOnUpgradeRollback = new CustomAction<CustomActions>(
                     new Id(nameof(RemoveParFleetProcmgrConfigOnUpgradeRollback)),
                     CustomActions.RemoveParFleetProcmgrConfigOnUpgradeRollback,
