@@ -441,6 +441,37 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTagID uint64, gene
 	return newNode
 }
 
+// InsertConnectEvent inserts a connect event in a process node
+func (pn *ProcessNode) InsertConnectEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
+	if evt.Connect.SyscallEvent.Retval != 0 {
+		return false
+	}
+	var newNode bool
+	evtFamily := model.AddressFamily(evt.Connect.AddrFamily).String()
+
+	var sock *SocketNode
+	for _, s := range pn.Sockets {
+		if s.Family == evtFamily {
+			sock = s
+		}
+	}
+	if sock == nil {
+		sock = NewSocketNode(evtFamily, generationType)
+		if !dryRun {
+			stats.SocketNodes++
+			stats.SizeBytes += sock.size()
+			pn.Sockets = append(pn.Sockets, sock)
+		}
+		newNode = true
+	}
+
+	if sock.InsertConnectEvent(&evt.Connect, evt, imageTagID, generationType, evt.Rules, stats, dryRun) {
+		newNode = true
+	}
+
+	return newNode
+}
+
 // InsertCapabilitiesUsageEvent inserts a capabilities usage event in a process node
 func (pn *ProcessNode) InsertCapabilitiesUsageEvent(evt *model.Event, imageTagID uint64, stats *Stats, dryRun bool) bool {
 	hasNewCapabilitiesUsage := false

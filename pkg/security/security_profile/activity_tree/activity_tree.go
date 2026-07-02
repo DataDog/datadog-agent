@@ -518,6 +518,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertIMDSEvent(event, imageTagID, generationType, at.Stats, dryRun), nil
 	case model.BindEventType:
 		return node.InsertBindEvent(event, imageTagID, generationType, at.Stats, dryRun), nil
+	case model.ConnectEventType:
+		return node.InsertConnectEvent(event, imageTagID, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun), nil
 	case model.NetworkFlowMonitorEventType:
