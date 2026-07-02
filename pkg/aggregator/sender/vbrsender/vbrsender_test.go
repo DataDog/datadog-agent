@@ -6,6 +6,7 @@
 package vbrsender
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -452,6 +453,41 @@ func TestTlmContexts_TracksDistinctContextCountPerSender(t *testing.T) {
 	// Contexts never expire: repeating earlier calls must not double-count.
 	s.compressAt(kindGauge, "my.gauge", 2, "host", []string{"env:prod"}, 2, false)
 	require.Equal(t, 3.0, s.tlmContexts.Get())
+}
+
+func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
+	// A dedicated check name: tlmScaleDeviation is a process-global
+	// histogram keyed by (check_name, metric_name), so reusing a
+	// (check_name, metric_name) pair another test already observed into
+	// would make this test's exact Count/Sum assertions flaky.
+	fake := &fakeSender{}
+	s := newSender(fake, false, "check_scale_deviation_test")
+
+	values := []float64{10, 20, 15, 100, 12}
+	var scale float64
+	var hasScale bool
+	expectedSum := 0.0
+	for i, v := range values {
+		s.compressAt(kindGauge, "my.gauge", v, "host", nil, float64(i), false)
+
+		// Independently mirrors vbr.Compressor's own EWMA update (see
+		// pkg/aggregator/internal/vbr's updateScaleAndTolerance), rather
+		// than reading it back via Scale(), so this test actually exercises
+		// the wiring instead of only restating whatever the compressor
+		// already computed.
+		abs := math.Abs(v)
+		if !hasScale {
+			scale, hasScale = abs, true
+		} else {
+			scale = defaultConfig.Alpha*abs + (1-defaultConfig.Alpha)*scale
+		}
+		expectedSum += math.Abs(v - scale)
+	}
+
+	ctx := s.contexts[contextKeyFor("my.gauge", "host", nil)]
+	hv := ctx.tlmScaleDeviation.Get()
+	require.EqualValues(t, len(values), hv.Count, "every Gauge sample must be observed exactly once")
+	require.InDelta(t, expectedSum, hv.Sum, 1e-9)
 }
 
 func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {
