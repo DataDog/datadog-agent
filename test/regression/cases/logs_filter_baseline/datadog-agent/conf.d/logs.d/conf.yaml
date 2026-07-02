@@ -1,9 +1,0 @@
-logs:
-  - type: file
-    path: /tmp/agent-logs/synthetic.log
-    service: benchmark
-    source: benchmark
-    log_processing_rules:
-      - type: include_at_match
-        name: baseline_filter
-        pattern: '"seed":\d*[02468],'
