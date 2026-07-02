@@ -32,6 +32,11 @@ func TestHTTP2Stats(t *testing.T) {
 	suite.Run(t, &HTTP2Suite{})
 }
 
+// SetupTest pins discovery mode off so non-discovery tests have a known baseline.
+func (s *HTTP2Suite) SetupTest() {
+	mock.NewSystemProbe(s.T()).SetInTest("discovery.service_map.enabled", false)
+}
+
 func (s *HTTP2Suite) TestFormatHTTP2Stats() {
 	t := s.T()
 

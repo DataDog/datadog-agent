@@ -84,26 +84,26 @@ func encodeUSMEndpoint(builder *model.HTTPStatsBuilder, key http.Key, stats *htt
 		builder.SetMethod(uint64(model.HTTPMethod(key.Method)))
 	}
 
-	for code, stats := range stats.Data {
+	for code, stat := range stats.Data {
 		builder.AddStatsByStatusCode(func(w *model.HTTPStats_StatsByStatusCodeEntryBuilder) {
 			w.SetKey(int32(code))
 			w.SetValue(func(w *model.HTTPStats_DataBuilder) {
-				w.SetCount(uint32(stats.Count))
+				w.SetCount(uint32(stat.Count))
 				if discoveryMode {
-					w.SetLatencySum(stats.LatencySum)
-				} else if latencies := stats.Latencies; latencies != nil {
+					w.SetLatencySum(stat.LatencySum)
+				} else if latencies := stat.Latencies; latencies != nil {
 					w.SetLatencies(func(b *bytes.Buffer) {
 						sketchBuilder.Reset(b)
 						sketchBuilder.AddSketch(latencies)
 					})
 				} else {
-					w.SetFirstLatencySample(stats.FirstLatencySample)
+					w.SetFirstLatencySample(stat.FirstLatencySample)
 				}
 			})
 		})
 
-		*staticTags |= stats.StaticTags
-		for dynamicTag := range stats.DynamicTags {
+		*staticTags |= stat.StaticTags
+		for dynamicTag := range stat.DynamicTags {
 			dynamicTags[dynamicTag] = struct{}{}
 		}
 	}

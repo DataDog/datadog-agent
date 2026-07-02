@@ -193,6 +193,27 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 			continue
 		}
 
+		// Discovery buckets track LatencySum and have no DDSketch.
+		if newRequests.LatencySum != 0 {
+			stats, exists := r.Data[statusCode]
+			if !exists {
+				stats = &RequestStat{}
+				r.Data[statusCode] = stats
+			}
+			stats.Count += newRequests.Count
+			stats.LatencySum += newRequests.LatencySum
+			stats.StaticTags |= newRequests.StaticTags
+			if len(newRequests.DynamicTags) != 0 {
+				if stats.DynamicTags == nil {
+					stats.DynamicTags = common.NewStringSet()
+				}
+				for tag := range newRequests.DynamicTags {
+					stats.DynamicTags.Add(tag)
+				}
+			}
+			continue
+		}
+
 		if newRequests.Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
 			r.AddRequest(statusCode, newRequests.FirstLatencySample, newRequests.StaticTags, newRequests.DynamicTags)

@@ -69,6 +69,28 @@ func TestCombineWith(t *testing.T) {
 	}
 }
 
+func TestCombineWithDiscovery(t *testing.T) {
+	// Discovery buckets have no DDSketch and track LatencySum, even for Count>1.
+	dst := NewRequestStats()
+	src := NewRequestStats()
+	for i := 0; i < 3; i++ {
+		dst.AddDiscoveryRequest(200, 10.0, 1, nil)
+	}
+	for i := 0; i < 2; i++ {
+		src.AddDiscoveryRequest(200, 20.0, 2, nil)
+	}
+
+	assert.NotPanics(t, func() { dst.CombineWith(src) })
+
+	s := dst.Data[200]
+	if assert.NotNil(t, s) {
+		assert.Nil(t, s.Latencies, "discovery merge must not build a DDSketch")
+		assert.Equal(t, 5, s.Count)
+		assert.Equal(t, 10.0*3+20.0*2, s.LatencySum)
+		assert.Equal(t, uint64(1|2), s.StaticTags)
+	}
+}
+
 func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expectedValue float64) {
 	val, err := sketch.GetValueAtQuantile(q)
 	assert.Nil(t, err)
