@@ -25,8 +25,6 @@ go_library(
         "standard_names.go",
         "system_probe.go",
         "system_probe_cws.go",
-        "system_probe_cws_notwin.go",
-        "system_probe_cws_windows.go",
         "system_probe_usm.go",
         "test_config_accessor.go",
         "test_helpers.go",
