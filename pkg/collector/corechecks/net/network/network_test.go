@@ -106,7 +106,7 @@ func TestNetworkCheckWithoutCoreLoader(t *testing.T) {
 	cfg.Set("network_check.use_core_loader", false, configmodel.SourceAgentRuntime)
 
 	networkCheck := new(NetworkCheck)
-	mock := mocksender.NewMockSender(networkCheck.ID())
+	mock := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	require.ErrorIs(t, err, check.ErrSkipCheckInstance)
 }
@@ -120,7 +120,7 @@ func TestNetworkCheckNonDefaultFlavor(t *testing.T) {
 			cfg.Set("network_check.use_core_loader", false, configmodel.SourceAgentRuntime)
 
 			networkCheck := new(NetworkCheck)
-			mock := mocksender.NewMockSender(networkCheck.ID())
+			mock := mocksender.NewMockSender(t, networkCheck.ID())
 			err := networkCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 			require.NoError(t, err)
 		})
@@ -310,7 +310,7 @@ func TestNetworkCheck(t *testing.T) {
 collect_connection_state: true
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -432,7 +432,7 @@ excluded_interfaces:
 	cfg := configmock.New(t)
 	cfg.Set("network_check.use_core_loader", true, configmodel.SourceAgentRuntime)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -513,7 +513,7 @@ excluded_interface_re: "eth[0-9]"
 
 	cfg := configmock.New(t)
 	cfg.Set("network_check.use_core_loader", true, configmodel.SourceAgentRuntime)
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 

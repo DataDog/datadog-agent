@@ -1,0 +1,28 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+
+package(default_visibility = ["//visibility:private"])
+
+py_library(
+    name = "cws_common",
+    srcs = ["common.py"],
+    deps = ["@py_dev_requirements//jinja2"],
+)
+
+py_binary(
+    name = "backend_doc_gen",
+    srcs = ["backend_doc_gen.py"],
+    data = glob(["templates/*.md"]),
+    main = "backend_doc_gen.py",
+    visibility = ["//docs/cloud-workload-security:__pkg__"],
+    deps = [":cws_common"],
+)
+
+py_binary(
+    name = "secl_doc_gen",
+    srcs = ["secl_doc_gen.py"],
+    data = glob(["templates/*.md"]),
+    main = "secl_doc_gen.py",
+    visibility = ["//docs/cloud-workload-security:__pkg__"],
+    deps = [":cws_common"],
+)

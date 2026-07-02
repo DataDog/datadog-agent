@@ -473,7 +473,6 @@ config_setup_func_names = [
     'setupMultiRegionFailover',
     'OTLP',
     'setupProcesses',
-    'platformCWSConfig',
     'initCWSSystemProbeConfig',
     'initUSMSystemProbeConfig',
     'InitSystemProbeConfig',

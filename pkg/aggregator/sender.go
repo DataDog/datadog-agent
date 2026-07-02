@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,6 +44,7 @@ type checkSender struct {
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
+	infraTagger             *infratags.Tagger // nil = no infra mode tagging
 	service                 string
 	noIndex                 bool
 }
@@ -131,6 +133,11 @@ func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
 }
 
+// SetInfraTagger sets the Tagger that appends infra_mode tags to every metric sample.
+func (s *checkSender) SetInfraTagger(tagger *infratags.Tagger) {
+	s.infraTagger = tagger
+}
+
 // SetCheckService appends the service as a tag for metrics, events, and service checks
 // This may be called any number of times, though the only the last call will have an effect
 func (s *checkSender) SetCheckService(service string) {
@@ -186,6 +193,8 @@ func (s *checkSender) sendMetricSample(
 	timestamp float64,
 ) {
 	tags = append(tags, s.checkTags...)
+	// add infra tags only for metrics
+	tags = s.infraTagger.AppendTags(tags)
 
 	if log.ShouldLog(log.TraceLvl) {
 		log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
@@ -291,6 +300,8 @@ func (s *checkSender) OpenmetricsBucket(metric string, value int64, lowerBound, 
 
 func (s *checkSender) sendHistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue, multipleBuckets bool) {
 	tags = append(tags, s.checkTags...)
+	// add infra tags only for metrics (same as sendMetricSample)
+	tags = s.infraTagger.AppendTags(tags)
 
 	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef(

@@ -33,7 +33,7 @@ const (
 
 func TestNano(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
@@ -87,7 +87,7 @@ func TestNano(t *testing.T) {
 
 func TestTX1(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
@@ -140,7 +140,7 @@ func TestTX1(t *testing.T) {
 
 func TestTX2(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
@@ -203,7 +203,7 @@ func TestTX2(t *testing.T) {
 
 func TestAgxXavier(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
@@ -270,7 +270,7 @@ func TestAgxXavier(t *testing.T) {
 
 func TestXavierNx(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
@@ -324,7 +324,7 @@ func TestXavierNx(t *testing.T) {
 
 func TestVoltageUnits(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
@@ -397,7 +397,7 @@ func TestVoltageUnits(t *testing.T) {
 
 func TestR36(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// RAM 29114/30697MB (lfb 3x4MB)    SWAP 4915/15348MB (cached 1MB)
@@ -474,7 +474,7 @@ func TestR36(t *testing.T) {
 
 func TestOrin(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// RAM 2448/62840MB (lfb 2x4MB) SWAP 0/31420MB (cached 0MB)
@@ -545,7 +545,7 @@ func TestOrin(t *testing.T) {
 
 func TestThor(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// RAM 3429/125773MB (lfb 12x4MB)
@@ -622,7 +622,7 @@ func TestThor(t *testing.T) {
 
 func TestConfigureWithCustomTegraStatsPath(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	mock := mocksender.NewMockSender(tegraCheck.ID())
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
 
 	tests := []struct {
 		name            string

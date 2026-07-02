@@ -299,6 +299,11 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/metrics-reserved-pipe/out.yaml",
 		},
 		{
+			name:     "internal-metrics-skipped-on-reserved-container-id-processor-conflict",
+			provided: "no_agent/reserved-cid-proc/in.yaml",
+			expected: "no_agent/reserved-cid-proc/out.yaml",
+		},
+		{
 			name:     "internal-metrics-uses-explicit-prometheus-reader",
 			provided: "no_agent/metrics-explicit-reader/in.yaml",
 			expected: "no_agent/metrics-explicit-reader/out.yaml",
