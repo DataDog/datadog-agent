@@ -1,4 +1,14 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/ebpf:ebpf_object_dir.bzl", "ebpf_object_dir")
+load("//tasks:ebpf_targets.bzl", "CORE_TARGETS", "PREBUILT_TARGETS")
+
+# keep
+ebpf_object_dir(
+    name = "verifier_bpf_dir",
+    core = CORE_TARGETS,
+    prebuilt = PREBUILT_TARGETS,
+    visibility = ["//pkg/ebpf/verifier:__subpackages__"],
+)
 
 #gazelle:dd_linux_bpf on
 
@@ -34,11 +44,16 @@ go_test(
         "stats_test.go",
         "verifier_log_parser_test.go",
     ],
+    data = [":verifier_bpf_dir"],
     embed = [":verifier"],
+    env = {
+        "DD_SYSTEM_PROBE_BPF_DIR": "$(rootpath :verifier_bpf_dir)",
+    },
     gotags = [
         "test",
         "linux_bpf",
     ],
+    rundir = ".",
     tags = ["manual"],  # keep
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
