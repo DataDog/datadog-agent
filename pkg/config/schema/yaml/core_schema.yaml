@@ -6554,6 +6554,28 @@ properties:
     - golang_type:duration
     comment: If not zero, the agent will log a warning if a check is running for longer
       than this timeout
+  checks:
+    node_type: section
+    type: object
+    properties:
+      vbr_compression_checks:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        comment: |-
+          Check names that should have their metrics streaming-compressed
+          (variable bit rate storage). Experimental; see
+          pkg/aggregator/sender/vbrsender.
+      vbr_compression_dry_run:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: "When true, VBR-compressed checks still run every sample through\
+          \ the\ncompressor for measurement (see the vbrsender_samples_total /\nvbrsender_breakpoints_total\
+          \ telemetry), but ship their original,\nuncompressed data — nothing\
+          \ the compressor produces is actually sent."
   clc_runner_enabled:
     node_type: setting
     type: boolean

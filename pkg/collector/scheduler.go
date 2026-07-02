@@ -58,15 +58,16 @@ type loadInstanceResult struct {
 	loaderErrors map[string]error
 }
 
-// vbrCompressedCheckNames is a TEMPORARY hardcoded allowlist of check names
-// that get VBR-compressed metrics (see pkg/aggregator/sender/vbrsender).
-// This will become a real Agent configuration option later; for now it's
-// how the VBR project's Phase 1 gets tested end to end.
-var vbrCompressedCheckNames = map[string]bool{
-	"openmetrics": true,
-	// TEMPORARY: stands in for "openmetrics" in this sandbox, which can't
-	// build Python/rtloader support (see pkg/collector/corechecks/vbrscrapeprobe).
-	"vbr_scrape_probe": true,
+// vbrCompressedCheckNames returns the set of check names that should get
+// VBR-compressed metrics (see pkg/aggregator/sender/vbrsender), from the
+// checks.vbr_compression_checks config setting.
+func vbrCompressedCheckNames() map[string]bool {
+	names := setup.Datadog().GetStringSlice("checks.vbr_compression_checks")
+	m := make(map[string]bool, len(names))
+	for _, name := range names {
+		m[name] = true
+	}
+	return m
 }
 
 func init() {
@@ -99,7 +100,7 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 	checkScheduler = &CheckScheduler{
 		collector:        collector,
 		senderManager:    senderManager,
-		vbrSenderManager: vbrsender.Wrap(senderManager),
+		vbrSenderManager: vbrsender.Wrap(senderManager, setup.Datadog().GetBool("checks.vbr_compression_dry_run")),
 		configToChecks:   make(map[string][]checkid.ID),
 		loaders:          make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 		infraTagger:      infratags.NewTagger(setup.Datadog()),
@@ -214,7 +215,7 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 	}
 
 	senderManager := s.senderManager
-	if vbrCompressedCheckNames[config.Name] {
+	if vbrCompressedCheckNames()[config.Name] {
 		senderManager = s.vbrSenderManager
 	}
 

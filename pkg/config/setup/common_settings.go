@@ -35,6 +35,15 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_lookback.enabled_checks", []string{})
 	config.BindEnvAndSetDefault("metric_lookback.collection_interval", time.Second)
 
+	// Check names that should have their metrics streaming-compressed
+	// (variable bit rate storage). Experimental; see
+	// pkg/aggregator/sender/vbrsender.
+	config.BindEnvAndSetDefault("checks.vbr_compression_checks", []string{})
+	// When true, VBR-compressed checks still run every sample through the
+	// compressor for measurement (see the vbrsender_samples_total /
+	// vbrsender_breakpoints_total telemetry), but ship their original,
+	// uncompressed data — nothing the compressor produces is actually sent.
+	config.BindEnvAndSetDefault("checks.vbr_compression_dry_run", false)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
 
