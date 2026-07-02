@@ -105,6 +105,20 @@ type certChainValidation struct {
 	CertChainPolicyValidationFlags []string `yaml:"policy_validation_flags" json:"policy_validation_flags" nullable:"true"`
 }
 
+// CertFilters holds include/exclude tag-filter rules. Each entry maps a tag
+// key (e.g. "certificate_thumbprint") to a Go regexp pattern matched against
+// the tag's value. An empty map means no filtering for that direction.
+type CertFilters struct {
+	Include map[string]string `yaml:"include" json:"include" nullable:"true"`
+	Exclude map[string]string `yaml:"exclude" json:"exclude" nullable:"true"`
+}
+
+// compiledCertFilters holds the compiled regexp forms of CertFilters.
+type compiledCertFilters struct {
+	include map[string]*regexp.Regexp
+	exclude map[string]*regexp.Regexp
+}
+
 // Config is the configuration options for this check
 // it is exported so that the yaml parser can read it.
 type Config struct {
@@ -127,6 +141,9 @@ type Config struct {
 	SubjectAlternativeNamesTag bool `yaml:"subject_alternative_names_tag" json:"subject_alternative_names_tag" default:"false"`
 	IssuerTag                  bool `yaml:"issuer_tag" json:"issuer_tag" default:"false"`
 	SignatureAlgorithmTag      bool `yaml:"signature_algorithm_tag" json:"signature_algorithm_tag" default:"false"`
+
+	// Filters controls which collected certificates are reported.
+	Filters CertFilters `yaml:"filters" json:"filters" nullable:"true"`
 }
 
 // WinCertChk is the object representing the check
@@ -134,6 +151,7 @@ type WinCertChk struct {
 	core.CheckBase
 	config           Config
 	certStoreRegexes []*regexp.Regexp // non-nil when certificate_store_regex lists at least one pattern
+	certFilters      compiledCertFilters
 }
 
 type crlInfoCopy struct {
@@ -148,7 +166,8 @@ type crlInfoCopy struct {
 type certInfo struct {
 	SubjectString    string
 	NotAfter         time.Time // certificate expiration
-	Tags             []string  // cert-derived tags
+	Tags             []string  // cert-derived tags (controlled by *_tag flags)
+	filterTags       []string  // full tag set for filter evaluation; nil when no filters configured
 	Thumbprint       string
 	TrustStatusError uint32 // windows.TrustStatus.ErrorStatus
 	ChainPolicyError uint32 // windows.CertChainPolicyStatus.Error
@@ -239,6 +258,15 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 		w.certStoreRegexes, compileErr = compileCertificateStoreRegexes(config.CertificateStoreRegex)
 		if compileErr != nil {
 			return compileErr
+		}
+	}
+
+	w.certFilters = compiledCertFilters{}
+	if len(config.Filters.Include) > 0 || len(config.Filters.Exclude) > 0 {
+		var filterErr error
+		w.certFilters, filterErr = compileCertFilters(config.Filters)
+		if filterErr != nil {
+			return filterErr
 		}
 	}
 
@@ -547,9 +575,9 @@ func (w *WinCertChk) enumerateStoreContents(storeHandle windows.Handle, store st
 	var certificates []certInfo
 	var err error
 	if len(certFilters) == 0 {
-		certificates, err = getEnumCertificatesInStore(storeHandle, w.config)
+		certificates, err = getEnumCertificatesInStore(storeHandle, w.config, w.certFilters)
 	} else {
-		certificates, err = findCertificatesInStore(storeHandle, certFilters, w.config)
+		certificates, err = findCertificatesInStore(storeHandle, certFilters, w.config, w.certFilters)
 	}
 	if err != nil {
 		log.Errorf("Error getting certificates: %v", err)
@@ -573,6 +601,7 @@ func (w *WinCertChk) enumerateStoreContents(storeHandle windows.Handle, store st
 	for i := range crlInfo {
 		crlInfo[i].StoreName = store
 	}
+	certificates = applyTagFilters(certificates, w.certFilters)
 	return certificates, crlInfo, nil
 }
 
@@ -625,7 +654,7 @@ func closeCertificateStore(storeHandle windows.Handle, store string) {
 // loop will need into Go-owned values.
 // Returns an error only when parsing or required-property reads fail;
 // optional lookups (friendly name) are logged and left empty on failure.
-func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle, cfg Config) (certInfo, error) {
+func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle, cfg Config, filters compiledCertFilters) (certInfo, error) {
 	encodedCert := unsafe.Slice(certContext.EncodedCert, certContext.Length)
 	cert, err := parseCertificate(encodedCert)
 	if err != nil {
@@ -646,8 +675,12 @@ func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle,
 		return certInfo{}, fmt.Errorf("getting certificate thumbprint: %w", err)
 	}
 
+	hasFilters := len(filters.include) > 0 || len(filters.exclude) > 0
+
+	// Fetch friendly name when the flag is on, or when filters are configured
+	// so that filter rules can reference friendly_name regardless of the flag.
 	var friendlyName string
-	if cfg.FriendlyNameTag {
+	if cfg.FriendlyNameTag || hasFilters {
 		friendlyName, err = getFriendlyName(certContext)
 		if err != nil {
 			log.Debugf("Error getting friendly name for %s: %v", cert.Subject.String(), err)
@@ -660,10 +693,30 @@ func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle,
 	tags = append(tags, "certificate_serial_number:"+cert.SerialNumber.Text(16))
 	tags = appendOptionalTags(tags, cert, friendlyName, cfg)
 
+	// When filters are configured, build a full tag set (all optional groups
+	// enabled) so that filter rules work independently of the *_tag flags.
+	// The emitted Tags above are still controlled by the user's config.
+	var filterTags []string
+	if hasFilters {
+		allCfg := cfg
+		allCfg.CertificateTemplateTag = true
+		allCfg.EnhancedKeyUsageTag = true
+		allCfg.FriendlyNameTag = true
+		allCfg.SubjectAlternativeNamesTag = true
+		allCfg.IssuerTag = true
+		allCfg.SignatureAlgorithmTag = true
+
+		filterTags = getSubjectTags(cert)
+		filterTags = append(filterTags, "certificate_thumbprint:"+thumbprint)
+		filterTags = append(filterTags, "certificate_serial_number:"+cert.SerialNumber.Text(16))
+		filterTags = appendOptionalTags(filterTags, cert, friendlyName, allCfg)
+	}
+
 	return certInfo{
 		SubjectString:    cert.Subject.String(),
 		NotAfter:         cert.NotAfter,
 		Tags:             tags,
+		filterTags:       filterTags,
 		Thumbprint:       thumbprint,
 		TrustStatusError: trustStatusError,
 		ChainPolicyError: chainPolicyError,
@@ -671,7 +724,7 @@ func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle,
 }
 
 // getEnumCertificatesInStore retrieves all certificates in a certificate store
-func getEnumCertificatesInStore(storeHandle windows.Handle, cfg Config) ([]certInfo, error) {
+func getEnumCertificatesInStore(storeHandle windows.Handle, cfg Config, filters compiledCertFilters) ([]certInfo, error) {
 	var err error
 	certificates := []certInfo{}
 
@@ -693,7 +746,7 @@ func getEnumCertificatesInStore(storeHandle windows.Handle, cfg Config) ([]certI
 			}
 		}
 
-		info, err := buildCertInfo(certContext, storeHandle, cfg)
+		info, err := buildCertInfo(certContext, storeHandle, cfg, filters)
 		if err != nil {
 			log.Errorf("Error building cert info: %v", err)
 			continue
@@ -705,7 +758,7 @@ func getEnumCertificatesInStore(storeHandle windows.Handle, cfg Config) ([]certI
 }
 
 // findCertificatesInStore finds certificates in a store with a given subject string
-func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string, cfg Config) ([]certInfo, error) {
+func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string, cfg Config, filters compiledCertFilters) ([]certInfo, error) {
 	var err error
 	certificates := []certInfo{}
 
@@ -737,7 +790,7 @@ func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string
 				}
 			}
 
-			info, err := buildCertInfo(certContext, storeHandle, cfg)
+			info, err := buildCertInfo(certContext, storeHandle, cfg, filters)
 			if err != nil {
 				log.Errorf("Error building cert info: %v", err)
 				continue
@@ -971,4 +1024,34 @@ func netAddConnection(remoteName, localName, password, username string) error {
 func netCancelConnection(name string) error {
 	log.Debugf("Canceling connection to %s", name)
 	return winutil.WNetCancelConnection2(name)
+}
+
+// compileCertFilters compiles the regexp patterns in a CertFilters into a
+// compiledCertFilters. Returns an error if any pattern is invalid.
+func compileCertFilters(filters CertFilters) (compiledCertFilters, error) {
+	compiled := compiledCertFilters{}
+
+	if len(filters.Include) > 0 {
+		compiled.include = make(map[string]*regexp.Regexp, len(filters.Include))
+		for key, pattern := range filters.Include {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				return compiledCertFilters{}, fmt.Errorf("filters.include[%q]: invalid regular expression: %w", key, err)
+			}
+			compiled.include[key] = re
+		}
+	}
+
+	if len(filters.Exclude) > 0 {
+		compiled.exclude = make(map[string]*regexp.Regexp, len(filters.Exclude))
+		for key, pattern := range filters.Exclude {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				return compiledCertFilters{}, fmt.Errorf("filters.exclude[%q]: invalid regular expression: %w", key, err)
+			}
+			compiled.exclude[key] = re
+		}
+	}
+
+	return compiled, nil
 }

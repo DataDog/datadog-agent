@@ -13,6 +13,7 @@ import (
 	"encoding/asn1"
 	"net"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -305,4 +306,94 @@ func TestAppendOptionalTagsFriendlyNameSkippedWhenEmpty(t *testing.T) {
 	for _, tag := range tags {
 		require.NotContains(t, tag, "friendly_name:")
 	}
+}
+
+func TestCompileCertFiltersRejectsInvalidRegex(t *testing.T) {
+	_, err := compileCertFilters(CertFilters{
+		Include: map[string]string{"certificate_thumbprint": "["},
+	})
+	require.Error(t, err)
+}
+
+func TestApplyTagFilters(t *testing.T) {
+	certA := certInfo{Tags: []string{"certificate_thumbprint:abc123", "subject_CN:webserver"}}
+	certB := certInfo{Tags: []string{"certificate_thumbprint:def456", "subject_CN:internal-db"}}
+	certC := certInfo{Tags: []string{"certificate_thumbprint:aaa999", "subject_CN:webserver"}}
+
+	// include only thumbprints starting with "a"
+	filters, err := compileCertFilters(CertFilters{
+		Include: map[string]string{"certificate_thumbprint": "^a"},
+	})
+	require.NoError(t, err)
+	got := applyTagFilters([]certInfo{certA, certB, certC}, filters)
+	require.Len(t, got, 2)
+	require.Equal(t, "abc123", tagValue(got[0].Tags, "certificate_thumbprint"))
+	require.Equal(t, "aaa999", tagValue(got[1].Tags, "certificate_thumbprint"))
+
+	// exclude certs with CN matching "internal"
+	filters2, err := compileCertFilters(CertFilters{
+		Exclude: map[string]string{"subject_CN": "internal"},
+	})
+	require.NoError(t, err)
+	got2 := applyTagFilters([]certInfo{certA, certB, certC}, filters2)
+	require.Len(t, got2, 2)
+
+	// include + exclude combined: include "^a" thumbprints, exclude "internal" CN
+	filters3, err := compileCertFilters(CertFilters{
+		Include: map[string]string{"certificate_thumbprint": "^a"},
+		Exclude: map[string]string{"subject_CN": "internal"},
+	})
+	require.NoError(t, err)
+	got3 := applyTagFilters([]certInfo{certA, certB, certC}, filters3)
+	require.Len(t, got3, 2) // certA and certC pass; certB excluded (thumbprint doesn't match include); no "internal" in remaining
+
+	// empty filters: all certs pass
+	filters4, err := compileCertFilters(CertFilters{})
+	require.NoError(t, err)
+	got4 := applyTagFilters([]certInfo{certA, certB, certC}, filters4)
+	require.Len(t, got4, 3)
+
+	// cert has no matching tag key for include rule → cert is excluded
+	filters5, err := compileCertFilters(CertFilters{
+		Include: map[string]string{"cert_san_dns": "example.com"},
+	})
+	require.NoError(t, err)
+	got5 := applyTagFilters([]certInfo{certA, certB, certC}, filters5)
+	require.Len(t, got5, 0)
+}
+
+// TestApplyTagFiltersUsesFilterTags verifies that applyTagFilters evaluates rules
+// against filterTags (the full tag set) rather than Tags (the emit tag set), so
+// that filter rules work independently of the *_tag flags.
+func TestApplyTagFiltersUsesFilterTags(t *testing.T) {
+	// cert has no signature_algorithm in its emit tags (flag was false),
+	// but filterTags contains the full set collected for filter evaluation.
+	cert := certInfo{
+		Tags:       []string{"certificate_thumbprint:abc123", "subject_CN:webserver"},
+		filterTags: []string{"certificate_thumbprint:abc123", "subject_CN:webserver", "signature_algorithm:sha256-rsa"},
+	}
+	other := certInfo{
+		Tags:       []string{"certificate_thumbprint:def456", "subject_CN:internal"},
+		filterTags: []string{"certificate_thumbprint:def456", "subject_CN:internal", "signature_algorithm:sha1-rsa"},
+	}
+
+	// Filter on a key that is absent from Tags but present in filterTags.
+	f, err := compileCertFilters(CertFilters{
+		Include: map[string]string{"signature_algorithm": "^sha256"},
+	})
+	require.NoError(t, err)
+	got := applyTagFilters([]certInfo{cert, other}, f)
+	require.Len(t, got, 1)
+	require.Equal(t, "abc123", tagValue(got[0].Tags, "certificate_thumbprint"))
+}
+
+// tagValue extracts the value for the first tag with the given key.
+func tagValue(tags []string, key string) string {
+	prefix := key + ":"
+	for _, t := range tags {
+		if strings.HasPrefix(t, prefix) {
+			return strings.TrimPrefix(t, prefix)
+		}
+	}
+	return ""
 }
