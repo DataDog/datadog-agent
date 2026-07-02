@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -21,7 +20,6 @@ const (
 	enabledChecksConfigKey = "metric_lookback.enabled_checks"
 	instanceConfigKey      = "metric_lookback"
 	instanceEnabledKey     = "enabled"
-	shadowIDSuffix         = ":shadow"
 )
 
 // ShadowPolicyOptions controls which source check instances get shadow candidates.
@@ -44,8 +42,6 @@ type ShadowCandidate struct {
 	Instance           integration.Data
 	InstanceIndex      int
 	SourceConfigDigest string
-	SourceCheckID      checkid.ID
-	ShadowCheckID      checkid.ID
 }
 
 // SelectShadowCandidates returns copied shadow candidates for selected config instances.
@@ -70,22 +66,15 @@ func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptio
 			if err != nil {
 				continue
 			}
-			sourceCheckID := checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig)
 			candidates = append(candidates, ShadowCandidate{
 				SourceConfig:       cloneConfig(config),
 				Instance:           shadowInstance,
 				InstanceIndex:      instanceIndex,
 				SourceConfigDigest: config.Digest(),
-				SourceCheckID:      sourceCheckID,
-				ShadowCheckID:      shadowCheckID(sourceCheckID),
 			})
 		}
 	}
 	return candidates
-}
-
-func shadowCheckID(sourceID checkid.ID) checkid.ID {
-	return checkid.ID(string(sourceID) + shadowIDSuffix)
 }
 
 func isSupportedCheckConfig(config integration.Config, opts ShadowPolicyOptions) bool {

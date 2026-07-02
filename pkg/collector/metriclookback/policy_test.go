@@ -13,7 +13,6 @@ import (
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -55,8 +54,6 @@ func TestSelectShadowCandidatesSelectsEnabledChecks(t *testing.T) {
 	assert.Equal(t, "cpu", candidate.SourceConfig.Name)
 	assert.Equal(t, 0, candidate.InstanceIndex)
 	assert.Equal(t, configs[0].Digest(), candidate.SourceConfigDigest)
-	assert.Equal(t, checkid.BuildID("cpu", configs[0].FastDigest(), configs[0].Instances[0], configs[0].InitConfig), candidate.SourceCheckID)
-	assert.Equal(t, checkid.ID(string(candidate.SourceCheckID)+":shadow"), candidate.ShadowCheckID)
 
 	raw := integration.RawMap{}
 	require.NoError(t, yaml.Unmarshal(candidate.Instance, &raw))
@@ -80,7 +77,6 @@ func TestSelectShadowCandidatesAllowsPerInstanceEnablement(t *testing.T) {
 
 	require.Len(t, candidates, 1)
 	assert.Equal(t, 1, candidates[0].InstanceIndex)
-	assert.Equal(t, checkid.BuildID("cpu", configs[0].FastDigest(), configs[0].Instances[1], configs[0].InitConfig), candidates[0].SourceCheckID)
 }
 
 func TestSelectShadowCandidatesTreatsMalformedInstanceSettingAsUnset(t *testing.T) {
