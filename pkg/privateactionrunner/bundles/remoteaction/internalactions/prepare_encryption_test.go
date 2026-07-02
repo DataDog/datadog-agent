@@ -29,37 +29,36 @@ func newTask(taskID string, inputs map[string]any) *types.Task {
 	return task
 }
 
+func assertSealRoundTrip(t *testing.T, store encryptioncontext.Store, result *PrepareEncryptionOutputs) {
+	t.Helper()
+
+	publicKey, err := base64.StdEncoding.DecodeString(result.PublicKey)
+	require.NoError(t, err)
+	require.Len(t, publicKey, 32, "Curve25519 public key must be 32 bytes")
+
+	privateKey, err := store.Take(result.EncryptionContextID)
+	require.NoError(t, err)
+	require.NotNil(t, privateKey)
+
+	var publicKeyArray [32]byte
+	copy(publicKeyArray[:], publicKey)
+	plaintext := []byte("hello")
+	sealed, err := box.SealAnonymous(nil, plaintext, &publicKeyArray, nil)
+	require.NoError(t, err)
+	opened, ok := box.OpenAnonymous(nil, sealed, &publicKeyArray, privateKey)
+	require.True(t, ok)
+	require.Equal(t, plaintext, opened)
+}
+
 func TestPrepareEncryptionRun(t *testing.T) {
 	cases := []struct {
-		name      string
-		inputs    map[string]any
-		wantErr   bool
-		assertOut func(t *testing.T, store encryptioncontext.Store, result *PrepareEncryptionOutputs)
+		name    string
+		inputs  map[string]any
+		wantErr bool
 	}{
 		{
 			name:   "generates key pair, populates output and stores private key",
 			inputs: map[string]any{"encryptionContextId": "ctx-abc"},
-			assertOut: func(t *testing.T, store encryptioncontext.Store, result *PrepareEncryptionOutputs) {
-				require.Equal(t, "curve25519", result.KeyType)
-				require.Equal(t, "ctx-abc", result.EncryptionContextID)
-
-				publicKey, err := base64.StdEncoding.DecodeString(result.PublicKey)
-				require.NoError(t, err)
-				require.Len(t, publicKey, 32, "Curve25519 public key must be 32 bytes")
-
-				privateKey, err := store.Take(result.EncryptionContextID)
-				require.NoError(t, err)
-				require.NotNil(t, privateKey)
-
-				var publicKeyArray [32]byte
-				copy(publicKeyArray[:], publicKey)
-				plaintext := []byte("hello")
-				sealed, err := box.SealAnonymous(nil, plaintext, &publicKeyArray, nil)
-				require.NoError(t, err)
-				opened, ok := box.OpenAnonymous(nil, sealed, &publicKeyArray, privateKey)
-				require.True(t, ok)
-				require.Equal(t, plaintext, opened)
-			},
 		},
 		{
 			name:    "rejects missing encryptionContextId",
@@ -87,7 +86,9 @@ func TestPrepareEncryptionRun(t *testing.T) {
 
 			result, ok := output.(*PrepareEncryptionOutputs)
 			require.True(t, ok, "unexpected output type %T", output)
-			testCase.assertOut(t, store, result)
+			require.Equal(t, "curve25519", result.KeyType)
+			require.Equal(t, testCase.inputs["encryptionContextId"], result.EncryptionContextID)
+			assertSealRoundTrip(t, store, result)
 		})
 	}
 }
