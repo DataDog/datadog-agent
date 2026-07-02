@@ -297,8 +297,8 @@ func findGoFuncEnd(data []byte, version HeaderVersion) int {
 	return findGoFuncEnd120(data)
 }
 
-// findGoFuncInModuleData loops over fields in moduleData (following 8-byte alignment) to find exact goFunc pointer from
-// address range between the end of functab and the end of pclntab
+// findGoFuncInModuleData scans moduleData (8-byte aligned fields) for the exact goFunc pointer, returning the smallest
+// field value in [minGoFunc, maxGoFunc[.
 func findGoFuncInModuleData(moduleData []byte, minGoFunc, maxGoFunc uint64) (uint64, bool) {
 	goFuncVal := maxGoFunc
 	for off := 0; off+ptrSize <= len(moduleData); off += ptrSize {
@@ -330,14 +330,20 @@ func findGoFuncVal(ef *pfelf.File, goPCLnTabInfo *GoPCLnTabInfo, runtimeFirstMod
 
 	if ef.Section(".go.module") != nil {
 		// funcdata (beginning of go:func.*) is now in pclntab, right after functab. it is aligned independently of
-		// functab, so its address is not always pclntab.Address + funcTabEndOffset() and requires us to scan moduleData
+		// functab, so its address is not always pclntab.Address + funcTabEndOffset() and requires to scan moduleData
 		// with the possible address range to determine exact pointer value (https://go.dev/doc/go1.26#compiler)
 		off := goPCLnTabInfo.funcTabEndOffset()
 		if off <= 0 {
 			return 0, errors.New("could not compute functab end offset")
 		}
 		minGoFunc := goPCLnTabInfo.Address + uint64(off)
+		// goFunc sits at most one alignment slot of padding past the functab end. The gopclntab section is at least as
+		// aligned as go:func.*, so its Addralign bounds that padding; if the section can't be found, fall back to the
+		// whole gopclntab extent (its end is Address + len(Data)).
 		maxGoFunc := goPCLnTabInfo.Address + uint64(len(goPCLnTabInfo.Data))
+		if sec := sectionContaining(ef, goPCLnTabInfo.Address); sec != nil {
+			maxGoFunc = minGoFunc + sec.Addralign
+		}
 		if goFuncVal, ok := findGoFuncInModuleData(moduleData, minGoFunc, maxGoFunc); ok {
 			return goFuncVal, nil
 		}

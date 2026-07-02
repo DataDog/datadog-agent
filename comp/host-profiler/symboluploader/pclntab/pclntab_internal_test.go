@@ -23,7 +23,7 @@ func moduleDataOf(words ...uint64) []byte {
 
 // TestFindGoFuncInModuleData covers the Go 1.26+ recovery of the real goFunc
 // address from moduledata. goFunc is identified by value: it is the smallest
-// pointer in [minGoFunc, maxGoFunc) = [functab end, gopclntab end). This must
+// pointer in [minGoFunc, maxGoFunc[ = [functab end, gopclntab end[. This must
 // return the exact stored value regardless of any alignment padding the linker
 // inserted between functab and go:func.* (which would make the naive
 // Address+funcTabEndOffset() computation land in the padding instead), and it
@@ -100,5 +100,19 @@ func TestFindGoFuncInModuleData(t *testing.T) {
 				t.Fatalf("gofunc = %#x, want %#x", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestFindGoFuncInModuleDataTightWindow locks the alignment boundary: with an
+// Addralign=16 window, the functab end is ptrSize-aligned, so the largest possible
+// padding is Addralign-ptrSize. goFunc then sits at hi-ptrSize and must still be
+// matched (not skipped by the w >= hi check), while a decoy exactly at hi is excluded.
+func TestFindGoFuncInModuleDataTightWindow(t *testing.T) {
+	const lo = uint64(0x480000)
+	const hi = lo + 16 // Addralign = 16
+
+	got, ok := findGoFuncInModuleData(moduleDataOf(0x400000, lo+8, hi), lo, hi)
+	if !ok || got != lo+8 {
+		t.Fatalf("got (%#x, %v), want (%#x, true)", got, ok, lo+8)
 	}
 }
