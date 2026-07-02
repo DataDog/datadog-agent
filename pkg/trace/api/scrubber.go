@@ -8,6 +8,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -29,6 +30,45 @@ const apmTelemetryProxyPath = "/api/v2/apmtelemetry"
 // scrubberLogger throttles repeated decode failures so a misbehaving tracer
 // can't drown the agent log.
 var scrubberLogger = log.NewThrottled(5, 10*time.Second)
+
+// sensitiveArgFlags are flag names whose value must be redacted even when
+// passed as a separate argv token from the flag (e.g. "--password hunter2")
+// rather than joined with "=" or ":", which pkg/util/scrubber's default
+// replacers already handle. Mirrors the word list process-agent's cmdline
+// scrubber (pkg/process/procutil.DataScrubber) uses; that package can't be
+// imported here because pkg/trace is a standalone Go module and procutil
+// lives in the (much larger) root module.
+var sensitiveArgFlags = []string{
+	"password", "passwd", "pwd", "mysql_pwd",
+	"access_token", "auth_token", "token",
+	"api_key", "apikey", "secret", "credentials",
+}
+
+// cmdLineScrubber adds the space-delimited flag/value replacers on top of
+// pkg/util/scrubber's default patterns.
+var cmdLineScrubber = newCmdLineScrubber()
+
+func newCmdLineScrubber() *scrubber.Scrubber {
+	s := scrubber.NewWithDefaults()
+	for _, word := range sensitiveArgFlags {
+		re := regexp.MustCompile(`(?i)((?:-{1,2})?` + word + `)( +)([^\s]+)`)
+		s.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
+			Regex: re,
+			Repl:  []byte(`$1$2********`),
+		})
+	}
+	return s
+}
+
+// scrubCommandLine redacts secrets from a raw command line string, covering
+// both "--password=hunter2"/"password: hunter2" forms (pkg/util/scrubber's
+// defaults) and the space-delimited "--password hunter2" form (added by
+// cmdLineScrubber above). It cannot redact a secret passed as a bare
+// positional argument with no recognizable flag name (e.g. "mysql root
+// hunter2").
+func scrubCommandLine(cmdLine string) string {
+	return cmdLineScrubber.ScrubLine(cmdLine)
+}
 
 // telemetryRequest is a partial decode of the APM library telemetry envelope
 // (see https://github.com/DataDog/instrumentation-telemetry-api-docs). Only
@@ -94,7 +134,7 @@ func stripCommandLineSecrets(req *http.Request, body []byte) []byte {
 		return body
 	}
 
-	scrubbed := scrubber.ScrubLine(payload.CommandLine)
+	scrubbed := scrubCommandLine(payload.CommandLine)
 	if scrubbed == payload.CommandLine {
 		return body
 	}

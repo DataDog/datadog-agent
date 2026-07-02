@@ -144,6 +144,18 @@ func TestStripCommandLineSecrets_RedactsSecret(t *testing.T) {
 			mustOmit:    []string{"supersecret"},
 			mustContain: []string{"********"},
 		},
+		{
+			name:        "space-delimited password flag",
+			cmdLine:     "/usr/bin/mysql -u root --password hunter2",
+			mustOmit:    []string{"hunter2"},
+			mustContain: []string{"********"},
+		},
+		{
+			name:        "space-delimited token flag",
+			cmdLine:     "/usr/bin/myapp --token abc123 start",
+			mustOmit:    []string{"abc123"},
+			mustContain: []string{"********"},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
