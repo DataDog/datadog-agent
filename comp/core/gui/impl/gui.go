@@ -29,8 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
@@ -68,12 +70,14 @@ type Payload struct {
 type Requires struct {
 	compdef.In
 
-	Log      log.Component
-	Config   config.Component
-	Flare    flare.Component
-	Status   status.Component
-	Lc       compdef.Lifecycle
-	Hostname hostnameinterface.Component
+	Log            log.Component
+	Config         config.Component
+	Flare          flare.Component
+	Status         status.Component
+	Lc             compdef.Lifecycle
+	Hostname       hostnameinterface.Component
+	Ipc            ipc.Component
+	SysprobeConfig sysprobeconfig.Component
 }
 
 // Provides defines the output of the gui component.
@@ -120,6 +124,7 @@ func NewComponent(deps Requires) Provides {
 
 	sessionExpiration := deps.Config.GetDuration("GUI_session_expiration")
 	g.auth = newAuthenticator(authToken, sessionExpiration)
+	socketPath := deps.SysprobeConfig.GetString("system_probe_config.sysprobe_socket")
 
 	// register the public routes
 	publicRouter.HandleFunc("GET /{$}", renderIndexPage)
@@ -129,7 +134,7 @@ func NewComponent(deps Requires) Provides {
 
 	// Set up handlers for the API, guarded by auth middleware
 	agentMux := http.NewServeMux()
-	agentHandler(agentMux, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp)
+	agentHandler(agentMux, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp, deps.Ipc.GetAuthToken, socketPath)
 
 	checkMux := http.NewServeMux()
 	checkHandler(checkMux)
@@ -281,6 +286,7 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 		Value:    accessToken,
 		Path:     "/",
 		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
 		MaxAge:   31536000, // 1 year
 	})
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -291,6 +297,17 @@ func (g *gui) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Disable caching
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if origin := r.Header.Get("Origin"); origin != "" {
+				expectedFromListener := "http://" + g.address
+				expectedFromRequest := "http://" + r.Host
+				if origin != expectedFromListener && origin != expectedFromRequest {
+					http.Error(w, "invalid origin", http.StatusForbidden)
+					return
+				}
+			}
+		}
 
 		cookie, _ := r.Cookie("accessToken")
 		if cookie == nil {
