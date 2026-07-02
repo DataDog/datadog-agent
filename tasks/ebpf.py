@@ -5,13 +5,13 @@ import shutil
 
 from tasks.github_tasks import pr_commenter
 from tasks.kmt import download_complexity_data
+from tasks.libs.build.bazel import bazel
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.git import (
     get_commit_sha,
     get_common_ancestor,
     get_current_branch,
 )
-from tasks.libs.types.arch import Arch
 
 try:
     from termcolor import colored
@@ -41,9 +41,6 @@ except ImportError:
     tabulate = None
 
 from .system_probe import (
-    build_cws_object_files,
-    build_object_files,
-    get_ebpf_build_dir,
     is_root,
 )
 
@@ -141,7 +138,6 @@ def format_verifier_stats(verifier_stats) -> ComplexitySummary:
 
 @task(
     help={
-        "skip_object_files": "Do not build ebpf object files",
         "debug_build": "Collect verification statistics for debug builds",
         "filter_file": "List of files to load ebpf program from, specified without extension. By default we load everything",
         "grep": "Regex to filter program statistics",
@@ -152,7 +148,6 @@ def format_verifier_stats(verifier_stats) -> ComplexitySummary:
 )
 def collect_verification_stats(
     ctx,
-    skip_object_files=False,
     debug_build=False,
     filter_file: list[str] = None,  # type: ignore
     grep: list[str] = None,  # type: ignore
@@ -160,14 +155,6 @@ def collect_verification_stats(
     save_verifier_logs=False,
 ):
     sudo = "sudo -E" if not is_root() else ""
-    if not skip_object_files:
-        build_object_files(ctx)
-        build_cws_object_files(ctx)
-
-    ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
-
-    arch = Arch.local()
-    env = {"DD_SYSTEM_PROBE_BPF_DIR": f"./{get_ebpf_build_dir(arch)}"}
 
     # ensure all files are object files
     for f in filter_file or []:
@@ -175,29 +162,35 @@ def collect_verification_stats(
         if ext != ".o":
             raise Exit(f"File {f} does not have the valid '.o' extension")
 
-    args = (
-        [
-            "-debug" if debug_build else "",
-            "-summary-output",
-            os.fspath(VERIFIER_STATS),
-        ]
-        + [f"-filter-file {f}" for f in filter_file or []]
-        + [f"-filter-prog {p}" for p in grep or []]
-    )
+    args = [
+        *(["-debug"] if debug_build else []),
+        "-summary-output",
+        os.path.abspath(VERIFIER_STATS),
+    ]
+    for f in filter_file or []:
+        args += ["-filter-file", f]
+    for p in grep or []:
+        args += ["-filter-prog", p]
 
     if save_verifier_logs:
         LOGS_DIR.mkdir(exist_ok=True, parents=True)
-        args += ["-verifier-logs", os.fspath(LOGS_DIR)]
+        args += ["-verifier-logs", os.path.abspath(LOGS_DIR)]
 
     if line_complexity:
         COMPLEXITY_DATA_DIR.mkdir(exist_ok=True, parents=True)
         args += [
             "-line-complexity",
             "-complexity-data-dir",
-            os.fspath(COMPLEXITY_DATA_DIR),
+            os.path.abspath(COMPLEXITY_DATA_DIR),
         ]
 
-    ctx.run(f"{sudo} ./main {' '.join(args)}", env=env)
+    # The calculator's own Bazel target builds the eBPF object files it needs
+    # and points DD_SYSTEM_PROBE_BPF_DIR at them; sudo is applied via
+    # --run_under so only the calculator binary is elevated, not bazel itself.
+    bazel_args = ["run", "//pkg/ebpf/verifier/calculator"]
+    if sudo:
+        bazel_args.insert(1, f"--run_under={sudo}")
+    bazel(ctx, *bazel_args, "--", *args)
 
     # Ensure permissions are correct
     ctx.run(f"{sudo} chmod a+wr -R {VERIFIER_DATA_DIR}")
