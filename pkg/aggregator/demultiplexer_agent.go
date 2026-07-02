@@ -59,7 +59,6 @@ type AgentDemultiplexer struct {
 	// stopChan receives a trigger that performs a final flush and stops the
 	// flushLoop of the Demultiplexer.
 	stopChan chan *trigger
-	stopOnce sync.Once
 	// flushChan receives a trigger to run an internal flush of all
 	// samplers (TimeSampler, BufferedAggregator (CheckSampler, Events, ServiceChecks))
 	// to the shared serializer.
@@ -434,10 +433,6 @@ func (d *AgentDemultiplexer) flushLoop() {
 // Stop performs a final flush, then releases resources. The instance should
 // not be used after a call to `Stop()`.
 func (d *AgentDemultiplexer) Stop() {
-	d.stopOnce.Do(d.stop)
-}
-
-func (d *AgentDemultiplexer) stop() {
 	timeout := pkgconfigsetup.Datadog().GetDuration("aggregator_stop_timeout") * time.Second
 	forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
 
