@@ -135,6 +135,8 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
+	integrationdetectiondef "github.com/DataDog/datadog-agent/comp/discovery/integrationdetection/def"
+	integrationdetectionfx "github.com/DataDog/datadog-agent/comp/discovery/integrationdetection/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/fx"
 	"github.com/DataDog/datadog-agent/comp/logs"
@@ -300,6 +302,7 @@ func run(log log.Component,
 	logReceiver option.Option[integrations.Component],
 	_ netflowServer.Component,
 	_ option.Option[langDetectionCl.Component],
+	_ option.Option[integrationdetectiondef.Component],
 	_ internalAPI.Component,
 	_ packagesigning.Component,
 	_ systemprobemetadata.Component,
@@ -521,6 +524,7 @@ func getSharedFxOption() fx.Option {
 		recordernoopfx.Module(),
 		reporterfx.Module(),
 		langDetectionClimpl.Module(),
+		integrationdetectionfx.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratordef.NewDefaultParams()),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
