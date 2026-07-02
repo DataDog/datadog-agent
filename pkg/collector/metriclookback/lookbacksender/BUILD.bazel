@@ -18,6 +18,7 @@ go_library(
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
         "//pkg/serializer/types",
+        "//pkg/util/infratags",
         "//pkg/util/log",
         "@//pkg/util/infratags",
     ],

@@ -7,6 +7,7 @@ package metriclookback
 
 import (
 	"slices"
+	"time"
 
 	yaml "go.yaml.in/yaml/v2"
 
@@ -20,6 +21,10 @@ const (
 	enabledChecksConfigKey = "metric_lookback.enabled_checks"
 	instanceConfigKey      = "metric_lookback"
 	instanceEnabledKey     = "enabled"
+
+	// defaultShadowCheckInterval is the collection interval for selected metric
+	// lookback shadow checks.
+	defaultShadowCheckInterval = time.Second
 )
 
 // ShadowPolicyOptions controls which source check instances get shadow candidates.
@@ -42,6 +47,7 @@ type ShadowCandidate struct {
 	Instance           integration.Data
 	InstanceIndex      int
 	SourceConfigDigest string
+	ShadowInterval     time.Duration
 }
 
 // SelectShadowCandidates returns copied shadow candidates for selected config instances.
@@ -71,6 +77,7 @@ func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptio
 				Instance:           shadowInstance,
 				InstanceIndex:      instanceIndex,
 				SourceConfigDigest: config.Digest(),
+				ShadowInterval:     defaultShadowCheckInterval,
 			})
 		}
 	}
