@@ -46,6 +46,7 @@ dd_agent_go_test(
     ],
     embed = [":mocksender"],
     deps = [
+        "//pkg/collector/check/id",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
         "@com_github_stretchr_testify//assert",
