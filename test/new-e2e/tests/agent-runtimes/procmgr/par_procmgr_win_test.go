@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	paridentity "github.com/DataDog/datadog-agent/test/new-e2e/tests/privateactionrunner"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -30,24 +30,18 @@ const (
 	parProcmgrConfigFileName = "datadog-agent-action.yaml"
 )
 
-func withPAREnabled() agentparams.Option {
-	return func(p *agentparams.Params) error {
-		p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String("private_action_runner.enabled: true"))
-		return nil
-	}
-}
-
 type parProcmgrWindowsSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 func TestPARManagedByProcmgrWindows(t *testing.T) {
 	t.Parallel()
+	config := paridentity.GenerateTestPrivateActionRunnerConfig(t)
 	e2e.Run(t, &parProcmgrWindowsSuite{}, e2e.WithProvisioner(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
-				ec2.WithAgentOptions(withPAREnabled()),
+				ec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
 			),
 		),
 	))
