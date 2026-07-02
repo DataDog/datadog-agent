@@ -340,6 +340,7 @@ exports_files(["go.mod"])
 # gazelle:exclude test/new-e2e/tests/agent-subcommands/check
 # gazelle:exclude test/new-e2e/tests/agent-subcommands/dogstatsdreplay
 # gazelle:exclude test/new-e2e/tests/agent-subcommands/status
+# gazelle:exclude test/new-e2e/tests/agent-telemetry
 # gazelle:exclude test/new-e2e/tests/anomalydetection
 # gazelle:exclude test/new-e2e/tests/apm
 # gazelle:exclude test/new-e2e/tests/autoscaling/spot
