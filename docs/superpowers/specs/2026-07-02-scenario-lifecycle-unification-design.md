@@ -130,6 +130,53 @@ Action-param decode, handler invocation, and error wrapping live only in
 **Outcome:** action execution is one path; only env resolution is pluggable. The
 CLI, the E2E suite, and unit tests all run the same decode/dispatch code.
 
+### 2c. E2E bridge — make the scenario trivially usable in tests
+
+A small `scenariotest` helper package (imports `scenario` + `e2e`; kept separate
+so the core `scenario` package takes no test-harness dependency) is the glue that
+lets a Go test reuse the scenario definition with no re-authoring:
+
+```go
+// WithScenario provisions the scenario (its own Provisioner + given params) as a
+// BaseSuite provisioner. No CLI state is written — the suite owns the env.
+func WithScenario[Env any](s scenario.Scenario[Env], params any) e2e.SuiteOption
+
+// RunAction runs the scenario's action against a live suite env, through the
+// shared DispatchAction (real param decode + handler). Env resolution is the
+// supplied env, not CLI state.
+func RunAction[Env any](env *Env, s scenario.Scenario[Env], action string, config map[string]string) error
+```
+
+Test author experience — one definition reused, no duplication:
+
+```go
+type suite struct { e2e.BaseSuite[environments.Host] }
+
+func TestEC2Host(t *testing.T) {
+    e2e.Run(t, &suite{}, scenariotest.WithScenario(ec2host.Scenario(), ec2host.NewParams()))
+}
+func (s *suite) TestRestartAgent() {
+    s.Require().NoError(scenariotest.RunAction(s.Env(), ec2host.Scenario(), "restart-agent", nil))
+}
+```
+
+## The define-once guarantee
+
+One scenario definition; CLI and E2E share four things and differ in exactly one
+(env resolution):
+
+| Piece | Single source | CLI path | E2E test path |
+|---|---|---|---|
+| Params + defaults | `NewParams()` (tags) | `Decode` overlay | `ec2host.NewParams()` |
+| Provisioner (params→infra) | `Scenario.Provisioner` | `scenario.Create` | `WithScenario` → `sc.Provisioner` |
+| Actions (handlers) | `Scenario.Actions` | `scenario.Action` | `scenariotest.RunAction` |
+| Action decode + dispatch | `DispatchAction` | `stateResolver` | suite resolver |
+| **Env resolution** | — | hydrate from state | `s.Env()` |
+
+Consequence: adding a tagged param or an `Actions` entry is a single edit to the
+scenario that flows to both the CLI (reflection/registry) and tests (struct +
+`RunAction`) with no per-consumer wiring.
+
 ---
 
 ## Phase 3 — Tests that prove the CLI workflow
@@ -154,16 +201,20 @@ create → state → action → destroy end to end without infrastructure.
 ### 3b. Suite-resolver action test (fast)
 
 A unit test using `DispatchAction` with a resolver returning a prebuilt fake env,
-proving action-param decode + dispatch independent of state/hydration.
+proving action-param decode + dispatch independent of state/hydration. This is
+the same path `scenariotest.RunAction` uses.
 
 ### 3c. Real E2E coverage (gated)
 
-- **Keep** the existing provisioner/`BaseSuite` test (`ec2host_test.go`).
-- **Add** a gated smoke that runs the lifecycle path a local developer uses:
+- **Keep** the existing provisioner/`BaseSuite` test, refactored to use
+  `scenariotest.WithScenario(ec2host.Scenario(), ec2host.NewParams())` and
+  `scenariotest.RunAction(s.Env(), ...)` — demonstrating the define-once bridge
+  and exercising the real action dispatch (not a directly-called handler).
+- **Add** a gated smoke that runs the CLI lifecycle a local developer uses:
   `scenario.Create(...)` → `scenario.Action(..., "run-command", ...)` →
-  `scenario.Destroy(...)` against real AWS. Gated behind the existing E2E
-  machinery; validates that the CLI lifecycle (incl. state + key replay) works on
-  real infra, not just the provisioner adapter.
+  `scenario.Destroy(...)` against real AWS. Validates that the CLI lifecycle
+  (incl. state + key replay) works on real infra, not just the provisioner
+  adapter.
 
 ---
 
@@ -172,6 +223,7 @@ proving action-param decode + dispatch independent of state/hydration.
 - `scenario/decode.go` — `ApplyDefaults`; `Decode` = defaults + overlay.
 - `scenario/scenario.go` / `runnable.go` — `EnvResolver`, `DispatchAction`;
   `RunAction` delegates to it; registry-keyed `Create`/`Action`/`Destroy`.
+- New `testing/scenariotest/` — `WithScenario` + `RunAction` e2e bridge helpers.
 - `scenario/scenarios/ec2host/params.go` — `NewParams()` defaulted; drop
   `NewEC2HostParams(os, arch)`.
 - `cmd/scenariorun/main.go` — handlers call `scenario.Create/Action/Destroy`.
