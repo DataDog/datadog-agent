@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -31,18 +33,37 @@ const (
 	httpClientTimeout = 5 * time.Second
 )
 
-// metricDef defines how a Prometheus metric is mapped to a Datadog metric name.
-type metricDef struct {
-	ddName string
+// coatMetric associates a COAT telemetry counter with the Prometheus label
+// names it expects, in the order required by telemetry.Counter.Add().
+type coatMetric struct {
+	counter telemetry.Counter
+	tagKeys []string
 }
 
-var metricDefs = map[string]metricDef{
-	"datadog_csi_driver_node_publish_volume_attempts": {
-		ddName: "node_publish_volume_attempts",
-	},
-	"datadog_csi_driver_node_unpublish_volume_attempts": {
-		ddName: "node_unpublish_volume_attempts",
-	},
+// metricDef defines how a Prometheus metric is mapped to a Datadog metric name
+// and optionally to a COAT telemetry counter.
+type metricDef struct {
+	ddName string
+	coat   *coatMetric
+}
+
+func buildMetricDefs(tm telemetry.Component) map[string]metricDef {
+	return map[string]metricDef{
+		"datadog_csi_driver_node_publish_volume_attempts": {
+			ddName: "node_publish_volume_attempts",
+			coat: &coatMetric{
+				counter: tm.NewCounter(CheckName, "node_publish_volume_attempts", []string{"status", "type"}, "CSI node publish volume attempts"),
+				tagKeys: []string{"status", "type"},
+			},
+		},
+		"datadog_csi_driver_node_unpublish_volume_attempts": {
+			ddName: "node_unpublish_volume_attempts",
+			coat: &coatMetric{
+				counter: tm.NewCounter(CheckName, "node_unpublish_volume_attempts", []string{"status"}, "CSI node unpublish volume attempts"),
+				tagKeys: []string{"status"},
+			},
+		},
+	}
 }
 
 // Check collects CSI driver metrics from its Prometheus endpoint.
@@ -51,14 +72,16 @@ type Check struct {
 	config     csiDriverConfig
 	httpClient http.Client
 	metrics    map[string]metricDef
+	prevValues map[string]float64
 }
 
 // Factory creates a new check factory.
-func Factory() option.Option[func() check.Check] {
+func Factory(tm telemetry.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return &Check{
-			CheckBase: core.NewCheckBase(CheckName),
-			metrics:   metricDefs,
+			CheckBase:  core.NewCheckBase(CheckName),
+			metrics:    buildMetricDefs(tm),
+			prevValues: make(map[string]float64),
 		}
 	})
 }
@@ -141,8 +164,47 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 		for _, sample := range mf.Samples {
 			tags := labelsToTags(sample.Metric)
 			s.MonotonicCount(metricNs+def.ddName+".count", sample.Value, "", tags)
+
+			if def.coat != nil {
+				key := seriesKey(def.ddName, sample.Metric)
+				prev := c.prevValues[key]
+				delta := sample.Value - prev
+				if delta < 0 {
+					delta = sample.Value
+				}
+				c.prevValues[key] = sample.Value
+
+				tagValues := make([]string, len(def.coat.tagKeys))
+				for i, k := range def.coat.tagKeys {
+					tagValues[i] = sample.Metric[k]
+				}
+				def.coat.counter.Add(delta, tagValues...)
+			}
 		}
 	}
+}
+
+// seriesKey builds a unique key for a metric time series from its name and
+// all label values, used to track previous values for delta computation.
+func seriesKey(name string, labels prometheus.Metric) string {
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		if k == "__name__" {
+			continue
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var b strings.Builder
+	b.WriteString(name)
+	for _, k := range keys {
+		b.WriteByte('|')
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(labels[k])
+	}
+	return b.String()
 }
 
 func labelsToTags(m prometheus.Metric) []string {

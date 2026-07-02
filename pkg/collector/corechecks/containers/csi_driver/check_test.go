@@ -6,9 +6,11 @@
 package csidriver
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
@@ -40,9 +44,11 @@ datadog_csi_driver_node_unpublish_volume_attempts_total{path="/var/run/datadog",
 `
 
 func newTestCheck() *Check {
+	tm := nooptelemetry.GetCompatComponent()
 	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
-		metrics:   metricDefs,
+		CheckBase:  core.NewCheckBase(CheckName),
+		metrics:    buildMetricDefs(tm),
+		prevValues: make(map[string]float64),
 	}
 }
 
@@ -176,6 +182,64 @@ func TestRunEndpointDown(t *testing.T) {
 		mock.Anything, "", mock.Anything, mock.Anything)
 
 	mockSender.AssertCalled(t, "Commit")
+}
+
+// TestCOATCountersDeltaOnly verifies that COAT telemetry counters receive only
+// the delta between consecutive scrapes, not the full cumulative Prometheus
+// counter value. Prometheus counters are monotonically increasing; if we blindly
+// Add(sample.Value) on every run, the COAT counter inflates proportionally to
+// the number of check runs rather than actual CSI operations.
+func TestCOATCountersDeltaOnly(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+
+	var scrapeCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := scrapeCount.Add(1)
+		// Simulate a Prometheus counter that increases by 3 each scrape interval.
+		publishValue := 3 * int(n)
+		unpublishValue := 1 * int(n)
+		body := fmt.Sprintf(`# TYPE datadog_csi_driver_node_publish_volume_attempts counter
+datadog_csi_driver_node_publish_volume_attempts{path="/var/run/datadog",status="success",type="DSDSocketDirectory"} %d
+# TYPE datadog_csi_driver_node_unpublish_volume_attempts counter
+datadog_csi_driver_node_unpublish_volume_attempts{status="success"} %d
+`, publishValue, unpublishValue)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer ts.Close()
+
+	chk := &Check{
+		CheckBase:  core.NewCheckBase(CheckName),
+		metrics:    buildMetricDefs(tm),
+		prevValues: make(map[string]float64),
+	}
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
+	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	// Run 1: endpoint returns publish=3, unpublish=1
+	require.NoError(t, chk.Run())
+	// Run 2: endpoint returns publish=6, unpublish=2
+	require.NoError(t, chk.Run())
+	// Run 3: endpoint returns publish=9, unpublish=3
+	require.NoError(t, chk.Run())
+
+	// The COAT counters should reflect the LATEST cumulative value (9 and 3),
+	// not the sum of all scraped values (3+6+9=18 and 1+2+3=6).
+	publishMetrics, err := tm.GetCountMetric(CheckName, "node_publish_volume_attempts")
+	require.NoError(t, err)
+	require.Len(t, publishMetrics, 1)
+	assert.Equal(t, 9.0, publishMetrics[0].Value(),
+		"COAT publish counter should equal the latest cumulative value, not the sum of all scrapes")
+
+	unpublishMetrics, err := tm.GetCountMetric(CheckName, "node_unpublish_volume_attempts")
+	require.NoError(t, err)
+	require.Len(t, unpublishMetrics, 1)
+	assert.Equal(t, 3.0, unpublishMetrics[0].Value(),
+		"COAT unpublish counter should equal the latest cumulative value, not the sum of all scrapes")
 }
 
 func TestRunEmptyResponse(t *testing.T) {
