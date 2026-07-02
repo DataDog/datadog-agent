@@ -1,6 +1,16 @@
 services:
   postgres_a1:
     image: postgres:${POSTGRES_IMAGE:-13-alpine}
+    command:
+      - postgres
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
+      - -c
+      - log_statement=all
+      - -c
+      - "log_line_prefix=%m [%p] %u@%d %r "
     environment:
       POSTGRES_USER: bob
       POSTGRES_PASSWORD: bob
@@ -22,7 +32,18 @@ services:
 
   postgres_a2:
     image: postgres:${POSTGRES_IMAGE:-13-alpine}
-    command: ["postgres", "-c", "port=5433"]
+    command:
+      - postgres
+      - -c
+      - port=5433
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
+      - -c
+      - log_statement=all
+      - -c
+      - "log_line_prefix=%m [%p] %u@%d %r "
     environment:
       POSTGRES_USER: bob
       POSTGRES_PASSWORD: bob
@@ -45,6 +66,16 @@ services:
 
   postgres_b1:
     image: postgres:${POSTGRES_IMAGE:-13-alpine}
+    command:
+      - postgres
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
+      - -c
+      - log_statement=all
+      - -c
+      - "log_line_prefix=%m [%p] %u@%d %r "
     environment:
       POSTGRES_USER: bob
       POSTGRES_PASSWORD: bob
@@ -66,7 +97,18 @@ services:
 
   postgres_b2:
     image: postgres:${POSTGRES_IMAGE:-13-alpine}
-    command: ["postgres", "-c", "port=5433"]
+    command:
+      - postgres
+      - -c
+      - port=5433
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
+      - -c
+      - log_statement=all
+      - -c
+      - "log_line_prefix=%m [%p] %u@%d %r "
     environment:
       POSTGRES_USER: bob
       POSTGRES_PASSWORD: bob
