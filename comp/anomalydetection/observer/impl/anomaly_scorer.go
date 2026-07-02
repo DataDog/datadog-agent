@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -339,7 +340,8 @@ type anomalyScorer struct {
 // StandaloneAnomalyScorer is the public interface for a scorer that is used
 // independently of the observer engine (e.g. testbench replay path).
 type StandaloneAnomalyScorer interface {
-	SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error)
+	SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error)
+	SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.Reader, error)
 	ProcessAnomaly(a observerdef.Anomaly)
 	Advance(dataTime int64)
 	LastScore() float64
@@ -398,9 +400,8 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGaug
 
 	// Self-subscribe as the internal watcher.
 	if _, err := s.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
-		Listener:     s,
 		CooldownSecs: cfg.CooldownSecs,
-	}); err != nil {
+	}, s); err != nil {
 		pkglog.Errorf("[observer] anomaly scorer self-subscription failed: %v", err)
 	}
 
@@ -608,15 +609,15 @@ func (s *anomalyScorer) Reset() {
 // Standalone scorer methods (retained for testbench replay)
 // ---------------------------------------------------------------------------
 
-// SubscribeSeverityEvents creates a dispatcher for cfg, seeds it from the
-// current raw severity when available, and returns it with an unsubscribe
-// function.
-func (s *anomalyScorer) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
-	if cfg.Listener == nil {
-		return severityeventsdef.SeverityEventsSubscription{}, severityeventsdef.ErrNilListener
+// SubscribeSeverityEvents creates a dispatcher for cfg/listener, seeds it
+// from the current raw severity when available, and returns it with an
+// unsubscribe function.
+func (s *anomalyScorer) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
+	if listener == nil {
+		return severityeventsdef.SeverityEventsSubscription{}, errors.New("nil severity event listener")
 	}
 
-	dispatcher := severityeventsimpl.NewDispatcher(cfg)
+	dispatcher := severityeventsimpl.NewDispatcher(cfg, listener)
 
 	s.mu.Lock()
 	knownLevel := s.rawLevelInitialized
@@ -645,6 +646,13 @@ func (s *anomalyScorer) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEv
 			}
 		},
 	}, nil
+}
+
+// SubscribeSeverityEventsReader is a convenience for pull-only consumers: it
+// registers its own internal listener via SubscribeSeverityEvents and returns
+// a Reader whose GetSeverity() reflects the latest delivered level.
+func (s *anomalyScorer) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.Reader, error) {
+	return severityeventsimpl.NewSeverityReader(s, cfg)
 }
 
 // LastScore returns the most recently computed EWMA score. Thread-safe.
