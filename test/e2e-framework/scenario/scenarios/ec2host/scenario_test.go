@@ -29,7 +29,7 @@ func TestScenarioSchemaExposesAgentFlags(t *testing.T) {
 }
 
 func TestProvisionerBuilds(t *testing.T) {
-	p := &EC2HostParams{OS: "ubuntu-22.04", Arch: "x86_64"}
+	p := NewParams()
 	prov, err := Provisioner(p)
 	if err != nil {
 		t.Fatalf("Provisioner: %v", err)
@@ -40,9 +40,9 @@ func TestProvisionerBuilds(t *testing.T) {
 }
 
 func TestProvisionerBuildsWithAgent(t *testing.T) {
-	p := NewEC2HostParams("ubuntu-22.04", "x86_64")
+	p := NewParams()
 	if !p.Agent.Install {
-		t.Fatal("NewEC2HostParams should set Agent.Install=true")
+		t.Fatal("NewParams should set Agent.Install=true")
 	}
 	prov, err := Provisioner(p)
 	if err != nil {
@@ -54,7 +54,8 @@ func TestProvisionerBuildsWithAgent(t *testing.T) {
 }
 
 func TestProvisionerBuildsArm64(t *testing.T) {
-	p := NewEC2HostParams("ubuntu-22.04", "arm64")
+	p := NewParams()
+	p.Arch = "arm64"
 	prov, err := Provisioner(p)
 	if err != nil {
 		t.Fatalf("Provisioner with arm64: %v", err)
@@ -65,7 +66,8 @@ func TestProvisionerBuildsArm64(t *testing.T) {
 }
 
 func TestProvisionerRejectsUnknownArch(t *testing.T) {
-	p := NewEC2HostParams("ubuntu-22.04", "mips64")
+	p := NewParams()
+	p.Arch = "mips64"
 	_, err := Provisioner(p)
 	if err == nil {
 		t.Fatal("expected error for unknown arch, got nil")

@@ -21,7 +21,7 @@ type ec2HostSuite struct {
 
 func TestEC2HostScenario(t *testing.T) {
 	t.Parallel()
-	prov, err := ec2host.Provisioner(ec2host.NewEC2HostParams("ubuntu-22.04", "x86_64"))
+	prov, err := ec2host.Provisioner(ec2host.NewParams())
 	require.NoError(t, err)
 	e2e.Run(t, &ec2HostSuite{}, e2e.WithProvisioner(prov))
 }

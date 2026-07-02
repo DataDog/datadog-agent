@@ -99,7 +99,7 @@ func Scenario() scenario.Scenario[environments.Host] {
 	return scenario.Scenario[environments.Host]{
 		Name:        "ec2-host",
 		Description: "AWS EC2 VM with the Datadog Agent",
-		NewParams:   func() any { return &EC2HostParams{} },
+		NewParams:   func() any { return NewParams() },
 		Provisioner: func(p any) (provisioners.TypedProvisioner[environments.Host], error) {
 			return Provisioner(p.(*EC2HostParams))
 		},

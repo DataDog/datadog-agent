@@ -234,10 +234,7 @@ scenario:"-"   // Go-only escape hatch, not exposed to CLI (e.g. InstanceOptions
 Reusable components (`AgentParams`, `FakeintakeParams`) embed directly into
 the canonical struct; `BuildSchema` recurses into them automatically.
 
-**Go zero-value note:** use `ec2host.NewEC2HostParams(os, arch)` in Go code
-(sets `Agent.Install=true`); a bare `EC2HostParams{}` literal gets `Install=false`
-because the `default=true` schema attribute is only applied by the CLI/service
-path via `Decode`. This is documented as a warning in `params.go`.
+Use `ec2host.NewParams()` (fully defaulted) in Go; the CLI applies the same defaults via `Decode`.
 
 ### Actions
 

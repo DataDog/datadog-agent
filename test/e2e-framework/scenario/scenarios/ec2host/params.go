@@ -7,6 +7,7 @@
 package ec2host
 
 import (
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenario"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenario/params"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
@@ -17,10 +18,6 @@ type EC2HostParams struct {
 	Arch string `scenario:"name=arch,default=x86_64,help=CPU architecture,enum=x86_64|arm64"`
 
 	// Agent holds agent-installation parameters.
-	//
-	// WARNING: Agent.Install defaults to false for Go struct-literal callers — the
-	// schema default ("install-agent=true") is only applied by the CLI/service via
-	// Decode. Use NewEC2HostParams to get a safe default with Install=true.
 	Agent      params.AgentParams      // embedded → agent flags
 	Fakeintake params.FakeintakeParams // embedded → fakeintake flags
 
@@ -28,9 +25,7 @@ type EC2HostParams struct {
 	InstanceOptions []ec2.VMOption `scenario:"-"`
 }
 
-// NewEC2HostParams returns EC2HostParams with safe defaults for Go callers
-// (notably Agent.Install=true, matching the schema default that the CLI/service
-// apply via Decode). Go struct-literal callers otherwise get Install=false.
-func NewEC2HostParams(os, arch string) *EC2HostParams {
-	return &EC2HostParams{OS: os, Arch: arch, Agent: params.AgentParams{Install: true}}
-}
+// NewParams returns fully-defaulted EC2HostParams (os=ubuntu-22.04, arch=x86_64,
+// install-agent=true, …). This is the blessed constructor: it yields the same
+// values the CLI produces for empty input. Override fields as needed.
+func NewParams() *EC2HostParams { return scenario.NewParams[EC2HostParams]() }
