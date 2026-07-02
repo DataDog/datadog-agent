@@ -61,11 +61,13 @@ applied identically to every consumer.
 - `Decode` becomes **ApplyDefaults + overlay**: it first applies defaults, then
   overlays only the user-provided keys (validation unchanged). Defaults are thus
   applied by `ApplyDefaults` in a single implementation.
-- Each scenario exposes a **defaulted constructor**. Replace
-  `NewEC2HostParams(os, arch)` with `ec2host.NewParams() *EC2HostParams` that
-  returns a fully-defaulted struct (`os=ubuntu-22.04`, `arch=x86_64`,
-  `install-agent=true`, …) by calling `scenario.ApplyDefaults`. Tests override
-  fields as needed (`p := ec2host.NewParams(); p.OS = "debian-12"`).
+- Add a generic helper `func NewParams[T any]() *T` in the `scenario` package:
+  `p := new(T); s, _ := BuildSchema(p); ApplyDefaults(s, p); return p`.
+- Each scenario exposes a one-line **defaulted constructor** built on it. Replace
+  `NewEC2HostParams(os, arch)` with `func NewParams() *EC2HostParams { return
+  scenario.NewParams[EC2HostParams]() }` — fully defaulted (`os=ubuntu-22.04`,
+  `arch=x86_64`, `install-agent=true`, …). Tests override fields as needed
+  (`p := ec2host.NewParams(); p.OS = "debian-12"`).
 - The scenario's `NewParams func() any` returns the same defaulted value, so the
   erased/CLI path and the Go path start from identical defaults.
 - **Remove** the "bare struct literals are dangerous" doc warning. The blessed
@@ -160,6 +162,18 @@ func (s *suite) TestRestartAgent() {
 }
 ```
 
+### 2d. Actions are curated CLI affordances — not test-step mirrors
+
+Actions are a **small, author-curated** set of operations useful for **manual CLI
+interaction** with a running environment (e.g. `connection-info`,
+`restart-agent`, a scenario-specific convenience). They are **not** a mirror of
+test steps. Test logic — including mid-test mutations (`s.Env().RemoteHost.
+MustExecute(...)`) and `UpdateEnv`-style re-provisioning — stays as plain Go in
+the test against `s.Env()`, exactly as today. Consequently `scenariotest.RunAction`
+is used sparingly (to test that a *defined* action works), not to drive test
+mutations. The shared surface that matters is **params + provisioner + env
+clients**; actions are an optional CLI-only layer on top.
+
 ## The define-once guarantee
 
 One scenario definition; CLI and E2E share four things and differ in exactly one
@@ -231,9 +245,39 @@ the same path `scenariotest.RunAction` uses.
   (+ suite-resolver action test).
 - New: `scenario/lifecycle_test.go` (fake full-lifecycle), plus unit tests for
   defaults and dispatch.
+- New `scenario/scenarios/agenthealth/` (env, params, scenario) built from the
+  existing `test/new-e2e/tests/agent-health/provisioner.go`; register in
+  `cmd/scenariorun/import_scenarios.go`.
+- `test/new-e2e/tests/agent-health/docker_permission_test.go` — swap provisioning
+  to `scenariotest.WithScenario`; subtests unchanged.
 - `test/e2e-framework/AGENTS.md` — document `NewParams()` as the blessed
-  constructor and the single lifecycle/dispatch path; drop the zero-value
-  warning.
+  constructor, the single lifecycle/dispatch path, and that actions are curated
+  CLI affordances (not test-step mirrors); drop the zero-value warning.
+
+## Applied example: agent-health (the real driving refactor)
+
+Beyond `ec2host`, this design is applied to the existing agent-health suites as
+the real proof:
+
+- **First: `dockerPermissionSuite`** (custom env = VM + host Agent + fakeintake +
+  docker-compose app). Define an `agent-health` `Scenario[Env]` from the existing
+  `provisioner.go`; swap the suite's one provisioning line to
+  `scenariotest.WithScenario(agenthealth.Scenario(), agenthealth.NewParams())`;
+  subtests keep using `s.Env()` and inline mutations unchanged. Curated actions:
+  `connection-info` (and optionally `restart-agent`) — the socket `chmod`s stay
+  as test logic, not actions.
+- **Next:** `checkFailure`/`resilience` (`environments.Host`) — a second host
+  scenario; `UpdateEnv` broken→fixed stays as test logic.
+- **Later:** `admissionProbe` (`environments.Kubernetes`).
+
+**Agent configuration from the CLI:** the embedded `params.AgentParams` component
+contributes the agent flags (`--agent-version`, `--agent-flavor`,
+`--agent-config-path` for the datadog.yaml, `--pipeline-id`, `--install-agent`)
+to every scenario, mapped by `AgentParams.ToOptions()`. Scenario-intrinsic agent
+config (e.g. agent-health's `health_platform`/logs base config) is set by the
+author in the run-func; CLI-user options are layered after (last wins). Advanced
+config (integrations, `WithLogs`, files) is the Go-only `AdvancedOptions` escape
+hatch, promoted to a flag on `AgentParams` when CLI users need it.
 
 ## Risks / decisions settled
 
