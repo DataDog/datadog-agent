@@ -1,0 +1,4 @@
+# Go specific config settings.
+
+test:go_race --@rules_go//go/config:race
+test:go_race --test_env=GORACE=atexit_sleep_ms=50

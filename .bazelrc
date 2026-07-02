@@ -105,6 +105,7 @@ common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlin
 # Project/Language configs --------------------------------------------------------------------------------------
 import %workspace%/bazel/configs/flavors.bazelrc
 import %workspace%/bazel/configs/rust.bazelrc
+import %workspace%/bazel/configs/go.bazelrc
 
 # Global release config ------------------------------------------------------------------------------------------------
 # This should aggregate all the release configs for all the languages with enabled optimizations,
@@ -115,9 +116,6 @@ import %workspace%/bazel/configs/rust.bazelrc
 common:release --config=rust-release
 common:release --//:release
 common --config=release
-
-test --@rules_go//go/config:race
-test --test_env=GORACE=atexit_sleep_ms=50
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
