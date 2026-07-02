@@ -45,24 +45,37 @@ import (
 // mistracking the signal (e.g. during a sustained level shift), which is
 // otherwise invisible from samples_total/breakpoints_total alone. Bucketed
 // on a broad log scale since the natural unit varies arbitrarily by metric.
+// exportedMetric opts every vbrsender telemetry metric into the built-in
+// "telemetry" core check (pkg/collector/corechecks/telemetry), the only
+// path that turns an internal Prometheus counter into a real
+// datadog.agent.<subsystem>.<name> metric in the backend. Without this,
+// NewCounter/NewGauge/NewHistogram only populate the internal registry
+// backing the /telemetry HTTP endpoint (debugging/flares), never shipped
+// anywhere.
+var exportedMetric = telemetry.Options{DefaultMetric: true}
+
 var (
-	tlmSamples = telemetryimpl.GetCompatComponent().NewCounter(
+	tlmSamples = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		"vbrsender", "samples_total",
 		[]string{"check_name", "metric_name"},
-		"Number of raw samples fed into the VBR compressor, by check and metric name")
-	tlmBreakpoints = telemetryimpl.GetCompatComponent().NewCounter(
+		"Number of raw samples fed into the VBR compressor, by check and metric name",
+		exportedMetric)
+	tlmBreakpoints = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		"vbrsender", "breakpoints_total",
 		[]string{"check_name", "metric_name"},
-		"Number of breakpoints shipped by the VBR compressor, by check and metric name")
-	tlmContexts = telemetryimpl.GetCompatComponent().NewGauge(
+		"Number of breakpoints shipped by the VBR compressor, by check and metric name",
+		exportedMetric)
+	tlmContexts = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 		"vbrsender", "contexts",
 		[]string{"check_name"},
-		"Number of distinct metric contexts being VBR-compressed, by check name")
-	tlmScaleDeviation = telemetryimpl.GetCompatComponent().NewHistogram(
+		"Number of distinct metric contexts being VBR-compressed, by check name",
+		exportedMetric)
+	tlmScaleDeviation = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
 		"vbrsender", "scale_deviation",
 		[]string{"check_name", "metric_name"},
 		"Absolute difference between a sample's value and the compressor's current EWMA scale estimate, by check and metric name",
-		[]float64{0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000, 100000, 1000000})
+		[]float64{0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000, 100000, 1000000},
+		exportedMetric)
 )
 
 // defaultConfig holds the global (not per-metric) VBR compressor
