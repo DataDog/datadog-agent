@@ -158,12 +158,28 @@ type contextState struct {
 	previousRateTs    float64
 
 	// MonotonicCount: previous raw counter value, mirrors the diffing in
-	// pkg/metrics/monotonic_count.go (reset detection only; this doesn't
-	// replicate FlushFirstValue or the sum-across-multiple-calls-per-commit
-	// behavior, since the sender side has no "commit" boundary to bound
-	// that sum by — every call is reduced to its own diff instead).
+	// pkg/metrics/monotonic_count.go (reset detection only; the
+	// sum-across-multiple-calls-per-commit behavior is handled by
+	// pendingSum below instead, since the sender side has no "commit"
+	// boundary to bound a sum by — every call is reduced to its own diff,
+	// and pendingSum accumulates those diffs until something ships).
 	hasPreviousMonotonicCount bool
 	previousMonotonicCount    float64
+
+	// pendingSum is meaningful only for kindCount/kindMonotonicCount: real
+	// Count/MonotonicCount semantics sum every value received since the
+	// last flush, not just report the latest one. pendingSum accumulates
+	// every value reduce() produces, and ship() drains it (to 0) exactly
+	// once whenever it ships a breakpoint for this context, guaranteeing
+	// every received value is shipped exactly once in aggregate — even
+	// though a single shipped point's timestamp may not exactly match
+	// every value folded into it (bounded by windowDuration; the same
+	// class of approximation real Count already makes by summing since
+	// the last flush and stamping the sum with the flush time). Do not
+	// "fix" this by trying to attribute pendingSum precisely to whichever
+	// point is closing — the compressor's closed point has no memory of a
+	// running sum to split, so there is nothing to attribute it to.
+	pendingSum float64
 }
 
 // Sender wraps a real sender.Sender. Gauge/Count/Rate/MonotonicCount are
@@ -269,6 +285,12 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 	value, ok := reduce(ctx, rawValue, now)
 	if ok {
 		ctx.tlmSamples.Inc()
+		if ctx.kind == kindCount || ctx.kind == kindMonotonicCount {
+			// Accumulate before Update(), unconditionally: whether or not
+			// this call causes a breakpoint, the value must count toward
+			// whatever eventually ships next. See pendingSum's doc comment.
+			ctx.pendingSum += value
+		}
 		for _, bp := range ctx.compressor.Update(now, value) {
 			s.ship(ctx, bp)
 		}
@@ -343,6 +365,18 @@ func reduce(ctx *contextState, rawValue, ts float64) (float64, bool) {
 
 func (s *Sender) ship(ctx *contextState, bp vbr.Point) {
 	ctx.tlmBreakpoints.Inc()
+
+	// For Count/MonotonicCount, ship the accumulated pendingSum instead of
+	// bp.Value — see pendingSum's doc comment. This must happen
+	// unconditionally, before the dryRun check below, so the compressor's
+	// simulated state (and this bookkeeping) advances identically whether
+	// or not anything actually gets forwarded.
+	shipValue := bp.Value
+	if ctx.kind == kindCount || ctx.kind == kindMonotonicCount {
+		shipValue = ctx.pendingSum
+		ctx.pendingSum = 0
+	}
+
 	if s.dryRun {
 		// Telemetry still counts this as a would-be breakpoint; only the
 		// actual forwarding is suppressed, since forwardRaw already shipped
@@ -351,11 +385,11 @@ func (s *Sender) ship(ctx *contextState, bp vbr.Point) {
 	}
 	switch ctx.kind {
 	case kindGauge, kindRate:
-		if err := s.Sender.GaugeWithTimestamp(ctx.metric, bp.Value, ctx.hostname, ctx.tags, bp.Ts); err != nil {
+		if err := s.Sender.GaugeWithTimestamp(ctx.metric, shipValue, ctx.hostname, ctx.tags, bp.Ts); err != nil {
 			log.Debugf("vbrsender: GaugeWithTimestamp(%s) failed: %s", ctx.metric, err)
 		}
 	case kindCount, kindMonotonicCount:
-		if err := s.Sender.CountWithTimestamp(ctx.metric, bp.Value, ctx.hostname, ctx.tags, bp.Ts); err != nil {
+		if err := s.Sender.CountWithTimestamp(ctx.metric, shipValue, ctx.hostname, ctx.tags, bp.Ts); err != nil {
 			log.Debugf("vbrsender: CountWithTimestamp(%s) failed: %s", ctx.metric, err)
 		}
 	}
