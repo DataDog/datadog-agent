@@ -1172,6 +1172,10 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 func (c *WorkloadMetaCollector) extractTagsFromPodKueueWorkloadInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) bool {
 	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
 	if workloadName == "" {
+		// Known limitation: for plain-Pod groups the Kueue Workload object name
+		// is not guaranteed to equal the pod-group-name label value. When they
+		// diverge, the lookup below fails and we fall back to pod-label queue
+		// tags (fail-closed, no incorrect tags).
 		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
 	}
 	if workloadName == "" {

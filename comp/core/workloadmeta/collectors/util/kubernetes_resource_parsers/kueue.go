@@ -10,7 +10,6 @@ package kubernetesresourceparsers
 import (
 	"fmt"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -173,19 +172,4 @@ func validateKueueQueueType(queueType workloadmeta.KueueQueueType) error {
 	default:
 		return fmt.Errorf("unsupported Kueue queue type %q", queueType)
 	}
-}
-
-// KueueQueueDeletionMeta returns Kubernetes object metadata used by generic reflector stores.
-func KueueQueueDeletionMeta(obj interface{}) metav1.Object {
-	return obj.(metav1.Object)
-}
-
-// KueueResourceFlavorDeletionMeta returns Kubernetes object metadata used by generic reflector stores.
-func KueueResourceFlavorDeletionMeta(obj interface{}) metav1.Object {
-	return obj.(metav1.Object)
-}
-
-// KueueWorkloadDeletionMeta returns Kubernetes object metadata used by generic reflector stores.
-func KueueWorkloadDeletionMeta(obj interface{}) metav1.Object {
-	return obj.(metav1.Object)
 }
