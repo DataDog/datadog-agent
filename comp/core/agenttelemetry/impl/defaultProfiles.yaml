@@ -371,6 +371,11 @@ profiles:
       - name: workloadmeta.pull_errors
         preserve_tags:
           - collector_id
+      - name: appsec_injector.watched_changes
+        preserve_tags:
+          - proxy_type
+          - operation
+          - success
   schedule:
     start_after: 30
     iterations: 0
