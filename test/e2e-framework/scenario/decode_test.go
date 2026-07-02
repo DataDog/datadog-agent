@@ -39,3 +39,26 @@ func TestDecodeErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeOverlaysDefaults(t *testing.T) {
+	var got defaultsSample
+	s, _ := BuildSchema(&got)
+	// Only "os" provided; count/enabled must come from defaults.
+	if err := Decode(s, map[string]string{"os": "debian-12"}, &got); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if got.OS != "debian-12" || got.Count != 3 || !got.Enabled {
+		t.Fatalf("overlay wrong: %+v", got)
+	}
+}
+
+func TestDecodeOverlayOnAlreadyDefaulted(t *testing.T) {
+	got := NewParams[defaultsSample]() // already defaulted
+	s, _ := BuildSchema(got)
+	if err := Decode(s, map[string]string{"enabled": "false"}, got); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if got.OS != "ubuntu-22.04" || got.Count != 3 || got.Enabled {
+		t.Fatalf("expected only enabled overridden: %+v", got)
+	}
+}

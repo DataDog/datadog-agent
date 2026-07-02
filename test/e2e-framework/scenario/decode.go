@@ -27,6 +27,11 @@ func Decode(s Schema, values map[string]string, target any) error {
 			return fmt.Errorf("unknown option %q", k)
 		}
 	}
+	// Defaults first, in one place.
+	if err := ApplyDefaults(s, target); err != nil {
+		return err
+	}
+	// Overlay only provided keys.
 	elem := rv.Elem()
 	for _, f := range s.Fields {
 		raw, present := values[f.Name]
@@ -34,16 +39,12 @@ func Decode(s Schema, values map[string]string, target any) error {
 			if f.Required {
 				return fmt.Errorf("missing required option %q", f.Name)
 			}
-			raw = f.Default
-			if raw == "" {
-				continue // leave zero value
-			}
+			continue
 		}
 		if len(f.Enum) > 0 && !contains(f.Enum, raw) {
 			return fmt.Errorf("option %q: %q not in [%v]", f.Name, raw, f.Enum)
 		}
-		fv := elem.FieldByIndex(f.Index)
-		if err := setValue(fv, f.Kind, raw); err != nil {
+		if err := setValue(elem.FieldByIndex(f.Index), f.Kind, raw); err != nil {
 			return fmt.Errorf("option %q: %w", f.Name, err)
 		}
 	}
