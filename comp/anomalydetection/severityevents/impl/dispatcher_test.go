@@ -243,6 +243,91 @@ func TestDispatcherFilteredInitialEventDoesNotStartCooldown(t *testing.T) {
 	}
 }
 
+func TestDispatcherFilteredInitialEventDoesNotStartCooldown(t *testing.T) {
+	d := NewDispatcher()
+	d.Advance(1000, severityeventsdef.SeverityHigh)
+
+	// This subscriber only wants de-escalations, so the synthetic initial
+	// event (High->High, Direction=Both) is filtered out and never delivered.
+	l := &collectingListener{}
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{
+		Listener:     l,
+		Filter:       severityeventsdef.SeverityEventFilter{Direction: severityeventsdef.SeverityEventDeescalation},
+		CooldownSecs: 60,
+	})
+	if len(l.events) != 0 {
+		t.Fatalf("expected the filtered initial event to be suppressed, got %v", l.events)
+	}
+
+	// The very first real transition is a de-escalation shortly after joining.
+	// It must not be blocked by a cooldown seeded from an event the listener
+	// never actually received.
+	d.Advance(1005, severityeventsdef.SeverityLow)
+	if len(l.events) != 1 {
+		t.Fatalf("expected the first real de-escalation to fire immediately, got %d: %v", len(l.events), l.events)
+	}
+	if l.events[0].Direction != severityeventsdef.SeverityEventDeescalation {
+		t.Fatalf("expected a de-escalation event, got %v", l.events[0].Direction)
+	}
+}
+
+// funcListener adapts a function to severityeventsdef.SeverityEventListener,
+// letting tests inject custom, per-event behavior (e.g. reentrant calls).
+type funcListener func(severityeventsdef.SeverityEvent)
+
+func (f funcListener) OnSeverityTransition(evt severityeventsdef.SeverityEvent) {
+	f(evt)
+}
+
+// TestDispatcherSubscriptionNotVisibleToAdvanceBeforeInitialEvent proves the
+// ordering guarantee deterministically: the initial callback fires with sub
+// not yet in d.subs, so an Advance call triggered reentrantly from inside
+// that very callback cannot be observed by this subscription. If the
+// subscription were published before delivering the initial event, this
+// reentrant Advance would race with (and could be delivered ahead of) the
+// initial snapshot.
+func TestDispatcherSubscriptionNotVisibleToAdvanceBeforeInitialEvent(t *testing.T) {
+	d := NewDispatcher()
+	d.Advance(1000, severityeventsdef.SeverityHigh)
+
+	var events []severityeventsdef.SeverityEvent
+	listener := funcListener(func(evt severityeventsdef.SeverityEvent) {
+		events = append(events, evt)
+		if len(events) == 1 {
+			// Simulate a transition racing with registration. Under the old
+			// (buggy) ordering, appending sub to d.subs before delivering the
+			// initial event would let this Advance call reach the
+			// still-registering subscription and deliver a "real" transition
+			// ahead of (or interleaved with) its own initial snapshot.
+			d.Advance(1001, severityeventsdef.SeverityLow)
+		}
+	})
+
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{Listener: listener})
+
+	if len(events) != 1 {
+		t.Fatalf("expected only the initial event to be delivered during registration, got %d: %v", len(events), events)
+	}
+	if events[0].Direction != severityeventsdef.SeverityEventBoth {
+		t.Fatalf("expected the delivered event to be the initial snapshot, got %+v", events[0])
+	}
+	if events[0].FromLevel != severityeventsdef.SeverityHigh || events[0].ToLevel != severityeventsdef.SeverityHigh {
+		t.Fatalf("expected the initial snapshot to reflect High, got %+v", events[0])
+	}
+
+	// The reentrant Advance(1001, Low) call above must not have been applied
+	// to this subscription (it wasn't registered yet). The next real Advance
+	// call is the first one this subscription actually observes, and it
+	// computes the transition from the snapshotted High state.
+	d.Advance(1002, severityeventsdef.SeverityLow)
+	if len(events) != 2 {
+		t.Fatalf("expected exactly one transition after registration, got %d: %v", len(events), events)
+	}
+	if events[1].FromLevel != severityeventsdef.SeverityHigh || events[1].ToLevel != severityeventsdef.SeverityLow {
+		t.Fatalf("expected a High->Low transition, got %+v", events[1])
+	}
+}
+
 func TestDispatcherResetClearsKnownLevelForNewSubscribers(t *testing.T) {
 	l := &collectingListener{}
 	d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{})
