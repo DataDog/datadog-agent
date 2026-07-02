@@ -6,8 +6,6 @@
 package scenario
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -105,40 +103,7 @@ func (g genericRunnable[Env]) Create(ctx common.Context, stack string, cfg map[s
 }
 
 func (g genericRunnable[Env]) RunAction(ctx common.Context, stack, action string, cfg map[string]string) error {
-	a, ok := g.s.Actions[action]
-	if !ok {
-		return fmt.Errorf("unknown action %q for scenario %q", action, g.s.Name)
-	}
-	// cfg is the ACTION's params — decode them before touching provisioning config.
-	var ap any
-	if a.NewParams != nil {
-		ap = a.NewParams()
-		sc, err := BuildSchema(ap)
-		if err != nil {
-			return err
-		}
-		if err := Decode(sc, cfg, ap); err != nil {
-			return err
-		}
-	}
-
-	// Hydrate the environment from the local state cache (no Pulumi call).
-	// If there is no local record the action cannot proceed — we need the
-	// cached import keys that were captured at create time.
-	var env *Env
-	ps, loadErr := LoadProvisionedStack(stack)
-	if errors.Is(loadErr, ErrNoProvisionedStack) {
-		return fmt.Errorf("no local record for stack %q; actions require a stack created via 'scenariorun create'", stack)
-	}
-	if loadErr != nil {
-		return fmt.Errorf("load provisioned stack state for action %q: %w", action, loadErr)
-	}
-	env, loadErr = standalone.HydrateFromResources[Env](ctx, fromRawMessage(ps.Resources), ps.Keys)
-	if loadErr != nil {
-		return fmt.Errorf("hydrate env for action %q from cached state: %w", action, loadErr)
-	}
-
-	return a.Run(context.Background(), env, ap)
+	return DispatchAction(ctx, g.s, stack, action, cfg, StateResolver[Env]{})
 }
 
 func (g genericRunnable[Env]) Destroy(ctx common.Context, stack string) error {
