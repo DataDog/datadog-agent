@@ -52,7 +52,7 @@ type Concentrator struct {
 	// peerTagsCache caches the peer-tag attribute key set keyed by the
 	// semantic registry version it was derived from. Readers call
 	// getPeerTagKeys, which rebuilds the cache (via conf.PeerTagsCache) when
-	// the live registry version no longer matches — this is how the
+	// the live registry content_hash no longer matches — this is how the
 	// Concentrator picks up semantic-core RC updates without explicit
 	// notification from the RC handler. The stored snapshot's Keys slice is
 	// never mutated in place; getPeerTagKeys always Stores a fresh snapshot.
