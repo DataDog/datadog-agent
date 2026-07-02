@@ -77,7 +77,7 @@ func pageOutFileBackedMemory() {
 		}
 
 		// We only want to page out read-only memory. After pageout, ask Linux
-		// to readahead the backing file range into page cache. This preserves
+		// to prefetch the backing file range into page cache. This preserves
 		// the RSS reduction while testing whether keeping the file cache warm
 		// avoids sustained refault CPU from future accesses to this mapping.
 		if len(perms) != 4 || perms[0] != 'r' || perms[1] != '-' {
@@ -112,11 +112,11 @@ func pageOutFileBackedMemory() {
 
 		// nolint:govet
 		_ = syscall.Madvise(unsafe.Slice((*byte)(unsafe.Pointer(uintptr(begin))), length), MADV_PAGEOUT)
-		readaheadFileRange(pathname, offset, length)
+		prefetchFileRange(pathname, offset, length)
 	}
 }
 
-func readaheadFileRange(pathname string, offset uint64, length uintptr) {
+func prefetchFileRange(pathname string, offset uint64, length uintptr) {
 	if length > uintptr(int(^uint(0)>>1)) {
 		return
 	}
@@ -127,5 +127,5 @@ func readaheadFileRange(pathname string, offset uint64, length uintptr) {
 	}
 	defer file.Close()
 
-	_ = unix.Readahead(int(file.Fd()), int64(offset), int(length))
+	_ = unix.Fadvise(int(file.Fd()), int64(offset), int64(length), unix.FADV_WILLNEED)
 }
