@@ -96,12 +96,12 @@ func (f *fakeSender) OrchestratorManifest([]types.ProcessMessageBody, string)   
 
 func newTestSender() (*Sender, *fakeSender) {
 	fake := &fakeSender{}
-	return newSender(fake, false), fake
+	return newSender(fake, false, "my_check"), fake
 }
 
 func newTestSenderDryRun() (*Sender, *fakeSender) {
 	fake := &fakeSender{}
-	return newSender(fake, true), fake
+	return newSender(fake, true, "my_check"), fake
 }
 
 func TestGauge_FlatSignalCompressesUntilWindowFlush(t *testing.T) {
@@ -317,4 +317,49 @@ func TestDryRun_StillMeasuresCompressionViaTelemetryOnly(t *testing.T) {
 	require.NotNil(t, ctx.compressor)
 	require.Empty(t, fake.gauges)
 	require.Len(t, fake.rawGauges, 10)
+}
+
+func TestTlmContexts_TracksDistinctContextCountPerSender(t *testing.T) {
+	// A dedicated check name, not shared with newTestSender()'s "my_check":
+	// tlmContexts is a process-global telemetry gauge keyed by check name,
+	// so reusing a name other tests already incremented would make this
+	// test's absolute-value assertions flaky.
+	fake := &fakeSender{}
+	s := newSender(fake, false, "check_tlm_contexts_test")
+
+	require.Equal(t, 0.0, s.tlmContexts.Get())
+
+	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"env:prod"}, 0)
+	require.Equal(t, 1.0, s.tlmContexts.Get())
+
+	// Same metric, same tags (different order): must not count as a new
+	// context.
+	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"env:prod"}, 1)
+	require.Equal(t, 1.0, s.tlmContexts.Get())
+
+	// Different tags: a genuinely new context.
+	s.compressAt(kindGauge, "my.gauge", 1, "host", []string{"env:staging"}, 0)
+	require.Equal(t, 2.0, s.tlmContexts.Get())
+
+	// A different metric entirely: another new context.
+	s.compressAt(kindCount, "my.count", 1, "host", nil, 0)
+	require.Equal(t, 3.0, s.tlmContexts.Get())
+
+	// Contexts never expire: repeating earlier calls must not double-count.
+	s.compressAt(kindGauge, "my.gauge", 2, "host", []string{"env:prod"}, 2)
+	require.Equal(t, 3.0, s.tlmContexts.Get())
+}
+
+func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {
+	fakeA := &fakeSender{}
+	sA := newSender(fakeA, false, "check_a")
+	fakeB := &fakeSender{}
+	sB := newSender(fakeB, false, "check_b")
+
+	sA.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0)
+	sA.compressAt(kindGauge, "my.gauge2", 1, "host", nil, 0)
+	sB.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0)
+
+	require.Equal(t, 2.0, sA.tlmContexts.Get())
+	require.Equal(t, 1.0, sB.tlmContexts.Get())
 }
