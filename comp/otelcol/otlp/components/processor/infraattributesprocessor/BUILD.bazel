@@ -71,6 +71,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/tagger/types",
         "//comp/otelcol/otlp/testutil",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_component//:component",
