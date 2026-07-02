@@ -7,7 +7,6 @@ package guiimpl
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -49,7 +48,7 @@ func restart(getToken func() string, sysprobeSocketPath string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		_, _ = sysprobeclient.ReadAllResponseBody(resp)
 		return fmt.Errorf("system-probe agent restart failed with status %d; see system-probe logs for details", resp.StatusCode)
 	}
 	return nil
