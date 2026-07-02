@@ -1166,9 +1166,6 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
 )
 
-// TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
-replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
-
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
 // use datadog fork of vault/api/auth/aws to reduce binary size for secret-generic-connector
