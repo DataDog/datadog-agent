@@ -2027,14 +2027,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -2077,14 +2069,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -2198,14 +2182,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -2248,14 +2224,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -4787,14 +4755,6 @@ properties:
                 default: false
                 tags:
                 - no-env
-              force_use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              force_use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               input_chan_size:
                 node_type: setting
                 type: integer
@@ -4837,14 +4797,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-              use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               use_v2_api:
                 node_type: setting
                 type: boolean
@@ -5008,14 +4960,6 @@ properties:
                 default: false
                 tags:
                 - no-env
-              force_use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              force_use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               input_chan_size:
                 node_type: setting
                 type: integer
@@ -5058,14 +5002,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-              use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               use_v2_api:
                 node_type: setting
                 type: boolean
@@ -5128,14 +5064,6 @@ properties:
                 default: false
                 tags:
                 - no-env
-              force_use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              force_use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               input_chan_size:
                 node_type: setting
                 type: integer
@@ -5178,14 +5106,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-              use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               use_v2_api:
                 node_type: setting
                 type: boolean
@@ -5253,14 +5173,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -5303,14 +5215,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7161,14 +7065,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7211,14 +7107,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7402,14 +7290,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7452,14 +7332,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7522,14 +7394,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7572,14 +7436,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7712,14 +7568,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7762,14 +7610,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7828,14 +7668,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7878,14 +7710,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -8341,14 +8165,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -8391,14 +8207,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -8666,14 +8474,6 @@ properties:
         default: false
         tags:
         - no-env
-      force_use_http:
-        node_type: setting
-        type: boolean
-        default: false
-      force_use_tcp:
-        node_type: setting
-        type: boolean
-        default: false
       input_chan_size:
         node_type: setting
         type: integer
@@ -8716,14 +8516,6 @@ properties:
         node_type: setting
         type: boolean
         default: true
-      use_http:
-        node_type: setting
-        type: boolean
-        default: false
-      use_tcp:
-        node_type: setting
-        type: boolean
-        default: false
       use_v2_api:
         node_type: setting
         type: boolean
@@ -9280,14 +9072,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -9330,14 +9114,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -10156,14 +9932,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -10206,14 +9974,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -10298,14 +10058,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -10348,14 +10100,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
