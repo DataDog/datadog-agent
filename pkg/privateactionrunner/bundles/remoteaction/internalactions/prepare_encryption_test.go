@@ -29,14 +29,14 @@ func newTask(taskID string, inputs map[string]any) *types.Task {
 	return task
 }
 
-func assertSealRoundTrip(t *testing.T, store encryptioncontext.Store, result *PrepareEncryptionOutputs) {
+func assertSealRoundTrip(t *testing.T, store encryptioncontext.Store, encryptionContextID string, result *PrepareEncryptionOutputs) {
 	t.Helper()
 
 	publicKey, err := base64.StdEncoding.DecodeString(result.PublicKey)
 	require.NoError(t, err)
 	require.Len(t, publicKey, 32, "Curve25519 public key must be 32 bytes")
 
-	privateKey, err := store.Take(result.EncryptionContextID)
+	privateKey, err := store.Take(encryptionContextID)
 	require.NoError(t, err)
 	require.NotNil(t, privateKey)
 
@@ -87,8 +87,7 @@ func TestPrepareEncryptionRun(t *testing.T) {
 			result, ok := output.(*PrepareEncryptionOutputs)
 			require.True(t, ok, "unexpected output type %T", output)
 			require.Equal(t, "curve25519", result.KeyType)
-			require.Equal(t, testCase.inputs["encryptionContextId"], result.EncryptionContextID)
-			assertSealRoundTrip(t, store, result)
+			assertSealRoundTrip(t, store, testCase.inputs["encryptionContextId"].(string), result)
 		})
 	}
 }
@@ -109,7 +108,6 @@ func TestPrepareEncryptionGeneratesUniqueContextsPerRun(t *testing.T) {
 		})
 	}
 
-	require.NotEqual(t, results[0].EncryptionContextID, results[1].EncryptionContextID)
 	require.NotEqual(t, results[0].PublicKey, results[1].PublicKey)
 }
 

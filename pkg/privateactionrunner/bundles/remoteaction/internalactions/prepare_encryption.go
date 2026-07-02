@@ -34,9 +34,8 @@ type PrepareEncryptionInputs struct {
 }
 
 type PrepareEncryptionOutputs struct {
-	KeyType             string `json:"keyType"`
-	PublicKey           string `json:"publicKey"`
-	EncryptionContextID string `json:"encryptionContextId"`
+	KeyType   string `json:"keyType"`
+	PublicKey string `json:"publicKey"`
 }
 
 // Run generates a Curve25519 key pair and returns the public key.
@@ -64,8 +63,7 @@ func (handler *PrepareEncryptionHandler) Run(
 	}
 
 	return &PrepareEncryptionOutputs{
-		KeyType:             keyTypeCurve25519,
-		PublicKey:           base64.StdEncoding.EncodeToString(publicKey[:]),
-		EncryptionContextID: inputs.EncryptionContextID,
+		KeyType:   keyTypeCurve25519,
+		PublicKey: base64.StdEncoding.EncodeToString(publicKey[:]),
 	}, nil
 }
