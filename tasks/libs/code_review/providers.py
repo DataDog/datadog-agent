@@ -17,7 +17,8 @@ PROVIDER_CHOICES = (*PROVIDERS, "all")
 @dataclass(frozen=True)
 class ProviderInvocation:
     provider: str
-    command: tuple[str, ...]
+    executable: str
+    command: str
     stdin: str | None
     output_path: Path
 
@@ -55,7 +56,8 @@ def build_provider_invocation(
         )
         return ProviderInvocation(
             provider=provider,
-            command=("codex", "exec", "--sandbox", "read-only", "-"),
+            executable="codex",
+            command="codex exec --sandbox read-only -",
             stdin=prompt,
             output_path=output_path,
         )
@@ -69,7 +71,8 @@ def build_provider_invocation(
     if provider == "claude":
         return ProviderInvocation(
             provider=provider,
-            command=("claude", "-p", instruction),
+            executable="claude",
+            command=f"claude -p {shlex.quote(instruction)}",
             stdin=None,
             output_path=output_path,
         )
@@ -77,7 +80,8 @@ def build_provider_invocation(
     if provider == "gemini":
         return ProviderInvocation(
             provider=provider,
-            command=("gemini", "-p", instruction),
+            executable="gemini",
+            command=f"gemini -p {shlex.quote(instruction)}",
             stdin=None,
             output_path=output_path,
         )
@@ -92,13 +96,13 @@ def _ensure_command_exists(runner: CommandRunner, command: str) -> None:
 
 
 def run_provider(runner: CommandRunner, invocation: ProviderInvocation, *, cwd: Path) -> None:
-    _ensure_command_exists(runner, invocation.command[0])
+    _ensure_command_exists(runner, invocation.executable)
     print(f"Running {invocation.provider} review...", file=sys.stderr)
     kwargs = {"hide": True, "warn": True}
     if invocation.stdin is not None:
         kwargs["in_stream"] = io.StringIO(invocation.stdin)
 
-    result = runner.run(f"cd {shlex.quote(str(cwd))} && {shlex.join(invocation.command)}", **kwargs)
+    result = runner.run(f"cd {shlex.quote(str(cwd))} && {invocation.command}", **kwargs)
 
     output = ""
     if result.stdout:
@@ -140,7 +144,7 @@ def run_review(
     ]
 
     for invocation in invocations:
-        _ensure_command_exists(runner, invocation.command[0])
+        _ensure_command_exists(runner, invocation.executable)
 
     for invocation in invocations:
         run_provider(runner, invocation, cwd=repo_root)

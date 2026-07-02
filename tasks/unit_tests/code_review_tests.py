@@ -147,7 +147,8 @@ class TestCodeReviewProviders(unittest.TestCase):
             artifact_dir=Path(".tmp/code-review"),
         )
 
-        self.assertEqual(invocation.command, ("codex", "exec", "--sandbox", "read-only", "-"))
+        self.assertEqual(invocation.executable, "codex")
+        self.assertEqual(invocation.command, "codex exec --sandbox read-only -")
         self.assertIn("git diff --find-renames origin/main...HEAD", invocation.stdin or "")
         self.assertIn("custom review instructions", invocation.stdin or "")
         self.assertEqual(invocation.output_path, Path(".tmp/code-review/codex.md"))
@@ -167,9 +168,10 @@ class TestCodeReviewProviders(unittest.TestCase):
             artifact_dir=Path(".tmp/code-review"),
         )
 
-        self.assertEqual(invocation.command[0:2], ("claude", "-p"))
-        self.assertIn("origin/main", invocation.command[2])
-        self.assertIn(".tmp/code-review/prompt.md", invocation.command[2])
+        self.assertEqual(invocation.executable, "claude")
+        self.assertIn("claude -p ", invocation.command)
+        self.assertIn("origin/main", invocation.command)
+        self.assertIn(".tmp/code-review/prompt.md", invocation.command)
         self.assertIsNone(invocation.stdin)
 
     def test_unknown_provider_is_rejected(self):
@@ -180,7 +182,8 @@ class TestCodeReviewProviders(unittest.TestCase):
         runner = FakeRunner()
         invocation = ProviderInvocation(
             provider="codex",
-            command=("codex", "exec", "--sandbox", "read-only", "-"),
+            executable="codex",
+            command="codex exec --sandbox read-only -",
             stdin="review prompt",
             output_path=Path("codex.md"),
         )
@@ -191,6 +194,7 @@ class TestCodeReviewProviders(unittest.TestCase):
                 runner,
                 ProviderInvocation(
                     provider=invocation.provider,
+                    executable=invocation.executable,
                     command=invocation.command,
                     stdin=invocation.stdin,
                     output_path=output_path,

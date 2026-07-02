@@ -36,25 +36,25 @@ class ReviewPrompt:
     content: str
 
 
-def _command_in_cwd(args: list[str], *, cwd: Path) -> str:
-    return f"cd {shlex.quote(str(cwd))} && {shlex.join(args)}"
+def _command_in_cwd(command: str, *, cwd: Path) -> str:
+    return f"cd {shlex.quote(str(cwd))} && {command}"
 
 
-def _git_stdout(runner: CommandRunner, args: list[str], *, cwd: Path) -> str:
-    result = runner.run(_command_in_cwd(["git", *args], cwd=cwd), hide=True, warn=True)
+def _git_stdout(runner: CommandRunner, command: str, *, cwd: Path) -> str:
+    result = runner.run(_command_in_cwd(f"git {command}", cwd=cwd), hide=True, warn=True)
     if result.exited != 0:
-        raise CodeReviewError(result.stderr.strip() or f"git {' '.join(args)} failed")
+        raise CodeReviewError(result.stderr.strip() or f"git {command} failed")
     return result.stdout.strip()
 
 
 def get_repo_root(runner: CommandRunner, cwd: str | Path | None = None) -> Path:
     start = Path(cwd or ".").resolve()
-    return Path(_git_stdout(runner, ["rev-parse", "--show-toplevel"], cwd=start))
+    return Path(_git_stdout(runner, "rev-parse --show-toplevel", cwd=start))
 
 
 def get_default_base(runner: CommandRunner, repo_root: Path) -> str:
     try:
-        base = _git_stdout(runner, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], cwd=repo_root)
+        base = _git_stdout(runner, "symbolic-ref --quiet --short refs/remotes/origin/HEAD", cwd=repo_root)
         if base:
             return base
     except CodeReviewError:
@@ -62,7 +62,7 @@ def get_default_base(runner: CommandRunner, repo_root: Path) -> str:
 
     for candidate in ("origin/main", "main"):
         result = runner.run(
-            _command_in_cwd(["git", "rev-parse", "--verify", "--quiet", candidate], cwd=repo_root),
+            _command_in_cwd(f"git rev-parse --verify --quiet {shlex.quote(candidate)}", cwd=repo_root),
             hide=True,
             warn=True,
         )
@@ -75,7 +75,7 @@ def get_default_base(runner: CommandRunner, repo_root: Path) -> str:
 def get_changed_files(runner: CommandRunner, repo_root: Path, base: str) -> tuple[str, ...]:
     output = _git_stdout(
         runner,
-        ["diff", "--name-only", "--diff-filter=ACMRTUXB", f"{base}...HEAD"],
+        f"diff --name-only --diff-filter=ACMRTUXB {shlex.quote(f'{base}...HEAD')}",
         cwd=repo_root,
     )
     return tuple(line for line in output.splitlines() if line)
