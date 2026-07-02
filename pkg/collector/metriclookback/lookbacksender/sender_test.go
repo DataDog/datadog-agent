@@ -66,9 +66,9 @@ func TestSenderCommitWritesScalarMetricBatch(t *testing.T) {
 	ctx := context.WithValue(context.Background(), testContextKey{}, "test")
 	manager := NewSenderManager(ctx, "default-host", writer, func() float64 { return 42 })
 
-	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
+	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
-	lookbackSender := sender.(*Sender)
+	lookbackSender := gotSender.(*sender)
 	lookbackSender.SetCheckCustomTags([]string{"check:tag"})
 	lookbackSender.SetCheckService("service1")
 	lookbackSender.SetCheckService("service2")
@@ -134,9 +134,9 @@ func TestSenderCopiesTagsBeforeBuffering(t *testing.T) {
 	writer := &recordingWriter{}
 	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
 
-	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
+	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
-	lookbackSender := sender.(*Sender)
+	lookbackSender := gotSender.(*sender)
 
 	tags := []string{"device:first"}
 	lookbackSender.GaugeNoIndex("metric.gauge", 1, "", tags)
@@ -160,9 +160,9 @@ func TestSenderDropsUnsupportedPayloadsAndRejectsInvalidTimestamps(t *testing.T)
 	writer := &recordingWriter{}
 	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
 
-	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
+	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
-	lookbackSender := sender.(*Sender)
+	lookbackSender := gotSender.(*sender)
 
 	lookbackSender.Distribution("metric.distribution", 1, "", nil)
 	lookbackSender.ServiceCheck("check.service", servicecheck.ServiceCheckOK, "", nil, "")
@@ -185,9 +185,9 @@ func TestSenderTelemetry(t *testing.T) {
 	writer := &recordingWriter{}
 	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
 
-	sender, err := manager.GetSender(checkid.ID("cpu:first:shadow"))
+	gotSender, err := manager.GetSender(checkid.ID("cpu:first:shadow"))
 	require.NoError(t, err)
-	lookbackSender := sender.(*Sender)
+	lookbackSender := gotSender.(*sender)
 
 	distributionDrops := tlmUnsupportedDrops.WithValues("Distribution")
 	dropsBefore := distributionDrops.Get()
@@ -235,7 +235,7 @@ func TestSenderManagerReusesAndDestroysSendersByCheckID(t *testing.T) {
 }
 
 func TestSenderManagerDefaultSenderAndNoopWriter(t *testing.T) {
-	manager := NewSenderManager(nil, "default-host", nil, nil)
+	manager := NewSenderManager(context.Background(), "default-host", nil, nil)
 
 	defaultSender, err := manager.GetDefaultSender()
 	require.NoError(t, err)
@@ -243,11 +243,11 @@ func TestSenderManagerDefaultSenderAndNoopWriter(t *testing.T) {
 	defaultSender.Commit()
 	assert.Equal(t, int64(0), defaultSender.GetSenderStats().MetricSamples)
 
-	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
+	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
-	sender.Gauge("metric.gauge", 1, "", nil)
-	sender.Commit()
-	assert.Equal(t, int64(1), sender.GetSenderStats().MetricSamples)
+	gotSender.Gauge("metric.gauge", 1, "", nil)
+	gotSender.Commit()
+	assert.Equal(t, int64(1), gotSender.GetSenderStats().MetricSamples)
 }
 
 type testContextKey struct{}

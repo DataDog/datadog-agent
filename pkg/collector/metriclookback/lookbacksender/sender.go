@@ -35,7 +35,7 @@ type SenderManager struct {
 	defaultHostname string
 	writer          Writer
 	now             func() float64
-	senders         map[checkid.ID]*Sender
+	senders         map[checkid.ID]*sender
 	defaultSender   *noopSender
 }
 
@@ -49,13 +49,16 @@ func NewSenderManager(ctx context.Context, defaultHostname string, writer Writer
 			return float64(time.Now().UnixNano()) / 1e9
 		}
 	}
+	if writer == nil {
+		writer = noopWriter{}
+	}
 
 	return &SenderManager{
 		ctx:             ctx,
 		defaultHostname: defaultHostname,
 		writer:          writer,
 		now:             now,
-		senders:         make(map[checkid.ID]*Sender),
+		senders:         make(map[checkid.ID]*sender),
 		defaultSender:   &noopSender{},
 	}
 }
@@ -76,7 +79,7 @@ func (m *SenderManager) GetSender(id checkid.ID) (aggregatorsender.Sender, error
 
 // SetSender sets the sender for a check ID.
 func (m *SenderManager) SetSender(s aggregatorsender.Sender, id checkid.ID) error {
-	lookbackSender, ok := s.(*Sender)
+	lookbackSender, ok := s.(*sender)
 	if !ok {
 		return errors.New("sender must be a lookback sender")
 	}
@@ -99,8 +102,7 @@ func (m *SenderManager) GetDefaultSender() (aggregatorsender.Sender, error) {
 	return m.defaultSender, nil
 }
 
-// Sender implements sender.Sender for lookback shadow checks.
-type Sender struct {
+type sender struct {
 	ctx             context.Context
 	id              checkid.ID
 	defaultHostname string
@@ -119,8 +121,8 @@ type Sender struct {
 	unsupportedDrops        map[string]int64
 }
 
-func newSender(ctx context.Context, id checkid.ID, defaultHostname string, writer Writer, now func() float64) *Sender {
-	return &Sender{
+func newSender(ctx context.Context, id checkid.ID, defaultHostname string, writer Writer, now func() float64) *sender {
+	return &sender{
 		ctx:             ctx,
 		id:              id,
 		defaultHostname: defaultHostname,
@@ -133,7 +135,7 @@ func newSender(ctx context.Context, id checkid.ID, defaultHostname string, write
 }
 
 // Commit writes buffered scalar samples to the lookback writer.
-func (s *Sender) Commit() {
+func (s *sender) Commit() {
 	s.mu.Lock()
 	samples := slices.Clone(s.samples)
 	s.samples = nil
@@ -147,7 +149,7 @@ func (s *Sender) Commit() {
 		tlmUnsupportedDrops.Add(float64(count), method)
 	}
 
-	if len(samples) == 0 || s.writer == nil {
+	if len(samples) == 0 {
 		return
 	}
 
@@ -163,13 +165,13 @@ func (s *Sender) Commit() {
 }
 
 // GetSenderStats returns sender stats from the previous committed run.
-func (s *Sender) GetSenderStats() stats.SenderStats {
+func (s *sender) GetSenderStats() stats.SenderStats {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.priorStats.Copy()
 }
 
-func (s *Sender) appendScalarSample(metric string, value float64, hostname string, tags []string, mType metrics.MetricType, flushFirstValue bool, noIndex bool, timestamp float64) {
+func (s *sender) appendScalarSample(metric string, value float64, hostname string, tags []string, mType metrics.MetricType, flushFirstValue bool, noIndex bool, timestamp float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -197,7 +199,7 @@ func (s *Sender) appendScalarSample(metric string, value float64, hostname strin
 	s.stats.MetricSamples++
 }
 
-func (s *Sender) recordUnsupportedDrop(method string) {
+func (s *sender) recordUnsupportedDrop(method string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.unsupportedDrops == nil {
@@ -207,28 +209,28 @@ func (s *Sender) recordUnsupportedDrop(method string) {
 }
 
 // DisableDefaultHostname allows checks to opt out of the configured default hostname.
-func (s *Sender) DisableDefaultHostname(disable bool) {
+func (s *sender) DisableDefaultHostname(disable bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.defaultHostnameDisabled = disable
 }
 
 // SetCheckCustomTags stores custom check tags appended to each scalar metric sample.
-func (s *Sender) SetCheckCustomTags(tags []string) {
+func (s *sender) SetCheckCustomTags(tags []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.checkTags = slices.Clone(tags)
 }
 
 // SetCheckService stores the check service to add as a tag when finalized.
-func (s *Sender) SetCheckService(service string) {
+func (s *sender) SetCheckService(service string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.service = service
 }
 
 // FinalizeCheckServiceTag appends the latest service tag to future scalar metric samples.
-func (s *Sender) FinalizeCheckServiceTag() {
+func (s *sender) FinalizeCheckServiceTag() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.service != "" {
@@ -237,49 +239,49 @@ func (s *Sender) FinalizeCheckServiceTag() {
 }
 
 // SetNoIndex marks future scalar metric samples as no-index.
-func (s *Sender) SetNoIndex(noIndex bool) {
+func (s *sender) SetNoIndex(noIndex bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.noIndex = noIndex
 }
 
-func (s *Sender) Gauge(metric string, value float64, hostname string, tags []string) {
+func (s *sender) Gauge(metric string, value float64, hostname string, tags []string) {
 	s.appendScalarSample(metric, value, hostname, tags, metrics.GaugeType, false, false, 0)
 }
 
-func (s *Sender) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
+func (s *sender) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
 	s.appendScalarSample(metric, value, hostname, tags, metrics.GaugeType, false, true, 0)
 }
 
-func (s *Sender) Rate(metric string, value float64, hostname string, tags []string) {
+func (s *sender) Rate(metric string, value float64, hostname string, tags []string) {
 	s.appendScalarSample(metric, value, hostname, tags, metrics.RateType, false, false, 0)
 }
 
-func (s *Sender) Count(metric string, value float64, hostname string, tags []string) {
+func (s *sender) Count(metric string, value float64, hostname string, tags []string) {
 	s.appendScalarSample(metric, value, hostname, tags, metrics.CountType, false, false, 0)
 }
 
-func (s *Sender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
+func (s *sender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
 	s.appendScalarSample(metric, value, hostname, tags, metrics.MonotonicCountType, false, false, 0)
 }
 
-func (s *Sender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
+func (s *sender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
 	s.appendScalarSample(metric, value, hostname, tags, metrics.MonotonicCountType, flushFirstValue, false, 0)
 }
 
-func (s *Sender) Counter(metric string, value float64, hostname string, tags []string) {
+func (s *sender) Counter(metric string, value float64, hostname string, tags []string) {
 	s.appendScalarSample(metric, value, hostname, tags, metrics.CounterType, false, false, 0)
 }
 
-func (s *Sender) Histogram(metric string, value float64, hostname string, tags []string) {
+func (s *sender) Histogram(metric string, value float64, hostname string, tags []string) {
 	s.appendScalarSample(metric, value, hostname, tags, metrics.HistogramType, false, false, 0)
 }
 
-func (s *Sender) Historate(metric string, value float64, hostname string, tags []string) {
+func (s *sender) Historate(metric string, value float64, hostname string, tags []string) {
 	s.appendScalarSample(metric, value, hostname, tags, metrics.HistorateType, false, false, 0)
 }
 
-func (s *Sender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+func (s *sender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
 	if timestamp <= 0 {
 		return errors.New("invalid timestamp")
 	}
@@ -287,7 +289,7 @@ func (s *Sender) GaugeWithTimestamp(metric string, value float64, hostname strin
 	return nil
 }
 
-func (s *Sender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+func (s *sender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
 	if timestamp <= 0 {
 		return errors.New("invalid timestamp")
 	}
@@ -296,43 +298,49 @@ func (s *Sender) CountWithTimestamp(metric string, value float64, hostname strin
 }
 
 // Distribution is not captured by metric lookback.
-func (s *Sender) Distribution(_ string, _ float64, _ string, _ []string) {
+func (s *sender) Distribution(_ string, _ float64, _ string, _ []string) {
 	s.recordUnsupportedDrop("Distribution")
 }
 
 // ServiceCheck is not captured by metric lookback.
-func (s *Sender) ServiceCheck(_ string, _ servicecheck.ServiceCheckStatus, _ string, _ []string, _ string) {
+func (s *sender) ServiceCheck(_ string, _ servicecheck.ServiceCheckStatus, _ string, _ []string, _ string) {
 	s.recordUnsupportedDrop("ServiceCheck")
 }
 
 // OpenmetricsBucket is not captured by metric lookback.
-func (s *Sender) OpenmetricsBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
+func (s *sender) OpenmetricsBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
 	s.recordUnsupportedDrop("OpenmetricsBucket")
 }
 
 // HistogramBucket is not captured by metric lookback.
-func (s *Sender) HistogramBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
+func (s *sender) HistogramBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
 	s.recordUnsupportedDrop("HistogramBucket")
 }
 
 // Event is not captured by metric lookback.
-func (s *Sender) Event(_ event.Event) {
+func (s *sender) Event(_ event.Event) {
 	s.recordUnsupportedDrop("Event")
 }
 
 // EventPlatformEvent is not captured by metric lookback.
-func (s *Sender) EventPlatformEvent(_ []byte, _ string) {
+func (s *sender) EventPlatformEvent(_ []byte, _ string) {
 	s.recordUnsupportedDrop("EventPlatformEvent")
 }
 
 // OrchestratorMetadata is not captured by metric lookback.
-func (s *Sender) OrchestratorMetadata(_ []types.ProcessMessageBody, _ string, _ int) {
+func (s *sender) OrchestratorMetadata(_ []types.ProcessMessageBody, _ string, _ int) {
 	s.recordUnsupportedDrop("OrchestratorMetadata")
 }
 
 // OrchestratorManifest is not captured by metric lookback.
-func (s *Sender) OrchestratorManifest(_ []types.ProcessMessageBody, _ string) {
+func (s *sender) OrchestratorManifest(_ []types.ProcessMessageBody, _ string) {
 	s.recordUnsupportedDrop("OrchestratorManifest")
+}
+
+type noopWriter struct{}
+
+func (noopWriter) Append(context.Context, checkid.ID, []metrics.MetricSample) error {
+	return nil
 }
 
 type noopSender struct{}
