@@ -25,7 +25,7 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.10 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.23.0
-	github.com/pulumi/pulumi/sdk/v3 v3.247.0
+	github.com/pulumi/pulumi/sdk/v3 v3.248.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.11.1
 	github.com/xeipuuv/gojsonschema v1.2.0
