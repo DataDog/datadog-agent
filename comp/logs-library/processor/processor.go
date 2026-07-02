@@ -8,9 +8,14 @@ package processor
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"regexp"
 	"slices"
 	"sync"
+
+	"go.opentelemetry.io/collector/pdata/plog"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
@@ -255,6 +260,17 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	rules := append(p.processingRules, extraRules...)
 	for _, rule := range rules {
 		switch rule.Type {
+
+		case config.ExcludeAtMatchOTTL:
+			if p.processOTTLmsg(msg, rule) {
+				return false
+			}
+
+		case config.IncludeAtMatchOTTL:
+			if !p.processOTTLmsg(msg, rule) {
+				return false
+			}
+
 		case config.ExcludeAtMatch:
 			// if this message matches, we ignore it
 			if rule.Regex.Match(content) {
@@ -280,6 +296,21 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
+		case config.ExcludeAtJQMatch:
+			if matched, err := rule.JQFilter(content); err == nil && matched {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				return false
+			}
+		case config.IncludeAtJQMatch:
+			matched, err := rule.JQFilter(content)
+			if err != nil {
+				// Non-JSON or runtime error: pass through unchanged.
+				break
+			}
+			if !matched {
+				return false
+			}
+			msg.RecordProcessingRule(rule.Type, rule.Name)
 		case config.RemapSource:
 			for _, match := range rule.Matching {
 				if val, ok := msg.GetStructuredAttribute(match.Attribute); ok && val == match.Value {
@@ -324,4 +355,54 @@ func (p *Processor) GetHostname(msg *message.Message) string {
 		hname = "unknown"
 	}
 	return hname
+}
+
+// processOTTLmsg
+func (p *Processor) processOTTLmsg(msg *message.Message, rule *config.ProcessingRule) bool {
+	// If the OTTL condition is not compiled, we log an error and skip OTTL processing for this rule
+	if rule.OTTLCondition == nil {
+		log.Errorf("OTTL condition is not compiled for rule `%s`, skipping OTTL processing", rule.Name)
+		return false
+	}
+
+	var m map[string]any
+
+	err := json.Unmarshal(msg.GetContent(), &m)
+	if err != nil {
+		log.Errorf("error unmarshalling message content for OTTL processing rule `%s`: %v", rule.Name, err)
+		return false
+	}
+
+	pdata := plog.NewLogRecord()
+	for k, v := range m {
+		switch val := v.(type) {
+		case string:
+			pdata.Attributes().PutStr(k, val)
+		case bool:
+			pdata.Attributes().PutBool(k, val)
+		case float64:
+			pdata.Attributes().PutDouble(k, val)
+		default:
+			log.Warnf("unsupported attribute type for key `%s` in OTTL processing rule `%s`, skipping this attribute", k, rule.Name)
+		}
+	}
+
+	rl := plog.NewResourceLogs()
+	sl := rl.ScopeLogs().AppendEmpty()
+
+	transformContext := ottllog.NewTransformContextPtr(rl, sl, pdata)
+	defer transformContext.Close()
+
+	match, err := rule.OTTLCondition.Eval(context.Background(), transformContext)
+	if err != nil {
+		log.Errorf("error evaluating OTTL condition for processing rule `%s`: %v", rule.Name, err)
+		return false
+	}
+
+	if match {
+		msg.RecordProcessingRule(rule.Type, rule.Name)
+	}
+
+	return match
+
 }
