@@ -45,14 +45,8 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 			continue
 		}
 		if extension.Name == datadogName {
+			// The datadog extension requires an API key; without one we add nothing.
 			if c.coreConfig == nil || c.coreConfig.GetString("api_key") == "" {
-				continue
-			}
-			// User already defined a datadog extension but forgot to wire it into
-			// service.extensions — reuse their definition instead of creating a
-			// second datadog/dd-autoconfigured.
-			if existingID := findExistingExtensionID(conf, datadogName); existingID != "" {
-				wireExtensionIDToPipeline(conf, existingID)
 				continue
 			}
 			site := defaultSite
@@ -79,21 +73,12 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 				"installation_method": c.coreConfig.GetString("otelcollector.installation_method"),
 			}
 		}
-		addComponentToConfig(conf, extension)
-		addExtensionToPipeline(conf, extension)
+		reuseOrAddExtension(conf, extension)
 	}
 
 	// dogtel extension (standalone mode only)
 	if c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone") && !extensionIsInServicePipeline(conf, dogtelComponent) {
-		if existingID := findExistingExtensionID(conf, dogtelName); existingID != "" {
-			// User already defined a dogtel extension but forgot to wire it into
-			// service.extensions — reuse their definition instead of creating a
-			// second dogtel/dd-autoconfigured with empty config.
-			wireExtensionIDToPipeline(conf, existingID)
-		} else {
-			addComponentToConfig(conf, dogtelComponent)
-			addExtensionToPipeline(conf, dogtelComponent)
-		}
+		reuseOrAddExtension(conf, dogtelComponent)
 	}
 
 	// infra attributes processor
