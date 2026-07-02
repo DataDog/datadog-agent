@@ -26,6 +26,8 @@ const (
 	OffsetNameLinuxBinprmArgc           = "linux_binprm_argc_offset"
 	OffsetNameLinuxBinprmEnvc           = "linux_binprm_envc_offset"
 	OffsetNameVMAreaStructFlags         = "vm_area_struct_flags_offset"
+	OffsetNameVMAreaStructVMStart       = "vm_area_struct_vm_start_offset"
+	OffsetNameVMAreaStructVMEnd         = "vm_area_struct_vm_end_offset"
 	OffsetNameKernelCloneArgsExitSignal = "kernel_clone_args_exit_signal_offset"
 	OffsetNameFileFinode                = "file_f_inode_offset"
 	OffsetNameFileFpath                 = "file_f_path_offset"
