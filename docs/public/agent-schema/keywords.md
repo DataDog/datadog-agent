@@ -321,13 +321,14 @@ Sets per-platform default value overrides. Mutually exclusive with `default` (On
   `linux`, `windows`, and `darwin` explicitly, or by including an `other` catch-all.
 - **Validation:** values must match the `type` of the setting.
 
-Supported platform keys: `linux`, `windows`, `darwin`, `container`, `other`.
+Supported platform keys: `linux`, `windows`, `darwin`, `container`, 'fargate', `other`.
 
 **Container fallback logic:** because container environments currently share many
-defaults with Linux, `container` is optional. When resolving the default for a
-container, the Agent applies the following fallback chain:
+defaults with Linux, `container`/`fargate` is optional. When resolving the default for a
+setting, the Agent applies the following fallback chain:
 
-1. Use `container` if present.
+1. Use `fargate` if present and running on ECS Farget.
+1. Fall back to `container` if present running in a container.
 2. Fall back to `linux` if present.
 3. Fall back to `other` if present.
 

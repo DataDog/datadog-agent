@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 	"go.opentelemetry.io/collector/confmap"
@@ -384,6 +385,9 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 			if _, err := confmaputils.SetDefault(headers, fieldDDEVPOriginVersion, version.ProfilerVersion); err != nil {
 				return err
 			}
+			if _, err := confmaputils.SetDefault(headers, fieldDDOtelMetricConfig, fieldDDOtelMetricConfigValue); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -470,7 +474,7 @@ func hasInternalHealthMetricsPipelineConflicts(conf confMap) bool {
 		}
 	}
 	if processors, ok := confmaputils.Get[confMap](conf, "processors"); ok {
-		for _, reserved := range []string{reservedFilterProcessor, reservedCumulativeToDeltaProcessor} {
+		for _, reserved := range []string{reservedFilterProcessor, reservedCumulativeToDeltaProcessor, reservedContainerIDProcessor} {
 			if _, exists := processors[reserved]; exists {
 				slog.Warn("skipping internal health metrics pipeline",
 					slog.String("reason", "processor name conflicts with reserved name"),
@@ -564,45 +568,60 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 		return nil
 	}
 
-	if len(resolution.uncoveredExporters) > 0 {
-		if err := confmaputils.Set(conf, pathPrefixReceivers+reservedPrometheusReceiver, confmaputils.PrometheusReceiverConfig("host-profiler-internal", resolution.defaultTarget)); err != nil {
-			return fmt.Errorf("failed to add prometheus receiver: %w", err)
-		}
-
-		if err := confmaputils.Set(conf, pathPrefixProcessors+reservedFilterProcessor, confmaputils.FilterProcessorConfig()); err != nil {
-			return fmt.Errorf("failed to add filter processor: %w", err)
-		}
-		if err := confmaputils.Set(conf, pathPrefixProcessors+reservedCumulativeToDeltaProcessor, confMap{}); err != nil {
-			return fmt.Errorf("failed to add cumulativetodelta processor: %w", err)
-		}
-
-		metricsProcessors := []any{reservedFilterProcessor, reservedCumulativeToDeltaProcessor}
-		metricsProcessors = append(metricsProcessors, profilesProcessors...)
-
-		metricsPipeline := confMap{
-			"receivers":  []any{reservedPrometheusReceiver},
-			"processors": metricsProcessors,
-			"exporters":  resolution.uncoveredExporters,
-		}
-
-		if err := confmaputils.Set(conf, "service::pipelines::"+internalHealthMetricsPipelineName, metricsPipeline); err != nil {
-			return fmt.Errorf("failed to create pipeline: %w", err)
-		}
-
-		slog.Info("created internal health metrics pipeline",
-			slog.Int("exporters", len(resolution.uncoveredExporters)),
-			slog.String("pipeline", internalHealthMetricsPipelineName))
-	} else {
-		slog.Info("skipping internal health metrics pipeline",
-			slog.String("reason", "no exporters configured"))
-	}
-
 	for exporterName, metricsEndpoint := range resolution.inferredMetricsEndpoints {
 		if err := confmaputils.Set(conf, pathPrefixExporters+exporterName+"::metrics_endpoint", metricsEndpoint); err != nil {
 			return fmt.Errorf("failed to set metrics_endpoint for %s: %w", exporterName, err)
 		}
 		slog.Info("inferred metrics endpoint for exporter", slog.String("exporter", exporterName), slog.String("metrics_endpoint", metricsEndpoint))
 	}
+
+	if len(resolution.uncoveredExporters) == 0 {
+		slog.Info("skipping internal health metrics pipeline",
+			slog.String("reason", "no uncovered exporters"))
+		return nil
+	}
+
+	if err := confmaputils.Set(conf, pathPrefixReceivers+reservedPrometheusReceiver, confmaputils.PrometheusReceiverConfig("host-profiler-internal", resolution.defaultTarget)); err != nil {
+		return fmt.Errorf("failed to add prometheus receiver: %w", err)
+	}
+
+	if err := confmaputils.Set(conf, pathPrefixProcessors+reservedFilterProcessor, confmaputils.FilterProcessorConfig()); err != nil {
+		return fmt.Errorf("failed to add filter processor: %w", err)
+	}
+	if err := confmaputils.Set(conf, pathPrefixProcessors+reservedCumulativeToDeltaProcessor, confMap{}); err != nil {
+		return fmt.Errorf("failed to add cumulativetodelta processor: %w", err)
+	}
+
+	metricsProcessors := []any{reservedFilterProcessor, reservedCumulativeToDeltaProcessor}
+
+	if containerID, err := cgroup.GetSelfContainerID(); err == nil {
+		containerIDProcessor := confMap{
+			"attributes": []any{confMap{
+				"key":    version.OTelContainerIDKey,
+				"value":  containerID,
+				"action": "insert",
+			}}}
+		if err := confmaputils.Set(conf, pathPrefixProcessors+reservedContainerIDProcessor, containerIDProcessor); err != nil {
+			return fmt.Errorf("failed to add container ID processor: %w", err)
+		}
+		metricsProcessors = append(metricsProcessors, reservedContainerIDProcessor)
+	}
+
+	metricsProcessors = append(metricsProcessors, profilesProcessors...)
+
+	metricsPipeline := confMap{
+		"receivers":  []any{reservedPrometheusReceiver},
+		"processors": metricsProcessors,
+		"exporters":  resolution.uncoveredExporters,
+	}
+
+	if err := confmaputils.Set(conf, "service::pipelines::"+internalHealthMetricsPipelineName, metricsPipeline); err != nil {
+		return fmt.Errorf("failed to create pipeline: %w", err)
+	}
+
+	slog.Info("created internal health metrics pipeline",
+		slog.Int("exporters", len(resolution.uncoveredExporters)),
+		slog.String("pipeline", internalHealthMetricsPipelineName))
 
 	return nil
 }

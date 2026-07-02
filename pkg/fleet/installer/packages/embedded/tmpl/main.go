@@ -143,9 +143,9 @@ func linuxProcmgrYAMLFiles(stableData, expData installerTemplateData) map[string
 	}
 }
 
-func windowsProcmgrYAMLFiles(codegenData installerTemplateData) map[string][]byte {
+func windowsProcmgrYAMLFile(yamlFile, windowsFile string, codegen installerTemplateData) map[string][]byte {
 	return map[string][]byte{
-		"datadog-agent-ddot.yaml": mustRenderYAMLConfig("datadog-agent-ddot-windows.yaml", codegenData),
+		yamlFile: mustRenderYAMLConfig(windowsFile, codegen),
 	}
 }
 
@@ -185,8 +185,15 @@ var (
 		PIDDir:           "",
 		Stable:           true,
 	}
+	windowsADPCodegenData = installerTemplateData{
+		InstallDir:       "__ADP_INSTALL_ROOT__",
+		EtcDir:           "__ADP_ETC_ROOT__",
+		FleetPoliciesDir: "__ADP_FLEET_POLICIES_DIR__",
+		Stable:           true,
+	}
 	windowsProcmgrLayouts = []embeddedLayout{
-		{subdir: "windows", units: windowsProcmgrYAMLFiles(windowsDDOTCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
 	}
 	linuxProcmgrYAMLLayouts = []embeddedLayout{
 		{subdir: "oci", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
