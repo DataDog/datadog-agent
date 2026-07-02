@@ -157,6 +157,22 @@ func GetNetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 
 // GetSelectorsPerEventType returns the list of probes that should be activated for each event
 func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]manager.ProbesSelector {
+	linkIOUringProbes := []manager.ProbesSelector{}
+	if haveIOURing {
+		linkIOUringProbes = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_do_linkat"),
+				hookFunc("rethook_do_linkat"),
+			}},
+			// Since 7.0, do_linkat was removed from the kernel so we need to hook the filename_linkat function instead
+			// It is also used by the io_uring code path
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_filename_linkat"),
+				hookFunc("rethook_filename_linkat"),
+			}},
+		}
+	}
+
 	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
@@ -366,6 +382,7 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", hasFentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "linkat", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: linkIOUringProbes},
 
 			// selinux
 			// This needs to be best effort, as sel_write_disable is in the process of being removed
