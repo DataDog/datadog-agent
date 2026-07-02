@@ -20,6 +20,8 @@ require (
 	golang.org/x/text v0.38.0 // indirect
 )
 
+replace github.com/charlievieth/strcase => github.com/pgimalac/strcase v0.0.0-20260626133451-07a7a4680b4f
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
@@ -201,5 +203,3 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../test/otel
 )
-
-replace github.com/charlievieth/strcase => github.com/pgimalac/strcase v0.0.0-20260626133451-07a7a4680b4f
