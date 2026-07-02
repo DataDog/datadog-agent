@@ -1343,7 +1343,7 @@ def _run_ddeval_trial(
         logger.detail(f"workflow: {report['workflow_id']}{run_id_part}")
     logger.detail(
         "F1={:.4f}  prec={:.4f}  rec={:.4f}  duration={}".format(
-            float(metrics.get("f1", metrics.get("summary:mean_f1", score)) or 0.0),
+            score,
             float(metrics.get("precision", metrics.get("summary:mean_precision", 0.0)) or 0.0),
             float(metrics.get("recall", metrics.get("summary:mean_recall", 0.0)) or 0.0),
             _fmt_wall_dur(duration_s),
@@ -1497,7 +1497,7 @@ def _parse_ddeval_workflow_run_id(stdout: str) -> str | None:
 
 
 def _ddeval_score(metrics: dict[str, object]) -> float:
-    for key in ("summary:mean_f1", "f1", "score"):
+    for key in ("summary:mean_f1", "f1"):
         if key not in metrics:
             continue
         try:
