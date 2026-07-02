@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import shutil
-import subprocess
+import io
+import shlex
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tasks.libs.code_review.prompt import CodeReviewError, ReviewPrompt
+from tasks.libs.code_review.prompt import CodeReviewError, CommandRunner, ReviewPrompt
 
 
 PROVIDERS = ("codex", "claude", "gemini")
@@ -85,42 +85,41 @@ def build_provider_invocation(
     raise CodeReviewError(f"Unknown provider {provider!r}")
 
 
-def _ensure_command_exists(command: str) -> None:
-    if shutil.which(command) is None:
+def _ensure_command_exists(runner: CommandRunner, command: str) -> None:
+    result = runner.run(f"command -v {shlex.quote(command)}", hide=True, warn=True)
+    if result.exited != 0:
         raise CodeReviewError(f"Cannot run review provider: `{command}` is not installed or is not on PATH")
 
 
-def run_provider(invocation: ProviderInvocation, *, cwd: Path) -> None:
-    _ensure_command_exists(invocation.command[0])
+def run_provider(runner: CommandRunner, invocation: ProviderInvocation, *, cwd: Path) -> None:
+    _ensure_command_exists(runner, invocation.command[0])
     print(f"Running {invocation.provider} review...", file=sys.stderr)
-    completed = subprocess.run(
-        list(invocation.command),
-        cwd=cwd,
-        input=invocation.stdin,
-        text=True,
-        check=False,
-        capture_output=True,
-    )
+    kwargs = {"hide": True, "warn": True}
+    if invocation.stdin is not None:
+        kwargs["in_stream"] = io.StringIO(invocation.stdin)
+
+    result = runner.run(f"cd {shlex.quote(str(cwd))} && {shlex.join(invocation.command)}", **kwargs)
 
     output = ""
-    if completed.stdout:
-        output += completed.stdout
-        print(completed.stdout, end="")
-    if completed.stderr:
-        output += completed.stderr
-        print(completed.stderr, end="", file=sys.stderr)
+    if result.stdout:
+        output += result.stdout
+        print(result.stdout, end="")
+    if result.stderr:
+        output += result.stderr
+        print(result.stderr, end="", file=sys.stderr)
 
     invocation.output_path.write_text(output, encoding="utf-8")
 
-    if completed.returncode != 0:
+    if result.exited != 0:
         raise CodeReviewError(
-            f"{invocation.provider} review failed with exit code {completed.returncode}. "
+            f"{invocation.provider} review failed with exit code {result.exited}. "
             f"Output saved to {invocation.output_path}"
         )
 
 
 def run_review(
     *,
+    runner: CommandRunner,
     repo_root: Path,
     review_prompt: ReviewPrompt,
     provider: str,
@@ -141,9 +140,9 @@ def run_review(
     ]
 
     for invocation in invocations:
-        _ensure_command_exists(invocation.command[0])
+        _ensure_command_exists(runner, invocation.command[0])
 
     for invocation in invocations:
-        run_provider(invocation, cwd=repo_root)
+        run_provider(runner, invocation, cwd=repo_root)
 
     return artifact_dir

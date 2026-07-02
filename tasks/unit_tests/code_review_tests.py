@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tasks.libs.code_review.prompt import (
     CodeReviewError,
@@ -13,7 +14,23 @@ from tasks.libs.code_review.prompt import (
     render_prompt,
     select_guideline_paths,
 )
-from tasks.libs.code_review.providers import build_provider_invocation, expand_providers
+from tasks.libs.code_review.providers import ProviderInvocation, build_provider_invocation, expand_providers, run_provider
+
+
+class NoopRunner:
+    def run(self, *_args, **_kwargs):
+        raise AssertionError("No command should be run in this test")
+
+
+class FakeRunner:
+    def __init__(self):
+        self.commands = []
+
+    def run(self, command, **kwargs):
+        self.commands.append((command, kwargs))
+        if command.startswith("command -v "):
+            return type("Result", (), {"exited": 0, "stdout": "/usr/bin/tool\n", "stderr": ""})()
+        return type("Result", (), {"exited": 0, "stdout": "review output\n", "stderr": "review warning\n"})()
 
 
 class TestCodeReviewPrompt(unittest.TestCase):
@@ -88,6 +105,7 @@ jobs:
 
     def test_build_review_prompt_uses_prompt_override(self):
         review_prompt = build_review_prompt(
+            runner=NoopRunner(),
             repo_root=Path("."),
             base="origin/main",
             prompt="custom review instructions",
@@ -101,6 +119,7 @@ jobs:
     def test_build_review_prompt_rejects_prompt_and_extra_prompt(self):
         with self.assertRaises(CodeReviewError):
             build_review_prompt(
+                runner=NoopRunner(),
                 repo_root=Path("."),
                 base="origin/main",
                 prompt="custom review instructions",
@@ -115,6 +134,7 @@ class TestCodeReviewProviders(unittest.TestCase):
 
     def test_build_codex_invocation(self):
         review_prompt = build_review_prompt(
+            runner=NoopRunner(),
             repo_root=Path("."),
             base="origin/main",
             prompt="custom review instructions",
@@ -134,6 +154,7 @@ class TestCodeReviewProviders(unittest.TestCase):
 
     def test_build_claude_invocation_references_prompt_file(self):
         review_prompt = build_review_prompt(
+            runner=NoopRunner(),
             repo_root=Path("."),
             base="origin/main",
             prompt="custom review instructions",
@@ -154,6 +175,34 @@ class TestCodeReviewProviders(unittest.TestCase):
     def test_unknown_provider_is_rejected(self):
         with self.assertRaises(CodeReviewError):
             expand_providers("unknown")
+
+    def test_run_provider_uses_runner(self):
+        runner = FakeRunner()
+        invocation = ProviderInvocation(
+            provider="codex",
+            command=("codex", "exec", "--sandbox", "read-only", "-"),
+            stdin="review prompt",
+            output_path=Path("codex.md"),
+        )
+
+        with tempfile.TemporaryDirectory() as tmp, patch("sys.stdout"), patch("sys.stderr"):
+            output_path = Path(tmp) / "codex.md"
+            run_provider(
+                runner,
+                ProviderInvocation(
+                    provider=invocation.provider,
+                    command=invocation.command,
+                    stdin=invocation.stdin,
+                    output_path=output_path,
+                ),
+                cwd=Path(tmp),
+            )
+
+            self.assertEqual(output_path.read_text(encoding="utf-8"), "review output\nreview warning\n")
+
+        self.assertEqual(runner.commands[0][0], "command -v codex")
+        self.assertIn("codex exec --sandbox read-only -", runner.commands[1][0])
+        self.assertEqual(runner.commands[1][1]["in_stream"].read(), "review prompt")
 
 
 if __name__ == "__main__":

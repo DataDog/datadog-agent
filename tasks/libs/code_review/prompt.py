@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import subprocess
+import shlex
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from typing import Any, Protocol
 
 
 DEFAULT_PROMPT_FILES = (
@@ -15,6 +16,10 @@ WORKFLOW_PATH = ".github/workflows/code-review.yml"
 
 class CodeReviewError(RuntimeError):
     pass
+
+
+class CommandRunner(Protocol):
+    def run(self, command: str, **kwargs: Any) -> Any: ...
 
 
 @dataclass(frozen=True)
@@ -31,48 +36,48 @@ class ReviewPrompt:
     content: str
 
 
-def _git_stdout(args: list[str], *, cwd: Path) -> str:
-    completed = subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if completed.returncode != 0:
-        raise CodeReviewError(completed.stderr.strip() or f"git {' '.join(args)} failed")
-    return completed.stdout.strip()
+def _command_in_cwd(args: list[str], *, cwd: Path) -> str:
+    return f"cd {shlex.quote(str(cwd))} && {shlex.join(args)}"
 
 
-def get_repo_root(cwd: str | Path | None = None) -> Path:
+def _git_stdout(runner: CommandRunner, args: list[str], *, cwd: Path) -> str:
+    result = runner.run(_command_in_cwd(["git", *args], cwd=cwd), hide=True, warn=True)
+    if result.exited != 0:
+        raise CodeReviewError(result.stderr.strip() or f"git {' '.join(args)} failed")
+    return result.stdout.strip()
+
+
+def get_repo_root(runner: CommandRunner, cwd: str | Path | None = None) -> Path:
     start = Path(cwd or ".").resolve()
-    return Path(_git_stdout(["rev-parse", "--show-toplevel"], cwd=start))
+    return Path(_git_stdout(runner, ["rev-parse", "--show-toplevel"], cwd=start))
 
 
-def get_default_base(repo_root: Path) -> str:
+def get_default_base(runner: CommandRunner, repo_root: Path) -> str:
     try:
-        base = _git_stdout(["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], cwd=repo_root)
+        base = _git_stdout(runner, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], cwd=repo_root)
         if base:
             return base
     except CodeReviewError:
         pass
 
     for candidate in ("origin/main", "main"):
-        completed = subprocess.run(
-            ["git", "rev-parse", "--verify", "--quiet", candidate],
-            cwd=repo_root,
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+        result = runner.run(
+            _command_in_cwd(["git", "rev-parse", "--verify", "--quiet", candidate], cwd=repo_root),
+            hide=True,
+            warn=True,
         )
-        if completed.returncode == 0:
+        if result.exited == 0:
             return candidate
 
     return "origin/main"
 
 
-def get_changed_files(repo_root: Path, base: str) -> tuple[str, ...]:
-    output = _git_stdout(["diff", "--name-only", "--diff-filter=ACMRTUXB", f"{base}...HEAD"], cwd=repo_root)
+def get_changed_files(runner: CommandRunner, repo_root: Path, base: str) -> tuple[str, ...]:
+    output = _git_stdout(
+        runner,
+        ["diff", "--name-only", "--diff-filter=ACMRTUXB", f"{base}...HEAD"],
+        cwd=repo_root,
+    )
     return tuple(line for line in output.splitlines() if line)
 
 
@@ -171,6 +176,7 @@ def render_prompt(guidelines: tuple[Guideline, ...], *, extra_prompt: str | None
 
 def build_review_prompt(
     *,
+    runner: CommandRunner,
     repo_root: Path,
     base: str | None = None,
     extra_prompt: str | None = None,
@@ -179,7 +185,7 @@ def build_review_prompt(
     if prompt and extra_prompt:
         raise CodeReviewError("--prompt replaces the generated prompt and cannot be combined with --extra-prompt")
 
-    resolved_base = base or get_default_base(repo_root)
+    resolved_base = base or get_default_base(runner, repo_root)
 
     if prompt:
         return ReviewPrompt(
@@ -189,7 +195,7 @@ def build_review_prompt(
             content=prompt.strip() + "\n",
         )
 
-    changed_files = get_changed_files(repo_root, resolved_base)
+    changed_files = get_changed_files(runner, repo_root, resolved_base)
     guidelines = load_guidelines(repo_root, changed_files)
     content = render_prompt(guidelines, extra_prompt=extra_prompt)
     return ReviewPrompt(base=resolved_base, changed_files=changed_files, guidelines=guidelines, content=content)
