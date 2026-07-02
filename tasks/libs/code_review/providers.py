@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tasks.libs.code_review.prompt import CodeReviewError, CommandRunner, ReviewPrompt
+from tasks.libs.code_review.prompt import CodeReviewError, ReviewPrompt
+from tasks.libs.common.utils import is_installed
 
 
 PROVIDERS = ("codex", "claude", "gemini")
@@ -89,14 +90,13 @@ def build_provider_invocation(
     raise CodeReviewError(f"Unknown provider {provider!r}")
 
 
-def _ensure_command_exists(runner: CommandRunner, command: str) -> None:
-    result = runner.run(f"command -v {shlex.quote(command)}", hide=True, warn=True)
-    if result.exited != 0:
+def _ensure_command_exists(command: str) -> None:
+    if not is_installed(command):
         raise CodeReviewError(f"Cannot run review provider: `{command}` is not installed or is not on PATH")
 
 
-def run_provider(runner: CommandRunner, invocation: ProviderInvocation, *, cwd: Path) -> None:
-    _ensure_command_exists(runner, invocation.executable)
+def run_provider(runner, invocation: ProviderInvocation, *, cwd: Path) -> None:
+    _ensure_command_exists(invocation.executable)
     print(f"Running {invocation.provider} review...", file=sys.stderr)
     kwargs = {"hide": True, "warn": True}
     if invocation.stdin is not None:
@@ -123,7 +123,7 @@ def run_provider(runner: CommandRunner, invocation: ProviderInvocation, *, cwd: 
 
 def run_review(
     *,
-    runner: CommandRunner,
+    runner,
     repo_root: Path,
     review_prompt: ReviewPrompt,
     provider: str,
@@ -144,7 +144,7 @@ def run_review(
     ]
 
     for invocation in invocations:
-        _ensure_command_exists(runner, invocation.executable)
+        _ensure_command_exists(invocation.executable)
 
     for invocation in invocations:
         run_provider(runner, invocation, cwd=repo_root)

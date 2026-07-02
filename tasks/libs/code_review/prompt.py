@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import shlex
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Protocol
+
+from tasks.libs.common.git import get_changed_files, get_origin_default_branch
 
 
 DEFAULT_PROMPT_FILES = (
@@ -18,10 +18,6 @@ class CodeReviewError(RuntimeError):
     pass
 
 
-class CommandRunner(Protocol):
-    def run(self, command: str, **kwargs: Any) -> Any: ...
-
-
 @dataclass(frozen=True)
 class Guideline:
     path: str
@@ -34,35 +30,6 @@ class ReviewPrompt:
     changed_files: tuple[str, ...]
     guidelines: tuple[Guideline, ...]
     content: str
-
-
-def _command_in_cwd(command: str, *, cwd: Path) -> str:
-    return f"cd {shlex.quote(str(cwd))} && {command}"
-
-
-def _git_stdout(runner: CommandRunner, command: str, *, cwd: Path) -> str:
-    result = runner.run(_command_in_cwd(f"git {command}", cwd=cwd), hide=True, warn=True)
-    if result.exited != 0:
-        raise CodeReviewError(result.stderr.strip() or f"git {command} failed")
-    return result.stdout.strip()
-
-
-def get_repo_root(runner: CommandRunner, cwd: str | Path | None = None) -> Path:
-    start = Path(cwd or ".").resolve()
-    return Path(_git_stdout(runner, "rev-parse --show-toplevel", cwd=start))
-
-
-def get_default_base(runner: CommandRunner, repo_root: Path) -> str:
-    return _git_stdout(runner, "rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'", cwd=repo_root)
-
-
-def get_changed_files(runner: CommandRunner, repo_root: Path, base: str) -> tuple[str, ...]:
-    output = _git_stdout(
-        runner,
-        f"diff --name-only --diff-filter=ACMRTUXB {shlex.quote(f'{base}...HEAD')}",
-        cwd=repo_root,
-    )
-    return tuple(line for line in output.splitlines() if line)
 
 
 def _prompt_files_from_block_scalar(workflow: str) -> tuple[str, ...]:
@@ -160,7 +127,7 @@ def render_prompt(guidelines: tuple[Guideline, ...], *, extra_prompt: str | None
 
 def build_review_prompt(
     *,
-    runner: CommandRunner,
+    runner,
     repo_root: Path,
     base: str | None = None,
     extra_prompt: str | None = None,
@@ -169,7 +136,7 @@ def build_review_prompt(
     if prompt and extra_prompt:
         raise CodeReviewError("--prompt replaces the generated prompt and cannot be combined with --extra-prompt")
 
-    resolved_base = base or get_default_base(runner, repo_root)
+    resolved_base = base or get_origin_default_branch(runner)
 
     if prompt:
         return ReviewPrompt(
@@ -179,7 +146,7 @@ def build_review_prompt(
             content=prompt.strip() + "\n",
         )
 
-    changed_files = get_changed_files(runner, repo_root, resolved_base)
+    changed_files = tuple(get_changed_files(runner, resolved_base))
     guidelines = load_guidelines(repo_root, changed_files)
     content = render_prompt(guidelines, extra_prompt=extra_prompt)
     return ReviewPrompt(base=resolved_base, changed_files=changed_files, guidelines=guidelines, content=content)

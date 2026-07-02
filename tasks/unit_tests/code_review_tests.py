@@ -9,7 +9,6 @@ from tasks.libs.code_review.prompt import (
     CodeReviewError,
     Guideline,
     build_review_prompt,
-    get_default_base,
     get_prompt_files,
     load_guidelines,
     render_prompt,
@@ -29,19 +28,7 @@ class FakeRunner:
 
     def run(self, command, **kwargs):
         self.commands.append((command, kwargs))
-        if command.startswith("command -v "):
-            return type("Result", (), {"exited": 0, "stdout": "/usr/bin/tool\n", "stderr": ""})()
         return type("Result", (), {"exited": 0, "stdout": "review output\n", "stderr": "review warning\n"})()
-
-
-class StaticRunner:
-    def __init__(self, stdout):
-        self.stdout = stdout
-        self.commands = []
-
-    def run(self, command, **kwargs):
-        self.commands.append((command, kwargs))
-        return type("Result", (), {"exited": 0, "stdout": self.stdout, "stderr": ""})()
 
 
 class TestCodeReviewPrompt(unittest.TestCase):
@@ -137,21 +124,6 @@ jobs:
                 extra_prompt="additional instructions",
             )
 
-    def test_get_default_base_uses_origin_head(self):
-        runner = StaticRunner("main\n")
-
-        self.assertEqual(get_default_base(runner, Path("/repo")), "main")
-        self.assertEqual(
-            runner.commands,
-            [
-                (
-                    "cd /repo && git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'",
-                    {"hide": True, "warn": True},
-                )
-            ],
-        )
-
-
 class TestCodeReviewProviders(unittest.TestCase):
     def test_expand_providers(self):
         self.assertEqual(expand_providers("codex"), ("codex",))
@@ -213,7 +185,12 @@ class TestCodeReviewProviders(unittest.TestCase):
             output_path=Path("codex.md"),
         )
 
-        with tempfile.TemporaryDirectory() as tmp, patch("sys.stdout"), patch("sys.stderr"):
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("sys.stdout"),
+            patch("sys.stderr"),
+            patch("tasks.libs.code_review.providers.is_installed", return_value=True),
+        ):
             output_path = Path(tmp) / "codex.md"
             run_provider(
                 runner,
@@ -229,9 +206,8 @@ class TestCodeReviewProviders(unittest.TestCase):
 
             self.assertEqual(output_path.read_text(encoding="utf-8"), "review output\nreview warning\n")
 
-        self.assertEqual(runner.commands[0][0], "command -v codex")
-        self.assertIn("codex exec --sandbox read-only -", runner.commands[1][0])
-        self.assertEqual(runner.commands[1][1]["in_stream"].read(), "review prompt")
+        self.assertIn("codex exec --sandbox read-only -", runner.commands[0][0])
+        self.assertEqual(runner.commands[0][1]["in_stream"].read(), "review prompt")
 
 
 if __name__ == "__main__":

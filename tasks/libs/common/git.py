@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -122,6 +123,21 @@ def get_modified_files(ctx, base_branch=None) -> list[str]:
     return get_file_modifications(
         ctx, base_branch=base_branch, added=True, modified=True, only_names=True, no_renames=True
     )
+
+
+def get_origin_default_branch(ctx) -> str:
+    return ctx.run("git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'", hide=True).stdout.strip()
+
+
+def get_changed_files(ctx, base: str, head: str = "HEAD", diff_filter: str = "ACMRTUXB") -> list[str]:
+    """
+    Get files changed between a base ref and head using git's three-dot diff.
+
+    This is intentionally separate from get_modified_files(), which resolves a
+    merge-base and filters statuses for test/lint use cases.
+    """
+    base_to_head = shlex.quote(f"{base}...{head}")
+    return ctx.run(f"git diff --name-only --diff-filter={diff_filter} {base_to_head}", hide=True).stdout.splitlines()
 
 
 def get_current_branch(ctx) -> str:

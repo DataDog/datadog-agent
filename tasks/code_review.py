@@ -3,8 +3,9 @@ from __future__ import annotations
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.code_review.prompt import CodeReviewError, build_review_prompt, get_repo_root
+from tasks.libs.code_review.prompt import CodeReviewError, build_review_prompt
 from tasks.libs.code_review.providers import run_review
+from tasks.libs.common.utils import get_repo_root
 
 
 @task(
@@ -23,7 +24,7 @@ def run(
     prompt: str | None = None,
 ) -> None:
     try:
-        repo_root = get_repo_root(ctx)
+        repo_root = get_repo_root()
         review_prompt = build_review_prompt(
             runner=ctx,
             repo_root=repo_root,
@@ -44,7 +45,7 @@ def run(
 )
 def prompt(ctx, base: str | None = None, extra_prompt: str | None = None) -> None:
     try:
-        repo_root = get_repo_root(ctx)
+        repo_root = get_repo_root()
         review_prompt = build_review_prompt(
             runner=ctx,
             repo_root=repo_root,
