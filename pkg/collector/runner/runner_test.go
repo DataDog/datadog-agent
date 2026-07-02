@@ -286,6 +286,57 @@ func TestRunnerShadowWorkerUsesShadowChannel(t *testing.T) {
 	}, 750*time.Millisecond, 10*time.Millisecond)
 }
 
+func TestRunnerStopStopsShadowWorkers(t *testing.T) {
+	mockConfig := testSetUp(t)
+	mockConfig.SetInTest("check_runners", "0")
+
+	inner := newCheck(t, "mycheck:123", false, nil)
+	inner.RunLock.Lock()
+	shadow := check.NewShadowCheck(inner, time.Second)
+
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
+	require.NotNil(t, r)
+
+	r.AddShadowWorker()
+	assertAsyncWorkerCount(t, 5)
+	require.Len(t, r.workers, 4)
+	require.Len(t, r.shadowWorkers, 1)
+
+	r.GetShadowChan() <- shadow
+	<-inner.StartedChan()
+
+	stopDone := make(chan struct{})
+	go func() {
+		r.Stop()
+		close(stopDone)
+	}()
+
+	assertAsyncBool(t, inner.IsStopped, true)
+	inner.RunLock.Unlock()
+
+	select {
+	case <-stopDone:
+	case <-time.After(750 * time.Millisecond):
+		t.Fatal("timed out waiting for runner stop")
+	}
+
+	require.Eventually(t, func() bool {
+		r.workersLock.Lock()
+		defer r.workersLock.Unlock()
+		return len(r.workers) == 0 && len(r.shadowWorkers) == 0
+	}, 750*time.Millisecond, 10*time.Millisecond)
+	assertAsyncWorkerCount(t, 0)
+
+	// Calling Stop on a stopped runner should be a noop.
+	r.Stop()
+
+	// Ensure that the shadow channel can't be written to anymore.
+	defer func() {
+		require.NotNil(t, recover())
+	}()
+	r.GetShadowChan() <- shadow
+}
+
 func TestRunnerStop(t *testing.T) {
 	mockConfig := testSetUp(t)
 
