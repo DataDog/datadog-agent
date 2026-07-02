@@ -8,14 +8,19 @@ package guiimpl
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 
+	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestReadConfDir(t *testing.T) {
-	files, err := readConfDir("testdata")
+	testdata := testdataDir(t)
+	files, err := readConfDir(testdata)
 	assert.NoError(t, err)
 
 	sort.Strings(files)
@@ -33,7 +38,8 @@ func TestReadConfDir(t *testing.T) {
 }
 
 func TestConfigsInPath(t *testing.T) {
-	files, err := getConfigsInPath("testdata")
+	testdata := testdataDir(t)
+	files, err := getConfigsInPath(testdata)
 	assert.NoError(t, err)
 
 	sort.Strings(files)
@@ -88,4 +94,21 @@ func TestGetFileNameAndFolder(t *testing.T) {
 			}
 		})
 	}
+}
+
+func testdataDir(t *testing.T) string {
+	t.Helper()
+
+	const localTestdata = "testdata"
+	if entries, err := os.ReadDir(localTestdata); err == nil && len(entries) > 0 {
+		return localTestdata
+	}
+
+	path, err := runfiles.Rlocation(filepath.Join(
+		runfiles.CallerRepository(),
+		"comp/core/gui/impl/testdata/check.yaml",
+	))
+	require.NoError(t, err)
+
+	return filepath.Dir(path)
 }

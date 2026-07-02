@@ -72,5 +72,6 @@ dd_agent_go_test(
         "//comp/core/config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@rules_go//go/runfiles",
     ],
 )

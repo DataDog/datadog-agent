@@ -16,7 +16,7 @@ go_library(
 dd_agent_go_test(
     name = "node_test",
     srcs = ["provider_test.go"],
-    data = ["//pkg/collector/corechecks/containers/kubelet:testdata"], # keep
+    data = ["//pkg/collector/corechecks/containers/kubelet:testdata"],  # keep
     embed = [":node"],
     flavors = [
         "base",
