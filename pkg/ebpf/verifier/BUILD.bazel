@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+#gazelle:dd_linux_bpf on
+
 go_library(
     name = "verifier",
     srcs = [
@@ -10,6 +12,7 @@ go_library(
         "verifier_log_parser.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/verifier",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/impl/noops",
@@ -32,7 +35,11 @@ go_test(
         "verifier_log_parser_test.go",
     ],
     embed = [":verifier"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/ebpf",
         "//pkg/util/filesystem",
