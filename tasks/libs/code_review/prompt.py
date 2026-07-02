@@ -53,23 +53,7 @@ def get_repo_root(runner: CommandRunner, cwd: str | Path | None = None) -> Path:
 
 
 def get_default_base(runner: CommandRunner, repo_root: Path) -> str:
-    try:
-        base = _git_stdout(runner, "symbolic-ref --quiet --short refs/remotes/origin/HEAD", cwd=repo_root)
-        if base:
-            return base
-    except CodeReviewError:
-        pass
-
-    for candidate in ("origin/main", "main"):
-        result = runner.run(
-            _command_in_cwd(f"git rev-parse --verify --quiet {shlex.quote(candidate)}", cwd=repo_root),
-            hide=True,
-            warn=True,
-        )
-        if result.exited == 0:
-            return candidate
-
-    return "origin/main"
+    return _git_stdout(runner, "rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'", cwd=repo_root)
 
 
 def get_changed_files(runner: CommandRunner, repo_root: Path, base: str) -> tuple[str, ...]:

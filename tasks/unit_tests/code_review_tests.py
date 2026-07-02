@@ -9,6 +9,7 @@ from tasks.libs.code_review.prompt import (
     CodeReviewError,
     Guideline,
     build_review_prompt,
+    get_default_base,
     get_prompt_files,
     load_guidelines,
     render_prompt,
@@ -31,6 +32,16 @@ class FakeRunner:
         if command.startswith("command -v "):
             return type("Result", (), {"exited": 0, "stdout": "/usr/bin/tool\n", "stderr": ""})()
         return type("Result", (), {"exited": 0, "stdout": "review output\n", "stderr": "review warning\n"})()
+
+
+class StaticRunner:
+    def __init__(self, stdout):
+        self.stdout = stdout
+        self.commands = []
+
+    def run(self, command, **kwargs):
+        self.commands.append((command, kwargs))
+        return type("Result", (), {"exited": 0, "stdout": self.stdout, "stderr": ""})()
 
 
 class TestCodeReviewPrompt(unittest.TestCase):
@@ -125,6 +136,20 @@ jobs:
                 prompt="custom review instructions",
                 extra_prompt="additional instructions",
             )
+
+    def test_get_default_base_uses_origin_head(self):
+        runner = StaticRunner("main\n")
+
+        self.assertEqual(get_default_base(runner, Path("/repo")), "main")
+        self.assertEqual(
+            runner.commands,
+            [
+                (
+                    "cd /repo && git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'",
+                    {"hide": True, "warn": True},
+                )
+            ],
+        )
 
 
 class TestCodeReviewProviders(unittest.TestCase):
