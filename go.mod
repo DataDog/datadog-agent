@@ -1182,6 +1182,15 @@ replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/
 // the main module is written against.
 replace github.com/hashicorp/vault/sdk => github.com/hashicorp/vault/sdk v0.19.1-0.20260305014005-ffe7023c481d
 
+// DATADOG LOCAL PATCH: opentelemetry-collector-contrib/internal/coreinternal@v0.155.0 added a
+// cgo file (timeutils/strptime_cgo_testlib.go) that's only meant to support one of its own unit
+// tests, but lacks a proper test-only build constraint, so it compiles into any production build
+// that imports timeutils with cgo enabled on unix. It fails to compile on this repo's x64 Linux
+// CI build image (tm_gmtoff undefined in struct tm) — arm64 is unaffected. local-patches/ has an
+// unmodified copy of the real v0.155.0 source with only that one file's build tag changed so it
+// never compiles; nothing else differs. See CI job datadog-agent-7-x64 for the original failure.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal => ./local-patches/opentelemetry-collector-contrib-coreinternal
+
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 // Maps to Trivy fork https://github.com/DataDog/trivy/tree/djc/main-dd-069
