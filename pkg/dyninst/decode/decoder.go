@@ -159,6 +159,7 @@ func NewDecoder(
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
 		traceContextTypeID:   traceContextTypeID,
+		redaction:            program.Redaction,
 	}
 	decoder._return.encodingContext = encodingContext{
 		typesByID:            decoder.decoderTypes,
@@ -167,6 +168,7 @@ func NewDecoder(
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
 		traceContextTypeID:   traceContextTypeID,
+		redaction:            program.Redaction,
 	}
 	return decoder, nil
 }

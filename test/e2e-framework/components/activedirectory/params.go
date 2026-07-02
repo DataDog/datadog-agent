@@ -112,6 +112,10 @@ try {
 		SafeModeAdministratorPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
 		Force                         = $true
 	}; Install-ADDSForest @HashArguments
+	# Install-ADDSForest may return RebootRequired:False yet still require a reboot for ADWS to start.
+	# Schedule the reboot 5 seconds out so the command returns and Pulumi acknowledges success
+	# before the SSH connection drops. Exit 1190 means a reboot is already pending; ignore it.
+	shutdown.exe /r /f /t 5; if ($LASTEXITCODE -eq 1190) { $LASTEXITCODE = 0 }
 }
 `, params.DomainName, params.DomainPassword),
 	}, pulumi.Parent(adCtx.comp), pulumi.DependsOn(adCtx.createdResources))

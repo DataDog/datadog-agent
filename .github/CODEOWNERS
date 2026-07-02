@@ -52,7 +52,7 @@
 
 # Bazel configuration
 /*.bazel*                               @DataDog/agent-build
-/.adms/                                 @DataDog/agent-build
+/.adms/                                 @DataDog/agent-build @DataDog/agent-devx
 /.bazel*                                @DataDog/agent-build
 /.buildifier.json                       @DataDog/agent-build
 /bazel/                                 @DataDog/agent-build
@@ -80,15 +80,15 @@
 
 /mkdocs.yml                             @DataDog/agent-devx
 /release.json                           @DataDog/agent-build @DataDog/agent-delivery @DataDog/agent-integrations
-/renovate.json                          @DataDog/agent-devx
+/renovate.json                          @DataDog/agent-build 
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
 /code-coverage.datadog.yml              @DataDog/agent-devx
 /service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
-/rust-toolchain.toml			@DataDog/agent-build
-/Cargo.toml                             @DataDog/agent-build
-/Cargo.lock                             @DataDog/agent-build
+/rust-toolchain.toml                    @DataDog/agent-build @DataDog/agent-devx
+/Cargo.toml                             @DataDog/agent-build @DataDog/agent-devx
+/Cargo.lock                             @DataDog/agent-build @DataDog/agent-devx
 
 /modules.yml                            @DataDog/agent-runtimes
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
@@ -119,7 +119,7 @@
 # Files containing job contents are owned by teams in charge of the jobs + agent-devx or agent-delivery or agent-build
 # Files that only describe structure (eg. includes, rules) are owned by agent-devx
 
-/.gitlab/.ci-linters.yml                             @DataDog/agent-devx
+/.gitlab/.ci-linters.yml                             @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/.pre/*                                      @DataDog/agent-devx
 /.gitlab/.post/*                                     @DataDog/agent-devx
 /.gitlab/build/bazel/*                                     @DataDog/agent-build
@@ -611,8 +611,6 @@
 /pkg/config/setup/process*.go                 @DataDog/container-experiences @DataDog/agent-configuration
 /pkg/config/setup/system_probe.go               @DataDog/ebpf-platform @DataDog/agent-configuration
 /pkg/config/setup/system_probe_cws.go           @DataDog/agent-security @DataDog/agent-configuration
-/pkg/config/setup/system_probe_cws_notwin.go    @DataDog/agent-security @DataDog/agent-configuration
-/pkg/config/setup/system_probe_cws_windows.go   @DataDog/windows-products @DataDog/agent-configuration
 /pkg/config/setup/system_probe_usm*.go          @DataDog/universal-service-monitoring @DataDog/agent-configuration
 /pkg/config/setup/security_agent.go             @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/remote/                     @DataDog/remote-config
@@ -964,7 +962,8 @@
 /test/new-e2e/examples/ecs_test.go           @DataDog/ecs-experiences
 /test/otel/                                   @DataDog/opentelemetry-agent
 /test/static/                                 @DataDog/agent-build
-/test/static/static_quality_gates.yml        @DataDog/agent-build @DataDog/container-platform @cmourot @dd-ddamien
+# Also change the run-time check for approver at: tasks/static_quality_gates/decisions.py:EXCEPTION_APPROVERS
+/test/static/static_quality_gates.yml        @DataDog/agent-build @DataDog/container-platform @cmourot @aiuto @quentinus95
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
 /test/regression/                             @DataDog/single-machine-performance
 /test/regression/ebpf                         @DataDog/single-machine-performance @DataDog/ebpf-platform
