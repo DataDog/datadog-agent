@@ -131,7 +131,7 @@ func NewController(
 	c.limitHeap = limitHeap
 	c.store = store
 	c.podWatcher = podWatcher
-	c.scaler = newScaler(restMapper, scaleClient)
+	c.scaler = newScaler(restMapper, scaleClient, dynamicClient)
 
 	// Initialize metrics store
 	c.metricsStore = metricsstore.NewMetricsStore(metrics.GeneratePodAutoscalerMetrics, localSender, c.IsLeader, globalTagsFunc)
@@ -243,6 +243,12 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// Also if object was not owned by remote config, we also need to delete it (deleted by user)
 		if podAutoscalerInternal.Deleted() || (!podAutoscalerInternal.IsProfileManaged() && podAutoscalerInternal.Spec().Owner != datadoghqcommon.DatadogPodAutoscalerRemoteOwner) {
 			log.Infof("Object %s not present in Kubernetes and flagged for deletion (remote) or owner == local, clearing internal store", key)
+			// Local-owned DPAs reach this branch when the user deletes the K8s
+			// object directly (the remote-owned and profile-managed paths above
+			// already released ownership before calling deletePodAutoscaler).
+			// Release here too so that a deleted local-owned DPA doesn't leak
+			// a stale `datadog-cluster-agent` scale managedFields entry.
+			c.releaseTargetReplicasOwnership(ctx, podAutoscalerInternal)
 			c.store.UnlockDelete(key, c.ID)
 			return autoscaling.NoRequeue, nil
 		}
@@ -272,6 +278,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// Deletion can only happen if the object is owned by remote config.
 		if podAutoscalerInternal.Deleted() {
 			log.Infof("Remote owned PodAutoscaler with Deleted flag, deleting object: %s", key)
+			c.releaseTargetReplicasOwnership(ctx, podAutoscalerInternal)
 			err := c.deletePodAutoscaler(ns, name)
 			// In case of not found, it means the object is gone but informer cache is not updated yet, we can safely delete it from our store
 			if err != nil && k8serrors.IsNotFound(err) {
@@ -359,6 +366,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	if podAutoscalerInternal.IsProfileManaged() {
 		if podAutoscalerInternal.Deleted() {
 			log.Infof("Profile-managed PodAutoscaler with Deleted flag, deleting object: %s", key)
+			c.releaseTargetReplicasOwnership(ctx, podAutoscalerInternal)
 			err := c.deletePodAutoscaler(ns, name)
 			if err != nil && k8serrors.IsNotFound(err) {
 				c.store.UnlockDelete(key, c.ID)
@@ -466,7 +474,7 @@ func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq
 
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling
 	// While vertical scaling is in progress we should only allow horizontal scale up
-	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal, scale, gr, scaleErr)
+	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal, targetGVK, scale, gr, scaleErr)
 	if err != nil {
 		return horizontalRes, err
 	}
@@ -604,6 +612,26 @@ func (c *Controller) deletePodAutoscaler(ns, name string) error {
 		return fmt.Errorf("Unable to delete PodAutoscaler: %s/%s, err: %v", ns, name, err)
 	}
 	return nil
+}
+
+// releaseTargetReplicasOwnership best-effort removes the cluster agent's
+// managed-fields entry for `.spec.replicas` (scale subresource) from the
+// DPA's target workload. Called before deleting a DPA so that subsequent
+// SSA writers (e.g. Helm) do not conflict with a stale field manager.
+// Errors are logged but not returned — cleanup must not block deletion.
+func (c *Controller) releaseTargetReplicasOwnership(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal) {
+	spec := podAutoscalerInternal.Spec()
+	if spec == nil || spec.TargetRef.Name == "" {
+		return
+	}
+	targetGVK, err := podAutoscalerInternal.TargetGVK()
+	if err != nil {
+		log.Debugf("Skipping replicas-ownership release for %s/%s: unable to resolve target GVK: %v", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
+		return
+	}
+	if err := c.scaler.releaseReplicasOwnership(ctx, podAutoscalerInternal.Namespace(), spec.TargetRef.Name, targetGVK); err != nil {
+		log.Warnf("Failed to release replicas ownership for %s %s/%s: %v", targetGVK.Kind, podAutoscalerInternal.Namespace(), spec.TargetRef.Name, err)
+	}
 }
 
 func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscalerInternal) error {

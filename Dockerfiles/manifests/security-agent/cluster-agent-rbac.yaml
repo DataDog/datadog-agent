@@ -233,9 +233,16 @@ rules:
   - apiGroups: ["apps"]
     resources: ["statefulsets", "replicasets", "deployments", "daemonsets"]
     verbs: ["get"]
+  # Required by the workload autoscaler (DatadogPodAutoscaler) to release
+  # the cluster agent's `.spec.replicas` managedFields entry on the target
+  # when scaling stops, so server-side-apply writers such as Helm do not
+  # conflict with a stale `datadog-cluster-agent` field manager.
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "replicasets", "deployments"]
+    verbs: ["patch"]
   - apiGroups: [""]
     resources: ["replicationcontrollers"]
-    verbs: ["get"]
+    verbs: ["get", "patch"]
   - apiGroups:
       - ""
     resources:

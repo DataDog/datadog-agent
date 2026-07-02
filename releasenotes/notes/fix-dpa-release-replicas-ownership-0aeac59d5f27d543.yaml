@@ -1,0 +1,27 @@
+---
+upgrade:
+  - |
+    The cluster agent now requires the ``patch`` verb on the workload
+    resources it targets via ``DatadogPodAutoscaler`` (``apps/deployments``,
+    ``apps/statefulsets``, ``apps/replicasets``, and core
+    ``replicationcontrollers``). This is required for the cluster agent to
+    release its stale ``.spec.replicas`` field-manager entry when a DPA
+    stops scaling a workload (see the ``fixes`` entry below). Users
+    deploying the cluster agent via the in-tree
+    ``Dockerfiles/manifests/.../cluster-agent-rbac.yaml`` manifests get the
+    new permission automatically. Users deploying via the official Helm
+    chart or Datadog Operator must wait for the corresponding bumps in
+    those repositories or grant the verb manually.
+fixes:
+  - |
+    Fix a bug in the workload autoscaling controller where the
+    ``datadog-cluster-agent`` field-manager entry for ``.spec.replicas`` on
+    the target workload (recorded on the ``scale`` subresource) was never
+    cleaned up after horizontal scaling was disabled, the
+    ``DatadogPodAutoscaler`` was deleted (remote-owned, profile-managed,
+    or local-owned), causing server-side-apply writers such as Helm to
+    fail with
+    ``Apply failed with 1 conflict: conflict with "datadog-cluster-agent"``
+    unless the user passed ``--force-conflicts`` indefinitely. The cluster
+    agent now best-effort releases ``.spec.replicas`` ownership on all of
+    those transitions.
