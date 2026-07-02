@@ -37,7 +37,6 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     struct path_leaf_t map_value = {};
     struct path_key_t key = input->key;
     struct path_key_t next_key = input->key;
-    struct qstr qstr;
     struct dentry *dentry = input->dentry;
     struct dentry *d_parent = NULL;
     unsigned long ino_parent = 0;
@@ -88,9 +87,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             }
         }
 
-        bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
+        const char *name = get_dentry_name_ptr(dentry);
 
-        long len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
+        long len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)name);
         if (len < 0) {
             len = 0;
         }

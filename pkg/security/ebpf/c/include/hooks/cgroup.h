@@ -79,7 +79,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     struct dentry *container_d;
 #ifdef DEBUG_CGROUP
-    struct qstr container_qstr;
     char *container_id;
 #endif
 
@@ -102,8 +101,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         // The last dentry in the cgroup path should be `cgroup.procs`, thus the container ID should be its parent.
         bpf_probe_read(&container_d, sizeof(container_d), &dentry->d_parent);
 #ifdef DEBUG_CGROUP
-        bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
-        container_id = (void *)container_qstr.name;
+        container_id = (void *)get_dentry_name_ptr(container_d);
 #endif
 
         resolver->key.ino = get_dentry_ino(container_d);
@@ -116,8 +114,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         bpf_probe_read(&container_d, sizeof(container_d), cgroup + 72); // offsetof(struct cgroup, dentry)
 
 #ifdef DEBUG_CGROUP
-        bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
-        container_id = (void *)container_qstr.name;
+        container_id = (void *)get_dentry_name_ptr(container_d);
 #endif
 
         u64 inode = get_dentry_ino(container_d);
@@ -142,7 +139,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     new_entry.cgroup.path_key = resolver->key;
 
 #ifdef DEBUG_CGROUP
-    bpf_printk("container id: %s\n", container_qstr.name);
+    bpf_printk("container id: %s\n", container_id);
 #endif
 
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
