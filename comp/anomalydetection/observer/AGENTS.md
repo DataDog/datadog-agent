@@ -43,7 +43,7 @@ and the testbench use the same engine.
 | `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
 | `impl/anomaly_correlator_time_cluster.go` | Default time-proximity correlator |
 | `impl/anomaly_correlator_passthrough.go` | Passthrough correlator (one ActiveCorrelation per anomaly) |
-| `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay) |
+| `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
 | `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
 | `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
 
@@ -82,6 +82,18 @@ anomaly_detection:
 ```
 
 The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/` for testbench replay.
+
+### Severity event subscriptions
+
+The scorer does not own subscription state itself. Each `anomalyScorer` owns a
+`severityeventsimpl.Dispatcher` (see `../AGENTS.md#severity-events-scorer-push-contract`
+and `../severityevents/`); on every `Advance` tick the scorer derives the raw
+severity level from its EWMA and feeds it to `dispatcher.Advance(sec, level)`, which
+runs each subscription's own cooldown/filter state machine and calls listeners.
+`anomalyScorer.Subscribe` and `observerImpl.SubscribeScorer` are thin pass-throughs
+to `dispatcher.SubscribeScorer`. The scorer's own internal watcher (gauges, logs,
+episode tracking for `EpisodeStarted`/`EpisodeEnded`) is itself just a self-subscribed
+listener, registered in `newAnomalyScorerWithTelemetry`.
 
 ## Key Design Decisions
 
@@ -152,6 +164,14 @@ not embed a `correlationEmitter`.
 
 5. **Agent internal logs are not logssource.** The internal tap is wired in
    `impl/observer.go`, gated by `anomaly_detection.logs.internal.*`.
+
+6. **`Dispatcher.Advance`/`Reset` are scorer-owned, single-writer.** Only the
+   `anomalyScorer` that owns a given `Dispatcher` instance should call `Advance`/`Reset`
+   on it — per-subscription state is mutated without its own lock outside of the
+   `subs` slice snapshot, relying on the scorer never calling `Advance`/`Reset`
+   concurrently with itself. Listener callbacks run synchronously on whichever
+   goroutine calls `Advance`, with no panic recovery or timeout — a slow or panicking
+   subscriber affects every other subscriber and the scorer's own tick.
 
 ## Testing
 
