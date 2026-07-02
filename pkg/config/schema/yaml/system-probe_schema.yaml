@@ -1838,6 +1838,7 @@ properties:
                 - dns
                 - bind
                 - connect
+                - open
                 items:
                   type: string
               excluded_images:
@@ -1850,6 +1851,10 @@ properties:
                 node_type: setting
                 type: integer
                 default: 5120
+              sample_refresh_period:
+                node_type: setting
+                type: string
+                default: 30s
           watch_dir:
             node_type: setting
             type: boolean
