@@ -46,7 +46,7 @@ func (iapp *infraAttributesProfileProcessor) processProfiles(_ context.Context, 
 		// Always add `host.arch` tag to profiles' resource attributes
 		resourceAttributes.PutStr("host.arch", runtime.GOARCH)
 
-		iapp.infraTags.ProcessTags(iapp.logger, iapp.cardinality, resourceAttributes, iapp.cfg.AllowHostnameOverride)
+		iapp.infraTags.ProcessTags(iapp.logger, iapp.cardinality, resourceAttributes, iapp.cfg.AllowHostnameOverride, iapp.cfg.ContainerTagPromotion)
 	}
 	return pd, nil
 }

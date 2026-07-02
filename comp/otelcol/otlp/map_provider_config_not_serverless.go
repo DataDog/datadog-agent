@@ -15,7 +15,8 @@ receivers:
   otlp:
 
 processors:
-  infraattributes:
+  infraattributes/traces:
+    container_tag_promotion: duplicate
 
 exporters:
   otlp:
@@ -32,7 +33,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [infraattributes]
+      processors: [infraattributes/traces]
       exporters: [otlp]
 `
 
