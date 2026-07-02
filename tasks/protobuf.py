@@ -2,7 +2,7 @@ import re
 
 from invoke import Exit, task
 
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import run_bazel
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
 
@@ -16,7 +16,23 @@ def generate(ctx, pre_commit=False):
     old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
     old_untracked_proto_files = set(get_untracked_files(ctx, re_filter=proto_file))
 
-    bazel(ctx, "run", "//:write_all")
+    # protobuf defs
+    print(f"generating protobuf code from: {proto_root}")
+    # Find all the instances created with bazel/rules/write_pb_go/defs.bzl
+    # This query captures too many things: the primary target + one for each .proto file.
+    # but write_source_files puts kwargs.tag in sub rules rather than just the top, so
+    # we need to filter out the extras.
+    result = run_bazel(
+        ctx,
+        "query",
+        """attr(tags, "write_pb_go", kind("_write_source_file", //pkg/proto/...))""",
+    )
+    for target in result.stdout.split("\n"):
+        # We could look for the regex '.*_[0-9]+' and filter that, but this is good enough.
+        if target.endswith("_pb_go"):
+            result = run_bazel(ctx, "run", target, verbose=True)
+            if result.return_code != 0:
+                print(result.stderr)
 
     # Check the generated files were properly committed
     current_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
