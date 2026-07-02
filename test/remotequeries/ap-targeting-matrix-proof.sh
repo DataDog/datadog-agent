@@ -29,6 +29,11 @@ RQ_POLL_INTERVAL=${RQ_POLL_INTERVAL:-1}
 RQ_MAX_POLLS=${RQ_MAX_POLLS:-45}
 DD_SITE=${DD_SITE:-datad0g.com}
 KEEP_ALIVE=${KEEP_ALIVE:-0}
+RQ_HARNESS_TMUX_REPLACE=${RQ_HARNESS_TMUX_REPLACE:-0}
+RQ_HARNESS_TMUX_CHILD=${RQ_HARNESS_TMUX_CHILD:-0}
+RQ_HARNESS_TMUX_WINDOW_NAME=${RQ_HARNESS_TMUX_WINDOW_NAME:-agent-harness}
+RQ_HARNESS_TMUX_SESSION=${RQ_HARNESS_TMUX_SESSION:-rq-agent-harness}
+RQ_HARNESS_TMUX_READY_TIMEOUT=${RQ_HARNESS_TMUX_READY_TIMEOUT:-900}
 
 POSTGRES_COMPOSE_STARTED=0
 AGENT_A_PID=""
@@ -37,6 +42,14 @@ PAR_A_PID=""
 PAR_B_PID=""
 CONNECTION_A=""
 CONNECTION_B=""
+TMUX_WINDOW_ID=""
+TMUX_SUPERVISOR_PANE=""
+TMUX_AGENT_A_PANE=""
+TMUX_AGENT_B_PANE=""
+TMUX_PAR_A_PANE=""
+TMUX_PAR_B_PANE=""
+TMUX_POSTGRES_PANE=""
+LAST_TMUX_PANE=""
 
 MATRIX_CASES=(
   "a rq-proof-agent-a localhost 15432 postgres_a1_db1"
@@ -54,13 +67,17 @@ require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "missing required comm
 
 usage() {
   cat <<'TXT'
-Usage: ap-targeting-matrix-proof.sh [--keep-alive]
+Usage: ap-targeting-matrix-proof.sh [--keep-alive] [--replace-tmux-window]
 
 Options:
-  --keep-alive   Set up the Agent/PAR/Postgres/AP connection matrix, write
-                 connection/PID metadata under $TMP_ROOT/results, print a
-                 KEEPALIVE_READY marker, and block until SIGINT/SIGTERM.
-                 Equivalent: KEEP_ALIVE=1 ap-targeting-matrix-proof.sh
+  --keep-alive            Set up the Agent/PAR/Postgres/AP connection matrix, write
+                          connection/PID/tmux metadata under $TMP_ROOT/results,
+                          print a KEEPALIVE_READY marker, and supervise the
+                          long-lived processes in a visible tmux window named
+                          agent-harness. Equivalent: KEEP_ALIVE=1.
+  --replace-tmux-window   If a live agent-harness tmux window already exists,
+                          kill it before starting. Equivalent:
+                          RQ_HARNESS_TMUX_REPLACE=1.
 TXT
 }
 
@@ -69,6 +86,9 @@ parse_args() {
     case "$1" in
       --keep-alive)
         KEEP_ALIVE=1
+        ;;
+      --replace-tmux-window)
+        RQ_HARNESS_TMUX_REPLACE=1
         ;;
       -h|--help)
         usage
@@ -85,6 +105,155 @@ parse_args() {
 }
 
 docker_compose() { POSTGRES_IMAGE="$POSTGRES_IMAGE" docker compose -f "$POSTGRES_COMPOSE_FILE" -p "$POSTGRES_COMPOSE_PROJECT" "$@"; }
+
+tmux_env_args() {
+  local env_name
+  for env_name in \
+    AGENT_REPO INTEGRATIONS_CORE TMP_ROOT POSTGRES_COMPOSE_FILE POSTGRES_COMPOSE_PROJECT POSTGRES_IMAGE \
+    PIP_PLATFORM AGENT_PYTHON_VERSION AGENT_PYTHON_ABI AGENT_A_CMD_PORT AGENT_B_CMD_PORT \
+    RQ_POSTGRES_USERNAME RQ_POSTGRES_PASSWORD FQN RQ_REMOTE_QUERY RQ_POLL_INTERVAL RQ_MAX_POLLS DD_SITE; do
+    printf '%s\0' -e "${env_name}=${!env_name-}"
+  done
+  # Use harness-specific names for credentials so an existing tmux session
+  # environment (for example DD_SITE=datadoghq.eu) cannot override this run.
+  printf '%s\0' -e "RQ_HARNESS_DD_API_KEY=${DD_API_KEY-}"
+  printf '%s\0' -e "RQ_HARNESS_DD_APP_KEY=${DD_APP_KEY-}"
+  printf '%s\0' -e "RQ_HARNESS_DD_APPLICATION_KEY=${DD_APPLICATION_KEY-}"
+  printf '%s\0' -e "RQ_HARNESS_DD_SITE=${DD_SITE-}"
+}
+
+tmux_window_ids_by_name() {
+  tmux list-windows -a -F '#{window_id} #{window_name}' 2>/dev/null | awk -v name="$RQ_HARNESS_TMUX_WINDOW_NAME" '$2 == name {print $1}'
+}
+
+kill_existing_tmux_window_if_requested() {
+  local window_id
+  local -a existing_windows
+  mapfile -t existing_windows < <(tmux_window_ids_by_name)
+  if ((${#existing_windows[@]} == 0)); then
+    return
+  fi
+  if [[ "$RQ_HARNESS_TMUX_REPLACE" != "1" ]]; then
+    printf 'tmux window named %s already exists: %s\n' "$RQ_HARNESS_TMUX_WINDOW_NAME" "${existing_windows[*]}" >&2
+    printf 'Re-run with --replace-tmux-window or RQ_HARNESS_TMUX_REPLACE=1 after confirming it is safe to replace.\n' >&2
+    exit 1
+  fi
+  for window_id in "${existing_windows[@]}"; do
+    tmux kill-window -t "$window_id" 2>/dev/null || true
+  done
+}
+
+current_tmux_session() {
+  if [[ -n "${TMUX_PANE:-}" ]]; then
+    tmux display-message -p -t "$TMUX_PANE" '#S' 2>/dev/null || true
+  fi
+}
+
+create_tmux_supervisor_window() {
+  local session window_id command
+  local -a env_args=()
+  while IFS= read -r -d '' item; do
+    env_args+=("$item")
+  done < <(tmux_env_args)
+
+  # Variables expand in the tmux child shell, not in this parent process.
+  # shellcheck disable=SC2016
+  command='export DD_API_KEY="$RQ_HARNESS_DD_API_KEY" DD_APP_KEY="$RQ_HARNESS_DD_APP_KEY" DD_APPLICATION_KEY="$RQ_HARNESS_DD_APPLICATION_KEY" DD_SITE="$RQ_HARNESS_DD_SITE"; exec "$AGENT_REPO/test/remotequeries/ap-targeting-matrix-proof.sh" --keep-alive'
+  session=$(current_tmux_session)
+  if [[ -n "$session" ]]; then
+    window_id=$(tmux new-window -d -P -F '#{window_id}' -t "$session:" -n "$RQ_HARNESS_TMUX_WINDOW_NAME" -c "$AGENT_REPO" \
+      "${env_args[@]}" -e RQ_HARNESS_TMUX_CHILD=1 "bash -lc '$command'")
+  elif tmux has-session -t "$RQ_HARNESS_TMUX_SESSION" 2>/dev/null; then
+    window_id=$(tmux new-window -d -P -F '#{window_id}' -t "$RQ_HARNESS_TMUX_SESSION:" -n "$RQ_HARNESS_TMUX_WINDOW_NAME" -c "$AGENT_REPO" \
+      "${env_args[@]}" -e RQ_HARNESS_TMUX_CHILD=1 "bash -lc '$command'")
+  else
+    window_id=$(tmux new-session -d -P -F '#{window_id}' -s "$RQ_HARNESS_TMUX_SESSION" -n "$RQ_HARNESS_TMUX_WINDOW_NAME" -c "$AGENT_REPO" \
+      "${env_args[@]}" -e RQ_HARNESS_TMUX_CHILD=1 "bash -lc '$command'")
+  fi
+  tmux set-option -w -t "$window_id" remain-on-exit on >/dev/null
+  tmux set-option -w -t "$window_id" pane-border-status top >/dev/null
+  tmux set-option -w -t "$window_id" pane-border-format '#{pane_index}: #{pane_title}' >/dev/null
+  printf '%s\n' "$window_id"
+}
+
+wait_for_tmux_keepalive_ready() {
+  local window_id=$1 ready_file="$TMP_ROOT/results/keepalive-ready" pane_dead
+  for _ in $(seq 1 "$RQ_HARNESS_TMUX_READY_TIMEOUT"); do
+    if [[ -f "$ready_file" ]]; then
+      cat "$ready_file"
+      return 0
+    fi
+    pane_dead=$(tmux display-message -p -t "$window_id" '#{pane_dead}' 2>/dev/null || echo 1)
+    if [[ "$pane_dead" == "1" ]]; then
+      echo "tmux supervisor pane exited before KEEPALIVE_READY" >&2
+      [[ -f "$TMP_ROOT/results/harness.log" ]] && tail -120 "$TMP_ROOT/results/harness.log" >&2
+      return 1
+    fi
+    sleep 1
+  done
+  echo "timed out waiting for KEEPALIVE_READY from tmux window $window_id" >&2
+  [[ -f "$TMP_ROOT/results/harness.log" ]] && tail -120 "$TMP_ROOT/results/harness.log" >&2
+  return 1
+}
+
+launch_keepalive_tmux_supervisor() {
+  require_cmd tmux
+  mkdir -p "$TMP_ROOT/results"
+  rm -f "$TMP_ROOT/results/keepalive-ready"
+  kill_existing_tmux_window_if_requested
+  local window_id
+  window_id=$(create_tmux_supervisor_window)
+  printf 'Started tmux keep-alive supervisor window %s named %s\n' "$window_id" "$RQ_HARNESS_TMUX_WINDOW_NAME"
+  wait_for_tmux_keepalive_ready "$window_id"
+}
+
+tmux_pane_dead() {
+  local pane=$1
+  [[ "$(tmux display-message -p -t "$pane" '#{pane_dead}' 2>/dev/null || echo 1)" == "1" ]]
+}
+
+init_child_tmux_context() {
+  require_cmd tmux
+  TMUX_SUPERVISOR_PANE=${TMUX_PANE:-}
+  [[ -n "$TMUX_SUPERVISOR_PANE" ]] || { echo "RQ_HARNESS_TMUX_CHILD=1 requires running inside a tmux pane" >&2; exit 1; }
+  TMUX_WINDOW_ID=$(tmux display-message -p -t "$TMUX_SUPERVISOR_PANE" '#{window_id}')
+  tmux rename-window -t "$TMUX_WINDOW_ID" "$RQ_HARNESS_TMUX_WINDOW_NAME"
+  tmux select-pane -t "$TMUX_SUPERVISOR_PANE" -T 'supervisor / harness log'
+  tmux set-option -w -t "$TMUX_WINDOW_ID" remain-on-exit on >/dev/null
+  tmux set-option -w -t "$TMUX_WINDOW_ID" pane-border-status top >/dev/null
+  tmux set-option -w -t "$TMUX_WINDOW_ID" pane-border-format '#{pane_index}: #{pane_title}' >/dev/null
+}
+
+new_tmux_process_pane() {
+  local role=$1 title=$2 command=$3 pane_id
+  local -a env_args=()
+  while IFS= read -r -d '' item; do
+    env_args+=("$item")
+  done < <(tmux_env_args)
+  pane_id=$(tmux split-window -d -P -F '#{pane_id}' -t "$TMUX_WINDOW_ID" -c "$AGENT_REPO" "${env_args[@]}" "bash -lc 'export DD_API_KEY=\"\$RQ_HARNESS_DD_API_KEY\" DD_APP_KEY=\"\$RQ_HARNESS_DD_APP_KEY\" DD_APPLICATION_KEY=\"\$RQ_HARNESS_DD_APPLICATION_KEY\" DD_SITE=\"\$RQ_HARNESS_DD_SITE\"; $command'")
+  tmux select-pane -t "$pane_id" -T "$title"
+  tmux select-layout -t "$TMUX_WINDOW_ID" tiled >/dev/null
+  LAST_TMUX_PANE=$pane_id
+  case "$role" in
+    agent_a) TMUX_AGENT_A_PANE=$pane_id ;;
+    agent_b) TMUX_AGENT_B_PANE=$pane_id ;;
+    par_a) TMUX_PAR_A_PANE=$pane_id ;;
+    par_b) TMUX_PAR_B_PANE=$pane_id ;;
+    postgres) TMUX_POSTGRES_PANE=$pane_id ;;
+  esac
+  printf '%s\n' "$pane_id"
+}
+
+start_postgres_status_pane() {
+  if [[ "$KEEP_ALIVE" != "1" || "$RQ_HARNESS_TMUX_CHILD" != "1" ]]; then
+    return
+  fi
+  local command
+  # Variables expand in the tmux status pane.
+  # shellcheck disable=SC2016
+  command='while true; do clear; date -u; echo "Postgres fixture: $POSTGRES_COMPOSE_PROJECT"; POSTGRES_IMAGE="$POSTGRES_IMAGE" docker compose -f "$POSTGRES_COMPOSE_FILE" -p "$POSTGRES_COMPOSE_PROJECT" ps; echo; POSTGRES_IMAGE="$POSTGRES_IMAGE" docker compose -f "$POSTGRES_COMPOSE_FILE" -p "$POSTGRES_COMPOSE_PROJECT" logs --tail=20 --no-color; sleep 10; done'
+  new_tmux_process_pane postgres 'Docker/Postgres status + logs' "$command" >/dev/null
+}
 
 cleanup_pid() {
   local pid=$1
@@ -169,10 +338,13 @@ install_python_deps_for() {
 }
 
 install_python_deps() {
-  install_python_deps_for "$AGENT_PYTHON_VERSION" "$AGENT_PYTHON_ABI"
+  # Install any compatibility wheel set first and the detected Agent ABI last so
+  # ABI-specific extension modules (for example pydantic_core) match the Agent's
+  # embedded Python runtime when packages share the same target directory.
   if [[ "$AGENT_PYTHON_ABI" != "cp312" ]]; then
     install_python_deps_for "3.12" "cp312"
   fi
+  install_python_deps_for "$AGENT_PYTHON_VERSION" "$AGENT_PYTHON_ABI"
 }
 
 setup_checksd() {
@@ -296,6 +468,7 @@ start_postgres_fixture() {
   docker_compose down --remove-orphans >/dev/null 2>&1 || true
   docker_compose up -d
   POSTGRES_COMPOSE_STARTED=1
+  start_postgres_status_pane
   for _ in $(seq 1 120); do
     if docker_compose ps --format json 2>/dev/null | python3 -c 'import json,sys; rows=[json.loads(l) for l in sys.stdin if l.strip()]; sys.exit(0 if rows and all(r.get("Health") in ("healthy", "") for r in rows) else 1)' 2>/dev/null; then
       log "Postgres matrix fixture is healthy"
@@ -310,11 +483,24 @@ start_postgres_fixture() {
 }
 
 start_agent() {
-  local side=$1 pid loaded_count
+  local side=$1 pid loaded_count pane command
   local root="$TMP_ROOT/agent_$side"
   : > "$root/agent.log"
-  PYTHONPATH="$TMP_ROOT/checks.d:$TMP_ROOT/pydeps" "$AGENT_REPO/bin/agent/agent" run -c "$root" > "$root/stdout.log" 2> "$root/stderr.log" &
-  pid=$!
+  if [[ "$KEEP_ALIVE" == "1" && "$RQ_HARNESS_TMUX_CHILD" == "1" ]]; then
+    # AGENT_REPO/TMP_ROOT expand in the tmux pane; side is inserted here.
+    # shellcheck disable=SC2016
+    command='echo "Agent '$side': $AGENT_REPO/bin/agent/agent run -c $TMP_ROOT/agent_'$side'"; export PYTHONPATH="$TMP_ROOT/checks.d:$TMP_ROOT/pydeps"; exec "$AGENT_REPO/bin/agent/agent" run -c "$TMP_ROOT/agent_'$side'"'
+    if [[ "$side" == "a" ]]; then
+      new_tmux_process_pane "agent_$side" 'Agent A - rq-proof-agent-a' "$command" >/dev/null
+    else
+      new_tmux_process_pane "agent_$side" 'Agent B - rq-proof-agent-b' "$command" >/dev/null
+    fi
+    pane=$LAST_TMUX_PANE
+    pid=$(tmux display-message -p -t "$pane" '#{pane_pid}')
+  else
+    PYTHONPATH="$TMP_ROOT/checks.d:$TMP_ROOT/pydeps" "$AGENT_REPO/bin/agent/agent" run -c "$root" > "$root/stdout.log" 2> "$root/stderr.log" &
+    pid=$!
+  fi
   if [[ "$side" == "a" ]]; then AGENT_A_PID=$pid; else AGENT_B_PID=$pid; fi
   for _ in $(seq 1 120); do
     loaded_count=$(grep -c "successfully loaded check 'postgres'" "$root/agent.log" 2>/dev/null || true)
@@ -322,7 +508,11 @@ start_agent() {
       log "Agent $side loaded $loaded_count Postgres checks and exposed IPC artifacts"
       return
     fi
-    kill -0 "$pid" 2>/dev/null || { echo "Agent $side exited early" >&2; tail -100 "$root/stderr.log" >&2 || true; exit 1; }
+    if [[ "$KEEP_ALIVE" == "1" && "$RQ_HARNESS_TMUX_CHILD" == "1" ]]; then
+      tmux_pane_dead "$pane" && { echo "Agent $side exited early" >&2; exit 1; }
+    else
+      kill -0 "$pid" 2>/dev/null || { echo "Agent $side exited early" >&2; tail -100 "$root/stderr.log" >&2 || true; exit 1; }
+    fi
     sleep 0.5
   done
   echo "Timed out waiting for Agent $side" >&2
@@ -331,17 +521,34 @@ start_agent() {
 }
 
 start_par() {
-  local side=$1 pid
+  local side=$1 pid pane command
   local par_root="$TMP_ROOT/par_$side"
-  DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true "$AGENT_REPO/bin/privateactionrunner/privateactionrunner" run -c "$par_root" > "$par_root/stdout.log" 2> "$par_root/stderr.log" &
-  pid=$!
+  if [[ "$KEEP_ALIVE" == "1" && "$RQ_HARNESS_TMUX_CHILD" == "1" ]]; then
+    # AGENT_REPO/TMP_ROOT expand in the tmux pane; side is inserted here.
+    # shellcheck disable=SC2016
+    command='echo "PAR '$side': $AGENT_REPO/bin/privateactionrunner/privateactionrunner run -c $TMP_ROOT/par_'$side'"; export DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true; exec "$AGENT_REPO/bin/privateactionrunner/privateactionrunner" run -c "$TMP_ROOT/par_'$side'"'
+    if [[ "$side" == "a" ]]; then
+      new_tmux_process_pane "par_$side" 'PAR A - private-action-runner for Agent A' "$command" >/dev/null
+    else
+      new_tmux_process_pane "par_$side" 'PAR B - private-action-runner for Agent B' "$command" >/dev/null
+    fi
+    pane=$LAST_TMUX_PANE
+    pid=$(tmux display-message -p -t "$pane" '#{pane_pid}')
+  else
+    DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true "$AGENT_REPO/bin/privateactionrunner/privateactionrunner" run -c "$par_root" > "$par_root/stdout.log" 2> "$par_root/stderr.log" &
+    pid=$!
+  fi
   if [[ "$side" == "a" ]]; then PAR_A_PID=$pid; else PAR_B_PID=$pid; fi
   for _ in $(seq 1 120); do
     if grep -q "Self-enrollment successful" "$par_root/private-action-runner.log" 2>/dev/null; then
       log "PAR $side self-enrollment successful"
       return
     fi
-    kill -0 "$pid" 2>/dev/null || { echo "PAR $side exited early" >&2; tail -100 "$par_root/stderr.log" >&2 || true; tail -100 "$par_root/private-action-runner.log" >&2 || true; exit 1; }
+    if [[ "$KEEP_ALIVE" == "1" && "$RQ_HARNESS_TMUX_CHILD" == "1" ]]; then
+      tmux_pane_dead "$pane" && { echo "PAR $side exited early" >&2; tail -100 "$par_root/private-action-runner.log" >&2 || true; exit 1; }
+    else
+      kill -0 "$pid" 2>/dev/null || { echo "PAR $side exited early" >&2; tail -100 "$par_root/stderr.log" >&2 || true; tail -100 "$par_root/private-action-runner.log" >&2 || true; exit 1; }
+    fi
     sleep 0.5
   done
   echo "Timed out waiting for PAR $side self-enrollment" >&2
@@ -385,7 +592,10 @@ api_delete_resource() {
 delete_temp_execution_group_if_present() {
   local out="$TMP_ROOT/results/precleanup-execution-groups.json" ids id
   log "Deleting stale rq-ap-staging-proof-eg execution group if present"
-  api_get_execution_groups "$out"
+  if ! api_get_execution_groups "$out"; then
+    log "Skipping stale execution-group cleanup because execution groups could not be listed"
+    return
+  fi
   mapfile -t ids < <(jq -r '.data[] | select(.attributes.name == "rq-ap-staging-proof-eg") | .id' "$out")
   for id in "${ids[@]}"; do
     [[ -n "$id" && "$id" != "null" ]] || continue
@@ -541,6 +751,29 @@ Each positive AP execution called /api/unstable/actions/execute with an explicit
 TXT
 }
 
+write_keepalive_tmux_metadata() {
+  local role pane window_name window_id pane_id pane_title pane_pid pane_current_command
+  printf 'role\twindow_name\twindow_id\tpane_id\tpane_title\tpane_pid\tpane_current_command\n' > "$TMP_ROOT/results/keepalive-tmux.tsv"
+  for role in supervisor agent_a agent_b par_a par_b postgres; do
+    case "$role" in
+      supervisor) pane=$TMUX_SUPERVISOR_PANE ;;
+      agent_a) pane=$TMUX_AGENT_A_PANE ;;
+      agent_b) pane=$TMUX_AGENT_B_PANE ;;
+      par_a) pane=$TMUX_PAR_A_PANE ;;
+      par_b) pane=$TMUX_PAR_B_PANE ;;
+      postgres) pane=$TMUX_POSTGRES_PANE ;;
+    esac
+    [[ -n "$pane" ]] || continue
+    window_name=$(tmux display-message -p -t "$pane" '#{window_name}')
+    window_id=$(tmux display-message -p -t "$pane" '#{window_id}')
+    pane_id=$(tmux display-message -p -t "$pane" '#{pane_id}')
+    pane_title=$(tmux display-message -p -t "$pane" '#{pane_title}')
+    pane_pid=$(tmux display-message -p -t "$pane" '#{pane_pid}')
+    pane_current_command=$(tmux display-message -p -t "$pane" '#{pane_current_command}')
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$role" "$window_name" "$window_id" "$pane_id" "$pane_title" "$pane_pid" "$pane_current_command" >> "$TMP_ROOT/results/keepalive-tmux.tsv"
+  done
+}
+
 write_keepalive_metadata() {
   cat > "$TMP_ROOT/results/keepalive-connections.tsv" <<TXT
 a	$CONNECTION_A
@@ -553,12 +786,17 @@ agent_b	$AGENT_B_PID
 par_a	$PAR_A_PID
 par_b	$PAR_B_PID
 TXT
+  if [[ "$RQ_HARNESS_TMUX_CHILD" == "1" ]]; then
+    write_keepalive_tmux_metadata
+  fi
 }
 
 keep_alive_until_interrupted() {
+  local ready_line
   write_keepalive_metadata
-  printf 'KEEPALIVE_READY tmp_root=%s connection_a=%s connection_b=%s\n' "$TMP_ROOT" "$CONNECTION_A" "$CONNECTION_B"
-  log "Keep-alive mode is ready; waiting for SIGINT/SIGTERM"
+  ready_line=$(printf 'KEEPALIVE_READY tmp_root=%s connection_a=%s connection_b=%s tmux_window=%s\n' "$TMP_ROOT" "$CONNECTION_A" "$CONNECTION_B" "$TMUX_WINDOW_ID")
+  printf '%s\n' "$ready_line" | tee "$TMP_ROOT/results/keepalive-ready"
+  log "Keep-alive mode is ready in tmux window ${TMUX_WINDOW_ID:-unknown}; waiting for SIGINT/SIGTERM"
   trap 'log "Keep-alive mode received interrupt; exiting for cleanup"; exit 0' INT TERM
   while true; do
     sleep 3600 &
@@ -575,6 +813,14 @@ main() {
   [[ -x "$AGENT_REPO/bin/agent/agent" ]] || { echo "missing Agent binary: $AGENT_REPO/bin/agent/agent" >&2; exit 1; }
   [[ -x "$AGENT_REPO/bin/privateactionrunner/privateactionrunner" ]] || { echo "missing PAR binary: $AGENT_REPO/bin/privateactionrunner/privateactionrunner" >&2; exit 1; }
   [[ -d "$INTEGRATIONS_CORE/postgres/datadog_checks/postgres" ]] || { echo "Postgres integration not found under: $INTEGRATIONS_CORE" >&2; exit 1; }
+
+  if [[ "$KEEP_ALIVE" == "1" && "$RQ_HARNESS_TMUX_CHILD" != "1" ]]; then
+    launch_keepalive_tmux_supervisor
+    exit 0
+  fi
+  if [[ "$KEEP_ALIVE" == "1" && "$RQ_HARNESS_TMUX_CHILD" == "1" ]]; then
+    init_child_tmux_context
+  fi
 
   mkdir -p "$TMP_ROOT/results"
   log "Preparing AP targeting matrix harness at $TMP_ROOT"
