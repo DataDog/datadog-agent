@@ -1040,7 +1040,7 @@ func (c *WorkloadMetaCollector) extractKueueWorkloadAndRelatedTags(workload *wor
 	c.addResourceLabelsAndAnnotationsAsTags(groupResource, workload.Labels, workload.Annotations, tagList)
 
 	// now get the queue entities for more tags
-	localQueue := c.addQueueTagsForWorkload(workload.Namespace, tagList, workloadmeta.KueueLocalQueue, workload.QueueName)
+	localQueue := c.extractKueueQueueTagsFromQueueName(workload.Namespace, tagList, workloadmeta.KueueLocalQueue, workload.QueueName)
 
 	// The cluster queue name might not be present in the workload object. Local queues are always
 	// associated to a cluster queue, so if the local queue entity is available, use its cluster
@@ -1049,7 +1049,7 @@ func (c *WorkloadMetaCollector) extractKueueWorkloadAndRelatedTags(workload *wor
 	if clusterQueueName == "" && localQueue != nil {
 		clusterQueueName = localQueue.ClusterQueueName
 	}
-	_ = c.addQueueTagsForWorkload(workload.Namespace, tagList, workloadmeta.KueueClusterQueue, clusterQueueName)
+	_ = c.extractKueueQueueTagsFromQueueName(workload.Namespace, tagList, workloadmeta.KueueClusterQueue, clusterQueueName)
 
 	// now parse the pod set assignments to get the flavor names and add the corresponding tags
 	flavorNames := make(map[string]struct{})
@@ -1077,7 +1077,7 @@ func (c *WorkloadMetaCollector) extractKueueWorkloadAndRelatedTags(workload *wor
 	}
 }
 
-func (c *WorkloadMetaCollector) addQueueTagsForWorkload(namespace string, tagList *taglist.TagList, queueType workloadmeta.KueueQueueType, queueName string) *workloadmeta.KubernetesKueueQueue {
+func (c *WorkloadMetaCollector) extractKueueQueueTagsFromQueueName(namespace string, tagList *taglist.TagList, queueType workloadmeta.KueueQueueType, queueName string) *workloadmeta.KubernetesKueueQueue {
 	if queueName == "" {
 		return nil
 	}
@@ -1146,14 +1146,14 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 		localQueueName = pod.Labels[kubernetes.KueueQueueNameLabelKey]
 	}
 
-	localQueue := c.addQueueTagsForWorkload(pod.Namespace, tagList, workloadmeta.KueueLocalQueue, localQueueName)
+	localQueue := c.extractKueueQueueTagsFromQueueName(pod.Namespace, tagList, workloadmeta.KueueLocalQueue, localQueueName)
 
 	if clusterQueueName == "" && localQueue != nil {
 		// Local queues are always associated to a cluster queue, so if we don't have a cluster queue name in the pod,
 		// use the one associated to the local queue
 		clusterQueueName = localQueue.ClusterQueueName
 	}
-	_ = c.addQueueTagsForWorkload(pod.Namespace, tagList, workloadmeta.KueueClusterQueue, clusterQueueName)
+	_ = c.extractKueueQueueTagsFromQueueName(pod.Namespace, tagList, workloadmeta.KueueClusterQueue, clusterQueueName)
 }
 
 func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKueueWorkload {
