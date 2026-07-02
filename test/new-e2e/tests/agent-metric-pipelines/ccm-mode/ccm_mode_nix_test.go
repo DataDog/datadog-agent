@@ -21,12 +21,9 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/common"
 )
 
-const (
-	infrastructureModeTag = "infra_mode:cloud_cost_only"
-)
+const infrastructureModeTag = "infra_mode:cloud_cost_only"
 
 type ccmModeSuiteBase struct {
 	e2e.BaseSuite[environments.Host]
@@ -63,15 +60,11 @@ infrastructure_mode: cloud_cost_only
 	return cfg.String()
 }
 
-func runCCMModeSuite[T e2e.Suite[environments.Host]](t *testing.T, stackName string, agentConfig string, suite T, adpEnabled bool) {
+func runCCMModeSuite[T e2e.Suite[environments.Host]](t *testing.T, stackName string, agentConfig string, suite T) {
 	t.Helper()
 	t.Parallel()
 
 	agentOptions := []agentparams.Option{agentparams.WithAgentConfig(agentConfig)}
-	if adpEnabled {
-		agentOptions = append(agentOptions, common.WithADPEnabled())
-		stackName += "-adp"
-	}
 
 	e2e.Run(t, suite, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -107,12 +100,12 @@ func (s *ccmModeSuiteBase) assertMetricLacksInfrastructureModeTag(c *assert.Coll
 // TestCCMModeLinuxDefaultTagged runs CCM e2e checks with the default empty
 // integration.cloud_cost_only.tagged list (all checks receive infrastructure_mode).
 func TestCCMModeLinuxDefaultTagged(t *testing.T) {
-	runCCMModeSuite(t, "ccmmode-default-tagged", ccmAgentConfig(nil), &ccmModeDefaultTaggedSuite{}, false)
+	runCCMModeSuite(t, "ccmmode-default-tagged", ccmAgentConfig(nil), &ccmModeDefaultTaggedSuite{})
 }
 
 // TestCCMModeLinuxConfiguredTagged runs CCM e2e checks with an explicit tagged list.
 func TestCCMModeLinuxConfiguredTagged(t *testing.T) {
-	runCCMModeSuite(t, "ccmmode-configured-tagged", ccmAgentConfig([]string{"cpu"}), &ccmModeConfiguredTaggedSuite{}, false)
+	runCCMModeSuite(t, "ccmmode-configured-tagged", ccmAgentConfig([]string{"cpu"}), &ccmModeConfiguredTaggedSuite{})
 }
 
 // TestDefaultTaggedAllChecksReceiveInfrastructureModeTag verifies the default empty tagged list
