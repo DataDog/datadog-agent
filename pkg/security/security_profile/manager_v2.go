@@ -48,6 +48,22 @@ type pendingProfile struct {
 	events    *list.List
 }
 
+const (
+	metricSourceRuntime = iota
+	metricSourceReplay
+	metricSourceRelated
+	metricSourceCount
+)
+
+// perEventTypeMetrics holds the precomputed statsd tags and the counters for a
+// (source, event_type) pair.
+type perEventTypeMetrics struct {
+	tags            []string
+	eventsReceived  *atomic.Uint64
+	eventsImmediate *atomic.Uint64
+	eventsDropped   *atomic.Uint64
+}
+
 type ManagerV2 struct {
 	config        *config.Config
 	statsdClient  statsd.ClientInterface
@@ -63,6 +79,10 @@ type ManagerV2 struct {
 	pathsReducer *activity_tree.PathsReducer
 
 	eventFiltering map[eventFilteringEntry]*atomic.Uint64
+
+	insertionErrors map[model.EventType]*atomic.Uint64
+
+	eventMetrics [metricSourceCount][model.MaxKernelEventType]*perEventTypeMetrics
 
 	// storage
 	localStorage              *storage.Directory
@@ -146,6 +166,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		hostname:                  hostname,
 		sendAnomalyDetection:      sendAnomalyDetection,
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
+		insertionErrors:           make(map[model.EventType]*atomic.Uint64),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
 		containerFilters:          containerFilter,
@@ -153,12 +174,14 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 	}
 
 	m.initMetricsMap()
+	m.initEventMetrics()
 	return m, nil
 }
 
 // initMetricsMap initializes the event filtering metrics map with all combinations of event types, states, and results
 func (m *ManagerV2) initMetricsMap() {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
+		m.insertionErrors[i] = atomic.NewUint64(0)
 		for _, state := range model.AllEventFilteringProfileState {
 			for _, result := range allEventFilteringResults {
 				m.eventFiltering[eventFilteringEntry{
@@ -169,6 +192,42 @@ func (m *ManagerV2) initMetricsMap() {
 			}
 		}
 	}
+}
+
+// initEventMetrics precomputes the {source, event_type} tags and counters for every source/event type.
+func (m *ManagerV2) initEventMetrics() {
+	sources := [metricSourceCount]model.EventSource{
+		metricSourceRuntime: model.EventSourceRuntime,
+		metricSourceReplay:  model.EventSourceReplay,
+		metricSourceRelated: model.EventSourceRelated,
+	}
+	for src, sourceName := range sources {
+		for et := model.EventType(0); et < model.MaxKernelEventType; et++ {
+			m.eventMetrics[src][et] = &perEventTypeMetrics{
+				tags:            []string{"source:" + string(sourceName), "event_type:" + et.String()},
+				eventsReceived:  atomic.NewUint64(0),
+				eventsImmediate: atomic.NewUint64(0),
+				eventsDropped:   atomic.NewUint64(0),
+			}
+		}
+	}
+}
+
+// eventMetricsFor returns the metric counters for the given source/event type, or nil if the
+// event type is out of range. The three known sources (runtime, replay, related) each map to
+// their own shard so related traffic isn't misreported as runtime.
+func (m *ManagerV2) eventMetricsFor(source model.EventSource, et model.EventType) *perEventTypeMetrics {
+	if et >= model.MaxKernelEventType {
+		return nil
+	}
+	src := metricSourceRuntime
+	switch source {
+	case model.EventSourceReplay:
+		src = metricSourceReplay
+	case model.EventSourceRelated:
+		src = metricSourceRelated
+	}
+	return m.eventMetrics[src][et]
 }
 
 func (m *ManagerV2) Start(ctx context.Context) {
@@ -404,14 +463,12 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	// Resolve event source (runtime or replay) and event type
+	// Resolve event source and look up its precomputed (source, event_type) counters.
 	source := event.FieldHandlers.ResolveSource(event, &event.BaseEvent)
-	eventType := event.GetType()
-	metricTags := []string{"source:" + source, "event_type:" + eventType}
+	em := m.eventMetricsFor(source, model.EventType(event.Type))
 
-	// Emit metric for events that pass initial filters
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, 1, metricTags, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsReceived, err)
+	if em != nil {
+		em.eventsReceived.Inc()
 	}
 
 	// Try to resolve tags for this workload
@@ -422,12 +479,12 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		// Set resolved tags on the event for downstream processing
 		event.ProcessContext.Process.ContainerContext.Tags = workloadTags
 
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsImmediate, 1, metricTags, 1.0); err != nil {
-			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsImmediate, err)
+		if em != nil {
+			em.eventsImmediate.Inc()
 		}
 		m.processEventWithResolvedTags(event)
 	} else {
-		m.queueEventForTagResolution(event, metricTags)
+		m.queueEventForTagResolution(event, em)
 	}
 }
 
@@ -495,7 +552,7 @@ func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 }
 
 // queueEventForTagResolution queues an event while waiting for tag resolution
-func (m *ManagerV2) queueEventForTagResolution(event *model.Event, tags []string) {
+func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventTypeMetrics) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 
 	m.profilePendingEventsLock.Lock()
@@ -521,9 +578,8 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, tags []string
 			// Decrement queue size BEFORE clearing the list
 			m.queueSize.Sub(uint64(eventsLen))
 			pendingEvents.events.Init()
-			// Emit dropped metric
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(eventsLen), tags, 1.0); err != nil {
-				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionEventsDropped, err)
+			if em != nil {
+				em.eventsDropped.Add(uint64(eventsLen))
 			}
 		}
 		return
@@ -610,6 +666,42 @@ func (m *ManagerV2) SendStats() error {
 		if value := count.Swap(0); value > 0 {
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
 				return err
+			}
+		}
+	}
+
+	// Activity-tree insertion errors (unexpected failures only)
+	for eventType, count := range m.insertionErrors {
+		if value := count.Swap(0); value > 0 {
+			tags := []string{"event_type:" + eventType.String()}
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2InsertionErrors, int64(value), tags, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Per-(source, event_type) event counters (range over pointers to avoid copying the atomics).
+	for src := range &m.eventMetrics {
+		shard := &m.eventMetrics[src]
+		for et := range shard {
+			em := shard[et]
+			if em == nil {
+				continue
+			}
+			if value := em.eventsReceived.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
+			}
+			if value := em.eventsImmediate.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsImmediate, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
+			}
+			if value := em.eventsDropped.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(value), em.tags, 1.0); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -701,10 +793,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
 	// semantics for ActivityDump/legacy Manager paths.
 	// TODO: we should handle this in a better way
-	if !secprof.IsEnabled() {
-		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		return nil, false
-	}
 
 	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 		secprof.Disable()
@@ -721,6 +809,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	inserted, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
+			m.incrementInsertionError(event.GetEventType())
 			seclog.Debugf("couldn't insert event into profile: %v", err)
 		}
 		return nil, false
@@ -1022,6 +1111,13 @@ func (m *ManagerV2) incrementEventFilteringStat(eventType model.EventType, state
 	}
 }
 
+// incrementInsertionError records an unexpected activity-tree insertion failure for the given event type.
+func (m *ManagerV2) incrementInsertionError(eventType model.EventType) {
+	if entry, ok := m.insertionErrors[eventType]; ok {
+		entry.Inc()
+	}
+}
+
 // evictUnusedNodes performs periodic eviction of non-touched nodes from all active profiles
 func (m *ManagerV2) evictUnusedNodes() {
 	// Emit eviction run metric
@@ -1039,7 +1135,7 @@ func (m *ManagerV2) evictUnusedNodes() {
 	defer m.profilesLock.Unlock()
 
 	for selector, profile := range m.profiles {
-		if profile == nil {
+		if profile == nil || !profile.IsEnabled() {
 			continue
 		}
 
@@ -1050,9 +1146,6 @@ func (m *ManagerV2) evictUnusedNodes() {
 		}
 		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
-			if !profile.IsEnabled() && profile.ActivityTree.Stats.HeapSize() < int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
-				profile.Enable()
-			}
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
 
