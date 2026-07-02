@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -134,19 +133,16 @@ func TestCPUCheckLinuxErrorReportTotalPerCPUConfigNotBoolean(t *testing.T) {
 }
 
 func TestCPUCheckLinuxErrorStoppedSender(t *testing.T) {
-	stoppedSenderError := errors.New("demultiplexer is stopped")
 	getCPUInfo = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
 	}
 	cpuCheck := createCheck()
-	m := mocksender.NewMockSender(t, cpuCheck.ID())
-	m.SetupAcceptAll()
+	senderManager := mocksender.NewStoppedSenderManager()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
-	m.GetSenderManager().(*aggregator.AgentDemultiplexer).Stop()
+	cpuCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := cpuCheck.Run()
 
-	assert.Equal(t, stoppedSenderError, err)
+	assert.ErrorIs(t, err, mocksender.ErrStoppedSenderManager)
 }
 
 func TestContextSwitchesError(t *testing.T) {

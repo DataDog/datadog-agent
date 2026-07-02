@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	gohaicpu "github.com/DataDog/datadog-agent/pkg/gohai/cpu"
@@ -148,18 +147,16 @@ func TestCPUCheckWindowsErrorCollectQueryData(t *testing.T) {
 }
 
 func TestCPUCheckWindowsErrorStoppedSender(t *testing.T) {
-	stoppedSenderError := errors.New("demultiplexer is stopped")
 	cpuInfoFunc = func() *gohaicpu.Info {
 		return &gohaicpu.Info{
 			CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
 		}
 	}
 	cpuCheck := createCheck()
-	m := mocksender.NewMockSender(t, cpuCheck.ID())
+	senderManager := mocksender.NewStoppedSenderManager()
 
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
-	m.GetSenderManager().(*aggregator.AgentDemultiplexer).Stop()
+	cpuCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := cpuCheck.Run()
 
-	assert.Equal(t, stoppedSenderError, err)
+	assert.ErrorIs(t, err, mocksender.ErrStoppedSenderManager)
 }

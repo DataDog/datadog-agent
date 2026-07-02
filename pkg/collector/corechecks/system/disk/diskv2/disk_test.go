@@ -217,15 +217,13 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckIsConfigured_ThenErrorIsRetur
 }
 
 func TestGivenADiskCheckAndStoppedSender(t *testing.T) {
-	stoppedSenderError := errors.New("demultiplexer is stopped")
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	senderManager := mocksender.NewStoppedSenderManager()
 
 	diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
-	senderManager.Stop()
 	err := diskCheck.Run()
 
-	assert.Equal(t, stoppedSenderError, err)
+	assert.ErrorIs(t, err, mocksender.ErrStoppedSenderManager)
 }
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemCallReturnsErrorWithNoPartitions_ThenErrorIsReturned(t *testing.T) {
