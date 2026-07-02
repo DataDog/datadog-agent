@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -51,7 +52,8 @@ var cmdLineScrubber = newCmdLineScrubber()
 func newCmdLineScrubber() *scrubber.Scrubber {
 	s := scrubber.NewWithDefaults()
 	for _, word := range sensitiveArgFlags {
-		re := regexp.MustCompile(`(?i)((?:-{1,2})?` + word + `)( +)([^\s]+)`)
+		pattern := strings.ReplaceAll(regexp.QuoteMeta(word), "_", "[-_]")
+		re := regexp.MustCompile(`(?i)((?:-{1,2})?` + pattern + `)( +)([^\s]+)`)
 		s.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 			Regex: re,
 			Repl:  []byte(`$1$2********`),
@@ -102,6 +104,21 @@ type injectionMetadata struct {
 	Language         string `json:"language"`
 }
 
+// patchJSONField re-encodes the JSON object raw, replacing only the named
+// top-level field with value, leaving every other field — including any
+// unknown to this package — byte-for-byte equivalent. This avoids the data
+// loss that decoding into a fixed struct and re-marshalling it would cause
+// whenever the sender (a newer tracer or SSI sidecar) includes fields this
+// package does not model.
+func patchJSONField(raw []byte, field string, value json.RawMessage) ([]byte, error) {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return nil, err
+	}
+	obj[field] = value
+	return json.Marshal(obj)
+}
+
 // stripCommandLineSecrets returns body with the command_line field of an
 // injection-metadata payload redacted by the default scrubber. It is a no-op
 // for any request that is not an APM injection-metadata payload, and for
@@ -138,16 +155,20 @@ func stripCommandLineSecrets(req *http.Request, body []byte) []byte {
 	if scrubbed == payload.CommandLine {
 		return body
 	}
-	payload.CommandLine = scrubbed
 
-	rawPayload, err := json.Marshal(payload)
+	scrubbedJSON, err := json.Marshal(scrubbed)
+	if err != nil {
+		scrubberLogger.Error("telemetry proxy: failed to encode scrubbed command_line: %v", err)
+		return body
+	}
+
+	rawPayload, err := patchJSONField(msg.Payload, "command_line", scrubbedJSON)
 	if err != nil {
 		scrubberLogger.Error("telemetry proxy: failed to re-encode injection-metadata payload: %v", err)
 		return body
 	}
-	msg.Payload = rawPayload
 
-	out, err := json.Marshal(msg)
+	out, err := patchJSONField(body, "payload", rawPayload)
 	if err != nil {
 		scrubberLogger.Error("telemetry proxy: failed to re-encode injection-metadata envelope: %v", err)
 		return body

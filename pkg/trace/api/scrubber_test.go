@@ -156,6 +156,18 @@ func TestStripCommandLineSecrets_RedactsSecret(t *testing.T) {
 			mustOmit:    []string{"abc123"},
 			mustContain: []string{"********"},
 		},
+		{
+			name:        "hyphenated api-key flag",
+			cmdLine:     "/app --api-key sk_live_123",
+			mustOmit:    []string{"sk_live_123"},
+			mustContain: []string{"********"},
+		},
+		{
+			name:        "hyphenated access-token flag",
+			cmdLine:     "/app --access-token abc123 start",
+			mustOmit:    []string{"abc123"},
+			mustContain: []string{"********"},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -252,6 +264,45 @@ func TestStripCommandLineSecrets_PreservesOtherFields(t *testing.T) {
 
 	assert.NotEqual(t, origPayload.CommandLine, scrubbedPayload.CommandLine)
 	assert.NotContains(t, scrubbedPayload.CommandLine, "hunter2")
+}
+
+// TestStripCommandLineSecrets_PreservesUnknownFields ensures that fields not
+// modeled by telemetryRequest/injectionMetadata (e.g. added by a newer tracer
+// or SSI sidecar) survive redaction instead of being dropped.
+func TestStripCommandLineSecrets_PreservesUnknownFields(t *testing.T) {
+	payloadBytes, err := json.Marshal(map[string]any{
+		"command_line": "/usr/bin/python app.py --password=hunter2",
+		"component":    "python",
+		"future_field": "should be preserved",
+	})
+	assert.NoError(t, err)
+	envBytes, err := json.Marshal(map[string]any{
+		"api_version":       "v2",
+		"request_type":      apmTelemetryRequestType,
+		"payload":           json.RawMessage(payloadBytes),
+		"another_new_field": 42,
+	})
+	assert.NoError(t, err)
+
+	req, err := http.NewRequest("POST", apmTelemetryProxyPath, bytes.NewReader(envBytes))
+	assert.NoError(t, err)
+	req.Header.Set(telemetryRequestTypeHeader, apmTelemetryRequestType)
+
+	out := stripCommandLineSecrets(req, envBytes)
+	assert.NotEqual(t, envBytes, out)
+
+	var outer map[string]json.RawMessage
+	assert.NoError(t, json.Unmarshal(out, &outer))
+	assert.JSONEq(t, `42`, string(outer["another_new_field"]), "unknown top-level fields must survive redaction")
+
+	var payload map[string]json.RawMessage
+	assert.NoError(t, json.Unmarshal(outer["payload"], &payload))
+	assert.JSONEq(t, `"should be preserved"`, string(payload["future_field"]), "unknown payload fields must survive redaction")
+
+	var cmdLine string
+	assert.NoError(t, json.Unmarshal(payload["command_line"], &cmdLine))
+	assert.NotContains(t, cmdLine, "hunter2")
+	assert.Contains(t, cmdLine, "********")
 }
 
 // TestTelemetryProxy_ScrubsInjectionMetadata wires the full /telemetry/proxy
