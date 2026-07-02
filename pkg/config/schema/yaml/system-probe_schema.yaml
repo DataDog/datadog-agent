@@ -28,7 +28,6 @@ properties:
           linux: ${run_path}/sysprobe.sock
           darwin: /opt/datadog-agent/run/sysprobe.sock
           windows: \\.\pipe\dd_system_probe
-          aix: ${run_path}/sysprobe.sock
       log_file:
         node_type: setting
         type: string

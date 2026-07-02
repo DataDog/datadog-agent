@@ -1296,7 +1296,7 @@ properties:
       Setting 'GUI_port: -1' turns off the GUI completely
       Default is:
        * Windows & macOS : `5002`
-       * Linux & AIX: `-1`
+       * Linux: `-1`
     tags:
     - template_section:Agent
     platform_default:
