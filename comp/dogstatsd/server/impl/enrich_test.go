@@ -1563,13 +1563,21 @@ func enrichConfigWithInfraTags(t *testing.T, cfg pkgconfigmodel.Reader) enrichCo
 }
 
 func TestEnrichMetricSampleJMXInfraTag(t *testing.T) {
-	t.Run("adds infra_mode tag for eligible JMX check", func(t *testing.T) {
+	t.Run("tag JMX check when tagged list is empty", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+		cfg.Set("integration.cloud_cost_only.tagged", []string{}, pkgconfigmodel.SourceFile)
+		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:kafka,env:prod"), enrichConfigWithInfraTags(t, cfg))
+		require.NoError(t, err)
+		assert.Contains(t, s.Tags, "infra_mode:cloud_cost_only")
+	})
+	t.Run("tag for eligible JMX check", func(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
 		cfg.Set("integration.cloud_cost_only.tagged", []string{"kafka"}, pkgconfigmodel.SourceFile)
 		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:kafka,env:prod"), enrichConfigWithInfraTags(t, cfg))
 		require.NoError(t, err)
-		assert.Contains(t, s.Tags, infratags.InfraModeCloudCostTag)
+		assert.Contains(t, s.Tags, "infra_mode:cloud_cost_only")
 	})
 	t.Run("no tag when JMX check not in tagged list", func(t *testing.T) {
 		cfg := configmock.New(t)
@@ -1577,20 +1585,21 @@ func TestEnrichMetricSampleJMXInfraTag(t *testing.T) {
 		cfg.Set("integration.cloud_cost_only.tagged", []string{"kafka"}, pkgconfigmodel.SourceFile)
 		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:tomcat"), enrichConfigWithInfraTags(t, cfg))
 		require.NoError(t, err)
-		assert.NotContains(t, s.Tags, infratags.InfraModeCloudCostTag)
+		assert.NotContains(t, s.Tags, "infra_mode:cloud_cost_only")
 	})
-	t.Run("no tag without JMX check name tag", func(t *testing.T) {
+	t.Run("no tag with a non-JMX check when tagged list is empty", func(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+		cfg.Set("integration.cloud_cost_only.tagged", []string{}, pkgconfigmodel.SourceFile)
 		s, err := parseAndEnrichSingleMetricMessage(t, []byte("app.custom:1|g|#env:prod"), enrichConfigWithInfraTags(t, cfg))
 		require.NoError(t, err)
-		assert.NotContains(t, s.Tags, infratags.InfraModeCloudCostTag)
+		assert.NotContains(t, s.Tags, "infra_mode:cloud_cost_only")
 	})
 	t.Run("no tag when not in cloud_cost_only mode", func(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
 		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:kafka"), enrichConfigWithInfraTags(t, cfg))
 		require.NoError(t, err)
-		assert.NotContains(t, s.Tags, infratags.InfraModeCloudCostTag)
+		assert.NotContains(t, s.Tags, "infra_mode:cloud_cost_only")
 	})
 }
