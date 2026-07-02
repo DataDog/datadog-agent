@@ -593,9 +593,13 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
-	var tags [][]string
+	var (
+		tags     [][]string
+		profiles = make([]*profile.Profile, 0, len(m.profiles))
+	)
 	m.profilesLock.Lock()
 	for selector, prof := range m.profiles {
+		profiles = append(profiles, prof)
 		if prof.IsEnabled() {
 			continue
 		}
@@ -606,6 +610,15 @@ func (m *ManagerV2) SendStats() error {
 	for _, tag := range tags {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, tag, 1.0); err != nil {
 			return err
+		}
+	}
+
+	// Per-profile activity-tree stats (FileNodes, SizeBytes, path-pattern
+	// counters, etc.). Iterated after releasing profilesLock; Profile.SendStats
+	// takes the per-profile lock internally.
+	for _, prof := range profiles {
+		if err := prof.SendStats(m.statsdClient); err != nil {
+			return fmt.Errorf("couldn't send metrics for [%s]: %w", prof.GetSelectorStr(), err)
 		}
 	}
 
