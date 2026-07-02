@@ -37,8 +37,17 @@ bazel:test:windows-amd64:
 # --test_tag_filters=flavor_<flavor>, selecting only the matching go_test variants.
 .bazel:test:flavor:
   extends: .bazel:test
+  variables:
+    BEP_FILE: $CI_PROJECT_DIR/bazel-bep-$FLAVOR.json
   script:
-    - bazel test --keep_going --build_tests_only --config=$FLAVOR //pkg/... //comp/... //cmd/...
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - bazel test --keep_going --build_tests_only --config=$FLAVOR --test_arg=-test.v --build_event_json_file=$BEP_FILE //pkg/... //comp/... //cmd/...
+    - dda inv -- -e bazel.ensure-test-parity --bep $BEP_FILE --flavor-name $FLAVOR --emit-metrics
+  artifacts:
+    when: always
+    paths:
+      - bazel-bep-*.json
+    expire_in: 1 week
 
 bazel:test:linux-amd64:base:
   extends: [ .bazel:test:flavor, .bazel:runner:linux-amd64 ]
@@ -80,23 +89,35 @@ bazel:test:linux-arm64:iot:
   variables:
     FLAVOR: iot
 
+# macOS runners need Python and Go installed before the parity check can run
+# `dda inv` and `go list`; the Linux runners already provide them.
+.bazel:test:flavor:macos:
+  extends: .bazel:test:flavor
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+  script:
+    - !reference [.install_python_dependencies]
+    - !reference [.macos_setup_go]
+    - !reference [.bazel:test:flavor, .script]
+
 bazel:test:macos-amd64:base:
-  extends: [ .bazel:test:flavor, .bazel:runner:macos-amd64 ]
+  extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-amd64 ]
   variables:
     FLAVOR: base
 
 bazel:test:macos-amd64:dogstatsd:
-  extends: [ .bazel:test:flavor, .bazel:runner:macos-amd64 ]
+  extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-amd64 ]
   variables:
     FLAVOR: dogstatsd
 
 bazel:test:macos-arm64:base:
-  extends: [ .bazel:test:flavor, .bazel:runner:macos-arm64 ]
+  extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-arm64 ]
   variables:
     FLAVOR: base
 
 bazel:test:macos-arm64:dogstatsd:
-  extends: [ .bazel:test:flavor, .bazel:runner:macos-arm64 ]
+  extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-arm64 ]
   variables:
     FLAVOR: dogstatsd
 
@@ -107,6 +128,15 @@ bazel:test:windows-amd64:base:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --keep_going --build_tests_only --config=base
-      //pkg/... //comp/... //cmd/...
+      bazel test --keep_going --build_tests_only --config=base --test_arg=-test.v
+      --build_event_json_file=$CI_PROJECT_DIR/bazel-bep-base.json
+      //pkg/... //comp/... //cmd/...;
+      dda inv -- -e bazel.ensure-test-parity
+      --bep $CI_PROJECT_DIR/bazel-bep-base.json
+      --flavor-name base
+  artifacts:
+    when: always
+    paths:
+      - bazel-bep-*.json
+    expire_in: 1 week
 
