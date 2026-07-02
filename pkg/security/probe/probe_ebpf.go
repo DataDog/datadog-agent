@@ -171,6 +171,10 @@ type EBPFProbe struct {
 	useMmapableMaps    bool
 	cgroup2MountPath   string
 
+	// task_file flow_pid snapshot support, memoized (see shouldUseTaskFileFlowPidIterator)
+	useTaskFileFlowPidIterator     bool
+	useTaskFileFlowPidIteratorOnce sync.Once
+
 	// On demand1
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter
@@ -2285,16 +2289,28 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		activatedProbes = append(activatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
 	}
 
-	// Keep the task_file iterator that snapshots flow_pid enabled. updateProbes
-	// recomputes the activated set from scratch, so it must be listed here too or
-	// it would be detached right after being attached (see EBPFResolvers.snapshotFlowPid).
+	// Keep the flow_pid snapshot programs enabled. updateProbes recomputes the
+	// activated set from scratch, so they must be listed here too or they would be
+	// detached right after being attached (see EBPFResolvers.snapshotFlowPid).
 	if p.shouldUseTaskFileFlowPidIterator() {
+		// kernel 5.11+: a single iter/task_file pass populates flow_pid
 		activatedProbes = append(activatedProbes, &manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          probes.SecurityAgentUID,
 				EBPFFuncName: probes.TaskFileIterResolveFlowPidFunc,
 			},
 		})
+	} else if p.shouldUseProcfsFlowPidSnapshot() {
+		// older kernels: fall back to the procfs kprobes driven by the agent
+		// walking /proc/<pid>/fd during the snapshot
+		for _, fnc := range probes.ProcfsFlowPidSnapshotFuncs {
+			activatedProbes = append(activatedProbes, &manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID:          probes.SecurityAgentUID,
+					EBPFFuncName: fnc,
+				},
+			})
+		}
 	}
 
 	// extract probe to activate per the event types
@@ -3103,6 +3119,13 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.TaskFileIterResolveFlowPidFunc)
 	}
 
+	// the procfs snapshot kprobes are only the fallback for kernels without the
+	// task_file iterator. Exclude them otherwise so hook_path_get isn't attached to
+	// the hot path_get kernel function when it isn't needed.
+	if !p.shouldUseProcfsFlowPidSnapshot() {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.ProcfsFlowPidSnapshotFuncs...)
+	}
+
 	if !p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket() {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllSocketProgramFunctions()...)
 	}
@@ -3166,11 +3189,30 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 }
 
 // shouldUseTaskFileFlowPidIterator reports whether the iter/task_file based flow_pid
-// snapshot can run. When it returns false, the legacy procfs-based snapshot should be used instead.
+// snapshot can run. It requires network monitoring and a kernel supporting both the
+// iter/task_file program type and the bpf_sock_from_file helper (5.11+). When it
+// returns false, the legacy procfs snapshot is used instead if network monitoring is
+// on (see shouldUseProcfsFlowPidSnapshot).
+//
+// The result is memoized because the underlying kernel-capability checks load and
+// attach a throwaway eBPF program, and this is called on every rule reload (via
+// updateProbes). The inputs are fixed after startup, so it is safe to compute once.
 func (p *EBPFProbe) shouldUseTaskFileFlowPidIterator() bool {
-	return p.config.Probe.NetworkEnabled &&
-		p.kernelVersion.HasTaskFileIterator() &&
-		p.kernelVersion.HasBpfSockFromFileHelper()
+	p.useTaskFileFlowPidIteratorOnce.Do(func() {
+		p.useTaskFileFlowPidIterator = p.config.Probe.NetworkEnabled &&
+			p.kernelVersion.HasTaskFileIterator() &&
+			p.kernelVersion.HasBpfSockFromFileHelper()
+	})
+	return p.useTaskFileFlowPidIterator
+}
+
+// shouldUseProcfsFlowPidSnapshot reports whether the legacy procfs/kprobe based
+// flow_pid snapshot should be used. It is the fallback that populates flow_pid when
+// network monitoring is on but the kernel doesn't support the iter/task_file
+// snapshot (< 5.11): the agent walks /proc/<pid>/fd, which triggers the
+// hook_path_get and hook_proc_fd_link kprobes.
+func (p *EBPFProbe) shouldUseProcfsFlowPidSnapshot() bool {
+	return p.config.Probe.NetworkEnabled && !p.shouldUseTaskFileFlowPidIterator()
 }
 
 // initManagerOptions initializes the eBPF manager options
@@ -3273,12 +3315,13 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	}
 
 	resolversOpts := resolvers.Opts{
-		PathResolutionEnabled:    probe.Opts.PathResolutionEnabled,
-		EnvVarsResolutionEnabled: probe.Opts.EnvsVarResolutionEnabled,
-		Tagger:                   probe.Opts.Tagger,
-		UseRingBuffer:            p.useRingBuffers,
-		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
-		WorkloadMeta:             opts.WorkloadMeta,
+		PathResolutionEnabled:      probe.Opts.PathResolutionEnabled,
+		EnvVarsResolutionEnabled:   probe.Opts.EnvsVarResolutionEnabled,
+		Tagger:                     probe.Opts.Tagger,
+		UseRingBuffer:              p.useRingBuffers,
+		TTYFallbackEnabled:         probe.Opts.TTYFallbackEnabled,
+		WorkloadMeta:               opts.WorkloadMeta,
+		UseTaskFileFlowPidIterator: p.shouldUseTaskFileFlowPidIterator(),
 	}
 
 	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)

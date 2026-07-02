@@ -16,8 +16,17 @@ import manager "github.com/DataDog/ebpf-manager"
 // activated like a regular probe.
 const TaskFileIterResolveFlowPidFunc = "bpf_iter__task_file_resolve_flow_pid"
 
+// ProcfsFlowPidSnapshotFuncs are the kprobes that populate the flow_pid map from
+// procfs when the agent walks /proc/<pid>/fd during the snapshot. They are the
+// fallback for kernels without iter/task_file support (< 5.11) and are activated
+// only when TaskFileIterResolveFlowPidFunc isn't used.
+var ProcfsFlowPidSnapshotFuncs = []string{
+	"hook_path_get",
+	"hook_proc_fd_link",
+}
+
 func getFlowProbes() []*manager.Probe {
-	return []*manager.Probe{
+	flowProbes := []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
@@ -109,6 +118,19 @@ func getFlowProbes() []*manager.Probe {
 			},
 		},
 	}
+
+	// procfs snapshot fallback used on kernels without iter/task_file support
+	// (< 5.11); activated only when the task_file iterator isn't used.
+	for _, fnc := range ProcfsFlowPidSnapshotFuncs {
+		flowProbes = append(flowProbes, &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: fnc,
+			},
+		})
+	}
+
+	return flowProbes
 }
 
 // GetAllFlushNetworkStatsTaillCallFunctions returns the list of network flush tail call functions

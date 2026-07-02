@@ -13,10 +13,11 @@ import (
 
 // Opts defines common options
 type Opts struct {
-	PathResolutionEnabled    bool
-	EnvVarsResolutionEnabled bool
-	Tagger                   tags.Tagger
-	UseRingBuffer            bool
-	TTYFallbackEnabled       bool
-	WorkloadMeta             workloadmeta.Component
+	PathResolutionEnabled      bool
+	EnvVarsResolutionEnabled   bool
+	Tagger                     tags.Tagger
+	UseRingBuffer              bool
+	TTYFallbackEnabled         bool
+	WorkloadMeta               workloadmeta.Component
+	UseTaskFileFlowPidIterator bool
 }
