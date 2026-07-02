@@ -121,14 +121,24 @@ func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
 	return false
 }
 
-// findExistingExtensionID returns the ID of the first extension defined in conf
-// (under the "extensions" key) whose base component name equals compName.
-// Returns "" when no such definition exists.
+// findExistingExtensionID returns the ID of an extension defined in conf (under
+// the "extensions" key) whose base component name equals compName, or "" when no
+// such definition exists. When several instances share the base name, the result
+// is deterministic: the canonical instance (ID equal to the base name, e.g.
+// "pprof" rather than "pprof/custom") takes priority, otherwise the
+// lexicographically-first ID is returned.
 func findExistingExtensionID(conf *confmap.Conf, compName string) string {
+	minID := ""
 	for id := range findComps(conf.ToStringMap(), compName, "extensions") {
-		return id
+		// The canonical instance always wins; its ID is unique so we can return early.
+		if id == compName {
+			return id
+		}
+		if minID == "" || id < minID {
+			minID = id
+		}
 	}
-	return ""
+	return minID
 }
 
 // wireExtensionIDToPipeline appends extensionID verbatim to service::extensions.
