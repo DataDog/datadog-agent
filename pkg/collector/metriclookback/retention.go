@@ -15,6 +15,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -31,6 +35,9 @@ type Retention struct {
 	sketchMu      sync.Mutex
 	sketchOptions ringbuffer.Options
 	sketchBuffer  *ringbuffer.SketchBuffer
+
+	monitorMu sync.RWMutex
+	monitor   *monitor.Watcher
 }
 
 // NewRetention creates a metric lookback retention backend with the provided
@@ -63,6 +70,65 @@ func (r *Retention) getSketchBuffer(create bool) *ringbuffer.SketchBuffer {
 		r.sketchBuffer = ringbuffer.NewSketchBuffer(r.sketchOptions)
 	}
 	return r.sketchBuffer
+}
+
+// SetMonitor installs the optional monitor notified by shadow-check sender
+// writes. Retention remains storage-only for ordinary AppendSamples callers; this
+// hook lets the sender integration use the same materialized-read monitor path
+// as DogStatsD without adding a second hot-path tap.
+func (r *Retention) SetMonitor(watcher *monitor.Watcher) {
+	if r == nil {
+		return
+	}
+	r.monitorMu.Lock()
+	defer r.monitorMu.Unlock()
+	r.monitor = watcher
+}
+
+func (r *Retention) getMonitor() *monitor.Watcher {
+	if r == nil {
+		return nil
+	}
+	r.monitorMu.RLock()
+	defer r.monitorMu.RUnlock()
+	return r.monitor
+}
+
+// NewSenderManager returns a shadow-check sender manager backed by the shared
+// retention ring. It is the integration point for checks that should populate
+// metric lookback without emitting their samples through the normal check
+// sender path.
+func (r *Retention) NewSenderManager(ctx context.Context, defaultHostname string) sender.SenderManager {
+	if r == nil {
+		return nil
+	}
+	return lookbacksender.NewSenderManager(ctx, defaultHostname, r, nil)
+}
+
+// Append stores scalar samples emitted by a lookback shadow check. It satisfies
+// lookbacksender.Writer and records the shadow check ID as retention source
+// provenance without adding tags or changing the metric identity that egress
+// forwards later.
+func (r *Retention) Append(ctx context.Context, checkID checkid.ID, samples []metrics.MetricSample) error {
+	err := r.AppendSamples(ctx, ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: string(checkID)}, samples)
+	if err != nil {
+		return err
+	}
+	watcher := r.getMonitor()
+	if watcher == nil {
+		return nil
+	}
+	for i := range samples {
+		watcher.Observe(samples[i].Name, sampleObservedAt(samples[i]))
+	}
+	return nil
+}
+
+func sampleObservedAt(sample metrics.MetricSample) time.Time {
+	if sample.Timestamp > 0 {
+		return time.UnixMicro(int64(sample.Timestamp * 1e6))
+	}
+	return time.Now()
 }
 
 // AppendSamples stores scalar samples from the provided source in the shared

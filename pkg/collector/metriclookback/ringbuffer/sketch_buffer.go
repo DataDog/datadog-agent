@@ -185,8 +185,10 @@ func (b *SketchBuffer) SketchSeriesBetween(from, to time.Time) metrics.SketchSer
 
 // PointsBetweenSources projects retained sketch points for a metric from any of
 // the provided sources into scalar points in the inclusive [from, to] window.
-// The projection is deliberately supplied by the caller so the sketch retention
-// layer does not own monitor semantics.
+// A source with an empty ID matches every source with the same kind, which lets
+// monitors read all shadow-check instances. The projection is deliberately
+// supplied by the caller so the sketch retention layer does not own monitor
+// semantics.
 func (b *SketchBuffer) PointsBetweenSources(sources []Source, metricName string, from, to time.Time, project func(metrics.SketchPoint) (float64, bool)) []Point {
 	if b == nil || len(sources) == 0 || metricName == "" || project == nil || invalidRange(from, to) {
 		return nil
@@ -197,10 +199,6 @@ func (b *SketchBuffer) PointsBetweenSources(sources []Source, metricName string,
 		return nil
 	}
 	contexts := b.contexts.snapshot()
-	sourceSet := make(map[Source]struct{}, len(sources))
-	for _, source := range sources {
-		sourceSet[source] = struct{}{}
-	}
 
 	points := make([]Point, 0)
 	for i := range records {
@@ -212,7 +210,7 @@ func (b *SketchBuffer) PointsBetweenSources(sources []Source, metricName string,
 		if !found || ctx.name != metricName {
 			continue
 		}
-		if _, found := sourceSet[ctx.source]; !found {
+		if !sourceMatchesAny(sources, ctx.source) {
 			continue
 		}
 		value, ok := project(metrics.SketchPoint{Ts: rec.timestampUnixMicro / 1e6, Sketch: rec.sketch})

@@ -8,6 +8,7 @@
 package run
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serializermocks "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
@@ -28,7 +30,7 @@ func TestMetricLookbackDogStatsDFactoryDisabled(t *testing.T) {
 	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
 		"metric_lookback.enabled": false,
 	})
-	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t))
+	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
 
 	lookback := factory(serializermocks.NewMetricSerializer(t))
 
@@ -53,7 +55,7 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromNoAggSeries
 		forwarded <- struct{}{}
 	}).Return(nil).Maybe()
 
-	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t))
+	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
 	lookback := factory(serializer)
 	require.NotNil(t, lookback)
 
@@ -85,7 +87,7 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromBucketedSam
 		forwarded <- struct{}{}
 	}).Return(nil).Maybe()
 
-	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t))
+	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
 	lookback := factory(serializer)
 	require.NotNil(t, lookback)
 
@@ -117,7 +119,7 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromDistributio
 		forwarded <- struct{}{}
 	}).Return(nil).Maybe()
 
-	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t))
+	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
 	lookback := factory(serializer)
 	require.NotNil(t, lookback)
 
@@ -127,6 +129,48 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromDistributio
 	case <-forwarded:
 	case <-time.After(time.Second):
 		require.FailNow(t, "timed out waiting for monitor egress")
+	}
+}
+
+func TestMetricLookbackMonitorEgressAdapterFromShadowSenderSamples(t *testing.T) {
+	start := time.Unix(100, 0)
+	cfg := metricLookbackMonitorFactoryConfig(t)
+	retention := newMetricLookbackRetention(cfg)
+	serializer := serializermocks.NewMetricSerializer(t)
+	forwarded := make(chan struct{}, 1)
+	serializer.On("SendIterableSeries", mock.Anything).Run(func(args mock.Arguments) {
+		source := args.Get(0).(metrics.SerieSource)
+		require.Greater(t, source.Count(), uint64(0))
+		foundShadowPoint := false
+		for source.MoveNext() {
+			serie := source.Current()
+			if serie.Name == "target.metric" && serie.Host == "default-host" {
+				foundShadowPoint = true
+			}
+		}
+		require.True(t, foundShadowPoint)
+		forwarded <- struct{}{}
+	}).Return(nil).Maybe()
+
+	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), retention)
+	lookback := factory(serializer)
+	// The DogStatsD adapter is still created because the monitor metric is auto-admitted,
+	// but this test only writes through the shadow-check sender manager.
+	require.NotNil(t, lookback)
+
+	manager := retention.NewSenderManager(context.Background(), "default-host")
+	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
+	require.NoError(t, err)
+	for second := 0; second <= 30; second++ {
+		ts := float64(start.Add(time.Duration(second) * time.Second).Unix())
+		require.NoError(t, sender.GaugeWithTimestamp("target.metric", 2, "", nil, ts))
+		sender.Commit()
+	}
+
+	select {
+	case <-forwarded:
+	case <-time.After(time.Second):
+		require.FailNow(t, "timed out waiting for shadow sender monitor egress")
 	}
 }
 
