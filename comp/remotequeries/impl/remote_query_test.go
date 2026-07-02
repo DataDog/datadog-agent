@@ -370,6 +370,19 @@ func TestParseExecuteRequestAllowsFixtureTableProofQuery(t *testing.T) {
 	assert.NotContains(t, requestJSON, "integration")
 }
 
+func TestParseExecuteRequestAllowsMatrixIdentityProofQuery(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
+		`{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT current_database() AS current_db, expected_agent_hostname, expected_postgres_host, expected_postgres_port, expected_dbname, marker FROM remote_query_identity"}`,
+	))
+	req.Header.Set("Content-Type", "application/json")
+
+	parsed, requestJSON, err := parseExecuteRequest(req)
+	require.NoError(t, err)
+	assert.Equal(t, remoteQueryMatrixIdentityProofQuery, parsed.Query)
+	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT current_database() AS current_db, expected_agent_hostname, expected_postgres_host, expected_postgres_port, expected_dbname, marker FROM remote_query_identity","format":"csv"}`, requestJSON)
+	assert.NotContains(t, requestJSON, "integration")
+}
+
 func TestNewRemoteQueryExecuteRequestRejectsInlineMode(t *testing.T) {
 	_, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: " LocalHost. ", Port: 5432, DBName: "postgres"}, remoteQueryFixtureTableProofQuery, &RemoteQueryExecuteLimits{MaxRows: 2, MaxBytes: 1024, TimeoutMs: 1000})
 	require.Error(t, err)

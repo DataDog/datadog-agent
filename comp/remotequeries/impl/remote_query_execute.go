@@ -23,8 +23,9 @@ const (
 	// RemoteQueriesExecuteEnabledConfig is disabled by default when the key is absent.
 	RemoteQueriesExecuteEnabledConfig = "remote_queries.execute.enabled"
 
-	remoteQueryProofSeedQuery         = "SELECT 1 AS value"
-	remoteQueryFixtureTableProofQuery = "SELECT city, country FROM cities ORDER BY city"
+	remoteQueryProofSeedQuery           = "SELECT 1 AS value"
+	remoteQueryFixtureTableProofQuery   = "SELECT city, country FROM cities ORDER BY city"
+	remoteQueryMatrixIdentityProofQuery = "SELECT current_database() AS current_db, expected_agent_hostname, expected_postgres_host, expected_postgres_port, expected_dbname, marker FROM remote_query_identity"
 
 	statusExecutorUnavailable = "executor_unavailable"
 )
@@ -46,7 +47,7 @@ type remoteQueryStreamRunner interface {
 
 func isRemoteQueryAllowedProofQuery(query string) bool {
 	switch query {
-	case remoteQueryProofSeedQuery, remoteQueryFixtureTableProofQuery, remoteQueryBinaryPayloadProofQuery:
+	case remoteQueryProofSeedQuery, remoteQueryFixtureTableProofQuery, remoteQueryMatrixIdentityProofQuery, remoteQueryBinaryPayloadProofQuery:
 		return true
 	default:
 		_, ok := remoteQueryLargePayloadProofQueries[query]
