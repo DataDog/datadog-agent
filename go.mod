@@ -1189,7 +1189,7 @@ replace github.com/hashicorp/vault/sdk => github.com/hashicorp/vault/sdk v0.19.1
 // CI build image (tm_gmtoff undefined in struct tm) — arm64 is unaffected. local-patches/ has an
 // unmodified copy of the real v0.155.0 source with only that one file's build tag changed so it
 // never compiles; nothing else differs. See CI job datadog-agent-7-x64 for the original failure.
-replace github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal => ./local-patches/opentelemetry-collector-contrib-coreinternal
+replace github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal => ./otel-patches/coreinternal
 
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy

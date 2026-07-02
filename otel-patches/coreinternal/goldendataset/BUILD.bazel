@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "goldendataset",
+    srcs = [
+        "generator_commons.go",
+        "metrics_gen.go",
+        "pict_metrics_gen.go",
+        "pict_metrics_input_defs.go",
+        "pict_tracing_input_defs.go",
+        "resource_generator.go",
+        "span_generator.go",
+        "traces_generator.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/goldendataset",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//internal/metadata",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_otel//semconv/v1.16.0:v1_16_0",
+        "@io_opentelemetry_go_otel//semconv/v1.18.0:v1_18_0",
+        "@io_opentelemetry_go_otel//semconv/v1.19.0:v1_19_0",
+        "@io_opentelemetry_go_otel//semconv/v1.20.0:v1_20_0",
+        "@io_opentelemetry_go_otel//semconv/v1.21.0:v1_21_0",
+        "@io_opentelemetry_go_otel//semconv/v1.25.0:v1_25_0",
+        "@io_opentelemetry_go_otel//semconv/v1.26.0:v1_26_0",
+        "@io_opentelemetry_go_otel//semconv/v1.28.0:v1_28_0",
+        "@io_opentelemetry_go_otel//semconv/v1.38.0:v1_38_0",
+        "@io_opentelemetry_go_otel//semconv/v1.40.0:v1_40_0",
+    ],
+)
+
+go_test(
+    name = "goldendataset_test",
+    srcs = [
+        "metrics_gen_test.go",
+        "package_test.go",
+        "pict_metrics_gen_test.go",
+        "resource_generator_test.go",
+        "span_generator_test.go",
+        "traces_generator_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":goldendataset"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//internal/metadata",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_featuregate//:featuregate",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@org_uber_go_goleak//:goleak",
+    ],
+)

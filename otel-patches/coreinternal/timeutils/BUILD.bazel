@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "timeutils",
+    srcs = [
+        "doc.go",
+        "parser.go",
+        "ticker_helper.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/timeutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_elastic_lunes//:lunes",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_internal_coreinternal//timeutils/internal/ctimefmt",
+    ],
+)
+
+go_test(
+    name = "timeutils_test",
+    srcs = [
+        "package_test.go",
+        "parser_test.go",
+        "strptime_cgo_test.go",
+        "strptime_test.go",
+        "ticker_test.go",
+    ],
+    embed = [":timeutils"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_goleak//:goleak",
+    ],
+)

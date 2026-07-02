@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "parseutils",
+    srcs = [
+        "csv.go",
+        "doc.go",
+        "parser.go",
+        "uri.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/otel-patches/coreinternal/parseutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_opentelemetry_go_otel//semconv/v1.40.0:v1_40_0",
+        "@org_uber_go_multierr//:multierr",
+    ],
+)
+
+go_test(
+    name = "parseutils_test",
+    srcs = [
+        "csv_test.go",
+        "package_test.go",
+        "parser_test.go",
+        "uri_test.go",
+    ],
+    embed = [":parseutils"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_goleak//:goleak",
+    ],
+)
