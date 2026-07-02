@@ -120,6 +120,9 @@ func (suite *CollectorTestSuite) TearDownTest() {
 func (suite *CollectorTestSuite) TestNewCollector() {
 	assert.NotNil(suite.T(), suite.c.runner)
 	assert.NotNil(suite.T(), suite.c.scheduler)
+	assert.Nil(suite.T(), suite.c.shadowRunner)
+	assert.Nil(suite.T(), suite.c.shadowScheduler)
+	assert.Nil(suite.T(), suite.c.shadowSenderManager)
 	assert.Equal(suite.T(), started, suite.c.state.Load())
 }
 
@@ -160,6 +163,41 @@ func (suite *CollectorTestSuite) TestRunShadowCheckDoesNotIncrementNormalCheckIn
 	assert.NotNil(suite.T(), id)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(1), suite.c.checkInstances)
+	assert.Equal(suite.T(), int64(1), suite.c.shadowCheckInstances)
+}
+
+func (suite *CollectorTestSuite) TestRunShadowCheckUsesShadowRoute() {
+	ch := NewCheckUnique("lookback-source", "TestCheck")
+	shadowSenderManager := aggregator.NewNoOpSenderManager()
+	shadow := check.NewShadowCheckWithSenderManagerOverride(ch, time.Second, shadowSenderManager)
+
+	id, err := suite.c.RunCheck(shadow)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), checkid.ID("lookback-source:shadow"), id)
+	assert.Equal(suite.T(), 1, len(suite.c.checks))
+	assert.True(suite.T(), check.IsShadow(suite.c.checks[id]))
+	assert.NotNil(suite.T(), suite.c.shadowRunner)
+	assert.NotNil(suite.T(), suite.c.shadowScheduler)
+	assert.Equal(suite.T(), shadowSenderManager, suite.c.shadowSenderManager)
+	assert.True(suite.T(), suite.c.shadowScheduler.IsCheckScheduled(id))
+	assert.False(suite.T(), suite.c.scheduler.IsCheckScheduled(id))
+	assert.Equal(suite.T(), int64(0), suite.c.checkInstances)
+	assert.Equal(suite.T(), int64(1), suite.c.shadowCheckInstances)
+}
+
+func (suite *CollectorTestSuite) TestStopShadowCheckUsesShadowRoute() {
+	ch := NewCheckUnique("lookback-source", "TestCheck")
+	shadow := check.NewShadowCheck(ch, time.Second)
+
+	id, err := suite.c.RunCheck(shadow)
+	assert.NoError(suite.T(), err)
+
+	err = suite.c.StopCheck(id)
+	assert.NoError(suite.T(), err)
+	assert.Zero(suite.T(), len(suite.c.checks))
+	assert.False(suite.T(), suite.c.shadowScheduler.IsCheckScheduled(id))
+	ch.AssertNumberOfCalls(suite.T(), "Cancel", 1)
+	assert.Equal(suite.T(), int64(0), suite.c.shadowCheckInstances)
 }
 
 func (suite *CollectorTestSuite) TestStopCheck() {

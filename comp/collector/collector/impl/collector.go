@@ -68,18 +68,22 @@ type collectorImpl struct {
 	healthPlatform healthplatform.Component
 	hostname       hostnameinterface.Component
 
-	senderManager    sender.SenderManager
-	metricSerializer option.Option[serializer.MetricSerializer]
-	agentTelemetry   option.Option[agenttelemetry.Component]
-	checkInstances   int64
+	senderManager        sender.SenderManager
+	metricSerializer     option.Option[serializer.MetricSerializer]
+	agentTelemetry       option.Option[agenttelemetry.Component]
+	checkInstances       int64
+	shadowCheckInstances int64
 
 	// state is 'started' or 'stopped'
 	state *atomic.Uint32
 
-	scheduler      *scheduler.Scheduler
-	runner         *runner.Runner
-	checks         map[checkid.ID]*middleware.CheckWrapper
-	eventReceivers []collector.EventReceiver
+	scheduler           *scheduler.Scheduler
+	runner              *runner.Runner
+	shadowScheduler     *scheduler.Scheduler
+	shadowRunner        *runner.Runner
+	shadowSenderManager sender.SenderManager
+	checks              map[checkid.ID]*middleware.CheckWrapper
+	eventReceivers      []collector.EventReceiver
 
 	cancelCheckTimeout     time.Duration
 	watchdogWarningTimeout time.Duration
@@ -204,6 +208,14 @@ func (c *collectorImpl) stop(_ context.Context) error {
 		c.runner.Stop()
 		c.runner = nil
 	}
+	if c.shadowScheduler != nil {
+		_ = c.shadowScheduler.Stop()
+		c.shadowScheduler = nil
+	}
+	if c.shadowRunner != nil {
+		c.shadowRunner.Stop()
+		c.shadowRunner = nil
+	}
 	c.state.Store(stopped)
 	return nil
 }
@@ -213,42 +225,71 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry, option.New[healthplatform.Component](c.healthPlatform))
-
 	var emptyID checkid.ID
 
 	if c.state.Load() != started {
 		return emptyID, errors.New("the collector is not running")
 	}
 
+	sched, run, senderManager := c.ensureRouteForCheck(inner)
+	ch := middleware.NewCheckWrapper(inner, senderManager, c.agentTelemetry, option.New[healthplatform.Component](c.healthPlatform))
+
 	if _, found := c.checks[ch.ID()]; found {
 		return emptyID, fmt.Errorf("a check with ID %s is already running", ch.ID())
 	}
 
-	if err := c.scheduler.Enter(ch); err != nil {
+	if err := sched.Enter(ch); err != nil {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
+	// Track the total number of checks running in order to have an appropriate number of workers
+	checkInstances := &c.checkInstances
 	if check.IsShadow(ch) {
-		c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
-		c.runner.AddShadowWorker()
-	} else if ch.Interval() == 0 {
-		// Track the total number of checks running in order to have an appropriate number of workers
-		c.checkInstances++
+		checkInstances = &c.shadowCheckInstances
+	}
+	*checkInstances = *checkInstances + 1
+	if ch.Interval() == 0 {
 		// Adding a temporary runner for long running check in case the
 		// number of runners is lower than the number of long running
 		// checks.
 		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
-		c.runner.AddWorker()
+		run.AddWorker()
 	} else {
-		// Track the total number of checks running in order to have an appropriate number of workers
-		c.checkInstances++
-		c.runner.UpdateNumWorkers(c.checkInstances)
+		run.UpdateNumWorkers(*checkInstances)
 	}
 
 	c.checks[ch.ID()] = ch
 	c.notify(ch.ID(), collector.CheckRun)
 	return ch.ID(), nil
+}
+
+func (c *collectorImpl) routeForCheck(ch check.Check) (*scheduler.Scheduler, *runner.Runner, sender.SenderManager) {
+	if check.IsShadow(ch) {
+		return c.shadowScheduler, c.shadowRunner, c.shadowSenderManager
+	}
+	return c.scheduler, c.runner, c.senderManager
+}
+
+func (c *collectorImpl) ensureRouteForCheck(ch check.Check) (*scheduler.Scheduler, *runner.Runner, sender.SenderManager) {
+	if !check.IsShadow(ch) {
+		return c.scheduler, c.runner, c.senderManager
+	}
+	shadowSenderManager := c.senderManager
+	if override, ok := check.SenderManagerOverride(ch); ok {
+		shadowSenderManager = override
+	}
+	if c.shadowSenderManager == nil {
+		c.shadowSenderManager = shadowSenderManager
+	}
+	if c.shadowRunner == nil {
+		c.shadowRunner = runner.NewRunner(c.shadowSenderManager, c.haAgent, c.healthPlatform)
+	}
+	if c.shadowScheduler == nil {
+		c.shadowScheduler = scheduler.NewScheduler(c.shadowRunner.GetChan(), c.shadowRunner.GetShadowChan())
+		c.shadowRunner.SetScheduler(c.shadowScheduler)
+		c.shadowScheduler.Run()
+	}
+	return c.shadowScheduler, c.shadowRunner, c.shadowSenderManager
 }
 
 // StopCheck halts a check and remove the instance
@@ -272,8 +313,7 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	}
 
 	// These two are not nil because we checked that the collector is started
-	collectorScheduler = c.scheduler
-	collectorRunner = c.runner
+	collectorScheduler, collectorRunner, _ = c.routeForCheck(ch)
 	c.m.RUnlock()
 
 	// unschedule the instance
@@ -302,7 +342,24 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 		return fmt.Errorf("an error occurred while calling check.Cancel(): %s", err)
 	}
 
+	c.decrementCheckInstances(ch)
+
 	return nil
+}
+
+func (c *collectorImpl) decrementCheckInstances(ch check.Check) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	if check.IsShadow(ch) {
+		if c.shadowCheckInstances > 0 {
+			c.shadowCheckInstances--
+		}
+		return
+	}
+	if c.checkInstances > 0 {
+		c.checkInstances--
+	}
 }
 
 // cancelCheck calls Cancel on the passed check, with a timeout
