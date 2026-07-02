@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/rshell/interp"
 )
 
@@ -28,7 +29,7 @@ func makeTask(command string, allowedCommands []string) *types.Task {
 	task.Data.Attributes = &types.Attributes{
 		Inputs: map[string]any{"command": command},
 		SystemInputs: &types.SystemInputsAttributes{
-			RemoteAction: &types.RemoteActionAttributes{
+			RemoteAction: &privateactionspb.RemoteAction{
 				TargetCommands: allowedCommands,
 			},
 		},

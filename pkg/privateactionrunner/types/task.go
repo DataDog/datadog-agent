@@ -42,12 +42,7 @@ type Attributes struct {
 }
 
 type SystemInputsAttributes struct {
-	RemoteAction *RemoteActionAttributes `json:"remote_action,omitempty"`
-}
-
-type RemoteActionAttributes struct {
-	TargetCommands []string `json:"target_commands,omitempty"`
-	TargetPaths    []string `json:"target_paths,omitempty"`
+	RemoteAction *privateactionspb.RemoteAction `json:"remote_action,omitempty"`
 }
 
 // TimeoutSeconds returns the timeout from the task inputs if present, positive, and within int32

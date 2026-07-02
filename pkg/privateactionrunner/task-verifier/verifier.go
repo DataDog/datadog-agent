@@ -153,9 +153,6 @@ func systemInputsAttributes(task *privateactionspb.PrivateActionTask) *types.Sys
 		return nil
 	}
 	return &types.SystemInputsAttributes{
-		RemoteAction: &types.RemoteActionAttributes{
-			TargetCommands: targetCommands,
-			TargetPaths:    targetPaths,
-		},
+		RemoteAction: remoteAction,
 	}
 }
