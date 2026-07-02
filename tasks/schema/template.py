@@ -29,12 +29,6 @@ default_path = {
         "${run_path}": "/opt/datadog-agent/run",
         "${log_path}": "/var/log/datadog",
     },
-    "aix": {
-        "${conf_path}": "/etc/datadog-agent",
-        "${install_path}": "/opt/datadog-agent",
-        "${run_path}": "/opt/datadog-agent/run",
-        "${log_path}": "/var/log/datadog",
-    },
     "darwin": {
         "${conf_path}": "/opt/datadog-agent/etc",
         "${install_path}": "/opt/datadog-agent",

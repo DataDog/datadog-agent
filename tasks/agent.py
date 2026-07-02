@@ -187,7 +187,7 @@ _PLATFORM_TO_OS_TARGET = {
     "linux": "linux",
     "win32": "windows",
     "darwin": "darwin",
-    "aix": "aix",
+    "aix": "linux",
 }
 
 
