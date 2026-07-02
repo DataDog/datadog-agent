@@ -91,7 +91,7 @@ func createCmd() *cobra.Command {
 			RunE: func(cmd *cobra.Command, _ []string) error {
 				cfg := scenario.CollectFlags(sc, cmd.Flags())
 				stack, _ := cmd.Flags().GetString("stack")
-				return r.Create(newCtx(), stack, cfg)
+				return scenario.Create(newCtx(), r.Name(), stack, cfg)
 			},
 		}
 		scenario.RegisterFlags(sc, sub.Flags())
@@ -117,7 +117,7 @@ func actionCmd() *cobra.Command {
 				RunE: func(cmd *cobra.Command, _ []string) error {
 					cfg := scenario.CollectFlags(asc, cmd.Flags())
 					stack, _ := cmd.Flags().GetString("stack")
-					return r.RunAction(newCtx(), stack, name, cfg)
+					return scenario.RunAction(newCtx(), r.Name(), stack, name, cfg)
 				},
 			}
 			scenario.RegisterFlags(asc, actSub.Flags())
@@ -156,7 +156,7 @@ func destroyCmd() *cobra.Command {
 			Use: r.Name(),
 			RunE: func(cmd *cobra.Command, _ []string) error {
 				stack, _ := cmd.Flags().GetString("stack")
-				return r.Destroy(newCtx(), stack)
+				return scenario.Destroy(newCtx(), r.Name(), stack)
 			},
 		}
 		sub.Flags().String("stack", r.Name()+"-stack", "Pulumi stack name")
