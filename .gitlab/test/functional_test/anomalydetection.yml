@@ -28,7 +28,8 @@ observer-ablation-ddeval:
     OBSERVER_ABLATION_DDEVAL_TEST_DRIVE: "observer-log-ad-ddeval-worker"
     OBSERVER_ABLATION_DD_SITE: "datadoghq.com"
     OBSERVER_ABLATION_TOOLS_DIR: "$CI_PROJECT_DIR/.observer-ablation-tools"
-    OBSERVER_ABLATION_DDSOURCE_DIR: "/tmp/observer-ablation-dd-source"
+    OBSERVER_ABLATION_DATADOG_ROOT: "/tmp/observer-ablation-datadog-root"
+    OBSERVER_ABLATION_DDSOURCE_DIR: "/tmp/observer-ablation-datadog-root/dd-source"
     OBSERVER_ABLATION_DDSOURCE_SERVICE_DIR: "domains/ai_platform/apps/apis/eval_worker_observer_log_ad"
     OBSERVER_ABLATION_DDSOURCE_RAPID_JSON: "domains/ai_platform/apps/apis/eval_worker_observer_log_ad/rapid.json"
     OBSERVER_ABLATION_ATLAS_VERSION: "v2.29.0"
@@ -135,6 +136,7 @@ observer-ablation-ddeval:
       EOF
       chmod +x "$OBSERVER_ABLATION_TOOLS_DIR/bin/ddeval-with-atlas"
     - export PATH="$OBSERVER_ABLATION_TOOLS_DIR/bin:$PATH"
+    - export DATADOG_ROOT="$OBSERVER_ABLATION_DATADOG_ROOT"
     - export DDEVAL_DDSOURCE_DIR="$OBSERVER_ABLATION_DDSOURCE_DIR"
     - atlas --help
     - ddeval --help
