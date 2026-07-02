@@ -5,6 +5,7 @@ collection = build_collection(
     name="kafka",
     scenario_name="aws/integrations/kafka",
     check_command="sudo -u dd-agent datadog-agent check kafka",
+    status_command="sudo datadog-agent status",
     remote_hostname="aws-agent-host",
     source=("https://github.com/DataDog/integrations-core", "master", "kafka"),
     reload_check=True,

@@ -15,6 +15,7 @@ from urllib.parse import quote
 
 from invoke.collection import Collection
 from invoke.context import Context
+from invoke.exceptions import UnexpectedExit
 from invoke.tasks import Task, task
 
 from tasks.e2e_framework import tool
@@ -47,7 +48,9 @@ def _missing_outputs_message(role: str) -> str:
 def _ssh_base(ctx: Context, scenario_name: str, role: str, stack_name: str | None = None) -> str:
     try:
         host = get_host(ctx, role, scenario_name, stack_name)
-    except KeyError as exc:
+    except (KeyError, UnexpectedExit) as exc:
+        # KeyError: outputs exist but lack this role. UnexpectedExit: `pulumi stack export`
+        # failed (no/partial stack). Both mean create did not complete successfully.
         raise RuntimeError(_missing_outputs_message(role)) from exc
     command = f"ssh {SSH_OPTIONS} {host.user}@{host.address}"
     if host.port:
@@ -281,7 +284,10 @@ def build_kube_collection(
 
     def _write_kubeconfig(ctx: Context, stack_name: str | None = None) -> str:
         full_stack_name = _full_stack_name(stack_name)
-        outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+        try:
+            outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+        except UnexpectedExit as exc:
+            raise RuntimeError(_kube_missing_outputs_message(cluster_output_key)) from exc
         return _write_kubeconfig_from_outputs(outputs, cluster_output_key, full_stack_name)
 
     def _show_connection_message(ctx: Context, stack_name: str | None = None) -> None:
