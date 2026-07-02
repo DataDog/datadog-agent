@@ -21,6 +21,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	remoteflags "github.com/DataDog/datadog-agent/comp/core/remoteflags/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -47,6 +48,7 @@ import (
 	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -87,6 +89,7 @@ type dependencies struct {
 	Telemetry       telemetry.Component
 	Hostname        hostnameinterface.Component
 	FilterList      filterlist.Component
+	RemoteFlags     remoteflags.Component `optional:"true"`
 	OfflineReporter offlinereporter.Component
 }
 
@@ -140,6 +143,10 @@ type dsdServer struct {
 	extraTags               []string
 	Debug                   serverdebug.Component
 	filterList              filterlist.Component
+
+	// extendedClientTelemetryEnabled gates forwarding of metrics under extendedClientTelemetryPrefix.
+	// Default false: those metrics are dropped until the remote flag enables it.
+	extendedClientTelemetryEnabled *atomic.Bool
 
 	tCapture                replay.Component
 	pidMap                  pidmap.Component
@@ -207,6 +214,14 @@ func initTelemetry() {
 func NewComponent(deps dependencies) Provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
 	s.offlineReporter = deps.OfflineReporter
+
+	if deps.RemoteFlags != nil {
+		if client := deps.RemoteFlags.GetClient(); client != nil {
+			if err := client.SubscribeWithHandler(&extendedClientTelemetryFlagHandler{enabled: s.extendedClientTelemetryEnabled}); err != nil {
+				deps.Log.Errorf("Remote flag %s: registration failed: %v", extendedClientTelemetryFlagName, err)
+			}
+		}
+	}
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
@@ -284,28 +299,29 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
 
 	s := &dsdServer{
-		log:                     log,
-		config:                  cfg,
-		Started:                 false,
-		Statistics:              stats,
-		packetsIn:               nil,
-		captureChan:             nil,
-		sharedPacketPool:        nil,
-		sharedPacketPoolManager: nil,
-		sharedFloat64List:       newFloat64ListPool(cfg, telemetrycomp),
-		demultiplexer:           demux,
-		listeners:               nil,
-		stopChan:                make(chan bool),
-		serverlessFlushChan:     make(chan bool),
-		health:                  nil,
-		histToDist:              histToDist,
-		histToDistPrefix:        histToDistPrefix,
-		extraTags:               extraTags,
-		eolTerminationUDP:       eolTerminationUDP,
-		eolTerminationUDS:       eolTerminationUDS,
-		eolTerminationNamedPipe: eolTerminationNamedPipe,
-		disableVerboseLogs:      cfg.GetBool("dogstatsd_disable_verbose_logs"),
-		Debug:                   debug,
+		log:                            log,
+		config:                         cfg,
+		Started:                        false,
+		Statistics:                     stats,
+		packetsIn:                      nil,
+		captureChan:                    nil,
+		sharedPacketPool:               nil,
+		sharedPacketPoolManager:        nil,
+		sharedFloat64List:              newFloat64ListPool(cfg, telemetrycomp),
+		demultiplexer:                  demux,
+		listeners:                      nil,
+		stopChan:                       make(chan bool),
+		serverlessFlushChan:            make(chan bool),
+		health:                         nil,
+		histToDist:                     histToDist,
+		histToDistPrefix:               histToDistPrefix,
+		extraTags:                      extraTags,
+		eolTerminationUDP:              eolTerminationUDP,
+		eolTerminationUDS:              eolTerminationUDS,
+		eolTerminationNamedPipe:        eolTerminationNamedPipe,
+		disableVerboseLogs:             cfg.GetBool("dogstatsd_disable_verbose_logs"),
+		Debug:                          debug,
+		extendedClientTelemetryEnabled: atomic.NewBool(false),
 		originTelemetry: cfg.GetBool("telemetry.enabled") &&
 			cfg.GetBool("telemetry.dogstatsd_origin"),
 		tCapture:             capture,
@@ -834,6 +850,10 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 			sample.name = mapResult.Name
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
+	}
+
+	if !s.extendedClientTelemetryEnabled.Load() && strings.HasPrefix(sample.name, extendedClientTelemetryPrefix) {
+		return metricSamples, nil
 	}
 
 	metricSamples = enrichMetricSample(metricSamples, sample, origin, processID, listenerID, s.enrichConfig, filterList)
