@@ -222,7 +222,7 @@ awshost.Provisioner(awshost.WithRunOptions(
 ec2host.Provisioner(p)  // p is decoded from CLI flags into *EC2HostParams
 ```
 
-### Canonical params struct
+### Canonical params struct and defaulted constructors
 
 Params are a Go struct with `scenario:` tags; `BuildSchema` reflects them:
 
@@ -234,13 +234,62 @@ scenario:"-"   // Go-only escape hatch, not exposed to CLI (e.g. InstanceOptions
 Reusable components (`AgentParams`, `FakeintakeParams`) embed directly into
 the canonical struct; `BuildSchema` recurses into them automatically.
 
-Use `ec2host.NewParams()` (fully defaulted) in Go; the CLI applies the same defaults via `Decode`.
+The blessed constructor is `scenario.NewParams[T]()` (generic) or each scenario's
+own `NewParams()` wrapper (e.g. `ec2host.NewParams()`, `agenthealth.NewParams()`).
+Both return a fully-defaulted struct by applying every `default=` tag value. The CLI
+applies those same defaults through `Decode` (ApplyDefaults then overlay from flags), so
+Go and CLI paths start from identical baselines.
 
-### Actions
+### Single action path
 
-Actions receive the fully-hydrated typed env (same clients a test gets from
-`s.Env()`), hydrated via `testing/standalone`. Reference actions in the
-ec2-host scenario: `restart-agent` (no params) and `run-command` (tagged params).
+All action execution flows through one function:
+
+```go
+scenario.DispatchAction[Env](ctx, s, stack, action, cfg, resolver)
+```
+
+The `scenario.EnvResolver[Env]` interface is the only variation:
+
+- **CLI / `scenariorun action`**: uses `scenario.StateResolver[Env]`, which hydrates the
+  env from the local state store (no Pulumi call).
+- **Tests**: uses a fixed resolver backed by the live suite env, invoked via
+  `scenariotest.RunAction(env, s, action, cfg)`.
+
+The registry entry points `scenario.Create` / `scenario.RunAction` / `scenario.Destroy`
+are what the `scenariorun` CLI delegates to (keyed by scenario name and stack).
+
+### Actions are curated CLI affordances, not test-step mirrors
+
+Actions expose a small set of operations that are meaningful **from the CLI** (e.g.
+`connection-info`, `restart-agent`). They are not reflections of every test mutation.
+Test-step mutations stay as ordinary Go against `s.Env()`. For example, in the
+`dockerPermissionSuite` the socket `chmod`s (`sudo chmod 660 /var/run/docker.sock`)
+remain inline test code — only `connection-info` and `restart-agent` are registered
+as actions because those are useful from the command line.
+
+### E2E bridge — reuse a scenario in tests
+
+Tests adopt a scenario with a single `SuiteOption`:
+
+```go
+func TestDockerPermissionSuite(t *testing.T) {
+    sc := agenthealth.Scenario()
+    e2e.Run(t, &dockerPermissionSuite{},
+        scenariotest.WithScenario(sc, sc.NewParams()),
+    )
+}
+```
+
+Subtests call `s.Env()` exactly as they would with any other provisioner. To invoke
+an action from a test, use `scenariotest.RunAction(s.Env(), sc, "restart-agent", nil)`.
+
+### agent-health: worked custom-env example
+
+`scenario/scenarios/agenthealth/` is the reference for a **custom environment**
+(VM + host Agent + Docker app + FakeIntake). The `agenthealth.Env` struct carries
+all four components; the scenario's provisioner wires them with `e2e.WithPulumiProvisioner`.
+The `dockerPermissionSuite` in `test/new-e2e/tests/agent-health/` drives this scenario
+end-to-end, demonstrating both the E2E bridge and the curated-actions principle.
 
 ### CLI
 
