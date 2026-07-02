@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/dns"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/eventsample"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/rawpacketdrop"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -35,7 +36,8 @@ type EBPFMonitors struct {
 	approverMonitor    *approver.Monitor
 	syscallsMonitor    *syscalls.Monitor
 	dnsMonitor         *dns.Monitor
-	eventSampleMonitor *eventsample.Monitor
+	eventSampleMonitor   *eventsample.Monitor
+	rawPacketDropMonitor *rawpacketdrop.Monitor
 }
 
 // NewEBPFMonitors returns a new instance of a ProbeMonitor
@@ -84,6 +86,13 @@ func (m *EBPFMonitors) Init() error {
 	m.eventSampleMonitor, err = eventsample.NewEventSampleMonitor(p.Manager, p.statsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the event sample monitor: %w", err)
+	}
+
+	if p.probe.IsNetworkRawPacketEnabled() {
+		m.rawPacketDropMonitor, err = rawpacketdrop.NewMonitor(p.Manager, p.statsdClient, p.getDropActionRuleIDs)
+		if err != nil {
+			return fmt.Errorf("couldn't create the raw packet drop monitor: %w", err)
+		}
 	}
 
 	return nil
@@ -170,6 +179,12 @@ func (m *EBPFMonitors) SendStats() error {
 
 	if err := m.eventSampleMonitor.SendStats(); err != nil {
 		return fmt.Errorf("failed to send event sample stats: %w", err)
+	}
+
+	if m.rawPacketDropMonitor != nil {
+		if err := m.rawPacketDropMonitor.SendStats(); err != nil {
+			return fmt.Errorf("failed to send raw packet drop stats: %w", err)
+		}
 	}
 
 	return nil

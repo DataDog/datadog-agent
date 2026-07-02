@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	ebpfprobes "github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -356,6 +357,16 @@ func TestRawPacketAction(t *testing.T) {
 		if err = cmd.Run(); err == nil {
 			t.Error("should return an error")
 		}
+
+		err = retry.Do(func() error {
+			test.sendStats()
+			metricKey := metrics.MetricRawPacketDropped + ":rule_id:test_rule_raw_packet_drop"
+			if count := test.statsdClient.Get(metricKey); count == 0 {
+				return fmt.Errorf("expected metric not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricRawPacketDropped))
+			}
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
 
 		err = retry.Do(func() error {
 			msg := test.msgSender.getMsg("rawpacket_action")

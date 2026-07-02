@@ -335,6 +335,20 @@ func TestRawPacketDropAction(t *testing.T) {
 		}
 		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", probes.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true)
 	})
+
+	t.Run("syn-port-std-drop-stats", func(t *testing.T) {
+		filters := []rawpacket.Filter{
+			{
+				RuleID:    "ok",
+				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
+				Policy:    rawpacket.PolicyDrop,
+				Pid:       123,
+			},
+		}
+		opts := rawpacket.DefaultProgOpts()
+		opts.WithDropStatsMapFd(42)
+		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, opts, true)
+	})
 }
 
 // TestRawPacketActionWithInvalidFilter ensures that when a set of filters contains an
