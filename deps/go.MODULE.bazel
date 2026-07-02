@@ -559,6 +559,18 @@ go_deps.module_override(
     path = "github.com/tinylib/msgp",
 )
 
+# sdjournal wraps journald's C API and `#include <systemd/sd-journal.h>` at compile
+# time, but the hermetic toolchain sysroot ships no libsystemd headers. Patch the
+# Gazelle-generated BUILD to pull them from the vendored @systemd archive via cdeps.
+# The patch runs after Gazelle generates the BUILD file (see go_repository patches).
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_systemd:sdjournal-cdeps.patch"],
+    path = "github.com/coreos/go-systemd/v22",
+)
+
+inject_repo(go_deps, "systemd")
+
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 
 use_repo_rule("//bazel/rules/go_sdk_overrides:repo.bzl", "go_sdk_overrides")(name = "go_sdk_overrides")
