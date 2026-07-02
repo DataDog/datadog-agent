@@ -9,6 +9,7 @@ go_library(
         "asserts.go",
         "mocked_methods.go",
         "mocksender.go",
+        "stopped_sender_manager.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/mocksender",
     visibility = ["//visibility:public"],

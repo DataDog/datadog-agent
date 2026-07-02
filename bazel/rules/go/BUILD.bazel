@@ -66,6 +66,7 @@ go_test(
         "@@gazelle++go_deps+com_github_bazelbuild_buildtools//build",
         "@gazelle//config",
         "@gazelle//language",
+        "@gazelle//merger",
         "@gazelle//rule",
     ],
 )
