@@ -15,7 +15,6 @@ go_library(
         "//pkg/network/testutil",
         "//pkg/network/usm/testutil",
         "//pkg/util/grpc",
-        "@com_github_pahanini_go_grpc_bidirectional_streaming_example//src/proto",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials",
