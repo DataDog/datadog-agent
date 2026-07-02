@@ -216,6 +216,7 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 	}
 	if vmArgs.osInfo.Family() == os.LinuxFamily {
 		userDataParts = append(userDataParts, os.SSHAllowSFTPRootScriptContent)
+		userDataParts = append(userDataParts, os.SSHAllowRSASHA1ScriptContent)
 	}
 	vmArgs.userData = strings.Join(userDataParts, "\n")
 
