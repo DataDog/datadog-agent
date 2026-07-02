@@ -17,8 +17,10 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -111,6 +113,88 @@ func (s *HTTP2Suite) TestFormatHTTP2Stats() {
 	assert.ElementsMatch(t, out.EndpointAggregations, aggregations.EndpointAggregations)
 
 	assert.Equal(t, uint64((1<<len(statusCodes))-1), tags)
+}
+
+func (s *HTTP2Suite) TestFormatHTTP2StatsDiscoveryMode() {
+	t := s.T()
+
+	mockSystemProbe := mock.NewSystemProbe(t)
+	mockSystemProbe.SetInTest("discovery.service_map.enabled", true)
+
+	const (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+		// Per-request latency (nanoseconds) used as the running sum increment.
+		latencyNs = 1_000_000.0 // 1ms
+	)
+	localhost := util.AddressFromString("127.0.0.1")
+
+	// Discovery mode: empty path, MethodUnknown, and the in-memory
+	// LatencySum is populated as a running sum.
+	key := http.Key{
+		ConnectionKey: types.NewConnectionKey(localhost, localhost, clientPort, serverPort),
+		Path:          http.Path{Content: http.Interner.GetString("")},
+	}
+	// Feed a spread of status codes across both classes. Discovery mode must
+	// collapse them into exactly two buckets: 2xx/3xx -> 200, 4xx/5xx -> 400.
+	stats := http.NewRequestStats()
+	const (
+		numSuccess = 4 // land in the 200 bucket
+		numError   = 3 // land in the 400 bucket
+	)
+	for _, code := range []uint16{200, 201, 301, 302} { // 4 success-class codes
+		stats.AddDiscoveryRequest(code, latencyNs, 0, nil)
+	}
+	for _, code := range []uint16{404, 500, 503} { // 3 error-class codes
+		stats.AddDiscoveryRequest(code, latencyNs, 0, nil)
+	}
+
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{ConnectionTuple: network.ConnectionTuple{
+					Source: localhost, Dest: localhost,
+					SPort: clientPort, DPort: serverPort,
+				}},
+			},
+		},
+		USMData: network.USMProtocolsData{
+			HTTP2: map[http.Key]*http.RequestStats{key: stats},
+		},
+	}
+
+	http2Encoder := newHTTP2Encoder(in.USMData.HTTP2)
+	require.True(t, http2Encoder.discoveryMode, "encoder should be in discovery mode")
+
+	aggregations, _, _ := getHTTP2Aggregations(t, http2Encoder, in.Conns[0])
+	require.NotNil(t, aggregations)
+	require.Len(t, aggregations.EndpointAggregations, 1)
+
+	endpoint := aggregations.EndpointAggregations[0]
+	// Path/method/fullPath should be skipped in discovery mode.
+	assert.Empty(t, endpoint.Path, "path should not be serialized in discovery mode")
+	assert.False(t, endpoint.FullPath, "fullPath should not be serialized in discovery mode")
+	assert.Equal(t, model.HTTPMethod(0), endpoint.Method, "method should not be serialized in discovery mode")
+
+	// Status codes must be minimized to exactly the two discovery buckets.
+	require.Len(t, endpoint.StatsByStatusCode, 2, "discovery mode should collapse to only 200/400 buckets")
+
+	success := endpoint.StatsByStatusCode[int32(200)]
+	require.NotNil(t, success, "expected collapsed 200 success bucket")
+	assert.Equal(t, uint32(numSuccess), success.Count, "all 2xx/3xx should collapse into the 200 bucket")
+
+	errBucket := endpoint.StatsByStatusCode[int32(400)]
+	require.NotNil(t, errBucket, "expected collapsed 400 error bucket")
+	assert.Equal(t, uint32(numError), errBucket.Count, "all 4xx/5xx should collapse into the 400 bucket")
+
+	for code, bucket := range endpoint.StatsByStatusCode {
+		// LatencySum should be the raw running sum of per-request latencies.
+		assert.Equal(t, latencyNs*float64(bucket.Count), bucket.LatencySum,
+			"bucket %d: latencySum should equal count * per-request latency", code)
+		// FirstLatencySample and Latencies (DDSketch) must NOT be populated in discovery mode.
+		assert.Zero(t, bucket.FirstLatencySample, "bucket %d: firstLatencySample should not be set in discovery mode", code)
+		assert.Empty(t, bucket.Latencies, "bucket %d: latencies (DDSketch) should not be set in discovery mode", code)
+	}
 }
 
 func (s *HTTP2Suite) TestFormatHTTP2StatsByPath() {
