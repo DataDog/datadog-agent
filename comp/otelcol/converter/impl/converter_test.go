@@ -157,10 +157,10 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "extensions/reuse-unwired/all-extensions/acfg.yaml",
 		},
 		{
-			name:           "extensions/reuse-unwired/multiple-instances",
-			provided:       "extensions/reuse-unwired/multiple-instances/config.yaml",
-			expectedResult: "extensions/reuse-unwired/multiple-instances/config-result.yaml",
-			agentConfig:    "extensions/reuse-unwired/multiple-instances/acfg.yaml",
+			name:           "extensions/reuse-unwired/duplicates",
+			provided:       "extensions/reuse-unwired/duplicates/config.yaml",
+			expectedResult: "extensions/reuse-unwired/duplicates/config-result.yaml",
+			agentConfig:    "extensions/reuse-unwired/duplicates/acfg.yaml",
 		},
 		{
 			name:           "extensions/no-changes/datadog",
