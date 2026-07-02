@@ -4,6 +4,7 @@ go_library(
     name = "networkconfigmanagement",
     srcs = [
         "entrypoint.go",
+        "pin_config.go",
         "rollback_config.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement",
