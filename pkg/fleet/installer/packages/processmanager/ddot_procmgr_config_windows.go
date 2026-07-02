@@ -86,5 +86,8 @@ func RemoveDDOTProcmgrConfig(packageRootResolved string) error {
 			return err
 		}
 	}
+	if installPF := paths.DatadogProgramFilesDir; installPF != "" {
+		removeEmptyProcessesDir(installPF)
+	}
 	return nil
 }
