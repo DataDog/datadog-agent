@@ -20,7 +20,7 @@ func TestSchemaExposesAgentAndOSFlags(t *testing.T) {
 	for _, f := range sc.Fields {
 		names[f.Name] = true
 	}
-	for _, want := range []string{"os", "arch", "agent-version", "use-fakeintake"} {
+	for _, want := range []string{"os", "arch", "agent-version"} {
 		if !names[want] {
 			t.Errorf("missing flag %q (got %v)", want, names)
 		}

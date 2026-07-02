@@ -17,9 +17,6 @@ type Params struct {
 
 	// Agent holds agent-installation parameters.
 	Agent params.AgentParams
-
-	// Fakeintake holds fakeintake parameters (use-fakeintake flag).
-	Fakeintake params.FakeintakeParams
 }
 
 // NewParams returns fully-defaulted Params. This is the blessed constructor:

@@ -40,7 +40,7 @@ func DispatchAction[Env any](ctx common.Context, s Scenario[Env], stack, action 
 	}
 	env, err := resolver.Resolve(ctx, stack)
 	if err != nil {
-		return err
+		return fmt.Errorf("action %q: %w", action, err)
 	}
 	return a.Run(context.Background(), env, ap)
 }
@@ -57,5 +57,9 @@ func (StateResolver[Env]) Resolve(ctx common.Context, stack string) (*Env, error
 	if err != nil {
 		return nil, fmt.Errorf("load provisioned stack state: %w", err)
 	}
-	return standalone.HydrateFromResources[Env](ctx, fromRawMessage(ps.Resources), ps.Keys)
+	env, err := standalone.HydrateFromResources[Env](ctx, fromRawMessage(ps.Resources), ps.Keys)
+	if err != nil {
+		return nil, fmt.Errorf("hydrate env from cached state: %w", err)
+	}
+	return env, nil
 }

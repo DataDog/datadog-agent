@@ -287,7 +287,7 @@ an action from a test, use `scenariotest.RunAction(s.Env(), sc, "restart-agent",
 
 `scenario/scenarios/agenthealth/` is the reference for a **custom environment**
 (VM + host Agent + Docker app + FakeIntake). The `agenthealth.Env` struct carries
-all four components; the scenario's provisioner wires them with `e2e.WithPulumiProvisioner`.
+all four components; the scenario's provisioner wires them with `provisioners.NewTypedPulumiProvisioner` (exposed to tests via `scenariotest.WithScenario`).
 The `dockerPermissionSuite` in `test/new-e2e/tests/agent-health/` drives this scenario
 end-to-end, demonstrating both the E2E bridge and the curated-actions principle.
 

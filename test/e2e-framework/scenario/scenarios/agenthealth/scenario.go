@@ -33,7 +33,7 @@ var busyboxCompose string
 func osDescriptor(name string) (e2eos.Descriptor, error) {
 	switch name {
 	case "ubuntu-22.04":
-		return e2eos.Ubuntu2204, nil
+		return e2eos.Ubuntu2204E2E, nil
 	case "debian-12":
 		return e2eos.Debian12, nil
 	case "amazon-linux-2023":
