@@ -12,46 +12,36 @@ license_file "../LICENSE"
 
 homepage 'http://www.datadoghq.com'
 
-if ohai['platform'] == "windows"
-  # Note: this is not the final install dir, not even the default one, just a convenient
-  # spaceless dir in which the agent will be built.
-  # Omnibus doesn't quote the Git commands it launches unfortunately, which makes it impossible
-  # to put a space here...
-  install_dir "C:/opt/datadog-agent/"
-  maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
-else
-  install_dir ENV["INSTALL_DIR"] || '/opt/datadog-agent'
-  if redhat_target? || suse_target?
-    maintainer 'Datadog, Inc <package@datadoghq.com>'
+install_dir ENV["INSTALL_DIR"] || '/opt/datadog-agent'
+if redhat_target? || suse_target?
+  maintainer 'Datadog, Inc <package@datadoghq.com>'
 
-    # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
-    # because these would be used in a kickstart during package installation phase.
-    # All of the packages that we depend on in prerm/postrm scripts always have to be
-    # installed on all distros that we support, so we don't have to depend on them
-    # explicitly.
+  # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
+  # because these would be used in a kickstart during package installation phase.
+  # All of the packages that we depend on in prerm/postrm scripts always have to be
+  # installed on all distros that we support, so we don't have to depend on them
+  # explicitly.
 
-    # postinst and posttrans scripts use a subset of preinst script deps, so we don't
-    # have to list them, because they'll already be there because of preinst
-    runtime_script_dependency :pre, "coreutils"
-    runtime_script_dependency :pre, "grep"
-    if redhat_target?
-      runtime_script_dependency :pre, "glibc-common"
-      runtime_script_dependency :pre, "shadow-utils"
-    else
-      runtime_script_dependency :pre, "glibc"
-      runtime_script_dependency :pre, "shadow"
-    end
+  # postinst and posttrans scripts use a subset of preinst script deps, so we don't
+  # have to list them, because they'll already be there because of preinst
+  runtime_script_dependency :pre, "coreutils"
+  runtime_script_dependency :pre, "grep"
+  if redhat_target?
+    runtime_script_dependency :pre, "glibc-common"
+    runtime_script_dependency :pre, "shadow-utils"
   else
-    maintainer 'Datadog Packages <package@datadoghq.com>'
+    runtime_script_dependency :pre, "glibc"
+    runtime_script_dependency :pre, "shadow"
   end
-
-  if debian_target?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
-  end
-  unless osx_target?
-    conflict 'datadog-agent'
-  end
+else
+  maintainer 'Datadog Packages <package@datadoghq.com>'
 end
+
+if debian_target?
+  runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
+end
+conflict 'datadog-agent'
+
 
 if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
   dependency "package-artifact"
@@ -69,10 +59,6 @@ else
 
   # Datadog agent
   dependency 'datadog-iot-agent'
-
-  if windows_target?
-    dependency 'datadog-agent-finalize'
-  end
 
   do_package = false
 end
@@ -175,47 +161,6 @@ package :xz do
   compression_level COMPRESSION_LEVEL
 end
 
-package :msi do
-
-  # For a consistent package management, please NEVER change this code
-  arch = "x64"
-  # NOTE: We no longer build for 32 bit windows, so we always take the x64 path.
-  if windows_arch_i386?
-    full_agent_upgrade_code = '2497f989-f07e-4e8c-9e05-841ad3d4405f'
-    upgrade_code '6f7ac237-334c-44c8-9fec-ec8f3459db37'
-    arch = "x86"
-  else
-    full_agent_upgrade_code = '0c50421b-aefb-4f15-a809-7af256d608a5'
-    upgrade_code '1b3d4067-fd27-4de4-bfc9-605695ad514c'
-  end
-  wix_candle_extension 'WixUtilExtension'
-  wix_light_extension 'WixUtilExtension'
-  extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
-
-  additional_sign_files [
-      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
-    ]
-  #if ENV['SIGN_WINDOWS']
-  #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
-  #end
-  if ENV['SIGN_WINDOWS_DD_WCS']
-    dd_wcssign true
-    dd_wcs_cert ENV['WINDOWS_SIGNING_CERT'] if ENV['WINDOWS_SIGNING_CERT']
-    dd_wcs_config ENV['WINDOWS_SIGNING_CONFIG'] if ENV['WINDOWS_SIGNING_CONFIG']
-  end
-
-  parameters({
-    'InstallDir' => install_dir,
-    'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent",
-    'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent",
-    'Platform' => "#{arch}",
-  })
-end
-
 # package scripts
 if linux_target?
   if !do_package
@@ -236,7 +181,7 @@ exclude 'bundler\/git'
 # Exclude headers that are not needed in the final package
 exclude "embedded/include"
 
-if linux_target? or windows_target?
-  strip_build windows_target? || !do_package
+if linux_target?
+  strip_build !do_package
   debug_path ".debug"
 end

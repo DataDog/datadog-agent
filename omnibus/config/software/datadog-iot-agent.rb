@@ -37,9 +37,7 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  unless windows_target?
-    env['CGO_CFLAGS'] = "-I#{install_dir}/embedded/include"
-  end
+  env['CGO_CFLAGS'] = "-I#{install_dir}/embedded/include"
 
   if linux_target?
     command "invoke agent.build --flavor iot --no-development", env: env, :live_stream => Omnibus.logger.live_stream(:info)
@@ -55,16 +53,5 @@ build do
     move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
     move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
     copy 'bin/agent', "#{install_dir}/bin/"
-  end
-  block do
-    if windows_target?
-      # just builds the trace-agent, this should be moved to a separate package as it's not related to the iot agent
-
-      command "invoke trace-agent.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-
-      mkdir "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
-      copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent/trace-agent.exe"
-      copy 'bin/trace-agent/trace-agent.exe.pdb', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent/trace-agent.exe.pdb"
-    end
   end
 end
