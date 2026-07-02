@@ -198,17 +198,6 @@ func sectionContaining(elfFile *pfelf.File, addr uint64) *pfelf.Section {
 	return nil
 }
 
-// goFuncOffset returns the offset of the goFunc field in moduledata.
-func goFuncOffset(v HeaderVersion) (uint32, error) {
-	if v < ver118 {
-		return 0, fmt.Errorf("unsupported pclntab version: %v", v.String())
-	}
-	if v < ver120 {
-		return 38 * ptrSize, nil
-	}
-	return 40 * ptrSize, nil
-}
-
 func FindModuleData(ef *pfelf.File, goPCLnTabInfo *GoPCLnTabInfo, runtimeFirstModuleDataSymbolValue libpf.SymbolValue) (data []byte, address uint64, returnedErr error) {
 	// First: try to use the 'go.module' section introduced in Go 1.26.
 	moduleSection := ef.Section(".go.module")
@@ -309,20 +298,38 @@ func findGoFuncEnd(data []byte, version HeaderVersion) int {
 }
 
 func findGoFuncVal(ef *pfelf.File, goPCLnTabInfo *GoPCLnTabInfo, runtimeFirstModuleDataSymbolValue libpf.SymbolValue) (uint64, error) {
+	if goPCLnTabInfo.Version < ver118 {
+		return 0, fmt.Errorf("unsupported pclntab version: %v", goPCLnTabInfo.Version.String())
+	}
+
+	// in go 1.26+, moduledata has its own section
+	if ef.Section(".go.module") != nil {
+		// funcdata (beginning of go:func.*) is now in pclntab, right after functab so goFunc is simply Address +
+		// funcTabEndOffset() (https://go.dev/doc/go1.26#compiler)
+		// this avoids moduledata gofunc offsets for recent versions that can change between releases (e.g. Go 1.27).
+		off := goPCLnTabInfo.funcTabEndOffset()
+		if off <= 0 {
+			return 0, fmt.Errorf("could not compute functab end offset")
+		}
+
+		return goPCLnTabInfo.Address + uint64(off), nil
+	}
+
+	// Before Go 1.26, goFunc is a separate region located via the gofunc pointer in moduledata. Its offset is frozen
+	// for those released versions.
 	moduleData, _, err := FindModuleData(ef, goPCLnTabInfo, runtimeFirstModuleDataSymbolValue)
 	if err != nil {
 		return 0, fmt.Errorf("could not find module data: %w", err)
 	}
-	goFuncOff, err := goFuncOffset(goPCLnTabInfo.Version)
-	if err != nil {
-		return 0, fmt.Errorf("could not get go func offset: %w", err)
+	goFuncOff := uint32(40 * ptrSize) // Go 1.20-1.25
+	if goPCLnTabInfo.Version < ver120 {
+		goFuncOff = 38 * ptrSize // Go 1.18-1.19
 	}
-	if goFuncOff+ptrSize >= uint32(len(moduleData)) {
+
+	if int(goFuncOff)+ptrSize > len(moduleData) {
 		return 0, fmt.Errorf("invalid go func offset: %v", goFuncOff)
 	}
-	goFuncVal := binary.NativeEndian.Uint64(moduleData[goFuncOff:])
-
-	return goFuncVal, nil
+	return binary.NativeEndian.Uint64(moduleData[goFuncOff:]), nil
 }
 
 func FindGoFunc(ef *pfelf.File, goPCLnTabInfo *GoPCLnTabInfo, runtimeFirstModuleDataSymbolValue, goFuncSymbolValue libpf.SymbolValue) (data []byte, goFuncVal uint64, err error) {
@@ -436,7 +443,7 @@ func alignUp(v, align int) int {
 	return (v + align - 1) &^ (align - 1)
 }
 
-func (g *GoPCLnTabInfo) findFuncDataSize() int {
+func (g *GoPCLnTabInfo) funcTabSize() int {
 	maxFuncOffset := -1
 	maxFuncOffsetIdx := -1
 	for i := range g.numFuncs {
@@ -457,16 +464,16 @@ func (g *GoPCLnTabInfo) findFuncDataSize() int {
 	return maxFuncOffset + g.funcSize + npcdata*4 + nfuncdata*g.fieldSize
 }
 
-func (g *GoPCLnTabInfo) computePCLnTabSize() int {
+func (g *GoPCLnTabInfo) funcTabEndOffset() int {
 	if g.Version < ver116 {
 		return -1
 	}
 
-	funcDataSize := g.findFuncDataSize()
-	if funcDataSize == -1 {
+	funcTabSize := g.funcTabSize()
+	if funcTabSize == -1 {
 		return -1
 	}
-	return alignUp(int(g.Offsets.FuncTabOffset)+funcDataSize, ptrSize)
+	return alignUp(int(g.Offsets.FuncTabOffset)+funcTabSize, ptrSize)
 }
 
 func (g *GoPCLnTabInfo) trimGoFunc(goFuncData []byte, goFuncAddr uint64, runtimeGcbitsSymbolValue libpf.SymbolValue) ([]byte, error) {
@@ -773,7 +780,12 @@ func findGoPCLnTab(ef *pfelf.File, additionalChecks bool) (goPCLnTabInfo *GoPCLn
 		// internal linker which does not merge the .data.rel.ro* sections).
 		//
 		// Starting from Go 1.26, .gopclntab has no more relocation and therefore stays in its own .gopclntab section even with buildmode=pie.
-		goPCLnTabSize := goPCLnTabInfo.computePCLnTabSize()
+		//
+		// funcTabEndOffset() equals the full .gopclntab size only up to Go 1.25, where funcdata lives outside the
+		// gopclntab. From Go 1.26 the funcdata blob is embedded after functab, so this is smaller than the real size.
+		// That regime is handled earlier (goFunc found inside the gopclntab returns before reaching here), so this path
+		// only sees the pre-1.26 layout where the two coincide.
+		goPCLnTabSize := goPCLnTabInfo.funcTabEndOffset()
 		if additionalChecks && goPCLnTabEndKnown {
 			// check that the computed size matches the known size
 			if len(goPCLnTabInfo.Data) != goPCLnTabSize {
