@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The OTLP metrics pipeline no longer renames or remaps the SDK trace metric
+    ``traces.span.sdk.metrics.duration``. The metric is now forwarded to the
+    intake with its literal name so backend routing to trace metrics works
+    correctly.
