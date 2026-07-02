@@ -56,6 +56,10 @@ func NewDispatcher() *Dispatcher {
 // still subject to cfg.Filter, so a directional filter (escalations-only or
 // de-escalations-only) will not receive it, since it is neither.
 //
+// The subscription is not made visible to Advance until after the initial
+// event has been delivered, so a concurrent Advance call can never deliver a
+// "real" transition to this listener ahead of its own initial snapshot.
+//
 // Returns an unsubscribe function. Safe to call concurrently. Panics if
 // cfg.Listener is nil.
 func (d *Dispatcher) SubscribeScorer(cfg severityeventsdef.SeverityEventsConfiguration) func() {
@@ -64,27 +68,44 @@ func (d *Dispatcher) SubscribeScorer(cfg severityeventsdef.SeverityEventsConfigu
 	}
 	sub := &subscription{cfg: cfg}
 
-	d.subsMu.Lock()
-	deliverInitial := d.hasLevel
+	// Compute the initial snapshot without yet publishing sub into d.subs, so
+	// a concurrent Advance cannot see (and advance) this subscription before
+	// its initial event has been delivered below.
+	d.subsMu.RLock()
 	var initialEvt severityeventsdef.SeverityEvent
-	if deliverInitial {
+	deliverInitial := false
+	if d.hasLevel {
 		level := clampSeverityLevel(d.level)
 		sub.state = level
 		sub.stateInitialized = true
-		sub.lastStateEntryTs = d.lastSec
 		initialEvt = severityeventsdef.SeverityEvent{
 			Timestamp: d.lastSec,
 			FromLevel: level,
 			ToLevel:   level,
 			Direction: severityeventsdef.SeverityEventBoth,
 		}
+		// Only start the cooldown clock if the initial event is actually
+		// delivered. Otherwise a filtered-out initial event (e.g. a
+		// de-escalations-only subscriber joining while already Low) would
+		// silently seed lastStateEntryTs and could suppress the listener's
+		// very first real transition, even though it never received anything.
+		if deliverInitial = eventFilterMatches(cfg.Filter, initialEvt); deliverInitial {
+			sub.lastStateEntryTs = d.lastSec
+		}
 	}
-	d.subs = append(d.subs, sub)
-	d.subsMu.Unlock()
+	d.subsMu.RUnlock()
 
-	if deliverInitial && eventFilterMatches(cfg.Filter, initialEvt) {
+	if deliverInitial {
 		cfg.Listener.OnSeverityTransition(initialEvt)
 	}
+
+	// Only now does the subscription become visible to Advance. Any level
+	// change that happened between the snapshot above and this point is not
+	// lost: it will simply be picked up as a normal transition on the next
+	// Advance call, computed relative to the state snapshotted above.
+	d.subsMu.Lock()
+	d.subs = append(d.subs, sub)
+	d.subsMu.Unlock()
 
 	return func() {
 		d.subsMu.Lock()
