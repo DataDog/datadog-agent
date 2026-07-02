@@ -137,11 +137,6 @@ remote_queries.execute.enabled: true
 log_level: debug
 log_file: $TMP_ROOT/agent.log
 python_lazy_loading: false
-telemetry.enabled: false
-inventories_enabled: false
-process_config.enabled: 'false'
-logs_enabled: false
-apm_config.enabled: false
 YAML
 }
 

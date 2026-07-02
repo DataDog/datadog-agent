@@ -119,11 +119,6 @@ cmd_port: 55299
 auth_token_file_path: $TMP_ROOT/python-detect/run/auth_token
 ipc_cert_file_path: $TMP_ROOT/python-detect/run/ipc_cert.pem
 log_file: $TMP_ROOT/python-detect/agent.log
-telemetry.enabled: false
-inventories_enabled: false
-process_config.enabled: 'false'
-logs_enabled: false
-apm_config.enabled: false
 YAML
 }
 
@@ -222,11 +217,6 @@ remote_queries.execute.enabled: true
 log_level: debug
 log_file: $root/agent.log
 python_lazy_loading: false
-telemetry.enabled: false
-inventories_enabled: false
-process_config.enabled: 'false'
-logs_enabled: false
-apm_config.enabled: false
 YAML
 }
 
@@ -274,11 +264,6 @@ cmd_port: $cmd_port
 auth_token_file_path: $root/run/auth_token
 ipc_cert_file_path: $root/run/ipc_cert.pem
 log_level: debug
-telemetry.enabled: false
-inventories_enabled: false
-process_config.enabled: 'false'
-logs_enabled: false
-apm_config.enabled: false
 private_action_runner:
   enabled: true
   self_enroll: true
