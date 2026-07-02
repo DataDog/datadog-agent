@@ -114,28 +114,32 @@ properties:
     default: []
     items:
       type: string
-  experimental_stickiness_enabled:
+  stickiness_enabled:
     node_type: setting
     type: boolean
-    default: false
-    comment: Experimental. Subject to change. Biases check placement toward the runner
-      where a check previously ran.
-  experimental_stickiness_factor:
+    default: true
+    comment: Biases check placement toward the runner where a check previously ran.
+  stickiness_factor:
     node_type: setting
     type: number
     default: 4
     tags:
     - golang_type:float64
-    comment: Experimental. Subject to change. Multiplier applied to workersNeeded
-      when computing the stickiness bias.
-  experimental_stickiness_limit:
+    comment: Multiplier applied to workersNeeded when computing the stickiness bias.
+  stickiness_upper_limit:
     node_type: setting
     type: number
     default: 1
     tags:
     - golang_type:float64
-    comment: Experimental. Subject to change. Maximum stickiness bias applied regardless
-      of workersNeeded.
+    comment: Maximum stickiness bias applied regardless of workersNeeded.
+  stickiness_lower_limit:
+    node_type: setting
+    type: number
+    default: 0.05
+    tags:
+    - golang_type:float64
+    comment: Minimum stickiness bias applied when stickiness is enabled.
   ksm_sharding_enabled:
     node_type: setting
     type: boolean
