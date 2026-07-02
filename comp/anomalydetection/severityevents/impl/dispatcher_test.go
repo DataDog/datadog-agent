@@ -140,6 +140,111 @@ func TestDispatcherResetClearsSubscriptionState(t *testing.T) {
 	}
 }
 
+func TestDispatcherSubscribeBeforeAnyAdvanceDeliversNoInitialEvent(t *testing.T) {
+	d := NewDispatcher()
+	l := &collectingListener{}
+	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{Listener: l})
+
+	if len(l.events) != 0 {
+		t.Fatalf("expected no initial event before any Advance, got %v", l.events)
+	}
+}
+
+func TestDispatcherSubscribeMidStreamDeliversCurrentLevel(t *testing.T) {
+	d := NewDispatcher()
+	d.Advance(1000, severityeventsdef.SeverityLow)
+	d.Advance(1001, severityeventsdef.SeverityHigh) // no subscriber yet
+
+	l := &collectingListener{}
+	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{Listener: l})
+
+	if len(l.events) != 1 {
+		t.Fatalf("expected exactly one initial event, got %d: %v", len(l.events), l.events)
+	}
+	evt := l.events[0]
+	if evt.FromLevel != severityeventsdef.SeverityHigh || evt.ToLevel != severityeventsdef.SeverityHigh {
+		t.Fatalf("expected initial event to reflect current level High, got from=%v to=%v", evt.FromLevel, evt.ToLevel)
+	}
+	if evt.Direction != severityeventsdef.AnomalyScorerEventBoth {
+		t.Fatalf("expected initial event direction to be Both, got %v", evt.Direction)
+	}
+	if evt.Timestamp != 1001 {
+		t.Fatalf("expected initial event timestamp to be the last Advance second, got %d", evt.Timestamp)
+	}
+
+	// The subscriber must not also get a spurious transition on the very next
+	// Advance call if the level hasn't actually changed.
+	d.Advance(1002, severityeventsdef.SeverityHigh)
+	if len(l.events) != 1 {
+		t.Fatalf("expected no additional event for an unchanged level, got %d: %v", len(l.events), l.events)
+	}
+}
+
+func TestDispatcherSubscribeMidStreamRespectsDirectionFilter(t *testing.T) {
+	d := NewDispatcher()
+	d.Advance(1000, severityeventsdef.SeverityLow)
+	d.Advance(1001, severityeventsdef.SeverityHigh)
+
+	escalationsOnly := &collectingListener{}
+	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{
+		Listener: escalationsOnly,
+		Filter:   severityeventsdef.AnomalyScorerEventFilter{Direction: severityeventsdef.AnomalyScorerEventEscalation},
+	})
+	deescalationsOnly := &collectingListener{}
+	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{
+		Listener: deescalationsOnly,
+		Filter:   severityeventsdef.AnomalyScorerEventFilter{Direction: severityeventsdef.AnomalyScorerEventDeescalation},
+	})
+
+	if len(escalationsOnly.events) != 0 {
+		t.Fatalf("escalation-only filter should not receive the initial (non-directional) event, got %v", escalationsOnly.events)
+	}
+	if len(deescalationsOnly.events) != 0 {
+		t.Fatalf("de-escalation-only filter should not receive the initial (non-directional) event, got %v", deescalationsOnly.events)
+	}
+}
+
+func TestDispatcherSubscribeMidStreamCooldownAppliesFromInitialDelivery(t *testing.T) {
+	d := NewDispatcher()
+	d.Advance(1000, severityeventsdef.SeverityLow)
+	d.Advance(1001, severityeventsdef.SeverityHigh)
+
+	l := &collectingListener{}
+	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{
+		Listener:     l,
+		CooldownSecs: 60,
+	})
+	if len(l.events) != 1 {
+		t.Fatalf("expected 1 initial event, got %d: %v", len(l.events), l.events)
+	}
+
+	// De-escalation shortly after joining should be blocked by the cooldown,
+	// counted from the initial delivery.
+	d.Advance(1010, severityeventsdef.SeverityLow)
+	if len(l.events) != 1 {
+		t.Fatalf("expected de-escalation to be blocked by cooldown right after join, got %d: %v", len(l.events), l.events)
+	}
+
+	d.Advance(1062, severityeventsdef.SeverityLow)
+	if len(l.events) != 2 {
+		t.Fatalf("expected de-escalation to fire after cooldown expired, got %d: %v", len(l.events), l.events)
+	}
+}
+
+func TestDispatcherResetClearsKnownLevelForNewSubscribers(t *testing.T) {
+	d := NewDispatcher()
+	d.Advance(1000, severityeventsdef.SeverityLow)
+	d.Advance(1001, severityeventsdef.SeverityHigh)
+
+	d.Reset()
+
+	l := &collectingListener{}
+	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{Listener: l})
+	if len(l.events) != 0 {
+		t.Fatalf("expected no initial event after Reset cleared the known level, got %v", l.events)
+	}
+}
+
 func TestDispatcherNilPanics(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
