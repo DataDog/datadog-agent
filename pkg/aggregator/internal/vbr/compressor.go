@@ -145,6 +145,15 @@ func (c *Compressor) openSegment(ts, value, tol float64) {
 	c.hasPending = true
 }
 
+// Scale returns the compressor's current EWMA estimate of the signal's
+// magnitude (a smoothed |value|) — the basis for its tolerance (tolerance =
+// max(Epsilon*Scale(), Floor)). Exposed for observability only (see
+// vbrsender's scale-deviation telemetry); the compressor's own correctness
+// never depends on a caller reading this.
+func (c *Compressor) Scale() float64 {
+	return c.scale
+}
+
 func (c *Compressor) updateScaleAndTolerance(value float64) float64 {
 	abs := math.Abs(value)
 	if !c.hasScale {
