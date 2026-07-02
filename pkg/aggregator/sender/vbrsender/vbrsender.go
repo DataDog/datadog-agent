@@ -24,20 +24,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// tlmSamples and tlmBreakpoints count, per metric name, how many raw samples
-// reached the compressor and how many breakpoints it shipped. Their ratio
-// is the compression ratio for that metric; computed at query time rather
-// than stored directly, since a ratio gauge can't be usefully aggregated
-// across time or hosts the way two counters can.
+// tlmSamples and tlmBreakpoints count, per check and metric name, how many
+// raw samples reached the compressor and how many breakpoints it shipped.
+// Their ratio is the compression ratio for that metric; computed at query
+// time rather than stored directly, since a ratio gauge can't be usefully
+// aggregated across time or hosts the way two counters can.
+//
+// tlmContexts tracks how many distinct contexts (metric+tags combinations)
+// are being compressed for a check. Contexts never expire once created (see
+// contextState), so this is the signal to watch for unbounded growth from a
+// check whose tag set churns over time.
 var (
 	tlmSamples = telemetryimpl.GetCompatComponent().NewCounter(
 		"vbrsender", "samples_total",
-		[]string{"metric_name"},
-		"Number of raw samples fed into the VBR compressor, by metric name")
+		[]string{"check_name", "metric_name"},
+		"Number of raw samples fed into the VBR compressor, by check and metric name")
 	tlmBreakpoints = telemetryimpl.GetCompatComponent().NewCounter(
 		"vbrsender", "breakpoints_total",
-		[]string{"metric_name"},
-		"Number of breakpoints shipped by the VBR compressor, by metric name")
+		[]string{"check_name", "metric_name"},
+		"Number of breakpoints shipped by the VBR compressor, by check and metric name")
+	tlmContexts = telemetryimpl.GetCompatComponent().NewGauge(
+		"vbrsender", "contexts",
+		[]string{"check_name"},
+		"Number of distinct metric contexts being VBR-compressed, by check name")
 )
 
 // defaultConfig holds the global (not per-metric) VBR compressor
@@ -90,7 +99,7 @@ func (m *SenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := newSender(real, m.dryRun)
+	s := newSender(real, m.dryRun, checkid.IDToCheckName(id))
 	m.senders[id] = s
 	return s, nil
 }
@@ -163,11 +172,15 @@ type contextState struct {
 type Sender struct {
 	sender.Sender
 
+	checkName string
+
 	// dryRun: samples still run through the compressor for measurement
 	// (tlmSamples/tlmBreakpoints), but ship() never actually forwards a
 	// breakpoint, and the check's original call is forwarded unmodified
 	// instead (see compressAt/forwardRaw).
 	dryRun bool
+
+	tlmContexts telemetry.SimpleGauge
 
 	mu sync.Mutex
 	// contexts and lastFlushTs all live in the same time domain: the
@@ -181,11 +194,13 @@ type Sender struct {
 	lastFlushTs float64
 }
 
-func newSender(real sender.Sender, dryRun bool) *Sender {
+func newSender(real sender.Sender, dryRun bool, checkName string) *Sender {
 	return &Sender{
-		Sender:   real,
-		dryRun:   dryRun,
-		contexts: make(map[string]*contextState),
+		Sender:      real,
+		checkName:   checkName,
+		dryRun:      dryRun,
+		tlmContexts: tlmContexts.WithValues(checkName),
+		contexts:    make(map[string]*contextState),
 	}
 }
 
@@ -244,10 +259,11 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 			tags:           tagsCopy,
 			kind:           kind,
 			compressor:     vbr.New(defaultConfig),
-			tlmSamples:     tlmSamples.WithValues(metric),
-			tlmBreakpoints: tlmBreakpoints.WithValues(metric),
+			tlmSamples:     tlmSamples.WithValues(s.checkName, metric),
+			tlmBreakpoints: tlmBreakpoints.WithValues(s.checkName, metric),
 		}
 		s.contexts[key] = ctx
+		s.tlmContexts.Inc()
 	}
 
 	value, ok := reduce(ctx, rawValue, now)
