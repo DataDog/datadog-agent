@@ -206,7 +206,7 @@ func TestSenderTelemetry(t *testing.T) {
 
 	telemetry := getTelemetry(t)
 	assert.Contains(t, telemetry, `metric_lookback__writer_append_samples{check_name="cpu",state="ok"}`)
-	assert.Contains(t, telemetry, `metric_lookback__writer_append_duration{check_name="cpu",state="ok"}`)
+	assert.Contains(t, telemetry, `metric_lookback__writer_append_duration_seconds{check_name="cpu",state="ok"}`)
 	assert.Equal(t, dropsBefore+3, distributionDrops.Get())
 
 	writer.err = errors.New("append failed")
@@ -215,7 +215,7 @@ func TestSenderTelemetry(t *testing.T) {
 
 	telemetry = getTelemetry(t)
 	assert.Contains(t, telemetry, `metric_lookback__writer_append_samples{check_name="cpu",state="error"}`)
-	assert.Contains(t, telemetry, `metric_lookback__writer_append_duration{check_name="cpu",state="error"}`)
+	assert.Contains(t, telemetry, `metric_lookback__writer_append_duration_seconds{check_name="cpu",state="error"}`)
 }
 
 func TestSenderManagerReusesAndDestroysSendersByCheckID(t *testing.T) {
