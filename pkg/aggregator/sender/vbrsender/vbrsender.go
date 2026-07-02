@@ -16,10 +16,28 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/vbr"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// tlmSamples and tlmBreakpoints count, per metric name, how many raw samples
+// reached the compressor and how many breakpoints it shipped. Their ratio
+// is the compression ratio for that metric; computed at query time rather
+// than stored directly, since a ratio gauge can't be usefully aggregated
+// across time or hosts the way two counters can.
+var (
+	tlmSamples = telemetryimpl.GetCompatComponent().NewCounter(
+		"vbrsender", "samples_total",
+		[]string{"metric_name"},
+		"Number of raw samples fed into the VBR compressor, by metric name")
+	tlmBreakpoints = telemetryimpl.GetCompatComponent().NewCounter(
+		"vbrsender", "breakpoints_total",
+		[]string{"metric_name"},
+		"Number of breakpoints shipped by the VBR compressor, by metric name")
 )
 
 // defaultConfig holds the global (not per-metric) VBR compressor
@@ -43,15 +61,20 @@ var timeNow = time.Now
 // SenderManager wraps a sender.SenderManager so every Sender it returns
 // applies VBR compression.
 type SenderManager struct {
-	inner sender.SenderManager
+	inner  sender.SenderManager
+	dryRun bool
 
 	mu      sync.Mutex
 	senders map[checkid.ID]*Sender
 }
 
 // Wrap returns a SenderManager that VBR-compresses every check it serves.
-func Wrap(inner sender.SenderManager) *SenderManager {
-	return &SenderManager{inner: inner, senders: make(map[checkid.ID]*Sender)}
+// With dryRun true, every sample still runs through the compressor (so the
+// samples_total/breakpoints_total telemetry reflects what compression would
+// do), but the check's original, uncompressed calls are what actually reach
+// the real sender — nothing forwarded by the compressor itself ships.
+func Wrap(inner sender.SenderManager, dryRun bool) *SenderManager {
+	return &SenderManager{inner: inner, dryRun: dryRun, senders: make(map[checkid.ID]*Sender)}
 }
 
 // GetSender returns the VBR-wrapped Sender for id, creating and caching one
@@ -67,7 +90,7 @@ func (m *SenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := newSender(real)
+	s := newSender(real, m.dryRun)
 	m.senders[id] = s
 	return s, nil
 }
@@ -117,6 +140,9 @@ type contextState struct {
 
 	compressor *vbr.Compressor
 
+	tlmSamples     telemetry.SimpleCounter
+	tlmBreakpoints telemetry.SimpleCounter
+
 	// Rate: previous raw (value, timestamp), mirrors pkg/metrics/rate.go.
 	hasPreviousRate   bool
 	previousRateValue float64
@@ -137,6 +163,12 @@ type contextState struct {
 type Sender struct {
 	sender.Sender
 
+	// dryRun: samples still run through the compressor for measurement
+	// (tlmSamples/tlmBreakpoints), but ship() never actually forwards a
+	// breakpoint, and the check's original call is forwarded unmodified
+	// instead (see compressAt/forwardRaw).
+	dryRun bool
+
 	mu sync.Mutex
 	// contexts and lastFlushTs all live in the same time domain: the
 	// sample timestamps flowing through Update()/FlushWindow(), not an
@@ -149,9 +181,10 @@ type Sender struct {
 	lastFlushTs float64
 }
 
-func newSender(real sender.Sender) *Sender {
+func newSender(real sender.Sender, dryRun bool) *Sender {
 	return &Sender{
 		Sender:   real,
+		dryRun:   dryRun,
 		contexts: make(map[string]*contextState),
 	}
 }
@@ -194,29 +227,55 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.dryRun {
+		// The real, unmodified call is what actually ships in dry-run mode;
+		// the compressor below only measures what compression would do.
+		s.forwardRaw(kind, metric, rawValue, hostname, tags)
+	}
+
 	key := contextKeyFor(metric, hostname, tags)
 	ctx, ok := s.contexts[key]
 	if !ok {
 		tagsCopy := make([]string, len(tags))
 		copy(tagsCopy, tags)
 		ctx = &contextState{
-			metric:     metric,
-			hostname:   hostname,
-			tags:       tagsCopy,
-			kind:       kind,
-			compressor: vbr.New(defaultConfig),
+			metric:         metric,
+			hostname:       hostname,
+			tags:           tagsCopy,
+			kind:           kind,
+			compressor:     vbr.New(defaultConfig),
+			tlmSamples:     tlmSamples.WithValues(metric),
+			tlmBreakpoints: tlmBreakpoints.WithValues(metric),
 		}
 		s.contexts[key] = ctx
 	}
 
 	value, ok := reduce(ctx, rawValue, now)
 	if ok {
+		ctx.tlmSamples.Inc()
 		for _, bp := range ctx.compressor.Update(now, value) {
 			s.ship(ctx, bp)
 		}
 	}
 
 	s.maybeFlushWindow(now)
+}
+
+// forwardRaw calls the same method the check originally called, on the
+// real underlying sender, with the raw value as given — used only in
+// dry-run mode, letting the real sender's own aggregation (e.g. Rate's own
+// derivative) run exactly as if this decorator weren't present.
+func (s *Sender) forwardRaw(kind metricKind, metric string, value float64, hostname string, tags []string) {
+	switch kind {
+	case kindGauge:
+		s.Sender.Gauge(metric, value, hostname, tags)
+	case kindCount:
+		s.Sender.Count(metric, value, hostname, tags)
+	case kindRate:
+		s.Sender.Rate(metric, value, hostname, tags)
+	case kindMonotonicCount:
+		s.Sender.MonotonicCount(metric, value, hostname, tags)
+	}
 }
 
 // reduce turns a raw sender call's value into the single scalar the
@@ -267,6 +326,13 @@ func reduce(ctx *contextState, rawValue, ts float64) (float64, bool) {
 }
 
 func (s *Sender) ship(ctx *contextState, bp vbr.Point) {
+	ctx.tlmBreakpoints.Inc()
+	if s.dryRun {
+		// Telemetry still counts this as a would-be breakpoint; only the
+		// actual forwarding is suppressed, since forwardRaw already shipped
+		// the check's original, uncompressed call for this sample.
+		return
+	}
 	switch ctx.kind {
 	case kindGauge, kindRate:
 		if err := s.Sender.GaugeWithTimestamp(ctx.metric, bp.Value, ctx.hostname, ctx.tags, bp.Ts); err != nil {
