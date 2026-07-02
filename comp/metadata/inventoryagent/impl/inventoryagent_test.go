@@ -193,9 +193,9 @@ func TestInitData(t *testing.T) {
 		"eks_fargate":                      true,
 		"synthetics.collector.enabled":     true,
 
-		"fips.enabled":                                true,
-		"logs_enabled":                                true,
-		"compliance_config.enabled":                   true,
+		"fips.enabled":              true,
+		"logs_enabled":              true,
+		"compliance_config.enabled": true,
 		"compliance_config.host_benchmarks.enabled":   true,
 		"apm_config.enabled":                          true,
 		"ec2_prefer_imdsv2":                           true,

@@ -20,20 +20,20 @@ import (
 // DualTaggerParams returns the params use inside the main agent
 func DualTaggerParams() (tagger.DualParams, tagger.RemoteParams) {
 	return tagger.DualParams{
-			UseRemote: func(c config.Component) bool {
-				return pkgconfigsetup.IsCLCRunner(c) && c.GetBool("clc_runner_remote_tagger_enabled")
-			},
-		}, tagger.NewRemoteParams(
-			tagger.WithRemoteTarget(func(config.Component) (string, error) {
-				target, err := utils.GetClusterAgentEndpoint()
-				if err != nil {
-					return "", err
-				}
-				return strings.TrimPrefix(target, "https://"), nil
-			}),
-			tagger.WithRemoteFilter(types.NewFilterBuilder().Exclude(types.KubernetesPodUID).Build(types.HighCardinality)),
+		UseRemote: func(c config.Component) bool {
+			return pkgconfigsetup.IsCLCRunner(c) && c.GetBool("clc_runner_remote_tagger_enabled")
+		},
+	}, tagger.NewRemoteParams(
+		tagger.WithRemoteTarget(func(config.Component) (string, error) {
+			target, err := utils.GetClusterAgentEndpoint()
+			if err != nil {
+				return "", err
+			}
+			return strings.TrimPrefix(target, "https://"), nil
+		}),
+		tagger.WithRemoteFilter(types.NewFilterBuilder().Exclude(types.KubernetesPodUID).Build(types.HighCardinality)),
 
-			tagger.WithOverrideTLSConfigGetter(pkgapiutil.GetCrossNodeClientTLSConfig),
-			tagger.WithOverrideAuthTokenGetter(security.GetClusterAgentAuthToken),
-		)
+		tagger.WithOverrideTLSConfigGetter(pkgapiutil.GetCrossNodeClientTLSConfig),
+		tagger.WithOverrideAuthTokenGetter(security.GetClusterAgentAuthToken),
+	)
 }
