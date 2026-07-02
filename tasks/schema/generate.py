@@ -7,12 +7,15 @@ import os
 import tempfile
 
 import yaml
-from invoke import task
+from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.build.bazel import bazel
 from tasks.schema.add_comments import add_comments
+from tasks.schema.codegen_init_settings import run_codegen
 from tasks.schema.fixes import fix_schema
+from tasks.schema.merge_schema import resolve_schema
+from tasks.schema.produce_byproduct import produce_byproduct
 from tasks.schema.settings_source_analyzer import extract_imperative_code_hints
 from tasks.schema.template_parser import parse_template
 
@@ -195,6 +198,29 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
 
 
 @task
+def produce_embedded(ctx, input_path, output_path):
+    """
+    Produce the "embedded" schema byproduct from a (merged) schema.
+
+    Trims build-time-only data (documentation strings, ...) so the artifact that
+    gets compressed and embedded into the Go binary stays small. Output is YAML.
+    """
+    produce_byproduct("embedded", input_path, output_path)
+
+
+@task
+def produce_jsonschema(ctx, input_path, output_path):
+    """
+    Produce the pure JSON Schema byproduct from a (merged) schema.
+
+    Strips every Agent-specific extension so the result is 100% compatible with
+    https://json-schema.org/ and validates with any conforming library. Output
+    is JSON, for external consumers (e.g. SchemaStore).
+    """
+    produce_byproduct("json_schema", input_path, output_path)
+
+
+@task
 def hints(ctx):
     # Extract hints, dump them to a temporary directory for debugging purposes
     hints = extract_imperative_code_hints()
@@ -218,3 +244,40 @@ def extract_comments(ctx):
             comment_assoc_map[setting_name] = comment
 
     return comment_assoc_map
+
+
+@task
+def codegen(ctx, schema_file, keep_orig_order=False, check=False, fix=False, keeptmp=False):
+    """
+    Code generator for config schema
+
+    schema_file:     The schema to generate code from
+    keep_orig_order: If true, extract order from *_settings.go files, keep it the same
+    check:           If true, validate whether codegen matches SCHEMA_DIR
+    fix:             If true, copy the codegen files into SCHEMA_DIR
+    """
+
+    source_schema = resolve_schema(schema_file)
+    hints = extract_imperative_code_hints()
+
+    tmpdir = tempfile.mkdtemp()
+    run_codegen(source_schema, hints, keep_orig_order, tmpdir)
+
+    display = not check and not fix
+
+    if display:
+        print("Codegen complete. Output dir: %s" % tmpdir)
+
+    if check:
+        # Compare tmpdir against SCHEMA_DIR, fail if different
+        try:
+            ctx.run(f"diff {tmpdir}/ {SCHEMA_DIR}/")
+        except Failure:
+            print("Error: Schema codegen differs, fix this by running `dda inv schema.codegen --fix`")
+
+    if fix:
+        # Copy the files into SCHEMA_DIR
+        ctx.run(f"cp {tmpdir}/*.go {SCHEMA_DIR}/")
+
+    if not keeptmp:
+        return

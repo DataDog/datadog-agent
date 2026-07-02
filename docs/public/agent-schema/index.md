@@ -75,4 +75,5 @@ specifically. For a general introduction to JSON Schema, see
 
 - [Keyword Reference](keywords.md) — complete reference for all supported keywords.
 - [Examples](examples.md) — annotated, real-world examples from the schema.
+- [CLI Commands](cli.md) — the `dda inv schema.*` tasks for generating, linting, and rendering the schema.
 - [FAQ](faq.md) — common tasks such as adding a setting or making one public.

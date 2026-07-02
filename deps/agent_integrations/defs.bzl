@@ -43,6 +43,8 @@ def _install_wheels_impl(ctx):
     args.add("--interpreter", script_interpreter)
     args.add("--platform", platform)
     args.add_all(ctx.files.srcs)
+    args.use_param_file("@%s", use_always = True)
+    args.set_param_file_format("multiline")
 
     ctx.actions.run(
         mnemonic = "InstallPythonWheels",
@@ -85,7 +87,7 @@ pyproject_wheel = rule(
             doc = "Executable target for the wheel build frontend.",
         ),
     },
-    doc = "Builds a wheel from a pyproject.toml-based Python source package.",
+    doc = "Builds a wheel from a pyproject.toml-based, hatchling-built Python source package.",
 )
 
 install_wheels = rule(

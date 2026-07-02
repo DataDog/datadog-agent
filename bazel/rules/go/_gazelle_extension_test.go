@@ -13,6 +13,7 @@ import (
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
+	"github.com/bazelbuild/bazel-gazelle/merger"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	bzl "github.com/bazelbuild/buildtools/build"
 )
@@ -455,6 +456,12 @@ func TestApplicableFlavors(t *testing.T) {
 	}
 }
 
+// TestKinds guards deps staying a ResolveAttr: Gazelle's post-Resolve
+// MergeFile pass only treats an attr as auto-managed if it's in ResolveAttrs
+// (MergeableAttrs governs the earlier pre-resolve pass instead). Without this,
+// Resolve's dd_agent_go_test deps never take effect past the first
+// conversion. See TestDepsMerge_KeptItemSurvivesResolveUpdate for why
+// ResolveAttrs (not MergeableAttrs) is the correct attribute set for this.
 func TestKinds(t *testing.T) {
 	kinds := NewLanguage().(*lang).Kinds()
 	info, ok := kinds["dd_agent_go_test"]
@@ -466,6 +473,48 @@ func TestKinds(t *testing.T) {
 	}
 	if !info.MergeableAttrs["srcs"] {
 		t.Error("expected srcs in MergeableAttrs")
+	}
+	if !info.ResolveAttrs["deps"] {
+		t.Error("expected deps in ResolveAttrs")
+	}
+}
+
+// TestDepsMerge_KeptItemSurvivesResolveUpdate replays Gazelle's real two-phase
+// merge (PreResolve, then PostResolve after Resolve sets deps) against a
+// dd_agent_go_test rule with a `# keep`-annotated dep, the same pattern used
+// for split cgo_align targets (e.g. pkg/collector/corechecks/ebpf/probe/ebpfcheck).
+// It guards that a manually kept dep survives while a stale one is dropped and
+// a freshly resolved one is added — the same behavior go_test gets for free.
+func TestDepsMerge_KeptItemSurvivesResolveUpdate(t *testing.T) {
+	kinds := newLang().Kinds()
+
+	old := rule.NewRule("dd_agent_go_test", "pkg_test")
+	old.SetAttr("srcs", []string{"pkg_test.go"})
+	old.SetAttr("embed", []string{":pkg"})
+	old.SetAttr("deps", []string{"//kept/dep", "//stale/dep"})
+	list, ok := old.Attr("deps").(*bzl.ListExpr)
+	if !ok {
+		t.Fatalf("expected deps to be a ListExpr, got %T", old.Attr("deps"))
+	}
+	list.List[0].Comment().Suffix = append(list.List[0].Comment().Suffix, bzl.Comment{Token: "# keep"})
+	file := rule.EmptyFile("BUILD.bazel", "some/pkg")
+	old.Insert(file)
+
+	// gen mirrors the rule Gazelle would generate: no deps yet, since Resolve
+	// hasn't run at PreResolve time.
+	gen := rule.NewRule("dd_agent_go_test", "pkg_test")
+	gen.SetAttr("srcs", []string{"pkg_test.go"})
+	gen.SetAttr("embed", []string{":pkg"})
+	merger.MergeFile(file, nil, []*rule.Rule{gen}, merger.PreResolve, kinds, nil)
+
+	// Simulate Resolve() setting the freshly computed deps on the same rule object.
+	gen.SetAttr("deps", []string{"//fresh/dep"})
+	merger.MergeFile(file, nil, []*rule.Rule{gen}, merger.PostResolve, kinds, nil)
+
+	got := file.Rules[0].AttrStrings("deps")
+	want := []string{"//kept/dep", "//fresh/dep"}
+	if !stringSlicesEqual(got, want) {
+		t.Errorf("deps after merge: got %v, want %v", got, want)
 	}
 }
 
