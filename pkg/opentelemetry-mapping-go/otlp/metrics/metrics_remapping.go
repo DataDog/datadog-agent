@@ -25,12 +25,23 @@ const (
 	divMebibytes = 1024 * 1024
 	// divPercentage specifies the division necessary for converting fractions to percentages.
 	divPercentage = 0.01
+
+	// sdkTraceMetricName is the histogram emitted by Datadog SDKs that ship
+	// trace metrics via OTLP (see the OTLP Trace Metrics Export RFC). The
+	// otlp-intake-metrics backend routes this exact name to trace metrics and
+	// remaps it to the trace.* namespace, so the Agent/DDOT OTLP pipeline must
+	// forward it unchanged: it must never be prefixed or renamed here.
+	sdkTraceMetricName = "traces.span.sdk.metrics.duration"
 )
 
 var emptyAttributesMapping = attributesMapping{}
 
 // remapMetrics extracts any Datadog specific metrics from m and appends them to all.
 func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
+	if m.Name() == sdkTraceMetricName {
+		// The backend routes this metric by its exact name; forward it as-is.
+		return
+	}
 	remapSystemMetrics(all, m)
 	remapContainerMetrics(all, m)
 	remapKafkaMetrics(all, m)
@@ -39,6 +50,10 @@ func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
 
 // renameMetrics adds the `otel.` or `otelcol_` prefix to metrics.
 func renameMetrics(m pmetric.Metric) {
+	if m.Name() == sdkTraceMetricName {
+		// The backend routes this metric by its exact name; never rename it.
+		return
+	}
 	renameHostMetrics(m)
 	renameKafkaMetrics(m)
 	renameAgentInternalOTelMetric(m)

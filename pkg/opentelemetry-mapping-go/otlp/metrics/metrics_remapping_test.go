@@ -843,6 +843,20 @@ func TestRenameAgentMetrics(t *testing.T) {
 	}
 }
 
+func TestSDKTraceMetricPassthrough(t *testing.T) {
+	// The otlp-intake-metrics backend routes this metric by its exact name, so
+	// neither remapMetrics nor renameMetrics may rename or duplicate it.
+	dest := pmetric.NewMetricSlice()
+	m := testMetric(sdkTraceMetricName, testPoint{f: 1})
+
+	remapMetrics(dest, m)
+	require.Equal(t, 0, dest.Len(), "remapMetrics must not derive new metrics from the SDK trace metric")
+	require.Equal(t, sdkTraceMetricName, m.Name())
+
+	renameMetrics(m)
+	require.Equal(t, sdkTraceMetricName, m.Name(), "renameMetrics must not rename the SDK trace metric")
+}
+
 func TestCopyMetricWithAttr(t *testing.T) {
 	m := pmetric.NewMetric()
 	m.SetName("test.metric")
