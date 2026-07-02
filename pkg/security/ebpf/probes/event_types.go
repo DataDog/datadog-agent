@@ -193,6 +193,22 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 		}
 	}
 
+	rmdirIOUringProbes := []manager.ProbesSelector{}
+	if haveIOURing {
+		rmdirIOUringProbes = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_do_rmdir"),
+				hookFunc("rethook_do_rmdir"),
+			}},
+			// Since 7.0, do_rmdir was removed from the kernel so we need to hook the filename_rmdir function instead
+			// It is also used by the io_uring code path
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_filename_rmdir"),
+				hookFunc("rethook_filename_rmdir"),
+			}},
+		}
+	}
+
 	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
@@ -380,10 +396,7 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 				hookFunc("hook_security_inode_rmdir"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "rmdir", hasFentry, EntryAndExit)},
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_do_rmdir"),
-				hookFunc("rethook_do_rmdir"),
-			}},
+			&manager.BestEffort{Selectors: rmdirIOUringProbes},
 
 			// Unlink probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
