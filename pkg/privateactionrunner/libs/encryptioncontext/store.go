@@ -39,10 +39,17 @@ type memoryStore struct {
 	now     func() time.Time
 }
 
-// NewStore returns an in-memory Store. ttl is how long a key remains
-// retrievable after Put. now is injectable for tests; pass time.Now in
-// production.
-func NewStore(ttl time.Duration, now func() time.Time) Store {
+// DefaultTTL is how long a key remains retrievable after Put when using NewStore.
+const DefaultTTL = 5 * time.Minute
+
+// NewStore returns an in-memory Store using DefaultTTL.
+func NewStore(now func() time.Time) Store {
+	return NewStoreWithTTL(DefaultTTL, now)
+}
+
+// NewStoreWithTTL returns an in-memory Store. ttl is how long a key remains
+// retrievable after Put.
+func NewStoreWithTTL(ttl time.Duration, now func() time.Time) Store {
 	if now == nil {
 		now = time.Now
 	}

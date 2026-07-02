@@ -62,7 +62,7 @@ func TestStoreTake(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			now := time.Unix(1_700_000_000, 0)
 			clock := func() time.Time { return now }
-			store := NewStore(5*time.Second, clock)
+			store := NewStoreWithTTL(5*time.Second, clock)
 
 			privateKey := newKey(0x42)
 			require.NoError(t, store.Put(testCase.putContextID, privateKey))
@@ -84,7 +84,7 @@ func TestStoreTake(t *testing.T) {
 }
 
 func TestStoreMismatchedTakeDoesNotEvictOriginalEntry(t *testing.T) {
-	store := NewStore(time.Minute, time.Now)
+	store := NewStoreWithTTL(time.Minute, time.Now)
 	require.NoError(t, store.Put("ctx-1", newKey(0x01)))
 
 	_, err := store.Take("ctx-2")
@@ -96,7 +96,7 @@ func TestStoreMismatchedTakeDoesNotEvictOriginalEntry(t *testing.T) {
 
 func TestStoreEvictsAbandonedEntryAfterTTL(t *testing.T) {
 	const ttl = 20 * time.Millisecond
-	store := NewStore(ttl, time.Now)
+	store := NewStoreWithTTL(ttl, time.Now)
 	require.NoError(t, store.Put("ctx-1", newKey(0x01)))
 
 	memStore, ok := store.(*memoryStore)
@@ -114,7 +114,7 @@ func TestStoreEvictsAbandonedEntryAfterTTL(t *testing.T) {
 }
 
 func TestStorePutRejectsDuplicateContextID(t *testing.T) {
-	store := NewStore(time.Minute, time.Now)
+	store := NewStoreWithTTL(time.Minute, time.Now)
 	require.NoError(t, store.Put("ctx-1", newKey(0x01)))
 	require.ErrorIs(t, store.Put("ctx-1", newKey(0x02)), ErrAlreadyExists)
 
@@ -124,7 +124,7 @@ func TestStorePutRejectsDuplicateContextID(t *testing.T) {
 }
 
 func TestStoreConcurrentAccess(t *testing.T) {
-	store := NewStore(time.Minute, time.Now)
+	store := NewStoreWithTTL(time.Minute, time.Now)
 
 	const goroutineCount = 100
 	var waitGroup sync.WaitGroup

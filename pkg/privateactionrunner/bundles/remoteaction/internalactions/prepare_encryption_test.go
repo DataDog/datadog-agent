@@ -74,7 +74,7 @@ func TestPrepareEncryptionRun(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			store := encryptioncontext.NewStore(time.Minute, time.Now)
+			store := encryptioncontext.NewStore(time.Now)
 			handler := NewPrepareEncryptionHandler(store)
 
 			output, err := handler.Run(context.Background(), newTask("task-abc", testCase.inputs), nil)
@@ -94,7 +94,7 @@ func TestPrepareEncryptionRun(t *testing.T) {
 }
 
 func TestPrepareEncryptionGeneratesUniqueContextsPerRun(t *testing.T) {
-	store := encryptioncontext.NewStore(time.Minute, time.Now)
+	store := encryptioncontext.NewStore(time.Now)
 	handler := NewPrepareEncryptionHandler(store)
 
 	runs := []string{"first", "second"}
@@ -123,7 +123,7 @@ func TestInternalBundleGetAction(t *testing.T) {
 		{name: "unknown action", actionName: "doesNotExist", wantPresent: false},
 	}
 
-	store := encryptioncontext.NewStore(time.Minute, time.Now)
+	store := encryptioncontext.NewStore(time.Now)
 	bundle := NewInternal(store)
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
