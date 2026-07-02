@@ -402,6 +402,29 @@ func IsExpectedFilterError(err error) bool {
 		errors.Is(err, ErrIMDSMissingURL)
 }
 
+// Insertion error type labels used to tag the unexpected-insertion-error metric.
+// Keep this list bounded to avoid metric tag cardinality explosion.
+const (
+	// InsertionErrorBrokenLineage labels insertion failures caused by a broken process lineage.
+	InsertionErrorBrokenLineage = "broken_lineage"
+	// InsertionErrorOther labels any other unexpected insertion failure.
+	InsertionErrorOther = "other"
+)
+
+// InsertionErrorTypes is the exhaustive list of labels InsertionErrorType can return.
+var InsertionErrorTypes = []string{InsertionErrorBrokenLineage, InsertionErrorOther}
+
+// InsertionErrorType categorizes an unexpected insertion error into one of the
+// bounded InsertionErrorTypes labels, suitable for use as a low-cardinality metric tag.
+func InsertionErrorType(err error) string {
+	switch {
+	case errors.Is(err, ErrBrokenLineage):
+		return InsertionErrorBrokenLineage
+	default:
+		return InsertionErrorOther
+	}
+}
+
 // isEventValid evaluates if the provided event is valid
 func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, error) {
 	// check event type

@@ -508,7 +508,7 @@ var (
 
 	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report activity-tree
 	// insertion failures that are not routine filtering rejections (i.e. unexpected errors).
-	// Tags: event_type
+	// Tags: event_type, error_type
 	MetricSecurityProfileV2InsertionErrors = newRuntimeMetric(".security_profile_v2.insertion_errors")
 
 	// Tag Resolution metrics
