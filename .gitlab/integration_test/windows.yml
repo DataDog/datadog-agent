@@ -8,6 +8,9 @@
   tags: ["windows-v2:2022"]
   variables:
     VARIANT: ltsc2022
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
   before_script:
     - $tmpfile = [System.IO.Path]::GetTempFileName()
     - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$Env:VCPKG_BLOB_SAS_URL" -parameterField url -tempFile "$tmpfile")
