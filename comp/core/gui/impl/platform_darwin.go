@@ -6,8 +6,10 @@
 package guiimpl
 
 import (
-	"errors"
+	"fmt"
+	"net/http"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )
 
@@ -26,9 +28,28 @@ const instructionTemplate = `{{define "loginInstruction" }}
 {{end}}`
 
 func restartEnabled() bool {
-	return false
+	return true
 }
 
-func restart() error {
-	return errors.New("restarting the agent is not implemented on non-windows platforms")
+func restart(getToken func() string, sysprobeSocketPath string) error {
+	client := sysprobeclient.Get(sysprobeSocketPath)
+
+	url := sysprobeclient.URL("/agent-restart")
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	if err != nil {
+		return fmt.Errorf("could not build restart request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+getToken())
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not reach system-probe: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		_, _ = sysprobeclient.ReadAllResponseBody(resp)
+		return fmt.Errorf("system-probe agent restart failed with status %d; see system-probe logs for details", resp.StatusCode)
+	}
+	return nil
 }

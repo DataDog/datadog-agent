@@ -26,6 +26,6 @@ func restartEnabled() bool {
 	return false
 }
 
-func restart() error {
+func restart(_ func() string, _ string) error {
 	return errors.New("restarting the agent is not implemented on non-windows platforms")
 }

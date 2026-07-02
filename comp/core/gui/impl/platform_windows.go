@@ -38,7 +38,7 @@ func restartEnabled() bool {
 }
 
 // restarts the agent using the windows service manager
-func restart() error {
+func restart(_ func() string, _ string) error {
 	here, _ := executable.Folder()
 	cmd := exec.Command(filepath.Join(here, "agent"), "restart-service")
 	cmd.Stdin = os.Stdin
