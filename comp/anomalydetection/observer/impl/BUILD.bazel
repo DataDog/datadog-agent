@@ -47,11 +47,11 @@ go_library(
     deps = [
         "//comp/anomalydetection/internal/logsfilter",
         "//comp/anomalydetection/observer/def",
-        "//comp/anomalydetection/severityevents/def",
-        "//comp/anomalydetection/severityevents/impl",
         "//comp/anomalydetection/observer/impl/patterns",
         "//comp/anomalydetection/recorder/def",
         "//comp/anomalydetection/reporter/def",
+        "//comp/anomalydetection/severityevents/def",
+        "//comp/anomalydetection/severityevents/impl",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
