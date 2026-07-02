@@ -25,20 +25,42 @@ type timestampedCall struct {
 	timestamp float64
 }
 
+// rawCall records one call to a plain (non-timestamped) sender method.
+type rawCall struct {
+	metric   string
+	value    float64
+	hostname string
+	tags     []string
+}
+
 // fakeSender is a minimal sender.Sender: it records GaugeWithTimestamp/
-// CountWithTimestamp calls (what vbrsender ships breakpoints through) and
-// no-ops everything else.
+// CountWithTimestamp calls (what vbrsender ships breakpoints through), and
+// plain Gauge/Count/Rate/MonotonicCount calls (what dry-run mode forwards
+// unmodified instead), and no-ops everything else.
 type fakeSender struct {
 	gauges []timestampedCall
 	counts []timestampedCall
+
+	rawGauges          []rawCall
+	rawCounts          []rawCall
+	rawRates           []rawCall
+	rawMonotonicCounts []rawCall
 }
 
-func (f *fakeSender) Commit()                                                                   {}
-func (f *fakeSender) Gauge(string, float64, string, []string)                                   {}
-func (f *fakeSender) GaugeNoIndex(string, float64, string, []string)                            {}
-func (f *fakeSender) Rate(string, float64, string, []string)                                    {}
-func (f *fakeSender) Count(string, float64, string, []string)                                   {}
-func (f *fakeSender) MonotonicCount(string, float64, string, []string)                          {}
+func (f *fakeSender) Commit() {}
+func (f *fakeSender) Gauge(metric string, value float64, hostname string, tags []string) {
+	f.rawGauges = append(f.rawGauges, rawCall{metric, value, hostname, tags})
+}
+func (f *fakeSender) GaugeNoIndex(string, float64, string, []string) {}
+func (f *fakeSender) Rate(metric string, value float64, hostname string, tags []string) {
+	f.rawRates = append(f.rawRates, rawCall{metric, value, hostname, tags})
+}
+func (f *fakeSender) Count(metric string, value float64, hostname string, tags []string) {
+	f.rawCounts = append(f.rawCounts, rawCall{metric, value, hostname, tags})
+}
+func (f *fakeSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
+	f.rawMonotonicCounts = append(f.rawMonotonicCounts, rawCall{metric, value, hostname, tags})
+}
 func (f *fakeSender) MonotonicCountWithFlushFirstValue(string, float64, string, []string, bool) {}
 func (f *fakeSender) Counter(string, float64, string, []string)                                 {}
 func (f *fakeSender) Histogram(string, float64, string, []string)                               {}
@@ -74,7 +96,12 @@ func (f *fakeSender) OrchestratorManifest([]types.ProcessMessageBody, string)   
 
 func newTestSender() (*Sender, *fakeSender) {
 	fake := &fakeSender{}
-	return newSender(fake), fake
+	return newSender(fake, false), fake
+}
+
+func newTestSenderDryRun() (*Sender, *fakeSender) {
+	fake := &fakeSender{}
+	return newSender(fake, true), fake
 }
 
 func TestGauge_FlatSignalCompressesUntilWindowFlush(t *testing.T) {
@@ -238,4 +265,56 @@ func TestOtherSenderMethodsPassThroughUnmodified(t *testing.T) {
 
 	require.Empty(t, fake.gauges)
 	require.Empty(t, fake.counts)
+}
+
+func TestDryRun_ForwardsRawGaugeUnmodified(t *testing.T) {
+	s, fake := newTestSenderDryRun()
+
+	for i := 0; i < 10; i++ {
+		s.compressAt(kindGauge, "my.gauge", 42, "host", []string{"env:prod"}, float64(i))
+	}
+
+	require.Len(t, fake.rawGauges, 10, "every raw call must be forwarded unmodified in dry-run mode")
+	for _, c := range fake.rawGauges {
+		require.Equal(t, "my.gauge", c.metric)
+		require.Equal(t, 42.0, c.value)
+		require.Equal(t, []string{"env:prod"}, c.tags)
+	}
+	require.Empty(t, fake.gauges, "dry-run must never actually ship a compressed breakpoint")
+	require.Empty(t, fake.counts, "dry-run must never actually ship a compressed breakpoint")
+}
+
+func TestDryRun_ForwardsRawCountRateMonotonicCountToTheirOwnMethods(t *testing.T) {
+	s, fake := newTestSenderDryRun()
+
+	s.compressAt(kindCount, "my.count", 5, "host", nil, 0)
+	s.compressAt(kindRate, "my.rate", 100, "host", nil, 0)
+	s.compressAt(kindMonotonicCount, "my.mc", 10, "host", nil, 0)
+
+	require.Len(t, fake.rawCounts, 1)
+	require.Equal(t, 5.0, fake.rawCounts[0].value)
+	require.Len(t, fake.rawRates, 1)
+	require.Equal(t, 100.0, fake.rawRates[0].value, "Rate forwards the RAW value, not vbrsender's locally-reduced derivative — the real sender does its own diffing")
+	require.Len(t, fake.rawMonotonicCounts, 1)
+	require.Equal(t, 10.0, fake.rawMonotonicCounts[0].value, "MonotonicCount forwards the RAW cumulative value, not vbrsender's locally-reduced diff")
+
+	require.Empty(t, fake.gauges)
+	require.Empty(t, fake.counts)
+}
+
+func TestDryRun_StillMeasuresCompressionViaTelemetryOnly(t *testing.T) {
+	s, fake := newTestSenderDryRun()
+
+	for i := 0; i < 10; i++ {
+		s.compressAt(kindGauge, "my.gauge", 42, "host", nil, float64(i))
+	}
+
+	// The underlying compressor still ran (warmup(2) would have produced its
+	// own breakpoints in live mode); confirm state advanced normally, just
+	// without shipping anything itself.
+	ctx := s.contexts[contextKeyFor("my.gauge", "host", nil)]
+	require.NotNil(t, ctx)
+	require.NotNil(t, ctx.compressor)
+	require.Empty(t, fake.gauges)
+	require.Len(t, fake.rawGauges, 10)
 }
