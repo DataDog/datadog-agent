@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "connector.go",
         "factory.go",
+        "sampling.go",
         "traces_connector.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector",
@@ -24,6 +25,7 @@ go_library(
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//featuregates",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_sampling//:sampling",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_connector//:connector",
         "@io_opentelemetry_go_collector_consumer//:consumer",
@@ -39,6 +41,7 @@ dd_agent_go_test(
     srcs = [
         "connector_test.go",
         "factory_test.go",
+        "sampling_test.go",
     ],
     embed = [":datadogconnector"],
     deps = [
@@ -47,6 +50,7 @@ dd_agent_go_test(
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/metrics",
         "//pkg/proto/pbgo/trace",
+        "//pkg/trace/otel/stats",
         "@com_github_google_go_cmp//cmp",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//featuregates",

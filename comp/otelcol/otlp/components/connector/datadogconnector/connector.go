@@ -197,10 +197,45 @@ func (*traceToMetricConnector) Capabilities() consumer.Capabilities {
 
 func (c *traceToMetricConnector) ConsumeTraces(_ context.Context, traces ptrace.Traces) error {
 	inputs := otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.peerTagKeys, c.obfuscator)
+	if injected := injectSampleRates(inputs, c.logger); injected > 0 {
+		c.logger.Debug("injected sampling probs from tracestate", zap.Int("root_count", injected))
+	}
 	for _, input := range inputs {
 		c.concentrator.Add(input)
 	}
 	return nil
+}
+
+// injectSampleRates injects _sample_rate onto the root DD span of each trace
+// chunk whose root carries a supported W3C tracestate sampling encoding. The
+// raw tracestate is preserved on root.Meta["w3c.tracestate"] during the minimal
+// OTel→DD span conversion (see pkg/trace/transform). The Concentrator reads
+// weight only from pt.Root, so child spans are irrelevant and only root
+// tracestates are parsed. An explicitly set upstream _sample_rate is preserved.
+// Returns the number of roots injected.
+func injectSampleRates(inputs []stats.Input, logger *zap.Logger) int {
+	injected := 0
+	for i := range inputs {
+		for j := range inputs[i].Traces {
+			root := inputs[i].Traces[j].Root
+			if root == nil {
+				continue
+			}
+			if _, exists := root.Metrics[keySamplingRateGlobal]; exists {
+				continue // preserve an explicitly set value from upstream
+			}
+			prob, ok := samplingProbFromTracestate(root.Meta["w3c.tracestate"], logger)
+			if !ok {
+				continue
+			}
+			if root.Metrics == nil {
+				root.Metrics = make(map[string]float64)
+			}
+			root.Metrics[keySamplingRateGlobal] = prob
+			injected++
+		}
+	}
+	return injected
 }
 
 // run awaits incoming stats resulting from the agent's ingestion, converts them
