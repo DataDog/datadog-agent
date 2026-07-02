@@ -35,6 +35,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	zstd "github.com/DataDog/zstd"
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
@@ -77,7 +78,7 @@ import (
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
-	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
+	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -163,7 +164,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
-		gzipfx.Module(),
+		zstdfx.Module(),
 
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
@@ -220,7 +221,8 @@ func TestIntegration(t *testing.T) {
 	for len(spans) < 5 || len(stats) < 10 {
 		select {
 		case tracesBytes := <-tracesRec.ReqChan:
-			gz := getGzipReader(t, tracesBytes)
+			// Traces are compressed with zstd (DDOT wires comp/trace/compression/fx-zstd).
+			gz := getZstdReader(tracesBytes)
 			slurp, err := io.ReadAll(gz)
 			require.NoError(t, err)
 			var traces pb.AgentPayload
@@ -328,4 +330,11 @@ func getGzipReader(t *testing.T, reqBytes []byte) io.Reader {
 	reader, err := gzip.NewReader(buf)
 	require.NoError(t, err)
 	return reader
+}
+
+// getZstdReader decodes a zstd-compressed payload. DDOT compresses traces with
+// zstd (comp/trace/compression/fx-zstd), so trace payloads must be read with this
+// reader rather than getGzipReader. APM stats remain gzip-compressed.
+func getZstdReader(reqBytes []byte) io.Reader {
+	return zstd.NewReader(bytes.NewBuffer(reqBytes))
 }
