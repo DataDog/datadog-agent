@@ -26,13 +26,13 @@ def run(
     try:
         repo_root = get_repo_root()
         review_prompt = build_review_prompt(
-            runner=ctx,
+            ctx=ctx,
             repo_root=repo_root,
             base=base,
             extra_prompt=extra_prompt,
             prompt=prompt,
         )
-        run_review(runner=ctx, repo_root=repo_root, review_prompt=review_prompt, provider=provider)
+        run_review(ctx=ctx, repo_root=repo_root, review_prompt=review_prompt, provider=provider)
     except CodeReviewError as e:
         raise Exit(str(e), code=1) from e
 
@@ -47,7 +47,7 @@ def prompt(ctx, base: str | None = None, extra_prompt: str | None = None) -> Non
     try:
         repo_root = get_repo_root()
         review_prompt = build_review_prompt(
-            runner=ctx,
+            ctx=ctx,
             repo_root=repo_root,
             base=base,
             extra_prompt=extra_prompt,

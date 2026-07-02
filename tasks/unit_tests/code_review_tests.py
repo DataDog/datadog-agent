@@ -17,12 +17,12 @@ from tasks.libs.code_review.prompt import (
 from tasks.libs.code_review.providers import ProviderInvocation, build_provider_invocation, expand_providers, run_provider
 
 
-class NoopRunner:
+class NoopContext:
     def run(self, *_args, **_kwargs):
         raise AssertionError("No command should be run in this test")
 
 
-class FakeRunner:
+class FakeContext:
     def __init__(self):
         self.commands = []
 
@@ -103,7 +103,7 @@ jobs:
 
     def test_build_review_prompt_uses_prompt_override(self):
         review_prompt = build_review_prompt(
-            runner=NoopRunner(),
+            ctx=NoopContext(),
             repo_root=Path("."),
             base="origin/main",
             prompt="custom review instructions",
@@ -117,12 +117,13 @@ jobs:
     def test_build_review_prompt_rejects_prompt_and_extra_prompt(self):
         with self.assertRaises(CodeReviewError):
             build_review_prompt(
-                runner=NoopRunner(),
+                ctx=NoopContext(),
                 repo_root=Path("."),
                 base="origin/main",
                 prompt="custom review instructions",
                 extra_prompt="additional instructions",
             )
+
 
 class TestCodeReviewProviders(unittest.TestCase):
     def test_expand_providers(self):
@@ -131,7 +132,7 @@ class TestCodeReviewProviders(unittest.TestCase):
 
     def test_build_codex_invocation(self):
         review_prompt = build_review_prompt(
-            runner=NoopRunner(),
+            ctx=NoopContext(),
             repo_root=Path("."),
             base="origin/main",
             prompt="custom review instructions",
@@ -152,7 +153,7 @@ class TestCodeReviewProviders(unittest.TestCase):
 
     def test_build_claude_invocation_references_prompt_file(self):
         review_prompt = build_review_prompt(
-            runner=NoopRunner(),
+            ctx=NoopContext(),
             repo_root=Path("."),
             base="origin/main",
             prompt="custom review instructions",
@@ -175,8 +176,8 @@ class TestCodeReviewProviders(unittest.TestCase):
         with self.assertRaises(CodeReviewError):
             expand_providers("unknown")
 
-    def test_run_provider_uses_runner(self):
-        runner = FakeRunner()
+    def test_run_provider_uses_ctx(self):
+        ctx = FakeContext()
         invocation = ProviderInvocation(
             provider="codex",
             executable="codex",
@@ -193,7 +194,7 @@ class TestCodeReviewProviders(unittest.TestCase):
         ):
             output_path = Path(tmp) / "codex.md"
             run_provider(
-                runner,
+                ctx,
                 ProviderInvocation(
                     provider=invocation.provider,
                     executable=invocation.executable,
@@ -206,8 +207,8 @@ class TestCodeReviewProviders(unittest.TestCase):
 
             self.assertEqual(output_path.read_text(encoding="utf-8"), "review output\nreview warning\n")
 
-        self.assertIn("codex exec --sandbox read-only -", runner.commands[0][0])
-        self.assertEqual(runner.commands[0][1]["in_stream"].read(), "review prompt")
+        self.assertIn("codex exec --sandbox read-only -", ctx.commands[0][0])
+        self.assertEqual(ctx.commands[0][1]["in_stream"].read(), "review prompt")
 
 
 if __name__ == "__main__":

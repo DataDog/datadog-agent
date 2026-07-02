@@ -9,11 +9,6 @@ if TYPE_CHECKING:
     from dda.cli.application import Application
 
 
-def _add_option(args: list[str], name: str, value: str | None) -> None:
-    if value is not None:
-        args.append(f"--{name}={value}")
-
-
 @dynamic_group(
     short_help="Run a local AI code review",
     invoke_without_command=True,
@@ -43,3 +38,8 @@ def cmd(
     _add_option(args, "extra-prompt", extra_prompt)
     _add_option(args, "prompt", prompt)
     app.subprocess.run(args)
+
+
+def _add_option(args: list[str], name: str, value: str | None) -> None:
+    if value is not None:
+        args.append(f"--{name}={value}")
