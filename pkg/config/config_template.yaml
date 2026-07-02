@@ -2714,19 +2714,19 @@ api_key:
 #     metric_names: []
 
 #   # @param monitor - custom object - optional
-#   # Configure a DogStatsD metric monitor for lookback egress.
+#   # Configure a metric lookback monitor for egress.
 #
 #   monitor:
 
 #     # @param enabled - boolean - optional - default: false
 #     # @env DD_METRIC_LOOKBACK_MONITOR_ENABLED - boolean - optional - default: false
-#     # Enable the DogStatsD lookback monitor.
+#     # Enable the metric lookback monitor.
 #
 #     enabled: false
 
 #     # @param metric_name - string - optional - default: ""
 #     # @env DD_METRIC_LOOKBACK_MONITOR_METRIC_NAME - string - optional - default: ""
-#     # Exact DogStatsD metric name watched by the monitor.
+#     # Exact metric name watched by the monitor.
 #
 #     metric_name: ""
 
