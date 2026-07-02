@@ -297,30 +297,55 @@ func findGoFuncEnd(data []byte, version HeaderVersion) int {
 	return findGoFuncEnd120(data)
 }
 
+// findGoFuncInModuleData loops over fields in moduleData (following 8-byte alignment) to find exact goFunc pointer from
+// address range between the end of functab and the end of pclntab
+func findGoFuncInModuleData(moduleData []byte, minGoFunc, maxGoFunc uint64) (uint64, bool) {
+	goFuncVal := maxGoFunc
+	for off := 0; off+ptrSize <= len(moduleData); off += ptrSize {
+		w := binary.NativeEndian.Uint64(moduleData[off:])
+		if w < minGoFunc || w >= maxGoFunc {
+			continue
+		}
+		// minGoFunc is the smallest pointer value goFunc can be (no alignment padding)
+		if w == minGoFunc {
+			return w, true
+		}
+		if w < goFuncVal {
+			goFuncVal = w
+		}
+	}
+	return goFuncVal, goFuncVal != maxGoFunc
+}
+
 func findGoFuncVal(ef *pfelf.File, goPCLnTabInfo *GoPCLnTabInfo, runtimeFirstModuleDataSymbolValue libpf.SymbolValue) (uint64, error) {
 	if goPCLnTabInfo.Version < ver118 {
 		return 0, fmt.Errorf("unsupported pclntab version: %v", goPCLnTabInfo.Version.String())
 	}
 
 	// in go 1.26+, moduledata has its own section
-	if ef.Section(".go.module") != nil {
-		// funcdata (beginning of go:func.*) is now in pclntab, right after functab so goFunc is simply Address +
-		// funcTabEndOffset() (https://go.dev/doc/go1.26#compiler)
-		// this avoids moduledata gofunc offsets for recent versions that can change between releases (e.g. Go 1.27).
-		off := goPCLnTabInfo.funcTabEndOffset()
-		if off <= 0 {
-			return 0, fmt.Errorf("could not compute functab end offset")
-		}
-
-		return goPCLnTabInfo.Address + uint64(off), nil
-	}
-
-	// Before Go 1.26, goFunc is a separate region located via the gofunc pointer in moduledata. Its offset is frozen
-	// for those released versions.
 	moduleData, _, err := FindModuleData(ef, goPCLnTabInfo, runtimeFirstModuleDataSymbolValue)
 	if err != nil {
 		return 0, fmt.Errorf("could not find module data: %w", err)
 	}
+
+	if ef.Section(".go.module") != nil {
+		// funcdata (beginning of go:func.*) is now in pclntab, right after functab. it is aligned independently of
+		// functab, so its address is not always pclntab.Address + funcTabEndOffset() and requires us to scan moduleData
+		// with the possible address range to determine exact pointer value (https://go.dev/doc/go1.26#compiler)
+		off := goPCLnTabInfo.funcTabEndOffset()
+		if off <= 0 {
+			return 0, errors.New("could not compute functab end offset")
+		}
+		minGoFunc := goPCLnTabInfo.Address + uint64(off)
+		maxGoFunc := goPCLnTabInfo.Address + uint64(len(goPCLnTabInfo.Data))
+		if goFuncVal, ok := findGoFuncInModuleData(moduleData, minGoFunc, maxGoFunc); ok {
+			return goFuncVal, nil
+		}
+		return 0, errors.New("could not locate gofunc in moduledata")
+	}
+
+	// Before Go 1.26, goFunc is a separate region located via the gofunc pointer in moduledata. Its offset is frozen
+	// for those released versions.
 	goFuncOff := uint32(40 * ptrSize) // Go 1.20-1.25
 	if goPCLnTabInfo.Version < ver120 {
 		goFuncOff = 38 * ptrSize // Go 1.18-1.19
