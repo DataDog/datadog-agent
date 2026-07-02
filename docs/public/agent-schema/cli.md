@@ -48,7 +48,7 @@ The command:
 
 Validate the schema against the schema quality rules and exit
 non-zero on any violation. This is the check enforced in CI
-(`lint_config_schema`).
+(`generate_config_schema-linux`).
 
 ```bash
 dda inv schema.lint

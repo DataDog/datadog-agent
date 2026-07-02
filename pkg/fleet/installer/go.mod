@@ -16,7 +16,7 @@ require (
 	github.com/google/go-containerregistry v0.21.7
 	github.com/google/uuid v1.6.0
 	github.com/itchyny/gojq v0.12.19
-	github.com/shirou/gopsutil/v4 v4.26.5
+	github.com/shirou/gopsutil/v4 v4.26.6
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.5.0
@@ -93,8 +93,6 @@ replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../confi
 replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../config/structure
-
-replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../config/viperconfig
 
 replace github.com/DataDog/datadog-agent/pkg/fips => ../../fips
 
