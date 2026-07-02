@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1877,4 +1878,224 @@ collect_physical_metrics: true
 			m.AssertNotCalled(t, "Gauge", "system.disk.physical_total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 		})
 	}
+}
+
+// =============================================================================
+// Concurrency Guardrails Tests
+// =============================================================================
+
+func TestGivenADiskCheckWithBlockingMount_WhenTimeoutOccurs_ThenErrorIsReturned(t *testing.T) {
+	// This test verifies that disk usage calls timeout after the configured duration
+	// when the underlying syscall blocks (simulating a wedged remote mount).
+	setupDefaultMocks()
+	mockClock := clock.NewMock()
+	afterCalled := make(chan time.Time, 1)
+	testClock := &signalClock{
+		Clock:       mockClock,
+		afterCalled: afterCalled,
+	}
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithClock(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
+		// Block forever by waiting on a channel that never receives.
+		select {}
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/mnt/nfs",
+				Fstype:     "nfs",
+				Opts:       []string{"rw"},
+			}}, nil
+	}), testClock)
+
+	config := integration.Data([]byte(`
+timeout: 5
+`))
+	configureCheck(t, diskCheck, config, nil)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- diskCheck.Run()
+	}()
+
+	<-afterCalled
+	mockClock.Add(6 * time.Second)
+
+	select {
+	case err := <-done:
+		assert.Nil(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("Test timed out waiting for check to complete")
+	}
+}
+
+func TestGivenADiskCheckWithSameMountBlocking_WhenCalledTwice_ThenSecondCallIsSkipped(t *testing.T) {
+	// This test verifies that repeated calls for the same mountpoint are skipped
+	// when a previous call is still inflight (blocked in kernel).
+	setupDefaultMocks()
+	mockClock := clock.NewMock()
+	afterCalled := make(chan time.Time, 1)
+	testClock := &signalClock{
+		Clock:       mockClock,
+		afterCalled: afterCalled,
+	}
+
+	var callCount int32
+	callStarted := make(chan struct{}, 1)
+
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
+		atomic.AddInt32(&callCount, 1)
+		callStarted <- struct{}{}
+		select {}
+	})
+
+	diskCheck = diskv2.WithClock(diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/mnt/wedged_nfs",
+				Fstype:     "nfs",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	}), testClock)
+
+	config := integration.Data([]byte(`
+timeout: 1
+`))
+	configureCheck(t, diskCheck, config, nil)
+
+	done1 := make(chan struct{})
+	go func() {
+		diskCheck.Run() //nolint:errcheck
+		close(done1)
+	}()
+
+	<-callStarted
+	<-afterCalled
+	mockClock.Add(2 * time.Second)
+
+	select {
+	case <-done1:
+	case <-time.After(5 * time.Second):
+		t.Fatal("First run timed out")
+	}
+
+	err := diskCheck.Run()
+	assert.Nil(t, err)
+
+	assert.Equal(t, int32(1), atomic.LoadInt32(&callCount),
+		"Should only have one actual diskUsage call despite two check runs")
+}
+
+func TestGivenADiskCheckWithMultipleBlockingMounts_WhenSemaphoreExhausted_ThenNewCallsAreSkipped(t *testing.T) {
+	// This test verifies that the global limiter caps concurrent diskUsage calls.
+	setupDefaultMocks()
+	mockClock := clock.NewMock()
+	afterCalled := make(chan time.Time, 2)
+	testClock := &signalClock{
+		Clock:       mockClock,
+		afterCalled: afterCalled,
+	}
+
+	var callCount int32
+	callStarted := make(chan struct{}, 2)
+
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithClock(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
+		atomic.AddInt32(&callCount, 1)
+		callStarted <- struct{}{}
+		select {}
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "nfsserver:/one",
+				Mountpoint: "/mnt/wedged_nfs_1",
+				Fstype:     "nfs",
+				Opts:       []string{"rw"},
+			},
+			{
+				Device:     "nfsserver:/two",
+				Mountpoint: "/mnt/wedged_nfs_2",
+				Fstype:     "nfs",
+				Opts:       []string{"rw"},
+			},
+			{
+				Device:     "nfsserver:/three",
+				Mountpoint: "/mnt/wedged_nfs_3",
+				Fstype:     "nfs",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	}), testClock)
+
+	config := integration.Data([]byte(`
+timeout: 1
+max_inflight_usage: 2
+`))
+	configureCheck(t, diskCheck, config, nil)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- diskCheck.Run()
+	}()
+
+	for i := 0; i < 2; i++ {
+		<-callStarted
+		<-afterCalled
+		mockClock.Add(2 * time.Second)
+	}
+
+	select {
+	case err := <-done:
+		assert.Nil(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test timed out waiting for check to complete")
+	}
+
+	assert.Equal(t, int32(2), atomic.LoadInt32(&callCount),
+		"Should only start disk usage calls up to max_inflight_usage")
+}
+
+func TestGivenADiskCheckWithFastDiskUsage_WhenCalledMultipleTimes_ThenAllCallsSucceed(t *testing.T) {
+	// This test verifies normal operation when diskUsage returns promptly.
+	// The inflight tracking should be properly cleared between calls.
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+
+	var callCount int32
+
+	diskCheck = diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		atomic.AddInt32(&callCount, 1)
+		return &gopsutil_disk.UsageStat{
+			Path:        path,
+			Fstype:      "ext4",
+			Total:       100000000,
+			Free:        50000000,
+			Used:        50000000,
+			UsedPercent: 50.0,
+		}, nil
+	})
+
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+
+	configureCheck(t, diskCheck, nil, nil)
+
+	for i := 0; i < 3; i++ {
+		err := diskCheck.Run()
+		assert.Nil(t, err, "Run %d should succeed", i+1)
+	}
+
+	assert.Equal(t, int32(3), atomic.LoadInt32(&callCount),
+		"All three check runs should have made diskUsage calls")
 }
