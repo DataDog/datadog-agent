@@ -10,6 +10,8 @@
 // passed to data pipelines without adding significant overhead.
 package observer
 
+import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+
 // team: q-branch
 
 // Component is the central observer that receives data via handles.
@@ -30,6 +32,9 @@ type Component interface {
 	// SubscribeScorer registers a scorer event listener described by cfg.
 	// cfg.Listener is called synchronously on the data clock for every severity
 	// transition that matches cfg.Filter. The zero-value filter delivers all
-	// transitions. Returns an unsubscribe function; call it to stop delivery.
-	SubscribeScorer(cfg AnomalyScorerConfiguration) func()
+	// transitions. If the current severity level is already known, an initial
+	// synthetic event reflecting it is delivered immediately (see
+	// severityeventsdef.Subscriber for details). Returns an unsubscribe
+	// function; call it to stop delivery.
+	SubscribeScorer(cfg severityeventsdef.SeverityEventsConfiguration) func()
 }

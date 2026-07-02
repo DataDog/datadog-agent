@@ -15,6 +15,9 @@ Handle → Storage → Detect → Correlate → Report
 ```
 comp/anomalydetection/
   internal/logsfilter/     ← shared severity bucketing + rate limiting
+  severityevents/
+    def/                 ← Subscriber contract + severity event types (own go.mod)
+    impl/                ← Dispatcher: push subscriptions, cooldown, filtering
   observer/
     def/                 ← public interfaces (own go.mod)
     fx/                  ← production Fx wiring (python build tag)
@@ -90,6 +93,26 @@ Both paths share filtering primitives from `internal/logsfilter/`.
 Metrics with the `datadog.*` prefix are normalized as internal agent telemetry
 and dropped before they reach observer storage.
 
+## Severity Events (Scorer Push Contract)
+
+`severityevents/def` defines the `Subscriber` interface (`SubscribeScorer(cfg) func()`)
+and the `SeverityEvent`/`SeverityLevel`/`SeverityEventsConfiguration` types shared by
+any consumer of anomaly scorer severity transitions. `severityevents/impl.Dispatcher`
+is the concrete implementation: it owns push subscriptions, per-subscription cooldown
+and filtering, and delivery. The anomaly scorer (`observer/impl/anomaly_scorer.go`)
+only derives the raw EWMA-based severity level per second and feeds it into a
+`Dispatcher` instance it owns — it does not implement subscription logic itself.
+
+A subscription added mid-stream (after the dispatcher already knows the current
+level) is delivered a synthetic initial event (`FromLevel == ToLevel`, `Direction ==
+SeverityEventBoth`) synchronously before `SubscribeScorer` returns, so late
+subscribers learn the current state immediately instead of only future transitions.
+
+`observer.Component.SubscribeScorer` structurally satisfies `severityevents/def`'s
+`Subscriber` interface (same method signature), so any caller holding an
+`observer.Component` can be passed directly wherever a `Subscriber` is expected,
+without importing `observer` from the consuming side.
+
 ## Reporter Model
 
 Reporters register through the `anomalydetection_reporters` Fx group
@@ -149,6 +172,7 @@ Per-source log rate limits and min severity live under
 
 ```bash
 dda inv test --targets=./comp/anomalydetection/observer/...
+dda inv test --targets=./comp/anomalydetection/severityevents/...
 dda inv test --targets=./comp/anomalydetection/reporter/impl/
 dda inv test --targets=./comp/anomalydetection/logssource/impl/
 ```
