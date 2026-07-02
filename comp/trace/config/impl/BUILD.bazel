@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//tasks:build_tags.bzl", "COMMON_TAGS", "TRACE_AGENT_TAGS")
 
 go_library(
@@ -107,11 +108,7 @@ go_library(
     }),
 )
 
-# config_test fails in CI because it calls a go build.
-# For now we make the test manual, so we can detect backsliding on the
-# the dependencies.  In the future, we'll have to refactor this, but
-# that should involve the trace agent team.
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "aliases_test.go",
@@ -122,7 +119,6 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":impl"],
     embedsrcs = ["testdata/stringcode.go.tmpl"],
-    gotags = sorted(["test"] + list(COMMON_TAGS) + list(TRACE_AGENT_TAGS)),
     tags = ["manual"],
     deps = [
         "//comp/core/config",

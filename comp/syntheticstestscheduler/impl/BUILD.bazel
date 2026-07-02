@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -32,7 +33,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "assertions_test.go",
@@ -41,7 +42,6 @@ go_test(
         "worker_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",

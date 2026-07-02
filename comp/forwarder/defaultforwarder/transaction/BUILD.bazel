@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "transaction",
@@ -21,14 +22,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "transaction_test",
     srcs = [
         "intake_offset_test.go",
         "transaction_test.go",
     ],
     embed = [":transaction"],
-    gotags = ["test"],
     deps = [
         "//comp/core/log/def",
         "//comp/core/log/mock",

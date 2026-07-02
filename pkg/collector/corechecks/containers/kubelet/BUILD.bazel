@@ -1,0 +1,3 @@
+#gazelle:ignore
+
+exports_files(["testdata"])
