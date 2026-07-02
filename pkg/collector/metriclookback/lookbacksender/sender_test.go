@@ -234,6 +234,17 @@ func TestSenderManagerReusesAndDestroysSendersByCheckID(t *testing.T) {
 	assert.NotSame(t, first, third)
 }
 
+func TestSenderManagerRejectsSenderForDifferentCheckID(t *testing.T) {
+	manager := NewSenderManager(context.Background(), "default-host", &recordingWriter{}, func() float64 { return 42 })
+
+	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
+	require.NoError(t, err)
+
+	err = manager.SetSender(gotSender, checkid.ID("disk:shadow"))
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "sender ID cpu:shadow does not match check ID disk:shadow")
+}
+
 func TestSenderManagerDefaultSenderAndNoopWriter(t *testing.T) {
 	manager := NewSenderManager(context.Background(), "default-host", nil, nil)
 

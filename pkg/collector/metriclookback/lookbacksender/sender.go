@@ -83,6 +83,9 @@ func (m *SenderManager) SetSender(s aggregatorsender.Sender, id checkid.ID) erro
 	if !ok {
 		return errors.New("sender must be a lookback sender")
 	}
+	if lookbackSender.id != id {
+		return errors.New("sender ID " + string(lookbackSender.id) + " does not match check ID " + string(id))
+	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
