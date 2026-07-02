@@ -6,12 +6,15 @@
 package defaultpaths
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 const (
+	// defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty
+	defaultCommonRoot = "/opt/datadog-agent"
 	// defaultRunPath is the default runtime directory for the agent
 	defaultRunPath = "/opt/datadog-agent/run"
 	// defaultConfPath points to the folder containing datadog.yaml
@@ -75,6 +78,18 @@ var (
 	// DistPath holds the path to the folder containing distribution files
 	distPath = filepath.Join(installPath, "bin", "agent", "dist")
 )
+
+func init() {
+	// Check DD_COMMON_ROOT environment variable early so that config defaults
+	// are correct when BindEnvAndSetDefault is called during config/setup init().
+	if envVal, found := os.LookupEnv("DD_COMMON_ROOT"); found {
+		if envVal == "" {
+			commonRoot = defaultCommonRoot
+		} else {
+			commonRoot = envVal
+		}
+	}
+}
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {

@@ -16,6 +16,8 @@ import (
 // FreeBSD follows BSD conventions: configuration files live under /usr/local/etc, while runtime
 // and log files match the layout used on Linux.
 const (
+	// defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty
+	defaultCommonRoot = "/opt/datadog-agent"
 	// defaultConfPath points to the folder containing datadog.yaml
 	defaultConfPath = "/usr/local/etc/datadog-agent"
 	// defaultLogPath points to the log folder that will be used if not configured
@@ -82,6 +84,18 @@ var (
 	// DistPath holds the path to the folder containing distribution files
 	distPath = filepath.Join(_here, "dist")
 )
+
+func init() {
+	// Check DD_COMMON_ROOT environment variable early so that config defaults
+	// are correct when BindEnvAndSetDefault is called during config/setup init().
+	if envVal, found := os.LookupEnv("DD_COMMON_ROOT"); found {
+		if envVal == "" {
+			commonRoot = defaultCommonRoot
+		} else {
+			commonRoot = envVal
+		}
+	}
+}
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {
