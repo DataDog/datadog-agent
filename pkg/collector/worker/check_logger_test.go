@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/core/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -39,7 +39,7 @@ func addExpvarsCheckStats(c check.Check) {
 }
 
 func setUp(cfg model.Config) {
-	cfg.SetWithoutSource(loggingFrequencyConfigKey, "20")
+	cfg.SetInTest(loggingFrequencyConfigKey, "20")
 	expvars.Reset()
 }
 

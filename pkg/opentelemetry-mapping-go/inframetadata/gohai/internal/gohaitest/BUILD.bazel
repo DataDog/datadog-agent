@@ -3,9 +3,12 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "gohaitest_test",
     srcs = ["gohai_test.go"],
+    # test invokes system utilities (e.g. ioreg on macOS) requiring the host PATH
+    env_inherit = select({
+        "@platforms//os:macos": ["PATH"],
+        "//conditions:default": None,
+    }),
     gotags = ["test"],
-    # TODO(ABLD-468): Make sysctl available in macos sandbox.
-    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/opentelemetry-mapping-go/inframetadata/gohai",
         "@com_github_datadog_gohai//cpu",

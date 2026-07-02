@@ -424,14 +424,14 @@ func TestDefaultCardinality(t *testing.T) {
 			name:                  "successful parse config values, use config",
 			wantChecksCardinality: types.HighCardinality,
 			setup: func(cfg config.Component) {
-				cfg.SetWithoutSource("checks_tag_cardinality", types.HighCardinalityString)
+				cfg.SetInTest("checks_tag_cardinality", types.HighCardinalityString)
 			},
 		},
 		{
 			name:                  "fail parse config values, use default",
 			wantChecksCardinality: types.LowCardinality,
 			setup: func(cfg config.Component) {
-				cfg.SetWithoutSource("checks_tag_cardinality", "foo")
+				cfg.SetInTest("checks_tag_cardinality", "foo")
 			},
 		},
 	} {

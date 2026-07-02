@@ -14,7 +14,7 @@ import (
 
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"

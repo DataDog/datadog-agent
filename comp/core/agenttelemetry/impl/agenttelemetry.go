@@ -12,13 +12,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/exp/maps"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	dto "github.com/prometheus/client_model/go"
@@ -76,6 +77,13 @@ type Provides struct {
 }
 
 // Interfacing with runner.
+//
+// A single job type drives both the periodic metric-profile flush and
+// the errortracking flush. The profiles slice doubles as a
+// discriminator: a nil profiles slice means "this is the errortracking
+// flush job"; a non-nil slice means "this is a metric-profile tick".
+// Threading both behaviours through the same job avoids widening the
+// runner's interface for a one-off second consumer.
 type job struct {
 	a        *atel
 	profiles []*Profile
@@ -195,9 +203,9 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 		return nil
 	}
 
-	// Special case when no aggregate tags are defined - aggregate all metrics
+	// Special case when no preserve tags are defined - aggregate all metrics
 	// aggregateMetric will sum all metrics into a single one without copying tags
-	if !mCfg.aggregateTagsExists {
+	if !mCfg.preserveTagsExists {
 		ma := &dto.Metric{}
 		for _, m := range ms {
 			aggregateMetric(mt, ma, m)
@@ -230,7 +238,7 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 			var specTags = make([]*dto.LabelPair, 0, len(origTags))
 			var sb strings.Builder
 			for _, t := range tags {
-				if _, ok := mCfg.aggregateTagsMap[t.GetName()]; ok {
+				if _, ok := mCfg.preserveTagsMap[t.GetName()]; ok {
 					specTags = append(specTags, t)
 					sb.WriteString(makeLabelPairKey(t))
 				}
@@ -275,7 +283,7 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 	}
 
 	// Convert the map to a slice
-	return maps.Values(amMap)
+	return slices.Collect(maps.Values(amMap))
 }
 
 // Using Prometheus  terminology. Metrics name or in "Prom" MetricFamily is technically a Datadog metrics.
@@ -393,8 +401,8 @@ func isMetricFiltered(p *Profile, mCfg *MetricConfig, mt dto.MetricType, m *dto.
 		return false
 	}
 
-	// filter out if tag does not contain in existing aggregateTags
-	if mCfg.aggregateTagsExists && !areTagsMatching(m.GetLabel(), mCfg.aggregateTagsMap) {
+	// filter out if tag does not contain in existing preserveTags
+	if mCfg.preserveTagsExists && !areTagsMatching(m.GetLabel(), mCfg.preserveTagsMap) {
 		return false
 	}
 
@@ -449,6 +457,38 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 	}
 }
 
+// coalesceMetricFamilies merges compatible metric families with the same name.
+//
+// The regular and default telemetry registries are gathered separately. Coalescing lets profile aggregation see all
+// time series together instead of later payload writes overwriting earlier ones in the sender's metric map.
+func coalesceMetricFamilies(pms []*telemetry.MetricFamily) []*telemetry.MetricFamily {
+	mergedByName := make(map[string]*telemetry.MetricFamily, len(pms))
+	merged := make([]*telemetry.MetricFamily, 0, len(pms))
+
+	for _, pm := range pms {
+		if pm == nil || pm.Name == nil || pm.Type == nil {
+			merged = append(merged, pm)
+			continue
+		}
+
+		name := pm.GetName()
+		existing := mergedByName[name]
+		if existing == nil {
+			mergedByName[name] = pm
+			merged = append(merged, pm)
+			continue
+		}
+		if existing.GetType() != pm.GetType() {
+			merged = append(merged, pm)
+			continue
+		}
+
+		existing.Metric = append(existing.Metric, pm.Metric...)
+	}
+
+	return merged
+}
+
 func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.MetricFamily, p *Profile) {
 	// If no metrics are configured nothing to report
 	if len(p.metricsMap) == 0 {
@@ -494,6 +534,8 @@ func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 		// Not a fatal error, just log it
 		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
 	}
+
+	pms = coalesceMetricFamilies(pms)
 
 	// All metrics stored in the "pms" slice above must follow the format:
 	//    <subsystem>__<metric_name>
@@ -600,6 +642,10 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 	return nil
 }
 
+// SubmitErrorLog is a no-op in stack-2; the actual channel send and
+// flush machinery lives in stack-3 (wiring).
+func (a *atel) SubmitErrorLog(_ errortracking.ErrorLog) {}
+
 func (a *atel) StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context) {
 	if a.lightTracer != nil {
 		return installertelemetry.StartSpanFromContext(a.cancelCtx, operationName)
@@ -660,7 +706,6 @@ func (a *atel) stop() error {
 	runnerCtx := a.runner.stop()
 	<-runnerCtx.Done()
 
-	<-a.cancelCtx.Done()
 	a.logComp.Info("Agent telemetry is stopped")
 	return nil
 }

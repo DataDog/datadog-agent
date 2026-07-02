@@ -2,6 +2,7 @@
 name: run-jira
 description: Fetch a Jira issue and propose an implementation plan based on codebase analysis
 argument-hint: "<JIRA-KEY e.g. ACTP-1234>"
+model: sonnet
 ---
 
 Fetch the Jira issue **$ARGUMENTS** from the Datadog Atlassian instance and use it as the basis for a codebase analysis and implementation proposal.

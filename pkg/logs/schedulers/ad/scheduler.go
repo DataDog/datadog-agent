@@ -12,7 +12,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -37,10 +37,18 @@ type Scheduler struct {
 
 var _ schedulers.Scheduler = &Scheduler{}
 
-// New creates a new scheduler.
+// New creates a new scheduler with the default name ("logs-agent AD scheduler").
+// Use NewNamed to create a scheduler with a custom name.
 func New(ac autodiscovery.Component) schedulers.Scheduler {
+	return NewNamed(ac, "logs-agent AD scheduler")
+}
+
+// NewNamed creates a new scheduler with the given name.
+// The name must be unique within autodiscovery — registering two schedulers
+// with the same name causes the second to silently replace the first.
+func NewNamed(ac autodiscovery.Component, name string) schedulers.Scheduler {
 	sch := &Scheduler{}
-	sch.listener = adlistener.NewADListener("logs-agent AD scheduler", ac, sch.Schedule, sch.Unschedule)
+	sch.listener = adlistener.NewADListener(name, ac, sch.Schedule, sch.Unschedule)
 	return sch
 }
 
@@ -199,8 +207,8 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	case names.File:
 		// config defined in a file
 		configs, err = logsConfig.ParseYAML(config.LogsConfig)
-	case names.Container, names.Kubernetes, names.KubeContainer, names.ProcessLog:
-		// config attached to a container label or a pod annotation
+	case names.Container, names.Kubernetes, names.KubeContainer, names.ProcessLog, names.InstrumentationChecks:
+		// config attached to a container label, a pod annotation, or an instrumentation check
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	case names.RemoteConfig:
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
@@ -209,10 +217,6 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		} else {
 			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
 		}
-	case names.DataStreamsLiveMessages:
-		// Live messages provides a default (Json) logs config for the kafka_consumer integration when there is no config.
-		// However, if there is already a logs config, live messages will not override it, so it can be a yaml config in this case.
-		configs, err = logsConfig.ParseJSONOrYAML(config.LogsConfig)
 	default:
 		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)
@@ -262,8 +266,8 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType || cfg.Type == logsConfig.IntegrationType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType || config.Provider == names.ProcessLog || config.Provider == names.DataStreamsLiveMessages) {
-				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
+			if preservesExplicitLogType(config.Provider, cfg.Type) {
+				// cfg.Type is not overwritten as tailing a file from a Docker, Kubernetes, or DDI AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
 			} else {
@@ -289,6 +293,21 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	}
 
 	return sources, nil
+}
+
+func preservesExplicitLogType(provider, logType string) bool {
+	switch logType {
+	case logsConfig.FileType, logsConfig.TCPType, logsConfig.UDPType, logsConfig.IntegrationType:
+	default:
+		return false
+	}
+
+	switch provider {
+	case names.Kubernetes, names.Container, names.KubeContainer, logsConfig.FileType, names.ProcessLog, names.InstrumentationChecks:
+		return true
+	default:
+		return false
+	}
 }
 
 // toService creates a new service for an integrationConfig.

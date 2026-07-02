@@ -15,7 +15,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
@@ -141,6 +141,12 @@ func (c *WorkloadTagCache) GetOrCreateWorkloadTags(workloadID workloadmeta.Entit
 	cacheEntry.stale = false
 
 	return tags, err
+}
+
+// SetContainerProvider sets the container provider after construction.
+func (c *WorkloadTagCache) SetContainerProvider(p proccontainers.ContainerProvider) {
+	c.containerProvider = p
+	c.pidToCid = nil
 }
 
 // MarkStale marks all entries in the cache as stale. That way, on the next calls to GetWorkloadTags, we will
@@ -313,4 +319,37 @@ func (c *WorkloadTagCache) getContainerID(pid int32) (string, error) {
 
 func (c *WorkloadTagCache) onLRUEvicted(workloadID workloadmeta.EntityID, _ *workloadTagCacheEntry) {
 	c.telemetry.cacheEvictions.Inc(string(workloadID.Kind))
+}
+
+// NewWorkloadTagCacheWithSubsystem creates a WorkloadTagCache that registers
+// its telemetry counters under "<subsystemPrefix>__workload_tag_cache". The
+// prefix must be unique per cache instance in the agent process.
+func NewWorkloadTagCacheWithSubsystem(subsystemPrefix string, tagger tagger.Component, wmeta workloadmeta.Component, containerProvider proccontainers.ContainerProvider, tm telemetry.Component, cacheSize int) (*WorkloadTagCache, error) {
+	c := &WorkloadTagCache{
+		tagger:            tagger,
+		wmeta:             wmeta,
+		containerProvider: containerProvider,
+		telemetry:         newWorkloadTagCacheTelemetryWithSubsystem(subsystemPrefix, tm),
+	}
+
+	var err error
+	c.cache, err = simplelru.NewLRU(cacheSize, c.onLRUEvicted)
+	if err != nil {
+		return nil, fmt.Errorf("error creating LRU cache: %w", err)
+	}
+
+	return c, nil
+}
+
+func newWorkloadTagCacheTelemetryWithSubsystem(subsystemPrefix string, tm telemetry.Component) *workloadTagCacheTelemetry {
+	subsystem := subsystemPrefix + "__workload_tag_cache"
+	return &workloadTagCacheTelemetry{
+		cacheHits:        tm.NewCounter(subsystem, "hits", []string{"entity_kind"}, "Number of cache hits"),
+		cacheMisses:      tm.NewCounter(subsystem, "misses", []string{"entity_kind"}, "Number of cache misses"),
+		cacheEvictions:   tm.NewCounter(subsystem, "evictions", []string{"entity_kind"}, "Number of cache evictions"),
+		staleEntriesUsed: tm.NewCounter(subsystem, "stale_entries_used", []string{"entity_kind"}, "Number of stale cache used"),
+		cacheSize:        tm.NewGauge(subsystem, "size", []string{}, "Cache size"),
+		buildErrors:      tm.NewCounter(subsystem, "build_errors", []string{"entity_kind"}, "Number of errors building workload tags"),
+		processFallbacks: tm.NewCounter(subsystem, "process_fallbacks", []string{}, "Counter with the number of times we had to fall back to getting process data directly, instead of through workloadmeta"),
+	}
 }

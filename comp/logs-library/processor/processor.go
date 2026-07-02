@@ -12,12 +12,12 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -280,7 +280,16 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
-
+		case config.RemapSource:
+			for _, match := range rule.Matching {
+				if val, ok := msg.GetStructuredAttribute(match.Attribute); ok && val == match.Value {
+					if msg.Origin != nil {
+						msg.Origin.SetMappedSource(match.NewSource)
+					}
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+					break
+				}
+			}
 		}
 	}
 

@@ -1,5 +1,6 @@
 ---
-globs: "**/*.allium"
+paths:
+  - "**/*.allium"
 ---
 
 # Allium language

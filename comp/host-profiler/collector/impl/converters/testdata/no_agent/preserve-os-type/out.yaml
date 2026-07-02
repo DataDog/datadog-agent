@@ -1,0 +1,42 @@
+exporters:
+    otlp_http:
+        compression: zstd
+        headers:
+            dd-api-key: test-key
+            dd-evp-origin: host-profiler-standalone
+            dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
+processors:
+    ddhostname/dd-autoconfigured: {}
+    resource/dd-profiler-internal-metadata:
+        attributes:
+            - action: upsert
+              key: telemetry.distro.name
+              value: host-profiler-standalone
+            - action: upsert
+              key: telemetry.distro.version
+              value: 7.0.0-test
+    resourcedetection:
+        detectors:
+            - system
+        system:
+            resource_attributes:
+                host.arch:
+                    enabled: true
+                os.type:
+                    enabled: true
+receivers:
+    profiling:
+        symbol_uploader:
+            enabled: false
+service:
+    pipelines:
+        profiles:
+            exporters:
+                - otlp_http
+            processors:
+                - resourcedetection
+                - ddhostname/dd-autoconfigured
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - profiling

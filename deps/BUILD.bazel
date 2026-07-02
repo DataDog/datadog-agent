@@ -1,3 +1,17 @@
 # Top level of dependencies originating outside this source repository.
+load("@rules_python//python:pip.bzl", "compile_pip_requirements")
 
 package(default_visibility = ["//visibility:private"])
+
+compile_pip_requirements(
+    name = "py_dev_requirements",
+    src = "py_dev_requirements.txt",
+    requirements_txt = "py_dev_requirements_lock.txt",
+)
+
+compile_pip_requirements(
+    name = "py_agent_integrations_tool_requirements",
+    src = "py_agent_integrations_tool_requirements.txt",
+    extra_args = ["--no-annotate"],  # Avoids discrepancies between windows and other lockfiles
+    requirements_txt = "py_agent_integrations_tool_requirements_lock.txt",
+)

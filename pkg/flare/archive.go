@@ -29,12 +29,12 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	rcflare "github.com/DataDog/datadog-agent/pkg/config/remote/flare"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
@@ -73,7 +73,12 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(remote.provideExtraFiles),
 		flaretypes.NewFiller(provideSystemProbe),
 		flaretypes.NewFiller(remote.provideConfigDump),
-		flaretypes.NewFiller(remote.provideRemoteConfig),
+		flaretypes.NewFiller(func(_ context.Context, fb flaretypes.FlareBuilder) error {
+			if !fb.IsLocal() {
+				return nil
+			}
+			return rcflare.CopyRemoteConfigDB(fb, pkgconfigsetup.Datadog().GetString("run_path"))
+		}),
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
 		flaretypes.NewFiller(getWindowsData),
@@ -84,12 +89,8 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideRuntimeDebugInfo),
 	}
 
-	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
-
 	for filename, fromFunc := range map[string]func() ([]byte, error){
 		"envvars.log":                         common.GetEnvVars,
-		"health.yaml":                         getHealth,
-		"telemetry.log":                       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
 		"connectivity/resolved_endpoints.txt": getEndpointDNS,
 	} {
 		providers = append(providers, flaretypes.NewFiller(
@@ -186,15 +187,6 @@ func provideAuthTokenPerm(_ context.Context, fb flaretypes.FlareBuilder) error {
 
 func provideInstallInfo(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.CopyFileTo(installinfo.GetFilePath(pkgconfigsetup.Datadog()), "install_info.log") //nolint:errcheck
-	return nil
-}
-
-func (r *RemoteFlareProvider) provideRemoteConfig(ctx context.Context, fb flaretypes.FlareBuilder) error {
-	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
-		if err := r.exportRemoteConfig(ctx, fb); err != nil {
-			log.Errorf("Could not export remote-config state: %s", err)
-		}
-	}
 	return nil
 }
 
@@ -419,19 +411,6 @@ func (r *RemoteFlareProvider) GetWorkloadList(url string) ([]byte, error) {
 		return nil
 	}
 	return functionOutputToBytes(fct), nil
-}
-
-func getHealth() ([]byte, error) {
-	s := health.GetReady()
-	sort.Strings(s.Healthy)
-	sort.Strings(s.Unhealthy)
-
-	yamlValue, err := yaml.Marshal(s)
-	if err != nil {
-		return nil, err
-	}
-
-	return yamlValue, nil
 }
 
 func getECSMeta() ([]byte, error) {

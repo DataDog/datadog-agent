@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
@@ -92,6 +92,89 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	s.Require().Equal(configSDDLBeforeExperiment, perms.SDDL, "config dir permissions should not have changed")
 }
 
+// TestApplicationMonitoringGlobalRead verifies that application_monitoring.yaml written via a
+// config experiment grants global (Everyone) read access, so non-admin identities such as an
+// IIS App Pool identity can read fleet/stable config. See WINA-2854.
+func (s *testAgentConfigSuite) TestApplicationMonitoringGlobalRead() {
+	appMonitoringPath := windowsagent.DefaultConfigRoot + `\application_monitoring.yaml`
+
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+
+	// Act
+	config := ConfigExperiment{
+		ID: "config-1",
+		Files: []ConfigExperimentFile{
+			{
+				Path:     "/application_monitoring.yaml",
+				Contents: json.RawMessage(`{"apm_configuration_default": {"DD_TRACE_DEBUG": "true"}}`),
+			},
+		},
+	}
+
+	// Assert the file is globally readable both while the experiment is running and after it is
+	// promoted to stable.
+	s.mustStartConfigExperiment(config)
+	s.Require().Host(s.Env().RemoteHost).
+		HasGlobalReadAccess(appMonitoringPath)
+
+	s.mustPromoteConfigExperiment(config)
+	s.Require().Host(s.Env().RemoteHost).
+		HasGlobalReadAccess(appMonitoringPath)
+}
+
+// TestApplicationMonitoringGlobalReadAfterRollback verifies that application_monitoring.yaml
+// keeps global (Everyone) read access after a config experiment rollback restores it from backup.
+func (s *testAgentConfigSuite) TestApplicationMonitoringGlobalReadAfterRollback() {
+	appMonitoringPath := windowsagent.DefaultConfigRoot + `\application_monitoring.yaml`
+
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+
+	stableConfig := ConfigExperiment{
+		ID: "application-monitoring-stable",
+		Files: []ConfigExperimentFile{
+			{
+				Path:     "/application_monitoring.yaml",
+				Contents: json.RawMessage(`{"apm_configuration_default": {"DD_TRACE_DEBUG": "true"}}`),
+			},
+		},
+	}
+	s.mustStartConfigExperiment(stableConfig)
+	s.mustPromoteConfigExperiment(stableConfig)
+	s.Require().Host(s.Env().RemoteHost).
+		HasGlobalReadAccess(appMonitoringPath)
+
+	// Act: delete the stable file as an experiment, then stop the experiment to restore it
+	// through the Windows robocopy rollback path.
+	deleteConfig := ConfigExperiment{
+		ID: "delete-application-monitoring",
+		Files: []ConfigExperimentFile{
+			{
+				Path:          "/application_monitoring.yaml",
+				FileOperation: "delete",
+			},
+		},
+	}
+	s.mustStartConfigExperiment(deleteConfig)
+	s.Require().Host(s.Env().RemoteHost).
+		NoFileExists(appMonitoringPath)
+
+	s.WaitForDaemonToStop(func() {
+		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should respond to request")
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
+	s.AssertSuccessfulConfigStopExperiment()
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasGlobalReadAccess(appMonitoringPath)
+}
+
 // TestConfigUpgradeFailure tests that the Agent's config can be rolled back
 // through the experiment (start/promote) workflow.
 func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
@@ -150,8 +233,8 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should stop cleanly")
-		s.AssertSuccessfulConfigStopExperiment()
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
+	s.AssertSuccessfulConfigStopExperiment()
 
 	// assert that the config dir permissions have not changed
 	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
@@ -264,8 +347,8 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should respond to request")
-		s.AssertSuccessfulConfigStopExperiment()
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
+	s.AssertSuccessfulConfigStopExperiment()
 }
 
 // TestRevertsConfigExperimentWhenTimeout tests that the watchdog will revert
@@ -310,8 +393,8 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should respond to request")
-		s.AssertSuccessfulConfigStopExperiment()
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
+	s.AssertSuccessfulConfigStopExperiment()
 }
 
 // TestManagedConfigActiveAfterUpgrade tests that the Agent's config is preserved after a package update.

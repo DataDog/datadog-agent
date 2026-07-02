@@ -10,7 +10,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	processdiscoverycheck "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -36,8 +36,8 @@ type Provides struct {
 	Component processdiscoverycheck.Component
 }
 
-// NewCheck creates a new processdiscoverycheck component.
-func NewCheck(deps dependencies) Provides {
+// NewComponent creates a new processdiscoverycheck component.
+func NewComponent(deps dependencies) Provides {
 	c := &check{
 		processDiscoveryCheck: checks.NewProcessDiscoveryCheck(deps.Config, deps.Sysconfig),
 	}

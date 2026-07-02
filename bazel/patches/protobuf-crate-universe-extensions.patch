@@ -1,0 +1,10 @@
+diff --git a/MODULE.bazel b/MODULE.bazel
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -195,5 +195,5 @@ rust.toolchain(
+ )
+ 
+-crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
++crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate", dev_dependency = True)
+ crate.spec(
+     package = "googletest",

@@ -14,13 +14,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // createFakeSPLiteBinary creates a fake system-probe-lite binary next to the
@@ -38,10 +36,7 @@ func createFakeSPLiteBinary(t *testing.T) string {
 // newMockSysprobeConfig creates a sysprobeconfig mock with overrides applied
 // before the config is loaded, so SysProbeObject() reflects them.
 func newMockSysprobeConfig(t *testing.T, overrides map[string]interface{}) sysprobeconfig.Component {
-	return fxutil.Test[sysprobeconfig.Component](t,
-		sysprobeconfigimpl.MockModule(),
-		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: overrides}),
-	)
+	return sysprobeconfigmock.NewMockWithOverrides(t, overrides)
 }
 
 func TestMaybeSPLite(t *testing.T) {

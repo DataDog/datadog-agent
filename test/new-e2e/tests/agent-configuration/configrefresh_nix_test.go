@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
@@ -66,7 +65,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-			agentparams.WithSystemProbeConfig("network_config:\n  enabled: true"),
+			agentparams.WithSystemProbeConfig("network_config:\n  enabled: true\n  direct_send: false"),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 		)),
 		awshost.WithRunOptions(scenec2.WithAgentClientOptions(
@@ -74,6 +73,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
 			agentclientparams.WithProcessAgentOnPort(processCmdPort),
 			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+			agentclientparams.WithWaitForDuration(3*time.Minute),
 		)),
 	))
 
@@ -84,7 +84,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
+	assertAgentsEventuallyUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
 
 	// update api_key
 	v.T().Log("Updating the api key")
@@ -97,9 +97,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
 
 	// and check that the agents are using the new key
-	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
-	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
+	assertAgentsEventuallyUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey2)
 }
 
 func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
@@ -135,7 +133,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-			agentparams.WithSystemProbeConfig("network_config:\n  enabled: true"),
+			agentparams.WithSystemProbeConfig("network_config:\n  enabled: true\n  direct_send: false"),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 		)),
 		awshost.WithRunOptions(scenec2.WithAgentClientOptions(
@@ -143,6 +141,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
 			agentclientparams.WithProcessAgentOnPort(processCmdPort),
 			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+			agentclientparams.WithWaitForDuration(3*time.Minute),
 		)),
 	))
 
@@ -153,7 +152,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
+	assertAgentsEventuallyUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
 
 	// update api_key
 	v.T().Log("Updating the api key")
@@ -166,7 +165,5 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
 
 	// and check that the agents are using the new key
-	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
-	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
+	assertAgentsEventuallyUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey2)
 }

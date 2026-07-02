@@ -7,7 +7,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
-int __attribute__((always_inline)) trace__sys_chmod(const char *path, umode_t mode) {
+int __attribute__((always_inline)) trace__sys_chmod(void *ctx, const char *path, umode_t mode) {
     if (is_discarded_by_pid() || is_auid_discarder(EVENT_CHMOD)) {
         return 0;
     }
@@ -21,25 +21,24 @@ int __attribute__((always_inline)) trace__sys_chmod(const char *path, umode_t mo
         }
     };
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1), (void *)path, (void *)&mode, NULL);
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY2(chmod, const char *, filename, umode_t, mode) {
-    return trace__sys_chmod(filename, mode);
+    return trace__sys_chmod(ctx, filename, mode);
 }
 
 HOOK_SYSCALL_ENTRY2(fchmod, int, fd, umode_t, mode) {
-    return trace__sys_chmod(NULL, mode);
+    return trace__sys_chmod(ctx, NULL, mode);
 }
 
 HOOK_SYSCALL_ENTRY3(fchmodat, int, dirfd, const char *, filename, umode_t, mode) {
-    return trace__sys_chmod(filename, mode);
+    return trace__sys_chmod(ctx, filename, mode);
 }
 
 HOOK_SYSCALL_ENTRY4(fchmodat2, int, dirfd, const char *, filename, umode_t, mode, int, flag) {
-    return trace__sys_chmod(filename, mode);
+    return trace__sys_chmod(ctx, filename, mode);
 }
 
 int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {

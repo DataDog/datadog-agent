@@ -1,0 +1,89 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.condGuarded",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "condCompound_split_unguarded_nil_deref",
+          "location": {
+            "method": "main.condGuarded"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "split_unguarded [tag=match, @return=1]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.condGuarded",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "condCompound_split_unguarded_nil_deref",
+          "location": {
+            "method": "main.condGuarded"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "split_unguarded [tag=miss, @return=99]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.condGuarded",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "condCompound_split_unguarded_nil_deref",
+          "location": {
+            "method": "main.condGuarded"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "split_unguarded [tag=nilptr, @return=0]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "standalone",
+    srcs = [
+        "doc.go",
+        "jmx.go",
+        "jmx_nojmx.go",
+        "warnings.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/cli/standalone",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agent/jmxlogger/def",
+        "//comp/api/api/def",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/ipc/def",
+        "//pkg/collector/check",
+        "//pkg/jmxfetch",
+    ],
+)

@@ -13,16 +13,17 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/utils/clock"
+	"k8s.io/client-go/tools/record"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 // TestScheduler is an alias for the unexported scheduler type, exposed for testing.
 type TestScheduler = scheduler
 
 // NewTestScheduler creates a scheduler for testing.
-func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Component, evictPod func(namespace, name string) error, dynamicClient dynamic.Interface) *TestScheduler {
+func NewTestScheduler(config Config, s sender.Sender, recorder *record.FakeRecorder, wlm workloadmeta.Component, evictPod func(namespace, name string) error, dynamicClient dynamic.Interface) *TestScheduler {
 	isLeader := func() bool {
 		return true
 	}
@@ -32,7 +33,9 @@ func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Comp
 	patcherFunc := workloadPatcherFunc(func(context.Context, objectRef, time.Time) error {
 		return nil
 	})
-	return newScheduler(config, clk, wlm, evictorFunc, patcherFunc, dynamicClient, newWLMPodLister(wlm), isLeader)
+	tel := newTelemetry(s, isLeader, testGlobalTagsFunc)
+	events := newSpotEventRecorder(recorder)
+	return newScheduler(config, wlm, evictorFunc, patcherFunc, dynamicClient, newWLMPodLister(wlm), isLeader, tel, events)
 }
 
 // HasAdmissionsOrPending reports whether the pod tracker has any in-flight admissions or pending pods
@@ -86,7 +89,7 @@ func (s *TestScheduler) IsSpotSchedulingDisabled(group, kind, namespace, name st
 	if !ok {
 		return false
 	}
-	return cfg.isDisabled(s.clock.Now())
+	return cfg.isDisabled(time.Now())
 }
 
 // HasConfig reports whether the workload has an entry in the config store.
@@ -102,6 +105,9 @@ func (s *TestScheduler) HasTrackedPods(group, kind, namespace, name string) bool
 	_, ok := s.tracker.podSets[objectRef{Group: group, Kind: kind, Namespace: namespace, Name: name}]
 	return ok
 }
+
+// SchedulerTick is the scheduler's internal tick interval, exported for tests.
+const SchedulerTick time.Duration = max(rebalanceInterval, checkOnDemandFallbackInterval)
 
 // Spot node selector and taint exported for tests.
 const (
@@ -132,3 +138,18 @@ func (f workloadPatcherFunc) setDisabledUntil(ctx context.Context, owner objectR
 
 // CoreV1PodToWLM is an alias for coreV1PodToWLM, exposed for testing.
 var CoreV1PodToWLM = coreV1PodToWLM
+
+// MetricsFlushInterval is the interval at which the telemetry metrics are flushed, exported for tests.
+const MetricsFlushInterval = metricsFlushInterval
+
+// TestClusterID is the cluster ID used in tests.
+const TestClusterID = "31415926-5358-9793-2384-626433832795"
+
+func testGlobalTagsFunc() []string {
+	return []string{
+		"orch_cluster_id:" + TestClusterID,
+		"kube_cluster_name:rubik",
+	}
+}
+
+var TestGlobalTags = testGlobalTagsFunc()

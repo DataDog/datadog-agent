@@ -103,6 +103,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 		updates := make([]*pb.ConfigUpdate, 0)
 		timeout := time.After(2 * time.Second)
 
+	loop:
 		for i := 0; i < 3; i++ {
 			select {
 			case event := <-eventChan:
@@ -111,7 +112,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 					updates = append(updates, update)
 				}
 			case <-timeout:
-				break
+				break loop
 			}
 		}
 
@@ -146,6 +147,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 		timeout := time.After(2 * time.Second)
 		typedValues := make(map[string]interface{})
 
+	loop:
 		for len(typedValues) < 4 {
 			select {
 			case event := <-eventChan:
@@ -165,7 +167,7 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 					}
 				}
 			case <-timeout:
-				break
+				break loop
 			}
 		}
 
@@ -281,7 +283,39 @@ done:
 	}
 }
 
-// newConfigStreamForTest creates a config stream for testing without lifecycle
+// TestSubscribeBlocksUntilSnapshotReady guards against Subscribe() returning before
+// the initial snapshot is buffered in the channel.
+func TestSubscribeBlocksUntilSnapshotReady(t *testing.T) {
+	cfg := configmock.New(t)
+	mockLog := logmock.New(t)
+	cs := newConfigStreamForTest(t, cfg, mockLog)
+
+	eventChan, unsubscribe := cs.Subscribe(&pb.ConfigStreamRequest{Name: "test-client"})
+	defer unsubscribe()
+
+	select {
+	case event := <-eventChan:
+		require.NotNil(t, event.GetSnapshot(), "first event after Subscribe() must be a snapshot")
+	default:
+		t.Fatal("snapshot not in channel immediately after Subscribe() returned")
+	}
+}
+
+func TestNewComponentNoError(t *testing.T) {
+	mockLog := logmock.New(t)
+	telemetryComp := telemetrynoops.GetCompatComponent()
+	cfg := configmock.New(t)
+	_, err := NewComponent(Requires{
+		Lifecycle: compdef.NewTestLifecycle(t),
+		Config:    cfg,
+		Log:       mockLog,
+		Telemetry: telemetryComp,
+	})
+	require.NoError(t, err)
+}
+
+// newConfigStreamForTest creates a config stream for testing without lifecycle.
+// It manually starts the run loop since the test lifecycle does not execute hooks.
 func newConfigStreamForTest(t *testing.T, cfg config.Component, logger log.Component) *configStream {
 	telemetryComp := telemetrynoops.GetCompatComponent()
 	reqs := Requires{
@@ -290,12 +324,12 @@ func newConfigStreamForTest(t *testing.T, cfg config.Component, logger log.Compo
 		Log:       logger,
 		Telemetry: telemetryComp,
 	}
-	provides := NewComponent(reqs)
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
 
-	// Extract the underlying configStream
-	// and start the run loop manually since lifecycle hooks are not executed
 	cs := provides.Comp.(*configStream)
 	go cs.run()
+	t.Cleanup(func() { close(cs.stopChan) })
 
 	return cs
 }
@@ -342,10 +376,11 @@ func buildComponent(t *testing.T) (Provides, *configInterceptor) {
 		Telemetry: telemetrynoops.GetCompatComponent(),
 	}
 
-	provides := NewComponent(reqs)
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
 
 	// Start the component's run loop
-	err := lc.Start(context.Background())
+	err = lc.Start(context.Background())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

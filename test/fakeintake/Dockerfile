@@ -2,7 +2,7 @@
 # syntax=docker/dockerfile:1
 ARG GO_BASE_IMAGE_REGISTRY=docker.io
 ARG ALPINE_BASE_IMAGE_REGISTRY=docker.io
-ARG GO_VERSION=1.25.9
+ARG GO_VERSION=1.26.4
 
 ## Build
 FROM ${GO_BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION} AS build
@@ -36,7 +36,7 @@ ARG CI
 RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy
-FROM ${ALPINE_BASE_IMAGE_REGISTRY}/library/alpine:3.23.3
+FROM ${ALPINE_BASE_IMAGE_REGISTRY}/library/alpine:3.24.1
 
 RUN apk add curl
 

@@ -106,7 +106,7 @@ func populateStruct(t *testing.T, v reflect.Value, path string, depth int) {
 		m.SetMapIndex(key, val)
 		v.Set(m)
 
-	case reflect.Ptr:
+	case reflect.Pointer:
 		elem := reflect.New(v.Type().Elem())
 		populateStruct(t, elem.Elem(), path, depth+1)
 		v.Set(elem)
@@ -127,7 +127,7 @@ const protoFieldHint = "\n\tEither update the proto conversion in workloadmeta/p
 func compareFields(t *testing.T, original, result reflect.Value, path string) {
 	t.Helper()
 
-	if original.Kind() == reflect.Ptr {
+	if original.Kind() == reflect.Pointer {
 		if original.IsNil() {
 			return
 		}
@@ -174,7 +174,7 @@ func compareFields(t *testing.T, original, result reflect.Value, path string) {
 		if elemType.Kind() == reflect.Slice {
 			elemType = elemType.Elem()
 		}
-		if elemType.Kind() == reflect.Ptr {
+		if elemType.Kind() == reflect.Pointer {
 			elemType = elemType.Elem()
 		}
 		if isExternalType(elemType) {
@@ -188,7 +188,7 @@ func compareFields(t *testing.T, original, result reflect.Value, path string) {
 		case reflect.Struct:
 			compareFields(t, origField, resultField, fieldPath)
 
-		case reflect.Ptr:
+		case reflect.Pointer:
 			if origField.IsNil() {
 				continue
 			}
@@ -229,7 +229,7 @@ func compareFields(t *testing.T, original, result reflect.Value, path string) {
 // definition package. External types are only checked for non-zero (we don't
 // recurse into their fields since we don't control them).
 func isExternalType(t reflect.Type) bool {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {

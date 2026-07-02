@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "systemd",
+    srcs = [
+        "dbus_conn.go",
+        "doc.go",
+        "stub.go",
+        "systemd.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/config/env",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_coreos_go_systemd_v22//dbus",
+        "@com_github_godbus_dbus_v5//:dbus",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "systemd_test",
+    srcs = ["systemd_test.go"],
+    embed = [":systemd"],
+    flavors = [
+        "base",
+        "fips",
+        "iot",
+    ],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/tagger/impl-noop",
+        "//comp/filterlist/impl",
+        "//comp/metadata/inventorychecks/mock",
+        "//pkg/aggregator",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks",
+        "//pkg/metrics/servicecheck",
+        "@com_github_coreos_go_systemd_v22//dbus",
+        "@com_github_godbus_dbus_v5//:dbus",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

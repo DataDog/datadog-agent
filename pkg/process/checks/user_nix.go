@@ -17,39 +17,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:revive // TODO(PROC) Fix revive linter
-type LookupIdProbe struct {
+// LookupIDProbe wraps user.LookupId with an optional cache.
+type LookupIDProbe struct {
 	config pkgconfigmodel.Reader
 
-	lookupIdCache *cache.Cache
-	//nolint:revive // TODO(PROC) Fix revive linter
-	lookupId func(uid string) (*user.User, error)
+	lookupIDCache *cache.Cache
+	lookupID      func(uid string) (*user.User, error)
 }
 
-// NewLookupIDProbe returns a new LookupIdProbe from the config
-func NewLookupIDProbe(coreConfig pkgconfigmodel.Reader) *LookupIdProbe {
+// NewLookupIDProbe returns a new LookupIDProbe from the config
+func NewLookupIDProbe(coreConfig pkgconfigmodel.Reader) *LookupIDProbe {
 	if coreConfig.GetBool("process_config.cache_lookupid") {
 		log.Debug("Using cached calls to `user.LookupID`")
 	}
-	return &LookupIdProbe{
+	return &LookupIDProbe{
 		// Inject global logger and config to make it easy to use components
 		config: coreConfig,
 
-		lookupIdCache: cache.New(time.Hour, time.Hour), // Used by lookupIdWithCache
-		lookupId:      user.LookupId,
+		lookupIDCache: cache.New(time.Hour, time.Hour), // Used by lookupIDWithCache
+		lookupID:      user.LookupId,
 	}
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
-func (p *LookupIdProbe) lookupIdWithCache(uid string) (*user.User, error) {
-	result, ok := p.lookupIdCache.Get(uid)
+func (p *LookupIDProbe) lookupIDWithCache(uid string) (*user.User, error) {
+	result, ok := p.lookupIDCache.Get(uid)
 	if !ok {
 		var err error
-		u, err := p.lookupId(uid)
+		u, err := p.lookupID(uid)
 		if err == nil {
-			p.lookupIdCache.SetDefault(uid, u)
+			p.lookupIDCache.SetDefault(uid, u)
 		} else {
-			p.lookupIdCache.SetDefault(uid, err)
+			p.lookupIDCache.SetDefault(uid, err)
 		}
 		return u, err
 	}
@@ -60,14 +58,14 @@ func (p *LookupIdProbe) lookupIdWithCache(uid string) (*user.User, error) {
 	case error:
 		return nil, v
 	default:
-		return nil, log.Error("Unknown value cached in lookupIdCache for uid:", uid)
+		return nil, log.Error("Unknown value cached in lookupIDCache for uid:", uid)
 	}
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
-func (p *LookupIdProbe) LookupId(uid string) (*user.User, error) {
+// LookupID returns the user.User for the given uid, using a cache if configured.
+func (p *LookupIDProbe) LookupID(uid string) (*user.User, error) {
 	if p.config.GetBool("process_config.cache_lookupid") {
-		return p.lookupIdWithCache(uid)
+		return p.lookupIDWithCache(uid)
 	}
-	return p.lookupId(uid)
+	return p.lookupID(uid)
 }

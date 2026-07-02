@@ -693,11 +693,13 @@ func (m *Manager) evictUnusedNodes() {
 	}
 }
 
+// HandleSampleRefresh is a no-op in V1
+func (m *Manager) HandleSampleRefresh(_ uint32) {}
+
 // GetNodesInProcessCache returns a map with ImageProcessKey as key and bool as value for all filepaths in the process cache
 func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]bool {
 
 	cgr := m.resolvers.CGroupResolver
-	pr := m.resolvers.ProcessResolver
 	tagsResolver := m.resolvers.TagsResolver
 
 	type imageTagKey struct {
@@ -744,7 +746,7 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 	})
 
 	// we do the resolution of filepaths here so that we can release the cgroup resolver lock before acquiring the process resolver lock
-	pr.Walk(func(pce *model.ProcessCacheEntry) {
+	m.resolvers.ProcessResolver.Walk(func(pce *model.ProcessCacheEntry) {
 		if k, ok := pidToImageTag[pce.Pid]; ok {
 			result[activity_tree.ImageProcessKey{
 				ImageName: k.imageName,

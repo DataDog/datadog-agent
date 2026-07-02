@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "lsof",
@@ -33,7 +34,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "lsof_test",
     srcs = [
         "lsof_linux_test.go",
@@ -42,7 +43,6 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":lsof"],
-    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//require",
     ] + select({
@@ -56,7 +56,6 @@ go_test(
         ],
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
-            "@org_golang_x_exp//maps",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

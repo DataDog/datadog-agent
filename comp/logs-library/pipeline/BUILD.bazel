@@ -1,0 +1,63 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pipeline",
+    srcs = [
+        "pipeline.go",
+        "processor_only_provider.go",
+        "provider.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs-library/pipeline",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/secrets/def",
+        "//comp/logs-library/client",
+        "//comp/logs-library/client/http",
+        "//comp/logs-library/diagnostic",
+        "//comp/logs-library/metrics",
+        "//comp/logs-library/processor",
+        "//comp/logs-library/sender",
+        "//comp/logs-library/sender/http",
+        "//comp/logs-library/sender/tcp",
+        "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/def",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/logs/message",
+        "//pkg/logs/status/statusinterface",
+        "//pkg/util/compression",
+        "//pkg/util/startstop",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "pipeline_test",
+    srcs = [
+        "provider_failover_integration_test.go",
+        "provider_failover_test.go",
+        "provider_test.go",
+    ],
+    embed = [":pipeline"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/noop-impl",
+        "//comp/logs-library/client",
+        "//comp/logs-library/diagnostic",
+        "//comp/logs-library/metrics",
+        "//comp/logs-library/sender",
+        "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/fx-mock",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/statusinterface",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

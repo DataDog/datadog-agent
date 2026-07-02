@@ -33,7 +33,7 @@ In order to ease/speed up our review, here are some items you can check/improve 
 - [X] The added code comes with tests.
 - [X] The CI is green, all tests are passing (required or not).
 - [X] All applicable labels are set on the PR (see [PR labels list](#pr-labels)).
-- [X] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.
+- [X] If applicable, the [config schema](https://github.com/DataDog/datadog-agent/tree/main/pkg/config/schema/yaml) has been regenerated (`dda inv schema.generate --agent-bin=./bin/agent/agent`).
 ///
 
 /// note
@@ -43,6 +43,14 @@ Adding GitHub labels is only possible for contributors with write access.
 **If your PR changes behavior, you must create or update any relevant tests.**
 
 **Your pull request must pass all CI tests before we will merge it**. If you're seeing an error and don't think it's your fault, it may not be! [Join us on Slack](https://chat.datadoghq.com) or [send us an email](mailto:support@datadoghq.com), and together we'll get it sorted out.
+
+### AI Guidance
+
+Additional review guidance (specific to AI) can be found [here](https://datadoghq.atlassian.net/wiki/x/ggCTjgE).
+
+It's encouraged that both submitters and reviewers take a look at these guidelines before contributing/reviewing.
+
+*To note, this page is currently only accessible internally. The guidelines will be codified into an in-repo tool/docs once they're ironed out.*
 
 ### Merge protection
 

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -1003,4 +1004,23 @@ func TestNormalizeSpanLinkNameV1(t *testing.T) {
 	assert.NoError(t, a.normalizeV1(ts, validLinkNameSpan))
 	linkName, _ = validLinkNameSpan.Links()[0].GetAttributeAsString("link.name")
 	assert.Equal(t, linkName, "valid_name")
+}
+
+func TestNormalizeUsesLiveRegistry(t *testing.T) {
+	// Custom registry: ConceptDDEnv maps to "x.test.env" instead of "env".
+	customJSON := `{"version":"test","metadata":{"content_hash":"hash-a"},"concepts":{"env":{"canonical":"env","fallbacks":[{"name":"x.test.env","provider":"datadog","type":"string"}]}}}`
+	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
+	require.NoError(t, err)
+	original, err := semantics.NewEmbeddedRegistry()
+	require.NoError(t, err)
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	semantics.UpdateRegistry(custom)
+
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	s := newTestSpan()
+	s.Meta["x.test.env"] = "staging"
+	require.NoError(t, a.normalize(ts, s))
+	assert.Equal(t, "staging", s.Meta["env"])
 }

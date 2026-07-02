@@ -23,8 +23,8 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -200,7 +200,7 @@ func componentStatus(cliParams *cliParams, component string, client ipc.HTTPClie
 
 	v := setIpcURL(cliParams)
 
-	endpoint, err := client.NewIPCEndpoint(fmt.Sprintf("/agent/%s/status", component))
+	endpoint, err := client.NewIPCEndpoint("/agent/status/section/" + component)
 	if err != nil {
 		return err
 	}

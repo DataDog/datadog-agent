@@ -60,6 +60,7 @@ func (t *GoTypeAttributes) GetGoKind() (reflect.Kind, bool) {
 
 var (
 	_ Type = (*BaseType)(nil)
+	_ Type = (*DurationType)(nil)
 	_ Type = (*PointerType)(nil)
 	_ Type = (*UnresolvedPointeeType)(nil)
 	_ Type = (*StructureType)(nil)
@@ -75,12 +76,20 @@ var (
 	_ Type = (*GoHMapBucketType)(nil)
 	_ Type = (*GoSwissMapHeaderType)(nil)
 	_ Type = (*GoSwissMapGroupsType)(nil)
+	_ Type = (*GoFilteredSliceType)(nil)
+	_ Type = (*GoFilteredSliceDataType)(nil)
+	_ Type = (*GoFilteredMapType)(nil)
+	_ Type = (*GoFilteredMapDataType)(nil)
+	_ Type = (*GoTimeType)(nil)
 	_ Type = (*GoChannelType)(nil)
 	_ Type = (*GoEmptyInterfaceType)(nil)
 	_ Type = (*GoInterfaceType)(nil)
 	_ Type = (*GoSubroutineType)(nil)
 
 	_ Type = (*EventRootType)(nil)
+
+	_ Type = (*GoContextImplementationType)(nil)
+	_ Type = (*DDTraceSpanType)(nil)
 )
 
 // GetID returns the ID of the type.
@@ -117,6 +126,12 @@ const (
 	// DynamicSizeHashmap corresponds to bucket slice types of hashmaps.
 	// These are given extra space due to expected fraction of empty slots.
 	DynamicSizeHashmap
+	// DynamicSizeFilterDeferred marks per-call-site filter data types whose
+	// `enqueue_pc` runs the deferred filter loop. sm_chase_pointer skips the
+	// usual serialize step for these types; the enqueue_pc itself emits the
+	// per-passing-element data items. Used only by GoFilteredSliceDataType
+	// and GoFilteredMapDataType.
+	DynamicSizeFilterDeferred
 )
 
 // TypeCommon has common fields for all types.
@@ -131,6 +146,39 @@ type TypeCommon struct {
 	ByteSize uint32
 }
 
+// GoContextAttributes describes how a concrete context.Context implementation
+// links to its parent and, for context.valueCtx, where the key and value live.
+type GoContextAttributes struct {
+	ContextOffset int32
+	KeyOffset     int32
+	ValueOffset   int32
+}
+
+const (
+	// GoContextNoOffset means the type does not contain that context field.
+	GoContextNoOffset int32 = -1
+)
+
+// DDTraceSpanKind identifies the dd-trace-go span layout carried by a type.
+type DDTraceSpanKind uint8
+
+const (
+	DDTraceSpanNone DDTraceSpanKind = iota
+	DDTraceSpanV1
+	DDTraceSpanV2
+)
+
+// DDTraceAttributes describes a dd-trace-go span layout: where to find each
+// of its trace-id / span-id / parent-id / SpanContext fields.
+type DDTraceAttributes struct {
+	SpanKind                 DDTraceSpanKind
+	TraceIDOffset            int32
+	SpanIDOffset             int32
+	ParentIDOffset           int32
+	SpanContextOffset        int32
+	SpanContextTraceIDOffset int32
+}
+
 // BaseType is a basic type in the target program.
 type BaseType struct {
 	TypeCommon
@@ -138,6 +186,48 @@ type BaseType struct {
 }
 
 func (t *BaseType) irType() {}
+
+// DurationType is a synthetic 8-byte integer type used by the synthetic
+// @duration variable. Its underlying representation is a signed int64 of
+// nanoseconds, computed at BPF evaluation time as
+// (entry_to_return_duration_ns). It renders in templates and snapshots as
+// a float of milliseconds.
+type DurationType struct {
+	TypeCommon
+	syntheticType
+}
+
+func (t *DurationType) irType() {}
+
+// ErrDurationNotOnReturn is the user-facing message used when a
+// reference to @duration appears on a probe that does not have a paired
+// return event. Both irgen (at IR construction time) and decode (when
+// the BPF program reports an absent expression status at runtime) need
+// to produce the same text, so it lives here next to DurationType.
+const ErrDurationNotOnReturn = "@duration is only available at function return"
+
+// TraceContextByteSize is the serialized size of trace_context_t in
+// ebpf/types.h. It is the byte size of payload data items of
+// TraceContextType.
+const TraceContextByteSize uint32 = 40
+
+// TraceContextType is a synthetic 40-byte type used as the type of standalone
+// data items emitted by the BPF context-chain walk. The first 40 bytes of the
+// payload are interpreted as the trace_context_t layout from ebpf/types.h:
+// trace_id_lower, trace_id_upper, span_id, parent_id (8 bytes each),
+// followed by a single valid byte and 7 padding bytes. Data items of this
+// type are produced by SM_OP_GO_CONTEXT_CHAIN_INIT/HOP at chase time when a
+// concrete context.Context implementation is dequeued. The decoder uses them
+// (a) to populate the message's top-level dd.trace_id / dd.span_id /
+// dd.parent_id fields (first valid one wins) and (b) to render any captured
+// context.Context interface field whose data pointer matches the data item's
+// address.
+type TraceContextType struct {
+	TypeCommon
+	syntheticType
+}
+
+func (t *TraceContextType) irType() {}
 
 // VoidPointerType is a type that represents a pointer to a value of an unknown type.
 // unsafe.Pointer is such a type.
@@ -215,6 +305,32 @@ type Field struct {
 	// Type is the type of the field.
 	Type Type
 }
+
+// GoContextImplementationType wraps a StructureType that is a known concrete
+// implementation of context.Context (cancelCtx, valueCtx, timerCtx, …). It
+// carries the offsets the BPF chain walk needs to traverse a context chain
+// from this struct: the embedded parent Context interface, and (for
+// context.valueCtx) the key and value any-fields. The wrapper exists to
+// avoid bloating GoTypeAttributes for every IR type with metadata that's
+// only meaningful on a tiny number of struct types.
+type GoContextImplementationType struct {
+	*StructureType
+	GoContextAttributes
+}
+
+func (t *GoContextImplementationType) irType() {}
+
+// DDTraceSpanType wraps a StructureType that carries a dd-trace-go span
+// payload. The wrapper records the span's layout (where the trace ID,
+// span ID, parent ID and SpanContext fields sit), so the BPF chain walk
+// can extract them when it finds this struct as the value of a context's
+// active-span key.
+type DDTraceSpanType struct {
+	*StructureType
+	DDTraceAttributes
+}
+
+func (t *DDTraceSpanType) irType() {}
 
 // ArrayType is an array type in the target program.
 type ArrayType struct {
@@ -360,6 +476,149 @@ type GoSwissMapGroupsType struct {
 
 func (GoSwissMapGroupsType) irType() {}
 
+// GoFilteredSliceType is the pointer-shaped, 8-byte handle stored in the
+// event-root expression slot for a filter() call whose source is a slice.
+// One unique instance is synthesized per filter() call site at irgen time.
+// It is NOT a slice header (24 bytes); it is a handle the decoder uses to
+// locate the associated per-element data items via their unique type ID.
+//
+// The wire value is the source slice's data pointer (zero ⇒ nil source).
+type GoFilteredSliceType struct {
+	TypeCommon
+	syntheticType
+	// Data is the per-passing-element data-item type whose enqueue_pc
+	// implements the deferred filter loop for this call site.
+	Data *GoFilteredSliceDataType
+}
+
+func (GoFilteredSliceType) irType() {}
+
+// GoFilteredSliceDataType is the per-passing-element data-item type for a
+// single filter() call site. Its enqueue_pc bytecode IS the deferred
+// filter loop. Because addTypeHandler today switches on type shape only
+// and cannot synthesize per-call-site predicate bodies, this type carries
+// its own pre-compiled IR op sequence in EnqueueOps. The compiler's
+// addTypeHandler switch matches this type and lowers EnqueueOps directly.
+type GoFilteredSliceDataType struct {
+	TypeCommon
+	syntheticType
+	// Element is the element type from the source slice's GoSliceDataType.
+	Element Type
+	// ElemByteSize is the element byte size, duplicated here so the
+	// enqueue_pc lowering doesn't need to re-resolve Element.
+	ElemByteSize uint32
+	// EnqueueOps is the pre-compiled IR op sequence emitted by irgen.
+	// It contains only ir.ExpressionOp values:
+	//   InitFilterSliceLoopOp
+	//   CondLabelOp{Label: BodyLabel}
+	//   <predicate body ops>
+	//   FilterSliceLoopStepOp{ElementTypeID, ...}
+	//   CondLabelOp{Label: EndLabel}
+	// The trailing compiler ReturnOp and the per-element CallOp for
+	// nested-pointer chasing are introduced by the compiler at lowering
+	// time, not stored in EnqueueOps.
+	EnqueueOps []ExpressionOp
+}
+
+func (GoFilteredSliceDataType) irType() {}
+
+// GoFilteredMapType is the pointer-shaped, 8-byte handle stored in the
+// event-root expression slot for a filter() call whose source is a map.
+// Analogous to GoFilteredSliceType but for filter results whose source is
+// a swiss-table map.
+//
+// The wire value is the raw map[K]V pointer (zero ⇒ nil source).
+type GoFilteredMapType struct {
+	TypeCommon
+	syntheticType
+	// Data is the per-passing-(k,v)-pair data-item type whose enqueue_pc
+	// implements the deferred filter loop for this call site.
+	Data *GoFilteredMapDataType
+}
+
+func (GoFilteredMapType) irType() {}
+
+// GoFilteredMapDataType is the per-passing-(k,v)-pair data-item type for a
+// single filter() call site over a map. See GoFilteredSliceDataType for the
+// EnqueueOps contract.
+type GoFilteredMapDataType struct {
+	TypeCommon
+	syntheticType
+	KeyType   Type
+	ValueType Type
+	// ValOffsetInPair is the byte offset of the value within the synthetic
+	// (key, value) data-item payload. Always (KeyByteSize + 7) & ~7 so the
+	// value is 8-byte aligned, matching the @it scratch layout.
+	ValOffsetInPair uint32
+	// EnqueueOps mirrors GoFilteredSliceDataType.EnqueueOps but contains
+	// InitFilterMapLoopOp / FilterMapLoopStepOp instead.
+	EnqueueOps []ExpressionOp
+}
+
+func (GoFilteredMapDataType) irType() {}
+
+// GoTimeType is a specialized wrapper for the standard library's time.Time
+// structure. Decoding time.Time as a generic struct would either leak the
+// private wall/ext bit layout or render an opaque blob. By recognizing the
+// type during IR generation, the decoder can emit a real RFC3339 timestamp
+// and BPF can resolve the *Location pointer to a UTC offset via the
+// Location.cacheZone fast path, avoiding any further pointer chasing.
+//
+// We deliberately only consult the one-element cache (not the full
+// tx/zone tables or the extend POSIX string), which covers the common
+// case where the program has recently formatted or compared the instant
+// in that location; values whose Location has never been exercised
+// (e.g. a freshly LoadLocation'd zone, or time.Local before initLocal
+// runs) render in UTC instead of their true offset.
+//
+// All offset/size fields are byte offsets resolved from DWARF. When
+// CacheResolved is false the BPF runtime skips the cache lookup and the
+// decoder formats in UTC; the remaining cache offset fields are unset in
+// that case.
+type GoTimeType struct {
+	*StructureType
+
+	// WallFieldOffset and ExtFieldOffset are the offsets of the wall and
+	// ext fields within the time.Time structure.
+	WallFieldOffset uint32
+	ExtFieldOffset  uint32
+	// LocFieldOffset is the offset of the loc pointer field within the
+	// time.Time structure. At runtime BPF overwrites the 8 bytes at this
+	// offset with the resolved zone offset (in seconds east of UTC) or
+	// the sentinel value GoTimeUnresolvedOffset.
+	LocFieldOffset uint32
+
+	// CacheResolved is true when irgen successfully resolved the
+	// time.Location field offsets needed for the BPF cache lookup. When
+	// false, the BPF runtime writes the unresolved sentinel and the
+	// decoder renders in UTC.
+	CacheResolved bool
+	// CacheStartOffset, CacheEndOffset, CacheZoneOffset are byte offsets
+	// within time.Location for the cacheStart, cacheEnd, cacheZone fields.
+	CacheStartOffset uint32
+	CacheEndOffset   uint32
+	CacheZoneOffset  uint32
+	// ZoneOffsetFieldOffset is the byte offset of the offset field within
+	// the time.zone structure (pointed to by cacheZone).
+	ZoneOffsetFieldOffset uint32
+	// ZoneOffsetFieldSize is the byte size of the offset field. Go's int
+	// is 8 bytes on amd64/arm64 but we record the DWARF size to avoid
+	// assumptions.
+	ZoneOffsetFieldSize uint32
+}
+
+func (GoTimeType) irType() {}
+
+// GoTimeUnresolvedOffset is the sentinel value the BPF runtime writes into
+// the loc-pointer slot of a captured time.Time when the timezone offset
+// could not be resolved (loc was nil, the Location cache was uninitialized,
+// the captured instant fell outside the cache window, or the runtime
+// failed to read the cache fields). The decoder maps this value to UTC.
+//
+// The sentinel is INT64_MIN. Real UTC offsets are bounded by ±14 hours
+// (50,400 seconds), so collisions are impossible.
+const GoTimeUnresolvedOffset = int64(-1) << 63
+
 // GoSubroutineType is a type that represents a function type in the target
 // program.
 type GoSubroutineType struct {
@@ -431,6 +690,11 @@ type RootExpression struct {
 	// read the resolved runtime type from the corresponding DictEntry
 	// in the EventRootType.
 	DictIndex int
+	// Redacted is true when the expression resolves to a sensitive value:
+	// its source references a redacted variable, member, or string map key.
+	// irgen decides this from the parsed expression (the resolved IR keeps
+	// only offsets and a display name); the decoder drops the value.
+	Redacted bool
 }
 
 // RootExpressionKind is the kind of a root expression.

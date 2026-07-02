@@ -23,8 +23,9 @@ import (
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
+	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	npcollectorfx "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/fx"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
@@ -44,7 +45,7 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 
 		// Provide eventplatformimpl module
 		eventplatformreceiverimpl.Module(),
-		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		// Provide rdnsquerier module
 		rdnsquerierfx.Module(),
 		// Provide npcollector module

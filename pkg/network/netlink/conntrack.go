@@ -5,6 +5,8 @@
 
 //go:build linux
 
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=mock_conntrack.go -build_constraint "linux_bpf && test"
+
 package netlink
 
 import (

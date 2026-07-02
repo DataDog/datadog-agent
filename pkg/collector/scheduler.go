@@ -17,7 +17,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -27,6 +27,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -59,18 +60,20 @@ func init() {
 type CheckScheduler struct {
 	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
 	loaders        []check.Loader
-	collector      option.Option[collector.Component]
+	collector      option.Option[collectorcomp.Component]
 	senderManager  sender.SenderManager
+	infraTagger    *infratags.Tagger // nil = no infra mode tagging
 	m              sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector option.Option[collector.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
+func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
+		infraTagger:    infratags.NewTagger(setup.Datadog()),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
@@ -209,6 +212,13 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
+				if s.infraTagger != nil && s.infraTagger.IsCheckEligible(config.Name) {
+					if chkSender, senderErr := s.senderManager.GetSender(c.ID()); senderErr == nil {
+						chkSender.SetInfraTagger(s.infraTagger)
+					} else {
+						log.Debugf("infra mode tags: skipping %s (%s): %v", config.Name, c.ID(), senderErr)
+					}
+				}
 				checks = append(checks, c)
 				break
 			}

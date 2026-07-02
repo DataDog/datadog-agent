@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "program",
+    srcs = [
+        "annotations_program.go",
+        "cel_program.go",
+        "legacy_program.go",
+        "program.go",
+        "regex_program.go",
+        "remote_program.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/program",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/legacy",
+        "//comp/core/workloadfilter/proto",
+        "//comp/core/workloadfilter/telemetry",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/log",
+        "@com_github_cespare_xxhash_v2//:xxhash",
+        "@com_github_google_cel_go//cel:go_default_library",
+        "@com_github_patrickmn_go_cache//:go-cache",
+        "@org_golang_google_grpc//metadata",
+    ],
+)
+
+dd_agent_go_test(
+    name = "program_test",
+    srcs = [
+        "annotations_program_test.go",
+        "cel_program_test.go",
+    ],
+    embed = [":program"],
+    deps = [
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/mock",
+        "@com_github_google_cel_go//cel:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

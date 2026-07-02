@@ -117,7 +117,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getSetrlimitProbes(fentry)...)
 	allProbes = append(allProbes, getCapabilitiesMonitoringProbes()...)
 	allProbes = append(allProbes, getPrCtlProbes(fentry)...)
-	allProbes = append(allProbes, getSocketProbes(cgroup2MountPoint)...)
+	allProbes = append(allProbes, getSocketProbes(fentry, cgroup2MountPoint)...)
 	allProbes = append(allProbes, getMemfdProbes(fentry)...)
 	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "setsid")
 
@@ -214,6 +214,7 @@ type MapSpecEditorOpts struct {
 	EventSamplingConnectEnabled   bool
 	EventSamplingBindEnabled      bool
 	EventSamplingDNSEnabled       bool
+	BasenameApproversSize         int
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -260,10 +261,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"active_flows": {
-			MaxEntries: activeFlowsMaxEntries,
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"active_flows_spin_locks": {
 			MaxEntries: activeFlowsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
@@ -286,6 +283,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 		"capabilities_contexts": {
 			MaxEntries: capabilitiesContextsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"basename_approvers": {
+			MaxEntries: uint32(opts.BasenameApproversSize),
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
@@ -446,6 +447,7 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonit
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(eRPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
+	routes = append(routes, getCacheSyscallTailCallRoutes()...)
 	if networkEnabled {
 		routes = append(routes, getTCTailCallRoutes(rawPacketEnabled)...)
 	}

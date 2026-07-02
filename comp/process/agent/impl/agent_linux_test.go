@@ -21,7 +21,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -106,7 +107,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				statsdimpl.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
-				sysprobeconfigimpl.MockModule(),
+				fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 				fxutil.ProvideComponentConstructor(NewComponent),
 				hostnameimpl.MockModule(),
 				fx.Provide(func() configComp.Component {
@@ -181,7 +182,7 @@ func TestStatusProvider(t *testing.T) {
 				fx.Provide(func() configComp.Component {
 					return configComp.NewMock(t)
 				}),
-				sysprobeconfigimpl.MockModule(),
+				fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 				hostnameimpl.MockModule(),
 				fx.Provide(func() func(c *checkMocks.Check) {
 					return func(c *checkMocks.Check) {
@@ -235,7 +236,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 				"telemetry.enabled": true,
 			})
 		}),
-		sysprobeconfigimpl.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 		hostnameimpl.MockModule(),
 		fx.Provide(func() func(c *checkMocks.Check) {
 			return func(c *checkMocks.Check) {

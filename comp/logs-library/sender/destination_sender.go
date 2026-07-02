@@ -8,8 +8,8 @@ package sender
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

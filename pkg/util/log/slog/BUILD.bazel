@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "slog",
@@ -16,11 +17,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "slog_test",
-    srcs = ["wrapper_test.go"],
+    srcs = [
+        "logger_test_utils_test.go",
+        "wrapper_test.go",
+    ],
     embed = [":slog"],
-    gotags = ["test"],
     deps = [
         "//pkg/util/log/types",
         "@com_github_stretchr_testify//assert",

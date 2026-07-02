@@ -37,6 +37,7 @@ BPF_ARRAY_MAP(sysctl_action_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(connect_addr_family_approvers, struct u64_flags_filter_t, 1)
 BPF_ARRAY_MAP(prctl_option_approvers, struct u64_flags_filter_t, 1)
 BPF_ARRAY_MAP(setsockopt_level_or_optname_approvers, struct u64_flags_filter_t, 2)
+BPF_ARRAY_MAP(socket_field_approvers, struct u64_flags_filter_t, 3)
 BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
@@ -47,7 +48,6 @@ BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
 BPF_HASH_MAP(traced_cgroups, u64, u64, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(traced_pids, u32, u64, 8192) // max entries will be overridden at runtime
-BPF_HASH_MAP(basename_approvers, struct basename_t, struct event_mask_filter_t, 255)
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
 BPF_HASH_MAP(netdevice_lookup_cache, u64, struct device_ifindex_t, 1024)
 BPF_HASH_MAP(fd_link_pid, u8, u32, 1)
@@ -55,6 +55,7 @@ BPF_HASH_MAP(security_profiles, u64, struct security_profile_t, 1) // max entrie
 BPF_HASH_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
 BPF_HASH_MAP(auid_approvers, u32, struct event_mask_filter_t, 128)
 BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
+BPF_HASH_MAP(basename_approvers, struct basename_t, struct event_mask_filter_t, 1) // max entries updated at runtime; preallocated (written only from userspace)
 BPF_HASH_MAP(active_flows_spin_locks, u32, struct active_flows_spin_lock_t, 1) // max entry will be overridden at runtime
 BPF_HASH_MAP(inode_file, u64, struct file_t, 32)
 BPF_HASH_MAP(cgroup_mount_id, u32, u32, 1)
@@ -102,10 +103,10 @@ BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
-BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
-BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
-BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
 BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
 
@@ -151,6 +152,7 @@ BPF_PROG_ARRAY(raw_packet_classifier_router_0, 32)
 BPF_PROG_ARRAY(raw_packet_classifier_router_1, 32)
 BPF_PROG_ARRAY(flush_network_stats_progs, 2)
 BPF_PROG_ARRAY(open_ret_progs, 1)
+BPF_PROG_ARRAY(cache_syscall_progs, 1)
 
 BPF_PERF_EVENT_ARRAY_MAP(events, u32)
 BPF_PERCPU_ARRAY_MAP(events_stats, struct perf_map_stats_t, EVENT_MAX)

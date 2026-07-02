@@ -11,12 +11,10 @@ from subprocess import check_output
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-import tasks.libs.cws.backend_doc_gen as backend_doc_gen
-import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import BazelTools, bazel
+from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
@@ -56,7 +54,6 @@ def build(
     rebuild=False,
     install_path=None,
     go_mod="readonly",
-    skip_assets=False,
     static=False,
     fips_mode=False,
 ):
@@ -495,28 +492,7 @@ def docker_functional_tests(
 
 @task
 def generate_cws_documentation(ctx):
-    # secl docs
-    secl_doc_gen.generate_secl_documentation(
-        "./docs/cloud-workload-security/secl_linux.json",
-        "./docs/cloud-workload-security/linux_expressions.md",
-        "./linux_expressions.md",
-    )
-    secl_doc_gen.generate_secl_documentation(
-        "./docs/cloud-workload-security/secl_windows.json",
-        "./docs/cloud-workload-security/windows_expressions.md",
-        "./windows_expressions.md",
-    )
-    # backend event docs
-    backend_doc_gen.generate_backend_documentation(
-        "./docs/cloud-workload-security/backend_linux.schema.json",
-        "./docs/cloud-workload-security/backend_linux.md",
-        "./backend_linux.md",
-    )
-    backend_doc_gen.generate_backend_documentation(
-        "./docs/cloud-workload-security/backend_windows.schema.json",
-        "./docs/cloud-workload-security/backend_windows.md",
-        "./backend_windows.md",
-    )
+    bazel(ctx, "run", "//docs/cloud-workload-security:cws_docs")
 
 
 @task
@@ -524,19 +500,24 @@ def cws_go_generate(ctx, verbose=False):
     # run different `go generate` for pkg/security/secl and pkg/security
     ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
     ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
-    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/accessors")
-    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/event_deep_copy")
     # CWS codegens migrated to Bazel keep their //go:generate directives so a future
     # Gazelle extension can pick them up; we just skip them in `go generate` here.
     # See ABLD-420.
     bazel(ctx, "run", "//pkg/security/secl/compiler/eval:eval_operators")
     bazel(ctx, "run", "//pkg/security/secl/model:consts_map_names_linux")
+    bazel(ctx, "run", "//pkg/security/secl/model:accessors_unix")
+    bazel(ctx, "run", "//pkg/security/secl/model:accessors_windows")
+    bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_unix")
+    bazel(ctx, "run", "//pkg/security/secl/model:event_deep_copy_windows")
+    bazel(ctx, "run", "//docs/cloud-workload-security:secl_linux")
+    bazel(ctx, "run", "//docs/cloud-workload-security:secl_windows")
+    skip = "operators|bpf_maps_generator|accessors|event_deep_copy"
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":
-            ctx.run("GOOS=windows go generate -run=-tag.+windows ./...")
+            ctx.run(f"GOOS=windows go generate -run=-tag.+windows -skip='{skip}' ./...")
         elif is_windows:
-            ctx.run('set "GOOS=linux" && go generate -run=-tag.+unix ./...')
-        cmd = "go generate -skip='operators|bpf_maps_generator'"
+            ctx.run(f'set "GOOS=linux" && go generate -run=-tag.+unix -skip="{skip}" ./...')
+        cmd = f"go generate -skip='{skip}'"
         if verbose:
             cmd += " -v"
         ctx.run(cmd + " ./...")
@@ -549,7 +530,7 @@ def cws_go_generate(ctx, verbose=False):
 
     ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
     ctx.run("go generate ./pkg/security/probe/custom_events.go")
-    ctx.run("go generate -skip='operators|bpf_maps_generator' -tags=linux_bpf,cws_go_generate ./pkg/security/...")
+    ctx.run(f"go generate -skip='{skip}' -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
     # synchronize the seclwin package from the secl package
     bazel(ctx, "run", "//pkg/security/seclwin:sync")
@@ -582,6 +563,13 @@ def generate_syscall_table(ctx):
         "pkg/security/secl/model/syscalls_linux_arm64.go",
         "pkg/security/secl/model/syscalls_string_linux_arm64.go",
     )
+
+
+@task
+def generate_utils_syscall_table(ctx):
+    # The kernel files are fetched as `http_file` repos pinned in MODULE.bazel;
+    # bumping the kernel version means updating those URLs and sha256 entries.
+    bazel(ctx, "run", "//pkg/security/utils:utils_syscall_table")
 
 
 DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
@@ -640,20 +628,7 @@ def split_btfhub_constants(ctx):
 
 @task
 def generate_cws_proto(ctx):
-    bt = BazelTools(ctx)
-    plugin_opts = " ".join(
-        [
-            bt.protoc_plugin("protoc-gen-go"),
-            bt.protoc_plugin("protoc-gen-go-grpc"),
-            bt.protoc_plugin("protoc-gen-go-vtproto"),
-        ]
-    )
-
-    # API
-    ctx.run(
-        f"{bt.protoc} {plugin_opts} -I. -Ipkg/proto/protodep --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
-    )
-    # no need to strip protoc version from headers: hermetic tools guarantee it's identical on all execution platforms
+    bazel(ctx, "run", "//pkg/security/proto/api:write_pb_go")
 
 
 def get_git_dirty_files():

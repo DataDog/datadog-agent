@@ -21,17 +21,33 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 )
 
+type entrySpec struct {
+	url      string
+	template string
+}
+
 func makeTestProvider(t *testing.T, serverURL string, checkTemplate string) *PrometheusHTTPSDConfigProvider {
 	t.Helper()
+	return makeTestProviderWithEntries(t, []entrySpec{{url: serverURL, template: checkTemplate}})
+}
 
-	var tmpl httpSDCheckTemplate
-	require.NoError(t, json.Unmarshal([]byte(checkTemplate), &tmpl))
+func makeTestProviderWithEntries(t *testing.T, specs []entrySpec) *PrometheusHTTPSDConfigProvider {
+	t.Helper()
+
+	entries := make([]*httpSDEntry, len(specs))
+	for i, s := range specs {
+		var tmpl httpSDCheckTemplate
+		require.NoError(t, json.Unmarshal([]byte(s.template), &tmpl))
+		entries[i] = &httpSDEntry{
+			url:           s.url,
+			client:        http.DefaultClient,
+			checkTemplate: tmpl,
+		}
+	}
 
 	return &PrometheusHTTPSDConfigProvider{
-		url:           serverURL,
-		client:        http.DefaultClient,
-		checkTemplate: tmpl,
-		configErrors:  make(map[string]types.ErrorMsgSet),
+		entries:      entries,
+		configErrors: make(map[string]types.ErrorMsgSet),
 	}
 }
 
@@ -114,9 +130,9 @@ func TestCollectServerError(t *testing.T) {
 	assert.Nil(t, configs)
 	assert.Contains(t, err.Error(), "unexpected status 500")
 
-	// Verify config errors are tracked
+	// Verify config errors are tracked under the per-entry key
 	errs := provider.GetConfigErrors()
-	assert.NotEmpty(t, errs["fetch"])
+	assert.NotEmpty(t, errs["fetch:"+server.URL])
 }
 
 func TestLabelsToTags(t *testing.T) {
@@ -309,6 +325,128 @@ func TestCollectDigestStability(t *testing.T) {
 	require.Len(t, configs1, 1)
 	require.Len(t, configs2, 1)
 	assert.Equal(t, configs1[0].Digest(), configs2[0].Digest())
+}
+
+func TestBuildEntriesMultiple(t *testing.T) {
+	entries, err := buildEntries(
+		[]httpSDConfigEntry{
+			{URL: "http://a/sd", CheckTemplate: defaultCheckTemplate()},
+			{URL: "http://b/sd", CheckTemplate: defaultCheckTemplate()},
+		},
+		http.DefaultClient,
+	)
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
+	assert.Equal(t, "http://a/sd", entries[0].url)
+	assert.Equal(t, "http://b/sd", entries[1].url)
+}
+
+func TestBuildEntriesEmpty(t *testing.T) {
+	_, err := buildEntries(nil, http.DefaultClient)
+	assert.Error(t, err)
+}
+
+func TestBuildEntriesMissingURL(t *testing.T) {
+	_, err := buildEntries(
+		[]httpSDConfigEntry{{URL: "", CheckTemplate: defaultCheckTemplate()}},
+		http.DefaultClient,
+	)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "url")
+}
+
+func TestBuildEntriesMissingTemplate(t *testing.T) {
+	_, err := buildEntries(
+		[]httpSDConfigEntry{{URL: "http://x/sd", CheckTemplate: ""}},
+		http.DefaultClient,
+	)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "check_template")
+}
+
+func TestCollectPerEntryErrorIsolation(t *testing.T) {
+	// good server returns one target
+	good := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]httpSDTargetGroup{
+			{Targets: []string{"healthy:9090"}},
+		})
+	}))
+	defer good.Close()
+
+	// bad server always 500s
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer bad.Close()
+
+	provider := makeTestProviderWithEntries(t, []entrySpec{
+		{url: good.URL, template: defaultCheckTemplate()},
+		{url: bad.URL, template: defaultCheckTemplate()},
+	})
+
+	configs, err := provider.Collect(context.Background())
+	require.NoError(t, err, "Collect must succeed when at least one entry succeeds")
+	require.Len(t, configs, 1, "only the healthy entry's target should be returned")
+
+	var instance map[string]interface{}
+	require.NoError(t, yaml.Unmarshal(configs[0].Instances[0], &instance))
+	assert.Equal(t, "http://healthy:9090/metrics", instance["openmetrics_endpoint"])
+
+	// failing entry is surfaced via GetConfigErrors under its URL-keyed slot
+	errs := provider.GetConfigErrors()
+	assert.NotEmpty(t, errs["fetch:"+bad.URL])
+	assert.Empty(t, errs["fetch:"+good.URL])
+}
+
+func TestCollectAllEntriesFail(t *testing.T) {
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer bad.Close()
+
+	provider := makeTestProviderWithEntries(t, []entrySpec{
+		{url: bad.URL, template: defaultCheckTemplate()},
+		{url: bad.URL, template: defaultCheckTemplate()},
+	})
+
+	configs, err := provider.Collect(context.Background())
+	assert.Error(t, err)
+	assert.Nil(t, configs)
+	assert.Contains(t, err.Error(), "all 2 endpoint(s) failed")
+}
+
+func TestCollectMergesEntries(t *testing.T) {
+	serverA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]httpSDTargetGroup{
+			{Targets: []string{"a1:9090"}, Labels: map[string]string{"src": "A"}},
+		})
+	}))
+	defer serverA.Close()
+	serverB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]httpSDTargetGroup{
+			{Targets: []string{"b1:9090", "b2:9090"}, Labels: map[string]string{"src": "B"}},
+		})
+	}))
+	defer serverB.Close()
+
+	provider := makeTestProviderWithEntries(t, []entrySpec{
+		{url: serverA.URL, template: defaultCheckTemplate()},
+		{url: serverB.URL, template: defaultCheckTemplate()},
+	})
+
+	configs, err := provider.Collect(context.Background())
+	require.NoError(t, err)
+	require.Len(t, configs, 3)
+
+	endpoints := make([]string, len(configs))
+	for i, cfg := range configs {
+		var instance map[string]interface{}
+		require.NoError(t, yaml.Unmarshal(cfg.Instances[0], &instance))
+		endpoints[i] = instance["openmetrics_endpoint"].(string)
+	}
+	assert.Contains(t, endpoints, "http://a1:9090/metrics")
+	assert.Contains(t, endpoints, "http://b1:9090/metrics")
+	assert.Contains(t, endpoints, "http://b2:9090/metrics")
 }
 
 func TestCollectCustomCheckTemplate(t *testing.T) {

@@ -25,16 +25,20 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 }
 
 // SubscribeAll is required for the SourceProvider interface
-func (s *ConfigSources) SubscribeAll() (added chan *LogSource, _ chan *LogSource) {
+func (s *ConfigSources) SubscribeAll(_, _ chan struct{}) (added chan *LogSource, _ chan *LogSource) {
 	return
 }
 
 // SubscribeForType returns a channel carrying LogSources for a given source type
-func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSource, _ chan *LogSource) {
+func (s *ConfigSources) SubscribeForType(sourceType string, addedDone, _ chan struct{}) (added chan *LogSource, _ chan *LogSource) {
 	added = make(chan *LogSource)
 	go func() {
 		for _, logSource := range s.addedByType[sourceType] {
-			added <- logSource
+			select {
+			case added <- logSource:
+			case <-addedDone:
+				return
+			}
 		}
 	}()
 
@@ -42,6 +46,6 @@ func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSour
 }
 
 // GetAddedForType is required for the SourceProvider interface
-func (s *ConfigSources) GetAddedForType(_ string) chan *LogSource {
+func (s *ConfigSources) GetAddedForType(_ string, _ chan struct{}) chan *LogSource {
 	return nil
 }

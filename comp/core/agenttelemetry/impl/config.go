@@ -6,6 +6,7 @@
 package agenttelemetryimpl
 
 import (
+	_ "embed"
 	"fmt"
 	"strings"
 
@@ -61,12 +62,13 @@ type ExcludeMetricConfig struct {
 // MetricConfig is a list of metric selecting subset of telemetry.Gather() metrics to be included in agent
 type MetricConfig struct {
 	Name           string   `yaml:"name"` // required
-	AggregateTags  []string `yaml:"aggregate_tags,omitempty"`
+	PreserveTags   []string `yaml:"preserve_tags,omitempty"`
+	AggregateTags  []string `yaml:"aggregate_tags,omitempty"` // deprecated: use preserve_tags
 	AggregateTotal bool     `yaml:"aggregate_total"`
 
 	// compiled
-	aggregateTagsExists bool
-	aggregateTagsMap    map[string]any
+	preserveTagsExists bool
+	preserveTagsMap    map[string]any
 }
 
 // Schedule is a schedule for agent telemetry payloads to be generated and emitted
@@ -112,28 +114,25 @@ type Event struct {
 // corresponds to the "name" parameter. Do not use the "Options.NoDoubleUnderscoreSep" option
 // in these APIs, as it is not supported in agent telemetry.
 //
-// profiles[].metric.metrics[].aggregate_tags (optional)
+// profiles[].metric.metrics[].preserve_tags (optional)
 // -----------------------------------------------------
-// List of tags to be used for metric aggregation. If not specified, or [] is specified,
-// metric will be aggregated without any tags. If specified, metric will be aggregated using
-// the specified tags. Unspecified tags
-//   * will not be used and effectively will be removed from the metric's JSON object
-//   * their timeseries value will be summed up according to the remaining metric tags
-//   * in case if no tags a specified, all timeseries will be summed up and no tags will be
-//     reported in the metric's JSON object
-//   * in case none of the tags matches to the aggregateTags time series will be fremoved
-//     from the metric's JSON object
-// The primary goal of such aggregation is not actually to reduce the number of timeseries
-// and the amount of data to be sent to the backend, although it is welcome side-effect,
-// but to make sure that no privacy leak will happen by accident, by enforcing requirement
-// for explicit tag specification.
+// List of tags to preserve when aggregating the metric. If not specified, or [] is specified,
+// metric will be aggregated without any tags. If specified, only these tags are kept; all
+// others are dropped and their timeseries values are summed. In case none of the tags match
+// any timeseries, those timeseries are removed from the metric's JSON object.
+// The primary goal is to prevent accidental privacy leaks by requiring explicit tag allowlists.
+//
+// profiles[].metric.metrics[].aggregate_tags (deprecated alias for preserve_tags)
+// ---------------------------------------------------------------------------------
+// Accepted for backward compatibility with existing custom configurations. If both
+// preserve_tags and aggregate_tags are present, preserve_tags takes precedence.
+// New configurations should use preserve_tags instead.
 //
 // profiles[].metric.metrics[].aggregate_total (optional)
 // -----------------------------------------------------
 // When included, specifies whether the metric should be aggregated as a total. A
-// special tag "total" will be added to the metric's JSON object (accordingly "total is
-// reserved tag"). If not specified, specified, default value of `false` will be used.
-// It is useful only if "aggregate_tags" is also specified and will be ignored otherwise.
+// special tag "total" will be added to the metric's JSON object (accordingly "total" is a
+// reserved tag). Only meaningful when preserve_tags is also specified.
 //
 // profiles[].schedule (optional)
 // --------------------------------
@@ -183,371 +182,11 @@ type Event struct {
 // -------------------------------------
 // The value is required and used in the corresponding payload
 
-// ----------------------------------------------------------------------------------
-//
 // Default agent telemetry profiles config if not specified in the agent config file.
-// Note: If "aggregate_tags" are not specified, metric will be aggregated without any tags.
-var defaultProfiles = `
-  profiles:
-  - name: checks
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: checks.execution_time
-          aggregate_tags:
-            - check_name
-            - check_loader
-        - name: checks.delay
-          aggregate_tags:
-            - check_name
-        - name: checks.runs
-          aggregate_tags:
-            - check_name
-            - state
-        - name: pymem.inuse
-        - name: health_platform.issues_detected
-          aggregate_tags:
-            - health_check_id
-    schedule:
-      start_after: 30
-      iterations: 0
-      period: 900
-  - name: logs-and-metrics
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: dogstatsd.udp_packets_bytes
-        - name: dogstatsd.uds_packets_bytes
-        - name: logs.bytes_missed
-        - name: logs.bytes_sent
-          aggregate_tags:
-            - remote_agent
-          aggregate_total: true
-        - name: logs.decoded
-        - name: logs.dropped
-        - name: logs.encoded_bytes_sent
-          aggregate_tags:
-            - remote_agent
-            - compression_kind
-          aggregate_total: true
-        - name: logs.http_connectivity_check
-          aggregate_tags:
-            - status
-        - name: logs.http_connectivity_retry_attempt
-          aggregate_tags:
-            - status
-        - name: logs.restart_attempt
-          aggregate_tags:
-            - status
-            - transport
-        - name: logs.sender_latency
-        - name: logs.truncated
-          aggregate_tags:
-            - service
-            - source
-        - name: logs.auto_multi_line_aggregator_flush
-          aggregate_tags:
-            - truncated
-            - line_type
-        - name: logs.auto_multi_line_default_total_lines
-        - name: logs.auto_multi_line_default_would_combine
-        - name: logs.auto_multi_line_default_would_truncate
-        - name: logs_destination.destination_workers
-        - name: point.sent
-        - name: point.dropped
-        - name: transactions.input_count
-        - name: transactions.requeued
-        - name: transactions.retries
-        - name: transactions.http_errors
-          aggregate_tags:
-            - code
-            - endpoint
-    schedule:
-      start_after: 30
-      iterations: 0
-      period: 900
-  - name: database
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: oracle.activity_samples_count
-        - name: oracle.activity_latency
-        - name: oracle.statement_metrics
-        - name: oracle.statement_plan_errors
-        - name: postgres.collect_activity_snapshot_ms
-        - name: postgres.collect_relations_autodiscovery_ms
-        - name: postgres.collect_statement_samples_ms
-        - name: postgres.collect_statement_samples_count
-        - name: postgres.collect_stat_autodiscovery_ms
-        - name: postgres.get_active_connections_ms
-        - name: postgres.get_active_connections_count
-        - name: postgres.get_new_pg_stat_activity_count
-        - name: postgres.get_new_pg_stat_activity_ms
-        - name: postgres.schema_tables_elapsed_ms
-        - name: postgres.schema_tables_count
-    schedule:
-      start_after: 30
-      iterations: 0
-      period: 900
-  - name: synthetics
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: synthetics_agent.checks_received
-        - name: synthetics_agent.checks_processed
-          aggregate_tags:
-            - status
-            - subtype
-        - name: synthetics_agent.error_test_config
-          aggregate_tags:
-            - subtype
-        - name: synthetics_agent.traceroute_error
-          aggregate_tags:
-            - subtype
-        - name: synthetics_agent.evp_send_result_failure
-          aggregate_tags:
-            - subtype
-  - name: connectivity
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: api_server.request_duration_seconds
-          aggregate_tags:
-            - servername
-            - status_code
-            - method
-            - path
-            - auth
-        - name: grpc.request_duration_seconds
-          aggregate_tags:
-            - service_method
-        - name: grpc.request_count
-          aggregate_tags:
-            - service_method
-            - status
-        - name: grpc.error_count
-          aggregate_tags:
-            - service_method
-            - error_code
-    schedule:
-      start_after: 600
-      iterations: 0
-      period: 14400
-  - name: ondemand
-    events:
-      - name: agentbsod
-        request_type: agent-bsod
-        payload_key: agent_bsod
-        message: 'Agent BSOD'
-  - name: service-discovery
-    metric:
-      metrics:
-        - name: service_discovery.discovered_services
-    schedule:
-      start_after: 30
-      iterations: 0
-      period: 900
-  - name: runtime-started
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: runtime.started
-    schedule:
-      start_after: 5
-      iterations: 1
-  - name: runtime-running
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: runtime.running
-  - name: hostname
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: hostname.drift_detected
-          aggregate_tags:
-            - state
-            - provider
-        - name: hostname.drift_resolution_time_ms
-          aggregate_tags:
-            - state
-            - provider
-    schedule:
-      start_after: 1800 # 30 minutes
-      iterations: 0
-      period: 21600 # 6 hours
-  - name: rtloader
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: rtloader.inuse_bytes
-        - name: rtloader.frees
-        - name: rtloader.allocations
-  - name: otlp
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: runtime.datadog_agent_otlp_ingest_metrics
-          aggregate_tags:
-            - version
-            - command
-            - host
-        - name: runtime.datadog_agent_ddot_metrics
-          aggregate_tags:
-            - version
-            - command
-            - host
-        - name: runtime.datadog_agent_ddot_traces
-          aggregate_tags:
-            - version
-            - command
-            - host
-        - name: runtime.datadog_agent_ddot_gateway_usage
-          aggregate_tags:
-            - version
-            - command
-        - name: runtime.datadog_agent_ddot_gateway_configured
-          aggregate_tags:
-            - version
-            - command
-        - name: runtime.datadog_agent_otlp_logs_requests
-        - name: runtime.datadog_agent_otlp_logs_events
-        - name: runtime.datadog_agent_otlp_metrics_requests
-        - name: runtime.datadog_agent_otlp_metrics_events
-        - name: runtime.datadog_agent_otlp_traces_requests
-        - name: runtime.datadog_agent_otlp_traces_events
-        - name: runtime.ddot_otlp_logs_requests
-        - name: runtime.ddot_otlp_logs_events
-        - name: runtime.ddot_otlp_metrics_requests
-        - name: runtime.ddot_otlp_metrics_events
-        - name: runtime.ddot_otlp_traces_requests
-        - name: runtime.ddot_otlp_traces_events
-    schedule:
-      start_after: 30
-      iterations: 0
-      period: 900
-  - name: trace-agent
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: trace.enabled
-        - name: trace.working
-    schedule:
-      start_after: 60
-      iterations: 0
-      period: 900
-  - name: gpu
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: gpu.device_total
-    schedule:
-      start_after: 60
-      iterations: 0
-      period: 900
-  - name: cluster-agent
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: admission_webhooks.image_resolution_attempts
-          aggregate_tags:
-            - repository
-            - tag
-            - bucket
-            - outcome
-        - name: admission_webhooks.mutation_attempts
-          aggregate_tags:
-            - mutation_type
-            - status
-            - injected
-        - name: admission_webhooks.library_injection_attempts
-          aggregate_tags:
-            - language
-            - injected
-            - auto_detected
-            - injection_type
-        - name: admission_webhooks.library_injection_errors
-          aggregate_tags:
-            - language
-            - auto_detected
-            - injection_type
-        - name: admission_webhooks.patcher_errors
-        - name: admission_webhooks.rc_provider_configs
-        - name: admission_webhooks.rc_provider_configs_invalid
-        - name: autodiscovery.errors
-          aggregate_tags:
-            - provider
-        - name: autodiscovery.watched_resources
-          aggregate_tags:
-            - listener
-            - kind
-        - name: cluster_checks.configs_dispatched
-        - name: cluster_checks.configs_dangling
-        - name: cluster_checks.configs_info
-          aggregate_tags:
-            - check_name
-        - name: cluster_checks.unscheduled_check
-          aggregate_tags:
-            - config_source
-        - name: language_detection_patcher.patches
-          aggregate_tags:
-            - owner_kind
-            - status
-        - name: workloadmeta.stored_entities
-          aggregate_tags:
-            - kind
-            - source
-        - name: tagger.stored_entities
-          aggregate_tags:
-            - source
-            - prefix
-        - name: workloadmeta.pull_errors
-          aggregate_tags:
-            - collector_id
-    schedule:
-      start_after: 30
-      iterations: 0
-      period: 900
-  - name: injector
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: injector.processes_added_to_injection_tracker
-        - name: injector.processes_removed_from_injection_tracker
-        - name: injector.processes_skipped_subsystem
-        - name: injector.processes_skipped_container
-        - name: injector.processes_skipped_protected
-        - name: injector.processes_skipped_system
-        - name: injector.processes_skipped_excluded
-        - name: injector.injection_attempts
-        - name: injector.injection_attempt_failures
-        - name: injector.injection_max_time_us
-        - name: injector.injection_successes
-        - name: injector.injection_failures
-        - name: injector.pe_caching_failures
-        - name: injector.import_directory_restoration_failures
-        - name: injector.pe_memory_allocation_failures
-        - name: injector.pe_injection_context_allocated
-        - name: injector.pe_injection_context_cleanedup
-    schedule:
-      start_after: 30
-      iterations: 0
-      period: 900
-`
+// Note: If "preserve_tags" are not specified, metric will be aggregated without any tags.
+//
+//go:embed defaultProfiles.yaml
+var defaultProfiles string
 
 func compileMetricsExclude(p *Profile) error {
 	if p.Metric.Exclude == nil {
@@ -611,14 +250,19 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 	promName := fmt.Sprintf("%s_%s", names[0], names[1])
 	p.metricsMap[promName] = m
 
-	// Compile aggregate tags (optional)
-	if len(m.AggregateTags) == 0 {
-		m.aggregateTagsExists = false
+	// Compile preserve tags (optional). AggregateTags is a deprecated alias for PreserveTags;
+	// if both are set, PreserveTags takes precedence.
+	tags := m.PreserveTags
+	if len(tags) == 0 {
+		tags = m.AggregateTags
+	}
+	if len(tags) == 0 {
+		m.preserveTagsExists = false
 	} else {
-		m.aggregateTagsExists = true
-		m.aggregateTagsMap = make(map[string]any)
-		for _, t := range m.AggregateTags {
-			m.aggregateTagsMap[t] = struct{}{}
+		m.preserveTagsExists = true
+		m.preserveTagsMap = make(map[string]any)
+		for _, t := range tags {
+			m.preserveTagsMap[t] = struct{}{}
 		}
 	}
 

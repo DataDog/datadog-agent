@@ -49,7 +49,7 @@ def build(ctx, debug=False, console=False, rebuild=False, race=False, go_mod="re
     else:
         subsystem = 'windows'
     ldflags += f"-X {REPO_PATH}/cmd/systray/command/command.subsystem={subsystem} "
-    ldflags += f"-linkmode external -extldflags '-Wl,--subsystem,{subsystem}' "
+    ldflags += f"-linkmode external '-extldflags=-Wl,--subsystem,{subsystem}' "
     go_build(
         ctx,
         f"{REPO_PATH}/cmd/systray",

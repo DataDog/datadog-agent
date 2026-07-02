@@ -165,6 +165,9 @@ receivers:
         tsdb:
           outofordertimewindow: 0
           retention: {}
+    discovery_reload_on_startup: false
+    initial_scrape_offset: 0s
+    scrape_on_shutdown: false
     target_allocator: null
     trim_metric_suffixes: false
 service:
@@ -220,3 +223,5 @@ service:
                 without_scope_info: true
                 without_type_suffix: true
                 without_units: true
+    resource:
+      schema_url: https://opentelemetry.io/schemas/1.40.0

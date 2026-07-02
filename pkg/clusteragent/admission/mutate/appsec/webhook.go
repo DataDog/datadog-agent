@@ -36,7 +36,7 @@ type Webhook struct {
 	name          string
 	isEnabled     bool
 	endpoint      string
-	resources     map[string][]string
+	resources     []common.WebhookResourceRule
 	operations    []admissionregistrationv1.OperationType
 	patterns      []appsecconfig.SidecarInjectionPattern
 	configMutator mutatecommon.Mutator
@@ -56,7 +56,7 @@ func NewWebhook(config config.Component) *Webhook {
 		name:          webhookName,
 		isEnabled:     len(patterns) > 0,
 		endpoint:      "/appsec-proxies",
-		resources:     map[string][]string{"": {"pods"}},
+		resources:     []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}},
 		operations:    []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Delete},
 		patterns:      patterns,
 		configMutator: configMutators,
@@ -84,7 +84,7 @@ func (w *Webhook) Endpoint() string {
 }
 
 // Resources returns the kubernetes resources for which the webhook should be invoked
-func (w *Webhook) Resources() map[string][]string {
+func (w *Webhook) Resources() []common.WebhookResourceRule {
 	return w.resources
 }
 
@@ -105,20 +105,32 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 		return nil
 	}
 
+	objectExpression := w.patternsExpression(false)
+	oldObjectExpression := w.patternsExpression(true)
+	finalExpression := fmt.Sprintf("(request.operation == 'DELETE' && (%s)) || (request.operation != 'DELETE' && (%s))", oldObjectExpression, objectExpression)
+
+	return []admissionregistrationv1.MatchCondition{{
+		Name:       webhookName,
+		Expression: finalExpression,
+	}}
+}
+
+func (w *Webhook) patternsExpression(useOldObject bool) string {
 	var finalExpression strings.Builder
 	for i, pattern := range w.patterns {
+		expression := pattern.MatchCondition().Expression
+		if useOldObject {
+			expression = strings.ReplaceAll(expression, "object.", "oldObject.")
+		}
 		finalExpression.WriteRune('(')
-		finalExpression.WriteString(pattern.MatchCondition().Expression)
+		finalExpression.WriteString(expression)
 		finalExpression.WriteRune(')')
 		if i != len(w.patterns)-1 {
 			finalExpression.WriteString("||")
 		}
 	}
 
-	return []admissionregistrationv1.MatchCondition{{
-		Name:       webhookName,
-		Expression: finalExpression.String(),
-	}}
+	return finalExpression.String()
 }
 
 // Timeout returns the timeout for the webhook

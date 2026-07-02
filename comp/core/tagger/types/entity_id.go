@@ -73,6 +73,10 @@ const (
 	KubernetesDeployment EntityIDPrefix = "deployment"
 	// KubernetesMetadata is the prefix `kubernetes_metadata`
 	KubernetesMetadata EntityIDPrefix = "kubernetes_metadata"
+	// KubernetesKueueQueue is the prefix `kubernetes_kueue_queue`
+	KubernetesKueueQueue EntityIDPrefix = "kubernetes_kueue_queue"
+	// KueueResourceFlavor is the prefix `kueue_resource_flavor`
+	KueueResourceFlavor EntityIDPrefix = "kueue_resource_flavor"
 	// KubernetesCapabilities is the prefix `kubernetes_capabilities`
 	KubernetesCapabilities EntityIDPrefix = "kubernetes_capabilities"
 	// KubernetesPodUID is the prefix `kubernetes_pod_uid`
@@ -98,6 +102,8 @@ func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 		Host:                   {},
 		KubernetesDeployment:   {},
 		KubernetesMetadata:     {},
+		KubernetesKueueQueue:   {},
+		KueueResourceFlavor:    {},
 		KubernetesPodUID:       {},
 		Process:                {},
 		InternalID:             {},

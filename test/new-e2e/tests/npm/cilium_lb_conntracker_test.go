@@ -42,8 +42,8 @@ func TestCiliumLBConntracker(t *testing.T) {
 	// TODO: find a way to update this list dynamically
 	versionsToTest := []string{"1.15.17", "1.16.10", "1.17.4"}
 	for _, v := range versionsToTest {
-		t.Run("version "+v, func(_t *testing.T) {
-			_t.Parallel()
+		t.Run("version "+v, func(t *testing.T) {
+			t.Parallel()
 
 			testCiliumLBConntracker(t, v)
 		})
@@ -121,7 +121,7 @@ func (suite *ciliumLBConntrackerTestSuite) TestCiliumConntracker() {
 			assert.NotEmpty(collect, names) {
 			hostname = names[0]
 		}
-	}, time.Minute, time.Second, "timed out getting connection names")
+	}, 2*time.Minute, time.Second, "timed out getting connection names")
 
 	var svcConns []*process.Connection
 	suite.Require().EventuallyWithT(func(collect *assert.CollectT) {

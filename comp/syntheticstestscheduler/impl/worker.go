@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -26,6 +26,13 @@ import (
 
 const (
 	syntheticsMetricPrefix = "datadog.synthetics.agent."
+
+	// defaultTestTimeoutSeconds is the total test timeout applied when the test
+	// config does not specify one, matching the default added on the RC path.
+	defaultTestTimeoutSeconds = 60
+	// defaultMaxTTL is the fallback max-TTL used only when computing the
+	// per-hop timeout and neither the test config nor cfg.MaxTTL is set.
+	defaultMaxTTL = 30
 )
 
 // runWorkers starts the configured number of worker goroutines and waits for them.
@@ -61,9 +68,13 @@ func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 	}
 }
 
-// flush enqueues tests whose nextRun is due.
+// flush enqueues tests whose nextRun is due. It is a no-op while the test
+// poller is healthy — the backend drives execution in that mode.
 func (s *syntheticsTestScheduler) flush(ctx context.Context, flushTime time.Time) {
 	if !s.running {
+		return
+	}
+	if s.testPoller != nil && s.testPoller.isHealthy() {
 		return
 	}
 
@@ -109,24 +120,24 @@ func (s *syntheticsTestScheduler) flush(ctx context.Context, flushTime time.Time
 // runWorker is the main loop for a single worker.
 func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 	for {
-		// Non-blocking priority check: drain on-demand tests first, but respect cancellation
+		// Non-blocking priority check: drain live poller tests first, but respect cancellation
 		select {
 		case <-ctx.Done():
 			s.log.Debugf("worker %d stopping", workerID)
 			return
-		case testCtx := <-s.onDemandPoller.TestsChan:
-			s.executeTest(ctx, workerID, testCtx)
+		case testCtx := <-s.testPoller.TestsChan:
+			s.processPollerTest(ctx, workerID, testCtx)
 			continue
 		default:
 		}
 
-		// Blocking wait on all sources
+		// Blocking wait on both sources (poller-delivered + in-memory fallback)
 		select {
 		case <-ctx.Done():
 			s.log.Debugf("worker %d stopping", workerID)
 			return
-		case testCtx := <-s.onDemandPoller.TestsChan:
-			s.executeTest(ctx, workerID, testCtx)
+		case testCtx := <-s.testPoller.TestsChan:
+			s.processPollerTest(ctx, workerID, testCtx)
 		case syntheticsTestCtx, ok := <-s.syntheticsTestProcessingChan:
 			if !ok {
 				s.log.Debugf("worker %d stopping: processing channel closed", workerID)
@@ -135,6 +146,15 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			s.executeTest(ctx, workerID, syntheticsTestCtx)
 		}
 	}
+}
+
+// processPollerTest runs a test delivered by the poller and, if it is a
+// scheduled test, refreshes the in-memory fallback cache entry for it.
+func (s *syntheticsTestScheduler) processPollerTest(ctx context.Context, workerID int, testCtx SyntheticsTestCtx) {
+	if testCtx.cfg.RunType == common.RunTypeScheduled {
+		s.upsertFallbackCache(testCtx.cfg)
+	}
+	s.executeTest(ctx, workerID, testCtx)
 }
 
 // executeTest runs a single test and sends its result.
@@ -220,10 +240,14 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 	}
 	if ncr.MaxTTL != nil {
 		cfg.MaxTTL = uint8(*ncr.MaxTTL)
+	} else {
+		cfg.MaxTTL = defaultMaxTTL
 	}
+	timeoutSec := defaultTestTimeoutSeconds
 	if ncr.Timeout != nil {
-		cfg.Timeout = time.Duration(float64(*ncr.Timeout) * 0.9 / float64(cfg.MaxTTL) * float64(time.Second))
+		timeoutSec = *ncr.Timeout
 	}
+	cfg.Timeout = time.Duration(float64(timeoutSec) * 0.9 / float64(cfg.MaxTTL) * float64(time.Second))
 	if ncr.TracerouteCount != nil {
 		cfg.TracerouteQueries = *ncr.TracerouteCount
 	}
@@ -231,6 +255,7 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 		cfg.E2eQueries = *ncr.ProbeCount
 	}
 	cfg.ReverseDNS = true
+	cfg.DisableSourcePublicIPCollection = false
 }
 
 // toNetpathConfig converts a SyntheticsTestConfig into a system-probe Config.

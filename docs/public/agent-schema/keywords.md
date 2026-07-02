@@ -321,13 +321,14 @@ Sets per-platform default value overrides. Mutually exclusive with `default` (On
   `linux`, `windows`, and `darwin` explicitly, or by including an `other` catch-all.
 - **Validation:** values must match the `type` of the setting.
 
-Supported platform keys: `linux`, `windows`, `darwin`, `container`, `other`.
+Supported platform keys: `linux`, `windows`, `darwin`, `container`, 'fargate', `other`.
 
 **Container fallback logic:** because container environments currently share many
-defaults with Linux, `container` is optional. When resolving the default for a
-container, the Agent applies the following fallback chain:
+defaults with Linux, `container`/`fargate` is optional. When resolving the default for a
+setting, the Agent applies the following fallback chain:
 
-1. Use `container` if present.
+1. Use `fargate` if present and running on ECS Farget.
+1. Fall back to `container` if present running in a container.
 2. Fall back to `linux` if present.
 3. Fall back to `other` if present.
 
@@ -450,9 +451,17 @@ the environment (JSON, maps, ...).
 | `comma_separated` | Splits on commas |
 | `space_separated` | Splits on spaces |
 | `json` | Parses the entire env var value as a JSON payload matching the setting's type |
-| `comma_or_space_separated` | Splits on commas if the value contains a comma, otherwise on spaces. Used by APM for `apm_config.ignore_resources`. **Should not be used for new settings**. |
-| `comma_and_space_separated` | Both commas and spaces act as separators. Used by OTEL for `otelcollector.converter.features`. **Should not be used for new settings**. |
-| `space_or_json` | Splits on spaces, or parses as JSON if the value starts with `[`. **Should not be used for new settings**. |
+
+Legacy parsers, **do not use for new settings**:
+
+| Value | Behaviour |
+| --- | --- |
+| `comma_and_space_separated` | Both commas and spaces act as separators. Used by OTEL for `otelcollector.converter.features`. |
+| `traces_span` | Parses a comma-separated list of `service\|operation=rate` tokens into a map. Used by APM for `apm_config.analyzed_spans`. |
+| `csv_comma_separated` | Parses a CSV-encoded list of strings (supports quoted fields and leading whitespace). Used by APM for `apm_config.ignore_resources`. |
+| `comma_then_space_separated` | Splits on commas if the value contains a comma, otherwise on spaces. Mixing separators within a single value is not supported. Used by APM for `apm_config.features`. |
+| `json_list_or_comma_separated` | Parses as a JSON array if the value starts with `[`, otherwise splits on commas. Used by `private_action_runner.restricted_shell.allowed_commands`, `private_action_runner.restricted_shell.allowed_paths`, `process_config.custom_sensitive_words`. |
+| `json_list_or_space_separated` | Parses as a JSON array if the value starts with `[`, otherwise splits on spaces. Used by `apm_config.filter_tags.require`, `apm_config.filter_tags.reject`, `apm_config.filter_tags_regex.require`, `apm_config.filter_tags_regex.reject`, and `apm_config.obfuscation.credit_cards.keep_values`. |
 
 ```yaml
 tags:
@@ -463,7 +472,7 @@ tags:
   default: []
   env_vars:
     - DD_TAGS
-  env_parser: space_or_json
+  env_parser: json
 ```
 
 ---
@@ -519,8 +528,6 @@ Existing tags:
 
 - `template_section`: controls the different flavor of the configuration example we generate. This is directly inherited
   from the way we used to generate example from Go templates.
-- `TODO:fix-no-default`: flag that this legacy setting has no default.
-- `TODO:fix-missing-type`: flag that this legacy setting has no type.
 - `golang_type`: flag that this setting should use a different type when generating go code. Usage of `golang_type` tag
   is often a sign of an issue. The agent code should be easily configurable from YAML types.
   - `golang_type:duration`: will use a `time.duration`.

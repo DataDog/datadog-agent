@@ -1,0 +1,45 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+package(default_visibility = ["//visibility:private"])
+
+# Used by //pkg/config/schema:merged_core_schema to inline the per-section
+# sub-files referenced by core_schema.yaml's $refs.
+py_binary(
+    name = "merge_schema",
+    srcs = ["merge_schema.py"],
+    visibility = ["//pkg/config/schema:__pkg__"],
+    deps = ["@py_dev_requirements//pyyaml"],
+)
+
+# Used by //pkg/config/schema to derive processed variants of the schema (e.g.
+# the "embedded" output, trimmed of build-time-only data before it is compressed
+# and embedded into the Go binary). What each output keeps or drops is decided in
+# produce_byproduct.py; it never touches the YAML source files.
+py_binary(
+    name = "produce_byproduct",
+    srcs = [
+        "merge_schema.py",  # produce_byproduct imports resolve_schema to inline $refs
+        "produce_byproduct.py",
+    ],
+    main = "produce_byproduct.py",
+    visibility = ["//pkg/config/schema:__pkg__"],
+    deps = ["@py_dev_requirements//pyyaml"],
+)
+
+# Used by //pkg/config/schema:template.bzl (schema_template_config) to
+# render a config example yaml from an enriched schema. Wraps the
+# `generate_template` function from template.py so Bazel actions can
+# invoke it without going through the full invoke task collection.
+py_binary(
+    name = "schema_template",
+    srcs = [
+        "merge_schema.py",
+        "template.py",
+    ],
+    main = "template.py",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@py_dev_requirements//invoke",
+        "@py_dev_requirements//pyyaml",
+    ],
+)

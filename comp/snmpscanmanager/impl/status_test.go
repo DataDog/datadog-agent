@@ -179,7 +179,7 @@ func TestStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
+			mockConfig.SetInTest("run_path", testDir)
 
 			mockLifecycle := compdef.NewTestLifecycle(t)
 			mockLogger := logmock.New(t)

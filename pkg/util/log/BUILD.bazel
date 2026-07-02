@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "log",
@@ -11,6 +12,7 @@ go_library(
         "log_test_init.go",
         "logger.go",
         "logger_test_utils.go",
+        "observer_tap.go",
         "wrapper.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/log",
@@ -25,7 +27,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "log_test",
     srcs = [
         "klog_redirect_test.go",
@@ -33,10 +35,10 @@ go_test(
         "log_limit_test.go",
         "log_podman_util_test.go",
         "log_test.go",
+        "observer_tap_test.go",
         "wrapper_test.go",
     ],
     embed = [":log"],
-    gotags = ["test"],
     deps = [
         "//pkg/util/scrubber",
         "@com_github_stretchr_testify//assert",

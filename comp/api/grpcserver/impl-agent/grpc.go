@@ -10,18 +10,18 @@ import (
 	"net/http"
 
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterServer "github.com/DataDog/datadog-agent/comp/core/workloadfilter/server"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -29,7 +29,8 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -62,6 +63,7 @@ type Requires struct {
 	Telemetry           telemetry.Component
 	Hostname            hostnameinterface.Component
 	ConfigStream        configstream.Component
+	HealthPlatformStore healthplatformstore.Component
 }
 
 type server struct {
@@ -81,21 +83,23 @@ type server struct {
 	telemetry           telemetry.Component
 	hostname            hostnameinterface.Component
 	configStream        configstream.Component
+	healthPlatformStore healthplatformstore.Component
 }
 
 func (s *server) BuildServer() http.Handler {
-	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+	// `agent_ipc.grpc_max_message_size` is the canonical setting; the older
+	// `cluster_agent.cluster_tagger.grpc_max_message_size` is deprecated but still honoured
+	// for backwards compatibility. Use the larger of the two so neither setting can
+	// silently shrink the limit.
+	ipcMaxMessageSize := s.configComp.GetInt("agent_ipc.grpc_max_message_size")
+	legacyMaxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+	maxMessageSize := max(ipcMaxMessageSize, legacyMaxMessageSize)
 
 	// Use the convenience function that combines metrics and auth interceptors
-	var opts []googleGrpc.ServerOption
-	if vsockAddr := s.configComp.GetString("vsock_addr"); vsockAddr == "" {
-		opts = append(opts,
-			grpcutil.ServerOptionsWithMetricsAndAuth(
-				grpcutil.RequireClientCert,
-				grpcutil.RequireClientCertStream,
-			)...,
-		)
-	}
+	opts := grpcutil.ServerOptionsWithMetricsAndAuth(
+		grpcutil.RequireClientCert,
+		grpcutil.RequireClientCertStream,
+	)
 
 	opts = append(opts,
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
@@ -103,8 +107,22 @@ func (s *server) BuildServer() http.Handler {
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
 	)
 
-	// event size should be small enough to fit within the grpc max message size
-	maxEventSize := maxMessageSize / 2
+	// Emit telemetry when an outgoing message exceeds the soft threshold, well below
+	// the hard `MaxSendMsgSize`. Chained after the metrics+auth interceptors so its
+	// ServerStream wrapper is the one the actual handler holds.
+	if unary, stream := newOversizedMessageInterceptors(s.configComp.GetInt("agent_ipc.grpc_warning_message_size"), s.telemetry); unary != nil {
+		opts = append(opts,
+			googleGrpc.ChainUnaryInterceptor(unary),
+			googleGrpc.ChainStreamInterceptor(stream),
+		)
+	}
+
+	// The tagger and workloadmeta servers chunk their batches up to a per-event size cap.
+	// They are tuned around the legacy `cluster_agent.cluster_tagger.grpc_max_message_size`
+	// (4 MiB by default), so derive the chunk size from that key and not the much larger
+	// `agent_ipc.grpc_max_message_size` introduced for configstream — bumping the server
+	// frame size shouldn't silently grow tagger/wmeta batch sizes.
+	maxEventSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size") / 2
 	grpcServer := googleGrpc.NewServer(opts...)
 	pb.RegisterAgentServer(grpcServer, &agentServer{hostname: s.hostname})
 	pb.RegisterAgentSecureServer(grpcServer, &serverSecure{
@@ -122,6 +140,10 @@ func (s *server) BuildServer() http.Handler {
 		autodiscovery:        s.autodiscovery,
 		configComp:           s.configComp,
 		configStreamServer:   configstreamServer.NewServer(s.configComp, s.configStream, s.remoteAgentRegistry),
+		healthPlatformStore:  s.healthPlatformStore,
+	})
+	pb.RegisterRemoteAgentServer(grpcServer, &remoteAgentServer{
+		remoteAgentRegistry: s.remoteAgentRegistry,
 	})
 
 	return grpcServer
@@ -152,6 +174,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			telemetry:           reqs.Telemetry,
 			hostname:            reqs.Hostname,
 			configStream:        reqs.ConfigStream,
+			healthPlatformStore: reqs.HealthPlatformStore,
 		},
 	}
 	return provides, nil

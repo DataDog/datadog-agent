@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "sbomutil",
+    srcs = [
+        "compress.go",
+        "doc.go",
+        "image_util.go",
+        "image_util_stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "@com_github_aquasecurity_trivy//pkg/sbom/core",
+        "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+dd_agent_go_test(
+    name = "sbomutil_test",
+    srcs = [
+        "compress_test.go",
+        "image_util_test.go",
+    ],
+    embed = [":sbomutil"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/pointer",
+        "@com_github_aquasecurity_trivy//pkg/sbom/core",
+        "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
