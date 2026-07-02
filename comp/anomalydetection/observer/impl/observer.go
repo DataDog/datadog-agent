@@ -198,7 +198,7 @@ type disabledObserver struct{}
 func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
 func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
-func (*disabledObserver) SubscribeScorer(_ severityeventsdef.AnomalyScorerConfiguration) func() {
+func (*disabledObserver) SubscribeScorer(_ severityeventsdef.SeverityEventsConfiguration) func() {
 	return func() {}
 }
 
@@ -690,7 +690,7 @@ func (o *observerImpl) DumpMetrics(path string) error {
 
 // SubscribeScorer registers a scorer event listener described by cfg.
 // Delegates to the engine scorer when one is configured.
-func (o *observerImpl) SubscribeScorer(cfg severityeventsdef.AnomalyScorerConfiguration) func() {
+func (o *observerImpl) SubscribeScorer(cfg severityeventsdef.SeverityEventsConfiguration) func() {
 	o.engine.mu.RLock()
 	scorer := o.engine.scorer
 	o.engine.mu.RUnlock()

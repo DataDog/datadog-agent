@@ -487,7 +487,7 @@ func TestSubscribeBasic(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	s.Subscribe(severityeventsdef.AnomalyScorerConfiguration{Listener: l})
+	s.Subscribe(severityeventsdef.SeverityEventsConfiguration{Listener: l})
 
 	// Advance with no anomalies: EWMA=0, stays Low — no event.
 	s.Advance(1000)
@@ -507,7 +507,7 @@ func TestSubscribeBasic(t *testing.T) {
 	if evt.FromLevel != severityeventsdef.SeverityLow || evt.ToLevel != severityeventsdef.SeverityHigh {
 		t.Errorf("escalation event wrong levels: from=%d to=%d", evt.FromLevel, evt.ToLevel)
 	}
-	if evt.Direction != severityeventsdef.AnomalyScorerEventEscalation {
+	if evt.Direction != severityeventsdef.SeverityEventEscalation {
 		t.Errorf("expected escalation direction, got %d", evt.Direction)
 	}
 }
@@ -521,7 +521,7 @@ func TestSubscribeCooldown(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	s.Subscribe(severityeventsdef.AnomalyScorerConfiguration{
+	s.Subscribe(severityeventsdef.SeverityEventsConfiguration{
 		Listener:     l,
 		CooldownSecs: 60, // 60s cooldown on de-escalations
 	})
@@ -539,7 +539,7 @@ func TestSubscribeCooldown(t *testing.T) {
 
 	escalations, deescalations := 0, 0
 	for _, e := range l.events {
-		if e.Direction == severityeventsdef.AnomalyScorerEventEscalation {
+		if e.Direction == severityeventsdef.SeverityEventEscalation {
 			escalations++
 		} else {
 			deescalations++
@@ -556,7 +556,7 @@ func TestSubscribeCooldown(t *testing.T) {
 	s.Advance(1062)
 	deescalations = 0
 	for _, e := range l.events {
-		if e.Direction == severityeventsdef.AnomalyScorerEventDeescalation {
+		if e.Direction == severityeventsdef.SeverityEventDeescalation {
 			deescalations++
 		}
 	}
@@ -575,10 +575,10 @@ func TestSubscribeFilter(t *testing.T) {
 
 	// Only receive escalations.
 	l := &collectingListener{}
-	s.Subscribe(severityeventsdef.AnomalyScorerConfiguration{
+	s.Subscribe(severityeventsdef.SeverityEventsConfiguration{
 		Listener: l,
-		Filter: severityeventsdef.AnomalyScorerEventFilter{
-			Direction: severityeventsdef.AnomalyScorerEventEscalation,
+		Filter: severityeventsdef.SeverityEventFilter{
+			Direction: severityeventsdef.SeverityEventEscalation,
 		},
 	})
 
@@ -593,7 +593,7 @@ func TestSubscribeFilter(t *testing.T) {
 	if len(l.events) != 1 {
 		t.Fatalf("expected 1 event (only escalation), got %d: %v", len(l.events), l.events)
 	}
-	if l.events[0].Direction != severityeventsdef.AnomalyScorerEventEscalation {
+	if l.events[0].Direction != severityeventsdef.SeverityEventEscalation {
 		t.Errorf("delivered event should be escalation, got direction=%d", l.events[0].Direction)
 	}
 }
@@ -605,7 +605,7 @@ func TestSubscribeNilPanics(t *testing.T) {
 			t.Error("expected panic for nil Listener, got none")
 		}
 	}()
-	NewAnomalyScorer(DefaultAnomalyScorerConfig()).Subscribe(severityeventsdef.AnomalyScorerConfiguration{})
+	NewAnomalyScorer(DefaultAnomalyScorerConfig()).Subscribe(severityeventsdef.SeverityEventsConfiguration{})
 }
 
 // TestUnsubscribe verifies that the returned unsubscribe function stops delivery.
@@ -617,7 +617,7 @@ func TestUnsubscribe(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	unsub := s.Subscribe(severityeventsdef.AnomalyScorerConfiguration{Listener: l})
+	unsub := s.Subscribe(severityeventsdef.SeverityEventsConfiguration{Listener: l})
 
 	// Warm-up: seed at Low.
 	s.Advance(1000)
@@ -642,7 +642,7 @@ func TestResetClearsSubscriptionState(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	s.Subscribe(severityeventsdef.AnomalyScorerConfiguration{
+	s.Subscribe(severityeventsdef.SeverityEventsConfiguration{
 		Listener:     l,
 		CooldownSecs: 3600, // long cooldown — would suppress de-escalation if stale
 	})
@@ -666,7 +666,7 @@ func TestResetClearsSubscriptionState(t *testing.T) {
 	if after-before != 1 {
 		t.Errorf("expected 1 new escalation event after Reset+replay, got %d new events", after-before)
 	}
-	if l.events[after-1].Direction != severityeventsdef.AnomalyScorerEventEscalation {
+	if l.events[after-1].Direction != severityeventsdef.SeverityEventEscalation {
 		t.Errorf("post-reset event should be escalation, got direction=%d", l.events[after-1].Direction)
 	}
 }

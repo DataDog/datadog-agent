@@ -17,17 +17,17 @@ const (
 	NumSeverityLevels
 )
 
-// AnomalyScorerEventDirection describes whether a severity transition is an
+// SeverityEventDirection describes whether a severity transition is an
 // escalation or de-escalation.
-type AnomalyScorerEventDirection int
+type SeverityEventDirection int
 
 const (
-	// AnomalyScorerEventBoth delivers transitions in either direction (default zero value).
-	AnomalyScorerEventBoth AnomalyScorerEventDirection = 0
-	// AnomalyScorerEventEscalation delivers only transitions where ToLevel > FromLevel.
-	AnomalyScorerEventEscalation AnomalyScorerEventDirection = 1
-	// AnomalyScorerEventDeescalation delivers only transitions where ToLevel < FromLevel.
-	AnomalyScorerEventDeescalation AnomalyScorerEventDirection = 2
+	// SeverityEventBoth delivers transitions in either direction (default zero value).
+	SeverityEventBoth SeverityEventDirection = 0
+	// SeverityEventEscalation delivers only transitions where ToLevel > FromLevel.
+	SeverityEventEscalation SeverityEventDirection = 1
+	// SeverityEventDeescalation delivers only transitions where ToLevel < FromLevel.
+	SeverityEventDeescalation SeverityEventDirection = 2
 )
 
 // SeverityEvent records a severity state-machine transition.
@@ -38,37 +38,37 @@ type SeverityEvent struct {
 	FromLevel SeverityLevel `json:"from_level"`
 	// ToLevel is the state after the transition.
 	ToLevel SeverityLevel `json:"to_level"`
-	// Direction is AnomalyScorerEventEscalation when ToLevel > FromLevel, and
-	// AnomalyScorerEventDeescalation when ToLevel < FromLevel.
-	Direction AnomalyScorerEventDirection `json:"direction"`
+	// Direction is SeverityEventEscalation when ToLevel > FromLevel, and
+	// SeverityEventDeescalation when ToLevel < FromLevel.
+	Direction SeverityEventDirection `json:"direction"`
 }
 
-// AnomalyScorerListener receives severity state-machine transitions from the scorer.
-type AnomalyScorerListener interface {
+// SeverityEventListener receives severity state-machine transitions from the scorer.
+type SeverityEventListener interface {
 	OnSeverityTransition(event SeverityEvent)
 }
 
-// AnomalyScorerEventFilter selects which SeverityEvents are delivered to a listener.
+// SeverityEventFilter selects which SeverityEvents are delivered to a listener.
 // All conditions are ANDed; a nil or empty slice means "any value".
-// The zero value AnomalyScorerEventFilter{} matches every transition.
-type AnomalyScorerEventFilter struct {
+// The zero value SeverityEventFilter{} matches every transition.
+type SeverityEventFilter struct {
 	// FromLevels restricts to events whose FromLevel is in the set.
 	FromLevels []SeverityLevel
 	// ToLevels restricts to events whose ToLevel is in the set.
 	ToLevels []SeverityLevel
 	// Direction restricts by escalation or de-escalation.
-	Direction AnomalyScorerEventDirection
+	Direction SeverityEventDirection
 }
 
-// AnomalyScorerConfiguration is the single object passed to SubscribeScorer
+// SeverityEventsConfiguration is the single object passed to SubscribeScorer
 // when registering a listener. It bundles who to call (Listener), which
 // transitions to deliver (Filter), and per-subscription state-machine tuning.
-type AnomalyScorerConfiguration struct {
+type SeverityEventsConfiguration struct {
 	// Listener is called for each matching severity transition. Required.
-	Listener AnomalyScorerListener
+	Listener SeverityEventListener
 	// Filter controls which transitions are delivered.
-	// Zero value AnomalyScorerEventFilter{} delivers all transitions.
-	Filter AnomalyScorerEventFilter
+	// Zero value SeverityEventFilter{} delivers all transitions.
+	Filter SeverityEventFilter
 	// CooldownSecs is the minimum number of seconds that must elapse after a
 	// delivered transition before a downward (de-escalation) transition can be
 	// delivered again.

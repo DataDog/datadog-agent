@@ -28,7 +28,7 @@ type Dispatcher struct {
 // subscription is a registered listener with its own per-subscription
 // severity state machine.
 type subscription struct {
-	cfg severityeventsdef.AnomalyScorerConfiguration
+	cfg severityeventsdef.SeverityEventsConfiguration
 
 	state            severityeventsdef.SeverityLevel
 	lastStateEntryTs int64
@@ -48,7 +48,7 @@ func NewDispatcher() *Dispatcher {
 // one Advance call has happened since the last Reset), an initial synthetic
 // event is delivered synchronously before SubscribeScorer returns, with
 // FromLevel == ToLevel == the current level and Direction ==
-// AnomalyScorerEventBoth. This lets a subscriber that joins mid-stream learn
+// SeverityEventBoth. This lets a subscriber that joins mid-stream learn
 // the current state immediately rather than only being told about future
 // transitions relative to a silently-adopted baseline. The initial event is
 // still subject to cfg.Filter, so a directional filter (escalations-only or
@@ -56,7 +56,7 @@ func NewDispatcher() *Dispatcher {
 //
 // Returns an unsubscribe function. Safe to call concurrently. Panics if
 // cfg.Listener is nil.
-func (d *Dispatcher) SubscribeScorer(cfg severityeventsdef.AnomalyScorerConfiguration) func() {
+func (d *Dispatcher) SubscribeScorer(cfg severityeventsdef.SeverityEventsConfiguration) func() {
 	if cfg.Listener == nil {
 		panic("severityeventsimpl.Dispatcher.SubscribeScorer: Listener must not be nil")
 	}
@@ -74,7 +74,7 @@ func (d *Dispatcher) SubscribeScorer(cfg severityeventsdef.AnomalyScorerConfigur
 			Timestamp: d.lastSec,
 			FromLevel: level,
 			ToLevel:   level,
-			Direction: severityeventsdef.AnomalyScorerEventBoth,
+			Direction: severityeventsdef.SeverityEventBoth,
 		}
 	}
 	d.subs = append(d.subs, sub)
@@ -158,14 +158,14 @@ func (sub *subscription) advance(sec int64, level severityeventsdef.SeverityLeve
 	return evt, true
 }
 
-func eventDirection(from, to severityeventsdef.SeverityLevel) severityeventsdef.AnomalyScorerEventDirection {
+func eventDirection(from, to severityeventsdef.SeverityLevel) severityeventsdef.SeverityEventDirection {
 	if to > from {
-		return severityeventsdef.AnomalyScorerEventEscalation
+		return severityeventsdef.SeverityEventEscalation
 	}
-	return severityeventsdef.AnomalyScorerEventDeescalation
+	return severityeventsdef.SeverityEventDeescalation
 }
 
-func eventFilterMatches(f severityeventsdef.AnomalyScorerEventFilter, evt severityeventsdef.SeverityEvent) bool {
+func eventFilterMatches(f severityeventsdef.SeverityEventFilter, evt severityeventsdef.SeverityEvent) bool {
 	if len(f.FromLevels) > 0 {
 		found := false
 		for _, l := range f.FromLevels {
@@ -191,11 +191,11 @@ func eventFilterMatches(f severityeventsdef.AnomalyScorerEventFilter, evt severi
 		}
 	}
 	switch f.Direction {
-	case severityeventsdef.AnomalyScorerEventEscalation:
+	case severityeventsdef.SeverityEventEscalation:
 		if evt.ToLevel <= evt.FromLevel {
 			return false
 		}
-	case severityeventsdef.AnomalyScorerEventDeescalation:
+	case severityeventsdef.SeverityEventDeescalation:
 		if evt.ToLevel >= evt.FromLevel {
 			return false
 		}

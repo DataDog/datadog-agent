@@ -22,7 +22,7 @@ func (l *collectingListener) OnSeverityTransition(evt severityeventsdef.Severity
 func TestDispatcherBasic(t *testing.T) {
 	d := NewDispatcher()
 	l := &collectingListener{}
-	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{Listener: l})
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{Listener: l})
 
 	d.Advance(1000, severityeventsdef.SeverityLow)  // seed
 	d.Advance(1001, severityeventsdef.SeverityHigh) // escalate
@@ -34,7 +34,7 @@ func TestDispatcherBasic(t *testing.T) {
 	if evt.FromLevel != severityeventsdef.SeverityLow || evt.ToLevel != severityeventsdef.SeverityHigh {
 		t.Fatalf("wrong levels: from=%v to=%v", evt.FromLevel, evt.ToLevel)
 	}
-	if evt.Direction != severityeventsdef.AnomalyScorerEventEscalation {
+	if evt.Direction != severityeventsdef.SeverityEventEscalation {
 		t.Fatalf("expected escalation direction, got %v", evt.Direction)
 	}
 }
@@ -42,7 +42,7 @@ func TestDispatcherBasic(t *testing.T) {
 func TestDispatcherCooldown(t *testing.T) {
 	d := NewDispatcher()
 	l := &collectingListener{}
-	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{
 		Listener:     l,
 		CooldownSecs: 60,
 	})
@@ -53,7 +53,7 @@ func TestDispatcherCooldown(t *testing.T) {
 
 	escalations, deescalations := 0, 0
 	for _, e := range l.events {
-		if e.Direction == severityeventsdef.AnomalyScorerEventEscalation {
+		if e.Direction == severityeventsdef.SeverityEventEscalation {
 			escalations++
 		} else {
 			deescalations++
@@ -70,7 +70,7 @@ func TestDispatcherCooldown(t *testing.T) {
 
 	deescalations = 0
 	for _, e := range l.events {
-		if e.Direction == severityeventsdef.AnomalyScorerEventDeescalation {
+		if e.Direction == severityeventsdef.SeverityEventDeescalation {
 			deescalations++
 		}
 	}
@@ -82,10 +82,10 @@ func TestDispatcherCooldown(t *testing.T) {
 func TestDispatcherFilter(t *testing.T) {
 	d := NewDispatcher()
 	l := &collectingListener{}
-	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{
 		Listener: l,
-		Filter: severityeventsdef.AnomalyScorerEventFilter{
-			Direction: severityeventsdef.AnomalyScorerEventEscalation,
+		Filter: severityeventsdef.SeverityEventFilter{
+			Direction: severityeventsdef.SeverityEventEscalation,
 		},
 	})
 
@@ -96,7 +96,7 @@ func TestDispatcherFilter(t *testing.T) {
 	if len(l.events) != 1 {
 		t.Fatalf("expected only the escalation to pass the filter, got %d: %v", len(l.events), l.events)
 	}
-	if l.events[0].Direction != severityeventsdef.AnomalyScorerEventEscalation {
+	if l.events[0].Direction != severityeventsdef.SeverityEventEscalation {
 		t.Fatalf("expected delivered event to be escalation, got %v", l.events[0].Direction)
 	}
 }
@@ -104,7 +104,7 @@ func TestDispatcherFilter(t *testing.T) {
 func TestDispatcherUnsubscribe(t *testing.T) {
 	d := NewDispatcher()
 	l := &collectingListener{}
-	unsub := d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{Listener: l})
+	unsub := d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{Listener: l})
 
 	d.Advance(1000, severityeventsdef.SeverityLow)
 	d.Advance(1001, severityeventsdef.SeverityHigh)
@@ -119,7 +119,7 @@ func TestDispatcherUnsubscribe(t *testing.T) {
 func TestDispatcherResetClearsSubscriptionState(t *testing.T) {
 	d := NewDispatcher()
 	l := &collectingListener{}
-	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{
 		Listener:     l,
 		CooldownSecs: 3600,
 	})
@@ -135,7 +135,7 @@ func TestDispatcherResetClearsSubscriptionState(t *testing.T) {
 	if len(l.events)-before != 1 {
 		t.Fatalf("expected one new event after reset, got %d", len(l.events)-before)
 	}
-	if l.events[len(l.events)-1].Direction != severityeventsdef.AnomalyScorerEventEscalation {
+	if l.events[len(l.events)-1].Direction != severityeventsdef.SeverityEventEscalation {
 		t.Fatalf("expected post-reset event to be an escalation, got %v", l.events[len(l.events)-1].Direction)
 	}
 }
@@ -143,7 +143,7 @@ func TestDispatcherResetClearsSubscriptionState(t *testing.T) {
 func TestDispatcherSubscribeBeforeAnyAdvanceDeliversNoInitialEvent(t *testing.T) {
 	d := NewDispatcher()
 	l := &collectingListener{}
-	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{Listener: l})
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{Listener: l})
 
 	if len(l.events) != 0 {
 		t.Fatalf("expected no initial event before any Advance, got %v", l.events)
@@ -156,7 +156,7 @@ func TestDispatcherSubscribeMidStreamDeliversCurrentLevel(t *testing.T) {
 	d.Advance(1001, severityeventsdef.SeverityHigh) // no subscriber yet
 
 	l := &collectingListener{}
-	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{Listener: l})
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{Listener: l})
 
 	if len(l.events) != 1 {
 		t.Fatalf("expected exactly one initial event, got %d: %v", len(l.events), l.events)
@@ -165,7 +165,7 @@ func TestDispatcherSubscribeMidStreamDeliversCurrentLevel(t *testing.T) {
 	if evt.FromLevel != severityeventsdef.SeverityHigh || evt.ToLevel != severityeventsdef.SeverityHigh {
 		t.Fatalf("expected initial event to reflect current level High, got from=%v to=%v", evt.FromLevel, evt.ToLevel)
 	}
-	if evt.Direction != severityeventsdef.AnomalyScorerEventBoth {
+	if evt.Direction != severityeventsdef.SeverityEventBoth {
 		t.Fatalf("expected initial event direction to be Both, got %v", evt.Direction)
 	}
 	if evt.Timestamp != 1001 {
@@ -186,14 +186,14 @@ func TestDispatcherSubscribeMidStreamRespectsDirectionFilter(t *testing.T) {
 	d.Advance(1001, severityeventsdef.SeverityHigh)
 
 	escalationsOnly := &collectingListener{}
-	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{
 		Listener: escalationsOnly,
-		Filter:   severityeventsdef.AnomalyScorerEventFilter{Direction: severityeventsdef.AnomalyScorerEventEscalation},
+		Filter:   severityeventsdef.SeverityEventFilter{Direction: severityeventsdef.SeverityEventEscalation},
 	})
 	deescalationsOnly := &collectingListener{}
-	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{
 		Listener: deescalationsOnly,
-		Filter:   severityeventsdef.AnomalyScorerEventFilter{Direction: severityeventsdef.AnomalyScorerEventDeescalation},
+		Filter:   severityeventsdef.SeverityEventFilter{Direction: severityeventsdef.SeverityEventDeescalation},
 	})
 
 	if len(escalationsOnly.events) != 0 {
@@ -210,7 +210,7 @@ func TestDispatcherSubscribeMidStreamCooldownAppliesFromInitialDelivery(t *testi
 	d.Advance(1001, severityeventsdef.SeverityHigh)
 
 	l := &collectingListener{}
-	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{
 		Listener:     l,
 		CooldownSecs: 60,
 	})
@@ -239,7 +239,7 @@ func TestDispatcherResetClearsKnownLevelForNewSubscribers(t *testing.T) {
 	d.Reset()
 
 	l := &collectingListener{}
-	d.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{Listener: l})
+	d.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{Listener: l})
 	if len(l.events) != 0 {
 		t.Fatalf("expected no initial event after Reset cleared the known level, got %v", l.events)
 	}
@@ -251,5 +251,5 @@ func TestDispatcherNilPanics(t *testing.T) {
 			t.Fatal("expected panic for nil listener")
 		}
 	}()
-	NewDispatcher().SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{})
+	NewDispatcher().SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{})
 }

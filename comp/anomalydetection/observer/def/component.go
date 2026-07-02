@@ -36,5 +36,5 @@ type Component interface {
 	// synthetic event reflecting it is delivered immediately (see
 	// severityeventsdef.Subscriber for details). Returns an unsubscribe
 	// function; call it to stop delivery.
-	SubscribeScorer(cfg severityeventsdef.AnomalyScorerConfiguration) func()
+	SubscribeScorer(cfg severityeventsdef.SeverityEventsConfiguration) func()
 }
