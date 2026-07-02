@@ -2,9 +2,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
-    srcs = [
-        "dispatcher.go",
-    ],
+    srcs = ["dispatcher.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/impl",
     visibility = ["//visibility:public"],
     deps = ["//comp/anomalydetection/severityevents/def"],
@@ -12,9 +10,7 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = [
-        "dispatcher_test.go",
-    ],
+    srcs = ["dispatcher_test.go"],
     embed = [":impl"],
     gotags = ["test"],
     deps = ["//comp/anomalydetection/severityevents/def"],
