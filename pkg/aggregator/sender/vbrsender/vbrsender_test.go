@@ -150,22 +150,49 @@ func TestGauge_SpikeShipsViaGaugeWithTimestamp(t *testing.T) {
 func TestCount_ShipsViaCountWithTimestampNotGauge(t *testing.T) {
 	s, fake := newTestSender()
 
+	total := 0.0
 	for i := 0; i < 10; i++ {
 		v := 1.0
 		if i == 5 {
 			v = 500.0
 		}
+		total += v
 		s.compressAt(kindCount, "my.count", v, "host", nil, float64(i))
 	}
 
 	require.Empty(t, fake.gauges, "count calls must never ship via GaugeWithTimestamp")
-	found := false
+	require.NotEmpty(t, fake.counts, "expected the spike to force at least one breakpoint to ship")
+
+	shipped := 0.0
 	for _, c := range fake.counts {
-		if c.value == 500.0 {
-			found = true
-		}
+		shipped += c.value
 	}
-	require.True(t, found, "expected the count spike to be shipped, got %+v", fake.counts)
+	ctx := s.contexts[contextKeyFor("my.count", "host", nil)]
+	require.InDelta(t, total, shipped+ctx.pendingSum, 1e-9,
+		"every received value must be shipped or still pending, never lost")
+}
+
+// TestCount_SumIsConservedAcrossWarmupCloseAndWindowFlush drives Count
+// through warmup, a segment close (spike), and a window-flush boundary
+// (windowDuration == 15s in the sample-timestamp domain) and asserts the
+// core pendingSum invariant: nothing received is ever lost, only possibly
+// still pending.
+func TestCount_SumIsConservedAcrossWarmupCloseAndWindowFlush(t *testing.T) {
+	s, fake := newTestSender()
+
+	values := []float64{1, 1, 500, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+	total := 0.0
+	for i, v := range values {
+		total += v
+		s.compressAt(kindCount, "my.count", v, "host", nil, float64(i))
+	}
+
+	shipped := 0.0
+	for _, c := range fake.counts {
+		shipped += c.value
+	}
+	ctx := s.contexts[contextKeyFor("my.count", "host", nil)]
+	require.InDelta(t, total, shipped+ctx.pendingSum, 1e-9)
 }
 
 func TestRate_FirstSampleProducesNoValue(t *testing.T) {
@@ -217,6 +244,31 @@ func TestMonotonicCount_ResetIsDropped(t *testing.T) {
 	s.compressAt(kindMonotonicCount, "my.mc", 5, "host", nil, 1)
 
 	require.Empty(t, fake.counts, "a reset (decreasing raw value) must be dropped, not shipped as a negative diff")
+}
+
+// TestMonotonicCount_SumIsConservedAcrossWarmupCloseAndWindowFlush mirrors
+// TestCount_SumIsConservedAcrossWarmupCloseAndWindowFlush for
+// MonotonicCount's locally-diffed values.
+func TestMonotonicCount_SumIsConservedAcrossWarmupCloseAndWindowFlush(t *testing.T) {
+	s, fake := newTestSender()
+
+	raw := []float64{10, 16, 1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014, 1015, 1016, 1017}
+	totalDiff := 0.0
+	for i := 1; i < len(raw); i++ {
+		if d := raw[i] - raw[i-1]; d >= 0 {
+			totalDiff += d
+		}
+	}
+	for i, v := range raw {
+		s.compressAt(kindMonotonicCount, "my.mc", v, "host", nil, float64(i))
+	}
+
+	shipped := 0.0
+	for _, c := range fake.counts {
+		shipped += c.value
+	}
+	ctx := s.contexts[contextKeyFor("my.mc", "host", nil)]
+	require.InDelta(t, totalDiff, shipped+ctx.pendingSum, 1e-9)
 }
 
 func TestWindowFlush_DrivenBySampleTimestampsNotWallClock(t *testing.T) {
