@@ -95,7 +95,7 @@ type ManagerV2 struct {
 
 	insertionErrors map[model.EventType]*atomic.Uint64
 
-	eventMetrics [metricSourceCount][model.MaxKernelEventType]*perEventTypeMetrics
+	eventMetrics [metricSourceCount]map[model.EventType]*perEventTypeMetrics
 
 	// storage
 	localStorage              *storage.Directory
@@ -219,15 +219,19 @@ func (m *ManagerV2) initMetricsMap() {
 	}
 }
 
-// initEventMetrics precomputes the {source, event_type} tags and counters for every source/event type.
+// initEventMetrics precomputes the {source, event_type} tags and counters for every source and
+// every configured profile event type. Event types that are never captured by V2 profiles are
+// filtered out in ProcessEvent, so there's no point allocating counters for them.
 func (m *ManagerV2) initEventMetrics() {
 	sources := [metricSourceCount]model.EventSource{
 		metricSourceRuntime: model.EventSourceRuntime,
 		metricSourceReplay:  model.EventSourceReplay,
 		metricSourceRelated: model.EventSourceRelated,
 	}
+	eventTypes := m.config.RuntimeSecurity.SecurityProfileV2EventTypes
 	for src, sourceName := range sources {
-		for et := model.EventType(0); et < model.MaxKernelEventType; et++ {
+		m.eventMetrics[src] = make(map[model.EventType]*perEventTypeMetrics, len(eventTypes))
+		for _, et := range eventTypes {
 			m.eventMetrics[src][et] = &perEventTypeMetrics{
 				tags:            []string{"source:" + string(sourceName), "event_type:" + et.String()},
 				eventsReceived:  atomic.NewUint64(0),
@@ -239,12 +243,9 @@ func (m *ManagerV2) initEventMetrics() {
 }
 
 // eventMetricsFor returns the metric counters for the given source/event type, or nil if the
-// event type is out of range. The three known sources (runtime, replay, related) each map to
-// their own shard so related traffic isn't misreported as runtime.
+// event type isn't one of the configured profile event types. The three known sources (runtime,
+// replay, related) each map to their own shard so related traffic isn't misreported as runtime.
 func (m *ManagerV2) eventMetricsFor(source model.EventSource, et model.EventType) *perEventTypeMetrics {
-	if et >= model.MaxKernelEventType {
-		return nil
-	}
 	src := metricSourceRuntime
 	switch source {
 	case model.EventSourceReplay:
@@ -723,14 +724,9 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
-	// Per-(source, event_type) event counters (range over pointers to avoid copying the atomics).
-	for src := range &m.eventMetrics {
-		shard := &m.eventMetrics[src]
-		for et := range shard {
-			em := shard[et]
-			if em == nil {
-				continue
-			}
+	// Per-(source, event_type) event counters.
+	for src := range m.eventMetrics {
+		for _, em := range m.eventMetrics[src] {
 			if value := em.eventsReceived.Swap(0); value > 0 {
 				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, int64(value), em.tags, 1.0); err != nil {
 					return err
