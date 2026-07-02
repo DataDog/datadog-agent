@@ -15,6 +15,13 @@ import (
 	"github.com/fatih/color"
 )
 
+// DiagnoseHTTPHandler is an optional interface implemented by diagnose components
+// that can expose a raw HTTP handler. Servers that manage their own mux (e.g. the
+// cluster-agent) use this instead of NewAgentEndpointProvider.
+type DiagnoseHTTPHandler interface {
+	GetDiagnose() func(http.ResponseWriter, *http.Request)
+}
+
 // team: agent-configuration
 
 type metadataAvailDiagnoseCatalog map[string]func() error
@@ -92,9 +99,6 @@ type Component interface {
 	RunSuites(format string, verbose bool) ([]byte, error)
 	RunSuite(suite string, format string, verbose bool) ([]byte, error)
 	RunLocalSuite(suites Suites, config Config) (*Result, error)
-	// GetDiagnose returns an HTTP handler that runs diagnose suites and writes a JSON Result.
-	// Used by servers that manage their own HTTP mux (e.g. cluster-agent).
-	GetDiagnose() func(http.ResponseWriter, *http.Request)
 }
 
 // Status contains the result of the diagnosis
