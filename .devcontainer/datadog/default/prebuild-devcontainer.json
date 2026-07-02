@@ -1,11 +1,27 @@
 {
-    // Trigger build: 2026-05-04 10:25
+    // Trigger build: 2026-05-25 23:32
     "name": "Datadog Agent Development Container",
-    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:v110159745-8628883e",
+    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace_test_only:v115202843-a2421094",
     "features": {
-        "registry.ddbuild.io/workspaces/features/base:0.4.100410934": {},
         "./features/datadog-agent": {}
     },
+    "mounts": [
+        {
+            "source": "${localEnv:HOME}/.cache",
+            "target": "/var/cache/dd",
+            "type": "bind"
+        },
+        {
+            "source": "dind-var-lib-docker-${devcontainerId}",
+            "target": "/var/lib/docker",
+            "type": "volume"
+        },
+        {
+            "source": "dind-var-lib-containerd-${devcontainerId}",
+            "target": "/var/lib/containerd",
+            "type": "volume"
+        }
+    ],
     "forwardPorts": [22],
     "containerUser": "root",
     "remoteUser": "bits",
