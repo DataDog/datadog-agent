@@ -6,16 +6,19 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
-func TestPARDequeueSurfacesRshellPolicyAsSystemInputs(t *testing.T) {
+func TestPARDequeueSurfacesRshellPolicyInSignedEnvelope(t *testing.T) {
 	fi := NewServer()
 	fi.par.queue = []parQueuedTask{{
 		TaskID:    "task-1",
@@ -37,8 +40,15 @@ func TestPARDequeueSurfacesRshellPolicyAsSystemInputs(t *testing.T) {
 
 	data := got["data"].(map[string]interface{})
 	attributes := data["attributes"].(map[string]interface{})
-	systemInputs := attributes["system_inputs"].(map[string]interface{})
-	remoteAction := systemInputs["remote_action"].(map[string]interface{})
-	assert.Equal(t, []interface{}{"rshell:cat"}, remoteAction["target_commands"])
-	assert.Equal(t, []interface{}{"/tmp:rw", "/host/var/log"}, remoteAction["target_paths"])
+	signedEnvelope := attributes["signed_envelope"].(map[string]interface{})
+	signedTaskData, err := base64.StdEncoding.DecodeString(signedEnvelope["data"].(string))
+	require.NoError(t, err)
+
+	var task privateactionspb.PrivateActionTask
+	require.NoError(t, proto.Unmarshal(signedTaskData, &task))
+
+	remoteAction := task.GetSystemInputs().GetRemoteAction()
+	require.NotNil(t, remoteAction)
+	assert.Equal(t, []string{"rshell:cat"}, remoteAction.TargetCommands)
+	assert.Equal(t, []string{"/tmp:rw", "/host/var/log"}, remoteAction.TargetPaths)
 }

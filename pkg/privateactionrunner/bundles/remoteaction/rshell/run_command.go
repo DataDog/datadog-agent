@@ -135,9 +135,8 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 // RunCommandInputs defines the user-supplied inputs for the runCommand action.
 //
 // The command allowlists are no longer carried in inputs: they are resolved
-// from execution policies on the backend and delivered in the signed task
-// (Attributes.SystemInputs.RemoteAction.TargetCommands /
-// Attributes.SystemInputs.RemoteAction.TargetPaths).
+// from execution policies on the backend and delivered in the signed task's
+// system_inputs.remote_action fields.
 // Inputs only carry the command to run.
 type RunCommandInputs struct {
 	Command string `json:"command"`
@@ -175,9 +174,9 @@ func (h *RunCommandHandler) Run(
 	// The backend allowlists come from the signed task, not from user inputs.
 	var backendCommands []string
 	var backendPaths []string
-	if task.Data.Attributes.SystemInputs != nil && task.Data.Attributes.SystemInputs.RemoteAction != nil {
-		backendCommands = task.Data.Attributes.SystemInputs.RemoteAction.TargetCommands
-		backendPaths = task.Data.Attributes.SystemInputs.RemoteAction.TargetPaths
+	if remoteAction := task.Data.Attributes.SystemInputs.GetRemoteAction(); remoteAction != nil {
+		backendCommands = remoteAction.TargetCommands
+		backendPaths = remoteAction.TargetPaths
 	}
 	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
@@ -195,15 +194,6 @@ func (h *RunCommandHandler) Run(
 			log.Warnf("path %q not found, rshell may fail to execute commands", statPath)
 		}
 	}
-	// rshell treats allowed paths as read-only unless carrying a ":rw" suffix,
-	// so, unlike read-only mode, remediation mode must opt paths into writes.
-	effectiveAllowedPathsRW := effectiveAllowedPaths
-	if h.mode == interp.ModeRemediation {
-		effectiveAllowedPathsRW = make([]string, len(effectiveAllowedPaths))
-		for i, p := range effectiveAllowedPaths {
-			effectiveAllowedPathsRW[i] = p + ":rw"
-		}
-	}
 	var stdout, stderr bytes.Buffer
 	// Route sandbox diagnostics to a dedicated sink so they do not leak
 	// into the action's stderr field. We discard the streaming output and
@@ -211,7 +201,7 @@ func (h *RunCommandHandler) Run(
 	runner, err := interp.New(
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.WarningsWriter(io.Discard),
-		interp.AllowedPaths(effectiveAllowedPathsRW),
+		interp.AllowedPaths(effectiveAllowedPaths),
 		interp.ProcPath(resolveProcPath()),
 		interp.AllowedCommands(effectiveAllowedCommands),
 		interp.WithMode(h.mode),

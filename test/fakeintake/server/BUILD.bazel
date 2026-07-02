@@ -15,6 +15,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/core",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "//test/fakeintake/api",
         "//test/fakeintake/server/rcstore",
         "//test/fakeintake/server/serverstore",
@@ -26,6 +27,7 @@ go_library(
         "@com_github_prometheus_client_golang//prometheus/promhttp",
         "@in_gopkg_yaml_v3//:yaml_v3",
         "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/structpb",
     ] + select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//require",
@@ -136,6 +138,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/core",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "//test/fakeintake/api",
         "//test/fakeintake/server/rcstore",
         "@com_github_stretchr_testify//assert",

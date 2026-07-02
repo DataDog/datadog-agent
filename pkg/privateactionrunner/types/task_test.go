@@ -6,7 +6,6 @@
 package types
 
 import (
-	"encoding/json"
 	"math"
 	"testing"
 
@@ -128,33 +127,4 @@ func TestTimeoutSeconds(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestTaskUnmarshalSystemInputsRemoteAction(t *testing.T) {
-	raw := []byte(`{
-		"data": {
-			"attributes": {
-				"inputs": {"command": "cat /tmp/file"},
-				"system_inputs": {
-					"remote_action": {
-						"target_commands": ["rshell:cat"],
-						"target_paths": ["/tmp:rw"]
-					}
-				}
-			}
-		}
-	}`)
-	var task Task
-
-	if !assert.NoError(t, json.Unmarshal(raw, &task)) {
-		return
-	}
-	if !assert.NotNil(t, task.Data.Attributes.SystemInputs) {
-		return
-	}
-	if !assert.NotNil(t, task.Data.Attributes.SystemInputs.RemoteAction) {
-		return
-	}
-	assert.Equal(t, []string{"rshell:cat"}, task.Data.Attributes.SystemInputs.RemoteAction.TargetCommands)
-	assert.Equal(t, []string{"/tmp:rw"}, task.Data.Attributes.SystemInputs.RemoteAction.TargetPaths)
 }

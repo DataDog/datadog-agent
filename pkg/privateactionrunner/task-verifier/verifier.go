@@ -38,7 +38,21 @@ func NewTaskVerifier(keysManager KeysManager, cfg *config.Config) TaskVerifier {
 type noOpTaskVerifier struct{}
 
 func (n *noOpTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, error) {
-	return task, nil
+	if task == nil || task.Data.Attributes == nil {
+		return task, nil
+	}
+
+	envelope := task.Data.Attributes.SignedEnvelope
+	if envelope == nil || len(envelope.Data) == 0 {
+		return task, nil
+	}
+
+	var pbTask privateactionspb.PrivateActionTask
+	err := proto.Unmarshal(envelope.Data, &pbTask)
+	if err != nil {
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, errors.New("failed to unmarshal task"))
+	}
+	return mapPbTaskToStruct(&pbTask), nil
 }
 
 type signedEnvelopeTaskVerifier struct {
@@ -136,23 +150,8 @@ func mapPbTaskToStruct(task *privateactionspb.PrivateActionTask) *types.Task {
 				Inputs:                task.Inputs.AsMap(),
 				OrgId:                 task.OrgId,
 				ConnectionInfo:        task.ConnectionInfo,
-				SystemInputs:          systemInputsAttributes(task),
+				SystemInputs:          task.GetSystemInputs(),
 			},
 		},
-	}
-}
-
-func systemInputsAttributes(task *privateactionspb.PrivateActionTask) *types.SystemInputsAttributes {
-	remoteAction := task.GetSystemInputs().GetRemoteAction()
-	if remoteAction == nil {
-		return nil
-	}
-	targetCommands := remoteAction.GetTargetCommands()
-	targetPaths := remoteAction.GetTargetPaths()
-	if len(targetCommands) == 0 && len(targetPaths) == 0 {
-		return nil
-	}
-	return &types.SystemInputsAttributes{
-		RemoteAction: remoteAction,
 	}
 }

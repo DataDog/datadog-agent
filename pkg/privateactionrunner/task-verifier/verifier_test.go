@@ -8,8 +8,10 @@ package taskverifier
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
@@ -37,13 +39,51 @@ func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
 	assert.Equal(t, "task-id", got.Data.ID)
 	assert.Equal(t, "runCommand", got.Data.Attributes.Name)
 	require.NotNil(t, got.Data.Attributes.SystemInputs)
-	require.NotNil(t, got.Data.Attributes.SystemInputs.RemoteAction)
-	assert.Equal(t, []string{"rshell:cat"}, got.Data.Attributes.SystemInputs.RemoteAction.TargetCommands)
-	assert.Equal(t, []string{"/host/var/log"}, got.Data.Attributes.SystemInputs.RemoteAction.TargetPaths)
+	remoteAction := got.Data.Attributes.SystemInputs.GetRemoteAction()
+	require.NotNil(t, remoteAction)
+	assert.Equal(t, []string{"rshell:cat"}, remoteAction.TargetCommands)
+	assert.Equal(t, []string{"/host/var/log"}, remoteAction.TargetPaths)
 }
 
 func TestMapPbTaskToStructEmptyRemoteActionPolicyFields(t *testing.T) {
 	got := mapPbTaskToStruct(&privateactionspb.PrivateActionTask{Inputs: &structpb.Struct{}})
 
 	assert.Nil(t, got.Data.Attributes.SystemInputs)
+}
+
+func TestNoOpTaskVerifierUnwrapsSignedEnvelopeData(t *testing.T) {
+	inputs, err := structpb.NewStruct(map[string]interface{}{"command": "cat /tmp/file"})
+	require.NoError(t, err)
+	pbTask := &privateactionspb.PrivateActionTask{
+		ActionName: "runCommand",
+		BundleId:   "com.datadoghq.remoteaction.rshell",
+		TaskId:     "task-id",
+		Inputs:     inputs,
+		SystemInputs: &privateactionspb.SystemInputs{
+			Input: &privateactionspb.SystemInputs_RemoteAction{
+				RemoteAction: &privateactionspb.RemoteAction{
+					TargetCommands: []string{"rshell:cat"},
+					TargetPaths:    []string{"/tmp:ro"},
+				},
+			},
+		},
+	}
+	signedTaskData, err := proto.Marshal(pbTask)
+	require.NoError(t, err)
+
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		SignedEnvelope: &privateactionspb.RemoteConfigSignatureEnvelope{
+			Data: signedTaskData,
+		},
+	}
+
+	got, err := (&noOpTaskVerifier{}).UnwrapTask(task)
+
+	require.NoError(t, err)
+	assert.Equal(t, "task-id", got.Data.ID)
+	remoteAction := got.Data.Attributes.SystemInputs.GetRemoteAction()
+	require.NotNil(t, remoteAction)
+	assert.Equal(t, []string{"rshell:cat"}, remoteAction.TargetCommands)
+	assert.Equal(t, []string{"/tmp:ro"}, remoteAction.TargetPaths)
 }

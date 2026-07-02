@@ -28,9 +28,11 @@ func makeTask(command string, allowedCommands []string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
 		Inputs: map[string]any{"command": command},
-		SystemInputs: &types.SystemInputsAttributes{
-			RemoteAction: &privateactionspb.RemoteAction{
-				TargetCommands: allowedCommands,
+		SystemInputs: &privateactionspb.SystemInputs{
+			Input: &privateactionspb.SystemInputs_RemoteAction{
+				RemoteAction: &privateactionspb.RemoteAction{
+					TargetCommands: allowedCommands,
+				},
 			},
 		},
 	}
@@ -43,7 +45,7 @@ func makeTask(command string, allowedCommands []string) *types.Task {
 // branch: a nil slice.
 func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths []string) *types.Task {
 	task := makeTask(command, allowedCommands)
-	task.Data.Attributes.SystemInputs.RemoteAction.TargetPaths = allowedPaths
+	task.Data.Attributes.SystemInputs.GetRemoteAction().TargetPaths = allowedPaths
 	return task
 }
 
@@ -689,6 +691,28 @@ func TestRunRemediationCommandAllowsFileRedirect(t *testing.T) {
 	content, readErr := os.ReadFile(target)
 	require.NoError(t, readErr)
 	assert.Equal(t, "hello\n", string(content))
+}
+
+// TestRunRemediationCommandReadOnlyPathBlocksFileRedirect verifies that
+// remediation mode does not upgrade read-only path entries to read-write.
+func TestRunRemediationCommandReadOnlyPathBlocksFileRedirect(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "out.txt")
+
+	handler := NewRunRemediationCommandHandler(RunCommandHandlerConfig{})
+	task := makeTaskWithPaths("echo hello > "+target,
+		[]string{"rshell:echo"},
+		[]string{dir + ":ro"})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.NotEqual(t, 0, result.ExitCode,
+		"remediation mode must reject writes to read-only allowed paths")
+	_, statErr := os.Stat(target)
+	assert.True(t, os.IsNotExist(statErr),
+		"remediation mode must not create the redirect target for read-only paths")
 }
 
 // TestRunCommandReadOnlyBlocksFileRedirect verifies that the read-only
