@@ -72,6 +72,25 @@ func setValue(fv reflect.Value, kind Kind, raw string) error {
 	return nil
 }
 
+// ApplyDefaults sets every field that declares a `default` tag to that default.
+// Fields without a default are left at their zero value.
+func ApplyDefaults(s Schema, target any) error {
+	rv := reflect.ValueOf(target)
+	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
+		return fmt.Errorf("ApplyDefaults: want pointer to struct, got %T", target)
+	}
+	elem := rv.Elem()
+	for _, f := range s.Fields {
+		if f.Default == "" {
+			continue
+		}
+		if err := setValue(elem.FieldByIndex(f.Index), f.Kind, f.Default); err != nil {
+			return fmt.Errorf("option %q: %w", f.Name, err)
+		}
+	}
+	return nil
+}
+
 func contains(ss []string, v string) bool {
 	for _, s := range ss {
 		if s == v {
