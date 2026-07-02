@@ -967,6 +967,24 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 	}
 }
 
+// addResourceLabelsAndAnnotationsAsTags applies the labels-as-tags and
+// annotations-as-tags configuration for the given group resource to the
+// provided labels and annotations.
+func (c *WorkloadMetaCollector) addResourceLabelsAndAnnotationsAsTags(groupResource string, labels, annotations map[string]string, tagList *taglist.TagList) {
+	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
+	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
+	globLabels := c.globK8sResourcesLabels[groupResource]
+	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
+
+	for name, value := range labels {
+		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
+	}
+
+	for name, value := range annotations {
+		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+	}
+}
+
 func (c *WorkloadMetaCollector) extractKueueQueueTags(queue *workloadmeta.KubernetesKueueQueue, tagList *taglist.TagList) {
 	switch queue.QueueType {
 	case workloadmeta.KueueLocalQueue:
@@ -978,18 +996,7 @@ func (c *WorkloadMetaCollector) extractKueueQueueTags(queue *workloadmeta.Kubern
 	}
 
 	groupResource := kueueQueueGroupResource(queue.QueueType)
-	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
-	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
-	globLabels := c.globK8sResourcesLabels[groupResource]
-	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
-
-	for name, value := range queue.Labels {
-		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
-	}
-
-	for name, value := range queue.Annotations {
-		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
-	}
+	c.addResourceLabelsAndAnnotationsAsTags(groupResource, queue.Labels, queue.Annotations, tagList)
 }
 
 func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadmeta.KubernetesKueueResourceFlavor, tagList *taglist.TagList) {
@@ -1016,6 +1023,9 @@ func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadm
 			}
 		}
 	}
+
+	groupResource := kubernetes.KueueResourceFlavorResourceName + "." + kubernetes.KueueGroupName
+	c.addResourceLabelsAndAnnotationsAsTags(groupResource, flavor.Labels, flavor.Annotations, tagList)
 }
 
 func (c *WorkloadMetaCollector) extractKueueWorkloadTags(workload *workloadmeta.KubernetesKueueWorkload, tagList *taglist.TagList) {
@@ -1031,18 +1041,7 @@ func (c *WorkloadMetaCollector) extractKueueWorkloadTags(workload *workloadmeta.
 	}
 
 	groupResource := kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName
-	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
-	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
-	globLabels := c.globK8sResourcesLabels[groupResource]
-	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
-
-	for name, value := range workload.Labels {
-		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
-	}
-
-	for name, value := range workload.Annotations {
-		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
-	}
+	c.addResourceLabelsAndAnnotationsAsTags(groupResource, workload.Labels, workload.Annotations, tagList)
 }
 
 func (c *WorkloadMetaCollector) extractKueueWorkloadAndRelatedTags(workload *workloadmeta.KubernetesKueueWorkload, podSetName string, tagList *taglist.TagList) {
