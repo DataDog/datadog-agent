@@ -13,19 +13,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Helm labels every storage object (ConfigMap or Secret) with
-// "owner=helm".
+// Helm labels storage objects with "owner=helm".
 const StorageLabelSelector = "owner=helm"
 
 // ReleasesFromConfigMaps decodes the given Helm-managed ConfigMaps into Releases.
-// The ConfigMaps are expected to already be filtered to Helm's storage objects
-// (see StorageLabelSelector), for example by an informer's list options.
 //
-// A ConfigMap whose release data cannot be decoded is logged and skipped, so a
-// single malformed object never prevents the rest from being collected.
-//
-// Only the ConfigMap storage backend is supported for now; Helm 3 defaults to
-// Secrets, which use the same blob format and can be added later.
+// NOTE: this is currently called independently by both the Helm release and Helm
+// chart collectors, so every ConfigMap is decoded twice
+// per collection cycle. Future optimization: decode releases once and share the
+// result between the two collectors.
 func ReleasesFromConfigMaps(configMaps []*corev1.ConfigMap) []*Release {
 	releases := make([]*Release, 0, len(configMaps))
 	for _, cm := range configMaps {
@@ -37,6 +33,7 @@ func ReleasesFromConfigMaps(configMaps []*corev1.ConfigMap) []*Release {
 			log.Debugf("Skipping Helm ConfigMap %s/%s: %v", cm.Namespace, cm.Name, err)
 			continue
 		}
+		release.ResourceVersion = cm.ResourceVersion
 		releases = append(releases, release)
 	}
 	return releases
