@@ -8824,6 +8824,10 @@ properties:
             node_type: setting
             type: integer
             default: 0
+          port:
+            node_type: setting
+            type: integer
+            default: 0
       debug:
         node_type: section
         type: object
