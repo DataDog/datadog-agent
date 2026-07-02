@@ -6,6 +6,9 @@
 package activedirectory
 
 import (
+	"strings"
+	stdtime "time" // stdlib; the pulumiverse "time" below already owns the `time` name
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -143,6 +146,45 @@ try {
 	// block (New-ADUser, New-ADServiceAccount, etc.) fail with "directory service was unable to allocate
 	// a relative identifier" (ActiveDirectoryServer:8208) until that stabilization completes.
 	// See WINA-2095.
+	//
+	// Install-ADDSForest triggers a reboot; if ensure-adws-started runs while the DC is still
+	// mid-reboot, the command fails (host unreachable, or ADWS/AD not ready yet). Retry the whole
+	// command up to twice, with backoff, on known-transient errors so it re-runs against a settled
+	// DC. Anything else fails fast so we don't mask real regressions. See WINA-2876.
+	const maxDCReadyRetries = 2
+	dcTransientErrors := []string{
+		"i/o timeout",                              // dial tcp — DC unreachable (mid-reboot)
+		"exited without exit status",               // SSH dropped mid-command (box rebooted)
+		"Get-ADDomain timed out",                   // AD not queryable yet
+		"RID allocation probe timed out",           // RID pool not ready
+		"unable to allocate a relative identifier", // raw AD RID error
+		"WaitForStatus",                            // ADWS not Running yet
+		"Time out has expired",                     // WaitForStatus timeout text
+	}
+	ensureAdwsRetryHook, err := adCtx.pulumiContext.RegisterErrorHook(
+		adCtx.comp.namer.ResourceName("ensure-adws-retry"),
+		func(args *pulumi.ErrorHookArgs) (bool, error) {
+			attempts := len(args.Errors) // failures so far; args.Errors is newest-first
+			latest := ""
+			if attempts > 0 {
+				latest = args.Errors[0]
+			}
+			if attempts == 0 || attempts > maxDCReadyRetries {
+				return false, nil // out of retries -> fail with the real error
+			}
+			for _, s := range dcTransientErrors {
+				if strings.Contains(latest, s) {
+					stdtime.Sleep(stdtime.Duration(30*attempts) * stdtime.Second) // 30s, then 60s
+					return true, nil                                              // retry the command
+				}
+			}
+			return false, nil // unknown error -> fail fast
+		},
+	)
+	if err != nil {
+		return err
+	}
+
 	ensureAdwsStartedCmd, err := adCtx.comp.host.OS.Runner().Command(adCtx.comp.namer.ResourceName("ensure-adws-started"), &command.Args{
 		Create: pulumi.String(`
 (Get-Service ADWS).WaitForStatus('Running', '00:01:00')
@@ -182,7 +224,8 @@ if ([DateTime]::Now -ge $timeout) {
     throw "RID allocation probe timed out — DC not ready to issue RID pools"
 }
 `),
-	}, utils.PulumiDependsOn(waitForRebootCmd))
+	}, utils.PulumiDependsOn(waitForRebootCmd),
+		pulumi.ResourceHooks(&pulumi.ResourceHookBinding{OnError: []*pulumi.ErrorHook{ensureAdwsRetryHook}}))
 	if err != nil {
 		return err
 	}
