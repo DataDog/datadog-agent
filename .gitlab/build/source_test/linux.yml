@@ -7,10 +7,11 @@
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   script:
+    - bazel test //rtloader/...
+    # We need to run cmake to generate rules to run clang-format.
+    # TODO: Fix that. linting/formatting should be independent of the build system.
     - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-    - dda inv -- -e rtloader.install
     - dda inv -- -e rtloader.format --raise-if-changed
-    - dda inv -- -e rtloader.test
 
 .linux_tests:
   stage: source_test
