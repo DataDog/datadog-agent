@@ -21,6 +21,8 @@
   variables:
     TARGETS: ./tests/windows/domain-test
     TEAM: windows-agent
+  extends:
+    - .new_e2e_template
   before_script:
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
@@ -64,7 +66,12 @@ new-e2e-windows-agent-domain-tests-a6-x86_64:
   variables:
     WINDOWS_AGENT_ARCH: "x86_64"
   extends:
-    - .new_e2e_template
+    # .new_e2e_template used to be listed here directly too, as a workaround for
+    # .new-e2e_windows_domain_test not having its own `extends: [.new_e2e_template]`
+    # (unlike .new-e2e_windows_msi). That made it a sibling of equal precedence in
+    # extends resolution and could clobber .new-e2e_windows_domain_test's before_script
+    # (dropping the LAST_STABLE_VERSION/WINDOWS_AGENT_VERSION exports). Fixed at the
+    # source by adding the missing extends to .new-e2e_windows_domain_test above.
     - .new-e2e_windows_domain_test
     - .new-e2e_agent_a6
   needs: ["deploy_windows_testing-a6"]
