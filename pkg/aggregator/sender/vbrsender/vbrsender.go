@@ -11,6 +11,7 @@
 package vbrsender
 
 import (
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -35,6 +36,15 @@ import (
 // are being compressed for a check. Contexts never expire once created (see
 // contextState), so this is the signal to watch for unbounded growth from a
 // check whose tag set churns over time.
+//
+// tlmScaleDeviation observes, per sample, |value - compressor.Scale()| — how
+// far the raw (already check-kind-reduced) value strays from the
+// compressor's current EWMA estimate of the signal's magnitude, the basis
+// for its tolerance (see vbr.Compressor.Scale). A chronically large
+// deviation relative to the shipped tolerance signals the EWMA is
+// mistracking the signal (e.g. during a sustained level shift), which is
+// otherwise invisible from samples_total/breakpoints_total alone. Bucketed
+// on a broad log scale since the natural unit varies arbitrarily by metric.
 var (
 	tlmSamples = telemetryimpl.GetCompatComponent().NewCounter(
 		"vbrsender", "samples_total",
@@ -48,6 +58,11 @@ var (
 		"vbrsender", "contexts",
 		[]string{"check_name"},
 		"Number of distinct metric contexts being VBR-compressed, by check name")
+	tlmScaleDeviation = telemetryimpl.GetCompatComponent().NewHistogram(
+		"vbrsender", "scale_deviation",
+		[]string{"check_name", "metric_name"},
+		"Absolute difference between a sample's value and the compressor's current EWMA scale estimate, by check and metric name",
+		[]float64{0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000, 100000, 1000000})
 )
 
 // defaultConfig holds the global (not per-metric) VBR compressor
@@ -176,8 +191,9 @@ type contextState struct {
 
 	compressor *vbr.Compressor
 
-	tlmSamples     telemetry.SimpleCounter
-	tlmBreakpoints telemetry.SimpleCounter
+	tlmSamples        telemetry.SimpleCounter
+	tlmBreakpoints    telemetry.SimpleCounter
+	tlmScaleDeviation telemetry.SimpleHistogram
 
 	// Rate: previous raw (value, timestamp), mirrors pkg/metrics/rate.go.
 	hasPreviousRate   bool
@@ -311,13 +327,14 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 		tagsCopy := make([]string, len(tags))
 		copy(tagsCopy, tags)
 		ctx = &contextState{
-			metric:         metric,
-			hostname:       hostname,
-			tags:           tagsCopy,
-			kind:           kind,
-			compressor:     vbr.New(defaultConfig),
-			tlmSamples:     tlmSamples.WithValues(s.checkName, metric),
-			tlmBreakpoints: tlmBreakpoints.WithValues(s.checkName, metric),
+			metric:            metric,
+			hostname:          hostname,
+			tags:              tagsCopy,
+			kind:              kind,
+			compressor:        vbr.New(defaultConfig),
+			tlmSamples:        tlmSamples.WithValues(s.checkName, metric),
+			tlmBreakpoints:    tlmBreakpoints.WithValues(s.checkName, metric),
+			tlmScaleDeviation: tlmScaleDeviation.WithValues(s.checkName, metric),
 		}
 		s.contexts[key] = ctx
 		s.tlmContexts.Inc()
@@ -332,7 +349,13 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 			// whatever eventually ships next. See pendingSum's doc comment.
 			ctx.pendingSum += value
 		}
-		for _, bp := range ctx.compressor.Update(now, value) {
+		bps := ctx.compressor.Update(now, value)
+		// Read Scale() after Update(): the compressor folds this sample's
+		// value into the EWMA as the first step of Update(), so this is the
+		// freshest estimate, matching the tolerance Update() itself just
+		// used to accept or reject this same sample.
+		ctx.tlmScaleDeviation.Observe(math.Abs(value - ctx.compressor.Scale()))
+		for _, bp := range bps {
 			s.ship(ctx, bp)
 		}
 	}
