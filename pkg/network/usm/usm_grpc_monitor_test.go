@@ -240,7 +240,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/protobuf.Math/Max")},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/RouteChat")},
 					Method: http.MethodPost,
 				}: {
 					lower: 25,
@@ -260,7 +260,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/protobuf.Math/Max")},
+					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/RouteChat")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
