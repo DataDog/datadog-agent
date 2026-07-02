@@ -288,9 +288,10 @@ files:
               Note: `certificate_store` and `server` are not available as filter keys.
       description: |
         Filter which collected certificates are reported to Datadog. Each rule maps a tag key
-        (as emitted by this check, e.g. `certificate_thumbprint`, `subject_CN`, `subject_alt_name_dns`)
-        to a Go regexp pattern matched against the tag's value. Invalid patterns cause the check
-        to fail at configuration time.
+        to a Go regexp pattern matched against the tag's value. Filter rules work independently
+        of the `*_tag` flags — opt-in tag keys (e.g. `subject_alt_name_dns`, `certificate_template_name`)
+        can be used in filters even when the corresponding flag is false. Invalid regexp patterns
+        cause the check to fail at configuration time.
       required: false
     - name: tags
       fleet_configurable: true

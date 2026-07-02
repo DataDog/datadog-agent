@@ -622,7 +622,7 @@ func TestFindCertificatesInStore_PopulatesThumbprint(t *testing.T) {
 	// Use a subject that exists on most Windows machines in ROOT
 	subjects := []string{"Microsoft"}
 
-	certs, err := findCertificatesInStore(h, subjects, Config{})
+	certs, err := findCertificatesInStore(h, subjects, Config{}, compiledCertFilters{})
 	require.NoError(t, err)
 
 	// If the host has no matching certs, the test would be a no-op; ensure at least one.

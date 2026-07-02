@@ -362,6 +362,31 @@ func TestApplyTagFilters(t *testing.T) {
 	require.Len(t, got5, 0)
 }
 
+// TestApplyTagFiltersUsesFilterTags verifies that applyTagFilters evaluates rules
+// against filterTags (the full tag set) rather than Tags (the emit tag set), so
+// that filter rules work independently of the *_tag flags.
+func TestApplyTagFiltersUsesFilterTags(t *testing.T) {
+	// cert has no signature_algorithm in its emit tags (flag was false),
+	// but filterTags contains the full set collected for filter evaluation.
+	cert := certInfo{
+		Tags:       []string{"certificate_thumbprint:abc123", "subject_CN:webserver"},
+		filterTags: []string{"certificate_thumbprint:abc123", "subject_CN:webserver", "signature_algorithm:sha256-rsa"},
+	}
+	other := certInfo{
+		Tags:       []string{"certificate_thumbprint:def456", "subject_CN:internal"},
+		filterTags: []string{"certificate_thumbprint:def456", "subject_CN:internal", "signature_algorithm:sha1-rsa"},
+	}
+
+	// Filter on a key that is absent from Tags but present in filterTags.
+	f, err := compileCertFilters(CertFilters{
+		Include: map[string]string{"signature_algorithm": "^sha256"},
+	})
+	require.NoError(t, err)
+	got := applyTagFilters([]certInfo{cert, other}, f)
+	require.Len(t, got, 1)
+	require.Equal(t, "abc123", tagValue(got[0].Tags, "certificate_thumbprint"))
+}
+
 // tagValue extracts the value for the first tag with the given key.
 func tagValue(tags []string, key string) string {
 	prefix := key + ":"
