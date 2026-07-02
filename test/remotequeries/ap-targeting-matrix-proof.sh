@@ -48,7 +48,10 @@ TMUX_AGENT_A_PANE=""
 TMUX_AGENT_B_PANE=""
 TMUX_PAR_A_PANE=""
 TMUX_PAR_B_PANE=""
-TMUX_POSTGRES_PANE=""
+TMUX_POSTGRES_A1_PANE=""
+TMUX_POSTGRES_A2_PANE=""
+TMUX_POSTGRES_B1_PANE=""
+TMUX_POSTGRES_B2_PANE=""
 LAST_TMUX_PANE=""
 
 MATRIX_CASES=(
@@ -239,20 +242,30 @@ new_tmux_process_pane() {
     agent_b) TMUX_AGENT_B_PANE=$pane_id ;;
     par_a) TMUX_PAR_A_PANE=$pane_id ;;
     par_b) TMUX_PAR_B_PANE=$pane_id ;;
-    postgres) TMUX_POSTGRES_PANE=$pane_id ;;
+    postgres_a1) TMUX_POSTGRES_A1_PANE=$pane_id ;;
+    postgres_a2) TMUX_POSTGRES_A2_PANE=$pane_id ;;
+    postgres_b1) TMUX_POSTGRES_B1_PANE=$pane_id ;;
+    postgres_b2) TMUX_POSTGRES_B2_PANE=$pane_id ;;
   esac
   printf '%s\n' "$pane_id"
 }
 
-start_postgres_status_pane() {
+start_one_postgres_pane() {
+  local role=$1 service=$2 title=$3 command
+  # Variables expand in the tmux status pane; service is inserted here.
+  # shellcheck disable=SC2016
+  command='while true; do clear; date -u; echo "Postgres service: '$service'"; echo "Compose project: $POSTGRES_COMPOSE_PROJECT"; POSTGRES_IMAGE="$POSTGRES_IMAGE" docker compose -f "$POSTGRES_COMPOSE_FILE" -p "$POSTGRES_COMPOSE_PROJECT" ps '$service'; echo; POSTGRES_IMAGE="$POSTGRES_IMAGE" docker compose -f "$POSTGRES_COMPOSE_FILE" -p "$POSTGRES_COMPOSE_PROJECT" logs --tail=30 --no-color '$service'; sleep 10; done'
+  new_tmux_process_pane "$role" "$title" "$command" >/dev/null
+}
+
+start_postgres_status_panes() {
   if [[ "$KEEP_ALIVE" != "1" || "$RQ_HARNESS_TMUX_CHILD" != "1" ]]; then
     return
   fi
-  local command
-  # Variables expand in the tmux status pane.
-  # shellcheck disable=SC2016
-  command='while true; do clear; date -u; echo "Postgres fixture: $POSTGRES_COMPOSE_PROJECT"; POSTGRES_IMAGE="$POSTGRES_IMAGE" docker compose -f "$POSTGRES_COMPOSE_FILE" -p "$POSTGRES_COMPOSE_PROJECT" ps; echo; POSTGRES_IMAGE="$POSTGRES_IMAGE" docker compose -f "$POSTGRES_COMPOSE_FILE" -p "$POSTGRES_COMPOSE_PROJECT" logs --tail=20 --no-color; sleep 10; done'
-  new_tmux_process_pane postgres 'Docker/Postgres status + logs' "$command" >/dev/null
+  start_one_postgres_pane postgres_a1 postgres_a1 'Postgres A1 - :15432'
+  start_one_postgres_pane postgres_a2 postgres_a2 'Postgres A2 - :15433'
+  start_one_postgres_pane postgres_b1 postgres_b1 'Postgres B1 - :25432'
+  start_one_postgres_pane postgres_b2 postgres_b2 'Postgres B2 - :25433'
 }
 
 cleanup_pid() {
@@ -468,7 +481,7 @@ start_postgres_fixture() {
   docker_compose down --remove-orphans >/dev/null 2>&1 || true
   docker_compose up -d
   POSTGRES_COMPOSE_STARTED=1
-  start_postgres_status_pane
+  start_postgres_status_panes
   for _ in $(seq 1 120); do
     if docker_compose ps --format json 2>/dev/null | python3 -c 'import json,sys; rows=[json.loads(l) for l in sys.stdin if l.strip()]; sys.exit(0 if rows and all(r.get("Health") in ("healthy", "") for r in rows) else 1)' 2>/dev/null; then
       log "Postgres matrix fixture is healthy"
@@ -754,14 +767,17 @@ TXT
 write_keepalive_tmux_metadata() {
   local role pane window_name window_id pane_id pane_title pane_pid pane_current_command
   printf 'role\twindow_name\twindow_id\tpane_id\tpane_title\tpane_pid\tpane_current_command\n' > "$TMP_ROOT/results/keepalive-tmux.tsv"
-  for role in supervisor agent_a agent_b par_a par_b postgres; do
+  for role in supervisor agent_a agent_b par_a par_b postgres_a1 postgres_a2 postgres_b1 postgres_b2; do
     case "$role" in
       supervisor) pane=$TMUX_SUPERVISOR_PANE ;;
       agent_a) pane=$TMUX_AGENT_A_PANE ;;
       agent_b) pane=$TMUX_AGENT_B_PANE ;;
       par_a) pane=$TMUX_PAR_A_PANE ;;
       par_b) pane=$TMUX_PAR_B_PANE ;;
-      postgres) pane=$TMUX_POSTGRES_PANE ;;
+      postgres_a1) pane=$TMUX_POSTGRES_A1_PANE ;;
+      postgres_a2) pane=$TMUX_POSTGRES_A2_PANE ;;
+      postgres_b1) pane=$TMUX_POSTGRES_B1_PANE ;;
+      postgres_b2) pane=$TMUX_POSTGRES_B2_PANE ;;
     esac
     [[ -n "$pane" ]] || continue
     window_name=$(tmux display-message -p -t "$pane" '#{window_name}')
