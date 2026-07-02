@@ -6,13 +6,12 @@
 package scenariomodel
 
 import (
-	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenario/scenarios/ec2host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/stretchr/testify/require"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/scenariotest"
 )
 
 type ec2HostSuite struct {
@@ -21,14 +20,13 @@ type ec2HostSuite struct {
 
 func TestEC2HostScenario(t *testing.T) {
 	t.Parallel()
-	prov, err := ec2host.Provisioner(ec2host.NewParams())
-	require.NoError(t, err)
-	e2e.Run(t, &ec2HostSuite{}, e2e.WithProvisioner(prov))
+	e2e.Run(t, &ec2HostSuite{},
+		scenariotest.WithScenario(ec2host.Scenario(), ec2host.NewParams()))
 }
 
-func (s *ec2HostSuite) TestActionRunsAgainstEnv() {
-	// The same action handler the CLI/service invoke, called against the live env.
-	runCommand := ec2host.Scenario().Actions["run-command"]
-	err := runCommand.Run(context.Background(), s.Env(), &ec2host.RunCommandParams{Command: "echo hello"})
+func (s *ec2HostSuite) TestRunCommandAction() {
+	// exercise the real action decode + dispatch against the live suite env
+	err := scenariotest.RunAction(s.Env(), ec2host.Scenario(), "run-command",
+		map[string]string{"command": "echo hello"})
 	s.Require().NoError(err)
 }
