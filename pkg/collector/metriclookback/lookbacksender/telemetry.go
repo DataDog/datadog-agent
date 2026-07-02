@@ -16,13 +16,13 @@ var (
 	)
 	tlmWriterAppendDuration = telemetryimpl.GetCompatComponent().NewGauge(
 		"metric_lookback",
-		"writer_append_duration",
+		"writer_append_duration_seconds",
 		[]string{"check_name", "state"},
 		"Most recent duration in seconds of lookback writer append calls",
 	)
 	tlmUnsupportedDrops = telemetryimpl.GetCompatComponent().NewCounter(
 		"metric_lookback",
-		"unsupported_drops",
+		"unsupported_payloads_dropped",
 		[]string{"method"},
 		"Number of unsupported sender payloads dropped by lookback sender",
 	)
