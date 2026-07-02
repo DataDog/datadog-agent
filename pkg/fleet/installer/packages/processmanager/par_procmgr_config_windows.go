@@ -27,6 +27,9 @@ func WritePARProcmgrConfig(installRootResolved string) error {
 	parExe := filepath.Join(installRootResolved, "bin", "agent", "privateactionrunner.exe")
 	if _, err := os.Stat(parExe); err != nil {
 		log.Debugf("PAR processes.d: skip write (privateactionrunner.exe stat %s: %v)", parExe, err)
+		if os.IsNotExist(err) {
+			return RemovePARProcmgrConfig(installRootResolved)
+		}
 		return nil
 	}
 	installPF := paths.DatadogProgramFilesDir
