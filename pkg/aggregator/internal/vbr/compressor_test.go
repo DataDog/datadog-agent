@@ -6,6 +6,7 @@
 package vbr
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -229,4 +230,193 @@ func TestUpdate_SingleSampleWindow(t *testing.T) {
 	// Nothing else happened this window: flushing must not re-emit the
 	// already-shipped anchor.
 	require.Empty(t, c.FlushWindow(0))
+}
+
+// xorshift64 is the same hand-rolled, fixed-seed PRNG used elsewhere in this
+// file (see TestBoundedError_RandomWalk): deterministic across Go versions
+// and architectures, unlike math/rand's algorithm choice, so a failure is
+// always reproducible from the seed alone.
+type xorshift64 struct{ state uint64 }
+
+func newXorshift64(seed uint64) *xorshift64 {
+	if seed == 0 {
+		seed = 1 // xorshift64 is fixed at all-zero state; avoid it.
+	}
+	return &xorshift64{state: seed}
+}
+
+func (x *xorshift64) next() uint64 {
+	x.state ^= x.state << 13
+	x.state ^= x.state >> 7
+	x.state ^= x.state << 17
+	return x.state
+}
+
+// float01 returns a pseudo-random float64 in [0, 1).
+func (x *xorshift64) float01() float64 {
+	return float64(x.next()%1_000_000_000) / 1_000_000_000
+}
+
+// floatRange returns a pseudo-random float64 in [lo, hi).
+func (x *xorshift64) floatRange(lo, hi float64) float64 {
+	return lo + x.float01()*(hi-lo)
+}
+
+// intRange returns a pseudo-random int in [lo, hi] (inclusive).
+func (x *xorshift64) intRange(lo, hi int) int {
+	return lo + int(x.next()%uint64(hi-lo+1))
+}
+
+// The genXxxSignal functions each produce n raw values following a distinct
+// shape, exercising different regions of the compressor's behavior (flat
+// runs collapse hard, spikes force closes, random walks exercise arbitrary
+// slope-cone transitions, ...). genMixedSignal stitches several of them
+// together back-to-back to also exercise the transitions between shapes.
+
+func genFlatSignal(r *xorshift64, n int) []float64 {
+	v := r.floatRange(-1000, 1000)
+	out := make([]float64, n)
+	for i := range out {
+		out[i] = v
+	}
+	return out
+}
+
+func genRampSignal(r *xorshift64, n int) []float64 {
+	v := r.floatRange(-1000, 1000)
+	step := r.floatRange(-50, 50)
+	out := make([]float64, n)
+	for i := range out {
+		out[i] = v
+		v += step
+	}
+	return out
+}
+
+func genStepSignal(r *xorshift64, n int) []float64 {
+	v := r.floatRange(-1000, 1000)
+	out := make([]float64, n)
+	if n < 2 {
+		// No room for a step; fall back to flat.
+		for i := range out {
+			out[i] = v
+		}
+		return out
+	}
+	stepAt := r.intRange(1, n-1)
+	jump := r.floatRange(-2000, 2000)
+	for i := range out {
+		if i == stepAt {
+			v += jump
+		}
+		out[i] = v
+	}
+	return out
+}
+
+func genSpikeSignal(r *xorshift64, n int) []float64 {
+	base := r.floatRange(-1000, 1000)
+	out := make([]float64, n)
+	for i := range out {
+		out[i] = base
+	}
+	spikes := r.intRange(0, n/5+1)
+	for k := 0; k < spikes; k++ {
+		out[r.intRange(0, n-1)] = base + r.floatRange(-5000, 5000)
+	}
+	return out
+}
+
+func genJitterSignal(r *xorshift64, n int) []float64 {
+	base := r.floatRange(-1000, 1000)
+	amplitude := r.floatRange(0, 5)
+	out := make([]float64, n)
+	for i := range out {
+		out[i] = base + r.floatRange(-amplitude, amplitude)
+	}
+	return out
+}
+
+func genRandomWalkSignal(r *xorshift64, n int) []float64 {
+	v := r.floatRange(-1000, 1000)
+	stepSize := r.floatRange(0, 50)
+	out := make([]float64, n)
+	for i := range out {
+		out[i] = v
+		v += r.floatRange(-stepSize, stepSize)
+	}
+	return out
+}
+
+var signalShapes = []struct {
+	name string
+	gen  func(*xorshift64, int) []float64
+}{
+	{"flat", genFlatSignal},
+	{"ramp", genRampSignal},
+	{"step", genStepSignal},
+	{"spike", genSpikeSignal},
+	{"jitter", genJitterSignal},
+	{"randomWalk", genRandomWalkSignal},
+}
+
+func genMixedSignal(r *xorshift64, n int) []float64 {
+	var out []float64
+	for remaining := n; remaining > 0; {
+		segLen := r.intRange(1, remaining)
+		out = append(out, signalShapes[r.intRange(0, len(signalShapes)-1)].gen(r, segLen)...)
+		remaining -= segLen
+	}
+	return out
+}
+
+// toPoints assigns strictly increasing, non-uniformly-spaced timestamps to
+// values — non-uniform spacing exercises openSegment/evalCandidate's dt
+// handling more thoroughly than the fixed 1-unit spacing every other test in
+// this file uses. Strictly increasing (never equal) sidesteps the dt<=0
+// re-anchor branch in openSegment/evalCandidate, a degenerate case with its
+// own, separately-tested semantics (see TestFlushWindow_NoPendingEmitsNothing
+// and friends) that isn't part of this property.
+func toPoints(r *xorshift64, values []float64) []Point {
+	pts := make([]Point, len(values))
+	ts := 0.0
+	for i, v := range values {
+		if i > 0 {
+			ts += r.floatRange(0.1, 3.0)
+		}
+		pts[i] = Point{Ts: ts, Value: v}
+	}
+	return pts
+}
+
+// TestBoundedError_PropertyFuzz is the generic guard for the whole class of
+// bug TestSwingDoorCandidateMustMatchItsOwnSlope found by hand: instead of
+// relying on a human to construct a counterexample sequence, generate many
+// random signals across a wide range of configs and shapes, and assert the
+// compressor's core guarantee (assertBoundedError) holds for every one of
+// them. A fixed seed keeps failures reproducible; bumping the iteration
+// count only ever adds coverage, it never changes which cases already ran.
+func TestBoundedError_PropertyFuzz(t *testing.T) {
+	const iterations = 300
+	r := newXorshift64(0x9e3779b97f4a7c15)
+
+	for iter := 0; iter < iterations; iter++ {
+		cfg := Config{
+			Epsilon: r.floatRange(0, 0.3),
+			Alpha:   r.floatRange(0, 1),
+			Floor:   r.floatRange(0, 2),
+			Warmup:  r.intRange(1, 5),
+		}
+		n := r.intRange(5, 150)
+		shapeName, gen := "mixed", genMixedSignal
+		if useNamed := r.intRange(0, 1); useNamed == 1 {
+			shape := signalShapes[r.intRange(0, len(signalShapes)-1)]
+			shapeName, gen = shape.name, shape.gen
+		}
+		samples := toPoints(r, gen(r, n))
+
+		t.Run(fmt.Sprintf("iter%d_%s_n%d", iter, shapeName, n), func(t *testing.T) {
+			assertBoundedError(t, cfg, samples)
+		})
+	}
 }
