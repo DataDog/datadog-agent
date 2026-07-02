@@ -336,7 +336,7 @@ type anomalyScorer struct {
 // StandaloneAnomalyScorer is the public interface for a scorer that is used
 // independently of the observer engine (e.g. testbench replay path).
 type StandaloneAnomalyScorer interface {
-	Subscribe(cfg severityeventsdef.AnomalyScorerConfiguration) func()
+	Subscribe(cfg severityeventsdef.SeverityEventsConfiguration) func()
 	ProcessAnomaly(a observerdef.Anomaly)
 	Advance(dataTime int64)
 	LastScore() float64
@@ -395,7 +395,7 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGaug
 	s.stateGauge = stateGauge
 
 	// Self-subscribe as the internal watcher.
-	s.dispatcher.SubscribeScorer(severityeventsdef.AnomalyScorerConfiguration{
+	s.dispatcher.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{
 		Listener:     s,
 		CooldownSecs: cfg.CooldownSecs,
 	})
@@ -404,7 +404,7 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGaug
 }
 
 // ---------------------------------------------------------------------------
-// severityevents.AnomalyScorerListener — internal watcher callback
+// severityevents.SeverityEventListener — internal watcher callback
 // ---------------------------------------------------------------------------
 
 // OnSeverityTransition is called by the self-subscription on each severity
@@ -412,7 +412,7 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGaug
 // High-severity episodes, and optionally sends a v2 change event.
 func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent) {
 	direction := "escalation"
-	if evt.Direction == severityeventsdef.AnomalyScorerEventDeescalation {
+	if evt.Direction == severityeventsdef.SeverityEventDeescalation {
 		direction = "deescalation"
 	}
 
@@ -596,7 +596,7 @@ func (s *anomalyScorer) Reset() {
 
 // Subscribe registers cfg.Listener to receive severity transitions matching
 // cfg.Filter. Returns an unsubscribe function. Safe to call concurrently.
-func (s *anomalyScorer) Subscribe(cfg severityeventsdef.AnomalyScorerConfiguration) func() {
+func (s *anomalyScorer) Subscribe(cfg severityeventsdef.SeverityEventsConfiguration) func() {
 	return s.dispatcher.SubscribeScorer(cfg)
 }
 
