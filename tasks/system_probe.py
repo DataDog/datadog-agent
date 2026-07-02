@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import glob
+import importlib.machinery
+import importlib.util
 import itertools
 import json
 import os
@@ -37,6 +39,17 @@ from tasks.libs.common.utils import (
     parse_kernel_version,
 )
 from tasks.libs.types.arch import ALL_ARCHS, Arch
+
+# Load the shared Starlark/Python eBPF target list. It is valid Python (plain
+# list literals), so we exec it and rebind the names below. An explicit
+# SourceFileLoader is needed because importlib won't infer one from the .bzl
+# extension.
+_EBPF_TARGETS_BZL_PATH = Path(__file__).with_name("ebpf_targets.bzl")
+_ebpf_targets_loader = importlib.machinery.SourceFileLoader("tasks._ebpf_targets_data", str(_EBPF_TARGETS_BZL_PATH))
+_ebpf_targets_spec = importlib.util.spec_from_loader(_ebpf_targets_loader.name, _ebpf_targets_loader)
+assert _ebpf_targets_spec is not None
+_ebpf_targets_data = importlib.util.module_from_spec(_ebpf_targets_spec)
+_ebpf_targets_loader.exec_module(_ebpf_targets_data)
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -906,60 +919,10 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
 
 # All Bazel eBPF targets, grouped by output directory.
 # Prebuilt targets go to build_dir/, CO-RE targets go to build_dir/co-re/.
-_BAZEL_EBPF_PREBUILT_TARGETS = [
-    "//pkg/network/ebpf/c/prebuilt:dns",
-    "//pkg/network/ebpf/c/prebuilt:dns-debug",
-    "//pkg/network/ebpf/c/prebuilt:offset-guess",
-    "//pkg/network/ebpf/c/prebuilt:offset-guess-debug",
-    "//pkg/network/ebpf/c/prebuilt:tracer",
-    "//pkg/network/ebpf/c/prebuilt:tracer-debug",
-    "//pkg/network/ebpf/c/prebuilt:usm",
-    "//pkg/network/ebpf/c/prebuilt:usm-debug",
-    "//pkg/network/ebpf/c/prebuilt:usm_events_test",
-    "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug",
-    "//pkg/network/ebpf/c/prebuilt:shared-libraries",
-    "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug",
-    "//pkg/network/ebpf/c/prebuilt:conntrack",
-    "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
-]
+# Canonical list lives in ebpf_targets.bzl, shared with Bazel BUILD files.
+_BAZEL_EBPF_PREBUILT_TARGETS = _ebpf_targets_data.PREBUILT_TARGETS
 
-_BAZEL_EBPF_CORE_TARGETS = [
-    "//pkg/ebpf/c:lock_contention",
-    "//pkg/ebpf/c:ksyms_iter",
-    "//pkg/network/ebpf/c:tracer",
-    "//pkg/network/ebpf/c/sk:sk_tracer",
-    "//pkg/network/ebpf/c/sk:sk_tracer-debug",
-    "//pkg/network/ebpf/c:tracer-debug",
-    "//pkg/network/ebpf/c/co-re:tracer-fentry",
-    "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
-    "//pkg/network/ebpf/c/runtime:usm",
-    "//pkg/network/ebpf/c/runtime:usm-debug",
-    "//pkg/network/ebpf/c/runtime:shared-libraries",
-    "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
-    "//pkg/network/ebpf/c/runtime:conntrack",
-    "//pkg/network/ebpf/c/runtime:conntrack-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill",
-    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length",
-    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf",
-    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
-    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
-    "//pkg/gpu/ebpf/c/runtime:gpu",
-    "//pkg/gpu/ebpf/c/runtime:gpu-debug",
-    "//pkg/dyninst/ebpf:dyninst_event",
-    "//pkg/dyninst/ebpf:dyninst_event-debug",
-    "//pkg/ebpf/testdata/c:logdebug-test",
-    "//pkg/ebpf/testdata/c:error_telemetry",
-    "//pkg/ebpf/testdata/c:sleepable",
-    "//pkg/ebpf/testdata/c:uprobe_attacher-test",
-    "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
-]
+_BAZEL_EBPF_CORE_TARGETS = _ebpf_targets_data.CORE_TARGETS
 
 # Targets that go to their own source directory, not build_dir/co-re/
 _BAZEL_EBPF_INPLACE_TARGETS = {
