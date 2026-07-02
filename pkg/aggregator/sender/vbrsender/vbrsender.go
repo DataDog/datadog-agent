@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/vbr"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -86,8 +87,30 @@ func Wrap(inner sender.SenderManager, dryRun bool) *SenderManager {
 	return &SenderManager{inner: inner, dryRun: dryRun, senders: make(map[checkid.ID]*Sender)}
 }
 
-// GetSender returns the VBR-wrapped Sender for id, creating and caching one
-// on first use.
+// vbrCompressedCheckNames returns the set of check names that should get
+// VBR-compressed metrics, from the checks.vbr_compression_checks config
+// setting. Read fresh on every cache-miss GetSender call; a check whose
+// sender is already cached keeps whatever decision was made at that time
+// until it's rescheduled (see GetSender), since neither config key has
+// hot-reload wiring today.
+func vbrCompressedCheckNames() map[string]bool {
+	names := setup.Datadog().GetStringSlice("checks.vbr_compression_checks")
+	m := make(map[string]bool, len(names))
+	for _, name := range names {
+		m[name] = true
+	}
+	return m
+}
+
+// GetSender returns a Sender for id: VBR-compressed and cached if id's check
+// name is in the vbr_compression_checks allowlist, otherwise passed straight
+// through to the inner manager (which already caches per ID on its own, so
+// no local caching is needed for that path). This is the single place that
+// decides whether a check gets compressed, regardless of which loader
+// (Go, Python, ...) requested the sender — unlike selecting between two
+// different manager instances upstream, which Python's sender-resolution
+// path (a package-level global captured once at loader-construction time,
+// see pkg/collector/aggregator) would silently bypass.
 func (m *SenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -95,11 +118,15 @@ func (m *SenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
 	if s, ok := m.senders[id]; ok {
 		return s, nil
 	}
+	checkName := checkid.IDToCheckName(id)
+	if !vbrCompressedCheckNames()[checkName] {
+		return m.inner.GetSender(id)
+	}
 	real, err := m.inner.GetSender(id)
 	if err != nil {
 		return nil, err
 	}
-	s := newSender(real, m.dryRun, checkid.IDToCheckName(id))
+	s := newSender(real, m.dryRun, checkName)
 	m.senders[id] = s
 	return s, nil
 }

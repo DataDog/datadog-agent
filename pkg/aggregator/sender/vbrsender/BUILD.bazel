@@ -14,6 +14,7 @@ go_library(
         "//pkg/aggregator/internal/vbr",
         "//pkg/aggregator/sender",
         "//pkg/collector/check/id",
+        "//pkg/config/setup",
         "//pkg/util/log",
     ],
 )
