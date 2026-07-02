@@ -22,6 +22,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 type expectedPod struct {
@@ -848,6 +849,94 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 			assertKueueQueues(t, wmetaMock, test.expectedKueueQueues)
 			assertKueueResourceFlavors(t, wmetaMock, test.expectedKueueResourceFlavors)
 			assertKueueWorkloads(t, wmetaMock, test.expectedKueueWorkloads)
+		})
+	}
+}
+
+func TestStreamingProvider_podAffectedByKueueUpdate(t *testing.T) {
+	provider := &streamingProvider{
+		dcaStream: newDCAStreamClient("node-a", nil),
+	}
+	// Seed the DCA stream cache with a Workload that references flavor "a100"
+	// so transitive ResourceFlavor updates can be resolved.
+	provider.dcaStream.applyResponse(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		KueueWorkloads: []*pb.KueueWorkload{
+			{
+				Namespace: "default",
+				Name:      "job-sample",
+				PodSetAssignments: []*pb.KueuePodSetAssignment{
+					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+				},
+				Type: pb.KubeMetadataEventType_SET,
+			},
+		},
+	})
+	provider.dcaStream.drainPendingUpdate()
+
+	podWithWorkloadAnnotation := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Namespace:   "default",
+			Annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "job-sample"},
+		},
+	}
+	podWithPodGroupLabel := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Namespace: "default",
+			Labels:    map[string]string{kubernetes.KueuePodGroupNameLabelKey: "job-sample"},
+		},
+	}
+	podWithoutKueue := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{Namespace: "default"},
+	}
+
+	tests := []struct {
+		name     string
+		pod      *workloadmeta.KubernetesPod
+		update   streamUpdate
+		expected bool
+	}{
+		{
+			name:     "pod not managed by Kueue is never affected",
+			pod:      podWithoutKueue,
+			update:   streamUpdate{updatedKueueWorkloads: map[string]struct{}{"default/job-sample": {}}},
+			expected: false,
+		},
+		{
+			name:     "pod joins updated Workload via annotation",
+			pod:      podWithWorkloadAnnotation,
+			update:   streamUpdate{updatedKueueWorkloads: map[string]struct{}{"default/job-sample": {}}},
+			expected: true,
+		},
+		{
+			name:     "pod joins updated Workload via pod-group label",
+			pod:      podWithPodGroupLabel,
+			update:   streamUpdate{updatedKueueWorkloads: map[string]struct{}{"default/job-sample": {}}},
+			expected: true,
+		},
+		{
+			name:     "pod joins a different Workload than the updated one",
+			pod:      podWithWorkloadAnnotation,
+			update:   streamUpdate{updatedKueueWorkloads: map[string]struct{}{"default/other": {}}},
+			expected: false,
+		},
+		{
+			name:     "pod affected transitively by updated ResourceFlavor",
+			pod:      podWithWorkloadAnnotation,
+			update:   streamUpdate{updatedKueueResourceFlavors: map[string]struct{}{"a100": {}}},
+			expected: true,
+		},
+		{
+			name:     "pod not affected by unrelated ResourceFlavor update",
+			pod:      podWithWorkloadAnnotation,
+			update:   streamUpdate{updatedKueueResourceFlavors: map[string]struct{}{"h100": {}}},
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, provider.podAffectedByKueueUpdate(test.pod, test.update))
 		})
 	}
 }
