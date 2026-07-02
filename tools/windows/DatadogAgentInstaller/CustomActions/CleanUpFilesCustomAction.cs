@@ -32,6 +32,15 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
+        /// Rollback-only: remove fleet-written PAR processes.d YAML after a failed upgrade.
+        /// Older agents start PAR via SCM and do not suppress it when this file is left behind.
+        /// </summary>
+        public static ActionResult RemoveParFleetProcmgrConfigOnUpgradeRollback(Session session)
+        {
+            return RemoveParFleetProcmgrConfigOnUpgradeRollback(new SessionWrapper(session));
+        }
+
+        /// <summary>
         /// Rollback-only: drop an otherwise-empty install root left by a failed fresh install.
         /// </summary>
         public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
@@ -56,7 +65,14 @@ namespace Datadog.CustomActions
 
         private static ActionResult RemoveFleetProcmgrConfigOnRollback(ISession session)
         {
-            TryRemoveFleetProcmgrConfigFiles(session, session.Property("PROJECTLOCATION"));
+            TryRemoveFleetProcmgrConfigFiles(session, session.Property("PROJECTLOCATION"),
+                AdpProcmgrConfigFileName, DdotProcmgrConfigFileName, ParProcmgrConfigFileName);
+            return ActionResult.Success;
+        }
+
+        private static ActionResult RemoveParFleetProcmgrConfigOnUpgradeRollback(ISession session)
+        {
+            TryRemoveFleetProcmgrConfigFiles(session, session.Property("PROJECTLOCATION"), ParProcmgrConfigFileName);
             return ActionResult.Success;
         }
 
@@ -112,7 +128,7 @@ namespace Datadog.CustomActions
             }
         }
 
-        private static void TryRemoveFleetProcmgrConfigFiles(ISession session, string projectLocation)
+        private static void TryRemoveFleetProcmgrConfigFiles(ISession session, string projectLocation, params string[] fileNames)
         {
             if (string.IsNullOrEmpty(projectLocation))
             {
@@ -120,7 +136,7 @@ namespace Datadog.CustomActions
             }
 
             var processesDir = Path.Combine(projectLocation, "processes.d");
-            foreach (var fileName in new[] { AdpProcmgrConfigFileName, DdotProcmgrConfigFileName, ParProcmgrConfigFileName })
+            foreach (var fileName in fileNames)
             {
                 var path = Path.Combine(processesDir, fileName);
                 try

@@ -50,6 +50,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RemoveFleetProcmgrConfigOnRollback { get; }
 
+        public ManagedAction RemoveParFleetProcmgrConfigOnUpgradeRollback { get; }
+
         public ManagedAction CleanupOnRollback { get; }
 
         public ManagedAction RemoveEmptyInstallDirOnRollback { get; }
@@ -869,6 +871,22 @@ namespace WixSetup.Datadog_Agent
                                "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD], " +
                                "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]")
                 .HideTarget(true);
+
+            // Upgrade rollback only: postinst may have written PAR processes.d YAML that older
+            // agents do not suppress via SCM, so remove it before restoring the previous install.
+            RemoveParFleetProcmgrConfigOnUpgradeRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveParFleetProcmgrConfigOnUpgradeRollback)),
+                    CustomActions.RemoveParFleetProcmgrConfigOnUpgradeRollback,
+                    Return.check,
+                    When.After,
+                    new Step(RunPostInstallHook.Id),
+                    Conditions.Upgrading
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             ConfigureAutoLogger = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureAutoLogger)),

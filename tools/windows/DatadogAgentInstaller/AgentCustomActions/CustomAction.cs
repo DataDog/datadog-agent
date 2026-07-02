@@ -102,6 +102,12 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult RemoveParFleetProcmgrConfigOnUpgradeRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveParFleetProcmgrConfigOnUpgradeRollback(session);
+        }
+
+        [CustomAction]
         public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
         {
             return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirOnRollback(session);
