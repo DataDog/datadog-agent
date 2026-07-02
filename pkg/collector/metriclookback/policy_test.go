@@ -55,6 +55,7 @@ func TestSelectShadowCandidatesSelectsEnabledChecks(t *testing.T) {
 	assert.Equal(t, "cpu", candidate.SourceConfig.Name)
 	assert.Equal(t, 0, candidate.InstanceIndex)
 	assert.Equal(t, configs[0].Digest(), candidate.SourceConfigDigest)
+	assert.Equal(t, defaultShadowCheckInterval, candidate.ShadowInterval)
 
 	raw := integration.RawMap{}
 	require.NoError(t, yaml.Unmarshal(candidate.Instance, &raw))
@@ -78,6 +79,7 @@ func TestSelectShadowCandidatesAllowsPerInstanceEnablement(t *testing.T) {
 
 	require.Len(t, candidates, 1)
 	assert.Equal(t, 1, candidates[0].InstanceIndex)
+	assert.Equal(t, defaultShadowCheckInterval, candidates[0].ShadowInterval)
 }
 
 func TestSelectShadowCandidatesTreatsMalformedInstanceSettingAsUnset(t *testing.T) {
