@@ -87,6 +87,144 @@ func TestMatchesIdentifier_RDS(t *testing.T) {
 	assert.False(t, matchesIdentifier(instance, dbID))
 }
 
+// TestMatchesIdentifier_HostPort verifies that "host:port" in the RC identifier matches an
+// instance whose literal host + port fields produce that pair. This covers cases where the
+// backend keys on the port-qualified form even when no database_identifier template is set.
+func TestMatchesIdentifier_HostPort(t *testing.T) {
+	instance := map[string]any{"host": "localhost", "port": 5432}
+
+	t.Run("matching host:port", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost:5432"}
+		assert.True(t, matchesIdentifier(instance, dbID))
+	})
+
+	t.Run("wrong port", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost:5433"}
+		assert.False(t, matchesIdentifier(instance, dbID))
+	})
+
+	t.Run("wrong host", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "self-hosted", Host: "otherhost:5432"}
+		assert.False(t, matchesIdentifier(instance, dbID))
+	})
+}
+
+// TestMatchesIdentifier_DatabaseIdentifierTemplate verifies the case from DOIO-136: an instance
+// with host: localhost and database_identifier.template: "$resolved_hostname:$port" matches an
+// RC identifier whose host is "<agent_hostname>:<port>".
+func TestMatchesIdentifier_DatabaseIdentifierTemplate(t *testing.T) {
+	instance := map[string]any{
+		"host": "localhost",
+		"port": 5432,
+		"database_identifier": map[string]any{
+			"template": "$resolved_hostname:$port",
+		},
+	}
+
+	t.Run("matches when agent_hostname resolves template", func(t *testing.T) {
+		dbID := &DBIdentifier{
+			Type:          "self-hosted",
+			Host:          "do-test-postgres-staging:5432",
+			AgentHostname: "do-test-postgres-staging",
+		}
+		assert.True(t, matchesIdentifier(instance, dbID))
+	})
+
+	t.Run("no match when agent_hostname differs", func(t *testing.T) {
+		dbID := &DBIdentifier{
+			Type:          "self-hosted",
+			Host:          "other-host:5432",
+			AgentHostname: "do-test-postgres-staging",
+		}
+		assert.False(t, matchesIdentifier(instance, dbID))
+	})
+
+	t.Run("falls back to literal host when agent_hostname unset", func(t *testing.T) {
+		dbID := &DBIdentifier{
+			Type: "self-hosted",
+			Host: "localhost:5432",
+		}
+		assert.True(t, matchesIdentifier(instance, dbID))
+	})
+}
+
+// TestMatchesIdentifier_TwoPortsNoCrossMatch verifies that two instances on the same host but
+// different ports each only match their own RC config, with no cross-matching.
+func TestMatchesIdentifier_TwoPortsNoCrossMatch(t *testing.T) {
+	instance5432 := map[string]any{
+		"host": "localhost",
+		"port": 5432,
+		"database_identifier": map[string]any{
+			"template": "$resolved_hostname:$port",
+		},
+	}
+	instance5433 := map[string]any{
+		"host": "localhost",
+		"port": 5433,
+		"database_identifier": map[string]any{
+			"template": "$resolved_hostname:$port",
+		},
+	}
+	dbID5432 := &DBIdentifier{Type: "self-hosted", Host: "myhost:5432", AgentHostname: "myhost"}
+	dbID5433 := &DBIdentifier{Type: "self-hosted", Host: "myhost:5433", AgentHostname: "myhost"}
+
+	assert.True(t, matchesIdentifier(instance5432, dbID5432), "5432 instance should match 5432 RC config")
+	assert.False(t, matchesIdentifier(instance5432, dbID5433), "5432 instance must not match 5433 RC config")
+	assert.False(t, matchesIdentifier(instance5433, dbID5432), "5433 instance must not match 5432 RC config")
+	assert.True(t, matchesIdentifier(instance5433, dbID5433), "5433 instance should match 5433 RC config")
+}
+
+// TestOnRCUpdate_TemplatedIdentifier_SchedulesCheck is an integration test for the DOIO-136
+// scenario: instance has host:localhost + database_identifier template, RC config carries the
+// resolved identifier. The check should be scheduled and the warning should NOT fire.
+func TestOnRCUpdate_TemplatedIdentifier_SchedulesCheck(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		NodeName: "node1",
+		Instances: []integration.Data{
+			integration.Data("host: localhost\nport: 5432\ndatabase_identifier:\n  template: \"$resolved_hostname:$port\"\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID: "cfg-templated",
+		DBIdentifier: DBIdentifier{
+			Type:          "self-hosted",
+			Host:          "do-test-postgres-staging:5432",
+			AgentHostname: "do-test-postgres-staging",
+		},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       1,
+				Type:            "run_query",
+				Query:           "SELECT 1",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "mydb"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-templated": {Config: payloadJSON, Metadata: state.Metadata{ID: "rc-id-templated"}},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-templated"].State, "should acknowledge the config")
+	require.Len(t, changes.Schedule, 1, "should schedule the DO check")
+	require.Len(t, changes.Unschedule, 1, "should unschedule the base file-provider config")
+	assert.Equal(t, "postgres", changes.Schedule[0].Name)
+	require.Contains(t, c.activeConfigs, "cfg-templated")
+
+	// Verify the matched instance's literal host is used (not the RC identifier) so that
+	// buildRemainder correctly excludes it and no double-run occurs.
+	entry := c.activeConfigs["cfg-templated"]
+	assert.Equal(t, "localhost", entry.matchHost, "matchHost must be the literal instance host")
+}
+
 func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 	c := &component{
 		log: logmock.New(t),

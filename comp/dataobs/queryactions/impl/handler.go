@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -133,11 +135,12 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		// Remove previous DO config version if this config_id was already active.
 		c.removeActiveConfig(configID, &changes)
 
+		instanceLiteralHost, _ := instance["host"].(string)
 		c.activeConfigsMu.Lock()
 		c.activeConfigs[configID] = activeConfigEntry{
 			checkConfig: checkConfig,
 			baseCfg:     baseCfg,
-			matchHost:   payload.DBIdentifier.Host,
+			matchHost:   instanceLiteralHost,
 		}
 		c.activeConfigsMu.Unlock()
 		changes.Schedule = append(changes.Schedule, checkConfig)
@@ -331,10 +334,66 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 }
 
 // matchesIdentifier checks if an instance matches the given DB identifier.
-// Matching is by host only — per-query dbname fields handle database routing.
+// Three forms are tried in order:
+//  1. Literal host: instance["host"] == dbID.Host.
+//  2. Host:port form: "<host>:<port>" == dbID.Host, for backends that key on the port-qualified form.
+//  3. database_identifier template: render instance["database_identifier"]["template"] substituting
+//     $resolved_hostname (dbID.AgentHostname when set, else the literal host) and $port, then
+//     compare to dbID.Host. This handles database_identifier.template templating and agent hostname
+//     overrides where the literal host (e.g. "localhost") differs from the identifier the backend
+//     keyed the config on (e.g. "agent-hostname:5432").
+//
+// Per-query dbname fields handle database routing; matching is host-only.
 func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
 	host, _ := instance["host"].(string)
-	return host == dbID.Host
+
+	// 1. Literal host match (existing behavior, no change).
+	if host == dbID.Host {
+		return true
+	}
+
+	// 2. host:port form.
+	port := instancePort(instance)
+	if port != "" && host+":"+port == dbID.Host {
+		return true
+	}
+
+	// 3. database_identifier.template rendering.
+	dbIDSection, ok := instance["database_identifier"].(map[string]any)
+	if !ok {
+		return false
+	}
+	tmpl, _ := dbIDSection["template"].(string)
+	if tmpl == "" {
+		return false
+	}
+	resolvedHostname := dbID.AgentHostname
+	if resolvedHostname == "" {
+		resolvedHostname = host
+	}
+	rendered := renderDBIdentifierTemplate(tmpl, resolvedHostname, port)
+	return rendered == dbID.Host
+}
+
+// instancePort returns the port from an instance config as a string, or "" if absent/unparseable.
+func instancePort(instance map[string]any) string {
+	switch p := instance["port"].(type) {
+	case int:
+		return strconv.Itoa(p)
+	case float64:
+		return strconv.Itoa(int(p))
+	case string:
+		return p
+	}
+	return ""
+}
+
+// renderDBIdentifierTemplate substitutes $resolved_hostname and $port in a database_identifier
+// template string, mirroring the Python check's template expansion in metadata.py.
+func renderDBIdentifierTemplate(tmpl, resolvedHostname, port string) string {
+	r := strings.ReplaceAll(tmpl, "$resolved_hostname", resolvedHostname)
+	r = strings.ReplaceAll(r, "$port", port)
+	return r
 }
 
 // buildCheckConfig creates a postgres check config with data_observability queries injected.
