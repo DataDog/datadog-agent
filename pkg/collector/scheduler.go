@@ -58,18 +58,6 @@ type loadInstanceResult struct {
 	loaderErrors map[string]error
 }
 
-// vbrCompressedCheckNames returns the set of check names that should get
-// VBR-compressed metrics (see pkg/aggregator/sender/vbrsender), from the
-// checks.vbr_compression_checks config setting.
-func vbrCompressedCheckNames() map[string]bool {
-	names := setup.Datadog().GetStringSlice("checks.vbr_compression_checks")
-	m := make(map[string]bool, len(names))
-	for _, name := range names {
-		m[name] = true
-	}
-	return m
-}
-
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
 	schedulerErrs.Set("LoaderErrors", expvar.Func(func() interface{} {
@@ -86,7 +74,6 @@ type CheckScheduler struct {
 	loaders             []check.Loader
 	collector           option.Option[collectorcomp.Component]
 	senderManager       sender.SenderManager
-	vbrSenderManager    sender.SenderManager
 	shadowSenderManager sender.SenderManager
 	shadowSenderContext context.Context
 	shadowSenderCancel  context.CancelFunc
@@ -97,13 +84,19 @@ type CheckScheduler struct {
 
 // InitCheckScheduler creates and returns a check scheduler
 func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
+	// Every loader (Go, Python, ...) reaches the aggregator exclusively
+	// through this one manager, so it's the single place that decides
+	// per-check whether to VBR-compress (see vbrsender.SenderManager.
+	// GetSender) — a check loaded via a captured sender-resolution path
+	// (e.g. Python's) still gets the right decision, since there's no
+	// second, uncompressed manager instance to accidentally bypass it with.
+	senderManager = vbrsender.Wrap(senderManager, setup.Datadog().GetBool("checks.vbr_compression_dry_run"))
 	checkScheduler = &CheckScheduler{
-		collector:        collector,
-		senderManager:    senderManager,
-		vbrSenderManager: vbrsender.Wrap(senderManager, setup.Datadog().GetBool("checks.vbr_compression_dry_run")),
-		configToChecks:   make(map[string][]checkid.ID),
-		loaders:          make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
-		infraTagger:      infratags.NewTagger(setup.Datadog()),
+		collector:      collector,
+		senderManager:  senderManager,
+		configToChecks: make(map[string][]checkid.ID),
+		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
+		infraTagger:    infratags.NewTagger(setup.Datadog()),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
@@ -214,11 +207,6 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 		shadowCandidates = shadowCandidatesByInstance(config)
 	}
 
-	senderManager := s.senderManager
-	if vbrCompressedCheckNames()[config.Name] {
-		senderManager = s.vbrSenderManager
-	}
-
 	initConfig := commonInitConfig{}
 	err := yaml.Unmarshal(config.InitConfig, &initConfig)
 	if err != nil {
@@ -250,7 +238,7 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
 		}
 
-		result := s.loadCheckInstance(senderManager, config, instance, instanceIndex, selectedInstanceLoader)
+		result := s.loadCheckInstance(s.senderManager, config, instance, instanceIndex, selectedInstanceLoader)
 
 		if result.check != nil {
 			log.Debugf("%v: successfully loaded check '%s'", result.loader, config.Name)
