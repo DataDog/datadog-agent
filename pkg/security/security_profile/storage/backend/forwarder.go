@@ -168,6 +168,17 @@ func activityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType l
 		return nil, fmt.Errorf("invalid endpoints: %w", err)
 	}
 
+	// The secdump intake has no MRF endpoint, so drop the one synthesized when MRF is
+	// enabled to avoid a 404 on every dump. Remove this once secdump supports MRF.
+	nonMRFEndpoints := make([]logsconfig.Endpoint, 0, len(endpoints.Endpoints))
+	for _, endpoint := range endpoints.Endpoints {
+		if endpoint.IsMRF {
+			continue
+		}
+		nonMRFEndpoints = append(nonMRFEndpoints, endpoint)
+	}
+	endpoints.Endpoints = nonMRFEndpoints
+
 	for _, status := range endpoints.GetStatus() {
 		seclog.Infof("activity dump remote storage endpoint: %v\n", status)
 	}
