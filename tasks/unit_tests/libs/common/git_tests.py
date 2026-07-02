@@ -84,13 +84,29 @@ class TestGit(unittest.TestCase):
 
     def test_get_origin_default_branch(self):
         self.ctx_mock.run.return_value.stdout = "main\n"
+        self.ctx_mock.run.return_value.exited = 0
 
         branch = get_origin_default_branch(self.ctx_mock)
 
-        self.assertEqual(branch, "main")
+        self.assertEqual(branch, "origin/main")
         self.ctx_mock.run.assert_called_once_with(
             "git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'",
             hide=True,
+            warn=True,
+        )
+
+    @patch("tasks.libs.common.git.get_default_branch", return_value="main")
+    def test_get_origin_default_branch_falls_back_when_origin_head_is_missing(self, _):
+        self.ctx_mock.run.return_value.stdout = "HEAD\n"
+        self.ctx_mock.run.return_value.exited = 0
+
+        branch = get_origin_default_branch(self.ctx_mock)
+
+        self.assertEqual(branch, "origin/main")
+        self.ctx_mock.run.assert_called_once_with(
+            "git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'",
+            hide=True,
+            warn=True,
         )
 
     def test_get_changed_files(self):

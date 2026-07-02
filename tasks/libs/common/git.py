@@ -126,7 +126,11 @@ def get_modified_files(ctx, base_branch=None) -> list[str]:
 
 
 def get_origin_default_branch(ctx) -> str:
-    return ctx.run("git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'", hide=True).stdout.strip()
+    result = ctx.run("git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'", hide=True, warn=True)
+    branch = result.stdout.strip()
+    if result.exited == 0 and branch and branch != "HEAD":
+        return get_full_ref_name(branch)
+    return get_full_ref_name(get_default_branch())
 
 
 def get_changed_files(ctx, base: str, head: str = "HEAD", diff_filter: str = "ACDMRTUXB") -> list[str]:
