@@ -54,7 +54,7 @@ properties:
         - full: default server/host-monitoring behavior (all checks allowed).
         - basic: minimal host-level metrics only.
         - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
-        - cloud_cost_only: Cloud Cost Management lightweight collection posture (tagging; optional filtering elsewhere).
+        - cloud_cost_only: Cloud Cost Management lightweight tagging.
         - none: disables infrastructure checks.
     tags:
     - template_section:Common
@@ -9021,6 +9021,18 @@ properties:
               Infrastructure basic mode section [UNDOCUMENTED]
               Note: All checks starting with "custom_" are always allowed.
               integration.basic.allowed: default allowed checks (internal, should not need user configuration)
+      cloud_cost_only:
+        node_type: section
+        type: object
+        properties:
+          tagged:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            comment: 'integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only
+              (empty means all checks)'
       enabled:
         node_type: setting
         type: boolean
@@ -9038,21 +9050,6 @@ properties:
             comment: |-
               Infrastructure end_user_device mode section
               integration.end_user_device.allowed: empty means all checks are allowed
-      cloud_cost_only:
-        node_type: section
-        type: object
-        properties:
-          tagged:
-            node_type: setting
-            type: array
-            default: []
-            items:
-              type: string
-            comment: |-
-              When infrastructure_mode is cloud_cost_only, check names in this list receive the
-              infra_mode:cloud_cost_only tag on scheduler-loaded checks and on JMX metrics
-              (DogStatsD dd.internal.jmx_check_name). An empty list means all checks except custom_*.
-              Plain DogStatsD metrics without the JMX check tag are not tagged.
       excluded:
         node_type: setting
         type: array
