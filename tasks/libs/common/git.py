@@ -129,7 +129,7 @@ def get_origin_default_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'", hide=True).stdout.strip()
 
 
-def get_changed_files(ctx, base: str, head: str = "HEAD", diff_filter: str = "ACMRTUXB") -> list[str]:
+def get_changed_files(ctx, base: str, head: str = "HEAD", diff_filter: str = "ACDMRTUXB") -> list[str]:
     """
     Get files changed between a base ref and head using git's three-dot diff.
 

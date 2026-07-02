@@ -100,7 +100,7 @@ class TestGit(unittest.TestCase):
 
         self.assertEqual(files, ["tasks/a.py", "tasks/b.py"])
         self.ctx_mock.run.assert_called_once_with(
-            "git diff --name-only --diff-filter=ACMRTUXB main...HEAD",
+            "git diff --name-only --diff-filter=ACDMRTUXB main...HEAD",
             hide=True,
         )
 
