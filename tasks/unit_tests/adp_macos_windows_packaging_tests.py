@@ -7,7 +7,7 @@ from tasks.libs.common.omnibus import ENV_PASSHTROUGH, OS_SPECIFIC_ENV_PASSTHROU
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-class TestADPMacOSPackaging(unittest.TestCase):
+class TestADPMacOSWindowsPackaging(unittest.TestCase):
     def test_omnibus_recipe_selects_darwin_artifacts_and_supports_url_base_override(self):
         recipe = (REPO_ROOT / "omnibus/config/software/datadog-agent-data-plane.rb").read_text()
 
