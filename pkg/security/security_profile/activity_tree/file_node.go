@@ -24,12 +24,17 @@ import (
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
 	NodeBase
-	MatchedRules   []*model.MatchedRule
-	Name           string
-	IsPattern      bool
-	File           *model.FileEvent
-	GenerationType NodeGenerationType
-	Open           *OpenNode
+	MatchedRules []*model.MatchedRule
+	Name         string
+	IsPattern    bool
+	// PatternSignature is the structureSignature of the members folded
+	// into this pattern node. In-memory only; empty when reloaded from
+	// a profile snapshot, in which case lookups fall back to
+	// template-only matching.
+	PatternSignature string
+	File             *model.FileEvent
+	GenerationType   NodeGenerationType
+	Open             *OpenNode
 
 	Children map[string]*FileNode
 }
@@ -177,8 +182,11 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			break
 		}
 
-		child, ok := currentFn.Children[parent]
+		child, ok := findChildWithPatternFallback(currentFn.Children, parent, stats)
 		if ok {
+			if child.IsPattern && child.Name != parent && stats != nil {
+				stats.FilePatternLookupHits++
+			}
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
 			currentFn.AppendImageTagID(imageTagID, event.ResolveEventTime())
@@ -195,12 +203,23 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			currentFn.Children[parent] = leafNode
 			stats.FileNodes++
 			stats.SizeBytes += leafNode.size()
+			maybeMergeChildren(currentFn.Children, stats)
 			break
 		}
 		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
 		currentFn.Children[parent] = newChild
+		maybeMergeChildren(currentFn.Children, stats)
 		stats.SizeBytes += newChild.size()
-		currentFn = newChild
+		// the merge pass may have folded newChild into a pattern node;
+		// keep walking from whatever now owns the parent slot
+		if entry, stillThere := currentFn.Children[parent]; stillThere {
+			currentFn = entry
+		} else if entry, ok := findChildWithPatternFallback(currentFn.Children, parent, stats); ok {
+			currentFn = entry
+		} else {
+			currentFn.Children[parent] = newChild
+			currentFn = newChild
+		}
 		currentPath = currentPath[nextParentIndex:]
 	}
 	return newEntry

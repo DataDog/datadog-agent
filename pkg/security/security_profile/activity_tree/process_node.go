@@ -290,8 +290,11 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 		return false
 	}
 
-	child, ok := pn.Files[parent]
+	child, ok := findChildWithPatternFallback(pn.Files, parent, stats)
 	if ok {
+		if child.IsPattern && child.Name != parent && stats != nil {
+			stats.FilePatternLookupHits++
+		}
 		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
 	}
 
@@ -313,6 +316,7 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 			stats.SizeBytes += newChild.size()
 			pn.Files[parent] = newChild
 		}
+		maybeMergeChildren(pn.Files, stats)
 	}
 	return true
 }
