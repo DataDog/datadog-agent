@@ -635,11 +635,24 @@ func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent) (*
 			Attributes:    stringAttributes(metadata, "status", "sequence", "bytes_emitted", "bytesEmitted", "chunks_emitted", "chunksEmitted"),
 		}}
 	case "error":
+		errorMetadata := mapFromMetadata(metadata, "error")
+		code := stringFromMetadata(errorMetadata, "code")
+		if code == "" {
+			code = stringFromMetadata(metadata, "code")
+		}
+		message := stringFromMetadata(errorMetadata, "message")
+		if message == "" {
+			message = stringFromMetadata(metadata, "message")
+		}
+		retryable, hasRetryable := boolValueFromMetadata(errorMetadata, "retryable")
+		if !hasRetryable {
+			retryable = boolFromMetadata(metadata, "retryable")
+		}
 		out.Event = &pb.RemoteQueryExecuteStreamEvent_Error{Error: &pb.RemoteQueryStreamError{
-			Code:       stringFromMetadata(metadata, "code"),
-			Message:    stringFromMetadata(metadata, "message"),
-			Retryable:  boolFromMetadata(metadata, "retryable"),
-			Attributes: stringAttributes(metadata, "code", "message", "retryable", "sequence"),
+			Code:       code,
+			Message:    message,
+			Retryable:  retryable,
+			Attributes: stringAttributes(metadata, "code", "message", "retryable", "error", "sequence"),
 		}}
 	default:
 		return nil, errors.New("unknown remote query stream event type")
@@ -655,10 +668,22 @@ func stringFromMetadata(metadata map[string]interface{}, key string) string {
 }
 
 func boolFromMetadata(metadata map[string]interface{}, key string) bool {
+	v, _ := boolValueFromMetadata(metadata, key)
+	return v
+}
+
+func boolValueFromMetadata(metadata map[string]interface{}, key string) (bool, bool) {
 	if v, ok := metadata[key].(bool); ok {
+		return v, true
+	}
+	return false, false
+}
+
+func mapFromMetadata(metadata map[string]interface{}, key string) map[string]interface{} {
+	if v, ok := metadata[key].(map[string]interface{}); ok {
 		return v
 	}
-	return false
+	return nil
 }
 
 func uint64FromMetadata(metadata map[string]interface{}, keys ...string) uint64 {

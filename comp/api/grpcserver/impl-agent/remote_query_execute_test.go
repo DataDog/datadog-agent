@@ -114,6 +114,21 @@ func TestRemoteQueryStreamEventFromCheckEventPreservesBinaryPayload(t *testing.T
 	assert.Equal(t, uint64(3), event.GetData().GetBytes())
 }
 
+func TestRemoteQueryStreamEventFromCheckEventPreservesNestedErrorMetadata(t *testing.T) {
+	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+		Type:         "error",
+		MetadataJSON: `{"status":"FAILED","error":{"code":"invalid_request","message":"query is not allowlisted","retryable":false}}`,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, uint64(0), event.GetSequence())
+	require.NotNil(t, event.GetError())
+	assert.Equal(t, "invalid_request", event.GetError().GetCode())
+	assert.Equal(t, "query is not allowlisted", event.GetError().GetMessage())
+	assert.False(t, event.GetError().GetRetryable())
+	assert.Equal(t, map[string]string{"status": "FAILED"}, event.GetError().GetAttributes())
+}
+
 type captureRemoteQueryExecuteStreamServer struct {
 	grpc.ServerStream
 	chunks []*pb.RemoteQueryExecuteChunk
