@@ -11,6 +11,7 @@ namespace Datadog.CustomActions
     {
         private const string AdpProcmgrConfigFileName = "datadog-agent-data-plane.yaml";
         private const string DdotProcmgrConfigFileName = "datadog-agent-ddot.yaml";
+        private const string ParProcmgrConfigFileName = "datadog-agent-action.yaml";
 
         /// <summary>
         /// Removes generated install artifacts (embedded2/embedded3, python-scripts, session-generated paths).
@@ -119,7 +120,7 @@ namespace Datadog.CustomActions
             }
 
             var processesDir = Path.Combine(projectLocation, "processes.d");
-            foreach (var fileName in new[] { AdpProcmgrConfigFileName, DdotProcmgrConfigFileName })
+            foreach (var fileName in new[] { AdpProcmgrConfigFileName, DdotProcmgrConfigFileName, ParProcmgrConfigFileName })
             {
                 var path = Path.Combine(processesDir, fileName);
                 try
