@@ -124,8 +124,6 @@ func GetCapabilitiesMonitoringSelectors() []manager.ProbesSelector {
 			Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_capable"),
 				hookFunc("rethook_security_capable"),
-				hookFunc("hook_override_creds"),
-				hookFunc("hook_revert_creds"),
 				&manager.ProbeSelector{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
 						UID:          SecurityAgentUID,

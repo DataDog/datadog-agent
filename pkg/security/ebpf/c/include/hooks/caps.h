@@ -1,56 +1,33 @@
 #ifndef _HOOKS_CAPS_H_
 #define _HOOKS_CAPS_H_
 
-HOOK_ENTRY("override_creds")
-int hook_override_creds(ctx_t *ctx) {
-    u64 tgid_tid = bpf_get_current_pid_tgid();
-    u32 tid = (u32)tgid_tid;
+// Since kernel 6.13, override_creds/revert_creds are static inline and can no longer be hooked to
+// track whether we are running under temporarily overridden credentials. Instead we detect it
+// directly: override_creds only swaps current->cred and leaves current->real_cred untouched, so
+// cred != real_cred exactly while an override is in effect (commit_creds sets both, so they are
+// otherwise equal).
+static __attribute__((always_inline)) int is_in_creds_override() {
+    void *task = (void *)bpf_get_current_task();
 
-    struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
-    if (!cap_context) {
-        struct capabilities_context_t new_context = {
-            .cap_as_mask = 0, // No capabilities checked yet
-            .override_creds_depth = 1, // We are entering an override_creds context
-        };
-        bpf_map_update_elem(&capabilities_contexts, &tid, &new_context, BPF_ANY);
-    } else {
-        cap_context->override_creds_depth++;
-    }
+    void *cred = NULL;
+    bpf_probe_read(&cred, sizeof(cred), (char *)task + get_task_struct_cred_offset());
 
-    return 0;
-}
+    void *real_cred = NULL;
+    bpf_probe_read(&real_cred, sizeof(real_cred), (char *)task + get_task_struct_real_cred_offset());
 
-HOOK_ENTRY("revert_creds")
-int hook_revert_creds(ctx_t *ctx) {
-    u64 tgid_tid = bpf_get_current_pid_tgid();
-    u32 tid = (u32)tgid_tid;
-
-    struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
-    if (!cap_context) {
-        // unexpected but we handle it gracefully
-        return 0;
-    }
-
-    if (cap_context->override_creds_depth > 0) {
-        cap_context->override_creds_depth--;
-        if (cap_context->override_creds_depth == 0) {
-            // If we reached zero, we can remove the context
-            bpf_map_delete_elem(&capabilities_contexts, &tid);
-        }
-    }
-
-    return 0;
+    return cred != real_cred;
 }
 
 HOOK_ENTRY("security_capable")
 int hook_security_capable(ctx_t *ctx) {
+    if (is_in_creds_override()) {
+        // do not track capabilities checked under temporarily overridden credentials
+        return 0;
+    }
+
     u64 tgid_tid = bpf_get_current_pid_tgid();
     u32 tid = (u32)tgid_tid;
     struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
-    if (cap_context && cap_context->override_creds_depth != 0) {
-        // do not track capabilities in override_creds context
-        return 0;
-    }
 
     u64 cap = CTX_PARM3(ctx); // The capability being checked
 
@@ -95,7 +72,6 @@ int hook_security_capable(ctx_t *ctx) {
         // If no context exists, we create a new one
         struct capabilities_context_t new_context = {
             .cap_as_mask = cap_as_mask,
-            .override_creds_depth = 0, // Not in an override_creds context
         };
         bpf_map_update_elem(&capabilities_contexts, &tid, &new_context, BPF_ANY);
     }
@@ -113,8 +89,8 @@ int rethook_security_capable(ctx_t *ctx) {
         return 0;
     }
 
-    if (cap_context->override_creds_depth != 0) {
-        // do not track capabilities in override_creds context
+    if (is_in_creds_override()) {
+        // do not track capabilities checked under temporarily overridden credentials
         return 0;
     }
 
