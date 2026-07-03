@@ -56,7 +56,7 @@ func (rh *HelmRollbackHandler) Run(ctx context.Context, task *types.Task,
 		job.Namespace, job.Name, in.ReleaseNamespace, in.Release, in.Revision)
 
 	// todo(dp): error core processing to indicete that HA is down?
-	rh.ha.OnRollback(job)
+	rh.ha.OnRollback(&in, job)
 
 	return &HelmRollbackOutputs{
 		Job: job,

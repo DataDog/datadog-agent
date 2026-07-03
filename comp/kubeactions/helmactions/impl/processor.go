@@ -12,12 +12,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
+	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	batchv1 "k8s.io/api/batch/v1"
 )
 
 // ActionProcessor processes helm actions received from remote config.
@@ -34,6 +34,12 @@ func NewActionProcessor(ctx context.Context, store ActionStoreInterface, reporte
 		reporter: reporter,
 		ctx:      ctx,
 	}
+}
+
+func (p *ActionProcessor) OnRollbackAction(in *helmactions.RollbackInputs, job *batchv1.Job) {
+	p.reporter.ReportReceived(actionKey, action)
+
+	// Validate timestamp
 }
 
 // Process handles a single remote config update.
@@ -74,9 +80,6 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 		}
 		return nil
 	}
-
-	orgID := parseOrgIDFromConfigKey(configKey)
-	_ = orgID // reserved for future EVP reporting
 
 	return p.processAction(action, actionKey, receivedAt)
 }
@@ -120,21 +123,7 @@ func (p *ActionProcessor) processAction(action *HelmAction, actionKey ActionKey,
 	return fmt.Errorf("action execution failed: %s", result.Message)
 }
 
-// GetStore returns the action store for inspection.
-func (p *ActionProcessor) GetStore() ActionStoreInterface {
-	return p.store
-}
-
-// parseOrgIDFromConfigKey extracts the org ID from an RC config key path.
-// Config keys have the format: datadog/<org_id>/<product>/<config_id>/<file>
-func parseOrgIDFromConfigKey(configKey string) int64 {
-	parts := strings.SplitN(configKey, "/", 4)
-	if len(parts) < 2 || parts[1] == "" {
-		return 0
-	}
-	orgID, err := strconv.ParseInt(parts[1], 10, 64)
-	if err != nil {
-		return 0
-	}
-	return orgID
-}
+// // GetStore returns the action store for inspection.
+// func (p *ActionProcessor) GetStore() ActionStoreInterface {
+// 	return p.store
+// }

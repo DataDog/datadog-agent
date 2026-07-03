@@ -18,7 +18,7 @@ import (
 // Component is the component type.
 type Component interface {
 	// OnRollback is called when Job successfully scheduled
-	OnRollback(job *batchv1.Job)
+	OnRollback(in *RollbackInputs, job *batchv1.Job)
 }
 
 // RollbackInputs describes a single `helm rollback` invocation.

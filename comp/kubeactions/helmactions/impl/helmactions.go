@@ -11,6 +11,7 @@ package helmactionsimpl
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -50,13 +51,10 @@ type helmactionsImpl struct {
 	params      helmactions.Params
 	store       *ActionStore
 	processor   *ActionProcessor
-	watcher     *jobWatcher
+	jobWatcher  *jobWatcher
+	podWatcher  *podWatcher
 
-	// Watcher lifecycle. watchCancel terminates the watch goroutine;
-	// watchDone is closed once it has returned, letting stop() wait for it
-	// without leaking the goroutine past container shutdown.
-	watchCancel context.CancelFunc
-	watchDone   chan struct{}
+	watchDone chan struct{}
 }
 
 // NewComponent creates a new helmactions component.
@@ -95,7 +93,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		params:      reqs.Params,
 		store:       store,
 		processor:   NewActionProcessor(ctx, store, reporter),
-		watcher:     newJobWatcher(reqs.APIClient.Cl, store),
+		jobWatcher:  newJobWatcher(reqs.APIClient.Cl, store),
+		podWatcher:  newPodWatcher(reqs.APIClient.Cl, store),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})
@@ -103,31 +102,34 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: comp}, nil
 }
 
-func (h *helmactionsImpl) start(_ context.Context) error {
+func (h *helmactionsImpl) start(ctx context.Context) error {
 	h.log.Infof("Starting helmactions component (clusterName=%s clusterID=%s)", h.clusterName, h.clusterID)
 
-	// The watcher must outlive Fx's start context (which is bounded to startup
-	// hooks), so derive a fresh context from Background and cancel it in stop().
-	watchCtx, cancel := context.WithCancel(context.Background())
-	h.watchCancel = cancel
+	h.processor.run(ctx)
+
 	h.watchDone = make(chan struct{})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); h.jobWatcher.run(ctx) }()
+	go func() { defer wg.Done(); h.podWatcher.run(ctx) }()
 	go func() {
-		defer close(h.watchDone)
-		h.watcher.run(watchCtx)
+		wg.Wait()
+		close(h.watchDone)
 	}()
 	return nil
 }
 
 func (h *helmactionsImpl) stop(ctx context.Context) error {
 	h.log.Info("Stopping helmactions component")
-	if h.watchCancel != nil {
-		h.watchCancel()
-	}
+
 	if h.watchDone != nil {
 		// Wait for the goroutine to exit, bounded by the Fx stop context so a
 		// stuck watcher can't hold up shutdown indefinitely.
 		select {
 		case <-h.watchDone:
+
+		// todo: is it the same ctx that is on start ?
 		case <-ctx.Done():
 			h.log.Warnf("helmactions: watcher did not exit before stop context cancellation: %v", ctx.Err())
 		}
@@ -135,12 +137,13 @@ func (h *helmactionsImpl) stop(ctx context.Context) error {
 	if h.store != nil {
 		h.store.Stop()
 	}
-	return nil
+
+	return ctx.Err()
 }
 
 // OnRollback records a newly-scheduled rollback Job in the store so the watcher
 // can track its progress to completion. Called by the privateactionrunner
 // rollback handler after it successfully creates the Job.
-func (h *helmactionsImpl) OnRollback(job *batchv1.Job) {
-	h.store.TrackJob(job)
+func (h *helmactionsImpl) OnRollback(in *helmactions.RollbackInputs, job *batchv1.Job) {
+	h.processor.OnRollbackAction(in, job)
 }
