@@ -66,7 +66,7 @@ func TestDecrypt(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			store := NewStoreWithTTL(time.Minute)
 
-			encryptedInput := ""
+			encryptedInput := "b25seSB1c2VkIGFzIGEgbm9uLWVtcHR5IHBsYWNlaG9sZGVy"
 			if !testCase.skipSeal {
 				encryptedInput = sealForContext(t, store, testCase.encryptionContext.EncryptionContextID, []byte(testCase.plaintext))
 			}
