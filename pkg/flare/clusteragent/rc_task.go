@@ -23,9 +23,7 @@ import (
 )
 
 var (
-	createDCAArchiveFunc = func(local bool, distPath, logFilePath string, pdata ProfileData, flareArgs flaretypes.FlareArgs, statusComp status.Component, diagnoseComp diagnose.Component, ipcComp ipc.Component) (string, error) {
-		return CreateDCAArchive(local, distPath, logFilePath, pdata, flareArgs, statusComp, diagnoseComp, ipcComp)
-	}
+	createDCAArchiveFunc = CreateDCAArchive
 	sendFlareFunc = flarehelpers.SendTo
 )
 
