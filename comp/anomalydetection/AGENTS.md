@@ -107,10 +107,9 @@ implement subscription logic itself.
 
 Each `SubscribeSeverityEvents` call creates one new dispatcher bound to one
 listener. If the scorer already knows the current level, it first seeds that
-dispatcher with a synthetic initial event (`FromLevel == ToLevel`, `Direction ==
-SeverityEventBoth`) before publishing it, so late subscribers learn the current
-state immediately instead of only future transitions. Before the scorer knows
-its current level, new dispatchers start at `Low`, so the first observed
+dispatcher before publishing it: `Medium`/`High` bootstrap as `Low -> current
+level`, while `Low` emits no initial event. Before the scorer knows its
+current level, new dispatchers also start at `Low`, so the first observed
 `Medium`/`High` level emits a real escalation instead of being treated as a
 pure seed.
 

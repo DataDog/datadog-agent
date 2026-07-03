@@ -123,23 +123,13 @@ func TestDispatcherResetClearsSubscriptionState(t *testing.T) {
 	}
 }
 
-func TestDispatcherDeliverInitialBeforeAnyAdvance(t *testing.T) {
+func TestDispatcherDeliverInitialLowEmitsNothing(t *testing.T) {
 	l := &collectingListener{}
 	d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{})
 	d.DeliverInitial(1000, severityeventsdef.SeverityLow)
 
-	if len(l.events) != 1 {
-		t.Fatalf("expected one initial event, got %d: %v", len(l.events), l.events)
-	}
-	evt := l.events[0]
-	if evt.FromLevel != severityeventsdef.SeverityLow || evt.ToLevel != severityeventsdef.SeverityLow {
-		t.Fatalf("expected initial event to reflect Low, got from=%v to=%v", evt.FromLevel, evt.ToLevel)
-	}
-	if evt.Direction != severityeventsdef.SeverityEventBoth {
-		t.Fatalf("expected initial event direction to be Both, got %v", evt.Direction)
-	}
-	if evt.Timestamp != 1000 {
-		t.Fatalf("expected initial event timestamp 1000, got %d", evt.Timestamp)
+	if len(l.events) != 0 {
+		t.Fatalf("expected no initial event when current level is Low, got %v", l.events)
 	}
 }
 
@@ -161,7 +151,7 @@ func TestDispatcherDefaultLowEmitsFirstNonLowTransition(t *testing.T) {
 	}
 }
 
-func TestDispatcherDeliverInitialReflectsCurrentLevel(t *testing.T) {
+func TestDispatcherDeliverInitialBootstrapsFromLow(t *testing.T) {
 	l := &collectingListener{}
 	d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{})
 	d.DeliverInitial(1001, severityeventsdef.SeverityHigh)
@@ -170,11 +160,11 @@ func TestDispatcherDeliverInitialReflectsCurrentLevel(t *testing.T) {
 		t.Fatalf("expected exactly one initial event, got %d: %v", len(l.events), l.events)
 	}
 	evt := l.events[0]
-	if evt.FromLevel != severityeventsdef.SeverityHigh || evt.ToLevel != severityeventsdef.SeverityHigh {
-		t.Fatalf("expected initial event to reflect current level High, got from=%v to=%v", evt.FromLevel, evt.ToLevel)
+	if evt.FromLevel != severityeventsdef.SeverityLow || evt.ToLevel != severityeventsdef.SeverityHigh {
+		t.Fatalf("expected initial event to bootstrap from Low to High, got from=%v to=%v", evt.FromLevel, evt.ToLevel)
 	}
-	if evt.Direction != severityeventsdef.SeverityEventBoth {
-		t.Fatalf("expected initial event direction to be Both, got %v", evt.Direction)
+	if evt.Direction != severityeventsdef.SeverityEventEscalation {
+		t.Fatalf("expected initial event direction to be Escalation, got %v", evt.Direction)
 	}
 	if evt.Timestamp != 1001 {
 		t.Fatalf("expected initial event timestamp to be the last Advance second, got %d", evt.Timestamp)
@@ -201,15 +191,15 @@ func TestDispatcherDeliverInitialRespectsDirectionFilter(t *testing.T) {
 	})
 	d.DeliverInitial(1001, severityeventsdef.SeverityHigh)
 
-	if len(escalationsOnly.events) != 0 {
-		t.Fatalf("escalation-only filter should not receive the initial (non-directional) event, got %v", escalationsOnly.events)
+	if len(escalationsOnly.events) != 1 {
+		t.Fatalf("escalation-only filter should receive the initial Low->High bootstrap, got %v", escalationsOnly.events)
 	}
 	if len(deescalationsOnly.events) != 0 {
-		t.Fatalf("de-escalation-only filter should not receive the initial (non-directional) event, got %v", deescalationsOnly.events)
+		t.Fatalf("de-escalation-only filter should not receive the initial escalation event, got %v", deescalationsOnly.events)
 	}
 }
 
-func TestDispatcherDeliverInitialDoesNotStartCooldown(t *testing.T) {
+func TestDispatcherDeliverInitialStartsCooldownWhenDelivered(t *testing.T) {
 	l := &collectingListener{}
 	d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{
 		CooldownSecs: 60,
@@ -219,11 +209,16 @@ func TestDispatcherDeliverInitialDoesNotStartCooldown(t *testing.T) {
 		t.Fatalf("expected 1 initial event, got %d: %v", len(l.events), l.events)
 	}
 
-	// The synthetic initial event is only a snapshot and must not seed the
-	// cooldown timer for the first real transition.
+	// The bootstrap Low->High event is delivered as a real escalation, so it
+	// seeds cooldown for the first de-escalation.
 	d.Advance(1010, severityeventsdef.SeverityLow)
+	if len(l.events) != 1 {
+		t.Fatalf("expected the de-escalation to be blocked by cooldown, got %d: %v", len(l.events), l.events)
+	}
+
+	d.Advance(1062, severityeventsdef.SeverityLow)
 	if len(l.events) != 2 {
-		t.Fatalf("expected the first real de-escalation to fire immediately, got %d: %v", len(l.events), l.events)
+		t.Fatalf("expected the de-escalation to fire after cooldown, got %d: %v", len(l.events), l.events)
 	}
 }
 
@@ -238,9 +233,8 @@ func TestDispatcherFilteredInitialEventDoesNotStartCooldown(t *testing.T) {
 		t.Fatalf("expected the filtered initial event to be suppressed, got %v", l.events)
 	}
 
-	// The very first real transition is a de-escalation shortly after joining.
-	// It must not be blocked by a cooldown seeded from an event the listener
-	// never actually received.
+	// The bootstrap escalation was filtered out, so it must not seed cooldown
+	// for the first delivered de-escalation.
 	d.Advance(1005, severityeventsdef.SeverityLow)
 	if len(l.events) != 1 {
 		t.Fatalf("expected the first real de-escalation to fire immediately, got %d: %v", len(l.events), l.events)

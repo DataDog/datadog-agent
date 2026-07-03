@@ -16,10 +16,10 @@ severity level on every tick; it does not implement subscription logic itself.
 Each `SubscribeSeverityEvents` call creates one new dispatcher configured from
 that subscription's filter/cooldown.
 
-A subscription added mid-stream is delivered a synthetic initial event
-(`FromLevel == ToLevel`, `Direction == SeverityEventBoth`) before
-`SubscribeSeverityEvents` returns, so late subscribers learn the current state
-immediately instead of only future transitions.
+A subscription added mid-stream is bootstrapped before
+`SubscribeSeverityEvents` returns. If the current level is `Medium` or `High`,
+the first event is delivered as `Low -> current level`; if the current level is
+already `Low`, no initial event is emitted.
 
 Before the scorer knows its current level, a new dispatcher starts at `Low` by
 default, so the first observed `Medium`/`High` level emits a real escalation

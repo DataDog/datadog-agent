@@ -99,7 +99,9 @@ internal watcher (gauges, logs, episode tracking for
 `EpisodeStarted`/`EpisodeEnded`) is itself just one such listener, registered
 in `newAnomalyScorerWithTelemetry`. Before the scorer knows its current level,
 new dispatchers start at `Low`, so the first observed `Medium`/`High` level
-emits a real escalation instead of being treated as a pure seed.
+emits a real escalation instead of being treated as a pure seed. When the
+current level is already known, bootstrap emits `Low -> current level` for
+`Medium`/`High` and emits nothing for `Low`.
 
 ## Key Design Decisions
 

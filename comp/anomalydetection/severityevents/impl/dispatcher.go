@@ -37,14 +37,18 @@ func (d *Dispatcher) DeliverInitial(sec int64, level severityeventsdef.SeverityL
 	level = clampSeverityLevel(level)
 	d.level = level
 	d.lastSec = sec
+	if level == severityeventsdef.SeverityLow {
+		return
+	}
 
 	evt := severityeventsdef.SeverityEvent{
 		Timestamp: sec,
-		FromLevel: level,
+		FromLevel: severityeventsdef.SeverityLow,
 		ToLevel:   level,
-		Direction: severityeventsdef.SeverityEventBoth,
+		Direction: severityeventsdef.SeverityEventEscalation,
 	}
 	if eventFilterMatches(d.filter, evt) {
+		d.lastStateEntryTs = sec
 		d.listener.OnSeverityTransition(evt)
 	}
 }
