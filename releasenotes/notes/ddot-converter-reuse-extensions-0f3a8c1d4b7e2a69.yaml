@@ -1,7 +1,7 @@
 ---
 enhancements:
   - |
-    The OpenTelemetry Agent configuration converter now reuses a user-defined
+    The DDOT configuration converter now reuses a user-defined
     ``pprof``, ``zpages``, ``health_check`` or ``ddflare`` extension that was
     declared under ``extensions`` but not wired into ``service.extensions``,
     instead of adding a default ``<name>/dd-autoconfigured`` copy. This matches
