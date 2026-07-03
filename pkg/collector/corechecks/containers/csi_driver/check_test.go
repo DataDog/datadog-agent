@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
@@ -31,6 +31,26 @@ datadog_csi_driver_node_publish_volume_attempts{path="/var/run/datadog",status="
 # HELP datadog_csi_driver_node_unpublish_volume_attempts Counts the number of unpublish volume requests received by the csi node server
 # TYPE datadog_csi_driver_node_unpublish_volume_attempts counter
 datadog_csi_driver_node_unpublish_volume_attempts{path="/var/run/datadog",status="success",type="DSDSocketDirectory"} 6
+
+# HELP datadog_csi_driver_library_resolutions_total Counts the outcome of attempts to resolve a library for a volume
+# TYPE datadog_csi_driver_library_resolutions_total counter
+datadog_csi_driver_library_resolutions_total{library="dd-lib-java-init",result="resolved"} 4
+
+# HELP datadog_csi_driver_library_cleanup_total Counts cleanup attempts for unused libraries
+# TYPE datadog_csi_driver_library_cleanup_total counter
+datadog_csi_driver_library_cleanup_total{library="dd-lib-java-init",status="success",strategy="immediate"} 2
+
+# HELP datadog_csi_driver_libraries_cached Number of library versions currently stored on disk, per package
+# TYPE datadog_csi_driver_libraries_cached gauge
+datadog_csi_driver_libraries_cached{library="dd-lib-java-init"} 3
+
+# HELP datadog_csi_driver_libraries_cached_bytes Cumulative on-disk size of cached libraries, in bytes, per package
+# TYPE datadog_csi_driver_libraries_cached_bytes gauge
+datadog_csi_driver_libraries_cached_bytes{library="dd-lib-java-init"} 12345
+
+# HELP datadog_csi_driver_library_volume_links Number of volumes currently linked to a library
+# TYPE datadog_csi_driver_library_volume_links gauge
+datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 7
 `
 
 // Real Prometheus client libraries append _total to counter names.
@@ -111,6 +131,23 @@ func TestRunSuccess(t *testing.T) {
 	mockSender.AssertCalled(t, "MonotonicCount",
 		"datadog.csi_driver.node_unpublish_volume_attempts.count",
 		6.0, "", mock.MatchedBy(matchTags))
+
+	libraryTags := []string{"library:dd-lib-java-init", "result:resolved"}
+	mockSender.AssertCalled(t, "MonotonicCount",
+		"datadog.csi_driver.library_resolutions.count",
+		4.0, "", mock.MatchedBy(func(tags []string) bool {
+			sorted := slices.Clone(tags)
+			slices.Sort(sorted)
+			expected := slices.Clone(libraryTags)
+			slices.Sort(expected)
+			return slices.Equal(sorted, expected)
+		}))
+
+	mockSender.AssertCalled(t, "Gauge",
+		"datadog.csi_driver.libraries_cached",
+		3.0, "", mock.MatchedBy(func(tags []string) bool {
+			return slices.Equal(tags, []string{"library:dd-lib-java-init"})
+		}))
 
 	mockSender.AssertCalled(t, "ServiceCheck",
 		"datadog.csi_driver.openmetrics.health",
@@ -240,6 +277,55 @@ datadog_csi_driver_node_unpublish_volume_attempts{status="success"} %d
 	require.Len(t, unpublishMetrics, 1)
 	assert.Equal(t, 3.0, unpublishMetrics[0].Value(),
 		"COAT unpublish counter should equal the latest cumulative value, not the sum of all scrapes")
+}
+
+func TestCOATGaugesSetLatestValue(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+
+	var scrapeCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := scrapeCount.Add(1)
+		body := fmt.Sprintf(`# TYPE datadog_csi_driver_libraries_cached gauge
+datadog_csi_driver_libraries_cached{library="dd-lib-java-init"} %d
+# TYPE datadog_csi_driver_libraries_cached_bytes gauge
+datadog_csi_driver_libraries_cached_bytes{library="dd-lib-java-init"} %d
+# TYPE datadog_csi_driver_library_volume_links gauge
+datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} %d
+`, 2*int(n), 100*int(n), 3*int(n))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer ts.Close()
+
+	chk := &Check{
+		CheckBase:  core.NewCheckBase(CheckName),
+		metrics:    buildMetricDefs(tm),
+		prevValues: make(map[string]float64),
+	}
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
+	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	require.NoError(t, chk.Run())
+	require.NoError(t, chk.Run())
+
+	cachedMetrics, err := tm.GetGaugeMetric(CheckName, "libraries_cached")
+	require.NoError(t, err)
+	require.Len(t, cachedMetrics, 1)
+	assert.Equal(t, 4.0, cachedMetrics[0].Value())
+
+	cachedBytesMetrics, err := tm.GetGaugeMetric(CheckName, "libraries_cached_bytes")
+	require.NoError(t, err)
+	require.Len(t, cachedBytesMetrics, 1)
+	assert.Equal(t, 200.0, cachedBytesMetrics[0].Value())
+
+	linksMetrics, err := tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.NoError(t, err)
+	require.Len(t, linksMetrics, 1)
+	assert.Equal(t, 6.0, linksMetrics[0].Value())
 }
 
 func TestRunEmptyResponse(t *testing.T) {

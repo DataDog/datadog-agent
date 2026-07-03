@@ -174,12 +174,30 @@ profiles:
       zero_metric: true
     metrics:
       - name: datadog_csi_driver.node_publish_volume_attempts
-        aggregate_tags:
+        preserve_tags:
           - status
           - type
       - name: datadog_csi_driver.node_unpublish_volume_attempts
-        aggregate_tags:
+        preserve_tags:
           - status
+      - name: datadog_csi_driver.library_resolutions
+        preserve_tags:
+          - library
+          - result
+      - name: datadog_csi_driver.library_cleanup
+        preserve_tags:
+          - library
+          - status
+          - strategy
+      - name: datadog_csi_driver.libraries_cached
+        preserve_tags:
+          - library
+      - name: datadog_csi_driver.libraries_cached_bytes
+        preserve_tags:
+          - library
+      - name: datadog_csi_driver.library_volume_links
+        preserve_tags:
+          - library
   schedule:
     start_after: 60
     iterations: 0

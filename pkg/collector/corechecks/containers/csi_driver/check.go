@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -33,10 +33,19 @@ const (
 	httpClientTimeout = 5 * time.Second
 )
 
-// coatMetric associates a COAT telemetry counter with the Prometheus label
-// names it expects, in the order required by telemetry.Counter.Add().
+type metricKind int
+
+const (
+	counterMetric metricKind = iota
+	gaugeMetric
+)
+
+// coatMetric associates a COAT telemetry metric with the Prometheus label names
+// it expects, in the order required by the telemetry component.
 type coatMetric struct {
 	counter telemetry.Counter
+	gauge   telemetry.Gauge
+	kind    metricKind
 	tagKeys []string
 }
 
@@ -44,6 +53,7 @@ type coatMetric struct {
 // and optionally to a COAT telemetry counter.
 type metricDef struct {
 	ddName string
+	kind   metricKind
 	coat   *coatMetric
 }
 
@@ -51,16 +61,65 @@ func buildMetricDefs(tm telemetry.Component) map[string]metricDef {
 	return map[string]metricDef{
 		"datadog_csi_driver_node_publish_volume_attempts": {
 			ddName: "node_publish_volume_attempts",
+			kind:   counterMetric,
 			coat: &coatMetric{
 				counter: tm.NewCounter(CheckName, "node_publish_volume_attempts", []string{"status", "type"}, "CSI node publish volume attempts"),
+				kind:    counterMetric,
 				tagKeys: []string{"status", "type"},
 			},
 		},
 		"datadog_csi_driver_node_unpublish_volume_attempts": {
 			ddName: "node_unpublish_volume_attempts",
+			kind:   counterMetric,
 			coat: &coatMetric{
 				counter: tm.NewCounter(CheckName, "node_unpublish_volume_attempts", []string{"status"}, "CSI node unpublish volume attempts"),
+				kind:    counterMetric,
 				tagKeys: []string{"status"},
+			},
+		},
+		"datadog_csi_driver_library_resolutions": {
+			ddName: "library_resolutions",
+			kind:   counterMetric,
+			coat: &coatMetric{
+				counter: tm.NewCounter(CheckName, "library_resolutions", []string{"library", "result"}, "CSI driver library resolution attempts"),
+				kind:    counterMetric,
+				tagKeys: []string{"library", "result"},
+			},
+		},
+		"datadog_csi_driver_library_cleanup": {
+			ddName: "library_cleanup",
+			kind:   counterMetric,
+			coat: &coatMetric{
+				counter: tm.NewCounter(CheckName, "library_cleanup", []string{"library", "status", "strategy"}, "CSI driver library cleanup attempts"),
+				kind:    counterMetric,
+				tagKeys: []string{"library", "status", "strategy"},
+			},
+		},
+		"datadog_csi_driver_libraries_cached": {
+			ddName: "libraries_cached",
+			kind:   gaugeMetric,
+			coat: &coatMetric{
+				gauge:   tm.NewGauge(CheckName, "libraries_cached", []string{"library"}, "CSI driver cached library versions"),
+				kind:    gaugeMetric,
+				tagKeys: []string{"library"},
+			},
+		},
+		"datadog_csi_driver_libraries_cached_bytes": {
+			ddName: "libraries_cached_bytes",
+			kind:   gaugeMetric,
+			coat: &coatMetric{
+				gauge:   tm.NewGauge(CheckName, "libraries_cached_bytes", []string{"library"}, "CSI driver cached library bytes"),
+				kind:    gaugeMetric,
+				tagKeys: []string{"library"},
+			},
+		},
+		"datadog_csi_driver_library_volume_links": {
+			ddName: "library_volume_links",
+			kind:   gaugeMetric,
+			coat: &coatMetric{
+				gauge:   tm.NewGauge(CheckName, "library_volume_links", []string{"library"}, "CSI driver library volume links"),
+				kind:    gaugeMetric,
+				tagKeys: []string{"library"},
 			},
 		},
 	}
@@ -163,22 +222,32 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 
 		for _, sample := range mf.Samples {
 			tags := labelsToTags(sample.Metric)
-			s.MonotonicCount(metricNs+def.ddName+".count", sample.Value, "", tags)
+			switch def.kind {
+			case counterMetric:
+				s.MonotonicCount(metricNs+def.ddName+".count", sample.Value, "", tags)
+			case gaugeMetric:
+				s.Gauge(metricNs+def.ddName, sample.Value, "", tags)
+			}
 
 			if def.coat != nil {
-				key := seriesKey(def.ddName, sample.Metric)
-				prev := c.prevValues[key]
-				delta := sample.Value - prev
-				if delta < 0 {
-					delta = sample.Value
-				}
-				c.prevValues[key] = sample.Value
-
 				tagValues := make([]string, len(def.coat.tagKeys))
 				for i, k := range def.coat.tagKeys {
 					tagValues[i] = sample.Metric[k]
 				}
-				def.coat.counter.Add(delta, tagValues...)
+
+				switch def.coat.kind {
+				case counterMetric:
+					key := seriesKey(def.ddName, sample.Metric)
+					prev := c.prevValues[key]
+					delta := sample.Value - prev
+					if delta < 0 {
+						delta = sample.Value
+					}
+					c.prevValues[key] = sample.Value
+					def.coat.counter.Add(delta, tagValues...)
+				case gaugeMetric:
+					def.coat.gauge.Set(sample.Value, tagValues...)
+				}
 			}
 		}
 	}
