@@ -89,6 +89,10 @@ type Reader interface {
 	// GetSeverity returns the most recently observed severity level. Safe
 	// for concurrent use from any goroutine.
 	GetSeverity() SeverityLevel
-	// Unsubscribe stops the underlying subscription.
-	Unsubscribe()
+}
+
+// SeverityEventsReaderSubscription is returned by SubscribeSeverityEventsReader.
+type SeverityEventsReaderSubscription struct {
+	Reader      Reader
+	Unsubscribe func()
 }

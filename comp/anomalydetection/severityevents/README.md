@@ -16,10 +16,10 @@ don't need to depend on the full `observer.Component` surface.
 
 `Subscriber` has two methods: `SubscribeSeverityEvents(cfg, listener)` for
 push consumers, and `SubscribeSeverityEventsReader(cfg)` — a convenience that
-wires its own internal listener and returns a ready `Reader` — for pull-only
-consumers. Both take the same `SeverityEventsConfiguration` (filter/cooldown
-only; the listener is passed separately) and create one dedicated `Dispatcher`
-per call.
+wires its own internal listener and returns a `SeverityEventsReaderSubscription`
+(a ready `Reader` plus its `Unsubscribe` function) — for pull-only consumers.
+Both take the same `SeverityEventsConfiguration` (filter/cooldown only; the
+listener is passed separately) and create one dedicated `Dispatcher` per call.
 
 The anomaly scorer (`comp/anomalydetection/observer/impl/anomaly_scorer.go`)
 owns a plain list of `Dispatcher` instances and feeds each one the same raw

@@ -23,6 +23,7 @@ type Subscriber interface {
 
 	// SubscribeSeverityEventsReader is a convenience for pull-only consumers:
 	// it registers its own internal listener per cfg and returns a Reader
-	// whose GetSeverity() reflects the latest delivered level.
-	SubscribeSeverityEventsReader(cfg SeverityEventsConfiguration) (Reader, error)
+	// whose GetSeverity() reflects the latest delivered level, plus the
+	// unsubscribe function that stops the underlying subscription.
+	SubscribeSeverityEventsReader(cfg SeverityEventsConfiguration) (SeverityEventsReaderSubscription, error)
 }

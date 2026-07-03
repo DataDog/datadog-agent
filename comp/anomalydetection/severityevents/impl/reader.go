@@ -16,25 +16,27 @@ import (
 // GetSeverity() is a single atomic load — no allocation, no locking — safe to
 // call from many goroutines on a hot path.
 type SeverityReader struct {
-	current     atomic.Int32 // holds a severityeventsdef.SeverityLevel
-	unsubscribe func()
+	current atomic.Int32 // holds a severityeventsdef.SeverityLevel
 }
 
-// NewSeverityReader subscribes to o and returns a Reader whose GetSeverity()
-// reflects the latest severity level. If o already knows the current level,
-// SubscribeSeverityEvents delivers it immediately (see
-// severityeventsdef.Subscriber), so GetSeverity() reflects the real state
-// right away rather than defaulting to Low until the next transition.
-func NewSeverityReader(o severityeventsdef.Subscriber, cfg severityeventsdef.SeverityEventsConfiguration) (*SeverityReader, error) {
+// NewSeverityReader subscribes to o and returns a SeverityEventsReaderSubscription
+// whose Reader.GetSeverity() reflects the latest severity level, along with the
+// Unsubscribe function that stops the underlying subscription. If o already
+// knows the current level, SubscribeSeverityEvents delivers it immediately
+// (see severityeventsdef.Subscriber), so GetSeverity() reflects the real
+// state right away rather than defaulting to Low until the next transition.
+func NewSeverityReader(o severityeventsdef.Subscriber, cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
 	r := &SeverityReader{}
 	r.current.Store(int32(severityeventsdef.SeverityLow))
 
 	sub, err := o.SubscribeSeverityEvents(cfg, r)
 	if err != nil {
-		return nil, err
+		return severityeventsdef.SeverityEventsReaderSubscription{}, err
 	}
-	r.unsubscribe = sub.Unsubscribe
-	return r, nil
+	return severityeventsdef.SeverityEventsReaderSubscription{
+		Reader:      r,
+		Unsubscribe: sub.Unsubscribe,
+	}, nil
 }
 
 // OnSeverityTransition implements severityeventsdef.SeverityEventListener.
@@ -46,9 +48,4 @@ func (r *SeverityReader) OnSeverityTransition(evt severityeventsdef.SeverityEven
 // concurrent use from any goroutine.
 func (r *SeverityReader) GetSeverity() severityeventsdef.SeverityLevel {
 	return severityeventsdef.SeverityLevel(r.current.Load())
-}
-
-// Unsubscribe stops the underlying subscription.
-func (r *SeverityReader) Unsubscribe() {
-	r.unsubscribe()
 }

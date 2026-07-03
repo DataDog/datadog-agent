@@ -26,7 +26,7 @@ func (f *fakeScorer) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEvent
 	}, nil
 }
 
-func (f *fakeScorer) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.Reader, error) {
+func (f *fakeScorer) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
 	return NewSeverityReader(f, cfg)
 }
 
@@ -34,62 +34,62 @@ func (f *fakeScorer) emit(toLevel severityeventsdef.SeverityLevel) {
 	f.listener.OnSeverityTransition(severityeventsdef.SeverityEvent{ToLevel: toLevel})
 }
 
-func mustNewSeverityReader(t *testing.T, o severityeventsdef.Subscriber, cfg severityeventsdef.SeverityEventsConfiguration) *SeverityReader {
+func mustNewSeverityReader(t *testing.T, o severityeventsdef.Subscriber, cfg severityeventsdef.SeverityEventsConfiguration) severityeventsdef.SeverityEventsReaderSubscription {
 	t.Helper()
-	r, err := NewSeverityReader(o, cfg)
+	sub, err := NewSeverityReader(o, cfg)
 	if err != nil {
 		t.Fatalf("NewSeverityReader() error = %v", err)
 	}
-	return r
+	return sub
 }
 
 func TestNewSeverityReader_InitialSeverityIsLow(t *testing.T) {
 	fake := &fakeScorer{}
-	r := mustNewSeverityReader(t, fake, severityeventsdef.SeverityEventsConfiguration{})
+	sub := mustNewSeverityReader(t, fake, severityeventsdef.SeverityEventsConfiguration{})
 
-	if got := r.GetSeverity(); got != severityeventsdef.SeverityLow {
+	if got := sub.Reader.GetSeverity(); got != severityeventsdef.SeverityLow {
 		t.Fatalf("expected initial Low, got %v", got)
 	}
 }
 
 func TestSeverityReader_ReflectsEmittedTransitions(t *testing.T) {
 	fake := &fakeScorer{}
-	r := mustNewSeverityReader(t, fake, severityeventsdef.SeverityEventsConfiguration{})
+	sub := mustNewSeverityReader(t, fake, severityeventsdef.SeverityEventsConfiguration{})
 
 	fake.emit(severityeventsdef.SeverityHigh)
-	if got := r.GetSeverity(); got != severityeventsdef.SeverityHigh {
+	if got := sub.Reader.GetSeverity(); got != severityeventsdef.SeverityHigh {
 		t.Fatalf("expected High after first emit, got %v", got)
 	}
 
 	fake.emit(severityeventsdef.SeverityMedium)
-	if got := r.GetSeverity(); got != severityeventsdef.SeverityMedium {
+	if got := sub.Reader.GetSeverity(); got != severityeventsdef.SeverityMedium {
 		t.Fatalf("expected Medium after second emit, got %v", got)
 	}
 }
 
 func TestSeverityReader_ClampsOutOfRangeLevels(t *testing.T) {
 	fake := &fakeScorer{}
-	r := mustNewSeverityReader(t, fake, severityeventsdef.SeverityEventsConfiguration{})
+	sub := mustNewSeverityReader(t, fake, severityeventsdef.SeverityEventsConfiguration{})
 
 	fake.emit(severityeventsdef.SeverityLevel(-1))
-	if got := r.GetSeverity(); got != severityeventsdef.SeverityLow {
+	if got := sub.Reader.GetSeverity(); got != severityeventsdef.SeverityLow {
 		t.Fatalf("expected out-of-range low clamp, got %v", got)
 	}
 
 	fake.emit(severityeventsdef.SeverityLevel(severityeventsdef.NumSeverityLevels + 5))
-	if got := r.GetSeverity(); got != severityeventsdef.SeverityHigh {
+	if got := sub.Reader.GetSeverity(); got != severityeventsdef.SeverityHigh {
 		t.Fatalf("expected out-of-range high clamp, got %v", got)
 	}
 }
 
 func TestSeverityReader_Unsubscribe(t *testing.T) {
 	fake := &fakeScorer{}
-	r := mustNewSeverityReader(t, fake, severityeventsdef.SeverityEventsConfiguration{})
+	sub := mustNewSeverityReader(t, fake, severityeventsdef.SeverityEventsConfiguration{})
 	if fake.unsubscribed {
 		t.Fatal("reader should not start unsubscribed")
 	}
 
-	r.Unsubscribe()
+	sub.Unsubscribe()
 
 	if !fake.unsubscribed {
 		t.Fatal("reader unsubscribe should unsubscribe")
@@ -102,10 +102,10 @@ func TestSeverityReader_Unsubscribe(t *testing.T) {
 // SubscribeSeverityEvents delivers to mid-stream subscribers.
 func TestSeverityReader_PicksUpCurrentLevelFromRealDispatcher(t *testing.T) {
 	sub := &dispatcherSubscriber{knownLevel: true, lastSec: 1001, level: severityeventsdef.SeverityHigh}
-	r := mustNewSeverityReader(t, sub, severityeventsdef.SeverityEventsConfiguration{})
-	defer r.Unsubscribe()
+	readerSub := mustNewSeverityReader(t, sub, severityeventsdef.SeverityEventsConfiguration{})
+	defer readerSub.Unsubscribe()
 
-	if got := r.GetSeverity(); got != severityeventsdef.SeverityHigh {
+	if got := readerSub.Reader.GetSeverity(); got != severityeventsdef.SeverityHigh {
 		t.Fatalf("expected reader to pick up current High level immediately, got %v", got)
 	}
 }
@@ -134,6 +134,6 @@ func (s *dispatcherSubscriber) SubscribeSeverityEvents(cfg severityeventsdef.Sev
 	}, nil
 }
 
-func (s *dispatcherSubscriber) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.Reader, error) {
+func (s *dispatcherSubscriber) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
 	return NewSeverityReader(s, cfg)
 }

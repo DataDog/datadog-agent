@@ -341,7 +341,7 @@ type anomalyScorer struct {
 // independently of the observer engine (e.g. testbench replay path).
 type StandaloneAnomalyScorer interface {
 	SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error)
-	SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.Reader, error)
+	SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error)
 	ProcessAnomaly(a observerdef.Anomaly)
 	Advance(dataTime int64)
 	LastScore() float64
@@ -651,7 +651,7 @@ func (s *anomalyScorer) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEv
 // SubscribeSeverityEventsReader is a convenience for pull-only consumers: it
 // registers its own internal listener via SubscribeSeverityEvents and returns
 // a Reader whose GetSeverity() reflects the latest delivered level.
-func (s *anomalyScorer) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.Reader, error) {
+func (s *anomalyScorer) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
 	return severityeventsimpl.NewSeverityReader(s, cfg)
 }
 
