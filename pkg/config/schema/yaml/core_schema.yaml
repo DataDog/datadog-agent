@@ -5972,7 +5972,7 @@ properties:
               container_tag_promotion:
                 node_type: setting
                 type: string
-                default: "off"
+                default: 'off'
                 visibility: public
                 description: |-
                   Controls how the Infra-Attribute-Processor promotes custom container tags into
