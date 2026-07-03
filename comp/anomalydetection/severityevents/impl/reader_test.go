@@ -19,7 +19,7 @@ type fakeScorer struct {
 	unsubscribed bool
 }
 
-func (f *fakeScorer) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
+func (f *fakeScorer) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
 	f.listener = listener
 	return severityeventsdef.SeverityEventsSubscription{
 		Unsubscribe: func() { f.unsubscribed = true },
