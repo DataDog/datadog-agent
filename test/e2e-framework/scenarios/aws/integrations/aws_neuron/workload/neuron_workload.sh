@@ -216,22 +216,34 @@ systemctl daemon-reload
 systemctl enable --now neuron-load.service
 
 # ---------------------------------------------------------------------------
-# Readiness gate: the Prometheus endpoint must answer before we declare success.
+# Readiness gate: wait for the Prometheus endpoint to answer, then fall through.
+#
+# This script is delivered via ec2.WithUserData, and the EC2 helper appends its
+# standard cloud-init postamble (unattended-upgrades disablement, root SFTP)
+# *after* it. So we must NOT `exit` from here: an early exit skips that postamble
+# and can wedge the Agent install behind an apt lock. The monitor and load run as
+# systemd units (Restart=always), so they keep retrying regardless of the gate.
 # ---------------------------------------------------------------------------
 log "waiting for Prometheus endpoint on :${PROM_PORT}"
+prometheus_ready=0
 for _ in $(seq 1 60); do
   if curl -fsS "http://localhost:${PROM_PORT}/metrics" >/dev/null 2>&1; then
     log "Prometheus endpoint is up"
-    exit 0
+    prometheus_ready=1
+    break
   fi
   sleep 5
 done
 
-log "FATAL: Prometheus endpoint never came up; dumping diagnostics"
-systemctl status neuron-monitor-prometheus.service --no-pager 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
-journalctl -u neuron-monitor-prometheus.service --no-pager -n 200 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
-systemctl status neuron-load.service --no-pager 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
-journalctl -u neuron-load.service --no-pager -n 100 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
-"${NEURON_BIN_DIR}/neuron-ls" 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
-ss -ltnp 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
-exit 1
+if [ "${prometheus_ready}" -ne 1 ]; then
+  log "WARNING: Prometheus endpoint never came up; dumping diagnostics"
+  systemctl status neuron-monitor-prometheus.service --no-pager 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
+  journalctl -u neuron-monitor-prometheus.service --no-pager -n 200 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
+  systemctl status neuron-load.service --no-pager 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
+  journalctl -u neuron-load.service --no-pager -n 100 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
+  "${NEURON_BIN_DIR}/neuron-ls" 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
+  ss -ltnp 2>&1 | sed "s/^/${LOG_PREFIX} /" >&2 || true
+fi
+
+# Fall through (no exit) so the appended cloud-init postamble runs.
+true
