@@ -439,3 +439,26 @@ profiles:
     start_after: 300 # 5 minutes
     iterations: 1
     period: 900
+- name: agentstackmonitor
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: agentstackmonitor.cpu_usage
+        preserve_tags: [subject_kind]
+      - name: agentstackmonitor.memory_usage
+        preserve_tags: [subject_kind]
+      - name: agentstackmonitor.memory_limit
+        preserve_tags: [subject_kind]
+      - name: agentstackmonitor.restart_count
+        preserve_tags: [subject_kind]
+      - name: agentstackmonitor.terminated
+        preserve_tags: [subject_kind, reason]
+      - name: agentstackmonitor.waiting
+        preserve_tags: [subject_kind, reason]
+      - name: agentstackmonitor.pod_terminated
+        preserve_tags: [subject_kind, reason]
+  schedule:
+    start_after: 60
+    iterations: 0
+    period: 900

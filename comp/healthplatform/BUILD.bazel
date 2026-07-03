@@ -18,6 +18,7 @@ go_library(
         "//comp/healthplatform/issueregistry/def",
         "//comp/healthplatform/issueregistry/fx",
         "//comp/healthplatform/issues/admissionprobe",
+        "//comp/healthplatform/issues/agentstackmonitor",
         "//comp/healthplatform/issues/checkfailure",
         "//comp/healthplatform/issues/dockerpermissions",
         "//comp/healthplatform/issues/invalidconfig",

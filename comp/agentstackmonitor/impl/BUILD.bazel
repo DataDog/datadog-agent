@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "buffer.go",
+        "evaluator.go",
+        "gauges.go",
+        "matcher.go",
+        "monitor.go",
+        "state.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/agentstackmonitor/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agentstackmonitor/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/telemetry/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/def",
+        "//comp/healthplatform/issues/agentstackmonitor",
+        "//comp/healthplatform/runner/def",
+        "//comp/healthplatform/scheduler/def",
+        "//comp/healthplatform/store/def",
+        "//pkg/config/env",
+        "//pkg/util/containers/metrics",
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/option",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "buffer_test.go",
+        "evaluator_test.go",
+        "matcher_test.go",
+        "monitor_test.go",
+    ],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/telemetry/impl/noops",
+        "//comp/core/workloadmeta/def",
+        "//comp/healthplatform/issues/agentstackmonitor",
+        "//comp/healthplatform/runner/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
