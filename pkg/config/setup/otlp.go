@@ -99,7 +99,7 @@ func OTLP(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otlp_config.traces.infra_attributes.enabled", true)
 	// container_tag_promotion controls how the infraattributes processor promotes custom
 	// container tags into `_dd.tags.container` for traces. Valid values: off, duplicate, rename.
-	config.BindEnvAndSetDefault("otlp_config.traces.infra_attributes.container_tag_promotion", "duplicate")
+	config.BindEnvAndSetDefault("otlp_config.traces.infra_attributes.container_tag_promotion", "off")
 
 	// Debug settings (default from OTel debugexporter)
 	config.BindEnvAndSetDefault("otlp_config.debug.verbosity", "basic")

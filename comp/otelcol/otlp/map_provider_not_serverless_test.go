@@ -41,7 +41,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -57,7 +57,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -90,7 +90,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				MetricsEnabled:               true,
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
@@ -122,7 +122,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        nil,
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -179,7 +179,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
@@ -210,7 +210,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        nil,
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -266,7 +266,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -285,7 +285,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -318,7 +318,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Metrics: map[string]any{
 					"delta_ttl":                              1500,
 					"resource_attributes_as_tags":            false,
@@ -389,7 +389,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Debug: map[string]any{
 					"verbosity": "normal",
 				},
@@ -405,7 +405,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -441,7 +441,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Metrics: map[string]any{
 					"delta_ttl":                   1500,
 					"resource_attributes_as_tags": false,
@@ -514,7 +514,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Metrics: map[string]any{
 					"delta_ttl":                   2000,
 					"resource_attributes_as_tags": true,
@@ -544,7 +544,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        nil,
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -603,7 +603,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -620,7 +620,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -665,7 +665,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -703,7 +703,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -775,7 +775,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -813,7 +813,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -884,7 +884,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -911,7 +911,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -959,7 +959,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1052,7 +1052,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1076,7 +1076,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -1127,7 +1127,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1222,7 +1222,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
-				TracesContainerTagPromotion:  "duplicate",
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1259,7 +1259,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "duplicate"},
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -1492,7 +1492,7 @@ func TestUnmarshal(t *testing.T) {
 		TracesEnabled:                true,
 		LogsEnabled:                  true,
 		TracesInfraAttributesEnabled: true,
-		TracesContainerTagPromotion:  "duplicate",
+		TracesContainerTagPromotion:  "off",
 		Metrics: map[string]any{
 			"delta_ttl":                              2000,
 			"resource_attributes_as_tags":            true,

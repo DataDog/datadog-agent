@@ -108,7 +108,7 @@ processors:
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
-    container_tag_promotion: ""
+    container_tag_promotion: "off"
 receivers:
   otlp:
     protocols:

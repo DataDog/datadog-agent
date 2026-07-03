@@ -20,8 +20,8 @@ import (
 )
 
 // TestValidateContainerTagPromotion checks that Config.Validate accepts the
-// empty default plus the three documented modes, and rejects any other value
-// with a self-describing error.
+// empty value (treated as off) plus the three documented modes, and rejects any
+// other value with a self-describing error.
 func TestValidateContainerTagPromotion(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -60,7 +60,7 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 	}{
 		{
 			id:       component.MustNewIDWithName("filter", "empty"),
-			expected: &Config{},
+			expected: &Config{ContainerTagPromotion: ContainerTagPromotionOff},
 		},
 	}
 
