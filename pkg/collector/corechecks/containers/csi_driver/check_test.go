@@ -66,9 +66,16 @@ datadog_csi_driver_node_unpublish_volume_attempts_total{path="/var/run/datadog",
 func newTestCheck() *Check {
 	tm := nooptelemetry.GetCompatComponent()
 	return &Check{
-		CheckBase:  core.NewCheckBase(CheckName),
-		metrics:    buildMetricDefs(tm),
+		CheckBase: core.NewCheckBase(CheckName),
+		metrics:   buildMetricDefs(tm),
+		state:     newTestState(),
+	}
+}
+
+func newTestState() *sharedState {
+	return &sharedState{
 		prevValues: make(map[string]float64),
+		gaugeKeys:  make(map[string]gaugeSeries),
 	}
 }
 
@@ -85,7 +92,7 @@ func TestFactorySharesCOATCollectorsAcrossInstances(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Same(t, first.metrics["datadog_csi_driver_node_publish_volume_attempts"].coat.counter, second.metrics["datadog_csi_driver_node_publish_volume_attempts"].coat.counter)
-	assert.NotSame(t, first.prevValues, second.prevValues)
+	assert.Same(t, first.state, second.state)
 }
 
 func TestConfigureDefault(t *testing.T) {
@@ -262,9 +269,9 @@ datadog_csi_driver_node_unpublish_volume_attempts{status="success"} %d
 	defer ts.Close()
 
 	chk := &Check{
-		CheckBase:  core.NewCheckBase(CheckName),
-		metrics:    buildMetricDefs(tm),
-		prevValues: make(map[string]float64),
+		CheckBase: core.NewCheckBase(CheckName),
+		metrics:   buildMetricDefs(tm),
+		state:     newTestState(),
 	}
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
@@ -295,6 +302,43 @@ datadog_csi_driver_node_unpublish_volume_attempts{status="success"} %d
 		"COAT unpublish counter should equal the latest cumulative value, not the sum of all scrapes")
 }
 
+func TestCOATCounterDeltasSurviveCheckReload(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+	factoryOption := Factory(tm)
+	factory, ok := factoryOption.Get()
+	require.True(t, ok)
+
+	var scrapeCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := scrapeCount.Add(1)
+		body := fmt.Sprintf(`# TYPE datadog_csi_driver_node_publish_volume_attempts counter
+datadog_csi_driver_node_publish_volume_attempts{path="/var/run/datadog",status="success",type="DSDSocketDirectory"} %d
+`, 3*int(n))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer ts.Close()
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
+
+	first := factory().(*Check)
+	require.NoError(t, first.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+	require.NoError(t, first.Run())
+
+	second := factory().(*Check)
+	require.NoError(t, second.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
+	require.NoError(t, second.Run())
+
+	publishMetrics, err := tm.GetCountMetric(CheckName, "node_publish_volume_attempts")
+	require.NoError(t, err)
+	require.Len(t, publishMetrics, 1)
+	assert.Equal(t, 6.0, publishMetrics[0].Value(),
+		"COAT counter should add only the delta after a check reload")
+}
+
 func TestCOATGaugesSetLatestValue(t *testing.T) {
 	tm := telemetryimpl.NewMock(t)
 
@@ -314,9 +358,9 @@ datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} %d
 	defer ts.Close()
 
 	chk := &Check{
-		CheckBase:  core.NewCheckBase(CheckName),
-		metrics:    buildMetricDefs(tm),
-		prevValues: make(map[string]float64),
+		CheckBase: core.NewCheckBase(CheckName),
+		metrics:   buildMetricDefs(tm),
+		state:     newTestState(),
 	}
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
@@ -342,6 +386,47 @@ datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} %d
 	require.NoError(t, err)
 	require.Len(t, linksMetrics, 1)
 	assert.Equal(t, 6.0, linksMetrics[0].Value())
+}
+
+func TestCOATGaugesDeleteMissingSeries(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+
+	var scrapeCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := scrapeCount.Add(1)
+		body := `# TYPE datadog_csi_driver_library_volume_links gauge
+`
+		if n == 1 {
+			body += `datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 7
+`
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer ts.Close()
+
+	chk := &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+		metrics:   buildMetricDefs(tm),
+		state:     newTestState(),
+	}
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
+	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	require.NoError(t, chk.Run())
+	linksMetrics, err := tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.NoError(t, err)
+	require.Len(t, linksMetrics, 1)
+	assert.Equal(t, 7.0, linksMetrics[0].Value())
+
+	require.NoError(t, chk.Run())
+	linksMetrics, err = tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.ErrorContains(t, err, "not found")
+	require.Empty(t, linksMetrics)
 }
 
 func TestRunEmptyResponse(t *testing.T) {

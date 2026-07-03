@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -55,6 +56,17 @@ type metricDef struct {
 	ddName string
 	kind   metricKind
 	coat   *coatMetric
+}
+
+type sharedState struct {
+	prevValues map[string]float64
+	gaugeKeys  map[string]gaugeSeries
+	mu         sync.Mutex
+}
+
+type gaugeSeries struct {
+	coat      *coatMetric
+	tagValues []string
 }
 
 func buildMetricDefs(tm telemetry.Component) map[string]metricDef {
@@ -131,17 +143,21 @@ type Check struct {
 	config     csiDriverConfig
 	httpClient http.Client
 	metrics    map[string]metricDef
-	prevValues map[string]float64
+	state      *sharedState
 }
 
 // Factory creates a new check factory.
 func Factory(tm telemetry.Component) option.Option[func() check.Check] {
 	metricDefs := buildMetricDefs(tm)
+	state := &sharedState{
+		prevValues: make(map[string]float64),
+		gaugeKeys:  make(map[string]gaugeSeries),
+	}
 	return option.New(func() check.Check {
 		return &Check{
-			CheckBase:  core.NewCheckBase(CheckName),
-			metrics:    metricDefs,
-			prevValues: make(map[string]float64),
+			CheckBase: core.NewCheckBase(CheckName),
+			metrics:   metricDefs,
+			state:     state,
 		}
 	})
 }
@@ -215,6 +231,11 @@ func normalizeMetricName(name string) string {
 }
 
 func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamily) {
+	c.state.mu.Lock()
+	defer c.state.mu.Unlock()
+
+	currentGaugeKeys := make(map[string]struct{})
+
 	for _, mf := range families {
 		def, ok := c.metrics[normalizeMetricName(mf.Name)]
 		if !ok {
@@ -238,20 +259,47 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 
 				switch def.coat.kind {
 				case counterMetric:
-					key := seriesKey(def.ddName, sample.Metric)
-					prev := c.prevValues[key]
+					key := c.endpointSeriesKey(def.ddName, sample.Metric)
+					prev := c.state.prevValues[key]
 					delta := sample.Value - prev
 					if delta < 0 {
 						delta = sample.Value
 					}
-					c.prevValues[key] = sample.Value
+					c.state.prevValues[key] = sample.Value
 					def.coat.counter.Add(delta, tagValues...)
 				case gaugeMetric:
 					def.coat.gauge.Set(sample.Value, tagValues...)
+					key := c.endpointSeriesKey(def.ddName, sample.Metric)
+					currentGaugeKeys[key] = struct{}{}
+					c.state.gaugeKeys[key] = gaugeSeries{
+						coat:      def.coat,
+						tagValues: slicesClone(tagValues),
+					}
 				}
 			}
 		}
 	}
+
+	for key, prev := range c.state.gaugeKeys {
+		if !strings.HasPrefix(key, c.config.OpenmetricsEndpoint+"|") {
+			continue
+		}
+		if _, ok := currentGaugeKeys[key]; ok {
+			continue
+		}
+		prev.coat.gauge.Delete(prev.tagValues...)
+		delete(c.state.gaugeKeys, key)
+	}
+}
+
+func (c *Check) endpointSeriesKey(name string, labels prometheus.Metric) string {
+	return c.config.OpenmetricsEndpoint + "|" + seriesKey(name, labels)
+}
+
+func slicesClone(in []string) []string {
+	out := make([]string, len(in))
+	copy(out, in)
+	return out
 }
 
 // seriesKey builds a unique key for a metric time series from its name and
