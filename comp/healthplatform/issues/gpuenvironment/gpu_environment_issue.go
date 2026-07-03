@@ -52,7 +52,10 @@ func NewGPUEnvironmentIssue() *GPUEnvironmentIssue {
 // BuildIssue creates a complete issue with metadata and remediation for GPU environment issues.
 func (t *GPUEnvironmentIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	reason := context["reason"]
-	content := buildContent(reason)
+	content, err := buildContent(reason)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build content: %w", err)
+	}
 
 	extra, err := structpb.NewStruct(map[string]any{
 		"reason": reason,
@@ -80,7 +83,7 @@ func (t *GPUEnvironmentIssue) BuildIssue(context map[string]string) (*healthplat
 	}, nil
 }
 
-func buildContent(reason string) issueContent {
+func buildContent(reason string) (issueContent, error) {
 	switch reason {
 	case ReasonNvmlUnavailable:
 		return issueContent{
@@ -93,16 +96,8 @@ func buildContent(reason string) issueContent {
 				{Order: 3, Text: "If the Agent runs in a container, verify that GPU devices and NVIDIA driver libraries are mounted into the container"},
 				{Order: 4, Text: "Review GPU monitoring setup: " + gpuDocsURL},
 			},
-		}
+		}, nil
 	default:
-		return issueContent{
-			title:       "GPU monitoring detected an environment issue",
-			description: "GPU monitoring detected an environment issue.",
-			summary:     "Review the GPU monitoring setup and Agent logs.",
-			steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Run 'datadog-agent status' and review the GPU check output"},
-				{Order: 2, Text: "Review GPU monitoring setup: " + gpuDocsURL},
-			},
-		}
+		return issueContent{}, fmt.Errorf("unknown reason: %s", reason)
 	}
 }
