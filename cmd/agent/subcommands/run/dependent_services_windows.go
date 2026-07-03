@@ -49,6 +49,9 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"network_config.enabled":                      sysprobeConf,
 				"system_probe_config.enabled":                 sysprobeConf,
 			},
+			suppressIf: func() bool {
+				return processProcmgrProcessDefinitionExists() && coreConf.GetBool("process_manager.enabled")
+			},
 			serviceName:    "datadog-process-agent",
 			serviceInit:    processInit,
 			shouldShutdown: false,
@@ -237,8 +240,9 @@ func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 }
 
 const (
-	ddotProcmgrProcessDefinitionFile = "datadog-agent-ddot.yaml"
-	parProcmgrProcessDefinitionFile  = "datadog-agent-action.yaml"
+	ddotProcmgrProcessDefinitionFile    = "datadog-agent-ddot.yaml"
+	parProcmgrProcessDefinitionFile     = "datadog-agent-action.yaml"
+	processProcmgrProcessDefinitionFile = "datadog-agent-process.yaml"
 )
 
 // True if the fleet DDOT processes.d definition exists (dd-procmgr supervises DDOT). With
@@ -251,6 +255,13 @@ func ddotProcmgrProcessDefinitionExists() bool {
 // process_manager.enabled, the Agent skips starting the datadog-agent-action Windows service.
 func parProcmgrProcessDefinitionExists() bool {
 	return procmgrProcessDefinitionExists(parProcmgrProcessDefinitionFile)
+}
+
+// True if the fleet process-agent processes.d definition exists (dd-procmgr supervises
+// process-agent). With process_manager.enabled, the Agent skips starting the
+// datadog-process-agent Windows service.
+func processProcmgrProcessDefinitionExists() bool {
+	return procmgrProcessDefinitionExists(processProcmgrProcessDefinitionFile)
 }
 
 func procmgrProcessDefinitionExists(fileName string) bool {
