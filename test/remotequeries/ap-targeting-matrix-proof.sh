@@ -4,9 +4,9 @@
 # Starts the same two-Agent/four-Postgres matrix as targeting-matrix-proof.sh,
 # then starts one self-enrolled private-action-runner per Agent. The script
 # discovers the two AP RemoteAction connection IDs and executes the AP action
-# against every valid target tuple. The allowed fixture query returns a unique
-# marker from each database's cities table, proving the AP request reached the
-# exact DB. An invented DB target is asserted to fail closed.
+# against every valid target tuple. The default identity query returns a unique
+# marker from each database's remote_query_identity table, proving the AP request
+# reached the exact DB. An invented DB target is asserted to fail closed.
 
 set -euo pipefail
 
@@ -24,7 +24,7 @@ AGENT_B_CMD_PORT=${AGENT_B_CMD_PORT:-55204}
 RQ_POSTGRES_USERNAME=${RQ_POSTGRES_USERNAME:-bob}
 RQ_POSTGRES_PASSWORD=${RQ_POSTGRES_PASSWORD:-bob}
 FQN=${FQN:-com.datadoghq.remoteaction.queries.execute}
-RQ_REMOTE_QUERY=${RQ_REMOTE_QUERY:-SELECT city, country FROM cities ORDER BY city}
+RQ_REMOTE_QUERY=${RQ_REMOTE_QUERY:-SELECT current_database() AS current_db, expected_agent_hostname, expected_postgres_host, expected_postgres_port, expected_dbname, marker FROM remote_query_identity}
 RQ_POLL_INTERVAL=${RQ_POLL_INTERVAL:-1}
 RQ_MAX_POLLS=${RQ_MAX_POLLS:-45}
 DD_SITE=${DD_SITE:-datad0g.com}
@@ -672,7 +672,7 @@ start_agents_and_pars() {
 }
 
 connection_for_side() { if [[ "$1" == "a" ]]; then echo "$CONNECTION_A"; else echo "$CONNECTION_B"; fi; }
-expected_data_for() { printf '%s|%s|%s|%s,%s\n' "$1" "$2" "$3" "$4" "$1"; }
+expected_data_for() { printf '%s,%s,%s,%s,%s,%s|%s|%s|%s\n' "$4" "$1" "$2" "$3" "$4" "$1" "$2" "$3" "$4"; }
 
 ap_execute_case() {
   local label=$1 side=$2 expected_agent=$3 host=$4 port=$5 dbname=$6 expect_success=$7
@@ -760,7 +760,7 @@ $(cat "$TMP_ROOT/results/connections.tsv")
 Positive AP hits: ap-positive-hits.tsv
 Invented DB negative: ap-negative-cases.tsv
 
-Each positive AP execution called /api/unstable/actions/execute with an explicit RemoteAction connection_id and a target {host, port, dbname}. The returned CSV is the database-specific marker seeded in the fixture's cities table.
+Each positive AP execution called /api/unstable/actions/execute with an explicit RemoteAction connection_id and a target {host, port, dbname}. The returned CSV is the database-specific identity row seeded in the fixture's remote_query_identity table.
 TXT
 }
 
