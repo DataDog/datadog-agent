@@ -3480,6 +3480,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntNs, "struct mount", "mnt_ns")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountParent, "struct mount", "mnt_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMountpoint, "struct mount", "mnt_mp")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockType, "struct socket", "type")
 
 	if kv.Code >= kernel.Kernel3_19 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")

@@ -94,7 +94,9 @@ static int hook_security_socket_setsockopt(ctx_t *ctx) {
     }
     struct socket *sock = (struct socket *)CTX_PARM1(ctx);
     short socket_type;
-    bpf_probe_read(&socket_type, sizeof(socket_type), &sock->type);
+    u64 sock_type_offset;
+    LOAD_CONSTANT("sock_type_offset", sock_type_offset);
+    bpf_probe_read(&socket_type, sizeof(socket_type), (char *)sock + sock_type_offset);
     if (socket_type) {
         syscall->setsockopt.socket_type = socket_type;
     }
