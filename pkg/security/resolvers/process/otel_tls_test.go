@@ -149,6 +149,67 @@ func TestResolveOTelTLSStaticPIEMain(t *testing.T) {
 	require.Len(t, serializeOTelTLSValue(res), otelTLSValueSize)
 }
 
+func TestResolveOTelTLSStaticNonPIEMainSymtab(t *testing.T) {
+	skipUnsupportedOTelTLSArch(t)
+
+	dir := t.TempDir()
+	bin, ok := compileOptionalOTelTLSFixture(t, dir, "static-nopie-main", otelTLSFixtureMain, "-static", "-no-pie")
+	if !ok {
+		t.Skip("C toolchain cannot build static non-PIE fixture")
+	}
+	requireNoDynamicTLSSymbol(t, bin)
+	requireStaticTLSSymbol(t, bin)
+	requireNoInterpreter(t, bin)
+
+	cmd := startOTelTLSFixture(t, bin)
+	res, err := resolveOTelTLS(uint32(cmd.Process.Pid), "cpp")
+	require.NoError(t, err)
+
+	require.Equal(t, uint32(otelRuntimeNative), res.runtimeLang)
+	require.Equal(t, otelTLSModeStaticMain, res.mode)
+	require.Zero(t, res.dtDebugValueAddr)
+	require.Zero(t, res.targetLoadBias)
+	require.Equal(t, uint64(8), res.targetSymbolSize)
+	require.LessOrEqual(t, res.targetSymbolOffset+res.targetSymbolSize, res.targetTLSMemsz)
+	require.Len(t, serializeOTelTLSValue(res), otelTLSValueSize)
+}
+
+func TestResolveOTelTLSStaticMuslNonPIEMainSymtab(t *testing.T) {
+	skipUnsupportedOTelTLSArch(t)
+
+	dir := t.TempDir()
+	bin, ok := compileOptionalOTelTLSFixtureWithCompiler(t, "musl-gcc", dir, "static-musl-nopie-main", otelTLSFixtureMain, "-static", "-no-pie")
+	if !ok {
+		t.Skip("musl-gcc is not available or cannot build static musl fixture")
+	}
+	requireNoDynamicTLSSymbol(t, bin)
+	requireStaticTLSSymbol(t, bin)
+	requireNoInterpreter(t, bin)
+
+	cmd := startOTelTLSFixture(t, bin)
+	res, err := resolveOTelTLS(uint32(cmd.Process.Pid), "cpp")
+	require.NoError(t, err)
+
+	require.Equal(t, uint32(otelRuntimeNative), res.runtimeLang)
+	require.Equal(t, otelTLSModeStaticMain, res.mode)
+	require.Zero(t, res.dtDebugValueAddr)
+	require.Zero(t, res.targetLoadBias)
+	require.Equal(t, uint64(8), res.targetSymbolSize)
+	require.Equal(t, uint64(8), res.dtvEntrySize)
+	require.LessOrEqual(t, res.targetSymbolOffset+res.targetSymbolSize, res.targetTLSMemsz)
+	require.Len(t, serializeOTelTLSValue(res), otelTLSValueSize)
+}
+
+func TestDetectLoaderKindStaticMuslMarkers(t *testing.T) {
+	target := &otelTargetProcess{}
+	kind := target.detectLoaderKind([]otelMappedELF{{
+		isMainExe:  true,
+		mainTLS:    true,
+		builtinTLS: true,
+	}})
+	require.Equal(t, otelLoaderMusl, kind)
+}
+
 func requireValidDynamicLookup(t *testing.T, res otelTLSResolution) {
 	t.Helper()
 
@@ -181,9 +242,19 @@ func compileOTelTLSFixture(t *testing.T, dir string, name string, source string,
 func compileOptionalOTelTLSFixture(t *testing.T, dir string, name string, source string, args ...string) (string, bool) {
 	t.Helper()
 
-	cc, err := exec.LookPath("cc")
-	if err != nil {
+	if _, err := exec.LookPath("cc"); err != nil {
 		t.Skip("cc is not available")
+	}
+	return compileOptionalOTelTLSFixtureWithCompiler(t, "cc", dir, name, source, args...)
+}
+
+func compileOptionalOTelTLSFixtureWithCompiler(t *testing.T, compiler string, dir string, name string, source string, args ...string) (string, bool) {
+	t.Helper()
+
+	cc, err := exec.LookPath(compiler)
+	if err != nil {
+		t.Logf("%s is not available", compiler)
+		return "", false
 	}
 
 	src := filepath.Join(dir, name+".c")
@@ -246,6 +317,16 @@ func requireDynamicTLSSymbol(t *testing.T, path string) {
 	require.True(t, hasDynamicTLSSymbol(path), "%s does not export %s as STT_TLS in .dynsym", path, otelTLSSymbolName)
 }
 
+func requireNoDynamicTLSSymbol(t *testing.T, path string) {
+	t.Helper()
+	require.False(t, hasDynamicTLSSymbol(path), "%s unexpectedly exports %s as STT_TLS in .dynsym", path, otelTLSSymbolName)
+}
+
+func requireStaticTLSSymbol(t *testing.T, path string) {
+	t.Helper()
+	require.True(t, hasStaticTLSSymbol(path), "%s does not contain %s as STT_TLS in .symtab", path, otelTLSSymbolName)
+}
+
 func requireNoInterpreter(t *testing.T, path string) {
 	t.Helper()
 
@@ -266,6 +347,26 @@ func hasDynamicTLSSymbol(path string) bool {
 	defer file.Close()
 
 	syms, err := file.DynamicSymbols()
+	if err != nil {
+		return false
+	}
+
+	for _, sym := range syms {
+		if sym.Name == otelTLSSymbolName && sym.Section != elf.SHN_UNDEF && safeelf.ST_TYPE(sym.Info) == elf.STT_TLS {
+			return true
+		}
+	}
+	return false
+}
+
+func hasStaticTLSSymbol(path string) bool {
+	file, err := safeelf.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	syms, err := file.Symbols()
 	if err != nil {
 		return false
 	}

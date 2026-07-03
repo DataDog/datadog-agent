@@ -6,7 +6,6 @@
 #define _GNU_SOURCE
 
 #include <fcntl.h>
-#include <linux/memfd.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -15,6 +14,10 @@
 #include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#ifndef MFD_ALLOW_SEALING
+#define MFD_ALLOW_SEALING 0x0002U
+#endif
 
 struct otel_thread_ctx_record {
     uint8_t trace_id[16];

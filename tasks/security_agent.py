@@ -287,6 +287,38 @@ def ninja_otel_tls_static_pie_tester(ctx, build_dir, compiler='clang'):
     )
 
 
+def ninja_otel_tls_static_nopie_tester(ctx, build_dir, compiler='clang'):
+    return ninja_c_syscall_tester_common(
+        ctx,
+        "otel_tls_static_pie_tester",
+        build_dir,
+        flags=["-no-pie"],
+        libs=["-lpthread"],
+        static=True,
+        compiler=compiler,
+        output_name="otel_tls_static_nopie_tester",
+    )
+
+
+def ninja_otel_tls_static_musl_tester(nw, build_dir):
+    syscall_tester_c_file = os.path.join(
+        "pkg", "security", "tests", "syscall_tester", "c", "otel_tls_static_pie_tester.c"
+    )
+    syscall_tester_exe_file = os.path.join(build_dir, "otel_tls_static_musl_tester")
+
+    nw.build(
+        inputs=[syscall_tester_c_file],
+        outputs=[syscall_tester_exe_file],
+        rule="exemusl-gcc",
+        variables={
+            "exeflags": ["-static", "-no-pie"],
+            "exelibs": ["-pthread"],
+            "flags": [],
+        },
+    )
+    return syscall_tester_exe_file
+
+
 def ninja_otel_tls_dlopen_loader(ctx, build_dir, compiler='clang'):
     return ninja_c_syscall_tester_common(
         ctx,
@@ -336,6 +368,13 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_syscall_tester(nw, build_dir, static=static, compiler=compiler)
         ninja_otel_tls_dynamic_tester(nw, build_dir, compiler=compiler)
         ninja_otel_tls_static_pie_tester(nw, build_dir, compiler=compiler)
+        ninja_otel_tls_static_nopie_tester(nw, build_dir, compiler=compiler)
+        musl_tester = os.path.join(build_dir, "otel_tls_static_musl_tester")
+        if shutil.which("musl-gcc"):
+            ninja_define_exe_compiler(nw, compiler="musl-gcc")
+            ninja_otel_tls_static_musl_tester(nw, build_dir)
+        elif os.path.exists(musl_tester):
+            os.remove(musl_tester)
         ninja_otel_tls_dlopen_loader(nw, build_dir, compiler=compiler)
         ninja_otel_tls_fixture_so(nw, build_dir, compiler=compiler)
         if arch == ARCH_AMD64:

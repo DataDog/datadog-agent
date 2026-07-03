@@ -156,8 +156,8 @@ type otelMappedELF struct {
 	interpreter  string
 	dtDebugVaddr uint64
 	hasDTDebug   bool
-	mainTLS      bool // musl static marker
-	builtinTLS   bool // musl static marker
+	mainTLS      bool // static musl local .symtab marker
+	builtinTLS   bool // static musl local .symtab marker
 
 	// threadDB is populated for libc.so objects exposing thread_db descriptors.
 	threadDB    otelGlibcThreadDBLayout
@@ -435,14 +435,17 @@ func (p *otelTargetProcess) loadMappedELFs() ([]otelMappedELF, error) {
 			tlsMemsz:  tlsMemsz,
 			isMainExe: path == p.exePath,
 		}
-		if hasTLS {
-			module.otelTLSSyms = tlsSymbolsInDynsym(elfFile, otelTLSSymbolName)
-		}
 		if module.isMainExe {
 			module.interpreter = elfInterpreter(elfFile)
 			module.dtDebugVaddr, module.hasDTDebug = elfDTDebugValueVaddr(elfFile)
-			_, module.mainTLS = symbolValueInDynsym(elfFile, "main_tls")
-			_, module.builtinTLS = symbolValueInDynsym(elfFile, "builtin_tls")
+			_, module.mainTLS = symbolValueInSymtab(elfFile, "main_tls")
+			_, module.builtinTLS = symbolValueInSymtab(elfFile, "builtin_tls")
+		}
+		if hasTLS {
+			module.otelTLSSyms = tlsSymbolsInDynsym(elfFile, otelTLSSymbolName)
+			if len(module.otelTLSSyms) == 0 && module.isMainExe && p.auxv.atBase == 0 && module.interpreter == "" {
+				module.otelTLSSyms = tlsSymbolsInSymtab(elfFile, otelTLSSymbolName)
+			}
 		}
 		if strings.Contains(path, "libc.so") {
 			module.threadDB, module.hasThreadDB = readGlibcThreadDBLayout(elfFile)
@@ -465,7 +468,7 @@ func (p *otelTargetProcess) detectLoaderKind(modules []otelMappedELF) otelLoader
 		}
 	}
 	// Otherwise rely on main-executable markers: a musl PT_INTERP, or the
-	// static-musl main_tls/builtin_tls symbol pair.
+	// static musl local .symtab marker pair.
 	for _, module := range modules {
 		if !module.isMainExe {
 			continue
@@ -785,12 +788,36 @@ func symbolValueInDynsym(elfFile *safeelf.File, name string) (uint64, bool) {
 	return 0, false
 }
 
+func symbolValueInSymtab(elfFile *safeelf.File, name string) (uint64, bool) {
+	syms, err := elfFile.Symbols()
+	if err != nil {
+		return 0, false
+	}
+	for _, sym := range syms {
+		if sym.Name == name && sym.Section != elf.SHN_UNDEF {
+			return sym.Value, true
+		}
+	}
+	return 0, false
+}
+
 func tlsSymbolsInDynsym(elfFile *safeelf.File, name string) []otelTLSSymbol {
 	syms, err := elfFile.DynamicSymbols()
 	if err != nil {
 		return nil
 	}
+	return tlsSymbolsFromELFSymbols(syms, name)
+}
 
+func tlsSymbolsInSymtab(elfFile *safeelf.File, name string) []otelTLSSymbol {
+	syms, err := elfFile.Symbols()
+	if err != nil {
+		return nil
+	}
+	return tlsSymbolsFromELFSymbols(syms, name)
+}
+
+func tlsSymbolsFromELFSymbols(syms []safeelf.Symbol, name string) []otelTLSSymbol {
 	var out []otelTLSSymbol
 	for _, sym := range syms {
 		if sym.Name != name || sym.Section == elf.SHN_UNDEF || safeelf.ST_TYPE(sym.Info) != elf.STT_TLS {

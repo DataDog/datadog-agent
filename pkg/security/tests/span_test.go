@@ -335,7 +335,8 @@ func TestSpan(t *testing.T) {
 
 // TestOTelSpan tests OTel Thread Local Context Record based span context collection.
 // It covers TLS records exported from .dynsym by a dynamic main executable, a
-// dlopen'd shared object, and a static PIE executable.
+// dlopen'd shared object, and static PIE/non-PIE executables. The static musl
+// variant is included when the syscall tester build host has musl-gcc.
 func TestOTelSpan(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -396,6 +397,22 @@ func TestOTelSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 	otelTesterVariants = append(otelTesterVariants, otelTesterVariant{name: "static-pie", binary: staticPIETester})
+
+	staticNonPIETester, err := loadSyscallTester(t, test, "otel_tls_static_nopie_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otelTesterVariants = append(otelTesterVariants, otelTesterVariant{name: "static-nopie-symtab", binary: staticNonPIETester})
+
+	staticMuslTester, ok, err := loadOptionalSyscallTester(t, test, "otel_tls_static_musl_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		otelTesterVariants = append(otelTesterVariants, otelTesterVariant{name: "static-musl-symtab", binary: staticMuslTester})
+	} else {
+		t.Log("otel_tls_static_musl_tester not embedded; skipping static musl OTel TLS variant")
+	}
 
 	_, err = loadSyscallTesterArtifact(test, "libotel_tls_fixture.so", 0o700)
 	if err != nil {

@@ -11,7 +11,9 @@ package tests
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"testing"
@@ -31,6 +33,22 @@ func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, e
 	}
 
 	return binPath, nil
+}
+
+func loadOptionalSyscallTester(t *testing.T, test *testModule, binary string) (string, bool, error) {
+	binPath, err := loadSyscallTesterArtifact(test, binary, 0o700)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+
+	if err := checkSyscallTester(t, binPath); err != nil {
+		return "", true, err
+	}
+
+	return binPath, true, nil
 }
 
 func loadSyscallTesterArtifact(test *testModule, binary string, perm int) (string, error) {
