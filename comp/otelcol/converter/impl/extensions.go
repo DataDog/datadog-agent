@@ -121,16 +121,14 @@ func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
 	return false
 }
 
-// findExistingExtensionID returns the ID of an extension defined in conf (under
-// the "extensions" key) whose base component name equals compName, or "" when no
-// such definition exists. When several instances share the base name, the result
-// is deterministic: the canonical instance (ID equal to the base name, e.g.
-// "pprof" rather than "pprof/custom") takes priority, otherwise the
-// lexicographically-first ID is returned.
+// findExistingExtensionID returns the ID of an extension in conf whose base
+// component name equals compName, or "" if none exists. When several instances
+// share the base name it is deterministic: the canonical instance (ID == base
+// name) wins, otherwise the lexicographically-first ID.
 func findExistingExtensionID(conf *confmap.Conf, compName string) string {
 	minID := ""
 	for id := range findComps(conf.ToStringMap(), compName, "extensions") {
-		// The canonical instance always wins; its ID is unique so we can return early.
+		// Canonical instance wins; its ID is unique, so return early.
 		if id == compName {
 			return id
 		}
@@ -184,18 +182,14 @@ func addExtensionToPipeline(conf *confmap.Conf, comp component) {
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-// reuseOrAddExtension wires an existing user-defined extension of the same base
-// component name into service::extensions when one is present; otherwise it adds
-// comp's dd-autoconfigured instance and wires that. Callers are responsible for
-// any feature/mode gating and for skipping extensions already in the pipeline.
-func reuseOrAddExtension(conf *confmap.Conf, comp component) {
-	// User already defined this extension but forgot to wire it into
-	// service.extensions — reuse their definition instead of creating a
-	// second <name>/dd-autoconfigured.
-	if existingID := findExistingExtensionID(conf, comp.Name); existingID != "" {
-		wireExtensionIDToPipeline(conf, existingID)
-		return
+// reuseExtension wires a user-defined-but-unwired extension with the given base
+// component name into service::extensions, reporting whether one was found. When
+// none exists it leaves conf untouched so the caller can add its own instance.
+func reuseExtension(conf *confmap.Conf, compName string) bool {
+	existingID := findExistingExtensionID(conf, compName)
+	if existingID == "" {
+		return false
 	}
-	addComponentToConfig(conf, comp)
-	addExtensionToPipeline(conf, comp)
+	wireExtensionIDToPipeline(conf, existingID)
+	return true
 }

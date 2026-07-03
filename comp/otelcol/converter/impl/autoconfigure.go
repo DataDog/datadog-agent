@@ -44,11 +44,16 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 		if !slices.Contains(enabledFeatures, extension.Name) || extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
+		// datadog needs a core-agent API key; without one, neither reuse nor add it.
+		if extension.Name == datadogName && (c.coreConfig == nil || c.coreConfig.GetString("api_key") == "") {
+			continue
+		}
+		// Reuse before building the datadog config below, whose hostname lookup is a
+		// blocking core-agent RPC in connected mode.
+		if reuseExtension(conf, extension.Name) {
+			continue
+		}
 		if extension.Name == datadogName {
-			// The datadog extension requires an API key; without one we add nothing.
-			if c.coreConfig == nil || c.coreConfig.GetString("api_key") == "" {
-				continue
-			}
 			site := defaultSite
 			if c.coreConfig.GetString("site") != "" {
 				site = c.coreConfig.GetString("site")
@@ -73,12 +78,16 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 				"installation_method": c.coreConfig.GetString("otelcollector.installation_method"),
 			}
 		}
-		reuseOrAddExtension(conf, extension)
+		addComponentToConfig(conf, extension)
+		addExtensionToPipeline(conf, extension)
 	}
 
 	// dogtel extension (standalone mode only)
 	if c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone") && !extensionIsInServicePipeline(conf, dogtelComponent) {
-		reuseOrAddExtension(conf, dogtelComponent)
+		if !reuseExtension(conf, dogtelName) {
+			addComponentToConfig(conf, dogtelComponent)
+			addExtensionToPipeline(conf, dogtelComponent)
+		}
 	}
 
 	// infra attributes processor
