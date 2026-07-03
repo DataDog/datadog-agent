@@ -7,7 +7,6 @@ package com_datadoghq_remoteaction_networkdevices
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"runtime"
@@ -16,8 +15,6 @@ import (
 	"time"
 
 	"github.com/gosnmp/gosnmp"
-	"golang.org/x/crypto/curve25519"
-	"golang.org/x/crypto/nacl/box"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -28,9 +25,6 @@ import (
 )
 
 const (
-	keyTypeCurve25519 = "curve25519"
-
-	// pingInterval is the spacing between ICMP echo requests.
 	pingInterval = 100 * time.Millisecond
 
 	oidSysName = "1.3.6.1.2.1.1.5.0"
@@ -76,18 +70,13 @@ type SNMPOptions struct {
 	Retries   int              `json:"retries"`
 }
 
-type EncryptionContext struct {
-	KeyType             string `json:"keyType"`
-	EncryptionContextID string `json:"encryptionContextId"`
-}
-
 type ConnectivityCheckRequest struct {
-	TargetIPs            []string          `json:"targetIPs"`
-	Checks               []string          `json:"checks"`
-	PingOptions          *PingOptions      `json:"pingOptions,omitempty"`
-	SNMPOptions          *SNMPOptions      `json:"snmpOptions,omitempty"`
-	EncryptedCredentials string            `json:"encryptedCredentials"`
-	EncryptionContext    EncryptionContext `json:"encryptionContext"`
+	TargetIPs            []string                            `json:"targetIPs"`
+	Checks               []string                            `json:"checks"`
+	PingOptions          *PingOptions                        `json:"pingOptions,omitempty"`
+	SNMPOptions          *SNMPOptions                        `json:"snmpOptions,omitempty"`
+	EncryptedCredentials string                              `json:"encryptedCredentials"`
+	EncryptionContext    encryptioncontext.EncryptionContext `json:"encryptionContext"`
 }
 
 type CheckResult struct {
@@ -132,11 +121,11 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 		return nil, fmt.Errorf("failed to parse connectivityCheck inputs: %w", err)
 	}
 
-	decryptedCredentials, err := decryptCredentials(h.encryptionStore, req.EncryptionContext, req.EncryptedCredentials)
+	decryptedCredentials, err := encryptioncontext.Decrypt(h.encryptionStore, req.EncryptionContext, req.EncryptedCredentials)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt credentials: %w", err)
 	}
-	// TODO(ACTP-1611): thread decryptedCredentials into the SNMP/ping flows
+	// TODO: thread decryptedCredentials into the SNMP/ping flows
 	// instead of logging it.
 	log.Infof("connectivityCheck decrypted credentials (encryptionContextId=%s): %s", req.EncryptionContext.EncryptionContextID, decryptedCredentials)
 
@@ -146,41 +135,6 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 	}
 
 	return res, nil
-}
-
-func decryptCredentials(store *encryptioncontext.Store, encryptionContext EncryptionContext, encryptedCredentials string) (string, error) {
-	if encryptionContext.EncryptionContextID == "" {
-		return "", errors.New("encryptionContext.encryptionContextId is required")
-	}
-	if encryptionContext.KeyType != keyTypeCurve25519 {
-		return "", fmt.Errorf("unsupported keyType %q (expected %q)", encryptionContext.KeyType, keyTypeCurve25519)
-	}
-	if encryptedCredentials == "" {
-		return "", errors.New("encryptedCredentials is required")
-	}
-
-	privateKey, found := store.GetAndDelete(encryptionContext.EncryptionContextID)
-	if !found {
-		return "", fmt.Errorf("no private key found for encryptionContextId %q", encryptionContext.EncryptionContextID)
-	}
-
-	ciphertext, err := base64.StdEncoding.DecodeString(encryptedCredentials)
-	if err != nil {
-		return "", fmt.Errorf("encryptedCredentials is not valid base64: %w", err)
-	}
-
-	publicKeyBytes, err := curve25519.X25519(privateKey[:], curve25519.Basepoint)
-	if err != nil {
-		return "", fmt.Errorf("failed to derive public key: %w", err)
-	}
-	var publicKey [32]byte
-	copy(publicKey[:], publicKeyBytes)
-
-	plaintext, ok := box.OpenAnonymous(nil, ciphertext, &publicKey, privateKey)
-	if !ok {
-		return "", errors.New("failed to open sealed credentials")
-	}
-	return string(plaintext), nil
 }
 
 func runChecks(ctx context.Context, req ConnectivityCheckRequest) (ConnectivityCheckResult, error) {
