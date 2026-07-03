@@ -9,6 +9,7 @@ package envoygateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"strings"
@@ -18,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/sidecar"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
@@ -115,12 +116,12 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 	gwName := pod.Labels[owningGatewayNameLabel]
 	if gwName == "" {
 		e.logger.Warnf("Cannot resolve Envoy Gateway for pod %s: missing %q label; failed to inject appsec sidecar", mutatecommon.PodString(pod), owningGatewayNameLabel)
-		return appsecconfig.MutationError, fmt.Errorf("owning gateway label missing after eligibility check")
+		return appsecconfig.MutationError, errors.New("owning gateway name label missing after eligibility check")
 	}
 	gwNamespace := pod.Labels[owningGatewayNamespaceLabel]
 	if gwNamespace == "" {
 		e.logger.Warnf("Cannot resolve Envoy Gateway for pod %s: missing %q label; failed to inject appsec sidecar", mutatecommon.PodString(pod), owningGatewayNamespaceLabel)
-		return appsecconfig.MutationError, fmt.Errorf("owning gateway label missing after eligibility check")
+		return appsecconfig.MutationError, errors.New("owning gateway namespace label missing after eligibility check")
 	}
 
 	// The Gateway informer honors the appsec.datadoghq.com/enabled=false opt-out, but in sidecar
@@ -130,7 +131,7 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 		if gw.GetLabels()[appsecEnabledLabel] == "false" {
 			return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonGatewayOptOut}
 		}
-	} else if !errors.IsNotFound(err) {
+	} else if !k8serrors.IsNotFound(err) {
 		e.logger.Warnf("Could not read Envoy Gateway %s/%s to check appsec opt-out, proceeding with injection: %v", gwNamespace, gwName, err)
 	}
 

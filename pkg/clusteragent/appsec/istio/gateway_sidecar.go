@@ -9,6 +9,7 @@ package istio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -84,7 +85,7 @@ func (e *istioNativeGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, 
 	}
 
 	if !matched {
-		return appsecconfig.MutationError, fmt.Errorf("no Istio gateway selector matched pod after eligibility check")
+		return appsecconfig.MutationError, errors.New("no Istio gateway selector matched pod after eligibility check")
 	}
 
 	// Lazy EnvoyFilter creation (idempotent)
