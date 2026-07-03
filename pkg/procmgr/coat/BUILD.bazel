@@ -114,19 +114,21 @@ go_library(
 
 go_test(
     name = "coat_test",
-    srcs = ["collector_test.go"],
+    srcs = [
+        "collector_test.go",
+        "services_test.go",
+    ],
     embed = [":coat"],
     gotags = ["test"],
-    deps = select({
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/proto/pbgo/procmgr",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/proto/pbgo/procmgr",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),
