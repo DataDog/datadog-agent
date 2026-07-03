@@ -2173,6 +2173,9 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	// Ordered metric-processing rules applied at the observer handle boundary.
 	config.BindEnvAndSetDefault("anomaly_detection.metrics.processing_rules", []map[string]interface{}{})
 
+	// Ordered log-processing rules applied to anomaly-detection log sources.
+	config.BindEnvAndSetDefault("anomaly_detection.logs.processing_rules", []map[string]interface{}{})
+
 	// Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_metrics_extractor.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.connection_error_extractor.enabled", false)

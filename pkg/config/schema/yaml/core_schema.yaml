@@ -6507,6 +6507,14 @@ properties:
                 default: warn
                 comment: Kubelet journald log rate limits (enabled flag already set
                   above).
+          processing_rules:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+            comment: Ordered log-processing rules applied to anomaly-detection log
+              sources.
       metrics:
         node_type: section
         type: object

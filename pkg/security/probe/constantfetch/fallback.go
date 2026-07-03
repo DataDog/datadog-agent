@@ -61,6 +61,8 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSockCommonStructSKCFamily:       16,
 		OffsetNameDentryDSb:                       104,
 		OffsetNameNetDeviceStructName:             0,
+		OffsetNameVMAreaStructVMStart:             0,
+		OffsetNameVMAreaStructVMEnd:               8,
 		OffsetNameRenameStructOldDentry:           16,
 		OffsetNameRenameStructNewDentry:           40,
 		OffsetNameSbDev:                           16,
@@ -113,11 +115,14 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameNetStructNS:                 getNetNSOffset,
 		OffsetNameSocketStructSK:              getSocketSockOffset,
 		OffsetNameNFConnStructCTNet:           getNFConnCTNetOffset,
+		OffsetNameNFConnStructTuplehash:       getNFConnTuplehashOffset,
 		OffsetNameFlowI4StructSADDR:           getFlowi4SAddrOffset,
 		OffsetNameFlowI6StructSADDR:           getFlowi6SAddrOffset,
 		OffsetNameFlowI4StructULI:             getFlowi4ULIOffset,
 		OffsetNameFlowI6StructULI:             getFlowi6ULIOffset,
 		OffsetNameLinuxBinprmStructFile:       getBinPrmFileFieldOffset,
+		OffsetNameLinuxBinprmStructFilename:   getLinuxBinprmFilenameOffset,
+		OffsetNameLinuxBinprmStructInterp:     getLinuxBinprmInterpOffset,
 		OffsetNameIoKiocbStructCtx:            getIoKcbCtxOffset,
 		OffsetNameLinuxBinprmP:                getLinuxBinPrmPOffset,
 		OffsetNameLinuxBinprmArgc:             getLinuxBinPrmArgcOffset,
@@ -777,6 +782,15 @@ func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
 	}
 }
 
+func getNFConnTuplehashOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsCOSKernel():
+		return 40
+	default:
+		return 16
+	}
+}
+
 func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 	offset := uint64(40)
 
@@ -849,6 +863,52 @@ func getBinPrmFileFieldOffset(kv *kernel.Version) uint64 {
 
 	// `struct file *executable` and `struct file *interpreter` are introduced in v5.8-rc1
 	return 64
+}
+
+func getLinuxBinprmFilenameOffset(kv *kernel.Version) uint64 {
+	if kv.IsRH8Kernel() {
+		return 328
+	}
+
+	if kv.IsRH7Kernel() || kv.Code < kernel.Kernel5_0 {
+		return 200
+	}
+
+	if kv.Code >= kernel.Kernel5_0 && kv.Code < kernel.Kernel5_2 {
+		// `unsigned long argmin` is introduced in v5.0-rc1
+		return 208
+	}
+
+	if kv.Code >= kernel.Kernel5_2 && kv.Code < kernel.Kernel5_8 {
+		// `char buf[BINPRM_BUF_SIZE]` is removed in v5.2-rc1
+		return 80
+	}
+
+	// `struct file *executable` and `struct file *interpreter` are introduced in v5.8-rc1
+	return 96
+}
+
+func getLinuxBinprmInterpOffset(kv *kernel.Version) uint64 {
+	if kv.IsRH8Kernel() {
+		return 336
+	}
+
+	if kv.IsRH7Kernel() || kv.Code < kernel.Kernel5_0 {
+		return 208
+	}
+
+	if kv.Code >= kernel.Kernel5_0 && kv.Code < kernel.Kernel5_2 {
+		// `unsigned long argmin` is introduced in v5.0-rc1
+		return 216
+	}
+
+	if kv.Code >= kernel.Kernel5_2 && kv.Code < kernel.Kernel5_8 {
+		// `char buf[BINPRM_BUF_SIZE]` is removed in v5.2-rc1
+		return 88
+	}
+
+	// `struct file *executable` and `struct file *interpreter` are introduced in v5.8-rc1
+	return 104
 }
 
 func getIoKcbCtxOffset(kv *kernel.Version) uint64 {

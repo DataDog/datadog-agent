@@ -117,6 +117,22 @@ func TestAsFindsWrappedCheckCapability(t *testing.T) {
 	assert.Equal(t, reporter, inner.reporter)
 }
 
+func TestIsShadowUnwrapsCheckWrappers(t *testing.T) {
+	inner := &recordingCheck{id: checkid.ID("cpu:abc123")}
+	shadow := NewShadowCheck(inner, time.Second)
+
+	assert.True(t, IsShadow(&recordingWrapper{Check: shadow}))
+	assert.False(t, IsShadow(&recordingWrapper{Check: inner}))
+}
+
+type recordingWrapper struct {
+	Check
+}
+
+func (w *recordingWrapper) Unwrap() Check {
+	return w.Check
+}
+
 type recordingCheck struct {
 	id       checkid.ID
 	interval time.Duration

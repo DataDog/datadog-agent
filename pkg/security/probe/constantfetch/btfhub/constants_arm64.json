@@ -33,6 +33,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -45,6 +47,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -75,7 +78,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -110,6 +115,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -122,6 +129,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -152,7 +160,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -187,6 +197,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -199,6 +211,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -229,7 +242,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -264,6 +279,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -276,6 +293,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -306,7 +324,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -341,6 +361,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -353,6 +375,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 128,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -383,7 +406,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -418,6 +443,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -430,6 +457,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -460,7 +488,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -491,6 +521,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mount_id_offset": 268,
 			"mount_mnt_mountpoint_offset": 24,
@@ -530,7 +562,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -561,6 +595,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 268,
@@ -601,7 +637,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -632,6 +670,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 268,
@@ -672,7 +712,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -705,6 +747,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 268,
@@ -745,7 +789,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -780,6 +826,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -820,7 +868,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -855,6 +905,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -895,7 +947,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -933,6 +987,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 320,
 			"linux_binprm_envc_offset": 324,
+			"linux_binprm_filename_offset": 328,
+			"linux_binprm_interp_offset": 336,
 			"linux_binprm_p_offset": 280,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -971,7 +1027,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -1009,6 +1067,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 320,
 			"linux_binprm_envc_offset": 324,
+			"linux_binprm_filename_offset": 328,
+			"linux_binprm_interp_offset": 336,
 			"linux_binprm_p_offset": 280,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -1047,7 +1107,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -1085,6 +1147,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 320,
 			"linux_binprm_envc_offset": 324,
+			"linux_binprm_filename_offset": 328,
+			"linux_binprm_interp_offset": 336,
 			"linux_binprm_p_offset": 280,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -1123,7 +1187,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -1161,6 +1227,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 320,
 			"linux_binprm_envc_offset": 324,
+			"linux_binprm_filename_offset": 328,
+			"linux_binprm_interp_offset": 336,
 			"linux_binprm_p_offset": 280,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -1199,7 +1267,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -1237,6 +1307,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 320,
 			"linux_binprm_envc_offset": 324,
+			"linux_binprm_filename_offset": 328,
+			"linux_binprm_interp_offset": 336,
 			"linux_binprm_p_offset": 280,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -1277,7 +1349,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1315,6 +1389,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -1354,7 +1430,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1392,6 +1470,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -1431,7 +1511,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1463,6 +1545,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 268,
@@ -1503,7 +1587,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1535,6 +1621,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 268,
@@ -1575,7 +1663,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -1615,6 +1705,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 88,
 			"linux_binprm_envc_offset": 92,
+			"linux_binprm_filename_offset": 96,
+			"linux_binprm_interp_offset": 104,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -1653,7 +1745,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -1693,6 +1787,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -1732,7 +1828,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -1770,6 +1868,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 320,
 			"linux_binprm_envc_offset": 324,
+			"linux_binprm_filename_offset": 328,
+			"linux_binprm_interp_offset": 336,
 			"linux_binprm_p_offset": 280,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -1782,6 +1882,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -1810,7 +1911,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -1848,6 +1951,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 320,
 			"linux_binprm_envc_offset": 324,
+			"linux_binprm_filename_offset": 328,
+			"linux_binprm_interp_offset": 336,
 			"linux_binprm_p_offset": 280,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -1860,6 +1965,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -1890,7 +1996,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1928,6 +2036,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -1940,6 +2050,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -1969,7 +2080,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2007,6 +2120,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2019,6 +2134,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 240,
 			"nf_conn_ct_net_offset": 192,
+			"nf_conn_tuplehash_offset": 64,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2048,7 +2164,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2086,6 +2204,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2098,6 +2218,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2127,7 +2248,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2165,6 +2288,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2177,6 +2302,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 248,
 			"nf_conn_ct_net_offset": 192,
+			"nf_conn_tuplehash_offset": 64,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2206,7 +2332,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2244,6 +2372,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2256,6 +2386,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2285,7 +2416,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2323,6 +2456,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2335,6 +2470,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 248,
 			"nf_conn_ct_net_offset": 192,
+			"nf_conn_tuplehash_offset": 64,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2364,7 +2500,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2402,6 +2540,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2414,6 +2554,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2443,7 +2584,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2481,6 +2624,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2493,6 +2638,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 248,
 			"nf_conn_ct_net_offset": 192,
+			"nf_conn_tuplehash_offset": 64,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2522,7 +2668,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2560,6 +2708,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2572,6 +2722,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2601,7 +2752,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2639,6 +2792,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2651,6 +2806,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 248,
 			"nf_conn_ct_net_offset": 192,
+			"nf_conn_tuplehash_offset": 64,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2680,7 +2836,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2718,6 +2876,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2730,6 +2890,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 248,
 			"nf_conn_ct_net_offset": 192,
+			"nf_conn_tuplehash_offset": 64,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2759,7 +2920,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -2799,6 +2962,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 88,
 			"linux_binprm_envc_offset": 92,
+			"linux_binprm_filename_offset": 96,
+			"linux_binprm_interp_offset": 104,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2811,6 +2976,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2839,7 +3005,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -2879,6 +3047,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 88,
 			"linux_binprm_envc_offset": 92,
+			"linux_binprm_filename_offset": 96,
+			"linux_binprm_interp_offset": 104,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2891,6 +3061,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 264,
 			"nf_conn_ct_net_offset": 192,
+			"nf_conn_tuplehash_offset": 64,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2919,7 +3090,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -2959,6 +3132,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 88,
 			"linux_binprm_envc_offset": 92,
+			"linux_binprm_filename_offset": 96,
+			"linux_binprm_interp_offset": 104,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -2971,6 +3146,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -2999,7 +3175,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -3039,6 +3217,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 88,
 			"linux_binprm_envc_offset": 92,
+			"linux_binprm_filename_offset": 96,
+			"linux_binprm_interp_offset": 104,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3051,6 +3231,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 264,
 			"nf_conn_ct_net_offset": 192,
+			"nf_conn_tuplehash_offset": 64,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3079,7 +3260,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -3119,6 +3302,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 88,
 			"linux_binprm_envc_offset": 92,
+			"linux_binprm_filename_offset": 96,
+			"linux_binprm_interp_offset": 104,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3131,6 +3316,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3159,7 +3345,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -3199,6 +3387,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 88,
 			"linux_binprm_envc_offset": 92,
+			"linux_binprm_filename_offset": 96,
+			"linux_binprm_interp_offset": 104,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3211,6 +3401,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 264,
 			"nf_conn_ct_net_offset": 192,
+			"nf_conn_tuplehash_offset": 64,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3239,7 +3430,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3271,6 +3464,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3283,6 +3478,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 136,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3313,7 +3509,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3350,6 +3548,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3362,6 +3562,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3392,7 +3593,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 176,
@@ -3430,6 +3633,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 200,
 			"linux_binprm_envc_offset": 204,
+			"linux_binprm_filename_offset": 208,
+			"linux_binprm_interp_offset": 216,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3442,6 +3647,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3471,7 +3677,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3509,6 +3717,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3521,6 +3731,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3551,7 +3762,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3591,6 +3804,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3603,6 +3818,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3632,7 +3848,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3672,6 +3890,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3684,6 +3904,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3712,7 +3933,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3752,6 +3975,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3764,6 +3989,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3793,7 +4019,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3828,6 +4056,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3840,6 +4070,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3870,7 +4101,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3910,6 +4143,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -3922,6 +4157,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -3951,7 +4187,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3991,6 +4229,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -4003,6 +4243,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -4032,7 +4273,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4072,6 +4315,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -4084,6 +4329,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -4113,7 +4359,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -4151,6 +4399,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 320,
 			"linux_binprm_envc_offset": 324,
+			"linux_binprm_filename_offset": 328,
+			"linux_binprm_interp_offset": 336,
 			"linux_binprm_p_offset": 280,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -4163,6 +4413,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -4191,7 +4442,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -4229,6 +4482,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 320,
 			"linux_binprm_envc_offset": 324,
+			"linux_binprm_filename_offset": 328,
+			"linux_binprm_interp_offset": 336,
 			"linux_binprm_p_offset": 280,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -4241,6 +4496,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -4271,7 +4527,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4311,6 +4569,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -4323,6 +4583,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -4352,7 +4613,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4387,6 +4650,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 292,
@@ -4399,6 +4664,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -4429,7 +4695,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4465,6 +4733,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 292,
@@ -4477,6 +4747,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -4507,7 +4778,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4547,6 +4820,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 292,
@@ -4559,6 +4834,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -4588,7 +4864,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4628,6 +4906,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 292,
@@ -4640,6 +4920,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -4669,7 +4950,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4702,6 +4985,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 268,
@@ -4742,7 +5027,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4777,6 +5064,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -4817,7 +5106,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -4855,6 +5146,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 320,
 			"linux_binprm_envc_offset": 324,
+			"linux_binprm_filename_offset": 328,
+			"linux_binprm_interp_offset": 336,
 			"linux_binprm_p_offset": 280,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -4867,6 +5160,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -4895,7 +5189,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 296,
@@ -4933,6 +5229,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 320,
 			"linux_binprm_envc_offset": 324,
+			"linux_binprm_filename_offset": 328,
+			"linux_binprm_interp_offset": 336,
 			"linux_binprm_p_offset": 280,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -4945,6 +5243,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -4975,7 +5274,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5010,6 +5311,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 292,
@@ -5022,6 +5325,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5052,7 +5356,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5088,6 +5394,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 292,
@@ -5100,6 +5408,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5130,7 +5439,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5170,6 +5481,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 292,
@@ -5182,6 +5495,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5211,7 +5525,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5251,6 +5567,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 292,
@@ -5263,6 +5581,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5292,7 +5611,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5327,6 +5648,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -5339,6 +5662,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5369,7 +5693,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5406,6 +5732,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -5418,6 +5746,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5448,7 +5777,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5485,6 +5816,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -5497,6 +5830,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5527,7 +5861,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5565,6 +5901,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 192,
 			"linux_binprm_envc_offset": 196,
+			"linux_binprm_filename_offset": 200,
+			"linux_binprm_interp_offset": 208,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -5577,6 +5915,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5607,7 +5946,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 176,
@@ -5645,6 +5986,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 200,
 			"linux_binprm_envc_offset": 204,
+			"linux_binprm_filename_offset": 208,
+			"linux_binprm_interp_offset": 216,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -5657,6 +6000,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5686,7 +6030,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 176,
@@ -5724,6 +6070,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 200,
 			"linux_binprm_envc_offset": 204,
+			"linux_binprm_filename_offset": 208,
+			"linux_binprm_interp_offset": 216,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -5736,6 +6084,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5765,7 +6114,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 176,
@@ -5803,6 +6154,8 @@
 			"inode_uid_offset": 4,
 			"linux_binprm_argc_offset": 200,
 			"linux_binprm_envc_offset": 204,
+			"linux_binprm_filename_offset": 208,
+			"linux_binprm_interp_offset": 216,
 			"linux_binprm_p_offset": 152,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -5815,6 +6168,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5844,7 +6198,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5884,6 +6240,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -5896,6 +6254,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -5925,7 +6284,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5965,6 +6326,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -5977,6 +6340,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6006,7 +6370,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6046,6 +6412,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -6058,6 +6426,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6087,7 +6456,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6127,6 +6498,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -6139,6 +6512,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6168,7 +6542,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6208,6 +6584,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -6220,6 +6598,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6249,7 +6628,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6289,6 +6670,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 88,
 			"linux_binprm_envc_offset": 92,
+			"linux_binprm_filename_offset": 96,
+			"linux_binprm_interp_offset": 104,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 0,
 			"mount_id_offset": 284,
@@ -6301,6 +6684,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6329,7 +6713,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6369,6 +6755,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 88,
 			"linux_binprm_envc_offset": 92,
+			"linux_binprm_filename_offset": 96,
+			"linux_binprm_interp_offset": 104,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 0,
 			"mount_id_offset": 284,
@@ -6381,6 +6769,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6409,7 +6798,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6449,6 +6840,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -6461,6 +6854,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 112,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6490,7 +6884,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6530,6 +6926,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -6542,6 +6940,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6571,7 +6970,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6611,6 +7012,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -6623,6 +7026,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6652,7 +7056,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6692,6 +7098,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -6704,6 +7112,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6733,7 +7142,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6773,6 +7184,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 72,
 			"linux_binprm_envc_offset": 76,
+			"linux_binprm_filename_offset": 80,
+			"linux_binprm_interp_offset": 88,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -6785,6 +7198,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6814,7 +7228,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6854,6 +7270,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 88,
 			"linux_binprm_envc_offset": 92,
+			"linux_binprm_filename_offset": 96,
+			"linux_binprm_interp_offset": 104,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -6866,6 +7284,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6894,7 +7313,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6934,6 +7355,8 @@
 			"kernel_clone_args_exit_signal_offset": 32,
 			"linux_binprm_argc_offset": 88,
 			"linux_binprm_envc_offset": 92,
+			"linux_binprm_filename_offset": 96,
+			"linux_binprm_interp_offset": 104,
 			"linux_binprm_p_offset": 24,
 			"mnt_namespace_ns": 8,
 			"mount_id_offset": 284,
@@ -6946,6 +7369,7 @@
 			"net_device_name_offset": 0,
 			"net_ns_offset": 120,
 			"nf_conn_ct_net_offset": 144,
+			"nf_conn_tuplehash_offset": 16,
 			"ns_common_inum_offset": 16,
 			"path_dentry_offset": 8,
 			"path_mnt_offset": 0,
@@ -6974,7 +7398,9 @@
 			"vfsmount_mnt_flags_offset": 16,
 			"vfsmount_mnt_root_offset": 0,
 			"vfsmount_mnt_sb_offset": 8,
-			"vm_area_struct_flags_offset": 80
+			"vm_area_struct_flags_offset": 80,
+			"vm_area_struct_vm_end_offset": 8,
+			"vm_area_struct_vm_start_offset": 0
 		}
 	],
 	"kernels": [
