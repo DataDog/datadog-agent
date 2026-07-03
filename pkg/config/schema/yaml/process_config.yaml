@@ -172,9 +172,12 @@ properties:
           gathers information about running integrations.
         tags:
         - template_section:CoreAgent
+        comment: |-
+          Process Discovery Check
+          We also bind old environment variables for this setting
       interval:
         node_type: setting
-        type: number
+        type: string
         default: 4h0m0s
         env_vars:
         - DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL
@@ -187,9 +190,6 @@ properties:
         tags:
         - golang_type:duration
         - template_section:CoreAgent
-        comment: |-
-          Process Discovery Check
-          Also bind old environment variables
       hint_frequency:
         node_type: setting
         type: integer

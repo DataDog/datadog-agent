@@ -38,6 +38,7 @@ api_key:
 ##   - full: default server/host-monitoring behavior (all checks allowed).
 ##   - basic: minimal host-level metrics only.
 ##   - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+##   - cloud_cost_only: Cloud Cost Management lightweight tagging.
 ##   - none: disables infrastructure checks.
 #
 # infrastructure_mode: "full"
@@ -2656,6 +2657,12 @@ api_key:
 #
 # dogstatsd_no_aggregation_pipeline_batch_size: 2048
 
+## @param dogstatsd_no_aggregation_pipeline_workers_count - integer - optional - default: 1
+## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE_WORKERS_COUNT - integer - optional - default: 1
+## How many workers are used by the no-aggregation pipeline.
+#
+# dogstatsd_no_aggregation_pipeline_workers_count: 1
+
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
@@ -5215,7 +5222,7 @@ api_key:
 
 #   # @param http_allowlist - list of strings - optional - default: []
 #   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - comma-separated list of strings - optional - default: []
-#   # List of allowed URL patterns for HTTP actions.
+#   # List of allowed domains for HTTP actions. Supports glob pattern. Example : ["datadoghq.com", "*.datadoghq.com"]
 #
 #   http_allowlist: []
 

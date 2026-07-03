@@ -31,6 +31,10 @@ const (
 	PodAnnotationSource ErrorSource = "pod_annotation"
 	// TemplateResolutionSource indicates errors from template variable resolution failures
 	TemplateResolutionSource ErrorSource = "template_resolution"
+	// KubeServiceAnnotationSource indicates errors from Kubernetes service annotations (ad.datadoghq.com/service.*)
+	KubeServiceAnnotationSource ErrorSource = "kube_service_annotation"
+	// KubeEndpointAnnotationSource indicates errors from Kubernetes endpoint annotations (ad.datadoghq.com/endpoints.*)
+	KubeEndpointAnnotationSource ErrorSource = "kube_endpoint_annotation"
 )
 
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance

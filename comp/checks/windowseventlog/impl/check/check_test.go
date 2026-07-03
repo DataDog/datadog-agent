@@ -69,7 +69,7 @@ func (s *GetEventsTestSuite) SetupSuite() {
 	require.NoError(s.T(), err)
 	err = s.ti.InstallSource(s.channelPath, s.eventSource)
 	require.NoError(s.T(), err)
-	s.sender = mocksender.NewMockSender("")
+	s.sender = mocksender.NewMockSender(s.T(), "")
 }
 
 func (s *GetEventsTestSuite) TearDownSuite() {
@@ -1106,7 +1106,7 @@ func BenchmarkGetEvents(b *testing.B) {
 
 	testerNames := eventlog_test.GetEnabledAPITesters()
 
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(b, "")
 
 	benchmarkStartTime := time.Now()
 	benchmarkTotalEvents := uint(0)
