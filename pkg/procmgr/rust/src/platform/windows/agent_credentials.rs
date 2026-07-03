@@ -18,7 +18,6 @@ use super::{open_datadog_agent_key, registry_nonempty_string};
 
 /// Agent service account resolved from installer state.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(dead_code)]
 pub(crate) enum AgentAccount {
     /// Well-known LocalSystem account (spawn inherits supervisor when needed).
     LocalSystem,
@@ -33,7 +32,6 @@ pub(crate) enum AgentAccount {
 }
 
 /// Resolve the agent service account from registry + LSA private data.
-#[allow(dead_code)]
 pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
     let key =
         open_datadog_agent_key().context("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent")?;

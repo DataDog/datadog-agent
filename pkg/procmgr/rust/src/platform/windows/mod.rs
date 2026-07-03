@@ -4,6 +4,10 @@
 // Copyright 2026-present Datadog, Inc.
 
 mod agent_credentials;
+mod spawn;
+
+#[allow(unused_imports)]
+pub(crate) use spawn::spawn_child;
 
 use anyhow::Result;
 use std::ffi::c_void;
