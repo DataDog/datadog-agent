@@ -12,9 +12,9 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,7 +25,6 @@ import (
 func subscribeAgentConfig(
 	rcClient *rcclient.Client,
 	cfg config.Component,
-	settingsComp settings.Component,
 ) {
 	rcClient.Subscribe(state.ProductAgentConfig, func(
 		updates map[string]state.RawConfig,
@@ -48,7 +47,7 @@ func subscribeAgentConfig(
 				pkglog.Infof("Removing remote-config log level override, falling back to '%s'", cfg.Get("log_level"))
 			} else {
 				pkglog.Infof("Changing log level to '%s' through remote config", mergedConfig.LogLevel)
-				if err := settingsComp.SetRuntimeSetting("log_level", mergedConfig.LogLevel, pkgconfigmodel.SourceRC); err != nil {
+				if err := pkgconfigutils.SetLogLevel(mergedConfig.LogLevel, cfg, pkgconfigmodel.SourceRC); err != nil {
 					errList = append(errList, err)
 				}
 			}
@@ -62,7 +61,7 @@ func subscribeAgentConfig(
 				return
 			}
 			pkglog.Infof("Changing log level to '%s' through remote config (new source)", mergedConfig.LogLevel)
-			if err := settingsComp.SetRuntimeSetting("log_level", mergedConfig.LogLevel, pkgconfigmodel.SourceRC); err != nil {
+			if err := pkgconfigutils.SetLogLevel(mergedConfig.LogLevel, cfg, pkgconfigmodel.SourceRC); err != nil {
 				errList = append(errList, err)
 			}
 		}

@@ -501,7 +501,7 @@ func start(log log.Component,
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
-			subscribeAgentConfig(rcClient, config, settings)
+			subscribeAgentConfig(rcClient, config)
 			subscribeAgentTask(rcClient, config, statusComponent, diagnoseComp, ipc)
 			rcClient.Start()
 			defer func() {

@@ -24,7 +24,7 @@ import (
 
 var (
 	createDCAArchiveFunc = CreateDCAArchive
-	sendFlareFunc = flarehelpers.SendTo
+	sendFlareFunc        = flarehelpers.SendTo
 )
 
 // HandleRCFlareTask creates and sends a cluster-agent flare in response to an RC AGENT_TASK.
