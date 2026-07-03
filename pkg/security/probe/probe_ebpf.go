@@ -3398,8 +3398,17 @@ func getDoTruncateHasIdmapArg(kernelVersion *kernel.Version) uint64 {
 	return 0
 }
 
-func getExitItimersTakesTaskStruct(kernelversion *kernel.Version) uint64 {
-	if kernelversion.Code != 0 && kernelversion.Code >= kernel.Kernel5_19 {
+func getExitItimersTakesTaskStruct(kernelVersion *kernel.Version) uint64 {
+	// prefer the actual BTF prototype, as the exit_itimers(struct task_struct *) signature was
+	// backported to stable kernels (e.g. 5.10.y, 5.15.y) below the 5.19 mainline cut-off
+	if val, err := constantfetch.GetExitItimersTakesTaskStructWithBtf(); err == nil {
+		if val {
+			return 1
+		}
+		return 0
+	}
+
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_19 {
 		return 1
 	}
 	return 0
