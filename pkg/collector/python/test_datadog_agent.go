@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -77,6 +78,18 @@ func testGetConfig(t *testing.T) {
 	GetConfig(C.CString("cmd_port"), &config)
 	require.NotNil(t, config)
 	assert.Equal(t, "5001", C.GoString(config))
+
+	GetConfig(C.CString("remote_queries.execute.enable_query_allowlist"), &config)
+	require.NotNil(t, config)
+	assert.Equal(t, "true", C.GoString(config))
+
+	pkgconfigsetup.Datadog().SetInTest("remote_queries.execute.enable_query_allowlist", false)
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().UnsetForSource("remote_queries.execute.enable_query_allowlist", pkgconfigmodel.SourceUnknown)
+	})
+	GetConfig(C.CString("remote_queries.execute.enable_query_allowlist"), &config)
+	require.NotNil(t, config)
+	assert.Equal(t, "false", C.GoString(config))
 }
 
 func testSetExternalTags(t *testing.T) {
