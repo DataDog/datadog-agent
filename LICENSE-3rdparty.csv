@@ -1460,6 +1460,8 @@ core,github.com/hetznercloud/hcloud-go/v2/hcloud/metadata,MIT,Copyright (c) 2018
 core,github.com/hetznercloud/hcloud-go/v2/hcloud/schema,MIT,Copyright (c) 2018-2020 Hetzner Cloud GmbH
 core,github.com/huandu/xstrings,MIT,Copyright (c) 2015 Huan Du
 core,github.com/iancoleman/strcase,MIT,"Copyright (c) 2015 Ian Coleman | Copyright (c) 2018 Ma_124, <github.com/Ma124>"
+core,github.com/iceber/iouring-go,MIT,Copyright (c) 2020 IceberGu
+core,github.com/iceber/iouring-go/syscall,MIT,Copyright (c) 2020 IceberGu
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Copyright 2022 Alan Shreve (@inconshreveable)
 core,github.com/invopop/jsonschema,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/ionos-cloud/sdk-go/v6,Apache-2.0,Copyright 2021 IONOS

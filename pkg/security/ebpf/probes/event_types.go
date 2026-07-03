@@ -156,7 +156,7 @@ func GetNetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 }
 
 // GetSelectorsPerEventType returns the list of probes that should be activated for each event
-func GetSelectorsPerEventType(hasFentry bool) map[eval.EventType][]manager.ProbesSelector {
+func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]manager.ProbesSelector {
 	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
