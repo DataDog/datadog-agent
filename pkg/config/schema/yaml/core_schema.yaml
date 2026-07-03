@@ -6153,6 +6153,442 @@ properties:
     comment: |-
       Legacy alias for backward compatibility
       This applies to the current infrastructure_mode
+  anomaly_detection:
+    node_type: section
+    type: object
+    properties:
+      anomaly_scorer:
+        node_type: section
+        type: object
+        properties:
+          alpha:
+            node_type: setting
+            type: number
+            default: 0.014
+            tags:
+            - golang_type:float64
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          high_threshold:
+            node_type: setting
+            type: number
+            default: 0.4
+            tags:
+            - golang_type:float64
+          low_threshold:
+            node_type: setting
+            type: number
+            default: 0.15
+            tags:
+            - golang_type:float64
+          margin_pct:
+            node_type: setting
+            type: number
+            default: 0.2
+            tags:
+            - golang_type:float64
+          output:
+            node_type: section
+            type: object
+            properties:
+              cooldown_secs:
+                node_type: setting
+                type: integer
+                default: 300
+              correlation_events:
+                node_type: setting
+                type: boolean
+                default: false
+              logs:
+                node_type: setting
+                type: boolean
+                default: false
+              max_anomalies:
+                node_type: setting
+                type: integer
+                default: 50
+          saturation_k:
+            node_type: setting
+            type: number
+            default: 5
+            tags:
+            - golang_type:float64
+          window_secs:
+            node_type: setting
+            type: integer
+            default: 15
+      baseline_analysis:
+        node_type: section
+        type: object
+        properties:
+          duration:
+            node_type: setting
+            type: string
+            default: 10m
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: Baseline analysis window.
+          mute_noisy_metrics:
+            node_type: setting
+            type: boolean
+            default: true
+          verbose:
+            node_type: setting
+            type: boolean
+            default: false
+      debug:
+        node_type: section
+        type: object
+        properties:
+          dump_interval:
+            node_type: setting
+            type: integer
+            default: 0
+          dump_path:
+            node_type: setting
+            type: string
+            default: ''
+            comment: 'Debug tooling: internal state dump. Leave empty/zero in production.'
+          events_dump_path:
+            node_type: setting
+            type: string
+            default: ''
+      detectors:
+        node_type: section
+        type: object
+        properties:
+          bocpd:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          connection_error_extractor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          cross_signal:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          cusum:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          holt_residual:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          log_metrics_extractor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
+          log_pattern_extractor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          passthrough:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          rrcf:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          scanmw:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          scanwelch:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          time_cluster:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              min_cluster_size:
+                node_type: setting
+                type: integer
+                default: 0
+          tukey_biweight:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: Master switch. When false the entire anomaly detection subsystem
+          is a no-op.
+      logs:
+        node_type: section
+        type: object
+        properties:
+          containers:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+                comment: unlimited
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Container log rate limits (enabled flag already set above).
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Log ingestion gate. When false, all log sources (container, kubelet, internal)
+              are not routed into the anomaly detection pipeline (recording is unaffected).
+          internal:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: |-
+                  Internal agent log tap.
+                  min_severity is the minimum level forwarded (logs below it are dropped before sampling).
+                  max_rate_* are in logs/second measured over a 10-second fixed window and apply
+                  after the min_severity gate. -1 means unlimited (no cap); 0 drops all logs of that priority.
+                  high_priority = warn/error/critical, medium_priority = info, low_priority = debug.
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+                comment: unlimited
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+          kubelet:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              max_rate_high_priority:
+                node_type: setting
+                type: number
+                default: -1
+                tags:
+                - golang_type:float64
+                comment: unlimited
+              max_rate_low_priority:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+              max_rate_medium_priority:
+                node_type: setting
+                type: number
+                default: 100
+                tags:
+                - golang_type:float64
+              min_severity:
+                node_type: setting
+                type: string
+                default: warn
+                comment: Kubelet journald log rate limits (enabled flag already set
+                  above).
+          processing_rules:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+            comment: Ordered log-processing rules applied to anomaly-detection log
+              sources.
+      metrics:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Metrics ingestion gate. When false, externally-ingested metrics
+              (DogStatsD, check samplers) are dropped at the handle factory.
+              Log-derived virtual metrics are unaffected.
+          processing_rules:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+            comment: Ordered metric-processing rules applied at the observer handle
+              boundary.
+      recording:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Parquet recording of raw ingested signals for offline analysis
+              and replay.
+          flush_interval:
+            node_type: setting
+            type: integer
+            default: 60
+          output_dir:
+            node_type: setting
+            type: string
+            default: /var/run/datadog/anomaly_detection
+          retention:
+            node_type: setting
+            type: string
+            default: 24h
+      reporting:
+        node_type: section
+        type: object
+        properties:
+          events:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                comment: Datadog event reporting. Keep false during evaluation / shadow
+                  mode.
+          stdout:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                comment: |-
+                  Stdout reporting verbosity.
+                  stdout.enabled: set to false to silence all [observer] stdout log lines.
+                  stdout.verbose: set to true to print individual anomaly series after the title line.
+                  Default: title-only (stdout.enabled=true, stdout.verbose=false).
+              verbose:
+                node_type: setting
+                type: boolean
+                default: false
+      storage:
+        node_type: section
+        type: object
+        properties:
+          eviction_floor_ratio:
+            node_type: setting
+            type: number
+            default: 0.5
+            tags:
+            - golang_type:float64
+          max_series:
+            node_type: setting
+            type: integer
+            default: 50000
+            comment: Storage tuning. See storageConfig in the observer component.
+          point_retention_secs:
+            node_type: setting
+            type: integer
+            default: 120
   appsec:
     node_type: section
     type: object
