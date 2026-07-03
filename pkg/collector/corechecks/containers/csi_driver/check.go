@@ -189,6 +189,7 @@ func (c *Check) Run() error {
 
 	metrics, err := c.scrape()
 	if err != nil {
+		c.deleteEndpointGaugeSeries()
 		s.ServiceCheck(metricNs+"openmetrics.health", servicecheck.ServiceCheckCritical, "", nil, fmt.Sprintf("endpoint unreachable: %s", err))
 		return fmt.Errorf("scrape %s: %w", c.config.OpenmetricsEndpoint, err)
 	}
@@ -198,6 +199,12 @@ func (c *Check) Run() error {
 	c.submitMetrics(s, metrics)
 
 	return nil
+}
+
+// Cancel clears long-lived COAT gauge series when the check is unscheduled.
+func (c *Check) Cancel() {
+	c.deleteEndpointGaugeSeries()
+	c.CheckBase.Cancel()
 }
 
 func (c *Check) scrape() ([]prometheus.MetricFamily, error) {
@@ -280,11 +287,26 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 		}
 	}
 
+	c.deleteStaleEndpointGaugeSeriesLocked(currentGaugeKeys)
+}
+
+func (c *Check) deleteEndpointGaugeSeries() {
+	c.deleteStaleEndpointGaugeSeries(nil)
+}
+
+func (c *Check) deleteStaleEndpointGaugeSeries(currentGaugeKeys map[string]struct{}) {
+	c.state.mu.Lock()
+	defer c.state.mu.Unlock()
+
+	c.deleteStaleEndpointGaugeSeriesLocked(currentGaugeKeys)
+}
+
+func (c *Check) deleteStaleEndpointGaugeSeriesLocked(currentGaugeKeys map[string]struct{}) {
 	for key, prev := range c.state.gaugeKeys {
-		if !strings.HasPrefix(key, c.config.OpenmetricsEndpoint+"|") {
+		if _, ok := currentGaugeKeys[key]; ok {
 			continue
 		}
-		if _, ok := currentGaugeKeys[key]; ok {
+		if !strings.HasPrefix(key, c.config.OpenmetricsEndpoint+"|") {
 			continue
 		}
 		prev.coat.gauge.Delete(prev.tagValues...)

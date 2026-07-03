@@ -429,6 +429,81 @@ func TestCOATGaugesDeleteMissingSeries(t *testing.T) {
 	require.Empty(t, linksMetrics)
 }
 
+func TestCOATGaugesDeleteOnScrapeFailure(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+
+	var scrapeCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := scrapeCount.Add(1)
+		if n > 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		body := `# TYPE datadog_csi_driver_library_volume_links gauge
+datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 7
+`
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer ts.Close()
+
+	chk := &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+		metrics:   buildMetricDefs(tm),
+		state:     newTestState(),
+	}
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
+	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	require.NoError(t, chk.Run())
+	linksMetrics, err := tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.NoError(t, err)
+	require.Len(t, linksMetrics, 1)
+
+	require.Error(t, chk.Run())
+	linksMetrics, err = tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.ErrorContains(t, err, "not found")
+	require.Empty(t, linksMetrics)
+}
+
+func TestCOATGaugesDeleteOnCancel(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		body := `# TYPE datadog_csi_driver_library_volume_links gauge
+datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 7
+`
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer ts.Close()
+
+	chk := &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+		metrics:   buildMetricDefs(tm),
+		state:     newTestState(),
+	}
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
+	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	require.NoError(t, chk.Run())
+	linksMetrics, err := tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.NoError(t, err)
+	require.Len(t, linksMetrics, 1)
+
+	chk.Cancel()
+	linksMetrics, err = tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.ErrorContains(t, err, "not found")
+	require.Empty(t, linksMetrics)
+}
+
 func TestRunEmptyResponse(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
