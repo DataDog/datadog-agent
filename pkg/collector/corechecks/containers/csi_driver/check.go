@@ -58,17 +58,28 @@ type metricDef struct {
 	coat   *coatMetric
 }
 
+// sharedState is COAT telemetry bookkeeping shared across every Check instance
+// from the same Factory, because the telemetry registry is process-global and
+// outlives a check (autodiscovery may recreate it on CSI driver pod restart).
+//
+// Single-endpoint assumption: the CSI driver is a per-node DaemonSet scraped
+// over localhost (conf.d/datadog_csi_driver.d/auto_conf.yaml), so an Agent only
+// ever runs one datadog_csi_driver instance. We therefore do NOT aggregate gauge
+// values across endpoints: for a given COAT series (preserved tags, e.g.
+// "library") the latest scrape wins. Counters are keyed per endpoint since
+// summing per-scrape deltas is correct regardless of instance count.
 type sharedState struct {
-	prevValues map[string]float64
-	gaugeKeys  map[string]gaugeSeries
+	prevValues map[string]float64     // counter delta cache, keyed per endpoint+labels
+	gaugeKeys  map[string]gaugeSeries // gauge series from the last successful scrape, keyed by COAT series identity
 	mu         sync.Mutex
 }
 
+// gaugeSeries remembers a gauge series so it can be deleted from the global
+// telemetry registry once it disappears from the scrape (or on cancel/failure),
+// avoiding stale values being reported until Agent restart.
 type gaugeSeries struct {
-	aggregateKey string
-	coat         *coatMetric
-	tagValues    []string
-	value        float64
+	coat      *coatMetric
+	tagValues []string
 }
 
 func buildMetricDefs(tm telemetry.Component) map[string]metricDef {
@@ -191,7 +202,7 @@ func (c *Check) Run() error {
 
 	metrics, err := c.scrape()
 	if err != nil {
-		c.deleteEndpointGaugeSeries()
+		c.deleteAllGaugeSeries()
 		s.ServiceCheck(metricNs+"openmetrics.health", servicecheck.ServiceCheckCritical, "", nil, fmt.Sprintf("endpoint unreachable: %s", err))
 		return fmt.Errorf("scrape %s: %w", c.config.OpenmetricsEndpoint, err)
 	}
@@ -205,7 +216,7 @@ func (c *Check) Run() error {
 
 // Cancel clears long-lived COAT gauge series when the check is unscheduled.
 func (c *Check) Cancel() {
-	c.deleteEndpointGaugeSeries()
+	c.deleteAllGaugeSeries()
 	c.CheckBase.Cancel()
 }
 
@@ -277,72 +288,40 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 					c.state.prevValues[key] = sample.Value
 					def.coat.counter.Add(delta, tagValues...)
 				case gaugeMetric:
-					key := c.endpointSeriesKey(def.ddName, sample.Metric)
+					// Keyed by COAT series identity; see sharedState (no cross-endpoint aggregation).
+					key := coatSeriesKey(def.ddName, tagValues)
 					currentGaugeKeys[key] = struct{}{}
-					series := gaugeSeries{
-						aggregateKey: coatSeriesKey(def.ddName, tagValues),
-						coat:         def.coat,
-						tagValues:    slicesClone(tagValues),
-						value:        sample.Value,
+					c.state.gaugeKeys[key] = gaugeSeries{
+						coat:      def.coat,
+						tagValues: slicesClone(tagValues),
 					}
-					c.state.gaugeKeys[key] = series
-					c.setAggregatedGaugeLocked(series)
+					def.coat.gauge.Set(sample.Value, tagValues...)
 				}
 			}
 		}
 	}
 
-	c.deleteStaleEndpointGaugeSeriesLocked(currentGaugeKeys)
+	c.deleteStaleGaugeSeriesLocked(currentGaugeKeys)
 }
 
-func (c *Check) deleteEndpointGaugeSeries() {
-	c.deleteStaleEndpointGaugeSeries(nil)
-}
-
-func (c *Check) deleteStaleEndpointGaugeSeries(currentGaugeKeys map[string]struct{}) {
+// deleteAllGaugeSeries clears all tracked gauge series (used on cancel or scrape failure).
+func (c *Check) deleteAllGaugeSeries() {
 	c.state.mu.Lock()
 	defer c.state.mu.Unlock()
 
-	c.deleteStaleEndpointGaugeSeriesLocked(currentGaugeKeys)
+	c.deleteStaleGaugeSeriesLocked(nil)
 }
 
-func (c *Check) deleteStaleEndpointGaugeSeriesLocked(currentGaugeKeys map[string]struct{}) {
-	for key, prev := range c.state.gaugeKeys {
+// deleteStaleGaugeSeriesLocked deletes tracked gauge series absent from the latest
+// scrape (currentGaugeKeys); a nil set deletes all. Caller must hold c.state.mu.
+func (c *Check) deleteStaleGaugeSeriesLocked(currentGaugeKeys map[string]struct{}) {
+	for key, series := range c.state.gaugeKeys {
 		if _, ok := currentGaugeKeys[key]; ok {
 			continue
 		}
-		if !strings.HasPrefix(key, c.config.OpenmetricsEndpoint+"|") {
-			continue
-		}
 		delete(c.state.gaugeKeys, key)
-		c.setOrDeleteAggregatedGaugeLocked(prev)
-	}
-}
-
-func (c *Check) setAggregatedGaugeLocked(series gaugeSeries) {
-	sum := 0.0
-	for _, current := range c.state.gaugeKeys {
-		if current.aggregateKey == series.aggregateKey {
-			sum += current.value
-		}
-	}
-	series.coat.gauge.Set(sum, series.tagValues...)
-}
-
-func (c *Check) setOrDeleteAggregatedGaugeLocked(series gaugeSeries) {
-	sum := 0.0
-	count := 0
-	for _, current := range c.state.gaugeKeys {
-		if current.aggregateKey == series.aggregateKey {
-			sum += current.value
-			count++
-		}
-	}
-	if count == 0 {
 		series.coat.gauge.Delete(series.tagValues...)
-		return
 	}
-	series.coat.gauge.Set(sum, series.tagValues...)
 }
 
 func (c *Check) endpointSeriesKey(name string, labels prometheus.Metric) string {

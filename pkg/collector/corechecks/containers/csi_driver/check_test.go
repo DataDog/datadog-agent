@@ -429,7 +429,10 @@ func TestCOATGaugesDeleteMissingSeries(t *testing.T) {
 	require.Empty(t, linksMetrics)
 }
 
-func TestCOATGaugesAggregateAcrossCheckInstances(t *testing.T) {
+// TestCOATGaugesLatestScrapeWinsForSameSeries guards the intentional
+// single-endpoint design (see sharedState): gauges are not aggregated across
+// endpoints, so for a shared COAT series the latest scrape wins rather than summing.
+func TestCOATGaugesLatestScrapeWinsForSameSeries(t *testing.T) {
 	tm := telemetryimpl.NewMock(t)
 	factoryOption := Factory(tm)
 	factory, ok := factoryOption.Get()
@@ -444,15 +447,10 @@ datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 7
 	}))
 	defer firstServer.Close()
 
-	var secondScrapeCount atomic.Int32
 	secondServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		n := secondScrapeCount.Add(1)
 		body := `# TYPE datadog_csi_driver_library_volume_links gauge
+datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 3
 `
-		if n == 1 {
-			body += `datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 3
-`
-		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(body))
 	}))
@@ -473,17 +471,13 @@ datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 7
 	require.Len(t, linksMetrics, 1)
 	assert.Equal(t, 7.0, linksMetrics[0].Value())
 
+	// The second endpoint reports the same series; the value is overwritten
+	// (last scrape wins) rather than aggregated to 10.
 	require.NoError(t, second.Run())
 	linksMetrics, err = tm.GetGaugeMetric(CheckName, "library_volume_links")
 	require.NoError(t, err)
 	require.Len(t, linksMetrics, 1)
-	assert.Equal(t, 10.0, linksMetrics[0].Value())
-
-	require.NoError(t, second.Run())
-	linksMetrics, err = tm.GetGaugeMetric(CheckName, "library_volume_links")
-	require.NoError(t, err)
-	require.Len(t, linksMetrics, 1)
-	assert.Equal(t, 7.0, linksMetrics[0].Value())
+	assert.Equal(t, 3.0, linksMetrics[0].Value())
 }
 
 func TestCOATGaugesDeleteOnScrapeFailure(t *testing.T) {
