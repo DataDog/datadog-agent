@@ -49,6 +49,10 @@ func ReportExecutionCompleted(metricsClient statsd.ClientInterface, client actio
 	_ = metricsClient.Incr(ActionExecutionCompletedMetric, tags, 1.0)
 }
 
+func ReportHealthCheck(metricsClient statsd.ClientInterface) {
+	_ = metricsClient.Incr(HealthCheckMetric, []string{}, 1.0)
+}
+
 func ReportKeysManagerReady(client statsd.ClientInterface, logger log.Logger, startTime time.Time) {
 	logger.Info("Keys manager ready", log.Duration(Duration, time.Since(startTime)))
 	_ = client.Timing(KeysManagerStartupLatencyMetric, time.Since(startTime), []string{}, 1.0)
