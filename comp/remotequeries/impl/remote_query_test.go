@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -412,6 +413,26 @@ func TestNewRemoteQueryExecuteRequestRejectsInlineMode(t *testing.T) {
 	assert.EqualError(t, err, "operation must be copy_stream")
 }
 
+func TestRemoteQueriesQueryAllowlistEnabledConfigDefault(t *testing.T) {
+	t.Run("missing key defaults enabled", func(t *testing.T) {
+		cfg := configcomp.NewMock(t)
+
+		assert.True(t, RemoteQueriesQueryAllowlistEnabled(cfg))
+	})
+
+	t.Run("explicit true enables", func(t *testing.T) {
+		cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{RemoteQueriesEnableQueryAllowlistConfig: true})
+
+		assert.True(t, RemoteQueriesQueryAllowlistEnabled(cfg))
+	})
+
+	t.Run("explicit false disables", func(t *testing.T) {
+		cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{RemoteQueriesEnableQueryAllowlistConfig: false})
+
+		assert.False(t, RemoteQueriesQueryAllowlistEnabled(cfg))
+	})
+}
+
 func TestNewRemoteQueryCopyStreamExecuteRequestValidation(t *testing.T) {
 	target := RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}
 
@@ -480,7 +501,7 @@ func TestRemoteQueryExecuteServiceCopyStreamDispatch(t *testing.T) {
 			{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
 		},
 	}
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true)
 	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"}, "SELECT city, country FROM cities ORDER BY city", "csv", &RemoteQueryExecuteCopyLimits{ChunkBytes: 4, MaxBytes: 1024, MaxRowBytes: 1024, TimeoutMs: 1000})
 	require.NoError(t, err)
 
@@ -501,7 +522,7 @@ func TestRemoteQueryExecuteServiceRejectsNonAllowlistedQueryByDefault(t *testing
 	runner := &fakeStreamRunnerCheck{
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},
 	}
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true)
 	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT * FROM arbitrary_table", "csv", nil)
 	require.NoError(t, err)
 
@@ -514,12 +535,12 @@ func TestRemoteQueryExecuteServiceRejectsNonAllowlistedQueryByDefault(t *testing
 	assert.Equal(t, 0, runner.streamCalls)
 }
 
-func TestRemoteQueryExecuteServiceAllowsNonAllowlistedQueryWhenDisabled(t *testing.T) {
+func TestRemoteQueryExecuteServiceAllowsNonAllowlistedQueryWhenAllowlistDisabled(t *testing.T) {
 	runner := &fakeStreamRunnerCheck{
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},
 		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}},
 	}
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, true)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false)
 	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT * FROM arbitrary_table", "csv", nil)
 	require.NoError(t, err)
 

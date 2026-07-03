@@ -22,8 +22,8 @@ const (
 	RemoteQueryExecuteEndpointPath = "/remote-queries/execute"
 	// RemoteQueriesExecuteEnabledConfig is disabled by default when the key is absent.
 	RemoteQueriesExecuteEnabledConfig = "remote_queries.execute.enabled"
-	// RemoteQueriesDisableQueryAllowlistConfig disables the proof-query allowlist when explicitly true.
-	RemoteQueriesDisableQueryAllowlistConfig = "remote_queries.execute.disable_query_allowlist"
+	// RemoteQueriesEnableQueryAllowlistConfig controls the proof-query allowlist; missing defaults to enabled.
+	RemoteQueriesEnableQueryAllowlistConfig = "remote_queries.execute.enable_query_allowlist"
 
 	remoteQueryProofSeedQuery           = "SELECT 1 AS value"
 	remoteQueryFixtureTableProofQuery   = "SELECT city, country FROM cities ORDER BY city"
@@ -45,6 +45,17 @@ var remoteQueryLargePayloadProofQueries = map[string]int{
 
 type remoteQueryStreamRunner interface {
 	RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error
+}
+
+// RemoteQueriesQueryAllowlistEnabled returns the effective proof-query allowlist setting.
+func RemoteQueriesQueryAllowlistEnabled(cfg interface {
+	IsConfigured(key string) bool
+	GetBool(key string) bool
+}) bool {
+	if cfg == nil || !cfg.IsConfigured(RemoteQueriesEnableQueryAllowlistConfig) {
+		return true
+	}
+	return cfg.GetBool(RemoteQueriesEnableQueryAllowlistConfig)
 }
 
 func isRemoteQueryAllowedProofQuery(query string) bool {
@@ -82,7 +93,7 @@ func remoteQueryStreamRunnerFor(chk check.Check) (remoteQueryStreamRunner, bool)
 // NewRemoteQueryExecuteEndpointProvider registers the remote query execute endpoint on the internal Agent API.
 func NewRemoteQueryExecuteEndpointProvider(reqs Requires) api.AgentEndpointProvider {
 	h := &remoteQueryExecuteHandler{
-		service: NewRemoteQueryExecuteService(reqs.Collector, reqs.Cfg.GetBool(RemoteQueriesExecuteEnabledConfig), reqs.Cfg.GetBool(RemoteQueriesDisableQueryAllowlistConfig)),
+		service: NewRemoteQueryExecuteService(reqs.Collector, reqs.Cfg.GetBool(RemoteQueriesExecuteEnabledConfig), RemoteQueriesQueryAllowlistEnabled(reqs.Cfg)),
 	}
 	return api.NewAgentEndpointProvider(h.handle, RemoteQueryExecuteEndpointPath, http.MethodPost)
 }
@@ -91,19 +102,19 @@ type remoteQueryExecuteHandler struct {
 	service               *RemoteQueryExecuteService
 	collector             RemoteQueryCollector
 	enabled               bool
-	disableQueryAllowlist bool
+	queryAllowlistEnabled bool
 }
 
 // RemoteQueryExecuteService executes credential-free Remote Queries requests through loaded checks.
 type RemoteQueryExecuteService struct {
 	collector             RemoteQueryCollector
 	enabled               bool
-	disableQueryAllowlist bool
+	queryAllowlistEnabled bool
 }
 
 // NewRemoteQueryExecuteService creates the shared executor used by the HTTP POC endpoint and AgentSecure RPC.
-func NewRemoteQueryExecuteService(collector RemoteQueryCollector, enabled bool, disableQueryAllowlist bool) *RemoteQueryExecuteService {
-	return &RemoteQueryExecuteService{collector: collector, enabled: enabled, disableQueryAllowlist: disableQueryAllowlist}
+func NewRemoteQueryExecuteService(collector RemoteQueryCollector, enabled bool, queryAllowlistEnabled bool) *RemoteQueryExecuteService {
+	return &RemoteQueryExecuteService{collector: collector, enabled: enabled, queryAllowlistEnabled: queryAllowlistEnabled}
 }
 
 // RemoteQueryExecuteTarget identifies the datastore target without carrying credentials.
@@ -270,7 +281,7 @@ func (h *remoteQueryExecuteHandler) handle(w http.ResponseWriter, r *http.Reques
 
 	service := h.service
 	if service == nil {
-		service = NewRemoteQueryExecuteService(h.collector, h.enabled, h.disableQueryAllowlist)
+		service = NewRemoteQueryExecuteService(h.collector, h.enabled, h.queryAllowlistEnabled)
 	}
 	if service == nil || !service.enabled {
 		writeExecuteError(w, http.StatusServiceUnavailable, statusBridgeDisabled, "remote queries bridge is disabled")
@@ -459,7 +470,7 @@ func (s *RemoteQueryExecuteService) ExecuteStream(req RemoteQueryExecuteRequest,
 	if req.Query == "" {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "query is required")
 	}
-	if !s.disableQueryAllowlist && !isRemoteQueryAllowedProofQuery(req.Query) {
+	if s.queryAllowlistEnabled && !isRemoteQueryAllowedProofQuery(req.Query) {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "query is not allowed")
 	}
 

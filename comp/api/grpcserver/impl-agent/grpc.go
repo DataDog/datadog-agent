@@ -178,7 +178,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			telemetry:           reqs.Telemetry,
 			hostname:            reqs.Hostname,
 			configStream:        reqs.ConfigStream,
-			remoteQueries:       remotequeriesimpl.NewRemoteQueryExecuteService(collector, reqs.Cfg.GetBool(remotequeriesimpl.RemoteQueriesExecuteEnabledConfig), reqs.Cfg.GetBool(remotequeriesimpl.RemoteQueriesDisableQueryAllowlistConfig)),
+			remoteQueries:       remotequeriesimpl.NewRemoteQueryExecuteService(collector, reqs.Cfg.GetBool(remotequeriesimpl.RemoteQueriesExecuteEnabledConfig), remotequeriesimpl.RemoteQueriesQueryAllowlistEnabled(reqs.Cfg)),
 			healthPlatformStore: reqs.HealthPlatformStore,
 		},
 	}

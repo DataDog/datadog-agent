@@ -399,6 +399,7 @@ confd_path: $root/conf.d
 additional_checksd: $TMP_ROOT/checks.d
 remote_queries.match_check.enabled: true
 remote_queries.execute.enabled: true
+remote_queries.execute.enable_query_allowlist: false
 log_level: debug
 log_file: $root/agent.log
 python_lazy_loading: false
