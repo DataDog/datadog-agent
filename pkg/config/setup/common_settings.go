@@ -73,11 +73,13 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("use_networkv2_check", GetPlatformDefault(map[string]interface{}{
 		"linux":   true,
 		"windows": true,
+		"aix":     false,
 		"other":   false,
 	}))
 	config.BindEnvAndSetDefault("network_check.use_core_loader", GetPlatformDefault(map[string]interface{}{
 		"linux":   true,
 		"windows": true,
+		"aix":     false,
 		"other":   false,
 	}))
 

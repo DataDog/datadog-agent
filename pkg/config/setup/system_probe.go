@@ -367,10 +367,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("discovery.enabled", GetPlatformDefault(map[string]interface{}{
 		"fargate": false,
 		"linux":   true,
+		"aix":     false,
 		"other":   false,
 	}))
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", GetPlatformDefault(map[string]interface{}{
 		"linux": true,
+		"aix":   false,
 		"other": false,
 	}))
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")

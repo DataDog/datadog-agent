@@ -9625,6 +9625,7 @@ properties:
         platform_default:
           linux: true
           windows: true
+          aix: false
           other: false
     tags:
     - full-agent-only:true
@@ -10523,6 +10524,7 @@ properties:
     platform_default:
       linux: true
       windows: true
+      aix: false
       other: false
     tags:
     - full-agent-only:true

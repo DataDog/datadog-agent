@@ -2696,6 +2696,7 @@ properties:
         platform_default:
           fargate: false
           linux: true
+          aix: false
           other: false
       service_collection_batch_size:
         node_type: setting
@@ -2725,6 +2726,7 @@ properties:
         type: boolean
         platform_default:
           linux: true
+          aix: false
           other: false
   dogstatsd_port:
     node_type: setting

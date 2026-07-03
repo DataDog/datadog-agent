@@ -1620,6 +1620,11 @@ func GetPlatformDefault(platformValues map[string]interface{}) interface{} {
 	if val, found := platformValues[runtime.GOOS]; found {
 		return val
 	}
+	if runtime.GOOS == "aix" {
+		if val, found := platformValues["linux"]; found {
+			return val
+		}
+	}
 	if val, found := platformValues["other"]; found {
 		return val
 	}
