@@ -469,9 +469,9 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// Default configuration has 6 jobs with different schedules:
+	// Default configuration has 7 jobs with different schedules:
 	fmt.Println(r.(*runnerMock).jobs)
-	assert.Equal(t, 6, len(r.(*runnerMock).jobs))
+	assert.Equal(t, 7, len(r.(*runnerMock).jobs))
 
 	// Verify we have the expected number of profiles across all jobs
 	totalProfiles := 0
