@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fixed a slow memory leak in the remote workloadmeta collector where a new
+    context was created on every stream reconnection attempt without cancelling
+    the previous one. This could cause unbounded growth in the number of
+    orphaned contexts when the remote workloadmeta endpoint was repeatedly
+    unreachable.

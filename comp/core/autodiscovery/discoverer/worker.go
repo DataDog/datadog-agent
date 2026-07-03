@@ -8,12 +8,14 @@ package discoverer
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 
+	adtelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,6 +48,7 @@ type Worker struct {
 	disco    ConfigDiscoverer
 	services ServiceLookup
 	onResult ResultCallback
+	telStore *adtelemetry.Store
 
 	maxAttempts int
 	retryDelay  time.Duration
@@ -62,7 +65,7 @@ type Worker struct {
 }
 
 // NewWorker constructs a Worker. disco should never be nil.
-func NewWorker(disco ConfigDiscoverer, services ServiceLookup, onResult ResultCallback, cfg Config) *Worker {
+func NewWorker(disco ConfigDiscoverer, services ServiceLookup, onResult ResultCallback, cfg Config, telStore *adtelemetry.Store) *Worker {
 	if cfg.MaxAttempts <= 0 {
 		cfg.MaxAttempts = DefaultMaxAttempts
 	}
@@ -83,12 +86,21 @@ func NewWorker(disco ConfigDiscoverer, services ServiceLookup, onResult ResultCa
 		retryDelay:  cfg.RetryDelay,
 		workers:     cfg.Workers,
 		attempts:    map[jobKey]int{},
+		telStore:    telStore,
 	}
 }
 
 // Enqueue schedules a discovery probe for the given service / integration.
 func (w *Worker) Enqueue(svcID, tplDigest, integrationName string) {
 	k := jobKey{svcID: svcID, tplDigest: tplDigest, integrationName: integrationName}
+	w.m.Lock()
+	if _, alreadyPending := w.attempts[k]; !alreadyPending {
+		w.attempts[k] = 0
+		if w.telStore != nil {
+			w.telStore.DiscoveryQueueDepth.Inc(integrationName, entityKindFromSvcID(svcID))
+		}
+	}
+	w.m.Unlock()
 	w.queue.Add(k)
 }
 
@@ -138,6 +150,7 @@ func (w *Worker) processNext() bool {
 	// If service is not found, drop the attempt permanently.
 	svc, ok := w.services.LookupService(key.svcID)
 	if !ok {
+		w.recordResult(key.integrationName, "service_not_found", key.svcID)
 		w.dropAttempts(key)
 		return true
 	}
@@ -159,6 +172,7 @@ func (w *Worker) processNext() bool {
 	if err != nil {
 		if _, ok := errors.AsType[PermFail](err); ok {
 			log.Debugf("DiscoveryConfig for integration %s on service %s failed permanently: %v", key.integrationName, key.svcID, err)
+			w.recordResult(key.integrationName, "permanent_failure", key.svcID)
 			w.dropAttempts(key)
 			return true
 		}
@@ -184,6 +198,7 @@ func (w *Worker) processNext() bool {
 		return true
 	}
 
+	w.recordResult(key.integrationName, "success", key.svcID)
 	w.dropAttempts(key)
 	w.onResult(key.svcID, key.tplDigest, configs)
 	return true
@@ -191,12 +206,15 @@ func (w *Worker) processNext() bool {
 
 func (w *Worker) requeueOrDrop(key jobKey) {
 	w.m.Lock()
-	w.attempts[key]++
+	if _, tracked := w.attempts[key]; tracked {
+		w.attempts[key]++
+	}
 	attempt := w.attempts[key]
 	w.m.Unlock()
 	if attempt >= w.maxAttempts {
 		log.Debugf("Giving up on DiscoveryConfig for integration %s for service %s after %d attempts",
 			key.svcID, key.integrationName, attempt)
+		w.recordResult(key.integrationName, "max_attempts_exceeded", key.svcID)
 		w.dropAttempts(key)
 		return
 	}
@@ -206,8 +224,31 @@ func (w *Worker) requeueOrDrop(key jobKey) {
 // dropAttempts releases the per-key retry counter on a terminal outcome.
 func (w *Worker) dropAttempts(key jobKey) {
 	w.m.Lock()
-	delete(w.attempts, key)
+	if _, wasPending := w.attempts[key]; wasPending {
+		delete(w.attempts, key)
+		if w.telStore != nil {
+			w.telStore.DiscoveryQueueDepth.Dec(key.integrationName, entityKindFromSvcID(key.svcID))
+		}
+	}
 	w.m.Unlock()
+}
+
+// recordResult increments the discovery results counter for the given
+// integration name, result type, and entity kind derived from svcID.
+// It is a no-op when telemetry is not wired.
+func (w *Worker) recordResult(integrationName, result, svcID string) {
+	if w.telStore != nil {
+		w.telStore.DiscoveryResults.Inc(integrationName, result, entityKindFromSvcID(svcID))
+	}
+}
+
+// entityKindFromSvcID extracts the scheme prefix from a service ID of the form
+// "<kind>://<id>" (e.g. "process", "docker", "containerd")
+func entityKindFromSvcID(svcID string) string {
+	if idx := strings.Index(svcID, "://"); idx != -1 {
+		return svcID[:idx]
+	}
+	return "unknown"
 }
 
 // runOnce is exported for tests so they can drive the worker synchronously.
