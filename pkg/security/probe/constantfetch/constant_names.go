@@ -136,4 +136,7 @@ const (
 
 	// iouring constants
 	OffsetNameIoKiocbStructCtx = "iokiocb_ctx_offset"
+
+	// setsockopt event
+	OffsetNameSocketType = "socket_type_offset"
 )

@@ -86,6 +86,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameNsCommonInum:                    16,
 		OffsetNameNsproxyMntNs:                    24,
 		OffsetNameNsproxyNetNs:                    40,
+		OffsetNameSocketType:                      4,
 	}
 }
 
