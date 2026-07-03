@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "model",
+    srcs = [
+        "const.go",
+        "doc.go",
+        "node_pool_internal.go",
+        "rc_schema.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_aws_karpenter_provider_aws//pkg/apis/v1:apis",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_sigs_karpenter//pkg/apis/v1:apis",
+    ],
+)
+
+dd_agent_go_test(
+    name = "model_test",
+    srcs = ["node_pool_internal_test.go"],
+    embed = [":model"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_sigs_karpenter//pkg/apis/v1:apis",
+    ],
+)

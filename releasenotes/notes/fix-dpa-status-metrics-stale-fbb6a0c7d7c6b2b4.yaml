@@ -1,0 +1,15 @@
+---
+fixes:
+  - |
+    Fix stale metrics for locally-owned ``DatadogPodAutoscaler`` objects. The
+    cluster agent cached the CRD object only on the first reconcile; status
+    subresource writes (which do not bump ``.metadata.generation``) were never
+    reflected in the cached copy, causing the following metrics to report their
+    initial values until the next spec or annotation change:
+    ``datadog.cluster_agent.autoscaling.workload.status.desired.replicas``,
+    ``datadog.cluster_agent.autoscaling.workload.status.vertical.desired.container.cpu.request``,
+    ``datadog.cluster_agent.autoscaling.workload.status.vertical.desired.container.cpu.limit``,
+    ``datadog.cluster_agent.autoscaling.workload.status.vertical.desired.container.memory.request``,
+    ``datadog.cluster_agent.autoscaling.workload.status.vertical.desired.container.memory.limit``,
+    ``datadog.cluster_agent.autoscaling.workload.autoscaler_conditions``.
+    The controller now unconditionally refreshes the cached object on every reconcile.

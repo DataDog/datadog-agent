@@ -118,7 +118,7 @@ func Headers(jsonPayload **C.char) {
 //export GetConfig
 func GetConfig(key *C.char, jsonPayload **C.char) {
 	goKey := C.GoString(key)
-	if !pkgconfigsetup.Datadog().IsSet(goKey) {
+	if !pkgconfigsetup.Datadog().IsKnown(goKey) {
 		*jsonPayload = nil
 		return
 	}
