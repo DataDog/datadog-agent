@@ -78,7 +78,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.80.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.81.0-devel.0.20260603133502-a41610237dba // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.80.2 // indirect

@@ -148,7 +148,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.80.2
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/pkg/util/log v0.81.0-devel.0.20260603133502-a41610237dba
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.77.0-devel.0.20260213154712-e02b9359151a
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.77.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.80.2
