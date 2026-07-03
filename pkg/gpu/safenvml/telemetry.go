@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 const (
@@ -30,6 +30,7 @@ const (
 // Not thread-safe, should only be used from a single goroutine.
 type NvmlStateTelemetry struct {
 	firstCheckTime time.Time
+	unavailable    bool
 
 	// Telemetry metrics
 	errorCounter     telemetry.Counter
@@ -69,14 +70,22 @@ func (n *NvmlStateTelemetry) Check() {
 		// Check if threshold has been exceeded
 		if time.Since(n.firstCheckTime) >= nvmlUnavailableThreshold {
 			n.unavailableGauge.Set(1)
+			n.unavailable = true
 		} else {
 			n.unavailableGauge.Set(0)
+			n.unavailable = false
 		}
 	} else {
 		// Library is available - reset state and set gauge to 0 if it was previously set
 		n.unavailableGauge.Set(0)
 		n.firstCheckTime = time.Time{}
+		n.unavailable = false
 	}
+}
+
+// Unavailable returns whether NVML has remained unavailable past the reporting threshold.
+func (n *NvmlStateTelemetry) Unavailable() bool {
+	return n.unavailable
 }
 
 // Start begins periodic checking of the NVML library status in a background goroutine.
