@@ -38,6 +38,12 @@ func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	smap := map[string]interface{}{
 		buildKey("exporters", "otlp", "endpoint"): fmt.Sprintf("%s:%d", "localhost", cfg.TracePort),
 	}
+	// An empty value is left unset so the processor falls back to its own default ("off").
+	if cfg.TracesContainerTagPromotion != "" {
+		smap[buildKey("processors", "infraattributes/traces")] = map[string]interface{}{
+			"container_tag_promotion": cfg.TracesContainerTagPromotion,
+		}
+	}
 	{
 		configMap := confmap.NewFromStringMap(smap)
 		err = baseMap.Merge(configMap)

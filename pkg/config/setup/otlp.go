@@ -11,10 +11,11 @@ import (
 
 // OTLP configuration paths.
 const (
-	OTLPSection                = "otlp_config"
-	OTLPTracePort              = OTLPSection + ".traces.internal_port"
-	OTLPTracesEnabled          = OTLPSection + ".traces.enabled"
-	OTLPTracesInfraAttrEnabled = OTLPSection + ".traces.infra_attributes.enabled"
+	OTLPSection                              = "otlp_config"
+	OTLPTracePort                            = OTLPSection + ".traces.internal_port"
+	OTLPTracesEnabled                        = OTLPSection + ".traces.enabled"
+	OTLPTracesInfraAttrEnabled               = OTLPSection + ".traces.infra_attributes.enabled"
+	OTLPTracesInfraAttrContainerTagPromotion = OTLPSection + ".traces.infra_attributes.container_tag_promotion"
 
 	OTLPLogs        = OTLPSection + ".logs"
 	OTLPLogsEnabled = OTLPLogs + ".enabled"
@@ -96,6 +97,9 @@ func OTLP(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otlp_config.metrics.batch.flush_timeout", "200ms")
 
 	config.BindEnvAndSetDefault("otlp_config.traces.infra_attributes.enabled", true)
+	// container_tag_promotion controls how the infraattributes processor promotes custom
+	// container tags into `_dd.tags.container` for traces. Valid values: off, duplicate, rename.
+	config.BindEnvAndSetDefault("otlp_config.traces.infra_attributes.container_tag_promotion", "duplicate")
 
 	// Debug settings (default from OTel debugexporter)
 	config.BindEnvAndSetDefault("otlp_config.debug.verbosity", "basic")

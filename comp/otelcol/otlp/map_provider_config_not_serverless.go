@@ -16,7 +16,6 @@ receivers:
 
 processors:
   infraattributes/traces:
-    container_tag_promotion: duplicate
 
 exporters:
   otlp:

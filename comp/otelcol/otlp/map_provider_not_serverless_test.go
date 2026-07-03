@@ -41,6 +41,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -89,6 +90,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				MetricsEnabled:               true,
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
@@ -177,6 +179,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
@@ -263,6 +266,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -314,6 +318,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Metrics: map[string]any{
 					"delta_ttl":                              1500,
 					"resource_attributes_as_tags":            false,
@@ -384,6 +389,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Debug: map[string]any{
 					"verbosity": "normal",
 				},
@@ -435,6 +441,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Metrics: map[string]any{
 					"delta_ttl":                   1500,
 					"resource_attributes_as_tags": false,
@@ -507,6 +514,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Metrics: map[string]any{
 					"delta_ttl":                   2000,
 					"resource_attributes_as_tags": true,
@@ -595,6 +603,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -656,6 +665,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -765,6 +775,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -873,6 +884,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -947,6 +959,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1039,6 +1052,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1113,6 +1127,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1207,6 +1222,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "duplicate",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1308,6 +1324,154 @@ func TestNewMap(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "only Traces, container_tag_promotion off",
+			pcfg: PipelineConfig{
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
+				Debug: map[string]any{
+					"verbosity": "none",
+				},
+			},
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
+								"endpoint": "bindhost:1234",
+							},
+						},
+					},
+				},
+				"processors": map[string]any{
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+				},
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
+							"insecure": true,
+						},
+						"compression": "none",
+						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]any{
+							"enabled": false,
+						},
+					},
+				},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes/traces"},
+							"exporters":  []any{"otlp"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "only Traces, container_tag_promotion rename",
+			pcfg: PipelineConfig{
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "rename",
+				Debug: map[string]any{
+					"verbosity": "none",
+				},
+			},
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
+								"endpoint": "bindhost:1234",
+							},
+						},
+					},
+				},
+				"processors": map[string]any{
+					"infraattributes/traces": map[string]any{"container_tag_promotion": "rename"},
+				},
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
+							"insecure": true,
+						},
+						"compression": "none",
+						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]any{
+							"enabled": false,
+						},
+					},
+				},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes/traces"},
+							"exporters":  []any{"otlp"},
+						},
+					},
+				},
+			},
+		},
+		{
+			// An empty container_tag_promotion leaves the processor node unset so it
+			// falls back to the processor's own default ("off").
+			name: "only Traces, container_tag_promotion unset",
+			pcfg: PipelineConfig{
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				TracesInfraAttributesEnabled: true,
+				Debug: map[string]any{
+					"verbosity": "none",
+				},
+			},
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
+								"endpoint": "bindhost:1234",
+							},
+						},
+					},
+				},
+				"processors": map[string]any{
+					"infraattributes/traces": any(nil),
+				},
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
+							"insecure": true,
+						},
+						"compression": "none",
+						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]any{
+							"enabled": false,
+						},
+					},
+				},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes/traces"},
+							"exporters":  []any{"otlp"},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, testInstance := range tests {
@@ -1328,6 +1492,7 @@ func TestUnmarshal(t *testing.T) {
 		TracesEnabled:                true,
 		LogsEnabled:                  true,
 		TracesInfraAttributesEnabled: true,
+		TracesContainerTagPromotion:  "duplicate",
 		Metrics: map[string]any{
 			"delta_ttl":                              2000,
 			"resource_attributes_as_tags":            true,
