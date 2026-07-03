@@ -108,7 +108,6 @@ use (
 	pkg/config/setup
 	pkg/config/structure
 	pkg/config/utils
-	pkg/config/viperconfig
 	pkg/discovery/tracermetadata/model
 	pkg/errors
 	pkg/fips
