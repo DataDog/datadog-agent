@@ -58,6 +58,12 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         return DENTRY_INVALID;
     }
 
+    u64 dentry_name_offset = get_dentry_name_offset();
+    u64 dentry_d_inode_offset;
+    LOAD_CONSTANT("dentry_d_inode_offset", dentry_d_inode_offset);
+    u64 inode_ino_offset;
+    LOAD_CONSTANT("inode_ino_offset", inode_ino_offset);
+
 #ifndef USE_FENTRY
 #pragma unroll
 #endif
@@ -65,7 +71,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
 
         key = next_key;
-        ino_parent = get_dentry_ino(d_parent);
+        ino_parent = get_dentry_ino_at(d_parent, dentry_d_inode_offset, inode_ino_offset);
         if (dentry != d_parent) {
             next_key.ino = ino_parent;
         } else {
@@ -87,7 +93,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             }
         }
 
-        const char *name = get_dentry_name_ptr(dentry);
+        const char *name = get_dentry_name_ptr_at(dentry, dentry_name_offset);
 
         long len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)name);
         if (len < 0) {
