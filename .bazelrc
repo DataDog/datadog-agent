@@ -89,13 +89,10 @@ common:cache --remote_local_fallback # best-effort on transient connection error
 common:cache --incompatible_remote_local_fallback_for_remote_cache # works only if --remote_local_fallback is also set
 common:cache --remote_retries=1
 common:cache --remote_timeout=60
-# Don't upload to remote cache from developers machines. Reenabled for CI below
-common:cache --noremote_upload_local_results
 
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=adms
 common:ci --config=cache
-common:ci --remote_upload_local_results
 common:ci --config=lint
 # Opt-in override: only Linux CI runs in k8s and can reach the in-cluster edge cache.
 # tools/bazel adds `--config=ci-edge-cache` when `uname -s = Linux`.
