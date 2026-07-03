@@ -517,7 +517,7 @@ func TestServiceDiscoveryTimeoutGuardDisabledWhenThresholdIsZero(t *testing.T) {
 	assert.Zero(t, c.collector.consecutiveServiceDiscoveryTimeouts)
 }
 
-func TestServiceDiscoveryPartialBatchTimeoutPreservesSuccessfulPIDsAndCountsTimeout(t *testing.T) {
+func TestServiceDiscoveryPartialBatchTimeoutPreservesSuccessfulPIDsAndResetsPreviousTimeouts(t *testing.T) {
 	sysConfigOverrides := map[string]interface{}{
 		serviceCollectionBatchSizeConfigKey:              2,
 		serviceCollectionMaxConsecutiveTimeoutsConfigKey: 5,
@@ -525,6 +525,7 @@ func TestServiceDiscoveryPartialBatchTimeoutPreservesSuccessfulPIDsAndCountsTime
 	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
 	c.mockClock.Set(baseTime)
 	c.collector.store = c.mockStore
+	c.collector.consecutiveServiceDiscoveryTimeouts = 4
 
 	var requestMux sync.Mutex
 	var successfulRequestPIDs []int32

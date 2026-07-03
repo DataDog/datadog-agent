@@ -668,10 +668,11 @@ func (c *collector) updateServices(ctx context.Context, alivePids core.PidSet, p
 	}
 
 	resp, successfulNewPids, successfulHeartbeatPids, err := c.getDiscoveryServicesBatched(ctx, newPids, heartbeatPids)
+	if err == nil || len(successfulNewPids) > 0 || len(successfulHeartbeatPids) > 0 {
+		c.consecutiveServiceDiscoveryTimeouts = 0
+	}
 	if err != nil {
 		c.handleServiceDiscoveryRequestError(err)
-	} else {
-		c.consecutiveServiceDiscoveryTimeouts = 0
 	}
 
 	if len(successfulNewPids) == 0 && len(successfulHeartbeatPids) == 0 {
