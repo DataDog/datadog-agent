@@ -53,7 +53,6 @@ go_deps.gazelle_default_attributes(
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/model @@//pkg/config/model:model",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/setup @@//pkg/config/setup:setup",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/utils @@//pkg/config/utils:utils",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/viperconfig @@//pkg/config/viperconfig:viperconfig",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry @@//pkg/fleet/installer/telemetry:telemetry",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/metrics @@//pkg/metrics:metrics",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/obfuscate @@//pkg/obfuscate:obfuscate",
@@ -184,7 +183,6 @@ use_repo(
     "com_github_datadog_orchestrion",
     "com_github_datadog_rshell",
     "com_github_datadog_sketches_go",
-    "com_github_datadog_viper",
     "com_github_datadog_watermarkpodautoscaler_apis",
     "com_github_datadog_zstd",
     "com_github_davecgh_go_spew",
@@ -558,6 +556,18 @@ go_deps.module_override(
     patches = ["//bazel/rules/go_msgp:use-go-format.patch"],
     path = "github.com/tinylib/msgp",
 )
+
+# sdjournal wraps journald's C API and `#include <systemd/sd-journal.h>` at compile
+# time, but the hermetic toolchain sysroot ships no libsystemd headers. Patch the
+# Gazelle-generated BUILD to pull them from the vendored @systemd archive via cdeps.
+# The patch runs after Gazelle generates the BUILD file (see go_repository patches).
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_systemd:sdjournal-cdeps.patch"],
+    path = "github.com/coreos/go-systemd/v22",
+)
+
+inject_repo(go_deps, "systemd")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 
