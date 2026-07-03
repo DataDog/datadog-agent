@@ -65,8 +65,10 @@ type sharedState struct {
 }
 
 type gaugeSeries struct {
-	coat      *coatMetric
-	tagValues []string
+	aggregateKey string
+	coat         *coatMetric
+	tagValues    []string
+	value        float64
 }
 
 func buildMetricDefs(tm telemetry.Component) map[string]metricDef {
@@ -275,13 +277,16 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 					c.state.prevValues[key] = sample.Value
 					def.coat.counter.Add(delta, tagValues...)
 				case gaugeMetric:
-					def.coat.gauge.Set(sample.Value, tagValues...)
 					key := c.endpointSeriesKey(def.ddName, sample.Metric)
 					currentGaugeKeys[key] = struct{}{}
-					c.state.gaugeKeys[key] = gaugeSeries{
-						coat:      def.coat,
-						tagValues: slicesClone(tagValues),
+					series := gaugeSeries{
+						aggregateKey: coatSeriesKey(def.ddName, tagValues),
+						coat:         def.coat,
+						tagValues:    slicesClone(tagValues),
+						value:        sample.Value,
 					}
+					c.state.gaugeKeys[key] = series
+					c.setAggregatedGaugeLocked(series)
 				}
 			}
 		}
@@ -309,13 +314,43 @@ func (c *Check) deleteStaleEndpointGaugeSeriesLocked(currentGaugeKeys map[string
 		if !strings.HasPrefix(key, c.config.OpenmetricsEndpoint+"|") {
 			continue
 		}
-		prev.coat.gauge.Delete(prev.tagValues...)
 		delete(c.state.gaugeKeys, key)
+		c.setOrDeleteAggregatedGaugeLocked(prev)
 	}
+}
+
+func (c *Check) setAggregatedGaugeLocked(series gaugeSeries) {
+	sum := 0.0
+	for _, current := range c.state.gaugeKeys {
+		if current.aggregateKey == series.aggregateKey {
+			sum += current.value
+		}
+	}
+	series.coat.gauge.Set(sum, series.tagValues...)
+}
+
+func (c *Check) setOrDeleteAggregatedGaugeLocked(series gaugeSeries) {
+	sum := 0.0
+	count := 0
+	for _, current := range c.state.gaugeKeys {
+		if current.aggregateKey == series.aggregateKey {
+			sum += current.value
+			count++
+		}
+	}
+	if count == 0 {
+		series.coat.gauge.Delete(series.tagValues...)
+		return
+	}
+	series.coat.gauge.Set(sum, series.tagValues...)
 }
 
 func (c *Check) endpointSeriesKey(name string, labels prometheus.Metric) string {
 	return c.config.OpenmetricsEndpoint + "|" + seriesKey(name, labels)
+}
+
+func coatSeriesKey(name string, tagValues []string) string {
+	return name + "|" + strings.Join(tagValues, "|")
 }
 
 func slicesClone(in []string) []string {

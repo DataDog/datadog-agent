@@ -429,6 +429,63 @@ func TestCOATGaugesDeleteMissingSeries(t *testing.T) {
 	require.Empty(t, linksMetrics)
 }
 
+func TestCOATGaugesAggregateAcrossCheckInstances(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+	factoryOption := Factory(tm)
+	factory, ok := factoryOption.Get()
+	require.True(t, ok)
+
+	firstServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		body := `# TYPE datadog_csi_driver_library_volume_links gauge
+datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 7
+`
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer firstServer.Close()
+
+	var secondScrapeCount atomic.Int32
+	secondServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := secondScrapeCount.Add(1)
+		body := `# TYPE datadog_csi_driver_library_volume_links gauge
+`
+		if n == 1 {
+			body += `datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 3
+`
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer secondServer.Close()
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	first := factory().(*Check)
+	require.NoError(t, first.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+firstServer.URL), []byte(``), "test", "provider"))
+	second := factory().(*Check)
+	require.NoError(t, second.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+secondServer.URL), []byte(``), "test", "provider"))
+
+	require.NoError(t, first.Run())
+	linksMetrics, err := tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.NoError(t, err)
+	require.Len(t, linksMetrics, 1)
+	assert.Equal(t, 7.0, linksMetrics[0].Value())
+
+	require.NoError(t, second.Run())
+	linksMetrics, err = tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.NoError(t, err)
+	require.Len(t, linksMetrics, 1)
+	assert.Equal(t, 10.0, linksMetrics[0].Value())
+
+	require.NoError(t, second.Run())
+	linksMetrics, err = tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.NoError(t, err)
+	require.Len(t, linksMetrics, 1)
+	assert.Equal(t, 7.0, linksMetrics[0].Value())
+}
+
 func TestCOATGaugesDeleteOnScrapeFailure(t *testing.T) {
 	tm := telemetryimpl.NewMock(t)
 
