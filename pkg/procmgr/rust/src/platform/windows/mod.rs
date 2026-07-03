@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod agent_credentials;
+
 use anyhow::Result;
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
@@ -260,7 +262,7 @@ pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
     None
 }
 
-fn open_datadog_agent_key() -> Option<windows_registry::Key> {
+pub(crate) fn open_datadog_agent_key() -> Option<windows_registry::Key> {
     use windows_registry::LOCAL_MACHINE;
     use windows_sys::Win32::System::Registry::KEY_WOW64_64KEY;
 
@@ -272,7 +274,7 @@ fn open_datadog_agent_key() -> Option<windows_registry::Key> {
         .ok()
 }
 
-fn registry_nonempty_string(key: &windows_registry::Key, name: &str) -> Option<String> {
+pub(crate) fn registry_nonempty_string(key: &windows_registry::Key, name: &str) -> Option<String> {
     let value: String = key.get_string(name).ok()?;
     if value.is_empty() { None } else { Some(value) }
 }
