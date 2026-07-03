@@ -555,6 +555,140 @@ datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 7
 	require.Empty(t, linksMetrics)
 }
 
+// TestCOATCountersHandleReset verifies that when the CSI driver restarts and its
+// cumulative Prometheus counter drops (delta < 0), the COAT counter treats the
+// new value as a fresh increment instead of subtracting, so it never rewinds.
+func TestCOATCountersHandleReset(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+
+	var scrapeCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := scrapeCount.Add(1)
+		// Run 1 reports 10; run 2 reports 3 (driver restarted, counter reset).
+		value := 10
+		if n >= 2 {
+			value = 3
+		}
+		body := fmt.Sprintf(`# TYPE datadog_csi_driver_node_publish_volume_attempts counter
+datadog_csi_driver_node_publish_volume_attempts{status="success",type="DSDSocketDirectory"} %d
+`, value)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer ts.Close()
+
+	chk := &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+		metrics:   buildMetricDefs(tm),
+		state:     newTestState(),
+	}
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	require.NoError(t, chk.Run()) // delta 10 -> counter 10
+	require.NoError(t, chk.Run()) // reset: delta becomes 3 (not -7) -> counter 13
+
+	publishMetrics, err := tm.GetCountMetric(CheckName, "node_publish_volume_attempts")
+	require.NoError(t, err)
+	require.Len(t, publishMetrics, 1)
+	assert.Equal(t, 13.0, publishMetrics[0].Value(),
+		"after a counter reset the post-reset value should be added, not subtracted")
+}
+
+// TestCOATGaugesDeleteMissingSeriesSelectively verifies that when only one of
+// several gauge series disappears, that series is deleted while the others keep
+// their values (the stale-deletion is per-series, not all-or-nothing).
+func TestCOATGaugesDeleteMissingSeriesSelectively(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+
+	var scrapeCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := scrapeCount.Add(1)
+		body := `# TYPE datadog_csi_driver_library_volume_links gauge
+datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 5
+`
+		if n == 1 {
+			body += `datadog_csi_driver_library_volume_links{library="dd-lib-python-init"} 4
+`
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer ts.Close()
+
+	chk := &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+		metrics:   buildMetricDefs(tm),
+		state:     newTestState(),
+	}
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	require.NoError(t, chk.Run())
+	linksMetrics, err := tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.NoError(t, err)
+	require.Len(t, linksMetrics, 2)
+
+	// Second scrape drops the python series but keeps java.
+	require.NoError(t, chk.Run())
+	linksMetrics, err = tm.GetGaugeMetric(CheckName, "library_volume_links")
+	require.NoError(t, err)
+	require.Len(t, linksMetrics, 1)
+	assert.Equal(t, "dd-lib-java-init", linksMetrics[0].Tags()["library"])
+	assert.Equal(t, 5.0, linksMetrics[0].Value())
+}
+
+// TestCOATMetricsPreserveExpectedTags verifies that the COAT metrics carry
+// exactly the preserved tag set declared in buildMetricDefs (and drop the extra
+// Prometheus labels), keeping the check in sync with the COAT profile allowlist.
+func TestCOATMetricsPreserveExpectedTags(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		body := `# TYPE datadog_csi_driver_library_cleanup_total counter
+datadog_csi_driver_library_cleanup_total{library="dd-lib-java-init",status="success",strategy="delayed"} 2
+# TYPE datadog_csi_driver_libraries_cached gauge
+datadog_csi_driver_libraries_cached{library="dd-lib-java-init"} 3
+`
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer ts.Close()
+
+	chk := &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+		metrics:   buildMetricDefs(tm),
+		state:     newTestState(),
+	}
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	require.NoError(t, chk.Run())
+
+	cleanupMetrics, err := tm.GetCountMetric(CheckName, "library_cleanup")
+	require.NoError(t, err)
+	require.Len(t, cleanupMetrics, 1)
+	assert.Equal(t, map[string]string{
+		"library":  "dd-lib-java-init",
+		"status":   "success",
+		"strategy": "delayed",
+	}, cleanupMetrics[0].Tags())
+
+	cachedMetrics, err := tm.GetGaugeMetric(CheckName, "libraries_cached")
+	require.NoError(t, err)
+	require.Len(t, cachedMetrics, 1)
+	assert.Equal(t, map[string]string{"library": "dd-lib-java-init"}, cachedMetrics[0].Tags())
+}
+
 func TestRunEmptyResponse(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
