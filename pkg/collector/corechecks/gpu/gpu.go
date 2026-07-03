@@ -282,7 +282,7 @@ func (c *Check) Run() error {
 
 	// Check the state of the NVML library for telemetry
 	c.telemetry.nvmlState.Check()
-	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable())
+	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccesss())
 
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
@@ -341,14 +341,22 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func (c *Check) syncNvmlHealthIssue(unavailable bool) {
+func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccesss bool) {
 	if c.issueReporter == nil {
 		return
 	}
 
 	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
 	if !unavailable {
-		c.issueReporter.ResolveIssue(issueID)
+		// Only mark the issue as resolved if we had a successful init of the
+		// NVML library. unavailable is only true after a certain amount of
+		// time, so we can't rely on that being false to resolve the issue. For
+		// example, after an agent restart, we would resolve the issue too early
+		// (unavailable will be false at the start) even if the NVML library is
+		// not available still.
+		if nvmlInitSuccesss {
+			c.issueReporter.ResolveIssue(issueID)
+		}
 		return
 	}
 

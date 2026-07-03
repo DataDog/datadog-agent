@@ -321,13 +321,16 @@ func TestSyncNvmlHealthIssue(t *testing.T) {
 
 	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
 
-	check.syncNvmlHealthIssue(true)
+	check.syncNvmlHealthIssue(true, false)
 	issue := healthStore.GetIssue(issueID)
 	require.NotNil(t, issue)
 	assert.Equal(t, gpuenvironment.IssueName, issue.IssueName)
 	assert.Equal(t, issueID, issue.Id)
 
-	check.syncNvmlHealthIssue(false)
+	check.syncNvmlHealthIssue(false, false)
+	assert.NotNil(t, healthStore.GetIssue(issueID))
+
+	check.syncNvmlHealthIssue(false, true)
 	assert.Nil(t, healthStore.GetIssue(issueID))
 }
 
@@ -335,7 +338,7 @@ func TestSyncNvmlHealthIssueWithNilReporter(t *testing.T) {
 	check := &Check{}
 
 	require.NotPanics(t, func() {
-		check.syncNvmlHealthIssue(true)
+		check.syncNvmlHealthIssue(true, false)
 	})
 }
 
