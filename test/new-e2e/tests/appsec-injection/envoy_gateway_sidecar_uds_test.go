@@ -253,6 +253,8 @@ func (s *egAppSecSidecarSuite) TestControllerCreatesExtProcResources() {
 		backendObj = obj
 	}, 5*time.Minute, 15*time.Second)
 
+	require.NotNil(s.T(), backendObj)
+
 	endpoints, found, err := unstructured.NestedSlice(backendObj.Object, "spec", "endpoints")
 	require.NoError(s.T(), err)
 	require.True(s.T(), found && len(endpoints) > 0, "Backend must have at least one endpoint")
