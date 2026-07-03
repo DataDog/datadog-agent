@@ -1,0 +1,19 @@
+description: Datadog Process Agent
+command: '{{.InstallDir}}/bin/agent/process-agent.exe'
+args:
+  - --cfgpath
+  - '{{.EtcDir}}/datadog.yaml'
+  - --sysprobe-config
+  - '{{.EtcDir}}/system-probe.yaml'
+  - --pid
+  - '{{.InstallDir}}/run/process-agent.pid'
+auto_start: true
+condition_path_exists: '{{.InstallDir}}/bin/agent/process-agent.exe'
+restart: on-failure
+restart_sec: 2
+start_limit_interval_sec: 10
+start_limit_burst: 5
+env:
+  DD_FLEET_POLICIES_DIR: {{.FleetPoliciesDir}}
+stdout: inherit
+stderr: inherit
