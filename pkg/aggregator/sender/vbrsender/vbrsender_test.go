@@ -456,8 +456,8 @@ func TestTlmContexts_TracksDistinctContextCountPerSender(t *testing.T) {
 }
 
 func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
-	// A dedicated check name: tlmScaleDeviation is a process-global
-	// histogram keyed by (check_name, metric_name), so reusing a
+	// A dedicated check name: tlmScaleDeviationSum/Count are process-global
+	// counters keyed by (check_name, metric_name), so reusing a
 	// (check_name, metric_name) pair another test already observed into
 	// would make this test's exact Count/Sum assertions flaky.
 	fake := &fakeSender{}
@@ -485,9 +485,8 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 	}
 
 	ctx := s.contexts[contextKeyFor("my.gauge", "host", nil)]
-	hv := ctx.tlmScaleDeviation.Get()
-	require.EqualValues(t, len(values), hv.Count, "every Gauge sample must be observed exactly once")
-	require.InDelta(t, expectedSum, hv.Sum, 1e-9)
+	require.EqualValues(t, len(values), ctx.tlmScaleDeviationCount.Get(), "every Gauge sample must be observed exactly once")
+	require.InDelta(t, expectedSum, ctx.tlmScaleDeviationSum.Get(), 1e-9)
 }
 
 func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {

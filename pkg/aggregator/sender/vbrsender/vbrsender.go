@@ -37,14 +37,20 @@ import (
 // contextState), so this is the signal to watch for unbounded growth from a
 // check whose tag set churns over time.
 //
-// tlmScaleDeviation observes, per sample, |value - compressor.Scale()| — how
-// far the raw (already check-kind-reduced) value strays from the
-// compressor's current EWMA estimate of the signal's magnitude, the basis
-// for its tolerance (see vbr.Compressor.Scale). A chronically large
-// deviation relative to the shipped tolerance signals the EWMA is
-// mistracking the signal (e.g. during a sustained level shift), which is
-// otherwise invisible from samples_total/breakpoints_total alone. Bucketed
-// on a broad log scale since the natural unit varies arbitrarily by metric.
+// tlmScaleDeviationSum/tlmScaleDeviationCount together track, per sample,
+// |value - compressor.Scale()| — how far the raw (already check-kind-reduced)
+// value strays from the compressor's current EWMA estimate of the signal's
+// magnitude, the basis for its tolerance (see vbr.Compressor.Scale). Their
+// ratio (sum/count) is the average deviation; a chronically large one
+// signals the EWMA is mistracking the signal (e.g. during a sustained level
+// shift), which is otherwise invisible from samples_total/breakpoints_total
+// alone. Two plain counters instead of a Histogram: the built-in "telemetry"
+// core check that exports DefaultMetric:true metrics to the backend
+// (pkg/collector/corechecks/telemetry) only handles Prometheus GAUGE and
+// COUNTER metric families — HISTOGRAM falls into its default case and is
+// silently dropped (logged at debug level only), so a Histogram here would
+// never actually reach Datadog.
+//
 // exportedMetric opts every vbrsender telemetry metric into the built-in
 // "telemetry" core check (pkg/collector/corechecks/telemetry), the only
 // path that turns an internal Prometheus counter into a real
@@ -70,11 +76,15 @@ var (
 		[]string{"check_name"},
 		"Number of distinct metric contexts being VBR-compressed, by check name",
 		exportedMetric)
-	tlmScaleDeviation = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
-		"vbrsender", "scale_deviation",
+	tlmScaleDeviationSum = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		"vbrsender", "scale_deviation_sum",
 		[]string{"check_name", "metric_name"},
-		"Absolute difference between a sample's value and the compressor's current EWMA scale estimate, by check and metric name",
-		[]float64{0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000, 100000, 1000000},
+		"Running sum of |value - EWMA scale| across all samples, by check and metric name — divide by vbrsender_scale_deviation_count for the average",
+		exportedMetric)
+	tlmScaleDeviationCount = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		"vbrsender", "scale_deviation_count",
+		[]string{"check_name", "metric_name"},
+		"Number of samples observed for vbrsender_scale_deviation_sum, by check and metric name",
 		exportedMetric)
 )
 
@@ -204,9 +214,10 @@ type contextState struct {
 
 	compressor *vbr.Compressor
 
-	tlmSamples        telemetry.SimpleCounter
-	tlmBreakpoints    telemetry.SimpleCounter
-	tlmScaleDeviation telemetry.SimpleHistogram
+	tlmSamples             telemetry.SimpleCounter
+	tlmBreakpoints         telemetry.SimpleCounter
+	tlmScaleDeviationSum   telemetry.SimpleCounter
+	tlmScaleDeviationCount telemetry.SimpleCounter
 
 	// Rate: previous raw (value, timestamp), mirrors pkg/metrics/rate.go.
 	hasPreviousRate   bool
@@ -340,14 +351,15 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 		tagsCopy := make([]string, len(tags))
 		copy(tagsCopy, tags)
 		ctx = &contextState{
-			metric:            metric,
-			hostname:          hostname,
-			tags:              tagsCopy,
-			kind:              kind,
-			compressor:        vbr.New(defaultConfig),
-			tlmSamples:        tlmSamples.WithValues(s.checkName, metric),
-			tlmBreakpoints:    tlmBreakpoints.WithValues(s.checkName, metric),
-			tlmScaleDeviation: tlmScaleDeviation.WithValues(s.checkName, metric),
+			metric:                 metric,
+			hostname:               hostname,
+			tags:                   tagsCopy,
+			kind:                   kind,
+			compressor:             vbr.New(defaultConfig),
+			tlmSamples:             tlmSamples.WithValues(s.checkName, metric),
+			tlmBreakpoints:         tlmBreakpoints.WithValues(s.checkName, metric),
+			tlmScaleDeviationSum:   tlmScaleDeviationSum.WithValues(s.checkName, metric),
+			tlmScaleDeviationCount: tlmScaleDeviationCount.WithValues(s.checkName, metric),
 		}
 		s.contexts[key] = ctx
 		s.tlmContexts.Inc()
@@ -367,7 +379,8 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 		// value into the EWMA as the first step of Update(), so this is the
 		// freshest estimate, matching the tolerance Update() itself just
 		// used to accept or reject this same sample.
-		ctx.tlmScaleDeviation.Observe(math.Abs(value - ctx.compressor.Scale()))
+		ctx.tlmScaleDeviationSum.Add(math.Abs(value - ctx.compressor.Scale()))
+		ctx.tlmScaleDeviationCount.Inc()
 		for _, bp := range bps {
 			s.ship(ctx, bp)
 		}
