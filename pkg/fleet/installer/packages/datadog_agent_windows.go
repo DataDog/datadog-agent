@@ -148,6 +148,9 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	if err := ensurePARProcmgrConfig(); err != nil {
 		return fmt.Errorf("failed to write PAR process manager config: %w", err)
 	}
+	if err := ensureProcessProcmgrConfig(); err != nil {
+		return fmt.Errorf("failed to write process-agent process manager config: %w", err)
+	}
 
 	// No need to explicitly start the Agent here
 	// - MSI: done at the end in StartDDServices custom action
@@ -170,6 +173,31 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := removeAgentExtensions(ctx, false); err != nil {
 		log.Warnf("failed to remove extensions: %s", err)
+	}
+
+	packagePath := ctx.PackagePath
+	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
+		packagePath = resolved
+	}
+	// Fleet processes.d YAML is not an MSI component; keep it across upgrade prerm so a rolled-back
+	// install still has supervision config until postinst rewrites it. Full uninstall removes it.
+	if !ctx.Upgrade {
+		installRoot, err := resolveDatadogProgramFilesInstallRoot()
+		if err != nil {
+			installRoot = packagePath
+		}
+		if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
+			log.Warnf("failed to remove ADP process manager config: %v", err)
+		}
+		if err := processmanager.RemovePARProcmgrConfig(installRoot); err != nil {
+			log.Warnf("failed to remove PAR process manager config: %v", err)
+		}
+		if err := processmanager.RemoveProcessProcmgrConfig(installRoot); err != nil {
+			log.Warnf("failed to remove process-agent process manager config: %v", err)
+		}
+		if env.FromEnv().ProcessManagerEnabled {
+			processmanager.ReloadOrRestartProcmgr()
+		}
 	}
 
 	if ctx.PackageType == PackageTypeMSI {
@@ -225,6 +253,21 @@ func ensurePARProcmgrConfig() error {
 	}
 	if err := processmanager.RemovePARProcmgrConfig(installRoot); err != nil {
 		log.Warnf("PAR: could not remove stale process manager config: %v", err)
+	}
+	return nil
+}
+
+func ensureProcessProcmgrConfig() error {
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
+	}
+
+	if env.FromEnv().ProcessManagerEnabled {
+		return processmanager.WriteProcessProcmgrConfig(installRoot)
+	}
+	if err := processmanager.RemoveProcessProcmgrConfig(installRoot); err != nil {
+		log.Warnf("process-agent: could not remove stale process manager config: %v", err)
 	}
 	return nil
 }
