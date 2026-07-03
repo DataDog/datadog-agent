@@ -6,10 +6,7 @@ go_library(
         "run.go",
         "run_args.go",
     ],
-    embedsrcs = [
-        "config/kafka-compose.yaml",
-        "config/kafka.yaml",
-    ],
+    embedsrcs = ["config/kafka.yaml"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/integrations/kafka",
     visibility = ["//visibility:public"],
     deps = [
@@ -17,6 +14,7 @@ go_library(
         "//test/e2e-framework/components/command",
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/docker",
+        "//test/e2e-framework/components/integration/kafka",
         "//test/e2e-framework/testing/utils/optional",
         "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/agent",
         "@com_github_datadog_datadog_agent_test_e2e_framework//resources/aws",

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	kafkacomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/integration/kafka"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -28,9 +29,6 @@ import (
 
 //go:embed config/kafka.yaml
 var kafkaCheckConfig string
-
-//go:embed config/kafka-compose.yaml
-var kafkaComposeManifest string
 
 // Run provisions the Kafka lab environment.
 func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, params *Params) error {
@@ -63,7 +61,7 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 	// Bring up the Kafka broker + seed/load workload via docker-compose.
 	composeUp, err := dockerManager.ComposeStrUp(
 		"kafka",
-		[]docker.ComposeInlineManifest{{Name: "kafka", Content: pulumi.String(kafkaComposeManifest)}},
+		[]docker.ComposeInlineManifest{kafkacomp.DockerComposeManifest},
 		pulumi.StringMap{},
 	)
 	if err != nil {
