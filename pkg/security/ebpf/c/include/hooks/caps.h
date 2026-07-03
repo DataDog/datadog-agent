@@ -2,32 +2,84 @@
 #define _HOOKS_CAPS_H_
 
 // Since kernel 6.13, override_creds/revert_creds are static inline and can no longer be hooked to
-// track whether we are running under temporarily overridden credentials. Instead we detect it
-// directly: override_creds only swaps current->cred and leaves current->real_cred untouched, so
-// cred != real_cred exactly while an override is in effect (commit_creds sets both, so they are
-// otherwise equal).
+// track whether we are running under temporarily overridden credentials. On such kernels (which
+// always ship BTF) we detect it directly: override_creds only swaps current->cred and leaves
+// current->real_cred untouched, so cred != real_cred exactly while an override is in effect
+// (commit_creds sets both, so they are otherwise equal). This requires the task_struct cred/real_cred
+// offsets, which are only resolved through BTF; when they are unavailable the offsets are 0 and this
+// returns false, in which case the override_creds/revert_creds depth counter below is relied upon.
 static __attribute__((always_inline)) int is_in_creds_override() {
+    u64 cred_offset = get_task_struct_cred_offset();
+    u64 real_cred_offset = get_task_struct_real_cred_offset();
+    if (cred_offset == 0 || real_cred_offset == 0) {
+        return 0;
+    }
+
     void *task = (void *)bpf_get_current_task();
 
     void *cred = NULL;
-    bpf_probe_read(&cred, sizeof(cred), (char *)task + get_task_struct_cred_offset());
+    bpf_probe_read(&cred, sizeof(cred), (char *)task + cred_offset);
 
     void *real_cred = NULL;
-    bpf_probe_read(&real_cred, sizeof(real_cred), (char *)task + get_task_struct_real_cred_offset());
+    bpf_probe_read(&real_cred, sizeof(real_cred), (char *)task + real_cred_offset);
 
     return cred != real_cred;
 }
 
-HOOK_ENTRY("security_capable")
-int hook_security_capable(ctx_t *ctx) {
-    if (is_in_creds_override()) {
-        // do not track capabilities checked under temporarily overridden credentials
+// On kernels < 6.13, override_creds/revert_creds are still out-of-line and hookable. They maintain a
+// per-thread depth counter so that capability checks made under overridden credentials are skipped,
+// which also covers kernels without BTF where is_in_creds_override() cannot resolve the cred offsets.
+HOOK_ENTRY("override_creds")
+int hook_override_creds(ctx_t *ctx) {
+    u64 tgid_tid = bpf_get_current_pid_tgid();
+    u32 tid = (u32)tgid_tid;
+
+    struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
+    if (!cap_context) {
+        struct capabilities_context_t new_context = {
+            .cap_as_mask = 0, // No capabilities checked yet
+            .override_creds_depth = 1, // We are entering an override_creds context
+        };
+        bpf_map_update_elem(&capabilities_contexts, &tid, &new_context, BPF_ANY);
+    } else {
+        cap_context->override_creds_depth++;
+    }
+
+    return 0;
+}
+
+HOOK_ENTRY("revert_creds")
+int hook_revert_creds(ctx_t *ctx) {
+    u64 tgid_tid = bpf_get_current_pid_tgid();
+    u32 tid = (u32)tgid_tid;
+
+    struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
+    if (!cap_context) {
+        // unexpected but we handle it gracefully
         return 0;
     }
 
+    if (cap_context->override_creds_depth > 0) {
+        cap_context->override_creds_depth--;
+        if (cap_context->override_creds_depth == 0) {
+            // If we reached zero, we can remove the context
+            bpf_map_delete_elem(&capabilities_contexts, &tid);
+        }
+    }
+
+    return 0;
+}
+
+HOOK_ENTRY("security_capable")
+int hook_security_capable(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
     u32 tid = (u32)tgid_tid;
     struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
+
+    if (is_in_creds_override() || (cap_context && cap_context->override_creds_depth != 0)) {
+        // do not track capabilities checked under temporarily overridden credentials
+        return 0;
+    }
 
     u64 cap = CTX_PARM3(ctx); // The capability being checked
 
@@ -89,7 +141,7 @@ int rethook_security_capable(ctx_t *ctx) {
         return 0;
     }
 
-    if (is_in_creds_override()) {
+    if (is_in_creds_override() || cap_context->override_creds_depth != 0) {
         // do not track capabilities checked under temporarily overridden credentials
         return 0;
     }
