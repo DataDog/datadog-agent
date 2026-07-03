@@ -50,6 +50,8 @@ type workloadmeta struct {
 
 	// stopCancel cancels the context passed to start(), stopping all background goroutines.
 	stopCancel context.CancelFunc
+	// startWg tracks background goroutines spawned by start() so OnStop can wait for them to exit.
+	startWg sync.WaitGroup
 
 	// firstCollectorReady is closed when at least one collector has been started.
 	firstCollectorReady     chan struct{}
@@ -81,8 +83,8 @@ type Provider struct {
 	Endpoint      api.AgentEndpointProvider
 }
 
-// NewWorkloadMeta creates a new workloadmeta component.
-func NewWorkloadMeta(deps Dependencies) Provider {
+// NewComponent creates a new workloadmeta component.
+func NewComponent(deps Dependencies) Provider {
 	candidates := make(map[string]wmdef.Collector)
 	for _, c := range fxutil.GetAndFilterGroup(deps.Catalog) {
 		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
@@ -123,6 +125,7 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 	deps.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
 		if wm.stopCancel != nil {
 			wm.stopCancel()
+			wm.startWg.Wait()
 		}
 		return nil
 	}})

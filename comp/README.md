@@ -812,8 +812,8 @@ Package updater is the updater component.
 
 *Datadog Team*: q-branch
 
-Package logssource provides a component that feeds container logs into the
-observer without requiring the logs agent to be enabled.
+Package logssource provides a component that feeds container and kubelet
+journald logs into the observer without requiring the logs agent to be enabled.
 
 ### [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer)
 

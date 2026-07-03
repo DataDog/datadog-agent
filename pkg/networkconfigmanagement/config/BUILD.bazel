@@ -9,7 +9,6 @@ go_library(
         "//comp/core/autodiscovery/integration",
         "//comp/core/ipc/def",
         "//comp/core/ipc/httphelpers",
-        "//pkg/networkconfigmanagement/profile",
         "//pkg/snmp/utils",
         "//pkg/util/log",
         "@in_yaml_go_yaml_v2//:yaml",

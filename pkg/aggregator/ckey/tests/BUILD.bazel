@@ -1,10 +1,11 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+# gazelle:dd_agent_go_test on
+
+dd_agent_go_test(
     name = "tests_test",
     srcs = ["collisions_test.go"],
     data = ["random_sorted_uniq_contexts.csv"],
-    gotags = ["test"],
     deps = [
         "//pkg/aggregator/ckey",
         "//pkg/tagset",

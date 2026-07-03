@@ -39,6 +39,8 @@ const (
 	KubeEndpointsFile = "kubernetes-endpoints-file"
 	// KubeEndpointSlicesFile loads Kubernetes EndpointSlice check configurations from YAML files.
 	KubeEndpointSlicesFile = "kubernetes-endpointslices-file"
+	// KubeEndpointSlicesCR loads Kubernetes EndpointSlice check configurations from DatadogInstrumentation CRs.
+	KubeEndpointSlicesCR = "kubernetes-endpointslices-cr"
 	// KubeCRD discovers check configurations from YAML files that target Kubernetes CRDs via advanced AD identifiers.
 	KubeCRD = "kubernetes-crd"
 	// ProcessLog autodiscovers log collection configurations from running processes.

@@ -351,7 +351,7 @@ void signalHandler(int sig, siginfo_t *info, void *context)
         std::cerr << "Error getting backtrace symbols" << std::endl;
     } else {
         std::cerr << "C-LAND STACKTRACE: " << std::endl;
-        for (int i = 0; i < nptrs; i++) {
+        for (size_t i = 0; i < nptrs; i++) {
             std::cerr << symbols[i] << std::endl;
         }
 
@@ -595,6 +595,16 @@ void set_obfuscate_mongodb_string_cb(rtloader_t *rtloader, cb_obfuscate_mongodb_
 void set_emit_agent_telemetry_cb(rtloader_t *rtloader, cb_emit_agent_telemetry_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setEmitAgentTelemetryCb(cb);
+}
+
+void set_report_issue_cb(rtloader_t *rtloader, cb_report_issue_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setReportIssueCb(cb);
+}
+
+void set_resolve_issue_cb(rtloader_t *rtloader, cb_resolve_issue_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setResolveIssueCb(cb);
 }
 
 /*

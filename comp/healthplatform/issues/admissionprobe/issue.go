@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	issueName = "admission_controller_unreachable"
+	issueName = "Admission Controller Unreachable"
 	category  = "availability"
 	location  = "admission-controller"
 	severity  = healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH

@@ -11,13 +11,16 @@ import (
 	"sync"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	actelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -56,6 +59,16 @@ type configManager interface {
 
 	// getActiveServices returns the currently active services
 	getActiveServices() map[string]listeners.Service
+
+	// start spins up background discovery worker.
+	start()
+
+	// stop tears down background discovery worker.
+	stop()
+
+	// discoveredChanges returns a channel that emits ConfigChanges produced
+	// asynchronously by the configuration-discovery worker.
+	discoveredChanges() <-chan integration.ConfigChanges
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -115,13 +128,16 @@ type reconcilingConfigManager struct {
 
 	secretResolver secrets.Component
 	healthPlatform healthplatformdef.Component
+	telemetryStore *actelemetry.Store
+
+	discoveryState //nolint:unused
 }
 
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex) configManager {
-	return &reconcilingConfigManager{
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, disco discoverer.ConfigDiscoverer, telStore *actelemetry.Store) configManager {
+	cm := &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
 		templatesByADID:    newMultimap(),
@@ -131,7 +147,10 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		staticConfigIndex:  staticConfigIndex,
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
+		telemetryStore:     telStore,
 	}
+	initDiscoveryWorker(cm, disco)
+	return cm
 }
 
 // processNewService implements configManager#processNewService.
@@ -187,6 +206,8 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) int
 	//  2. update templatesByADID or servicesByADID to match
 	for _, adID := range svcAndADIDs.adIDs {
 		cm.servicesByADID.remove(adID, svcID)
+		// No explicit cancellation of in-flight discovery probes needed.
+		// When they dequeue, ServiceLookup fails and aborts the disocvery.
 	}
 
 	//  3. update serviceResolutions, generating changes
@@ -430,9 +451,17 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 }
 
 // resolveTemplateForService resolves a template config for the given service,
-// updating errorStats in the process.  If the resolution fails, this method
-// returns false.
+// updating errorStats in the process. If the resolution fails or discovery is enabled,
+// this method returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
+	// Configuration Discovery is enabled on the integration template.
+	// Do not resolve the template through the synchronous path.
+	// Instead enqueue a discovery probe for the template and service pair.
+	if tpl.Discovery != nil {
+		cm.scheduleDiscovery(svc.GetServiceID(), tpl.Digest(), tpl.Name)
+		return tpl, false
+	}
+
 	digest := tpl.Digest()
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
@@ -458,18 +487,19 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 	if cm.healthPlatform == nil {
 		return
 	}
-	issueID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
+	issueID := admisconfig.TemplateIssueID + ":" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
 	context := map[string]string{
 		"entityName":   tpl.Name + " (" + svc.GetServiceID() + ")",
 		"errorMessage": err.Error(),
 		"errorSource":  string(types.TemplateResolutionSource),
 	}
-	issue, buildErr := admisconfig.NewADMisconfigurationIssue().BuildIssue(context)
+	issue, buildErr := admisconfig.NewADTemplateIssue().BuildIssue(context)
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
-			IssueName: healthplatformdef.ADMisconfigurationIssueName,
-			Source:    healthplatformdef.ADMisconfigurationSource,
+			IssueName: admisconfig.TemplateIssueName,
+			Title:     "Autodiscovery Misconfiguration on '" + tpl.Name + " (" + svc.GetServiceID() + ")'",
+			Source:    admisconfig.Source,
 		}
 	} else {
 		issue.Id = issueID
@@ -484,7 +514,7 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailure(tpl integrati
 	if cm.healthPlatform == nil {
 		return
 	}
-	issueID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
+	issueID := admisconfig.TemplateIssueID + ":" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
 	cm.healthPlatform.ResolveIssue(issueID)
 }
 
@@ -494,7 +524,7 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailureByID(tplName, 
 	if cm.healthPlatform == nil {
 		return
 	}
-	issueID := "ad-template:" + tplName + ":" + svcID + ":" + tplDigest
+	issueID := admisconfig.TemplateIssueID + ":" + tplName + ":" + svcID + ":" + tplDigest
 	cm.healthPlatform.ResolveIssue(issueID)
 }
 

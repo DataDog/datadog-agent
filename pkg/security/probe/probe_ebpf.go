@@ -390,7 +390,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
-		seclog.Warnf("The capabilities monitoring feature of CWS requires a more recent kernel (at least 5.17), setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		seclog.Warnf("The capabilities monitoring feature of CWS requires a kernel version between 5.17 and 6.13, setting event_monitoring_config.capabilities_monitoring.enabled to false")
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
@@ -898,6 +898,9 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	p.Walk(entryToEvent)
 
+	// replay synthetic load_module events for every entry in /proc/modules.
+	events = append(events, p.snapshotLoadedModules()...)
+
 	// order events so that they're dispatched in creation time order
 	sort.Slice(events, func(i, j int) bool {
 		eventA := events[i]
@@ -918,6 +921,36 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	}
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()
+}
+
+// newSyntheticUnknownLoaderEntry returns a transient PCE used as the anchor for
+// synthetic load_module events whose real loader cannot be determined.
+func newSyntheticUnknownLoaderEntry() *model.ProcessCacheEntry {
+	entry := model.NewPlaceholderProcessCacheEntry(0, 0, false)
+	entry.Source = model.ProcessCacheEntryFromUnknownLoader
+	return entry
+}
+
+// snapshotLoadedModules synthesises a load_module event for every entry in
+// /proc/modules, all anchored on a shared synthetic unknown-loader PCE.
+func (p *EBPFProbe) snapshotLoadedModules() []*model.Event {
+	modules, err := utils.FetchLoadedModules()
+	if err != nil {
+		seclog.Debugf("loaded-module snapshot skipped: %v", err)
+		return nil
+	}
+	if len(modules) == 0 {
+		return nil
+	}
+
+	modulePaths := utils.ScanKernelModulePaths()
+	anchor := newSyntheticUnknownLoaderEntry()
+
+	events := make([]*model.Event, 0, len(modules))
+	for _, mod := range modules {
+		events = append(events, p.newLoadModuleEventFromProcFSSnapshot(mod, modulePaths[mod.Name], anchor))
+	}
+	return events
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
@@ -1146,8 +1179,6 @@ func (p *EBPFProbe) newRelatedProcessEvent(pce *model.ProcessCacheEntry, err err
 		relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
 	}
 
-	p.Resolvers.ProcessResolver.TryReparentFromProcfsLocked(pce, metrics.ReparentCallpathRelatedEvent, nil)
-
 	return relatedEvent
 }
 
@@ -1189,23 +1220,11 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 				event.Error = model.ErrNoProcessContext
 			}
 		} else {
-			// If the kernel reports a different ppid than the one in our
-			// cache, the process was reparented (e.g. subreaper). Update
-			// the cache tree immediately using the authoritative kernel value.
-			if event.PIDContext.PPid != 0 {
-				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, p.onNewPCE)
-			}
-
 			// If the kernel reports a different SID than the one in our
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
 				entry.SID = event.PIDContext.SID
 			}
-
-			// Attempt to repair the lineage of processes that were orphaned
-			// during subreaper reparenting (the exit tracepoint may fire
-			// before the kernel has completed forget_original_parent).
-			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, p.onNewPCE)
 
 			if _, err := entry.HasValidLineage(); err != nil {
 				event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -1883,6 +1902,12 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
+	case model.SampleRefreshEventType:
+		var ev model.SampleRefreshEvent
+		if _, err := ev.UnmarshalBinary(data[offset:]); err == nil {
+			p.profileManager.HandleSampleRefresh(ev.Cookie)
+		}
+		return false
 	case model.NopEventType:
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
@@ -2249,12 +2274,19 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
+	// Network interface and socket tracking probes are required independently of the current ruleset or
+	// network filter actions as these are used to track resources that are needed if we later
+	// dynamically load network rules or network filter actions.
+	if p.config.Probe.NetworkEnabled {
+		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket())...)
+	}
+
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
 		activatedProbes = append(activatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
 	}
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket()) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
 			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
@@ -2937,6 +2969,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
 		},
 		manager.ConstantEditor{
+			Name:  "sample_refresh_period_ns",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_dns_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDNSEnabled),
 		},
@@ -3453,7 +3489,11 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructFilename, "struct linux_binprm", "filename")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructInterp, "struct linux_binprm", "interp")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMStart, "struct vm_area_struct", "vm_start")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMEnd, "struct vm_area_struct", "vm_end")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFinode, "struct file", "f_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFpath, "struct file", "f_path")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
@@ -3518,8 +3558,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
@@ -3575,6 +3613,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	if !kv.IsRH7Kernel() {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructCTNet, "struct nf_conn", "ct_net")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructTuplehash, "struct nf_conn", "tuplehash")
 	}
 
 	if getNetStructType(kv) == netStructHasProcINum {
@@ -3590,6 +3629,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	// inode
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeIno, "struct inode", "i_ino")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeMode, "struct inode", "i_mode")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeUID, "struct inode", "i_uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeGid, "struct inode", "i_gid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetInodeNlink, "struct inode", "i_nlink")
 	constantFetcher.AppendOffsetofRequestWithFallbacks(
@@ -3756,6 +3797,54 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.Exec.Process = &entry.Process
+
+	return event
+}
+
+// newLoadModuleEventFromProcFSSnapshot builds a synthetic load_module event for
+// a module discovered via /proc/modules. modulePath is "" when no on-disk file
+// was located under /lib/modules/$(uname -r)/, in which case the event carries
+// an empty file path. LoadedFromMemory is always false on snapshot events: the
+// real syscall (init_module vs finit_module) was not observed, so the field is
+// reserved for runtime events where the kernel told us which one was used.
+func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule, modulePath string, anchor *model.ProcessCacheEntry) *model.Event {
+	event := p.getPoolEvent()
+	event.Timestamp = time.Now()
+	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
+	event.Type = uint32(model.LoadModuleEventType)
+	event.ProcessCacheEntry = anchor
+	event.ProcessContext = &anchor.ProcessContext
+	event.Source = model.EventSourceReplay
+	event.AddToFlags(model.EventFlagsFromReplay)
+
+	event.LoadModule.SyscallEvent.Retval = 0
+	event.LoadModule.Name = mod.Name
+	event.LoadModule.LoadedFromMemory = false
+
+	if modulePath == "" {
+		event.LoadModule.File.SetPathnameStr("")
+		event.LoadModule.File.SetBasenameStr("")
+		return event
+	}
+
+	event.LoadModule.File.SetPathnameStr(modulePath)
+	event.LoadModule.File.SetBasenameStr(filepath.Base(modulePath))
+
+	// Best-effort file metadata (mirrors newOpenEventFromReplay).
+	var fileStats unix.Statx_t
+	if err := unix.Statx(unix.AT_FDCWD, modulePath, 0, unix.STATX_ALL, &fileStats); err == nil {
+		event.LoadModule.File.FileFields.Mode = uint16(fileStats.Mode)
+		event.LoadModule.File.FileFields.Inode = fileStats.Ino
+		event.LoadModule.File.FileFields.UID = fileStats.Uid
+		event.LoadModule.File.FileFields.GID = fileStats.Gid
+		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
+		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+		event.LoadModule.File.Mode = fileStats.Mode
+		event.LoadModule.File.Inode = fileStats.Ino
+		event.LoadModule.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
+		event.LoadModule.File.NLink = fileStats.Nlink
+		event.LoadModule.File.MountID = uint32(fileStats.Mnt_id)
+	}
 
 	return event
 }

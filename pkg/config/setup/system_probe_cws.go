@@ -6,23 +6,23 @@
 package setup
 
 import (
-	"path/filepath"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
-
-// getDefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
-func getDefaultSecurityProfilesDir() string {
-	return filepath.Join(defaultRunPath, "runtime-security", "profiles")
-}
 
 func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// CWS - general config
 	// the following entries are platform specific
 	// - runtime_security_config.policies.dir
 	// - runtime_security_config.socket
-	platformCWSConfig(cfg)
+	cfg.BindEnvAndSetDefault("runtime_security_config.socket", GetPlatformDefault(map[string]interface{}{
+		"windows": "localhost:3335",
+		"other":   "${install_path}/run/runtime-security.sock",
+	}))
+	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", GetPlatformDefault(map[string]interface{}{
+		"other":   DefaultRuntimePoliciesDir,
+		"windows": "${conf_path}/runtime-security.d",
+	}))
 
 	// CWS - general config
 	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
@@ -80,7 +80,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", "4500s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", getDefaultSecurityProfilesDir())
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", "${run_path}/runtime-security/profiles")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{"profile"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", "60s")
@@ -115,7 +115,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_image_tags", 20)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", getDefaultSecurityProfilesDir())
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", "${run_path}/runtime-security/profiles")
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)
@@ -124,7 +124,8 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.profile_cleanup_delay", "60m")
 
 	// CWS - Security Profile V2
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "dns", "bind", "connect"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "dns", "bind", "connect", "open"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.sample_refresh_period", "30s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.excluded_images", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.max_dump_size", 5120)
 

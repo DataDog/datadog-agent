@@ -267,8 +267,8 @@
     id: ''
 '@datadog/debugger-go':
   notification:
-    name: '#dynamic-instrumentation-go'
-    id: 'C04J1N8L2Q6'
+    name: '#debugger-go'
+    id: 'C09DBHFJE4E'
   review:
     name: '#debugger-go'
     id: 'C09DBHFJE4E'
@@ -300,10 +300,17 @@
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
+'@datadog/gpu-monitoring-agent':
+  notification:
+    name: '#gpu-monitoring-agent-ops'
+    id: 'C0APTNVCC04'
+  review:
+    name: '#gpu-monitoring-agent-reviews'
+    id: 'C0B7VF7LKGT'
 '@datadog/injection-platform':
   notification:
-    name: '#injection-platform'
-    id: 'C06UEUW9A75'
+    name: '#injection-platform-alerts'
+    id: 'C09LN4BCCP7'
   review:
     name: '#injection-platform'
     id: 'C06UEUW9A75'

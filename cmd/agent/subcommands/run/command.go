@@ -130,7 +130,7 @@ import (
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	orchestratordef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
+	orchestratorForwarderFx "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 
@@ -187,6 +187,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	procmgrcoat "github.com/DataDog/datadog-agent/pkg/procmgr/coat"
 	hostSbom "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
@@ -240,7 +241,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, configOpts...),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
@@ -414,11 +415,11 @@ func getSharedFxOption() fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
-			defaultpaths.PyChecksPath,
-			defaultpaths.LogFile,
-			defaultpaths.JmxLogFile,
-			defaultpaths.DogstatsDLogFile,
-			defaultpaths.StreamlogsLogFile,
+			defaultpaths.GetDefaultPyChecksPath(),
+			defaultpaths.GetDefaultLogFile(),
+			defaultpaths.GetDefaultJmxLogFile(),
+			defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
+			defaultpaths.GetDefaultStreamlogsLogFile(),
 		)),
 		core.Bundle(core.WithSecrets()),
 		hostnameimpl.Module(),
@@ -509,7 +510,7 @@ func getSharedFxOption() fx.Option {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(ac, cfg.GetString("confd_path"))
+					common.LoadComponents(ac, cfg)
 					return nil
 				},
 			})
@@ -521,7 +522,7 @@ func getSharedFxOption() fx.Option {
 		reporterfx.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
-		orchestratorForwarderImpl.Module(orchestratordef.NewDefaultParams()),
+		orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
@@ -565,6 +566,7 @@ func getSharedFxOption() fx.Option {
 					"dogstatsd_capture_duration":             internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
 					"log_payloads":                           commonsettings.NewLogPayloadsRuntimeSetting(),
 					"internal_profiling_goroutines":          commonsettings.NewProfilingGoroutines(),
+					"internal_profiling_period":              commonsettings.NewProfilingPeriod(),
 					"multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
 					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
 					"multi_region_failover.failover_apm":     internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_apm", "Enable/disable redirection of APM to failover region."),
@@ -650,6 +652,7 @@ func startAgent(
 	common.SetupInternalProfiling(settings, cfg, "")
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
+	procmgrcoat.StartReporter(ctx, tlm)
 
 	// Setup expvar server
 	telemetryHandler := tlm.Handler()

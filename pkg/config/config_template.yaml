@@ -38,6 +38,7 @@ api_key:
 ##   - full: default server/host-monitoring behavior (all checks allowed).
 ##   - basic: minimal host-level metrics only.
 ##   - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+##   - cloud_cost_only: Cloud Cost Management lightweight tagging.
 ##   - none: disables infrastructure checks.
 #
 # infrastructure_mode: "full"
@@ -192,6 +193,21 @@ api_key:
 #
 # remote_updates: true
 
+## @param process_manager - custom object - optional
+## When true (see `enabled` below), the Datadog process manager daemon (dd-procmgrd) is enabled for this host install.
+## On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
+## On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
+## This setting is ignored on Linux and does not enable or disable the systemd unit.
+#
+# process_manager:
+
+#   # @param enabled - boolean - optional - default: true
+#   # @env DD_PROCESS_MANAGER_ENABLED - boolean - optional - default: true
+#   # When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
+#   # On Linux, the process manager daemon is started by systemd; this option is ignored.
+#
+#   enabled: true
+
 ## @param tag_value_split_separator - object - optional - default: {}
 ## @env DD_TAG_VALUE_SPLIT_SEPARATOR - JSON object of string to string - optional - default: {}
 ## Split tag values according to a given separator. Only applies to host tags,
@@ -291,6 +307,36 @@ api_key:
 ## Forwarder timeout in seconds
 #
 # forwarder_timeout: 20
+
+## @param use_v3_api - custom object - optional
+## Controls the use of the v3 metrics intake.
+#
+# use_v3_api:
+
+#   # @param series - custom object - optional
+#   # Controls the use of the v3 metrics intake for non-distribution metrics (series).
+#
+#   series:
+
+#     # @param enabled - string - optional - default: "true"
+#     # @env DD_USE_V3_API_SERIES_ENABLED - string - optional - default: "true"
+#     # Global default for the non-distribution metrics intake version. Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     enabled: "true"
+
+#     # @param endpoints - object - optional - default: {}
+#     # @env DD_USE_V3_API_SERIES_ENDPOINTS - JSON object of string to string - optional - default: {}
+#     # Per-URL override map for non-distribution metrics intake version. The URL
+#     # must match exactly what was configured under `dd_url` or `additional_endpoints`.
+#     # Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     endpoints: {}
 
 ## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640
 ## @env DD_FORWARDER_RETRY_QUEUE_PAYLOADS_MAX_SIZE - integer - optional - default: 15728640
@@ -2611,6 +2657,12 @@ api_key:
 #
 # dogstatsd_no_aggregation_pipeline_batch_size: 2048
 
+## @param dogstatsd_no_aggregation_pipeline_workers_count - integer - optional - default: 1
+## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE_WORKERS_COUNT - integer - optional - default: 1
+## How many workers are used by the no-aggregation pipeline.
+#
+# dogstatsd_no_aggregation_pipeline_workers_count: 1
+
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
@@ -2690,11 +2742,11 @@ api_key:
 #
 # jmx_max_ram_percentage: 25
 
-## @param jmx_log_file - string - optional - default: ""
-## @env DD_JMX_LOG_FILE - string - optional - default: ""
+## @param jmx_log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
+## @env DD_JMX_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
 ## Path of the log file where JMXFetch logs are written.
 #
-# jmx_log_file: <JMXFETCH_LOG_FILE_PATH>
+# jmx_log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/jmxfetch.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\jmxfetch.log"{{else}}"/opt/datadog-agent/logs/jmxfetch.log"{{ end }}
 
 ## @param jmx_max_restarts - integer - optional - default: 3
 ## @env DD_JMX_MAX_RESTARTS - integer - optional - default: 3
@@ -2778,12 +2830,12 @@ api_key:
 #
 # log_level: "info"
 
-## @param log_file - string - optional - default: ""
-## @env DD_LOG_FILE - string - optional - default: ""
+## @param log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
+## @env DD_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
 ## Path of the log file for the Datadog Agent.
 ## See https://docs.datadoghq.com/agent/guide/agent-log-files/
 #
-# log_file: <AGENT_LOG_FILE_PATH>
+# log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\agent.log"{{else}}"/opt/datadog-agent/logs/agent.log"{{ end }}
 
 ## @param log_format_json - boolean - optional - default: false
 ## @env DD_LOG_FORMAT_JSON - boolean - optional - default: false
@@ -2947,6 +2999,7 @@ api_key:
 #   - kubernetes
 #   - orchestratorexplorer
 #   - podman
+#   - process
 
 ## @param autoconfig_include_features - list of strings - optional - default: []
 ## @env DD_AUTOCONFIG_INCLUDE_FEATURES - space-separated list of strings - optional - default: []
@@ -2963,6 +3016,7 @@ api_key:
 #   - kubernetes
 #   - orchestratorexplorer
 #   - podman
+#   - process
 
 ###########################################
 ## Container Autodiscovery Configuration ##
@@ -4295,7 +4349,7 @@ api_key:
 #         # @param use_raw_socket - boolean - optional - default: false
 #         # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_LINUX_USE_RAW_SOCKET - boolean - optional - default: false
 #         # Send pings in a privileged fashion using a raw socket.
-#         # This may be required if your system doesn't support  sending pings in an unprivileged fashion (using a UDP
+#         # This may be required if your system doesn't support sending pings in an unprivileged fashion (using a UDP
 #         # socket).
 #         # If `use_raw_socket` is set to true, you MUST also enable system-probe which has elevated privileges. To
 #         # enable it, see system-probe.yaml.example.
@@ -4510,7 +4564,7 @@ api_key:
 #         #         - "tagKey2:tagValue2"
 #         #       disabled: true         # (optional) disables monitoring for matched interfaces, default value is false
 #
-#         interface_config:
+#         interface_configs:
 #           "10.0.0.1":
 #             - match_field: name
 #               match_value: eth0
@@ -4598,10 +4652,17 @@ api_key:
 
 #     # @param stop_timeout - integer - optional - default: 5
 #     # @env DD_NETWORK_DEVICES_SNMP_TRAPS_STOP_TIMEOUT - integer - optional - default: 5
-#     # stop_timeout - float - optional - default: 5.0
 #     # The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
 #
 #     stop_timeout: 5
+
+#     # @param tags - list of strings - optional - default: []
+#     # @env DD_NETWORK_DEVICES_SNMP_TRAPS_TAGS - space-separated list of strings - optional - default: []
+#     # A list of low-cardinality tags (e.g. application, team, environment) attached to every trap forwarded to Datadog and to every SNMP traps telemetry metric emitted by the Agent.
+#
+#     tags:
+#       - "application:<APPLICATION_ID>"
+#       - "team:<TEAM_NAME>"
 
 #   # @param netflow - custom object - optional
 #   # This section configures NDM NetFlow (and sFlow, IPFIX) collection.
@@ -4623,7 +4684,7 @@ api_key:
 #     #                            Default port differ by flow type: netflow5(2055), netflow9(2055), ipfix(4739), sflow5(6343)
 #     #  * bind_host    - string - (Optional) The hostname to listen on for incoming netflow packets.
 #     #                            Binds to 0.0.0.0 by default (accepting all packets).
-#     #  * workers      - string - (Optional) Number of workers to use for this listener.
+#     #  * workers      - integer - (Optional) Number of workers to use for this listener.
 #     #                            Defaults to 1.
 #     #  * mapping      - (Optional) List of NetflowV9/IPFIX fields to additionally collect.
 #     #                              Defaults to None.
@@ -5161,7 +5222,7 @@ api_key:
 
 #   # @param http_allowlist - list of strings - optional - default: []
 #   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - comma-separated list of strings - optional - default: []
-#   # List of allowed URL patterns for HTTP actions.
+#   # List of allowed domains for HTTP actions. Supports glob pattern. Example : ["datadoghq.com", "*.datadoghq.com"]
 #
 #   http_allowlist: []
 

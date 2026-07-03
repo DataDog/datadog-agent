@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -48,6 +49,18 @@ type pendingProfile struct {
 	events    *list.List
 }
 
+// sampleCookieEntry maps a kernel dedup cookie to the profile and tree nodes it refreshes.
+type sampleCookieEntry struct {
+	profile       *profile.Profile
+	processNode   *activity_tree.ProcessNode
+	eventNodeBase *activity_tree.NodeBase
+	imageTag      string
+}
+
+// TODO: tie sampleCookieMapSize to the kernel dedup map sizes (open_samples + bind_samples + connect_samples)
+// so the cookie LRU can hold mappings for every possible dedup entry.
+const sampleCookieMapSize = 4096
+
 type ManagerV2 struct {
 	config        *config.Config
 	statsdClient  statsd.ClientInterface
@@ -73,9 +86,8 @@ type ManagerV2 struct {
 	profilePendingEventsLock sync.Mutex
 
 	// Metrics counters (gauges that need to be tracked)
-	queueSize            *atomic.Uint64 // total events currently queued (gauge)
-	pendingProfiles      *atomic.Uint64 // cgroups currently waiting for tags
-	eventsDroppedMaxSize *atomic.Uint64 // events dropped because profile at max size
+	queueSize       *atomic.Uint64 // total events currently queued (gauge)
+	pendingProfiles *atomic.Uint64 // cgroups currently waiting for tags
 
 	// Track cgroups with resolved tags (for cgroups_resolved gauge)
 	resolvedCgroups     map[containerutils.CGroupID]struct{}
@@ -84,6 +96,12 @@ type ManagerV2 struct {
 	// Pending profile removals (selector -> time when removal was queued)
 	pendingProfileRemovals     map[cgroupModel.WorkloadSelector]time.Time
 	pendingProfileRemovalsLock sync.Mutex
+
+	// Sample refresh: maps kernel dedup cookie → (process node, event node, imageTag)
+	sampleCookieMap       *lru.Cache[uint32, sampleCookieEntry]
+	sampleRefreshReceived *atomic.Uint64
+	sampleRefreshHits     *atomic.Uint64
+	sampleRefreshMisses   *atomic.Uint64
 
 	containerFilters workloadfilter.FilterBundle
 	imageExcluder    *imageExcluder
@@ -118,6 +136,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		"",
 	))
 
+	cookieMap, _ := lru.New[uint32, sampleCookieEntry](sampleCookieMapSize)
+
 	var containerFilter workloadfilter.FilterBundle
 	if filterStore != nil {
 		containerFilter = filterStore.GetContainerRuntimeSecurityFilters()
@@ -139,7 +159,6 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
 		queueSize:                 atomic.NewUint64(0),
 		pendingProfiles:           atomic.NewUint64(0),
-		eventsDroppedMaxSize:      atomic.NewUint64(0),
 		pathsReducer:              activity_tree.NewPathsReducer(),
 		profiles:                  make(map[cgroupModel.WorkloadSelector]*profile.Profile),
 		localStorage:              localStorage,
@@ -150,6 +169,10 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:           cookieMap,
+		sampleRefreshReceived:     atomic.NewUint64(0),
+		sampleRefreshHits:         atomic.NewUint64(0),
+		sampleRefreshMisses:       atomic.NewUint64(0),
 		containerFilters:          containerFilter,
 		imageExcluder:             imgExcluder,
 	}
@@ -280,11 +303,11 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 
 	now := time.Now()
 
-	m.pendingProfileRemovalsLock.Lock()
-	defer m.pendingProfileRemovalsLock.Unlock()
-
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
+
+	m.pendingProfileRemovalsLock.Lock()
+	defer m.pendingProfileRemovalsLock.Unlock()
 
 	for selector, queuedAt := range m.pendingProfileRemovals {
 		if now.Sub(queuedAt) < cleanupDelay {
@@ -303,6 +326,7 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 		}
 
 		seclog.Infof("removing profile [%s] after cleanup delay", selector.String())
+		m.purgeCookiesForProfile(prof)
 		delete(m.profiles, selector)
 		delete(m.pendingProfileRemovals, selector)
 
@@ -331,6 +355,10 @@ func (m *ManagerV2) persistAllProfiles() {
 
 // persistProfile encodes and persists a single profile to all configured storage backends
 func (m *ManagerV2) persistProfile(p *profile.Profile) {
+	if !p.IsEnabled() {
+		return
+	}
+
 	format := config.Protobuf
 	requests := m.configuredStorageRequests[format]
 
@@ -582,9 +610,35 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
-	// Event processing counts (swap to 0 after reading)
-	if value := m.eventsDroppedMaxSize.Swap(0); value > 0 {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsDroppedMaxSize, int64(value), []string{}, 1.0); err != nil {
+	var tags [][]string
+	m.profilesLock.Lock()
+	for selector, prof := range m.profiles {
+		if prof.IsEnabled() {
+			continue
+		}
+		tags = append(tags, []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag})
+	}
+	m.profilesLock.Unlock()
+
+	for _, tag := range tags {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, tag, 1.0); err != nil {
+			return err
+		}
+	}
+
+	// Sample refresh metrics
+	if value := m.sampleRefreshReceived.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshReceived, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.sampleRefreshHits.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshHits, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.sampleRefreshMisses.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SampleRefreshMisses, int64(value), []string{}, 1.0); err != nil {
 			return err
 		}
 	}
@@ -674,6 +728,10 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	if err != nil {
 		return nil, false
 	}
+	if !secprof.IsEnabled() {
+		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
+		return nil, false
+	}
 
 	// Build workloadID for cache entry lookup
 	workloadID := getWorkloadIDFromEvent(event)
@@ -686,9 +744,15 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
 	// semantics for ActivityDump/legacy Manager paths.
 	// TODO: we should handle this in a better way
-	if secprof.ActivityTree.Stats.HeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
+	if !secprof.IsEnabled() {
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		m.eventsDroppedMaxSize.Inc()
+		return nil, false
+	}
+
+	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
+		secprof.Disable()
+		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
+		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		return nil, false
 	}
 
@@ -697,12 +761,33 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 	// Insert the event into the profile's activity tree
 	imageTag := secprof.GetTagValue("image_tag")
-	inserted, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
 			seclog.Debugf("couldn't insert event into profile: %v", err)
 		}
 		return nil, false
+	}
+
+	// Register the sample cookie → (process node, event node) mapping for sample refresh events
+	if processNode != nil {
+		var sampleCookie uint32
+		switch event.GetEventType() {
+		case model.FileOpenEventType:
+			sampleCookie = event.Open.SampleCookie
+		case model.BindEventType:
+			sampleCookie = event.Bind.SampleCookie
+		case model.ConnectEventType:
+			sampleCookie = event.Connect.SampleCookie
+		}
+		if sampleCookie != 0 {
+			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
+				profile:       secprof,
+				processNode:   processNode,
+				eventNodeBase: eventNodeBase,
+				imageTag:      imageTag,
+			})
+		}
 	}
 
 	return secprof, inserted
@@ -1029,6 +1114,9 @@ func (m *ManagerV2) evictUnusedNodes() {
 		}
 		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
+			if !profile.IsEnabled() && profile.ActivityTree.Stats.HeapSize() < int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
+				profile.Enable()
+			}
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
 
@@ -1211,6 +1299,47 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 //
 // These methods will be removed once V2 is fully validated and V1 is deprecated.
 // ============================================================================
+
+// HandleSampleRefresh handles a sample refresh event from the kernel.
+// It updates the LastSeen timestamp of the process node associated with the given cookie.
+func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
+	m.sampleRefreshReceived.Inc()
+
+	entry, ok := m.sampleCookieMap.Get(cookie)
+	if !ok {
+		m.sampleRefreshMisses.Inc()
+		return
+	}
+
+	m.sampleRefreshHits.Inc()
+
+	entry.profile.Lock()
+	defer entry.profile.Unlock()
+
+	if entry.processNode == nil || entry.processNode.SeenIsEmpty() {
+		m.sampleCookieMap.Remove(cookie)
+		return
+	}
+
+	imageTagID := entry.profile.ActivityTree.GetImageTagID(entry.imageTag)
+	if imageTagID == 0 {
+		return
+	}
+
+	now := time.Now()
+	entry.processNode.AppendImageTagID(imageTagID, now)
+	if entry.eventNodeBase != nil {
+		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
+	}
+}
+
+func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
+	for _, key := range m.sampleCookieMap.Keys() {
+		if entry, ok := m.sampleCookieMap.Peek(key); ok && entry.profile == prof {
+			m.sampleCookieMap.Remove(key)
+		}
+	}
+}
 
 // LookupEventInProfiles lookups event in profiles.
 // NO-OP in V2: Event filtering is handled differently through ProcessEvent which builds

@@ -50,3 +50,8 @@ func (p *mockProvider) NextPipelineChan() chan *message.Message {
 func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return p.msgChan, metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", "")
 }
+
+// GetPipelineMonitor returns a no-op pipeline monitor.
+func (p *mockProvider) GetPipelineMonitor() metrics.PipelineMonitor {
+	return metrics.NewNoopPipelineMonitor("")
+}

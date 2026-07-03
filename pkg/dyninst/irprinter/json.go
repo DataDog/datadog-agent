@@ -100,6 +100,8 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 				return enc.WriteToken(jsontext.String("string"))
 			case ir.DynamicSizeHashmap:
 				return enc.WriteToken(jsontext.String("hashmap"))
+			case ir.DynamicSizeFilterDeferred:
+				return enc.WriteToken(jsontext.String("filter_deferred"))
 			case ir.StaticSize:
 				return enc.WriteToken(jsontext.String("static"))
 			default:
@@ -337,6 +339,10 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.GoSubroutineType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapGroupsType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapHeaderType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredSliceType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredSliceDataType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredMapType)(nil)),
+	reflect.TypeOf((*ir.GoFilteredMapDataType)(nil)),
 	reflect.TypeOf((*ir.GoTimeType)(nil)),
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
@@ -437,6 +443,18 @@ func makeOperationMarshaler(
 		case *ir.PanicUnwindPrepareOp:
 			toMarshal = newWithKind(op)
 		case *ir.PanicUnwindEvictSlotsOp:
+			toMarshal = newWithKind(op)
+		case *ir.EmitFilterSliceMarkerOp:
+			toMarshal = newWithKind(op)
+		case *ir.EmitFilterMapMarkerOp:
+			toMarshal = newWithKind(op)
+		case *ir.InitFilterSliceLoopOp:
+			toMarshal = newWithKind(op)
+		case *ir.FilterSliceLoopStepOp:
+			toMarshal = newWithKind(op)
+		case *ir.InitFilterMapLoopOp:
+			toMarshal = newWithKind(op)
+		case *ir.FilterMapLoopStepOp:
 			toMarshal = newWithKind(op)
 		default:
 			return fmt.Errorf("unknown operation: %T", op)

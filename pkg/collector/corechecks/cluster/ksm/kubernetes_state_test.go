@@ -740,7 +740,7 @@ func TestProcessMetrics(t *testing.T) {
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
-		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
+		mocked := mocksender.NewMockSender(t, kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
 
 		if _, ok := test.metricsToProcess["kube_customresource_metric_info"]; ok {
@@ -1000,7 +1000,7 @@ func TestSendTelemetry(t *testing.T) {
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
-		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
+		mocked := mocksender.NewMockSender(t, kubeStateMetricsSCheck.ID())
 		mocked.SetupAcceptAll()
 
 		kubeStateMetricsSCheck.telemetry = test.cache

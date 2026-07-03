@@ -2,6 +2,661 @@
 Release Notes
 =============
 
+.. _Release Notes_7.80.4:
+
+7.80.4
+======
+
+.. _Release Notes_7.80.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-01
+
+- Please refer to the `7.80.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7804>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.80.4_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Add more traces during SSI installation on Linux host
+
+
+.. _Release Notes_7.80.3:
+
+7.80.3
+======
+
+.. _Release Notes_7.80.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-24
+
+- Please refer to the `7.80.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7803>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.80.3_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.25.11``.
+
+
+.. _Release Notes_7.80.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Workload autoscaling: fixed a bug where, when running the Cluster Agent in
+  high-availability mode (multiple replicas), the burstable mode of a
+  ``DatadogPodAutoscaler`` could leave the CPU limit in place on a random
+  subset of pods. The CPU-limit removal is now re-derived from the autoscaler
+  spec in the admission controller, so every replica applies it consistently
+  regardless of which one handles the admission request.
+
+- Fix Private Action Runner self-enrollment failing silently on hosts with no
+  direct internet access when a proxy is configured in ``datadog.yaml``.
+  Enrollment requests now respect the agent proxy settings
+  (``proxy.https``, ``proxy.http``, and ``no_proxy``).
+
+- Disable v3beta metrics intake shadow payloads when zlib compression is used.
+
+
+.. _Release Notes_7.80.2:
+
+7.80.2
+======
+
+.. _Release Notes_7.80.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-17
+
+- Please refer to the `7.80.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7802>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.80.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Compliance: CIS Docker rules (``scope: docker``) are no longer evaluated
+  on Kubernetes nodes where the kubelet's CRI runtime is not Docker (e.g.
+  containerd, CRI-O), avoiding false positives on GKE Container-Optimized
+  OS which ships dockerd alongside containerd. The runtime is read from
+  the kubelet's ``--container-runtime-endpoint`` flag or the
+  ``containerRuntimeEndpoint`` field of its ``--config`` YAML; if it
+  cannot be determined the rules continue to evaluate.
+
+
+.. _Release Notes_7.80.2_Security Notes:
+
+Security Notes
+--------------
+
+- Fixed a confused-deputy vulnerability in the Cluster Agent's AppSec
+  ingress-nginx admission mutator where the pod's
+  ``--configmap=<namespace>/<name>`` argument was trusted verbatim,
+  allowing a user with pod-create permission in one namespace to make
+  the Cluster Agent service account create or update ConfigMaps and add
+  labels and annotations in arbitrary namespaces. The mutator now
+  requires the ``<namespace>`` portion to match the pod's own namespace
+  (or use the ``$(POD_NAMESPACE)`` downward-API substitution) and skips
+  mutation otherwise, emitting a warning event on the pod. The
+  vulnerability affected Cluster Agent releases starting from 7.78.0.
+
+
+.. _Release Notes_7.80.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix an issue where container log collection could stop for an individual
+  container without recovering and without any error in the Agent logs. When
+  a container's log stream was idle longer than ``logs_config.docker_client_read_timeout``,
+  the read timeout could cause the underlying Docker connection to close in a
+  way that the tailer treated as a permanent shutdown, silently stopping log
+  collection for that container until it was recreated or the Agent was
+  restarted. The tailer now reconnects in this case, and only stops when the
+  Agent is intentionally shutting down. Low-volume containers (for example,
+  services that log only periodically) were the most affected.
+
+- OTel Agent: Disable v3 series API shadow sampling, which is incompatible
+  with the zlib compression the OTel Agent forces for the metrics intake.
+
+
+.. _Release Notes_7.80.1:
+
+7.80.1
+======
+
+.. _Release Notes_7.80.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-12
+
+- Please refer to the `7.80.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7801>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.80.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Agent's embedded Python has been upgraded from 3.13.13 to 3.13.14
+
+
+.. _Release Notes_7.80.0:
+
+7.80.0
+======
+
+.. _Release Notes_7.80.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-11
+
+- Please refer to the `7.80.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7800>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.80.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Health Platform: the ``ReportIssue`` method now takes a single
+  ``IssueReport`` argument instead of ``(checkID, checkName string,
+  report *IssueReport)``. The ``IssueReport`` struct carries three new
+  fields — ``IssueID`` (unique instance id), ``IssueType`` (template id),
+  and ``Source`` (reporting integration name) — replacing the separate
+  ``checkID`` and ``checkName`` arguments.
+  
+  The health platform persistence file format has been bumped to version 2.
+  Existing persistence files (``<run_path>/health-platform/issues.json``)
+  written by a previous agent version will be detected, logged as
+  incompatible, and discarded on startup; the agent starts with a fresh
+  issue state. No data migration is performed.
+  
+  For integrations calling ``ReportIssue``: construct an ``IssueReport``
+  with ``IssueID`` set to a unique instance key (e.g.
+  ``"check-execution-failure:<check-id>"``), ``IssueType`` set to the
+  template identifier that was previously passed as the ``IssueId`` field
+  of the proto ``IssueReport``, and ``Source`` set to the integration name.
+  To resolve an issue, call ``ResolveIssue(issueID)`` instead of passing
+  ``nil`` to ``ReportIssue``.
+
+- Health Platform: the ``health_platform.issues_detected`` telemetry counter
+  is now tagged with ``issue_type`` instead of ``health_check_id``. Update any
+  dashboards, monitors, or telemetry configuration that filtered or grouped
+  by the ``health_check_id`` tag to use ``issue_type`` instead.
+
+- **APM: On Linux, the trace agent process now only starts once data is sent to any of its
+  configured listeners.**
+  
+  Previously, the trace agent started immediately on agent startup, it now starts lazily when needed,
+  which reduces resource usage.
+  To disable and restore the previous behavior, set ``apm_config.socket_activation.enabled: false``
+  in ``datadog.yaml``, or set the environment variable ``DD_APM_SOCKET_ACTIVATION_ENABLED=false``.
+
+
+.. _Release Notes_7.80.0_New Features:
+
+New Features
+------------
+
+- The Windows MSI installer now includes the AI Usage Chrome Native Messaging
+  Host, which is intended to work with a companion Chrome extension to power
+  EUDM AI usage features. The host is currently dormant because the Chrome
+  extension is not yet enabled, so no AI usage host process runs on the system.
+
+- Adds a new ``discovery.service_map.enabled`` system-probe configuration
+  option that boots the universal service monitoring (USM) eBPF monitor in
+  a restricted mode, capturing only the data needed to render a service
+  dependency map (HTTP and HTTPS via TLS uprobes). Hosts running in this
+  mode are not billed as USM customers, are not surfaced in USM
+  dashboards, and do not produce ``universal.http.*`` metrics. Intended
+  for non-APM customers as a free preview of application observability.
+
+- Add ``k8sobjectsreceiver`` to the DDOT (Datadog Distribution of OpenTelemetry Collector) default manifest,
+  enabling collection of Kubernetes object events and resource states via the
+  OpenTelemetry Collector pipeline.
+
+- Adds a new action ``get-resource`` in kubeactions.
+
+- The fleet installer's ``agent-package`` OCI index now contains a
+  FIPS-flavored sibling manifest for each platform, distinguished by the
+  OCI ``Platform.Variant`` field. When ``DD_FIPS_MODE=true`` is set, the
+  installer downloads the FIPS manifest; otherwise it downloads the base
+  manifest. The package URL is unchanged in both cases.
+
+- Add a new ``nccl`` core check that collects per-rank NCCL collective
+  communication metrics from GPU training and inference workloads.
+  
+  The check listens on a Unix domain socket (default
+  ``/var/run/datadog/nccl.socket``) for JSON events emitted by the
+  NCCL profiler plugin (``libnccl-profiler-dd.so``) running inside GPU
+  pods. Each event is tagged with ``rank``, ``collective``, ``n_ranks``,
+  ``kube_pod_name``, ``kube_namespace``, and ``kube_container_name``.
+  
+  Metrics emitted:
+  
+  - ``nccl.collective.exec_time_us`` — time a rank spends inside a
+    collective operation. A rank with a significantly lower value than
+    its peers is the straggler; ranks with higher values are waiting at
+    the barrier.
+  - ``nccl.collective.algo_bandwidth_gbps`` — algorithm bandwidth of
+    the collective.
+  - ``nccl.collective.bus_bandwidth_gbps`` — bus bandwidth normalised
+    for the collective type.
+  - ``nccl.collective.msg_size_bytes`` — tensor size being communicated.
+  - ``nccl.rank.seconds_since_last_event`` — seconds since this rank
+    last reported an event; non-zero values indicate a potential hang.
+  
+  Enable the check cluster-wide by setting ``gpu.nccl.enabled: true`` in the
+  Agent configuration (or ``DD_GPU_NCCL_ENABLED=true``). The socket path
+  can be overridden via ``gpu.nccl.socket_path``; the host directory mounted
+  into training pods can be overridden via ``gpu.nccl.host_socket_path``.
+
+- Add support for the ``datadog.metric.as_type`` datapoint attribute on
+  OTLP delta sum metrics. When this attribute is set to ``"rate"``, the
+  metric is sent to Datadog as a Rate (value divided by interval) instead
+  of a Count. Accepted values are ``"rate"``, ``"count"``, and ``"gauge"``;
+  unknown values are logged and ignored. This allows users migrating from
+  DogStatsD to OpenTelemetry to preserve rate-type metric behavior.
+
+- Add ``multi_secret_backends`` in ``datadog.yaml`` so you can declare extra named secret backends (each with ``type`` and ``config``). When no ``secret_backend_type`` is set, select the backend per handle using ``ENC[backendID;secretKey]`` (``backendID`` matches a name under ``multi_secret_backends``).
+  Precedence is ``secret_backend_command`` (if set) over ``secret_backend_type`` over ``multi_secret_backends``: a custom command wins over native type; when native ``secret_backend_type`` is set (and no custom command), every ``ENC[...]`` inner string is resolved only through that type and ``multi_secret_backends`` is not used for routing.
+
+- Add ``admission_controller.auto_instrumentation.container_registry_allow_list``
+  configuration option (env var ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_CONTAINER_REGISTRY_ALLOW_LIST``)
+  to restrict which container registries can be used as sources for APM library
+  injection via Single Step Instrumentation. When set to a non-empty
+  comma-separated list, the admission controller will skip injection for any pod
+  whose injector image registry is not in the list, and will set the
+  ``internal.apm.datadoghq.com/injection-error`` annotation with the reason.
+  An empty list (the default) allows injection from any registry.
+
+- Windows: ``windows_certificate`` check adds ``certificate_store_regex``, a list of
+  Go regular expressions matched against ``HKLM`` certificate store names.
+  Patterns are matched case-insensitively. ``certificate_store`` and
+  ``certificate_store_regex`` can be used together; at least one must be set.
+
+
+.. _Release Notes_7.80.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Process kubernetes actions asynchronously to avoid blocking the main thread.
+
+- Add an example OpenMetrics check configuration for Agent Data Plane
+  deployments to restore ``datadog.agent.dogstatsd.*`` and
+  ``datadog.agent.forwarder.transactions.*`` metrics.
+
+- Pre-register ``datadog-apm-library-iis``,
+  ``datadog-apm-library-iis-rum``, and ``datadog-apm-library-httpd``
+  in the fleet installer. The packages are gated behind remote
+  updates so they can be rolled out via remote configuration without
+  a new installer release.
+
+- Chunk remote workloadmeta messages in the Agent to avoid exceeding
+  the gRPC max message size.
+
+- APM : The Trace Agent ``agent status`` output now shows the UDS (Unix Domain
+  Socket) receiver path when UDS is enabled, in addition to the existing TCP
+  receiver address. Each per-client entry in the receiver stats section also
+  displays the connection type (``tcp``, ``uds``, or ``pipe``), making it
+  easier to distinguish traffic arriving via different transports.
+
+- Autodiscovery template resolution failures are now logged at ERROR level
+  instead of DEBUG, making them visible without enabling debug logging.
+  Additionally, when the health platform is enabled, these failures are
+  reported as AD misconfiguration health events with actionable remediation
+  steps, providing proactive visibility when an autodiscovered check config
+  is silently skipped due to unsupported template variables.
+
+- When ``infrastructure_mode`` is ``basic``, the Agent's default allowlist
+  now includes the Directory, WMI Check, Windows Certificate, Windows
+  Performance Counters, and Windows Registry integrations so they can run
+  without extra ``integration.additional`` configuration on
+  Windows-oriented deployments.
+
+- Agents are now built with Go ``1.25.10``.
+
+- On Windows, network connections collected by Cloud Network Monitoring
+  are now tagged with ``interface_name`` and ``interface_type``.
+
+- The Agent now streams Kubernetes metadata from the Cluster Agent by default,
+  instead of polling for it periodically. This propagates tags derived from
+  Kubernetes metadata (like ``kube_service``) with less delay. This behavior
+  is controlled by the ``kubernetes_metadata_streaming`` setting.
+
+- ``agent diagnose`` now renders the check name as a prefix for all checks
+  under the ``check-datadog`` suite. The JSON output gains a ``check_name``
+  field for the same purpose.
+
+- The ``--include`` and ``--exclude`` flags of ``agent diagnose`` now match
+  against the suite name, the owning check name, and the diagnosis category.
+  For example, ``agent diagnose --include postgres`` now filters individual
+  diagnoses across all suites instead of only matching suite names.
+
+- DogStatsD timing metrics (``t`` type) now include an explicit unit value
+  (``millisecond``) in the metric payload sent to Datadog, allowing the
+  Datadog UI to display the correct unit automatically.
+
+- Dynamic Instrumentation now supports compound conditions using ``&&``,
+  ``||``, and ``!``.
+
+- When ``infrastructure_mode`` is set to ``none``, ECS task metadata collection is now disabled by default (see ``ecs_task_collection_enabled``). Set ``DD_ECS_TASK_COLLECTION_ENABLED`` to ``true`` to override.
+
+- When ``infrastructure_mode`` is set to ``end_user_device``, the Agent now
+  attaches additional host tags to identify the device:
+  ``infrastructure_mode:end_user_device``, ``os_name``, ``os_version``,
+  ``cpu_model``, ``total_memory_gb``, and ``device_model``. Hardware and OS
+  tags are collected on macOS and Windows only.
+
+- Add new ``ad_tag_completeness_max_wait`` configuration option. When set,
+  autodiscovery waits up to that many seconds for an entity's tags to be
+  complete before scheduling checks for it. This avoids checks running
+  briefly with incomplete tags. It's disabled by default.
+
+- Add ``logs_config.use_container_timestamp`` to optionally use the ``time`` field from container log files as the log timestamp instead of ingestion time, preserving container-provided per-line timestamps.
+
+- Logs Agent: ``logs_config.tag_multi_line_logs`` and
+  ``logs_config.tag_truncated_logs`` now default to ``true`` so file logs
+  are tagged by default when they were aggregated as multiline logs or
+  truncated by the Agent.
+
+- Use native API requestWhenInUseAuthorization() to manage
+  location permission prompt on MacOS.
+
+- The OTel Agent standalone mode now automatically disables IPC with a core
+  Datadog Agent. When ``DD_OTEL_STANDALONE`` is enabled, ``DD_CMD_PORT`` is forced
+  to ``-1``, so users no longer need to set it manually when running DDOT without
+  a core Agent.
+
+- The ``service.instance.id`` OpenTelemetry resource attribute is now mapped to
+  the ``service.instance.id`` Datadog metric tag when converting OTLP metrics.
+  This attribute is required for OTel traffic metrics in Datadog Fleet Automation.
+
+- Private Action Runner: When ``private_action_runner.api_key_only_enrollment``
+  is enabled, the agent now enrolls via the new API-key-only OPMS endpoint
+  (``/api/unstable/on_prem_runners/api_key_only``). This allows runners to
+  self-enroll using only a scoped API key, without requiring an application key.
+
+- The Private Action Runner now honors the ``X-Retry-After-Ms`` response
+  header returned by the Datadog backend on workflow task dequeue and
+  health check requests.
+
+- The Private Action Runner now retries self-enrollment and auto-connection
+  creation requests when the Datadog API returns a transient ``5xx``
+  response.
+
+- Parse the ECS ``/tasks`` host metadata endpoint on Managed Instances and
+  populate ``DaemonName`` for daemon-scheduled tasks.
+
+- The default for ``logs_config.file_scan_period`` is now **1** second instead of 10, so the Agent discovers new and rotated log files on disk more quickly. Set ``logs_config.file_scan_period`` explicitly if you need a slower scan to reduce filesystem load (for example on network file systems).
+
+- Bumped the Security Agent policies to `v0.80.0 <https://github.com/DataDog/security-agent-policies/compare/v0.79.0...v0.80.0>`_
+
+- Reduce the payload size of SNMP device metrics by letting the Datadog
+  backend enrich device tags (such as ``snmp_device``, ``device_ip``, and
+  ``device_id``) from device metadata instead of attaching them to every
+  metric. Existing queries and monitors continue to work, and no action is
+  required. This only applies when ``collect_device_metadata`` is enabled
+  (the default).
+
+- SNMP network device metadata: when a profile lists multiple scalar ``symbols`` for the same
+  metadata field (for example ``serial_number``), the check now skips values that resolve to an
+  empty string (after trimming whitespace) and continues to the next symbol, matching the intended
+  fallback order when an OID exists but carries no usable serial.
+
+- Upgrade OpenTelemetry Collector dependencies from v0.150.0 to v0.151.0
+  (core v1.56.0 to v1.57.0).
+  
+  Notable upstream changes:
+  
+  - Removed stable feature gates that are no longer needed:
+    ``connector.datadogconnector.NativeIngest``,
+    ``exporter.datadogexporter.UseLogsAgentExporter``, and
+    ``exporter.datadogexporter.metricexportnativeclient``.
+  - Several collector-contrib components have been renamed with deprecated
+    aliases (``spanmetrics`` to ``span_metrics``, ``hostmetrics`` to
+    ``host_metrics``, ``fluentforward`` to ``fluent_forward``). The old
+    names continue to work but will be removed in a future release.
+  
+  See the full upstream changelogs:
+  `collector-contrib v0.151.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.151.0>`_,
+  `collector core v0.151.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.151.0>`_.
+
+- Upgrade OpenTelemetry Collector dependencies from v0.151.0 to v0.152.0
+  (core v1.57.0 to v1.58.0).
+  
+  See the full upstream changelogs:
+  `collector-contrib v0.152.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.152.0>`_,
+  `collector core v0.152.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.152.0>`_.
+
+- A small sample of series metric flushes (0.1% by default) is now
+  additionally sent to a v3beta metrics intake endpoint to validate the
+  upcoming v3 metrics protocol. Shadow traffic is only sent for agents
+  configured against the ``datadoghq.com`` (US1) site. To opt out, set
+  ``serializer_experimental_use_v3_api.series.shadow_sample_rate`` to
+  ``0``.
+
+- The OTel Agent now logs a warning and displays it in ``agent status``
+  when the ``hostmetrics`` receiver is configured while running in connected
+  mode (``DD_OTEL_STANDALONE=false``). In connected mode the core Datadog
+  Agent already collects host metrics, so enabling the ``hostmetrics``
+  receiver can lead to duplicate or conflicting metric names. To suppress
+  the warning, either remove the ``hostmetrics`` receiver or switch to
+  standalone mode (``DD_OTEL_STANDALONE=true``).
+
+- Add six opt-in tag flags to the Windows Certificate Store integration:
+  ``certificate_template_tag``, ``enhanced_key_usage_tag``, ``friendly_name_tag``,
+  ``subject_alternative_names_tag``, ``issuer_tag``, and ``signature_algorithm_tag``.
+  When enabled, each certificate's metrics and service checks are tagged with the
+  corresponding X.509 or Windows certificate property. All flags default to ``false``.
+
+
+.. _Release Notes_7.80.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- APM: Restored the deprecated ``DD_APM_SPAN_DERIVED_PRIMARY_TAGS`` configuration
+  option, but only in serverless contexts: the Datadog Azure App Services
+  extension (``DD_AZURE_APP_SERVICES=1``) and ``serverless-init`` (Cloud Run,
+  Container Apps, Cloud Run Functions). In all other deployments the option is
+  silently ignored. Tracers should populate ``additional_metric_tags`` instead;
+  do not use ``DD_APM_SPAN_DERIVED_PRIMARY_TAGS`` in new deployments.
+
+
+.. _Release Notes_7.80.0_Security Notes:
+
+Security Notes
+--------------
+
+- Bumped pip to 26.1.1 in the embedded Python distribution to address CVE-2026-6357.
+
+- Updated the Windows 1809 / LTSC 2019 Agent container base images from the
+  deprecated ``mcr.microsoft.com/powershell:*-1809`` images to
+  ``mcr.microsoft.com/dotnet/sdk:9.0-nanoserver-1809`` (nanoserver) and
+  ``mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2019``
+  (servercore). The previous PowerShell base images were unmaintained and
+  still shipped PowerShell 7.1.0, which is affected by CVE-2022-26788.
+
+
+.. _Release Notes_7.80.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The debugger proxy no longer forwards Exception Replay and Live Debugger
+  logs when ``logs_enabled`` is ``false``. This can be overridden using the
+  new ``apm_config.debugger_logs_enabled_override`` setting (environment
+  variable ``DD_APM_DEBUGGER_LOGS_ENABLED_OVERRIDE``), which enables
+  Exception Replay and Live Debugger when ``logs_enabled`` is ``false``.
+
+- APM : Fixed trace span obfuscation for OpenSearch request bodies when
+  Elasticsearch JSON obfuscation is also enabled. Spans that only included
+  the ``opensearch.body`` tag (and not ``elasticsearch.body``) were previously
+  left unobfuscated in that configuration.
+
+- APM : Fix SQL obfuscation error when a query uses PostgreSQL array slice syntax
+  with bind parameters (e.g. ``arr[$1:]`` or ``arr[$1:$2]``). The tokenizer was
+  incorrectly treating the ``:`` range separator as the start of a named bind
+  variable, causing obfuscation to fail with a ``LexError``.
+
+- APM OTLP: Preserve gRPC status codes on trace metrics computed by DDOT and the OpenTelemetry Collector Datadog connector. This includes explicit gRPC status attributes such as ``rpc.grpc.status_code`` and the newer OpenTelemetry semantic convention ``rpc.response.status_code`` when ``rpc.system.name`` is ``grpc``.
+
+- APM : Enforce body-size limits on trace-agent proxy endpoints (DogStatsD,
+  pipeline stats, OpenLineage, Debugger, SymDB). All endpoints are capped at
+  ``apm_config.max_request_bytes`` (default 25 MB). The profiling proxy uses
+  a separate limit configurable via ``apm_config.profiling_max_request_bytes``
+  (default 50 MB, env ``DD_APM_PROFILING_MAX_REQUEST_BYTES``).
+  The ``Traces`` and ``ClientStatsPayload`` msgpack decoders now reject
+  payloads declaring more than 500,000 elements in a single array.
+
+- APM : Fix an issue where converting traces to the v1 format did not prefer the root span's sampling priority when multiple ``_sampling_priority_v1`` values were present on spans in the same trace.
+
+- Logs collected with automatic multiline detection now fall back to individual
+  events when combining lines would exceed ``logs_config.max_message_size_bytes``.
+  Oversized single log lines continue to use the normal truncation path, and
+  multiline logs that fit within the limit are still aggregated.
+
+- [DBM] Bump ``go-sqllexer`` to v0.2.2 to fix the following bugs:
+  - Obfuscate ``EXTRACT`` field keywords (e.g. ``epoch``, ``year``) so that queries from
+    ``pg_stat_activity`` and ``pg_stat_statements`` converge on the same DBM signature.
+  - Fix handling of PostgreSQL ``VACUUM`` commands so they are correctly extracted into
+    statement metadata.
+  - Fix lexer handling of multiline comments immediately following keywords.
+
+- Fixed HTTP flows being incorrectly dropped when a request body arrives
+  before the response.
+  Fixed pending HTTP transactions not being finalized when a connection is
+  closed by a bare FIN or RST.
+  Fixed a bug check (BSOD) caused by mismatched ``maxRequestFragment``
+  values during HTTP initialization.
+
+- Fixed the container ID to PID mapping for processes running in a
+  sub-cgroup of their container's cgroup (for example, CrowdStrike Falcon's
+  ``sensor.falcon`` scope nested under a container scope).
+
+- Fix the ``connection_reset_interval`` setting not being applied to additional
+  log endpoints and HTTP MRF endpoints. Previously, only the main log endpoint
+  would periodically reset its connection, which could cause additional endpoints
+  to send logs to stale destinations after a DNS failover. Additional endpoints
+  now inherit the global ``logs_config.connection_reset_interval`` value by
+  default, and can also be overridden per-endpoint in the
+  ``additional_endpoints`` configuration.
+
+- Fix a panic in the system-probe network tracer caused by concurrent access
+  to the gateway lookup subnet cache. The cache now uses a thread-safe LRU
+  implementation.
+
+- Fixed the health platform forwarder using the wrong intake endpoint.
+  Agent health reports are now sent to ``agenthealth-intake.{site}``
+  instead of ``event-platform-intake.{site}``, which is only configured
+  for the ``logs`` and ``processesraw`` tracks. This caused org_id to be
+  missing from all agent health recommendations.
+
+- Fix a class of IPv6 ``host:port`` formatting bugs found in multiple
+  call sites across the Agent. IPv6 literals in host configuration
+  values were not bracketed when used to build URLs and dial addresses,
+  producing strings like ``http://fd38::1:5005`` instead of
+  ``http://[fd38::1]:5005`` and causing ``too many colons in address``
+  errors at runtime.
+
+- Fixes the journald log tailer skipping the first journal entry when
+  ``start_position`` is set to ``beginning`` or ``forceBeginning``.
+
+- Fix chassis type detection for Mac mini and Mac Pro hosts, which were
+  previously reported as ``Other``.
+
+- Fix the macOS battery check detecting battery on Mac minis.
+
+- Logs: Fixed a bug where the MultiLineParser did not mark truncation when
+  reassembled log lines exceeded the 900KB size cap. Oversized lines are now
+  properly flagged with ``IsTruncated`` so that downstream handlers can apply
+  truncation markers and increment telemetry.
+
+- Fix spurious "Unknown environment variable" warnings for ``DD_SYNC_DELAY``,
+  ``DD_SYNC_TO``, and ``DD_CORE_CONFIG`` when running the OTel Agent.
+
+- Fix a panic in the OTLP metrics pipeline when a sender submits a histogram
+  with more ``BucketCounts`` entries than ``ExplicitBounds`` allows (violating
+  the ``counts == bounds + 1`` OpenTelemetry specification invariant). Such
+  data points are now rejected with an error instead of crashing the agent.
+
+- Fix a C-memory leak in the logs batch sender where ``resetBatch()`` replaced
+  the zstd ``StreamCompressor`` without closing the previous one.
+
+- The ``datadog-installer.exe`` install script now adds ``datadog.yaml.example`` template comments to the config files on fresh installs.
+
+- Fixed the gohai resource check silently dropping processes whose UID
+  does not exist in the host's ``/etc/passwd``. This commonly affects
+  containerized processes running as UIDs created inside container images.
+  The "Processes memory usage" widget on the host infrastructure page now
+  correctly includes these processes by falling back to the numeric UID
+  string when username lookup fails.
+
+- gpu: fix an issue where some GPM metrics (gpu.gr_engine_active, gpu.sm_utilization, gpu.sm_occupancy, gpu.integer_active, gpu.fp16_active, gpu.fp32_active, gpu.fp64_active, gpu.tensor_active) were only emitted correctly one out of eight times on average.
+
+- NDM SNMP: fix IP metadata fields rendered as ``<nil>`` for OIDs declared
+  with SYNTAX ``IpAddress`` (e.g. Cisco IPsec tunnel local/remote outside IPs,
+  CDP remote addresses). gosnmp decodes these values as Go strings, but the
+  metadata store previously only handled the raw-bytes path.
+
+- Fixes an issue with the NetFlow collector where certain packets would be dropped, producing
+  error logs and lost data. The issue was caused when a packet had trailing padding
+  which was not properly handled.
+
+- Fixed a bug where empty log sources would get orphaned due to empty ``serviceID`` due the agent attempting to collect logs from short lived containers that exit quickly.
+
+- Fixed a regression introduced around Agent 7.40 where non-template check configurations
+  containing unresolvable ``ENC[...]`` secrets were still scheduled with raw secret handles
+  in their config. Checks are now correctly dropped when all instances fail secret decryption.
+  When only some instances fail, the surviving instances are scheduled and the failing instances
+  are dropped, preserving the pre-regression per-instance behavior.
+
+- SNMP: Detect GetBulk response truncation (fewer varbinds than requested OIDs) and
+  automatically reduce the batch size, preventing silent metric loss on devices that
+  truncate large SNMP responses.
+
+
+.. _Release Notes_7.80.0_Other Notes:
+
+Other Notes
+-----------
+
+- Add handling for dbm-column-statistics events in the event platform forwarder.
+  These events are used by Database Monitoring integrations to
+  report column statistics from database catalogs.
+
+- Add metrics origins for Cisco SD-WAN and Versa integrations.
+
+- Add metrics origins for HPE Aruba EdgeConnect and NiFi.
+
+- Removed support for using the OpenTelemetry components contained
+  in this repo from an external collector, using OCB.
+  The equivalent components in the opentelemetry-collector-contrib
+  repository are designed exactly for this use case and should be used instead:
+    - `datadog exporter <https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/datadogexporter>`_
+    - `datadog extension <https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/datadogextension>`_
+
+
 .. _Release Notes_7.79.2:
 
 7.79.2

@@ -38,6 +38,14 @@ const (
 	KueueLocalQueueNameLabelKey = "kueue.x-k8s.io/local-queue-name"
 	// KueueClusterQueueNameLabelKey is the pod label key set by Kueue with the admitted cluster queue name
 	KueueClusterQueueNameLabelKey = "kueue.x-k8s.io/cluster-queue-name"
+	// KueueGroupName is the API group used by Kueue resources
+	KueueGroupName = "kueue.x-k8s.io"
+	// KueueLocalQueueResourceName is the plural resource name for Kueue LocalQueue objects
+	KueueLocalQueueResourceName = "localqueues"
+	// KueueClusterQueueResourceName is the plural resource name for Kueue ClusterQueue objects
+	KueueClusterQueueResourceName = "clusterqueues"
+	// KueueResourceFlavorResourceName is the plural resource name for Kueue ResourceFlavor objects
+	KueueResourceFlavorResourceName = "resourceflavors"
 	// ArgoRolloutLabelKey is the label key that is present when the resource is managed by Argo Rollouts
 	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 
@@ -92,6 +100,12 @@ const (
 	ClusterRoleBindingKind = "ClusterRoleBinding"
 	// CustomResourceDefinitionKind represents the CustomResourceDefinition object kind
 	CustomResourceDefinitionKind = "CustomResourceDefinition"
+	// KueueLocalQueueKind represents the Kueue LocalQueue object kind
+	KueueLocalQueueKind = "LocalQueue"
+	// KueueClusterQueueKind represents the Kueue ClusterQueue object kind
+	KueueClusterQueueKind = "ClusterQueue"
+	// KueueResourceFlavorKind represents the Kueue ResourceFlavor object kind
+	KueueResourceFlavorKind = "ResourceFlavor"
 	// HorizontalPodAutoscalerKind represents the HorizontalPodAutoscaler object kind
 	HorizontalPodAutoscalerKind = "HorizontalPodAutoscaler"
 	// IngressKind represents the Ingress object kind

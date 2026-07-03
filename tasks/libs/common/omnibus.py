@@ -32,9 +32,7 @@ ENV_PASSHTROUGH = {
     'GEM_PATH': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'HOME': 'Home directory might be used by invoked programs such as git',
     'INSTALL_DIR': 'Used by Omnibus to determine the target install directory when building the package',
-    'INTEGRATION_WHEELS_CACHE_BUCKET': 'Bucket where integration wheels are cached',
     'INTEGRATIONS_WHEELS_STORAGE': 'Storage tier ("dev" or "stable") for integration dependency wheels, expanded by pip in lockfiles',
-    'INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD': 'Setting that skips uploading integration wheels to cache',
     'MY_RUBY_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'OMNIBUS_FORCE_PACKAGES': 'Force Omnibus to build actual packages',
     'OMNIBUS_GIT_CACHE_DIR': 'Local directory used by Omnibus for the local git cache',
@@ -54,6 +52,7 @@ ENV_PASSHTROUGH = {
     'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_version': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'AGENT_DATA_PLANE_VERSION': 'Agent Data Plane Version',
+    'AGENT_DATA_PLANE_SOURCE_URL_BASE': 'Override URL base for Agent Data Plane tarball downloads',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
@@ -87,6 +86,8 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'WINDOWS_DDPROCMON_DRIVER': 'Windows Kernel Procmon Driver',
         'WINDOWS_DDPROCMON_VERSION': 'Windows Kernel Procmon Driver Version',
         'WINDOWS_DDPROCMON_SHASUM': 'Windows Kernel Procmon Driver Checksum',
+        'AGENT_DATA_PLANE_HASH_WINDOWS_AMD64': 'Agent Data Plane Hash for Windows AMD64',
+        'AGENT_DATA_PLANE_HASH_FIPS_WINDOWS_AMD64': 'Agent Data Plane Hash for FIPS Windows AMD64',
     },
     'linux': {
         'DEB_GPG_KEY': 'Used to sign packages',
@@ -109,6 +110,8 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'TEAM_ID': 'Apple developer team ID used for notarization',
         'KEYCHAIN_NAME': 'Name of the ephemeral keychain holding signing certificates',
         'KEYCHAIN_PWD': 'Password for the ephemeral signing keychain',
+        'AGENT_DATA_PLANE_HASH_DARWIN_AMD64': 'Agent Data Plane Hash for Darwin AMD64',
+        'AGENT_DATA_PLANE_HASH_DARWIN_ARM64': 'Agent Data Plane Hash for Darwin ARM64',
     },
 }
 
@@ -131,7 +134,6 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'GOPRIVATE',
         'GOPROXY',
         'HOME',
-        'INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD',
         'JARSIGN_JAR',
         'KEYCHAIN_NAME',
         'KEYCHAIN_PWD',
@@ -199,7 +201,7 @@ def _hash_paths(hasher, paths: list[str]):
 
 def get_dd_api_key(ctx):
     if sys.platform == 'win32':
-        cmd = f'aws.exe ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
+        cmd = f'C:\\devtools\\ci-identities-gitlab-job-client.exe secrets read {os.environ["AGENT_API_KEY_ORG2"]} token'
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:

@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "logsfilter",
+    srcs = [
+        "logsfilter.go",
+        "rules.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter",
+    visibility = ["//comp/anomalydetection:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/config/structure",
+    ],
+)
+
+go_test(
+    name = "logsfilter_test",
+    srcs = [
+        "logsfilter_test.go",
+        "rules_test.go",
+    ],
+    embed = [":logsfilter"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

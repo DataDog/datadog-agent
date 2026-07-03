@@ -169,6 +169,8 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
 	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
+	// The otel-agent forces zlib, which is incompatible with the v3 metrics intake.
+	assert.Equal(t, "false", c.GetString("use_v3_api.series.enabled"))
 
 	// log_level from datadog.yaml takes precedence -> more verbose
 	assert.Equal(t, "debug", c.Get("log_level"))
@@ -477,7 +479,7 @@ func (suite *ConfigTestSuite) TestProxyEnvVarsNone() {
 
 	assert.Equal(t, "", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 func (suite *ConfigTestSuite) TestProxyEnvVarsNOProxyOnly() {
@@ -544,9 +546,6 @@ func TestLogsEnabledViaEnvironmentVariable(t *testing.T) {
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	require.NoError(t, err, "NewConfigComponent should succeed with DD_LOGS_ENABLED set")
 	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true when DD_LOGS_ENABLED=true")
-
-	libType := c.GetLibType()
-	assert.NotEmpty(t, libType, "config lib type should be set")
 }
 
 // TestLogsEnabledViaDatadogConfig tests that logs_enabled can be set via a separate

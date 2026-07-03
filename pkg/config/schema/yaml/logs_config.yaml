@@ -190,6 +190,9 @@ properties:
       darwin: 200
       other: 500
     comment: |-
+      Increase the number of files that can be tailed in parallel:
+      The default limit on darwin is 256. This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
+
       There is no effective limit for windows due to use of CreateFile win32 API
       The OS default for most linux distributions is 1024
   file_wildcard_selection_mode:
@@ -314,9 +317,8 @@ properties:
       could happen while serializing large objects on log lines.
   api_key:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: string
+    default: ''
     comment: specific logs-agent api-key
   atomic_registry_write:
     node_type: setting
@@ -355,6 +357,13 @@ properties:
         node_type: setting
         type: integer
         default: 20
+      stack_trace_parsers:
+        node_type: setting
+        type: array
+        default:
+        - go
+        items:
+          type: string
       tag_aggregated_json:
         node_type: setting
         type: boolean
@@ -527,7 +536,7 @@ properties:
       to preserve current behavior.
   expected_tags_duration:
     node_type: setting
-    type: number
+    type: string
     default: 0s
     format: duration
     tags:
@@ -547,6 +556,15 @@ properties:
         tags:
         - golang_type:float64
         comment: Maximum burst allowance per pattern, measured in accumulated credits/logs.
+      disabled_sources:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        comment: |-
+          Sources listed here will not have adaptive sampling or noisy log detection applied, even if enabled globally.
+          Useful for auto-discovered sources that cannot be configured via integration-level YAML.
       enabled:
         node_type: setting
         type: boolean
@@ -784,7 +802,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: DEPRECATED in favor of `logs_config.force_use_http`.
   use_podman_logs:
     node_type: setting
     type: boolean
@@ -808,7 +825,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: DEPRECATED in favor of `logs_config.force_use_tcp`.
   use_v2_api:
     node_type: setting
     type: boolean

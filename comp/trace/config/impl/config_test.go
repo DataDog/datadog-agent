@@ -166,6 +166,8 @@ func TestSplitTagRegex(t *testing.T) {
 
 		logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 		assert.Nil(t, err)
+		previousLogger := log.Default()
+		t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
 		log.SetupLogger(logger, "debug")
 		assert.Nil(t, splitTagRegex(bad.tag))
 		w.Flush()

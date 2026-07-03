@@ -90,6 +90,35 @@ type Profile struct {
 	// V2
 	// First has been sent
 	hasAlreadyBeenSent *atomic.Bool
+	isEnabled          *atomic.Bool
+}
+
+// IsEnabled returns true if the profile is enabled
+func (p *Profile) IsEnabled() bool {
+	return p.isEnabled.Load()
+}
+
+// Disable disables the profile and drops its activity tree to free the memory it held.
+func (p *Profile) Disable() {
+	p.isEnabled.Store(false)
+
+	p.Lock()
+	defer p.Unlock()
+	p.resetActivityTreeLocked()
+}
+
+// resetActivityTreeLocked replaces the activity tree with a fresh, empty one. The caller must hold p.Lock().
+func (p *Profile) resetActivityTreeLocked() {
+	p.ActivityTree = activity_tree.NewActivityTree(p, p.treeOpts.pathsReducer, "security_profile")
+	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
+	if p.treeOpts.differentiateArgs {
+		p.ActivityTree.DifferentiateArgs()
+	}
+}
+
+// Enable enables the profile
+func (p *Profile) Enable() {
+	p.isEnabled.Store(true)
 }
 
 // HasAlreadyBeenSent returns true if the profile has already been sent
@@ -151,6 +180,7 @@ func New(opts ...Opts) *Profile {
 		hasAlreadyBeenSent: atomic.NewBool(false),
 		versionContexts:    make(map[string]*VersionContext),
 		profileCookie:      utils.RandNonZeroUint64(),
+		isEnabled:          atomic.NewBool(true),
 	}
 
 	for _, opt := range opts {
@@ -263,7 +293,7 @@ func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bo
 	p.Lock()
 	defer p.Unlock()
 
-	ok, err := p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
+	ok, _, _, err := p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 	if !ok || err != nil {
 		return ok, 0, err
 	}
@@ -271,8 +301,8 @@ func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bo
 	return ok, p.ActivityTree.Stats.ApproximateSize(), nil
 }
 
-// Insert inserts an event in the profile
-func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
+// Insert inserts an event in the profile and returns the matched/created process node and event node
+func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *activity_tree.ProcessNode, *activity_tree.NodeBase, error) {
 	p.Lock()
 	defer p.Unlock()
 
