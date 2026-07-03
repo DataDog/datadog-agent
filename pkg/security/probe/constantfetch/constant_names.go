@@ -46,6 +46,8 @@ const (
 	OffsetNamePathMnt                   = "path_mnt_offset"
 	OffsetNameMountMntMountpoint        = "mount_mnt_mountpoint_offset"
 	OffsetNameMountpointDentry          = "mountpoint_dentry_offset"
+	OffsetNamePinnedMountpointMp        = "pinned_mountpoint_mp_offset"
+	OffsetNamePinnedMountpointParent    = "pinned_mountpoint_parent_offset"
 	OffsetNameVfsmountMntFlags          = "vfsmount_mnt_flags_offset"
 	OffsetNameVfsmountMntRoot           = "vfsmount_mnt_root_offset"
 	OffsetNameVfsmountMntSb             = "vfsmount_mnt_sb_offset"

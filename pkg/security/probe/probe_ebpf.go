@@ -3726,6 +3726,11 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameInodeSuperblock, "struct inode", "i_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntMountpoint, "struct mount", "mnt_mountpoint")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountpointDentry, "struct mountpoint", "m_dentry")
+	// since kernel 6.18, attach_recursive_mnt takes a struct pinned_mountpoint* holding the parent
+	// mount and mountpoint; the offsets resolve to the sentinel on older kernels where the struct
+	// does not exist, in which case the hook falls back to the legacy argument positions
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePinnedMountpointMp, "struct pinned_mountpoint", "mp")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePinnedMountpointParent, "struct pinned_mountpoint", "parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntFlags, "struct vfsmount", "mnt_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")

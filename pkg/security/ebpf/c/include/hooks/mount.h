@@ -489,11 +489,31 @@ int hook_attach_recursive_mnt(ctx_t *ctx) {
         return 0;
     }
 
+    struct mount *parent;
+    struct mountpoint *mp;
+
+    // Since kernel 6.18, attach_recursive_mnt takes (source_mnt, const struct pinned_mountpoint *dest)
+    // instead of (source_mnt, dest_mnt, dest_mp). When the pinned_mountpoint offsets are resolved,
+    // read the parent mount and the mountpoint from that struct; otherwise fall back to the legacy
+    // argument positions.
+    u64 pinned_mountpoint_parent_offset;
+    LOAD_CONSTANT("pinned_mountpoint_parent_offset", pinned_mountpoint_parent_offset);
+
+    if (pinned_mountpoint_parent_offset != -1) {
+        u64 pinned_mountpoint_mp_offset;
+        LOAD_CONSTANT("pinned_mountpoint_mp_offset", pinned_mountpoint_mp_offset);
+
+        void *dest = (void *)CTX_PARM2(ctx);
+        bpf_probe_read(&parent, sizeof(parent), (char *)dest + pinned_mountpoint_parent_offset);
+        bpf_probe_read(&mp, sizeof(mp), (char *)dest + pinned_mountpoint_mp_offset);
+    } else {
+        parent = (struct mount *)CTX_PARM2(ctx);
+        mp = (struct mountpoint *)CTX_PARM3(ctx);
+    }
+
     syscall->mount.newmnt = newmnt;
-    syscall->mount.parent = (struct mount *)CTX_PARM2(ctx);
-    struct mountpoint *mp = (struct mountpoint *)CTX_PARM3(ctx);
-    struct mount *topmnt = (struct mount *)CTX_PARM2(ctx);
-    syscall->mount.ns_inum = get_mount_mount_ns_inum(topmnt);
+    syscall->mount.parent = parent;
+    syscall->mount.ns_inum = get_mount_mount_ns_inum(parent);
     syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
 
     if (syscall->type != EVENT_MOUNT) {
