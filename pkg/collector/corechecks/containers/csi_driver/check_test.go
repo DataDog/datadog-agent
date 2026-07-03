@@ -72,6 +72,22 @@ func newTestCheck() *Check {
 	}
 }
 
+func TestFactorySharesCOATCollectorsAcrossInstances(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+
+	factoryOption := Factory(tm)
+	factory, ok := factoryOption.Get()
+	require.True(t, ok)
+
+	first, ok := factory().(*Check)
+	require.True(t, ok)
+	second, ok := factory().(*Check)
+	require.True(t, ok)
+
+	assert.Same(t, first.metrics["datadog_csi_driver_node_publish_volume_attempts"].coat.counter, second.metrics["datadog_csi_driver_node_publish_volume_attempts"].coat.counter)
+	assert.NotSame(t, first.prevValues, second.prevValues)
+}
+
 func TestConfigureDefault(t *testing.T) {
 	chk := newTestCheck()
 	senderManager := mocksender.CreateDefaultDemultiplexer()

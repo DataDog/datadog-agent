@@ -136,10 +136,11 @@ type Check struct {
 
 // Factory creates a new check factory.
 func Factory(tm telemetry.Component) option.Option[func() check.Check] {
+	metricDefs := buildMetricDefs(tm)
 	return option.New(func() check.Check {
 		return &Check{
 			CheckBase:  core.NewCheckBase(CheckName),
-			metrics:    buildMetricDefs(tm),
+			metrics:    metricDefs,
 			prevValues: make(map[string]float64),
 		}
 	})
