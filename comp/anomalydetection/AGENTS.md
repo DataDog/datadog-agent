@@ -15,6 +15,9 @@ Handle → Storage → Detect → Correlate → Report
 ```
 comp/anomalydetection/
   internal/logsfilter/     ← shared severity bucketing + rate limiting
+  severityevents/
+    def/                 ← Subscriber contract + severity event types (own go.mod)
+    impl/                ← Dispatcher: one listener, cooldown, filtering
   observer/
     def/                 ← public interfaces (own go.mod)
     fx/                  ← production Fx wiring (python build tag)
@@ -90,6 +93,31 @@ Both paths share filtering primitives from `internal/logsfilter/`.
 Metrics with the `datadog.*` prefix are normalized as internal agent telemetry
 and dropped before they reach observer storage.
 
+## Severity Events (Scorer Push Contract)
+
+`severityevents/def` defines the `Subscriber` interface
+(`SubscribeSeverityEvents(cfg) SeverityEventsSubscription`) and the
+`SeverityEvent`/`SeverityLevel`/`SeverityEventsConfiguration` types shared by any
+consumer of anomaly scorer severity transitions. `severityevents/impl.Dispatcher`
+is the concrete implementation: it owns one push listener plus one fixed
+cooldown/filter state machine. The anomaly scorer
+(`observer/impl/anomaly_scorer.go`) only derives the raw EWMA-based severity
+level per second and feeds it into the dispatchers it owns — it does not
+implement subscription logic itself.
+
+Each `SubscribeSeverityEvents` call creates one new dispatcher bound to one
+listener. If the scorer already knows the current level, it first seeds that
+dispatcher before publishing it: `Medium`/`High` bootstrap as `Low -> current
+level`, while `Low` emits no initial event. Before the scorer knows its
+current level, new dispatchers also start at `Low`, so the first observed
+`Medium`/`High` level emits a real escalation instead of being treated as a
+pure seed.
+
+`observer.Component.SubscribeSeverityEvents` structurally satisfies
+`severityevents/def`'s `Subscriber` interface (same method signature), so any
+caller holding an `observer.Component` can be passed directly wherever a
+`Subscriber` is expected, without importing `observer` from the consuming side.
+
 ## Reporter Model
 
 Reporters register through the `anomalydetection_reporters` Fx group
@@ -156,6 +184,7 @@ Both `source` and `tags` constraints are supported; first-match wins.
 
 ```bash
 dda inv test --targets=./comp/anomalydetection/observer/...
+dda inv test --targets=./comp/anomalydetection/severityevents/...
 dda inv test --targets=./comp/anomalydetection/reporter/impl/
 dda inv test --targets=./comp/anomalydetection/logssource/impl/
 ```

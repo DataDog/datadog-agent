@@ -8,6 +8,7 @@ require (
 	github.com/DataDog/datadog-agent v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/config v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.80.2
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.80.2
@@ -170,6 +171,7 @@ require (
 replace (
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../../comp/anomalydetection/observer/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../../comp/anomalydetection/recorder/def
+	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def => ../../../comp/anomalydetection/severityevents/def
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx
