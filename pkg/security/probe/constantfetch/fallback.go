@@ -89,6 +89,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameIoSocketStructDomain:            8,
 		OffsetNameIoSocketStructType:              12,
 		OffsetNameIoSocketStructProtocol:          16,
+		OffsetNameSocketType:                      4,
 	}
 }
 
