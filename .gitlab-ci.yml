@@ -996,6 +996,7 @@ workflow:
   - changes:
       paths:
         - pkg/clusteragent/appsec/**/*
+        - pkg/clusteragent/admission/mutate/appsec/**/*
         - test/new-e2e/tests/appsec-injection/**/*
         - test/new-e2e/go.mod
       compare_to: $COMPARE_TO_BRANCH
