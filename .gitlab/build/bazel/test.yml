@@ -21,7 +21,12 @@ bazel:test:macos-amd64:
 bazel:test:macos-arm64:
   extends: [ .bazel:test, .bazel:runner:macos-arm64 ]
   script:
-    - bazel test --keep_going --config=no-dd-agent-go-tests //...
+    - bazel test --keep_going --config=no-dd-agent-go-tests --execution_log_compact_file=$CI_PROJECT_DIR/exec.log //...
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - exec.log
 
 bazel:test:windows-amd64:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
