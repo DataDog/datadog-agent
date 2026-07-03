@@ -82,22 +82,6 @@ QUALIFICATION_TAG = "qualification"
 
 
 @task
-def list_major_change(_, milestone):
-    """List all PR labeled "major_changed" for this release."""
-
-    gh = GithubAPI()
-    pull_requests = gh.get_pulls(milestone=milestone, labels=['major_change'])
-    if pull_requests is None:
-        return
-    if len(pull_requests) == 0:
-        print(f"no major change for {milestone}")
-        return
-
-    for pr in pull_requests:
-        print(f"#{pr.number}: {pr.title} ({pr.html_url})")
-
-
-@task
 def update_modules(ctx, release_branch=None, version=None, trust=False):
     """Update internal dependencies between the different Agent modules.
 
@@ -755,30 +739,6 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
             return _main()
     else:
         return _main()
-
-
-@task
-def get_active_release_branch(ctx, release_branch):
-    """Determine what is the current active release branch for the Agent within the release worktree.
-
-    If release started and code freeze is in place - main branch is considered active.
-    If release started and code freeze is over - release branch is considered active.
-    """
-
-    with agent_context(ctx, branch=release_branch):
-        gh = GithubAPI()
-        next_version = get_next_version(gh, latest_release=gh.latest_release(6) if is_agent6(ctx) else None)
-        release_branch = gh.get_branch(next_version.branch())
-        if release_branch:
-            print(f"{release_branch.name}")
-        else:
-            print(get_default_branch())
-
-
-def get_next_version(gh, latest_release=None):
-    latest_release = latest_release or gh.latest_release()
-    current_version = _create_version_from_match(VERSION_RE.search(latest_release))
-    return current_version.next_version(bump_minor=True)
 
 
 @task
