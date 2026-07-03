@@ -418,21 +418,37 @@ instances:
     dbname: ${prefix1}_db1
     username: $RQ_POSTGRES_USERNAME
     password: $RQ_POSTGRES_PASSWORD
+    tags:
+      - rq_database_instance:${prefix1}_db1
+    database_identifier:
+      template: \$rq_database_instance
   - host: localhost
     port: $port1
     dbname: ${prefix1}_db2
     username: $RQ_POSTGRES_USERNAME
     password: $RQ_POSTGRES_PASSWORD
+    tags:
+      - rq_database_instance:${prefix1}_db2
+    database_identifier:
+      template: \$rq_database_instance
   - host: localhost
     port: $port2
     dbname: ${prefix2}_db1
     username: $RQ_POSTGRES_USERNAME
     password: $RQ_POSTGRES_PASSWORD
+    tags:
+      - rq_database_instance:${prefix2}_db1
+    database_identifier:
+      template: \$rq_database_instance
   - host: localhost
     port: $port2
     dbname: ${prefix2}_db2
     username: $RQ_POSTGRES_USERNAME
     password: $RQ_POSTGRES_PASSWORD
+    tags:
+      - rq_database_instance:${prefix2}_db2
+    database_identifier:
+      template: \$rq_database_instance
 YAML
 }
 

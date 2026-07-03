@@ -68,6 +68,67 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	assert.Equal(t, "Beautiful city of lights,France\nNew York,USA\n", out["data"])
 }
 
+func TestExecuteActionAcceptsDatabaseInstanceTarget(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED"}}}, ChunkIndex: 0},
+		{ChunkIndex: 1, Final: true},
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration": "postgres",
+		"operation":   "copy_stream",
+		"format":      "csv",
+		"target":      map[string]interface{}{"database_instance": "Rq-Proof-A1-DB1"},
+		"query":       "SELECT city, country FROM cities ORDER BY city",
+	}), nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, client.request)
+	assert.Equal(t, "Rq-Proof-A1-DB1", client.request.GetTarget().GetDatabaseInstance())
+	assert.Empty(t, client.request.GetTarget().GetHost())
+	assert.Zero(t, client.request.GetTarget().GetPort())
+	assert.Empty(t, client.request.GetTarget().GetDbname())
+	assert.Equal(t, "SUCCEEDED", output.(map[string]interface{})["status"])
+}
+
+func TestExecuteActionRejectsMixedAndPartialTargetSelectorsBeforeRPC(t *testing.T) {
+	tests := []struct {
+		name   string
+		target map[string]interface{}
+	}{
+		{name: "mixed", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "host": "localhost", "port": 5432, "dbname": "postgres"}},
+		{name: "mixed empty host", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "host": ""}},
+		{name: "mixed empty dbname", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "dbname": ""}},
+		{name: "mixed null host", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "host": nil}},
+		{name: "mixed port", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "port": 5432}},
+		{name: "database instance surrounding whitespace", target: map[string]interface{}{"database_instance": " rq-proof-a1-db1 "}},
+		{name: "partial tuple", target: map[string]interface{}{"host": "localhost", "dbname": "postgres"}},
+		{name: "unknown credential field", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "password": "secret-value"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			action := NewExecuteAction(func() (BridgeClient, error) {
+				require.Fail(t, "bridge client should not be created for invalid target")
+				return nil, nil
+			})
+
+			_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+				"integration": "postgres",
+				"operation":   "copy_stream",
+				"target":      tt.target,
+				"query":       "SELECT city, country FROM cities ORDER BY city",
+			}), nil)
+
+			require.Error(t, err)
+			var parErr util.PARError
+			require.ErrorAs(t, err, &parErr)
+			assert.Equal(t, "invalid remote query action inputs", parErr.Message)
+			assert.NotContains(t, err.Error(), "secret-value")
+		})
+	}
+}
+
 func TestExecuteActionPreservesCopyStreamEvents(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
 		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{Operation: "copy_stream", Format: "csv"}}}, ChunkIndex: 0},

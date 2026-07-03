@@ -70,6 +70,22 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesCopyStream(t *testing.T) {
 	assert.Nil(t, req.Limits)
 }
 
+func TestRemoteQueryExecuteRequestFromProtoPreservesDatabaseInstanceTarget(t *testing.T) {
+	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
+		Integration: "postgres",
+		Operation:   "copy_stream",
+		Format:      "csv",
+		Target:      &pb.RemoteQueryTarget{DatabaseInstance: "rq-proof-a1-db1"},
+		Query:       "SELECT city, country FROM cities ORDER BY city",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "rq-proof-a1-db1", req.Target.DatabaseInstance)
+	assert.Empty(t, req.Target.Host)
+	assert.Zero(t, req.Target.Port)
+	assert.Empty(t, req.Target.DBName)
+}
+
 func TestRemoteQueryIPCStreamCoalescerFlushesDataAtFourMiB(t *testing.T) {
 	stream := &captureRemoteQueryExecuteStreamServer{}
 	coalescer := newRemoteQueryIPCStreamCoalescer(stream)

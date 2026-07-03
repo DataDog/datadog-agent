@@ -25,12 +25,13 @@ const (
 )
 
 type RemoteQueryTarget struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Host          string                 `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
-	Port          int32                  `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
-	Dbname        string                 `protobuf:"bytes,3,opt,name=dbname,proto3" json:"dbname,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Host             string                 `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
+	Port             int32                  `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	Dbname           string                 `protobuf:"bytes,3,opt,name=dbname,proto3" json:"dbname,omitempty"`
+	DatabaseInstance string                 `protobuf:"bytes,4,opt,name=database_instance,json=databaseInstance,proto3" json:"database_instance,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RemoteQueryTarget) Reset() {
@@ -80,6 +81,13 @@ func (x *RemoteQueryTarget) GetPort() int32 {
 func (x *RemoteQueryTarget) GetDbname() string {
 	if x != nil {
 		return x.Dbname
+	}
+	return ""
+}
+
+func (x *RemoteQueryTarget) GetDatabaseInstance() string {
+	if x != nil {
+		return x.DatabaseInstance
 	}
 	return ""
 }
@@ -1005,11 +1013,12 @@ var File_datadog_api_v1_api_proto protoreflect.FileDescriptor
 
 const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\n" +
-	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a+datadog/workloadfilter/workloadfilter.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a'datadog/kubemetadata/kubemetadata.proto\x1a+datadog/healthplatform/healthplatform.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\"S\n" +
+	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a+datadog/workloadfilter/workloadfilter.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a'datadog/kubemetadata/kubemetadata.proto\x1a+datadog/healthplatform/healthplatform.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x80\x01\n" +
 	"\x11RemoteQueryTarget\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\x05R\x04port\x12\x16\n" +
-	"\x06dbname\x18\x03 \x01(\tR\x06dbname\"q\n" +
+	"\x06dbname\x18\x03 \x01(\tR\x06dbname\x12+\n" +
+	"\x11database_instance\x18\x04 \x01(\tR\x10databaseInstance\"q\n" +
 	"\x18RemoteQueryExecuteLimits\x12\x19\n" +
 	"\bmax_rows\x18\x01 \x01(\x05R\amaxRows\x12\x1b\n" +
 	"\tmax_bytes\x18\x02 \x01(\x05R\bmaxBytes\x12\x1d\n" +

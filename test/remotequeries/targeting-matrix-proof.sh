@@ -162,15 +162,13 @@ install_python_deps_for() {
 }
 
 install_python_deps() {
-  install_python_deps_for "$AGENT_PYTHON_VERSION" "$AGENT_PYTHON_ABI"
-
-  # Some local devel Agent binaries report the source-configured Python in early
-  # startup but then load an embedded 3.12 runtime. Keep cp312 native wheels in
-  # the shared pydeps tree as a compatibility fallback; Python ignores extension
-  # modules for the wrong ABI suffix.
+  # Install any compatibility wheel set first and the detected Agent ABI last so
+  # ABI-specific extension modules (for example pydantic_core) match the Agent's
+  # embedded Python runtime when packages share the same target directory.
   if [[ "$AGENT_PYTHON_ABI" != "cp312" ]]; then
     install_python_deps_for "3.12" "cp312"
   fi
+  install_python_deps_for "$AGENT_PYTHON_VERSION" "$AGENT_PYTHON_ABI"
 }
 
 setup_checksd() {
@@ -227,21 +225,37 @@ instances:
     dbname: ${prefix1}_db1
     username: $RQ_POSTGRES_USERNAME
     password: $RQ_POSTGRES_PASSWORD
+    tags:
+      - rq_database_instance:${prefix1}_db1
+    database_identifier:
+      template: \$rq_database_instance
   - host: localhost
     port: $port1
     dbname: ${prefix1}_db2
     username: $RQ_POSTGRES_USERNAME
     password: $RQ_POSTGRES_PASSWORD
+    tags:
+      - rq_database_instance:${prefix1}_db2
+    database_identifier:
+      template: \$rq_database_instance
   - host: localhost
     port: $port2
     dbname: ${prefix2}_db1
     username: $RQ_POSTGRES_USERNAME
     password: $RQ_POSTGRES_PASSWORD
+    tags:
+      - rq_database_instance:${prefix2}_db1
+    database_identifier:
+      template: \$rq_database_instance
   - host: localhost
     port: $port2
     dbname: ${prefix2}_db2
     username: $RQ_POSTGRES_USERNAME
     password: $RQ_POSTGRES_PASSWORD
+    tags:
+      - rq_database_instance:${prefix2}_db2
+    database_identifier:
+      template: \$rq_database_instance
 YAML
 }
 
@@ -349,6 +363,26 @@ PY
   printf '%s' "$status" > "$out_prefix.status"
 }
 
+call_match_check_dbi() {
+  local side=$1 database_instance=$2 out_prefix=$3
+  local root="$TMP_ROOT/agent_$side" token payload status
+  token=$(cat "$root/run/auth_token")
+  payload=$(DATABASE_INSTANCE="$database_instance" python3 - <<'PY'
+import json, os
+print(json.dumps({
+    "integration": "postgres",
+    "target": {"database_instance": os.environ["DATABASE_INSTANCE"]},
+}))
+PY
+)
+  status=$(curl -sS -k -o "$out_prefix.body" -w '%{http_code}' \
+    -H "Authorization: Bearer ${token}" \
+    -H 'Content-Type: application/json' \
+    --data "$payload" \
+    "https://127.0.0.1:$(agent_cmd_port "$side")/agent/remote-queries/match-check")
+  printf '%s' "$status" > "$out_prefix.status"
+}
+
 assert_match_status() {
   local out_prefix=$1 expected_http=$2 expected_status=$3 label=$4
   local actual_http actual_status
@@ -373,6 +407,42 @@ run_positive_match_matrix() {
     printf '%s\t%s\t%s\t%s\t%s\tOK\n' "$side" "$expected_agent" "$host" "$port" "$dbname" >> "$TMP_ROOT/results/positive-match-cases.tsv"
     i=$((i + 1))
   done
+}
+
+run_positive_dbi_match_matrix() {
+  log "Checking positive Agent-local database_instance match cases"
+  : > "$TMP_ROOT/results/positive-dbi-match-cases.tsv"
+  local i=0
+  for row in "${MATRIX_CASES[@]}"; do
+    read -r side expected_agent _host _port dbname <<<"$row"
+    local out="$TMP_ROOT/results/positive-dbi-$i-$side-$dbname"
+    call_match_check_dbi "$side" "$dbname" "$out"
+    assert_match_status "$out" 200 ok "positive database_instance $side $dbname"
+    printf '%s\t%s\t%s\tOK\n' "$side" "$expected_agent" "$dbname" >> "$TMP_ROOT/results/positive-dbi-match-cases.tsv"
+    i=$((i + 1))
+  done
+}
+
+run_negative_dbi_match_matrix() {
+  log "Checking negative fail-closed database_instance match cases: wrong Agent and invented identifier"
+  : > "$TMP_ROOT/results/negative-dbi-match-cases.tsv"
+  local i=0
+  for row in "${MATRIX_CASES[@]}"; do
+    read -r side _expected_agent _host _port dbname <<<"$row"
+    local wrong_side out
+    if [[ "$side" == "a" ]]; then wrong_side=b; else wrong_side=a; fi
+
+    out="$TMP_ROOT/results/negative-dbi-$i-wrong-agent-$wrong_side-$dbname"
+    call_match_check_dbi "$wrong_side" "$dbname" "$out"
+    assert_match_status "$out" 404 target_not_found "negative database_instance wrong-agent $wrong_side $dbname"
+    printf 'wrong-agent\t%s\t%s\ttarget_not_found\n' "$wrong_side" "$dbname" >> "$TMP_ROOT/results/negative-dbi-match-cases.tsv"
+    i=$((i + 1))
+  done
+
+  out="$TMP_ROOT/results/negative-dbi-invented"
+  call_match_check_dbi a "rq-proof-invented-db-instance" "$out"
+  assert_match_status "$out" 404 target_not_found "negative invented database_instance"
+  printf 'invented\ta\trq-proof-invented-db-instance\ttarget_not_found\n' >> "$TMP_ROOT/results/negative-dbi-match-cases.tsv"
 }
 
 run_negative_match_matrix() {
@@ -438,8 +508,8 @@ Topology:
 - Docker networks: ${POSTGRES_COMPOSE_PROJECT}_agent_a and ${POSTGRES_COMPOSE_PROJECT}_agent_b
 
 Covered:
-- positives: see positive-match-cases.tsv
-- negatives: wrong Agent, wrong port, wrong dbname for each valid tuple; see negative-match-cases.tsv
+- positives: host/port/dbname selectors in positive-match-cases.tsv; database_instance selectors in positive-dbi-match-cases.tsv
+- negatives: wrong Agent, wrong port, wrong dbname for each valid tuple in negative-match-cases.tsv; database_instance fail-closed cases in negative-dbi-match-cases.tsv
 - fixture identity rows: see identity-rows.tsv
 
 Note: this harness validates Agent-local match targeting and fixture identity. It does not register two production PAR runners/connections.
@@ -468,7 +538,9 @@ main() {
   assert_identity_rows
   start_agents
   run_positive_match_matrix
+  run_positive_dbi_match_matrix
   run_negative_match_matrix
+  run_negative_dbi_match_matrix
   write_summary
 
   log "Done. Sanitized results are under $TMP_ROOT/results"

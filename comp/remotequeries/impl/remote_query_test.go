@@ -98,6 +98,76 @@ func TestParseMatchRequestNormalizesTargetHost(t *testing.T) {
 	assert.Equal(t, remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "Postgres"}, parsed.Target)
 }
 
+func TestParseMatchRequestAllowsDatabaseInstanceTarget(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, RemoteQueryMatchEndpointPath, strings.NewReader(
+		`{"integration":"postgres","target":{"database_instance":"Rq-Proof-A1-DB1"}}`,
+	))
+	req.Header.Set("Content-Type", "application/json")
+
+	parsed, err := parseMatchRequest(req)
+	require.NoError(t, err)
+	assert.Equal(t, remoteQueryTarget{DatabaseInstance: "Rq-Proof-A1-DB1"}, parsed.Target)
+}
+
+func TestParseMatchRequestRejectsMixedAndPartialTargetSelectors(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantError string
+	}{
+		{
+			name:      "mixed database instance and tuple",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":"localhost","port":5432,"dbname":"postgres"}}`,
+			wantError: "target must specify exactly one selector mode",
+		},
+		{
+			name:      "mixed database instance and empty host field",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":""}}`,
+			wantError: "target must specify exactly one selector mode",
+		},
+		{
+			name:      "mixed database instance and empty dbname field",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":""}}`,
+			wantError: "target must specify exactly one selector mode",
+		},
+		{
+			name:      "mixed database instance and null host field",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":null}}`,
+			wantError: "target must specify exactly one selector mode",
+		},
+		{
+			name:      "mixed database instance and port field",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","port":5432}}`,
+			wantError: "target must specify exactly one selector mode",
+		},
+		{
+			name:      "database instance must be non-empty",
+			body:      `{"integration":"postgres","target":{"database_instance":""}}`,
+			wantError: "target.database_instance is required",
+		},
+		{
+			name:      "database instance rejects surrounding whitespace",
+			body:      `{"integration":"postgres","target":{"database_instance":" rq-proof-a1-db1 "}}`,
+			wantError: "target.database_instance must not contain surrounding whitespace",
+		},
+		{
+			name:      "partial tuple",
+			body:      `{"integration":"postgres","target":{"host":"localhost","dbname":"postgres"}}`,
+			wantError: "target.port is required",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, RemoteQueryMatchEndpointPath, strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			_, err := parseMatchRequest(req)
+			require.Error(t, err)
+			assert.Equal(t, tt.wantError, err.Error())
+		})
+	}
+}
+
 func TestParseMatchRequestRejectsInvalidIntegration(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, RemoteQueryMatchEndpointPath, strings.NewReader(
 		`{"integration":"my-sql","target":{"host":"localhost","port":3306,"dbname":"mysql"}}`,
@@ -139,6 +209,51 @@ func TestRemoteQueryMatchHandlerExactMatch(t *testing.T) {
 	assert.NotContains(t, body, "other-secret")
 	assert.NotContains(t, body, "mysql-secret")
 	assert.NotContains(t, body, "InstanceConfig")
+}
+
+func TestRemoteQueryMatchHandlerDatabaseInstanceMatch(t *testing.T) {
+	handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+		fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-value\n"},
+		fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5433\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a2-db1\ndatabase_identifier:\n  template: $rq_database_instance\npassword: other-secret\n"},
+	}}}
+
+	recorder := callMatchHandler(handler, `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1"}}`)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	body := recorder.Body.String()
+	assert.Contains(t, body, `"status":"ok"`)
+	assert.Contains(t, body, `"matched_count":1`)
+	assert.NotContains(t, body, "secret-value")
+	assert.NotContains(t, body, "other-secret")
+}
+
+func TestRemoteQueryMatchHandlerDatabaseInstanceFailClosed(t *testing.T) {
+	t.Run("unsupported template is not guessed", func(t *testing.T) {
+		handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ndatabase_identifier:\n  template: $resolved_hostname\npassword: secret-value\n"},
+		}}}
+
+		recorder := callMatchHandler(handler, `{"integration":"postgres","target":{"database_instance":"localhost"}}`)
+
+		assert.Equal(t, http.StatusNotFound, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"target_not_found"`)
+		assert.NotContains(t, recorder.Body.String(), "secret-value")
+	})
+
+	t.Run("ambiguous", func(t *testing.T) {
+		handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:duplicate\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-one\n"},
+			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5433\ndbname: postgres\ntags:\n  - rq_database_instance:duplicate\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-two\n"},
+		}}}
+
+		recorder := callMatchHandler(handler, `{"integration":"postgres","target":{"database_instance":"duplicate"}}`)
+
+		assert.Equal(t, http.StatusConflict, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"ambiguous_target"`)
+		assert.Contains(t, recorder.Body.String(), `"matched_count":2`)
+		assert.NotContains(t, recorder.Body.String(), "secret-one")
+		assert.NotContains(t, recorder.Body.String(), "secret-two")
+	})
 }
 
 func TestRemoteQueryMatchHandlerNoMatch(t *testing.T) {
@@ -332,6 +447,57 @@ func TestParseExecuteRequestAllowsNonProofQuery(t *testing.T) {
 	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT * FROM arbitrary_table","format":"csv"}`, requestJSON)
 }
 
+func TestParseExecuteRequestAllowsDatabaseInstanceTarget(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
+		`{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"Rq-Proof-A1-DB1"},"query":"SELECT * FROM arbitrary_table"}`,
+	))
+	req.Header.Set("Content-Type", "application/json")
+
+	parsed, requestJSON, err := parseExecuteRequest(req)
+	require.NoError(t, err)
+	assert.Equal(t, remoteQueryTarget{DatabaseInstance: "Rq-Proof-A1-DB1"}, parsed.Target)
+	assert.JSONEq(t, `{"operation":"copy_stream","target":{"database_instance":"Rq-Proof-A1-DB1"},"query":"SELECT * FROM arbitrary_table","format":"csv"}`, requestJSON)
+}
+
+func TestParseExecuteRequestRejectsMixedDatabaseInstanceTargetSelectors(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "non-empty tuple fields",
+			body: `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"rq-proof-a1-db1","host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT * FROM arbitrary_table"}`,
+		},
+		{
+			name: "empty host field",
+			body: `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"rq-proof-a1-db1","host":""},"query":"SELECT * FROM arbitrary_table"}`,
+		},
+		{
+			name: "empty dbname field",
+			body: `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"rq-proof-a1-db1","dbname":""},"query":"SELECT * FROM arbitrary_table"}`,
+		},
+		{
+			name: "null host field",
+			body: `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"rq-proof-a1-db1","host":null},"query":"SELECT * FROM arbitrary_table"}`,
+		},
+		{
+			name: "port field",
+			body: `{"integration":"postgres","operation":"copy_stream","format":"csv","target":{"database_instance":"rq-proof-a1-db1","port":5432},"query":"SELECT * FROM arbitrary_table"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			_, _, err := parseExecuteRequest(req)
+			require.Error(t, err)
+			assert.Equal(t, "target must specify exactly one selector mode", err.Error())
+		})
+	}
+}
+
 func TestParseExecuteRequestRejectsInvalidFormat(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(
 		`{"integration":"postgres","operation":"copy_stream","format":"json","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value"}`,
@@ -460,6 +626,12 @@ func TestNewRemoteQueryCopyStreamExecuteRequestValidation(t *testing.T) {
 		assert.EqualError(t, err, "target.host is required")
 	})
 
+	t.Run("bad database instance target", func(t *testing.T) {
+		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: " rq-proof-a1-db1 "}, remoteQueryFixtureTableProofQuery, "csv", nil)
+		require.Error(t, err)
+		assert.EqualError(t, err, "target.database_instance must not contain surrounding whitespace")
+	})
+
 	t.Run("bad format", func(t *testing.T) {
 		_, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, "json", nil)
 		require.Error(t, err)
@@ -516,6 +688,23 @@ func TestRemoteQueryExecuteServiceCopyStreamDispatch(t *testing.T) {
 	assert.Equal(t, 1, runner.streamCalls)
 	assert.JSONEq(t, `{"operation":"copy_stream","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT city, country FROM cities ORDER BY city","format":"csv","limits":{"chunkBytes":4,"maxBytes":1024,"maxRowBytes":1024,"timeoutMs":1000}}`, runner.streamSeen)
 	assert.NotContains(t, runner.streamSeen, "integration")
+}
+
+func TestRemoteQueryExecuteServiceCopyStreamDispatchesDatabaseInstanceTarget(t *testing.T) {
+	runner := &fakeStreamRunnerCheck{
+		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-value\n"}},
+		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}},
+	}
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false)
+	req, err := NewRemoteQueryCopyStreamExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: "rq-proof-a1-db1"}, "SELECT * FROM arbitrary_table", "csv", nil)
+	require.NoError(t, err)
+
+	result := service.ExecuteStream(req, func(check.RemoteQueryStreamEvent) error { return nil })
+
+	require.Nil(t, result.Error)
+	assert.Equal(t, 1, runner.streamCalls)
+	assert.JSONEq(t, `{"operation":"copy_stream","target":{"database_instance":"rq-proof-a1-db1"},"query":"SELECT * FROM arbitrary_table","format":"csv"}`, runner.streamSeen)
+	assert.NotContains(t, runner.streamSeen, "secret-value")
 }
 
 func TestRemoteQueryExecuteServiceRejectsNonAllowlistedQueryByDefault(t *testing.T) {

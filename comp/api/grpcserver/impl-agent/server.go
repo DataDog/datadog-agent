@@ -593,9 +593,10 @@ func formatMiBPerSecond(bytes uint64, duration time.Duration) string {
 
 func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remotequeriesimpl.RemoteQueryExecuteRequest, error) {
 	target := remotequeriesimpl.RemoteQueryExecuteTarget{
-		Host:   req.GetTarget().GetHost(),
-		Port:   int(req.GetTarget().GetPort()),
-		DBName: req.GetTarget().GetDbname(),
+		Host:             req.GetTarget().GetHost(),
+		Port:             int(req.GetTarget().GetPort()),
+		DBName:           req.GetTarget().GetDbname(),
+		DatabaseInstance: req.GetTarget().GetDatabaseInstance(),
 	}
 	if req.GetOperation() != "copy_stream" {
 		return remotequeriesimpl.RemoteQueryExecuteRequest{}, errors.New("operation must be copy_stream")

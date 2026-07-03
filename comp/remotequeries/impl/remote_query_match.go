@@ -10,10 +10,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 
 	"go.uber.org/fx"
@@ -95,15 +97,21 @@ type remoteQueryMatchRequestJSON struct {
 }
 
 type remoteQueryTargetRequestJSON struct {
-	Host   string `json:"host"`
-	Port   *int   `json:"port"`
-	DBName string `json:"dbname"`
+	Host                string  `json:"host"`
+	Port                *int    `json:"port"`
+	DBName              string  `json:"dbname"`
+	DatabaseInstance    *string `json:"database_instance"`
+	hostSet             bool
+	portSet             bool
+	dbnameSet           bool
+	databaseInstanceSet bool
 }
 
 type remoteQueryTarget struct {
-	Host   string
-	Port   int
-	DBName string
+	Host             string
+	Port             int
+	DBName           string
+	DatabaseInstance string
 }
 
 type requestParseError struct {
@@ -122,9 +130,10 @@ func invalidRequestError(message string) error {
 var integrationNamePattern = regexp.MustCompile(`^[a-z0-9_]+$`)
 
 type integrationInstanceTarget struct {
-	host   string
-	port   int
-	dbname string
+	host             string
+	port             int
+	dbname           string
+	databaseInstance string
 }
 
 func (h *remoteQueryMatchHandler) handle(w http.ResponseWriter, r *http.Request) {
@@ -204,6 +213,11 @@ func (t *remoteQueryTargetRequestJSON) UnmarshalJSON(data []byte) error {
 		return errTargetMustBeObject
 	}
 
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
 	type targetAlias remoteQueryTargetRequestJSON
 	var target targetAlias
 	if err := decodeStrictJSON(bytes.NewReader(data), &target); err != nil {
@@ -212,6 +226,10 @@ func (t *remoteQueryTargetRequestJSON) UnmarshalJSON(data []byte) error {
 		}
 		return err
 	}
+	_, target.hostSet = raw["host"]
+	_, target.portSet = raw["port"]
+	_, target.dbnameSet = raw["dbname"]
+	_, target.databaseInstanceSet = raw["database_instance"]
 	*t = remoteQueryTargetRequestJSON(target)
 	return nil
 }
@@ -222,6 +240,25 @@ func parseTarget(target *remoteQueryTargetRequestJSON) (remoteQueryTarget, error
 	}
 
 	host := normalizeHost(target.Host)
+	hasTupleSelectorField := target.hostSet || target.portSet || target.dbnameSet
+
+	if target.databaseInstanceSet {
+		if target.DatabaseInstance == nil {
+			return remoteQueryTarget{}, errors.New("target.database_instance is required")
+		}
+		databaseInstance := *target.DatabaseInstance
+		if databaseInstance == "" {
+			return remoteQueryTarget{}, errors.New("target.database_instance is required")
+		}
+		if strings.TrimSpace(databaseInstance) != databaseInstance {
+			return remoteQueryTarget{}, errors.New("target.database_instance must not contain surrounding whitespace")
+		}
+		if hasTupleSelectorField {
+			return remoteQueryTarget{}, errors.New("target must specify exactly one selector mode")
+		}
+		return remoteQueryTarget{DatabaseInstance: databaseInstance}, nil
+	}
+
 	if host == "" {
 		return remoteQueryTarget{}, errors.New("target.host is required")
 	}
@@ -281,6 +318,8 @@ func parseJSONRequestError(err error) error {
 		switch typeErr.Field {
 		case "port", "target.port":
 			return errors.New("target.port must be an integer")
+		case "database_instance", "target.database_instance":
+			return errors.New("target.database_instance must be a string")
 		case "target":
 			return errTargetMustBeObject
 		case "maxRows", "limits.maxRows":
@@ -332,22 +371,31 @@ func findIntegrationMatches(collector RemoteQueryCollector, integration string, 
 			continue
 		}
 
-		if instanceTarget.host == target.Host && instanceTarget.port == target.Port && instanceTarget.dbname == target.DBName {
-			matches = append(matches, integrationCheckMatch{
-				check: chk,
-				sanitized: sanitizedMatch{
-					Integration:    integration,
-					Loader:         chk.Loader(),
-					ConfigProvider: chk.ConfigProvider(),
-				},
-			})
+		if !instanceTarget.matches(target) {
+			continue
 		}
+
+		matches = append(matches, integrationCheckMatch{
+			check: chk,
+			sanitized: sanitizedMatch{
+				Integration:    integration,
+				Loader:         chk.Loader(),
+				ConfigProvider: chk.ConfigProvider(),
+			},
+		})
 	}
 	return matches
 }
 
 func normalizeIntegrationName(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
+}
+
+func (t integrationInstanceTarget) matches(target remoteQueryTarget) bool {
+	if target.DatabaseInstance != "" {
+		return t.databaseInstance != "" && t.databaseInstance == target.DatabaseInstance
+	}
+	return t.host == target.Host && t.port == target.Port && t.dbname == target.DBName
 }
 
 func parseIntegrationInstanceTarget(instanceConfig string) (integrationInstanceTarget, bool) {
@@ -375,7 +423,122 @@ func parseIntegrationInstanceTarget(instanceConfig string) (integrationInstanceT
 		return integrationInstanceTarget{}, false
 	}
 
-	return integrationInstanceTarget{host: host, port: port, dbname: dbname}, true
+	databaseInstance, _ := renderPostgresDatabaseIdentifier(fields, host, port)
+
+	return integrationInstanceTarget{host: host, port: port, dbname: dbname, databaseInstance: databaseInstance}, true
+}
+
+func renderPostgresDatabaseIdentifier(fields map[string]any, host string, port int) (string, bool) {
+	template := "$resolved_hostname"
+	if rawIdentifier, ok := fields["database_identifier"]; ok {
+		identifier, ok := rawIdentifier.(map[string]any)
+		if !ok {
+			return "", false
+		}
+		rawTemplate, ok := identifier["template"]
+		if !ok {
+			return "", false
+		}
+		parsedTemplate, ok := rawTemplate.(string)
+		if !ok || parsedTemplate == "" {
+			return "", false
+		}
+		template = parsedTemplate
+	}
+
+	values := postgresDatabaseIdentifierTemplateValues(fields, host, port)
+	rendered, ok := renderPythonTemplate(template, values)
+	if !ok || rendered == "" {
+		return "", false
+	}
+	return rendered, true
+}
+
+func postgresDatabaseIdentifierTemplateValues(fields map[string]any, host string, port int) map[string]string {
+	values := make(map[string]string)
+	if tags, ok := fields["tags"].([]any); ok {
+		stringTags := make([]string, 0, len(tags))
+		for _, rawTag := range tags {
+			tag, ok := rawTag.(string)
+			if !ok {
+				continue
+			}
+			stringTags = append(stringTags, tag)
+		}
+		sort.Strings(stringTags)
+		for _, tag := range stringTags {
+			key, value, ok := strings.Cut(tag, ":")
+			if !ok || key == "" {
+				continue
+			}
+			if existing, found := values[key]; found {
+				values[key] = existing + "," + value
+			} else {
+				values[key] = value
+			}
+		}
+	}
+	values["host"] = host
+	values["port"] = fmt.Sprintf("%d", port)
+	if reportedHostname, ok := fields["reported_hostname"].(string); ok && strings.TrimSpace(reportedHostname) != "" {
+		values["resolved_hostname"] = strings.TrimSpace(reportedHostname)
+	}
+	return values
+}
+
+func renderPythonTemplate(template string, values map[string]string) (string, bool) {
+	var out strings.Builder
+	for i := 0; i < len(template); {
+		if template[i] != '$' {
+			out.WriteByte(template[i])
+			i++
+			continue
+		}
+		if i+1 < len(template) && template[i+1] == '$' {
+			out.WriteByte('$')
+			i += 2
+			continue
+		}
+		name := ""
+		next := i + 1
+		if next < len(template) && template[next] == '{' {
+			end := next + 1
+			for end < len(template) && template[end] != '}' {
+				end++
+			}
+			if end >= len(template) || end == next+1 {
+				return "", false
+			}
+			name = template[next+1 : end]
+			next = end + 1
+		} else {
+			end := next
+			if end >= len(template) || !isTemplateIdentifierStart(template[end]) {
+				return "", false
+			}
+			end++
+			for end < len(template) && isTemplateIdentifierChar(template[end]) {
+				end++
+			}
+			name = template[next:end]
+			next = end
+		}
+		value, ok := values[name]
+		if !ok {
+			return "", false
+		}
+		out.WriteString(value)
+		i = next
+	}
+	return out.String(), true
+}
+
+func isTemplateIdentifierStart(b byte) bool {
+	return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || b == '_'
+}
+
+func isTemplateIdentifierChar(b byte) bool {
+	return isTemplateIdentifierStart(b) || (b >= '0' && b <= '9')
 }
 
 func yamlInt(value any) (int, bool) {

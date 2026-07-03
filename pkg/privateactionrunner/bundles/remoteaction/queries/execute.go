@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -50,9 +51,48 @@ type ExecuteInputs struct {
 }
 
 type TargetInputs struct {
-	Host   string `json:"host"`
-	Port   int    `json:"port"`
-	DBName string `json:"dbname"`
+	Host                string `json:"host"`
+	Port                int    `json:"port"`
+	DBName              string `json:"dbname"`
+	DatabaseInstance    string `json:"database_instance"`
+	hostSet             bool
+	portSet             bool
+	dbnameSet           bool
+	databaseInstanceSet bool
+}
+
+func (t *TargetInputs) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	var wire struct {
+		Host             string  `json:"host"`
+		Port             *int    `json:"port"`
+		DBName           string  `json:"dbname"`
+		DatabaseInstance *string `json:"database_instance"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&wire); err != nil {
+		return err
+	}
+
+	*t = TargetInputs{}
+	t.Host = wire.Host
+	_, t.hostSet = raw["host"]
+	if wire.Port != nil {
+		t.Port = *wire.Port
+	}
+	_, t.portSet = raw["port"]
+	t.DBName = wire.DBName
+	_, t.dbnameSet = raw["dbname"]
+	if wire.DatabaseInstance != nil {
+		t.DatabaseInstance = *wire.DatabaseInstance
+	}
+	_, t.databaseInstanceSet = raw["database_instance"]
+	return nil
 }
 
 type LimitsInputs struct {
@@ -68,6 +108,32 @@ type CopyLimitsInputs struct {
 	TimeoutMs   int `json:"timeoutMs"`
 }
 
+func validateTargetInputs(target TargetInputs) error {
+	databaseInstance := target.DatabaseInstance
+	hasHost := strings.TrimSpace(target.Host) != ""
+	hasDBName := target.DBName != ""
+	hasTupleSelectorField := target.hostSet || target.portSet || target.dbnameSet
+	if target.databaseInstanceSet {
+		if databaseInstance == "" {
+			return errors.New("target.database_instance is required")
+		}
+		if strings.TrimSpace(databaseInstance) != databaseInstance {
+			return errors.New("target.database_instance must not contain surrounding whitespace")
+		}
+		if hasTupleSelectorField {
+			return errors.New("target must specify exactly one selector mode")
+		}
+		return nil
+	}
+	if !hasHost || !target.portSet || !hasDBName {
+		return errors.New("target must specify host, port, and dbname")
+	}
+	if target.Port < 1 || target.Port > 65535 {
+		return errors.New("target.port is out of range")
+	}
+	return nil
+}
+
 func (a *ExecuteAction) Run(
 	ctx context.Context,
 	task *types.Task,
@@ -76,6 +142,13 @@ func (a *ExecuteAction) Run(
 	actionStart := time.Now()
 	inputs, err := types.ExtractInputs[ExecuteInputs](task)
 	if err != nil {
+		return nil, util.DefaultActionErrorWithDisplayError(
+			errors.New("invalid remote query action inputs"),
+			"invalid remote query action inputs",
+		)
+	}
+
+	if err := validateTargetInputs(inputs.Target); err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(
 			errors.New("invalid remote query action inputs"),
 			"invalid remote query action inputs",
@@ -118,9 +191,10 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 		Operation:   inputs.Operation,
 		Format:      inputs.Format,
 		Target: &pb.RemoteQueryTarget{
-			Host:   inputs.Target.Host,
-			Port:   int32(inputs.Target.Port),
-			Dbname: inputs.Target.DBName,
+			Host:             inputs.Target.Host,
+			Port:             int32(inputs.Target.Port),
+			Dbname:           inputs.Target.DBName,
+			DatabaseInstance: inputs.Target.DatabaseInstance,
 		},
 		Query: inputs.Query,
 	}

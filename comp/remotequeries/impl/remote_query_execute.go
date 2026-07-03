@@ -119,9 +119,10 @@ func NewRemoteQueryExecuteService(collector RemoteQueryCollector, enabled bool, 
 
 // RemoteQueryExecuteTarget identifies the datastore target without carrying credentials.
 type RemoteQueryExecuteTarget struct {
-	Host   string
-	Port   int
-	DBName string
+	Host             string
+	Port             int
+	DBName           string
+	DatabaseInstance string
 }
 
 // RemoteQueryExecuteLimits contains optional execution limits for a remote query.
@@ -156,7 +157,7 @@ func NewRemoteQueryCopyStreamExecuteRequest(integration string, target RemoteQue
 	if err != nil {
 		return RemoteQueryExecuteRequest{}, err
 	}
-	parsedTarget, err := parseTarget(&remoteQueryTargetRequestJSON{Host: target.Host, Port: &target.Port, DBName: target.DBName})
+	parsedTarget, err := parseExecuteTarget(target)
 	if err != nil {
 		return RemoteQueryExecuteRequest{}, err
 	}
@@ -229,6 +230,25 @@ type remoteQueryExecuteRequestJSON struct {
 	CopyLimits  *remoteQueryExecuteCopyLimitsRequestJSON `json:"copyLimits,omitempty"`
 }
 
+func parseExecuteTarget(target RemoteQueryExecuteTarget) (remoteQueryTarget, error) {
+	wireTarget := &remoteQueryTargetRequestJSON{Host: target.Host, DBName: target.DBName}
+	if target.Host != "" {
+		wireTarget.hostSet = true
+	}
+	if target.Port != 0 {
+		wireTarget.Port = &target.Port
+		wireTarget.portSet = true
+	}
+	if target.DBName != "" {
+		wireTarget.dbnameSet = true
+	}
+	if target.DatabaseInstance != "" {
+		wireTarget.DatabaseInstance = &target.DatabaseInstance
+		wireTarget.databaseInstanceSet = true
+	}
+	return parseTarget(wireTarget)
+}
+
 type remoteQueryExecuteLimitsRequestJSON struct {
 	MaxRows   *int `json:"maxRows"`
 	MaxBytes  *int `json:"maxBytes"`
@@ -271,9 +291,10 @@ type remoteQueryExecuteCopyLimitsJSON struct {
 }
 
 type remoteQueryTargetJSON struct {
-	Host   string `json:"host"`
-	Port   int    `json:"port"`
-	DBName string `json:"dbname"`
+	Host             string `json:"host,omitempty"`
+	Port             int    `json:"port,omitempty"`
+	DBName           string `json:"dbname,omitempty"`
+	DatabaseInstance string `json:"database_instance,omitempty"`
 }
 
 func (h *remoteQueryExecuteHandler) handle(w http.ResponseWriter, r *http.Request) {
@@ -517,7 +538,7 @@ func (r RemoteQueryExecuteRequest) internal() remoteQueryExecuteRequest {
 	internal := remoteQueryExecuteRequest{
 		Integration: r.Integration,
 		Operation:   r.Operation,
-		Target:      remoteQueryTarget{Host: r.Target.Host, Port: r.Target.Port, DBName: r.Target.DBName},
+		Target:      remoteQueryTarget{Host: r.Target.Host, Port: r.Target.Port, DBName: r.Target.DBName, DatabaseInstance: r.Target.DatabaseInstance},
 		Query:       r.Query,
 		Format:      r.Format,
 	}
@@ -534,7 +555,7 @@ func remoteQueryExecuteRequestFromInternal(req remoteQueryExecuteRequest) Remote
 	out := RemoteQueryExecuteRequest{
 		Integration: req.Integration,
 		Operation:   req.Operation,
-		Target:      RemoteQueryExecuteTarget{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
+		Target:      RemoteQueryExecuteTarget{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName, DatabaseInstance: req.Target.DatabaseInstance},
 		Query:       req.Query,
 		Format:      req.Format,
 	}
@@ -557,7 +578,7 @@ func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 	}
 	wireReq := remoteQueryCopyExecutorRequestJSON{
 		Operation: req.Operation,
-		Target:    remoteQueryTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName},
+		Target:    remoteQueryTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName, DatabaseInstance: req.Target.DatabaseInstance},
 		Query:     req.Query,
 		Format:    format,
 	}

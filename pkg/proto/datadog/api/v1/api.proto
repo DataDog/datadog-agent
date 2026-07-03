@@ -26,6 +26,7 @@ message RemoteQueryTarget {
     string host = 1;
     int32 port = 2;
     string dbname = 3;
+    string database_instance = 4;
 }
 
 message RemoteQueryExecuteLimits {
