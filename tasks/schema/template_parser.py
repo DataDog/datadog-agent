@@ -105,6 +105,10 @@ def example_matches_default(example, node):
     """
     if "default" not in node:
         return False
+    # If the example contains go template we don't add if to the schema
+    if "{{" in example:
+        return True
+
     try:
         return yaml.safe_load(example) == node["default"]
     except yaml.YAMLError:
