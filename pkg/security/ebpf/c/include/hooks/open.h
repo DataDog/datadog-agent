@@ -130,7 +130,14 @@ int __attribute__((always_inline)) handle_truncate_path(ctx_t *ctx, struct path 
 
 HOOK_ENTRY("do_truncate")
 int hook_do_truncate(ctx_t *ctx) {
+    // filp is the 4th argument on older kernels; the idmapped-mounts series prepended an
+    // idmap/user_namespace argument to do_truncate, shifting filp to the 5th position
     struct file *f = (struct file *)CTX_PARM4(ctx);
+    if (security_have_usernamespace_first_arg()) {
+        // prevent the verifier from whining
+        bpf_probe_read(&f, sizeof(f), &f);
+        f = (struct file *)CTX_PARM5(ctx);
+    }
     if (f == NULL) {
         return 0;
     }
