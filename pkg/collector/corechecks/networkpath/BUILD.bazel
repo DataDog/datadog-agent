@@ -35,9 +35,15 @@ dd_agent_go_test(
     embed = [":networkpath"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/forwarder/eventplatform/def",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks",
         "//pkg/config/mock",
         "//pkg/config/setup",
         "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
     ],
 )

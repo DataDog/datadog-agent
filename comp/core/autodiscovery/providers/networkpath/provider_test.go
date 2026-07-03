@@ -1,0 +1,371 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package networkpath
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	networkpathcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+)
+
+func TestProviderValidScheduledConfig(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	statuses := applyStatuses()
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: []byte(`{
+			"type": "scheduled",
+			"test_config_id": "test-config-a",
+			"unknown_root_field": true,
+			"configs": [
+				{
+					"hostname": "api.example.com",
+					"port": 443,
+					"protocol": "tcp",
+					"interval_sec": 60,
+					"timeout_ms": 1000,
+					"max_ttl": 30,
+					"tcp_method": "syn",
+					"traceroute_queries": 3,
+					"e2e_queries": 50,
+					"source_service": "frontend",
+					"destination_service": "api",
+					"tags": ["env:prod"],
+					"unknown_endpoint_field": "ignored"
+				},
+				{"hostname": "db.example.com"}
+			]
+		}`)},
+	}, statuses.callback)
+
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses.values["path/a"].State)
+	assert.Empty(t, provider.GetConfigErrors())
+
+	changes := <-changesCh
+	assert.Empty(t, changes.Unschedule)
+	require.Len(t, changes.Schedule, 2)
+
+	first := changes.Schedule[0]
+	assert.Equal(t, networkpathcheck.CheckName, first.Name)
+	assert.Equal(t, configSource, first.Source)
+	assert.Equal(t, names.NetworkPathRemoteConfig, provider.String())
+	require.Len(t, first.Instances, 1)
+
+	instance := unmarshalInstance(t, first.Instances[0])
+	assert.Equal(t, "test-config-a", instance["test_config_id"])
+	assert.Equal(t, "api.example.com", instance["hostname"])
+	assert.Equal(t, 443, instance["port"])
+	assert.Equal(t, "TCP", instance["protocol"])
+	assert.Equal(t, 60, instance["min_collection_interval"])
+	assert.Equal(t, 1000, instance["timeout"])
+	assert.Equal(t, 30, instance["max_ttl"])
+	assert.Equal(t, "syn", instance["tcp_method"])
+	assert.Equal(t, 3, instance["traceroute_queries"])
+	assert.Equal(t, 50, instance["e2e_queries"])
+	assert.Equal(t, "frontend", instance["source_service"])
+	assert.Equal(t, "api", instance["destination_service"])
+	assert.Equal(t, []interface{}{"env:prod"}, instance["tags"])
+
+	second := unmarshalInstance(t, changes.Schedule[1].Instances[0])
+	assert.Equal(t, "test-config-a", second["test_config_id"])
+	assert.Equal(t, "db.example.com", second["hostname"])
+}
+
+func TestProviderNoOpSnapshotDoesNotRestartChecks(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	config := rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`)
+	provider.Update(map[string]state.RawConfig{"path/a": {Config: config}}, applyStatuses().callback)
+	first := <-changesCh
+	require.Len(t, first.Schedule, 1)
+
+	provider.Update(map[string]state.RawConfig{"path/a": {Config: config}}, applyStatuses().callback)
+	assertNoChanges(t, changesCh)
+}
+
+func TestProviderValidUpdateReplacesWholePath(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`)},
+	}, applyStatuses().callback)
+	first := <-changesCh
+	require.Len(t, first.Schedule, 1)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"hostname":"db.example.com"}`)},
+	}, applyStatuses().callback)
+	second := <-changesCh
+	require.Len(t, second.Unschedule, 1)
+	require.Len(t, second.Schedule, 1)
+
+	oldInstance := unmarshalInstance(t, second.Unschedule[0].Instances[0])
+	newInstance := unmarshalInstance(t, second.Schedule[0].Instances[0])
+	assert.Equal(t, "api.example.com", oldInstance["hostname"])
+	assert.Equal(t, "db.example.com", newInstance["hostname"])
+}
+
+func TestProviderInvalidUpdateKeepsLastValidConfig(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`)},
+	}, applyStatuses().callback)
+	first := <-changesCh
+	require.Len(t, first.Schedule, 1)
+
+	statuses := applyStatuses()
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"port":443}`)},
+	}, statuses.callback)
+
+	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
+	assert.Contains(t, statuses.values["path/a"].Error, "configs[0]")
+	assertNoChanges(t, changesCh)
+	assert.NotEmpty(t, provider.GetConfigErrors()["path/a"])
+
+	statuses = applyStatuses()
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`)},
+	}, statuses.callback)
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses.values["path/a"].State)
+	assert.Empty(t, provider.GetConfigErrors())
+	assertNoChanges(t, changesCh)
+}
+
+func TestProviderMissingPathUnschedulesActiveConfigs(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`)},
+		"path/b": {Config: rawScheduledConfig("test-config-b", `{"hostname":"db.example.com"}`)},
+	}, applyStatuses().callback)
+	first := <-changesCh
+	require.Len(t, first.Schedule, 2)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/b": {Config: rawScheduledConfig("test-config-b", `{"hostname":"db.example.com"}`)},
+	}, applyStatuses().callback)
+
+	second := <-changesCh
+	require.Len(t, second.Unschedule, 1)
+	assert.Empty(t, second.Schedule)
+	instance := unmarshalInstance(t, second.Unschedule[0].Instances[0])
+	assert.Equal(t, "test-config-a", instance["test_config_id"])
+	assert.Equal(t, "api.example.com", instance["hostname"])
+}
+
+func TestProviderMissingPathClearsStaleConfigError(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	statuses := applyStatuses()
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"port":443}`)},
+	}, statuses.callback)
+
+	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
+	assert.NotEmpty(t, provider.GetConfigErrors()["path/a"])
+	assertNoChanges(t, changesCh)
+
+	provider.Update(map[string]state.RawConfig{}, applyStatuses().callback)
+	assert.Empty(t, provider.GetConfigErrors())
+	assertNoChanges(t, changesCh)
+}
+
+func TestProviderMixedSnapshotSchedulesValidAndKeepsInvalidError(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	statuses := applyStatuses()
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"port":443}`)},
+		"path/b": {Config: rawScheduledConfig("test-config-b", `{"hostname":"db.example.com"}`)},
+	}, statuses.callback)
+
+	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses.values["path/b"].State)
+	assert.NotEmpty(t, provider.GetConfigErrors()["path/a"])
+
+	changes := <-changesCh
+	assert.Empty(t, changes.Unschedule)
+	require.Len(t, changes.Schedule, 1)
+	instance := unmarshalInstance(t, changes.Schedule[0].Instances[0])
+	assert.Equal(t, "test-config-b", instance["test_config_id"])
+	assert.Equal(t, "db.example.com", instance["hostname"])
+}
+
+func TestProviderEmptyConfigsUnschedulesPath(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`)},
+	}, applyStatuses().callback)
+	first := <-changesCh
+	require.Len(t, first.Schedule, 1)
+
+	statuses := applyStatuses()
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: []byte(`{"type":"scheduled","test_config_id":"test-config-a","configs":[]}`)},
+	}, statuses.callback)
+
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses.values["path/a"].State)
+	second := <-changesCh
+	require.Len(t, second.Unschedule, 1)
+	assert.Empty(t, second.Schedule)
+}
+
+func TestProviderRejectsUnsupportedType(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	statuses := applyStatuses()
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: []byte(`{"type":"dynamic","test_config_id":"test-config-a","configs":[]}`)},
+	}, statuses.callback)
+
+	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
+	assert.Contains(t, statuses.values["path/a"].Error, `unsupported Network Path config type "dynamic"`)
+	assertNoChanges(t, changesCh)
+}
+
+func TestParseConfigValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		raw         string
+		expectedErr string
+	}{
+		{
+			name:        "missing type",
+			raw:         `{"test_config_id":"test-config-a","configs":[]}`,
+			expectedErr: "type is required",
+		},
+		{
+			name:        "missing test config id",
+			raw:         `{"type":"scheduled","configs":[]}`,
+			expectedErr: "test_config_id is required",
+		},
+		{
+			name:        "missing configs",
+			raw:         `{"type":"scheduled","test_config_id":"test-config-a"}`,
+			expectedErr: "configs must be provided",
+		},
+		{
+			name:        "missing hostname",
+			raw:         rawScheduledConfigString("test-config-a", `{"port":443}`),
+			expectedErr: "hostname is required",
+		},
+		{
+			name:        "invalid port",
+			raw:         rawScheduledConfigString("test-config-a", `{"hostname":"api.example.com","port":70000}`),
+			expectedErr: "port must be between 1 and 65535",
+		},
+		{
+			name:        "invalid max ttl",
+			raw:         rawScheduledConfigString("test-config-a", `{"hostname":"api.example.com","max_ttl":256}`),
+			expectedErr: "max_ttl must be between 1 and 255",
+		},
+		{
+			name:        "invalid interval",
+			raw:         rawScheduledConfigString("test-config-a", `{"hostname":"api.example.com","interval_sec":0}`),
+			expectedErr: "interval_sec must be > 0",
+		},
+		{
+			name:        "invalid timeout",
+			raw:         rawScheduledConfigString("test-config-a", `{"hostname":"api.example.com","timeout_ms":0}`),
+			expectedErr: "timeout_ms must be > 0",
+		},
+		{
+			name:        "invalid protocol",
+			raw:         rawScheduledConfigString("test-config-a", `{"hostname":"api.example.com","protocol":"sctp"}`),
+			expectedErr: "unsupported protocol",
+		},
+		{
+			name:        "invalid tcp method",
+			raw:         rawScheduledConfigString("test-config-a", `{"hostname":"api.example.com","tcp_method":"bad"}`),
+			expectedErr: "unsupported tcp_method",
+		},
+		{
+			name:        "invalid traceroute queries",
+			raw:         rawScheduledConfigString("test-config-a", `{"hostname":"api.example.com","traceroute_queries":0}`),
+			expectedErr: "traceroute_queries must be > 0",
+		},
+		{
+			name:        "invalid e2e queries",
+			raw:         rawScheduledConfigString("test-config-a", `{"hostname":"api.example.com","e2e_queries":0}`),
+			expectedErr: "e2e_queries must be > 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseConfig([]byte(tt.raw))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.expectedErr)
+		})
+	}
+}
+
+type statusRecorder struct {
+	values map[string]state.ApplyStatus
+}
+
+func applyStatuses() *statusRecorder {
+	return &statusRecorder{values: make(map[string]state.ApplyStatus)}
+}
+
+func (s *statusRecorder) callback(path string, status state.ApplyStatus) {
+	s.values[path] = status
+}
+
+func rawScheduledConfig(testConfigID string, endpoints ...string) []byte {
+	return []byte(rawScheduledConfigString(testConfigID, endpoints...))
+}
+
+func rawScheduledConfigString(testConfigID string, endpoints ...string) string {
+	configs := strings.Join(endpoints, ",")
+	return `{"type":"scheduled","test_config_id":"` + testConfigID + `","configs":[` + configs + `]}`
+}
+
+func unmarshalInstance(t *testing.T, instanceData integration.Data) map[string]interface{} {
+	t.Helper()
+	var instance map[string]interface{}
+	require.NoError(t, yaml.Unmarshal(instanceData, &instance))
+	return instance
+}
+
+func assertNoChanges(t *testing.T, changesCh <-chan integration.ConfigChanges) {
+	t.Helper()
+	select {
+	case changes := <-changesCh:
+		require.True(t, changes.IsEmpty(), "unexpected config changes: %#v", changes)
+	default:
+	}
+}

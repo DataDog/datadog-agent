@@ -67,6 +67,8 @@ const (
 	PrometheusHTTPSD = "prometheus-http-sd"
 	// InstrumentationChecks pulls AD configurations derived from DatadogInstrumentation CRs via the cluster-agent.
 	InstrumentationChecks = "instrumentation-checks"
+	// NetworkPathRemoteConfig schedules Network Path checks from Remote Configuration.
+	NetworkPathRemoteConfig = "network-path-remote-config"
 )
 
 // Internal Autodiscovery names for the config providers

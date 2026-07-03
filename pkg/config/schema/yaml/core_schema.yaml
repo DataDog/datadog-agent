@@ -1768,6 +1768,23 @@ properties:
             tags:
             - template_section:CoreAgent
             comment: Network Path
+      remote_config:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configurations for Network Path tests delivered through Remote Configuration.
+        tags:
+        - template_section:CoreAgent
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Enables Network Path scheduled tests delivered through Remote Configuration.
+            example: 'true'
+            tags:
+            - template_section:CoreAgent
       collector:
         node_type: section
         type: object

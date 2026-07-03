@@ -78,6 +78,7 @@ func (c *Check) Run() error {
 	}
 
 	path.Namespace = c.config.Namespace
+	path.TestConfigID = c.config.TestConfigID
 	path.Origin = payload.PathOriginNetworkPathIntegration
 	path.TestRunType = payload.TestRunTypeScheduled
 	path.SourceProduct = payload.GetSourceProduct(pkgconfigsetup.Datadog().GetString("infrastructure_mode"))
