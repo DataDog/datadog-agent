@@ -179,12 +179,9 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	// Fleet processes.d YAML is not an MSI component; keep it across upgrade prerm so a rolled-back
 	// install still has supervision config until postinst rewrites it. Full uninstall removes it.
 	if !ctx.Upgrade {
-		installRoot := paths.ResolveDatadogProgramFilesDir()
-		if installRoot == "" {
+		installRoot, err := resolveDatadogProgramFilesInstallRoot()
+		if err != nil {
 			installRoot = packagePath
-		} else if resolved, err := filepath.EvalSymlinks(installRoot); err == nil {
-			installRoot = resolved
-			paths.DatadogProgramFilesDir = installRoot
 		}
 		if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
 			log.Warnf("failed to remove ADP process manager config: %v", err)
@@ -212,15 +209,23 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	return nil
 }
 
-func ensureADPProcmgrConfig() error {
+func resolveDatadogProgramFilesInstallRoot() (string, error) {
 	installRoot := paths.ResolveDatadogProgramFilesDir()
 	if installRoot == "" {
-		return errors.New("cannot resolve Datadog Agent install path for ADP processes.d")
+		return "", errors.New("cannot resolve Datadog Agent install path for processes.d")
 	}
 	if resolved, err := filepath.EvalSymlinks(installRoot); err == nil {
 		installRoot = resolved
 	}
 	paths.DatadogProgramFilesDir = installRoot
+	return installRoot, nil
+}
+
+func ensureADPProcmgrConfig() error {
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
+	}
 
 	if env.FromEnv().ProcessManagerEnabled {
 		return processmanager.WriteADPProcmgrConfig(installRoot)
@@ -232,14 +237,10 @@ func ensureADPProcmgrConfig() error {
 }
 
 func ensurePARProcmgrConfig() error {
-	installRoot := paths.ResolveDatadogProgramFilesDir()
-	if installRoot == "" {
-		return errors.New("cannot resolve Datadog Agent install path for PAR processes.d")
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
 	}
-	if resolved, err := filepath.EvalSymlinks(installRoot); err == nil {
-		installRoot = resolved
-	}
-	paths.DatadogProgramFilesDir = installRoot
 
 	if env.FromEnv().ProcessManagerEnabled {
 		return processmanager.WritePARProcmgrConfig(installRoot)
