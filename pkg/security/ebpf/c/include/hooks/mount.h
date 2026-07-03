@@ -493,13 +493,16 @@ int hook_attach_recursive_mnt(ctx_t *ctx) {
     struct mountpoint *mp;
 
     // Since kernel 6.18, attach_recursive_mnt takes (source_mnt, const struct pinned_mountpoint *dest)
-    // instead of (source_mnt, dest_mnt, dest_mp). When the pinned_mountpoint offsets are resolved,
-    // read the parent mount and the mountpoint from that struct; otherwise fall back to the legacy
-    // argument positions.
+    // instead of (source_mnt, dest_mnt, dest_mp). On kernels without struct pinned_mountpoint the
+    // offset fetch fails and the constant is loaded as 0 (missing constants are rewritten to 0
+    // before being pushed to eBPF), so a non-zero parent offset means the new signature is in use:
+    // read the parent mount and the mountpoint from that struct. Otherwise fall back to the legacy
+    // argument positions. The parent field always follows the embedded hlist_node, so its offset is
+    // never legitimately 0.
     u64 pinned_mountpoint_parent_offset;
     LOAD_CONSTANT("pinned_mountpoint_parent_offset", pinned_mountpoint_parent_offset);
 
-    if (pinned_mountpoint_parent_offset != -1) {
+    if (pinned_mountpoint_parent_offset != 0) {
         u64 pinned_mountpoint_mp_offset;
         LOAD_CONSTANT("pinned_mountpoint_mp_offset", pinned_mountpoint_mp_offset);
 
