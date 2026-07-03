@@ -145,7 +145,7 @@ go_test(
         "//comp/forwarder/eventplatform/mock",
         "//comp/forwarder/eventplatformreceiver/impl",
         "//comp/forwarder/orchestrator/def",
-        "//comp/forwarder/orchestrator/impl",
+        "//comp/forwarder/orchestrator/fx",
         "//comp/forwarder/orchestrator/mock",
         "//comp/haagent/def",
         "//comp/haagent/mock",
