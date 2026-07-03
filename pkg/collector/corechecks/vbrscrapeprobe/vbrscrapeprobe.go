@@ -51,7 +51,7 @@ type Check struct {
 
 // Configure parses the instance config (just the endpoint URL, defaulting
 // to defaultEndpoint if unset) and applies common options (min_collection_interval, etc).
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	if err := c.CommonConfigure(senderManager, initConfig, data, source, provider); err != nil {
 		return err
 	}
