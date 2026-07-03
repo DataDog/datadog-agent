@@ -7,6 +7,7 @@ package logssourceimpl
 
 import (
 	"context"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -84,7 +85,11 @@ func (p *observerPipeline) drainOutputChan() {
 		// config when one is set (e.g. "nginx"), overriding the container runtime.
 		// Rules using source: containerd/docker will not match AD-scheduled container
 		// logs that carry a custom source.
-		if !p.rules.IsAllowed(msg.Origin.Source(), msg.Tags()) {
+		msgTags := msg.Tags()
+		if p.rules.NeedsSortedTags() {
+			msgTags = slices.Sorted(slices.Values(msgTags))
+		}
+		if !p.rules.IsAllowed(msg.Origin.Source(), msgTags) {
 			continue
 		}
 		if p.sampler != nil && !p.sampler.ShouldForward(msg) {
