@@ -9,5 +9,6 @@
 features:
   - |
     Adds Datadog CSI driver telemetry to COAT, including volume publish
-    and unpublish attempts as well as library resolution, cleanup, cache
-    size, cached library count, and library volume link metrics.
+    and unpublish attempts as well as library resolution, download
+    count and duration, cleanup, cache size, cached library count, and
+    library volume link metrics.

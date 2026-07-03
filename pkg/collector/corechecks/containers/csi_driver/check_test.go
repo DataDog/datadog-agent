@@ -339,6 +339,58 @@ datadog_csi_driver_node_publish_volume_attempts{path="/var/run/datadog",status="
 		"COAT counter should add only the delta after a check reload")
 }
 
+// TestCOATHistogramReportsCountAndSum verifies that the download-duration
+// histogram is onboarded to COAT as two delta counters (_count and _sum) built
+// from the histogram's cumulative count/sum series, while the per-bucket series
+// are ignored. Together they let the backend derive volume and average latency.
+func TestCOATHistogramReportsCountAndSum(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+
+	var scrapeCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := int(scrapeCount.Add(1))
+		// Cumulative count grows by 2 and sum by 5.0 each scrape.
+		body := fmt.Sprintf(`# TYPE datadog_csi_driver_library_download_duration_seconds histogram
+datadog_csi_driver_library_download_duration_seconds_bucket{library="dd-lib-java-init",registry="gcr.io",le="1"} %d
+datadog_csi_driver_library_download_duration_seconds_bucket{library="dd-lib-java-init",registry="gcr.io",le="+Inf"} %d
+datadog_csi_driver_library_download_duration_seconds_sum{library="dd-lib-java-init",registry="gcr.io"} %d
+datadog_csi_driver_library_download_duration_seconds_count{library="dd-lib-java-init",registry="gcr.io"} %d
+`, n, 2*n, 5*n, 2*n)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer ts.Close()
+
+	chk := &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+		metrics:   buildMetricDefs(tm),
+		state:     newTestState(),
+	}
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	require.NoError(t, chk.Run()) // count=2, sum=5
+	require.NoError(t, chk.Run()) // count=4, sum=10
+
+	countMetrics, err := tm.GetCountMetric(CheckName, "library_download_duration_seconds_count")
+	require.NoError(t, err)
+	require.Len(t, countMetrics, 1)
+	assert.Equal(t, 4.0, countMetrics[0].Value())
+	assert.Equal(t, map[string]string{"library": "dd-lib-java-init", "registry": "gcr.io"}, countMetrics[0].Tags())
+
+	sumMetrics, err := tm.GetCountMetric(CheckName, "library_download_duration_seconds_sum")
+	require.NoError(t, err)
+	require.Len(t, sumMetrics, 1)
+	assert.Equal(t, 10.0, sumMetrics[0].Value())
+
+	// The per-bucket series must not be onboarded to COAT.
+	_, err = tm.GetGaugeMetric(CheckName, "library_download_duration_seconds_bucket")
+	require.ErrorContains(t, err, "not found")
+}
+
 func TestCOATGaugesSetLatestValue(t *testing.T) {
 	tm := telemetryimpl.NewMock(t)
 

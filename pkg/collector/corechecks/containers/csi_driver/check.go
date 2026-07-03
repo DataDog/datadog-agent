@@ -39,6 +39,7 @@ type metricKind int
 const (
 	counterMetric metricKind = iota
 	gaugeMetric
+	histogramMetric
 )
 
 // coatMetric associates a COAT telemetry metric with the Prometheus label names
@@ -50,12 +51,26 @@ type coatMetric struct {
 	tagKeys []string
 }
 
+// coatHistogram mirrors a Prometheus histogram into COAT by reducing it to its
+// _count and _sum series, exposed as two counters. We intentionally drop the
+// per-bucket distribution (COAT keeps volume and average latency, not
+// percentiles): the telemetry.Histogram API only offers Observe(), which cannot
+// faithfully ingest an already-cumulative external histogram, whereas _count and
+// _sum are exact cumulative counters that mirror cleanly and aggregate correctly.
+type coatHistogram struct {
+	count   telemetry.Counter
+	sum     telemetry.Counter
+	tagKeys []string
+}
+
 // metricDef defines how a Prometheus metric is mapped to a Datadog metric name
-// and optionally to a COAT telemetry counter.
+// and optionally to COAT telemetry (a counter/gauge, or a histogram reduced to
+// count/sum counters).
 type metricDef struct {
-	ddName string
-	kind   metricKind
-	coat   *coatMetric
+	ddName   string
+	kind     metricKind
+	coat     *coatMetric
+	coatHist *coatHistogram
 }
 
 // sharedState is COAT telemetry bookkeeping shared across every Check instance
@@ -109,6 +124,15 @@ func buildMetricDefs(tm telemetry.Component) map[string]metricDef {
 				counter: tm.NewCounter(CheckName, "library_resolutions", []string{"library", "result"}, "CSI driver library resolution attempts"),
 				kind:    counterMetric,
 				tagKeys: []string{"library", "result"},
+			},
+		},
+		"datadog_csi_driver_library_download_duration_seconds": {
+			ddName: "library_download_duration_seconds",
+			kind:   histogramMetric,
+			coatHist: &coatHistogram{
+				count:   tm.NewCounter(CheckName, "library_download_duration_seconds_count", []string{"library", "registry"}, "CSI driver library downloads"),
+				sum:     tm.NewCounter(CheckName, "library_download_duration_seconds_sum", []string{"library", "registry"}, "CSI driver library download duration total seconds"),
+				tagKeys: []string{"library", "registry"},
 			},
 		},
 		"datadog_csi_driver_library_cleanup": {
@@ -279,14 +303,7 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 
 				switch def.coat.kind {
 				case counterMetric:
-					key := c.endpointSeriesKey(def.ddName, sample.Metric)
-					prev := c.state.prevValues[key]
-					delta := sample.Value - prev
-					if delta < 0 {
-						delta = sample.Value
-					}
-					c.state.prevValues[key] = sample.Value
-					def.coat.counter.Add(delta, tagValues...)
+					c.addCounterDeltaLocked(def.coat.counter, c.endpointSeriesKey(def.ddName, sample.Metric), sample.Value, tagValues)
 				case gaugeMetric:
 					// Keyed by COAT series identity; see sharedState (no cross-endpoint aggregation).
 					key := coatSeriesKey(def.ddName, tagValues)
@@ -298,10 +315,45 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 					def.coat.gauge.Set(sample.Value, tagValues...)
 				}
 			}
+
+			if def.coatHist != nil {
+				// Reduce the histogram to count/sum counters; ignore _bucket and
+				// any other series (see coatHistogram). The raw series name is
+				// kept in the __name__ label after the parser trims the family.
+				rawName := sample.Metric["__name__"]
+				var target telemetry.Counter
+				switch {
+				case strings.HasSuffix(rawName, "_count"):
+					target = def.coatHist.count
+				case strings.HasSuffix(rawName, "_sum"):
+					target = def.coatHist.sum
+				}
+				if target != nil {
+					tagValues := make([]string, len(def.coatHist.tagKeys))
+					for i, k := range def.coatHist.tagKeys {
+						tagValues[i] = sample.Metric[k]
+					}
+					c.addCounterDeltaLocked(target, c.endpointSeriesKey(rawName, sample.Metric), sample.Value, tagValues)
+				}
+			}
 		}
 	}
 
 	c.deleteStaleGaugeSeriesLocked(currentGaugeKeys)
+}
+
+// addCounterDeltaLocked mirrors a cumulative Prometheus counter into a COAT
+// counter by adding only the increment since the last scrape. A negative delta
+// means the source counter was reset (e.g. driver restart), so the new value is
+// added as-is instead of subtracting. The caller must hold c.state.mu.
+func (c *Check) addCounterDeltaLocked(counter telemetry.Counter, key string, value float64, tagValues []string) {
+	prev := c.state.prevValues[key]
+	delta := value - prev
+	if delta < 0 {
+		delta = value
+	}
+	c.state.prevValues[key] = value
+	counter.Add(delta, tagValues...)
 }
 
 // deleteAllGaugeSeries clears all tracked gauge series (used on cancel or scrape failure).

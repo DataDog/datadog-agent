@@ -184,6 +184,14 @@ profiles:
         preserve_tags:
           - library
           - result
+      - name: datadog_csi_driver.library_download_duration_seconds_count
+        preserve_tags:
+          - library
+          - registry
+      - name: datadog_csi_driver.library_download_duration_seconds_sum
+        preserve_tags:
+          - library
+          - registry
       - name: datadog_csi_driver.library_cleanup
         preserve_tags:
           - library
