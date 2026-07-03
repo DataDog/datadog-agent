@@ -29,9 +29,9 @@ const (
 // and reports telemetry when it remains unavailable for extended periods.
 // Not thread-safe, should only be used from a single goroutine.
 type NvmlStateTelemetry struct {
-	firstCheckTime       time.Time
-	unavailable          bool
-	lastNvmlInitSuccesss bool
+	firstCheckTime      time.Time
+	unavailable         bool
+	lastNvmlInitSuccess bool
 
 	// Telemetry metrics
 	errorCounter     telemetry.Counter
@@ -67,7 +67,7 @@ func (n *NvmlStateTelemetry) Check() {
 		}
 
 		n.errorCounter.Add(1)
-		n.lastNvmlInitSuccesss = false
+		n.lastNvmlInitSuccess = false
 
 		// Check if threshold has been exceeded
 		if time.Since(n.firstCheckTime) >= nvmlUnavailableThreshold {
@@ -82,7 +82,7 @@ func (n *NvmlStateTelemetry) Check() {
 		n.unavailableGauge.Set(0)
 		n.firstCheckTime = time.Time{}
 		n.unavailable = false
-		n.lastNvmlInitSuccesss = true
+		n.lastNvmlInitSuccess = true
 	}
 }
 
@@ -91,9 +91,9 @@ func (n *NvmlStateTelemetry) Unavailable() bool {
 	return n.unavailable
 }
 
-// LastNvmlInitSuccesss returns whether the last check was successful.
-func (n *NvmlStateTelemetry) LastNvmlInitSuccesss() bool {
-	return n.lastNvmlInitSuccesss
+// LastNvmlInitSuccess returns whether the last check was successful.
+func (n *NvmlStateTelemetry) LastNvmlInitSuccess() bool {
+	return n.lastNvmlInitSuccess
 }
 
 // Start begins periodic checking of the NVML library status in a background goroutine.

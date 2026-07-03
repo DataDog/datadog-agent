@@ -282,7 +282,7 @@ func (c *Check) Run() error {
 
 	// Check the state of the NVML library for telemetry
 	c.telemetry.nvmlState.Check()
-	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccesss())
+	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccess())
 
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
@@ -341,7 +341,7 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccesss bool) {
+func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 	if c.issueReporter == nil {
 		return
 	}
@@ -354,7 +354,7 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccesss bool) {
 		// example, after an agent restart, we would resolve the issue too early
 		// (unavailable will be false at the start) even if the NVML library is
 		// not available still.
-		if nvmlInitSuccesss {
+		if nvmlInitSuccess {
 			c.issueReporter.ResolveIssue(issueID)
 		}
 		return
