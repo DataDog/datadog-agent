@@ -16,31 +16,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func withMockKickstart(t *testing.T, mock func(string) error) {
-	t.Helper()
-	orig := kickstart
-	kickstart = mock
-	t.Cleanup(func() { kickstart = orig })
-}
-
-// withSyncAfterFunc replaces the timer so the callback runs synchronously inside
-// handleAgentRestart, before the function returns. This prevents the real kickstart
-// from being restored by t.Cleanup before the timer fires.
-func withSyncAfterFunc(t *testing.T) {
-	t.Helper()
-	orig := afterFunc
-	afterFunc = func(_ time.Duration, f func()) *time.Timer { f(); return nil }
-	t.Cleanup(func() { afterFunc = orig })
+// syncAfterFunc replaces the timer so the callback runs synchronously inside
+// the handler, before it returns.
+func syncAfterFunc(_ time.Duration, f func()) *time.Timer {
+	f()
+	return nil
 }
 
 func TestHandleAgentRestart_Returns200Immediately(t *testing.T) {
-	withSyncAfterFunc(t)
-	withMockKickstart(t, func(string) error { return nil })
+	handler := newAgentRestartHandler(func(string) error { return nil }, syncAfterFunc)
 
 	req := httptest.NewRequest(http.MethodPost, "/agent-restart", nil)
 	rr := httptest.NewRecorder()
 
-	handleAgentRestart(rr, req)
+	handler(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
@@ -53,18 +42,16 @@ func TestHandleAgentRestart_ServiceRestartSequence(t *testing.T) {
 		"system/com.datadoghq.sysprobe",
 	}
 
-	withSyncAfterFunc(t)
-
 	var called []string
-	withMockKickstart(t, func(svc string) error {
+	handler := newAgentRestartHandler(func(svc string) error {
 		called = append(called, svc)
 		return nil
-	})
+	}, syncAfterFunc)
 
 	req := httptest.NewRequest(http.MethodPost, "/agent-restart", nil)
 	rr := httptest.NewRecorder()
 
-	handleAgentRestart(rr, req)
+	handler(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, expectedServices, called)

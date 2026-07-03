@@ -48,8 +48,11 @@ func restart(getToken func() string, sysprobeSocketPath string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		_, _ = sysprobeclient.ReadAllResponseBody(resp)
-		return fmt.Errorf("system-probe agent restart failed with status %d; see system-probe logs for details", resp.StatusCode)
+		body, err := sysprobeclient.ReadAllResponseBody(resp)
+		if err != nil {
+			return fmt.Errorf("system-probe agent restart failed with status %d; could not read response body: %w", resp.StatusCode, err)
+		}
+		return fmt.Errorf("system-probe agent restart failed with status %d: %s", resp.StatusCode, body)
 	}
 	return nil
 }
