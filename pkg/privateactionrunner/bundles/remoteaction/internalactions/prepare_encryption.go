@@ -22,10 +22,10 @@ import (
 const keyTypeCurve25519 = "curve25519"
 
 type PrepareEncryptionHandler struct {
-	store encryptioncontext.Store
+	store *encryptioncontext.Store
 }
 
-func NewPrepareEncryptionHandler(store encryptioncontext.Store) *PrepareEncryptionHandler {
+func NewPrepareEncryptionHandler(store *encryptioncontext.Store) *PrepareEncryptionHandler {
 	return &PrepareEncryptionHandler{store: store}
 }
 
@@ -34,17 +34,11 @@ type PrepareEncryptionInputs struct {
 }
 
 type PrepareEncryptionOutputs struct {
-	KeyType             string `json:"keyType"`
-	PublicKey           string `json:"publicKey"`
-	EncryptionContextID string `json:"encryptionContextId"`
+	KeyType   string `json:"keyType"`
+	PublicKey string `json:"publicKey"`
 }
 
-// Run generates an ephemeral Curve25519 key pair, stashes the private key in
-// the shared encryption-context store keyed by encryptionContextId, and
-// returns the public key to the caller. A subsequent task on the same runner
-// (e.g. testConnectivity) can then retrieve the private key from the store,
-// by encryptionContextId, to decrypt secret inputs sealed with the returned
-// public key.
+// Run generates a Curve25519 key pair and returns the public key.
 func (handler *PrepareEncryptionHandler) Run(
 	_ context.Context,
 	task *types.Task,
@@ -63,11 +57,10 @@ func (handler *PrepareEncryptionHandler) Run(
 		return nil, fmt.Errorf("failed to generate Curve25519 key pair: %w", err)
 	}
 
-	handler.store.Put(inputs.EncryptionContextID, privateKey)
+	handler.store.Set(inputs.EncryptionContextID, privateKey)
 
 	return &PrepareEncryptionOutputs{
-		KeyType:             keyTypeCurve25519,
-		PublicKey:           base64.StdEncoding.EncodeToString(publicKey[:]),
-		EncryptionContextID: inputs.EncryptionContextID,
+		KeyType:   keyTypeCurve25519,
+		PublicKey: base64.StdEncoding.EncodeToString(publicKey[:]),
 	}, nil
 }

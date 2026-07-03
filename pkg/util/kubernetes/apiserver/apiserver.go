@@ -45,10 +45,12 @@ import (
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	apiextentionsinformer "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 )
@@ -75,6 +77,10 @@ const (
 	// This is mostly required for built-in controllers in Cluster Agent (ExternalMetrics, Autoscaling that can generate a high number of `Update` requests)
 	controllerClientQPSLimit = 150
 	controllerClientQPSBurst = 300
+	// Leader election operations are low-frequency (one lease update every ~15-60s) but must be
+	// isolated from other components so they cannot be starved by other components' API traffic.
+	leaderElectionClientQPSLimit = 20
+	leaderElectionClientQPSBurst = 40
 )
 
 // APIClient provides authenticated access to the
@@ -86,6 +92,10 @@ type APIClient struct {
 
 	// Cl holds the main kubernetes client
 	Cl kubernetes.Interface
+
+	// LeaderElectionCl holds a dedicated kubernetes client for leader election with independently
+	// managed client-side rate limiting, so leader election is never starved by other components.
+	LeaderElectionCl kubernetes.Interface
 
 	// DynamicCl holds a dynamic kubernetes client
 	DynamicCl dynamic.Interface
@@ -255,6 +265,11 @@ func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 	clientConfig.Timeout = timeout
 	clientConfig.QPS = qps
 	clientConfig.Burst = burst
+	// client-go derives its User-Agent from the client-go library version, which
+	// is not compiled into the Agent and therefore reports as v0.0.0 in apiserver
+	// audit logs (e.g. GKE control-plane telemetry). Set it explicitly so the
+	// Agent flavor and version issuing the call can be identified.
+	clientConfig.UserAgent = fmt.Sprintf("datadog-%s/%s", strings.ReplaceAll(flavor.GetFlavor(), "_", "-"), version.AgentVersion)
 	clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
 		return NewCustomRoundTripper(rt, timeout)
 	})
@@ -356,6 +371,12 @@ func (c *APIClient) connect() error {
 	c.Cl, err = GetKubeClient(c.defaultClientTimeout, c.defaultClientQPS, c.defaultClientBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
+		return err
+	}
+
+	c.LeaderElectionCl, err = GetKubeClient(c.defaultClientTimeout, leaderElectionClientQPSLimit, leaderElectionClientQPSBurst)
+	if err != nil {
+		log.Infof("Could not get leader election apiserver client: %v", err)
 		return err
 	}
 

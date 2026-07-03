@@ -18,7 +18,7 @@ type NetworkDevicesBundle struct {
 }
 
 // NewNetworkDevices creates a new network devices bundle.
-func NewNetworkDevices(encryptionStore encryptioncontext.Store) types.Bundle {
+func NewNetworkDevices(encryptionStore *encryptioncontext.Store) types.Bundle {
 	return &NetworkDevicesBundle{
 		actions: map[string]types.Action{
 			"connectivityCheck": NewConnectivityCheckHandler(encryptionStore),

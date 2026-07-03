@@ -3,73 +3,62 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package encryptioncontext stores ephemeral Curve25519 private keys generated
+// Package encryptioncontext stores ephemeral private keys generated
 // by the `com.datadoghq.remoteaction.internal.prepareEncryption` action so
 // that a subsequent task on the same runner can retrieve and use them to
 // decrypt per-task secret inputs.
 package encryptioncontext
 
 import (
-	"errors"
-	"sync"
 	"time"
+
+	"github.com/jellydator/ttlcache/v3"
 )
 
-// ErrNotFound is returned when no matching entry exists or it has expired.
-var ErrNotFound = errors.New("encryption context not found")
+// DefaultTTL is how long a key remains retrievable after being stored,
+// when using NewStore.
+const DefaultTTL = 5 * time.Minute
 
-// Store keeps Curve25519 private keys indexed by encryptionContextID.
-// Keys are evicted on Take or when their TTL expires.
-type Store interface {
-	Put(encryptionContextID string, privateKey *[32]byte)
-	Take(encryptionContextID string) (*[32]byte, error)
+// Store keeps private keys indexed by encryptionContextID, evicted after
+// their TTL elapses or once explicitly deleted.
+type Store struct {
+	cache *ttlcache.Cache[string, *[32]byte]
 }
 
-type entry struct {
-	privateKey *[32]byte
-	expiresAt  time.Time
+// NewStore returns an in-memory Store using DefaultTTL.
+func NewStore() *Store {
+	return NewStoreWithTTL(DefaultTTL)
 }
 
-type memoryStore struct {
-	mutex   sync.Mutex
-	entries map[string]entry
-	ttl     time.Duration
-	now     func() time.Time
-}
-
-// NewStore returns an in-memory Store. ttl is how long a key remains
-// retrievable after Put. now is injectable for tests; pass time.Now in
-// production.
-func NewStore(ttl time.Duration, now func() time.Time) Store {
-	if now == nil {
-		now = time.Now
-	}
-	return &memoryStore{
-		entries: make(map[string]entry),
-		ttl:     ttl,
-		now:     now,
+// NewStoreWithTTL returns an in-memory Store. ttl is how long a key remains
+// retrievable after being stored.
+func NewStoreWithTTL(ttl time.Duration) *Store {
+	return &Store{
+		cache: ttlcache.New(ttlcache.WithTTL[string, *[32]byte](ttl)),
 	}
 }
 
-func (store *memoryStore) Put(encryptionContextID string, privateKey *[32]byte) {
-	store.mutex.Lock()
-	defer store.mutex.Unlock()
-	store.entries[encryptionContextID] = entry{
-		privateKey: privateKey,
-		expiresAt:  store.now().Add(store.ttl),
-	}
+// Set stores privateKey under encryptionContextID, overwriting any existing entry.
+func (store *Store) Set(encryptionContextID string, privateKey *[32]byte) {
+	store.cache.Set(encryptionContextID, privateKey, ttlcache.DefaultTTL)
 }
 
-func (store *memoryStore) Take(encryptionContextID string) (*[32]byte, error) {
-	store.mutex.Lock()
-	defer store.mutex.Unlock()
-	storedEntry, ok := store.entries[encryptionContextID]
-	if !ok {
-		return nil, ErrNotFound
+// GetAndDelete retrieves and evicts the entry for encryptionContextID.
+// Returns (nil, false) if no live entry exists.
+func (store *Store) GetAndDelete(encryptionContextID string) (*[32]byte, bool) {
+	item, found := store.cache.GetAndDelete(encryptionContextID)
+	if !found {
+		return nil, false
 	}
-	delete(store.entries, encryptionContextID)
-	if !store.now().Before(storedEntry.expiresAt) {
-		return nil, ErrNotFound
-	}
-	return storedEntry.privateKey, nil
+	return item.Value(), true
+}
+
+// Start runs the eviction loop until Stop is called. Blocking; call in a goroutine.
+func (store *Store) Start() {
+	store.cache.Start()
+}
+
+// Stop terminates the eviction loop started by Start.
+func (store *Store) Stop() {
+	store.cache.Stop()
 }

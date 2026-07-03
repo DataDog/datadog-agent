@@ -172,8 +172,6 @@ func (d *ServerlessDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 // The ServerlessDemultiplexer is not using sharding in its DogStatsD pipeline,
 // the `shard` parameter is ignored.
 // In the Serverless Agent, consider using `AggregateSample` instead.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (d *ServerlessDemultiplexer) AggregateSamples(_ TimeSamplerID, samples metrics.MetricSampleBatch) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
@@ -181,8 +179,6 @@ func (d *ServerlessDemultiplexer) AggregateSamples(_ TimeSamplerID, samples metr
 }
 
 // SendSamplesWithoutAggregation is not supported in the Serverless Agent implementation.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.MetricSampleBatch) {
 	panic("not implemented.")
 }

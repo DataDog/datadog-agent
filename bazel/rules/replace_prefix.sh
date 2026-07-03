@@ -48,7 +48,16 @@ for f in "$@"; do
                 ${PATCHELF} --force-rpath --set-rpath "$PREFIX"/lib "$f"
             elif file "$f" | grep -q "Mach-O"; then
                 # Handle macOS binaries (executables and other Mach-O files)
-                install_name_tool -add_rpath "$PREFIX/lib" "$f" 2>/dev/null || true
+                # Match the Linux patchelf --set-rpath behavior: replace existing paths
+                # instead of just appending them.
+                new_rpath="$PREFIX/lib"
+                otool -l "$f" | awk '
+                    $1 == "cmd" && $2 == "LC_RPATH" { in_rpath = 1; next }
+                    in_rpath && $1 == "path" { print $2; in_rpath = 0 }
+                ' | while read -r rpath; do
+                    install_name_tool -delete_rpath "$rpath" "$f" 2>/dev/null || true
+                done
+                install_name_tool -add_rpath "$new_rpath" "$f" 2>/dev/null || true
                 # Get the old install name/ID
                 dylib_name=$(basename "$f")
                 new_id="$PREFIX/lib/$dylib_name"

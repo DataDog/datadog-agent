@@ -197,7 +197,10 @@ class AttrUsage:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Helper for gathering third party license information.")
+    parser = argparse.ArgumentParser(
+        description="Helper for gathering third party license information.",
+        fromfile_prefix_chars="@",
+    )
     parser.add_argument("--target", help="The target we are processing.")
     parser.add_argument("--csv_out", help="The CSV style output file.")
     parser.add_argument("--licenses_dir", help="Directory to copy license texts to.")

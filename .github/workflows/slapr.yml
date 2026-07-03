@@ -23,7 +23,7 @@ jobs:
         token: ${{ steps.octo-sts.outputs.token }}
         sparse-checkout: tasks/libs/pipeline/github_slack_map.yaml
         sparse-checkout-cone-mode: false
-    - uses: DataDog/slapr@95312d6b8528460243ba27c7f8167bfe20a68bec # v1.1.0
+    - uses: DataDog/slapr@95312d6b8528460243ba27c7f8167bfe20a68bec # 1.1.0
       with:
         review-map: tasks/libs/pipeline/github_slack_map.yaml
         github-token: ${{ steps.octo-sts.outputs.token }}

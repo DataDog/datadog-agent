@@ -119,10 +119,10 @@ type ConnectivityCheckResult struct {
 }
 
 type ConnectivityCheckHandler struct {
-	encryptionStore encryptioncontext.Store
+	encryptionStore *encryptioncontext.Store
 }
 
-func NewConnectivityCheckHandler(encryptionStore encryptioncontext.Store) *ConnectivityCheckHandler {
+func NewConnectivityCheckHandler(encryptionStore *encryptioncontext.Store) *ConnectivityCheckHandler {
 	return &ConnectivityCheckHandler{encryptionStore: encryptionStore}
 }
 
@@ -148,7 +148,7 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 	return res, nil
 }
 
-func decryptCredentials(store encryptioncontext.Store, encryptionContext EncryptionContext, encryptedCredentials string) (string, error) {
+func decryptCredentials(store *encryptioncontext.Store, encryptionContext EncryptionContext, encryptedCredentials string) (string, error) {
 	if encryptionContext.EncryptionContextID == "" {
 		return "", errors.New("encryptionContext.encryptionContextId is required")
 	}
@@ -159,9 +159,9 @@ func decryptCredentials(store encryptioncontext.Store, encryptionContext Encrypt
 		return "", errors.New("encryptedCredentials is required")
 	}
 
-	privateKey, err := store.Take(encryptionContext.EncryptionContextID)
-	if err != nil {
-		return "", fmt.Errorf("failed to retrieve private key for encryptionContextId %q: %w", encryptionContext.EncryptionContextID, err)
+	privateKey, found := store.GetAndDelete(encryptionContext.EncryptionContextID)
+	if !found {
+		return "", fmt.Errorf("no private key found for encryptionContextId %q", encryptionContext.EncryptionContextID)
 	}
 
 	ciphertext, err := base64.StdEncoding.DecodeString(encryptedCredentials)

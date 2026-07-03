@@ -547,7 +547,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	pendingChecksChan <- checkWithError
 	close(pendingChecksChan)
 
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 
 	worker, err := newWorkerWithOptions(
 		100,
@@ -665,7 +665,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 	pendingChecksChan <- longRunningCheck
 	close(pendingChecksChan)
 
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 
 	worker, err := newWorkerWithOptions(
 		100,

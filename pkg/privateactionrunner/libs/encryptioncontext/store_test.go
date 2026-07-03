@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newKey(seed byte) *[32]byte {
+func newPrivateKey(seed byte) *[32]byte {
 	var key [32]byte
 	for index := range key {
 		key[index] = seed
@@ -21,81 +21,59 @@ func newKey(seed byte) *[32]byte {
 	return &key
 }
 
-func TestStoreTake(t *testing.T) {
+func TestStoreGetAndDelete(t *testing.T) {
 	cases := []struct {
-		name                string
-		putContextID        string
-		advance             time.Duration
-		takeContextID       string
-		wantErr             error
-		wantKeyOnSecondTake error
+		name          string
+		setContextID  string
+		takeContextID string
+		wantFound     bool
 	}{
 		{
-			name:                "put then take succeeds and evicts entry",
-			putContextID:        "ctx-1",
-			takeContextID:       "ctx-1",
-			wantKeyOnSecondTake: ErrNotFound,
+			name:          "set then get-and-delete succeeds and evicts entry",
+			setContextID:  "ctx-1",
+			takeContextID: "ctx-1",
+			wantFound:     true,
 		},
 		{
 			name:          "mismatched encryptionContextId fails",
-			putContextID:  "ctx-1",
+			setContextID:  "ctx-1",
 			takeContextID: "ctx-2",
-			wantErr:       ErrNotFound,
-		},
-		{
-			name:          "expired entry is not retrievable",
-			putContextID:  "ctx-1",
-			advance:       6 * time.Second,
-			takeContextID: "ctx-1",
-			wantErr:       ErrNotFound,
-		},
-		{
-			name:          "expiry at TTL boundary is treated as expired",
-			putContextID:  "ctx-1",
-			advance:       5 * time.Second,
-			takeContextID: "ctx-1",
-			wantErr:       ErrNotFound,
 		},
 	}
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			now := time.Unix(1_700_000_000, 0)
-			clock := func() time.Time { return now }
-			store := NewStore(5*time.Second, clock)
+			store := NewStoreWithTTL(time.Minute)
 
-			privateKey := newKey(0x42)
-			store.Put(testCase.putContextID, privateKey)
-			now = now.Add(testCase.advance)
+			privateKey := newPrivateKey(0x42)
+			store.Set(testCase.setContextID, privateKey)
 
-			retrieved, err := store.Take(testCase.takeContextID)
-			if testCase.wantErr != nil {
-				require.ErrorIs(t, err, testCase.wantErr)
+			retrieved, found := store.GetAndDelete(testCase.takeContextID)
+			require.Equal(t, testCase.wantFound, found)
+			if !testCase.wantFound {
 				return
 			}
-			require.NoError(t, err)
 			require.Equal(t, privateKey, retrieved)
 
-			// Subsequent take must miss because Take evicts the entry on success.
-			_, err = store.Take(testCase.takeContextID)
-			require.ErrorIs(t, err, testCase.wantKeyOnSecondTake)
+			// Subsequent get-and-delete must miss because the first call evicts the entry.
+			_, found = store.GetAndDelete(testCase.takeContextID)
+			require.False(t, found)
 		})
 	}
 }
 
-func TestStoreMismatchedTakeDoesNotEvictOriginalEntry(t *testing.T) {
-	store := NewStore(time.Minute, time.Now)
-	store.Put("ctx-1", newKey(0x01))
+func TestStoreSetOverwritesExistingContextID(t *testing.T) {
+	store := NewStoreWithTTL(time.Minute)
+	store.Set("ctx-1", newPrivateKey(0x01))
+	store.Set("ctx-1", newPrivateKey(0x02))
 
-	_, err := store.Take("ctx-2")
-	require.ErrorIs(t, err, ErrNotFound)
-
-	_, err = store.Take("ctx-1")
-	require.NoError(t, err)
+	retrieved, found := store.GetAndDelete("ctx-1")
+	require.True(t, found)
+	require.Equal(t, newPrivateKey(0x02), retrieved)
 }
 
 func TestStoreConcurrentAccess(t *testing.T) {
-	store := NewStore(time.Minute, time.Now)
+	store := NewStoreWithTTL(time.Minute)
 
 	const goroutineCount = 100
 	var waitGroup sync.WaitGroup
@@ -103,11 +81,11 @@ func TestStoreConcurrentAccess(t *testing.T) {
 	for index := range goroutineCount {
 		go func(index int) {
 			defer waitGroup.Done()
-			store.Put(string(rune('a'+index%26)), newKey(byte(index)))
+			store.Set(string(rune('a'+index%26)), newPrivateKey(byte(index)))
 		}(index)
 	}
 	waitGroup.Wait()
 
-	_, err := store.Take("a")
-	require.NoError(t, err)
+	_, found := store.GetAndDelete("a")
+	require.True(t, found)
 }

@@ -898,6 +898,9 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	p.Walk(entryToEvent)
 
+	// replay synthetic load_module events for every entry in /proc/modules.
+	events = append(events, p.snapshotLoadedModules()...)
+
 	// order events so that they're dispatched in creation time order
 	sort.Slice(events, func(i, j int) bool {
 		eventA := events[i]
@@ -918,6 +921,36 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	}
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()
+}
+
+// newSyntheticUnknownLoaderEntry returns a transient PCE used as the anchor for
+// synthetic load_module events whose real loader cannot be determined.
+func newSyntheticUnknownLoaderEntry() *model.ProcessCacheEntry {
+	entry := model.NewPlaceholderProcessCacheEntry(0, 0, false)
+	entry.Source = model.ProcessCacheEntryFromUnknownLoader
+	return entry
+}
+
+// snapshotLoadedModules synthesises a load_module event for every entry in
+// /proc/modules, all anchored on a shared synthetic unknown-loader PCE.
+func (p *EBPFProbe) snapshotLoadedModules() []*model.Event {
+	modules, err := utils.FetchLoadedModules()
+	if err != nil {
+		seclog.Debugf("loaded-module snapshot skipped: %v", err)
+		return nil
+	}
+	if len(modules) == 0 {
+		return nil
+	}
+
+	modulePaths := utils.ScanKernelModulePaths()
+	anchor := newSyntheticUnknownLoaderEntry()
+
+	events := make([]*model.Event, 0, len(modules))
+	for _, mod := range modules {
+		events = append(events, p.newLoadModuleEventFromProcFSSnapshot(mod, modulePaths[mod.Name], anchor))
+	}
+	return events
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
@@ -1869,6 +1902,12 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
+	case model.SampleRefreshEventType:
+		var ev model.SampleRefreshEvent
+		if _, err := ev.UnmarshalBinary(data[offset:]); err == nil {
+			p.profileManager.HandleSampleRefresh(ev.Cookie)
+		}
+		return false
 	case model.NopEventType:
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
@@ -2235,12 +2274,19 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
+	// Network interface and socket tracking probes are required independently of the current ruleset or
+	// network filter actions as these are used to track resources that are needed if we later
+	// dynamically load network rules or network filter actions.
+	if p.config.Probe.NetworkEnabled {
+		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket())...)
+	}
+
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
 		activatedProbes = append(activatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
 	}
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket()) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
 			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
@@ -2921,6 +2967,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "event_sampling_bind_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "sample_refresh_period_ns",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_dns_enabled",
@@ -3742,6 +3792,54 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.Exec.Process = &entry.Process
+
+	return event
+}
+
+// newLoadModuleEventFromProcFSSnapshot builds a synthetic load_module event for
+// a module discovered via /proc/modules. modulePath is "" when no on-disk file
+// was located under /lib/modules/$(uname -r)/, in which case the event carries
+// an empty file path. LoadedFromMemory is always false on snapshot events: the
+// real syscall (init_module vs finit_module) was not observed, so the field is
+// reserved for runtime events where the kernel told us which one was used.
+func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule, modulePath string, anchor *model.ProcessCacheEntry) *model.Event {
+	event := p.getPoolEvent()
+	event.Timestamp = time.Now()
+	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
+	event.Type = uint32(model.LoadModuleEventType)
+	event.ProcessCacheEntry = anchor
+	event.ProcessContext = &anchor.ProcessContext
+	event.Source = model.EventSourceReplay
+	event.AddToFlags(model.EventFlagsFromReplay)
+
+	event.LoadModule.SyscallEvent.Retval = 0
+	event.LoadModule.Name = mod.Name
+	event.LoadModule.LoadedFromMemory = false
+
+	if modulePath == "" {
+		event.LoadModule.File.SetPathnameStr("")
+		event.LoadModule.File.SetBasenameStr("")
+		return event
+	}
+
+	event.LoadModule.File.SetPathnameStr(modulePath)
+	event.LoadModule.File.SetBasenameStr(filepath.Base(modulePath))
+
+	// Best-effort file metadata (mirrors newOpenEventFromReplay).
+	var fileStats unix.Statx_t
+	if err := unix.Statx(unix.AT_FDCWD, modulePath, 0, unix.STATX_ALL, &fileStats); err == nil {
+		event.LoadModule.File.FileFields.Mode = uint16(fileStats.Mode)
+		event.LoadModule.File.FileFields.Inode = fileStats.Ino
+		event.LoadModule.File.FileFields.UID = fileStats.Uid
+		event.LoadModule.File.FileFields.GID = fileStats.Gid
+		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
+		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+		event.LoadModule.File.Mode = fileStats.Mode
+		event.LoadModule.File.Inode = fileStats.Ino
+		event.LoadModule.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
+		event.LoadModule.File.NLink = fileStats.Nlink
+		event.LoadModule.File.MountID = uint32(fileStats.Mnt_id)
+	}
 
 	return event
 }

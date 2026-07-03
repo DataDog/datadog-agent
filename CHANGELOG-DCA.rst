@@ -2,6 +2,59 @@
 Release Notes
 =============
 
+.. _Release Notes_7.80.4:
+
+7.80.4
+======
+
+.. _Release Notes_7.80.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-01
+Pinned to datadog-agent v7.80.4: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7804>`_.
+
+
+.. _Release Notes_7.80.3:
+
+7.80.3
+======
+
+.. _Release Notes_7.80.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-24
+Pinned to datadog-agent v7.80.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7803>`_.
+
+
+.. _Release Notes_7.80.2:
+
+7.80.2
+======
+
+.. _Release Notes_7.80.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-06-17
+Pinned to datadog-agent v7.80.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7802>`_.
+
+
+.. _Release Notes_7.80.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an issue where the admission controller connectivity probe webhook
+  did not include the AKS selector requirements when
+  ``admission_controller.add_aks_selectors`` was enabled, which could cause
+  repeated webhook reconciliation conflicts on AKS.
+
+
 .. _Release Notes_7.80.1:
 
 7.80.1
