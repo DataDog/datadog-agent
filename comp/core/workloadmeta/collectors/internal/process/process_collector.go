@@ -56,6 +56,7 @@ const (
 	maxPortCheckTries                                = 10
 	serviceCollectionBatchSizeConfigKey              = "discovery.service_collection_batch_size"
 	serviceCollectionMaxConsecutiveTimeoutsConfigKey = "discovery.service_collection_max_consecutive_timeouts"
+	serviceCollectionMinProcessAgeConfigKey          = "discovery.service_collection_min_process_age"
 )
 
 type collector struct {
@@ -76,6 +77,7 @@ type collector struct {
 	serviceCollectionBatchSize              int
 	serviceCollectionMaxConsecutiveTimeouts int
 	consecutiveServiceDiscoveryTimeouts     int
+	serviceCollectionMinProcessAge          time.Duration
 	serviceRetries                          map[int32]uint
 	ignoredPids                             core.PidSet
 	pidHeartbeats                           map[int32]time.Time
@@ -125,6 +127,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		sysProbeClient:                          sysprobeclient.GetCheckClient(),
 		serviceCollectionBatchSize:              systemProbeConfig.GetInt(serviceCollectionBatchSizeConfigKey),
 		serviceCollectionMaxConsecutiveTimeouts: systemProbeConfig.GetInt(serviceCollectionMaxConsecutiveTimeoutsConfigKey),
+		serviceCollectionMinProcessAge:          systemProbeConfig.GetDuration(serviceCollectionMinProcessAgeConfigKey),
 		serviceRetries:                          make(map[int32]uint),
 		ignoredPids:                             make(core.PidSet),
 		pidHeartbeats:                           make(map[int32]time.Time),
@@ -353,10 +356,10 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 			continue
 		}
 
-		// Filter out processes that started less than a minute ago
+		// Filter out processes that have not reached the minimum age yet
 		if proc, exists := procs[pid]; exists {
 			processStartTime := time.UnixMilli(proc.Stats.CreateTime).UTC()
-			if now.Sub(processStartTime) < time.Minute {
+			if now.Sub(processStartTime) < c.serviceCollectionMinProcessAge {
 				continue
 			}
 		}

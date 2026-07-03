@@ -114,6 +114,30 @@ func TestFilterPidsToRequest(t *testing.T) {
 	require.NotContains(t, pids, int32(pidRecentService))  // too recent (< 1 minute)
 }
 
+func TestFilterPidsToRequestUsesConfiguredMinProcessAge(t *testing.T) {
+	sysConfigOverrides := map[string]interface{}{
+		serviceCollectionMinProcessAgeConfigKey: "10s",
+	}
+	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
+	c.mockClock.Set(baseTime)
+
+	pidTooRecent := int32(1000)
+	alivePids := make(core.PidSet)
+	alivePids.Add(pidRecentService)
+	alivePids.Add(pidTooRecent)
+
+	procs := map[int32]*procutil.Process{
+		pidRecentService: makeProcess(pidRecentService, baseTime.Add(-30*time.Second).UnixMilli(), nil),
+		pidTooRecent:     makeProcess(pidTooRecent, baseTime.Add(-5*time.Second).UnixMilli(), nil),
+	}
+
+	newPids, heartbeatPids := c.collector.filterPidsToRequest(alivePids, procs)
+
+	require.Empty(t, heartbeatPids)
+	require.Contains(t, newPids, int32(pidRecentService))
+	require.NotContains(t, newPids, pidTooRecent)
+}
+
 func TestBuildServiceDiscoveryPIDBatchesRequestSizes(t *testing.T) {
 	newPids := makeSequentialPIDs(1200, 1000)
 	batches := buildServiceDiscoveryPIDBatches(newPids, nil, 500)

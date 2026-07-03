@@ -86,6 +86,8 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'WINDOWS_DDPROCMON_DRIVER': 'Windows Kernel Procmon Driver',
         'WINDOWS_DDPROCMON_VERSION': 'Windows Kernel Procmon Driver Version',
         'WINDOWS_DDPROCMON_SHASUM': 'Windows Kernel Procmon Driver Checksum',
+        'AGENT_DATA_PLANE_HASH_WINDOWS_AMD64': 'Agent Data Plane Hash for Windows AMD64',
+        'AGENT_DATA_PLANE_HASH_FIPS_WINDOWS_AMD64': 'Agent Data Plane Hash for FIPS Windows AMD64',
     },
     'linux': {
         'DEB_GPG_KEY': 'Used to sign packages',

@@ -55,6 +55,7 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		{key: "gpu_monitoring.nvml_lib_path", defaultValue: ""},
 		{key: "discovery.service_collection_batch_size", defaultValue: 500},
 		{key: "discovery.service_collection_max_consecutive_timeouts", defaultValue: 5},
+		{key: "discovery.service_collection_min_process_age", defaultValue: time.Minute},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
 			switch expected := tc.defaultValue.(type) {
