@@ -97,26 +97,24 @@ def _foreign_cc_runnable_impl(ctx):
     if not is_linux and not is_macos:
         fail("{}: unsupported platform (Linux and macOS only)".format(ctx.label))
 
-    patchelf_path = ""
-    patchelf_tools = []
+    args = ctx.actions.args()
+
+    tools = []
     if is_linux:
         patchelf_toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
         patchelf = patchelf_toolchain.label[DefaultInfo].files_to_run
-        patchelf_path = patchelf.executable.path
-        patchelf_tools = [patchelf]
+        args.add("--patchelf", patchelf.executable.path)
+        tools.append(patchelf)
+    else:
+        install_name_tool = ctx.executable._install_name_tool
+        args.add("--install-name-tool", install_name_tool.path)
+        tools.append(install_name_tool)
 
-    install_name_tool = ctx.executable._install_name_tool if is_macos else None
-
-    args = ctx.actions.args()
     args.add("linux" if is_linux else "darwin")
-    args.add(patchelf_path)
-    args.add(install_name_tool.path if install_name_tool else "")
     args.add(input_tree.path)
     args.add(output_tree.path)
     args.add(manifest.path)
     args.add_all(rpath_dirs)
-
-    tools = patchelf_tools + ([install_name_tool] if install_name_tool else [])
 
     ctx.actions.run(
         executable = ctx.file._script,
