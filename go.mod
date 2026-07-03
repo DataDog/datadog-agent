@@ -163,7 +163,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/pkg/version v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-go/v5 v5.8.3
-	github.com/DataDog/datadog-operator/api v0.0.0-20260626172128-45c4b00ac27b
+	github.com/DataDog/datadog-operator/api v0.0.0-20260626205451-dfafc0810597
 	github.com/DataDog/datadog-traceroute v1.0.17
 	github.com/DataDog/dd-trace-go/v2 v2.9.0
 	github.com/DataDog/ebpf-manager v0.7.18
@@ -518,7 +518,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/digitalocean/go-metadata v0.0.0-20250129100319-e3650a3df44b // indirect
 	github.com/digitalocean/godo v1.193.0 // indirect
-	github.com/docker/cli v29.6.0+incompatible // indirect
+	github.com/docker/cli v29.6.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
@@ -926,7 +926,7 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
 	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
 	github.com/DataDog/rshell v0.0.22
-	github.com/aptly-dev/aptly v1.6.3-0.20260504093056-0d31298f3709
+	github.com/aptly-dev/aptly v1.6.3
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.42.3
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3
 	github.com/aymerick/raymond v2.0.2+incompatible
@@ -951,7 +951,7 @@ require (
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.etcd.io/etcd/client/v2 v2.305.31
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.155.0
-	go.temporal.io/api v1.62.14
+	go.temporal.io/api v1.63.0
 	go.temporal.io/sdk v1.45.0
 	go.uber.org/mock v0.6.0
 	mvdan.cc/sh/v3 v3.13.1
@@ -1320,7 +1320,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/setup => ./pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ./pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ./pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ./pkg/discovery/tracermetadata/model
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ./pkg/fips

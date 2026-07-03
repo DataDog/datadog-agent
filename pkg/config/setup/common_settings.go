@@ -1248,7 +1248,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
-	// The possible values are: full, basic, end_user_device, none.
+	// The possible values are: full, basic, end_user_device, cloud_cost_only, none.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Infrastructure full mode section (default mode, allows all checks)
@@ -1258,6 +1258,9 @@ func agent(config pkgconfigmodel.Setup) {
 	// Infrastructure end_user_device mode section
 	// integration.end_user_device.allowed: empty means all checks are allowed
 	config.BindEnvAndSetDefault("integration.end_user_device.allowed", []string{})
+
+	// integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only (empty means all checks)
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.tagged", []string{})
 
 	// Infrastructure basic mode section [UNDOCUMENTED]
 	// Note: All checks starting with "custom_" are always allowed.

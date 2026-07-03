@@ -2541,8 +2541,8 @@ github.com/DataDog/datadog-go v3.2.0+incompatible h1:qSG2N4FghB1He/r2mFrWKCaL7dX
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.8.3 h1:s58CUJ9s8lezjhTNJO/SxkPBv2qZjS3ktpRSqGF5n0s=
 github.com/DataDog/datadog-go/v5 v5.8.3/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
-github.com/DataDog/datadog-operator/api v0.0.0-20260626172128-45c4b00ac27b h1:KDZ/qTEB7wjMDJe831bgglyTi4+kOzVAqWxdnQ6WN3Q=
-github.com/DataDog/datadog-operator/api v0.0.0-20260626172128-45c4b00ac27b/go.mod h1:sFOkv8MUOOjgCmbunaHsUlPzD0RVaQpGuzBAPOPCSmY=
+github.com/DataDog/datadog-operator/api v0.0.0-20260626205451-dfafc0810597 h1:ljwK4rFC1hW2DWC/kJBLnFIpTQmuXcda5zfVLhQSmew=
+github.com/DataDog/datadog-operator/api v0.0.0-20260626205451-dfafc0810597/go.mod h1:sFOkv8MUOOjgCmbunaHsUlPzD0RVaQpGuzBAPOPCSmY=
 github.com/DataDog/datadog-traceroute v1.0.17 h1:MyBJCb+pFLjN3tt0boZprYmyj4iegHmKzst5iWil/Dw=
 github.com/DataDog/datadog-traceroute v1.0.17/go.mod h1:gtDOEd1qCVGULNYdHULzFBbdDLJwpP+nJMKSXiuVi78=
 github.com/DataDog/dd-trace-go/v2 v2.9.0 h1:J/EsZ7nPqkf3Pa56AAre306ylYMhtzz6oylmchqc6JA=
@@ -3084,8 +3084,8 @@ github.com/distribution/reference v0.6.0 h1:0IXCQ5g4/QMHHkarYzh5l+u8T3t73zM5Qvfr
 github.com/distribution/reference v0.6.0/go.mod h1:BbU0aIcezP1/5jX/8MP0YiH4SdvB5Y4f/wlDRiLyi3E=
 github.com/dlclark/regexp2 v1.12.0 h1:0j4c5qQmnC6XOWNjP3PIXURXN2gWx76rd3KvgdPkCz8=
 github.com/dlclark/regexp2 v1.12.0/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
-github.com/docker/cli v29.6.0+incompatible h1:nw9himxMMZ7eIeherJNlKQq+acnlzGgHd+4uf10QRSc=
-github.com/docker/cli v29.6.0+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
+github.com/docker/cli v29.6.1+incompatible h1:oO7F4nn3Ovr/5TlfTUWFbMwBSS/B7Xs6Epv26gBrUP8=
+github.com/docker/cli v29.6.1+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
 github.com/docker/distribution v2.8.3+incompatible h1:AtKxIZ36LoNK51+Z6RpzLpddBirtxJnzDrHLEKxTAYk=
 github.com/docker/distribution v2.8.3+incompatible/go.mod h1:J2gT2udsDAN96Uj4KfcMRqY0/ypR+oyYUYmja8H+y+w=
 github.com/docker/docker v28.5.3-0.20260325154711-31a1689cb0a1+incompatible h1:f51eIlZsZqGKXyNeCHs5oVo/xQiR9zh+pDYMfnu3VPQ=
@@ -5349,8 +5349,8 @@ go.opentelemetry.io/proto/slim/otlp/profiles/v1development v0.3.0 h1:CQvJSldHRUN
 go.opentelemetry.io/proto/slim/otlp/profiles/v1development v0.3.0/go.mod h1:xSQ+mEfJe/GjK1LXEyVOoSI1N9JV9ZI923X5kup43W4=
 go.step.sm/crypto v0.83.0 h1:llCPEiL2f+kUPY+CUJrOCsuSBoJZ2qooFG9EqGast6w=
 go.step.sm/crypto v0.83.0/go.mod h1:qyLTv666WJ6ImFPUjljux+684Y/GGYUjAZcKCnc6yBs=
-go.temporal.io/api v1.62.14 h1:Tree3eqoKRt5Vv+nvYHMPp/ROiGmSOTtFUD9d0w8yJE=
-go.temporal.io/api v1.62.14/go.mod h1:0k75tRljEuELWGeXjEZZO7zYqBln4+1FrG6+IMOMy7Q=
+go.temporal.io/api v1.63.0 h1:YZFOTA0/thRUIUC4qunAWdHhPh/IG4vy/+WjfEvT+ZE=
+go.temporal.io/api v1.63.0/go.mod h1:0k75tRljEuELWGeXjEZZO7zYqBln4+1FrG6+IMOMy7Q=
 go.temporal.io/sdk v1.45.0 h1:kvsczo3SHTS60+zBWH9lljLmBLWSXcyGkBxr88z8iQI=
 go.temporal.io/sdk v1.45.0/go.mod h1:vkApR12F9/Y8OR+hkxe7WyXQFuCX6clhzqnAk6rzDAM=
 go.uber.org/atomic v1.3.2/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
