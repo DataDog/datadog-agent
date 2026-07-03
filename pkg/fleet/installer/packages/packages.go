@@ -267,6 +267,33 @@ func ensureAgentFIPSProvider(ctx context.Context, pkgPath string) (err error) {
 	return nil
 }
 
+// agentFIPSProviderEnv returns the OpenSSL environment a FIPS agent installer
+// (built with requirefips) must be given so its runtime finds a self-tested,
+// version-matched FIPS provider in the same package tree as the binary being
+// re-exec'd. It pins OPENSSL_CONF, OPENSSL_MODULES and LD_LIBRARY_PATH to
+// pkgPath's embedded tree so the process loads that tree's libcrypto and fips.so
+// (and its locally-generated fipsmodule.cnf) rather than the host's OpenSSL,
+// which may be a different build/version and would fail the FIPS self-test.
+//
+// It returns nil for non-FIPS trees (no ossl-modules), leaving process defaults
+// in place. ensureAgentFIPSProvider must have run against the same pkgPath first
+// so fipsmodule.cnf exists.
+func agentFIPSProviderEnv(pkgPath string) []string {
+	embedded := filepath.Join(pkgPath, "embedded")
+	opensslConf := filepath.Join(embedded, "ssl", "openssl.cnf")
+	opensslModules := filepath.Join(embedded, "lib", "ossl-modules")
+	for _, p := range []string{opensslConf, opensslModules} {
+		if _, err := os.Stat(p); err != nil {
+			return nil
+		}
+	}
+	return []string{
+		"OPENSSL_CONF=" + opensslConf,
+		"OPENSSL_MODULES=" + opensslModules,
+		"LD_LIBRARY_PATH=" + filepath.Join(embedded, "lib"),
+	}
+}
+
 func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string, extension string) error {
 	hooksCLIPath, err := exec.GetExecutable()
 	if err != nil {
@@ -281,6 +308,7 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 		"postInstallExtension",
 	}
 
+	var extraEnv []string
 	if pkg == agentPackage && runtime.GOOS == "linux" && !slices.Contains(hooksWithoutReExec, name) {
 		agentInstallerPath := filepath.Join(pkgPath, "embedded", "bin", "installer")
 		_, err := os.Stat(agentInstallerPath)
@@ -297,6 +325,12 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 			if err := ensureAgentFIPSProvider(ctx, pkgPath); err != nil {
 				return fmt.Errorf("failed to configure FIPS provider for %s: %w", pkgPath, err)
 			}
+			// ...and point that binary at its own tree's provider, so it loads a
+			// version-matched libcrypto + fips.so rather than the host's OpenSSL.
+			// Inheriting the caller's env is not enough: the caller may be a
+			// different-versioned installer (e.g. the bootstrap installer layer),
+			// whose provider would fail this binary's FIPS self-test.
+			extraEnv = agentFIPSProviderEnv(pkgPath)
 		}
 	}
 	hookCtx := HookContext{
@@ -313,7 +347,7 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 	if err != nil {
 		return fmt.Errorf("failed to serialize hook context: %w", err)
 	}
-	i := exec.NewInstallerExec(h.env, hooksCLIPath)
+	i := exec.NewInstallerExecWithExtraEnv(h.env, hooksCLIPath, extraEnv)
 	err = i.RunHook(ctx, string(serializedHookCtx))
 	if err != nil {
 		return fmt.Errorf("failed to run hook (%s): %w", name, err)

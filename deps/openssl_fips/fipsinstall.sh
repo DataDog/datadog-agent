@@ -10,7 +10,14 @@
 
 set -euo pipefail
 
-INSTALL_DIR="{{install_dir}}"
+# INSTALL_DIR is the `embedded` directory of the package tree. Derive it from
+# the script's own location (embedded/bin/fipsinstall.sh) rather than baking an
+# absolute path at build time: the OCI installer flow extracts/moves the tree to
+# a per-version path (and to temporary staging paths) that does not match the
+# build-time location, so a hardcoded path would run fipsinstall against the
+# wrong tree or fail outright. Resolving relative to the script keeps the
+# self-test and the generated fipsmodule.cnf pinned to the tree it belongs to.
+INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 FIPS_MODULE_PATH="${INSTALL_DIR}/ssl/fipsmodule.cnf"
 OPENSSL_CONF_PATH="${INSTALL_DIR}/ssl/openssl.cnf"
@@ -25,6 +32,14 @@ fi
 
 "${OPENSSL_BIN}" fipsinstall -module "${FIPS_SO_PATH}" -out "${FIPS_MODULE_PATH}"
 mv "${OPENSSL_CONF_PATH}.tmp" "${OPENSSL_CONF_PATH}"
+
+# Point the config's fipsmodule.cnf include at this tree's actual location. The
+# build bakes an absolute path (via {{embedded_ssl_dir}}) that is wrong once the
+# tree is relocated to a per-version OCI path, and OpenSSL resolves a relative
+# .include against the current working directory (not the config file), so
+# neither the baked path nor a relative include is safe. Rewrite it here, where
+# we know the real on-disk location.
+sed -i "s#^\.include .*/fipsmodule\.cnf#.include ${FIPS_MODULE_PATH}#" "${OPENSSL_CONF_PATH}"
 
 if ! "${OPENSSL_BIN}" fipsinstall -module "${FIPS_SO_PATH}" -in "${FIPS_MODULE_PATH}" -verify; then
     echo "openssl fipsinstall: verification of FIPS compliance failed. $INSTALL_DIR/fipsmodule.cnf was corrupted or the installation failed."

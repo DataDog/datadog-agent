@@ -47,5 +47,10 @@ func fipsInstallerEnv() ([]string, error) {
 	return []string{
 		"OPENSSL_CONF=" + opensslConf,
 		"OPENSSL_MODULES=" + opensslModules,
+		// Load libcrypto from the same tree as the provider, so the module's
+		// version matches the libcrypto the requirefips binary links against at
+		// runtime. Without this the process picks up the host's libcrypto, which
+		// may be a different build/version and fail the FIPS provider self-test.
+		"LD_LIBRARY_PATH=" + filepath.Join(embedded, "lib"),
 	}, nil
 }

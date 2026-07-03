@@ -89,7 +89,28 @@ func (i *InstallerExec) setupInstallerCmd(ctx context.Context, span *telemetry.S
 	env := i.env.ToEnv()
 	env = append(os.Environ(), env...)
 	env = append(env, telemetry.EnvFromContext(ctx)...)
-	env = append(env, i.extraEnv...)
+	// extraEnv must take precedence over anything inherited or Env-derived. A
+	// plain append is not enough: with duplicate keys the C runtime's getenv and
+	// the dynamic linker read the first occurrence, so drop earlier entries for
+	// any key we override (e.g. OPENSSL_CONF / LD_LIBRARY_PATH for FIPS re-exec).
+	if len(i.extraEnv) > 0 {
+		override := make(map[string]struct{}, len(i.extraEnv))
+		for _, kv := range i.extraEnv {
+			if k, _, ok := strings.Cut(kv, "="); ok {
+				override[k] = struct{}{}
+			}
+		}
+		filtered := env[:0:0]
+		for _, kv := range env {
+			if k, _, ok := strings.Cut(kv, "="); ok {
+				if _, dup := override[k]; dup {
+					continue
+				}
+			}
+			filtered = append(filtered, kv)
+		}
+		env = append(filtered, i.extraEnv...)
+	}
 	cmd.Env = env
 	cmd = i.newInstallerCmdPlatform(cmd)
 	return &installerCmd{
