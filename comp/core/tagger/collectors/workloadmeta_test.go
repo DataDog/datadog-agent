@@ -1472,6 +1472,8 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 	))
 
 	cfg := configmock.New(t)
+	cfg.SetInTest("kubernetes_resources_labels_as_tags", `{"localqueues.kueue.x-k8s.io": {"team": "team"}}`)
+	cfg.SetInTest("kubernetes_resources_annotations_as_tags", `{"localqueues.kueue.x-k8s.io": {"owner": "+owner"}}`)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 	actual := collector.handleKubeKueueQueue(workloadmeta.Event{
@@ -1479,14 +1481,13 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 		Entity: &workloadmeta.KubernetesKueueQueue{
 			EntityID: queueID,
 			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "batch",
-				Namespace: "default",
+				Name:        "batch",
+				Namespace:   "default",
+				Labels:      map[string]string{"team": "eng"},
+				Annotations: map[string]string{"owner": "alice"},
 			},
 			QueueType:        workloadmeta.KueueLocalQueue,
 			ClusterQueueName: "cluster-batch",
-			// ResolvedTags are produced by the cluster agent. A leading '+' on
-			// the name denotes a high-cardinality tag.
-			ResolvedTags: []string{"team:eng", "+owner:alice"},
 		},
 		IsComplete: true,
 	})
@@ -1510,7 +1511,7 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 	assertTagInfoListEqual(t, expected, actual)
 }
 
-func TestHandleKubeKueueQueueResolvedTags(t *testing.T) {
+func TestHandleKubeKueueQueueMetadataAsTags(t *testing.T) {
 	queueID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesKueueQueue,
 		ID:   "localqueue/default/batch",
@@ -1524,6 +1525,8 @@ func TestHandleKubeKueueQueueResolvedTags(t *testing.T) {
 	))
 
 	cfg := configmock.New(t)
+	cfg.SetInTest("kubernetes_resources_labels_as_tags", `{"localqueues.kueue.x-k8s.io": {"team": "team"}}`)
+	cfg.SetInTest("kubernetes_resources_annotations_as_tags", `{"localqueues.kueue.x-k8s.io": {"owner": "+owner"}}`)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 	actual := collector.handleKubeKueueQueue(workloadmeta.Event{
@@ -1531,14 +1534,13 @@ func TestHandleKubeKueueQueueResolvedTags(t *testing.T) {
 		Entity: &workloadmeta.KubernetesKueueQueue{
 			EntityID: queueID,
 			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "batch",
-				Namespace: "default",
+				Name:        "batch",
+				Namespace:   "default",
+				Labels:      map[string]string{"team": "batch"},
+				Annotations: map[string]string{"owner": "team-a"},
 			},
 			QueueType:        workloadmeta.KueueLocalQueue,
 			ClusterQueueName: "cluster-batch",
-			// The cluster agent resolves label/annotation tags and streams them
-			// pre-resolved; a leading '+' denotes a high-cardinality tag.
-			ResolvedTags: []string{"team:batch", "+owner:team-a"},
 		},
 		IsComplete: true,
 	})
@@ -1560,6 +1562,132 @@ func TestHandleKubeKueueQueueResolvedTags(t *testing.T) {
 		},
 	}
 	assertTagInfoListEqual(t, expected, actual)
+}
+
+func TestHandleKubeKueueResourceFlavor(t *testing.T) {
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	tests := []struct {
+		name               string
+		nodeAffinityLabels map[string]string
+		expectedLowCard    []string
+		expectedFlavorID   string
+	}{
+		{
+			name:             "a100 sxm4",
+			expectedFlavorID: "a100",
+			nodeAffinityLabels: map[string]string{
+				"nvidia.com/gpu.product":              "NVIDIA-A100-SXM4-40GB",
+				"nvidia.com/gpu.family":               "Ampere",
+				"nvidia.com/gpu.compute.major":        "8",
+				"nvidia.com/cuda.driver-version.full": "535.104.12",
+				"feature.node.kubernetes.io/gpu":      "true",
+			},
+			expectedLowCard: []string{
+				"gpu_architecture:ampere",
+				"gpu_compute_major:8",
+				"gpu_device:nvidia_a100-sxm4-40gb",
+				"gpu_driver_version:535.104.12",
+				"gpu_type:a100",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:a100",
+			},
+		},
+		{
+			name:             "a100 pcie mig shared",
+			expectedFlavorID: "a100-pcie-mig",
+			nodeAffinityLabels: map[string]string{
+				"nvidia.com/gpu.product": "NVIDIA-A100-80GB-PCIe-MIG-3g.40gb-SHARED",
+			},
+			expectedLowCard: []string{
+				"gpu_device:nvidia_a100_80gb_pcie_mig_3g.40gb_shared",
+				"gpu_type:a100",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:a100-pcie-mig",
+			},
+		},
+		{
+			name:             "tesla t4",
+			expectedFlavorID: "t4",
+			nodeAffinityLabels: map[string]string{
+				"nvidia.com/gpu.product": "Tesla-T4",
+			},
+			expectedLowCard: []string{
+				"gpu_device:tesla_t4",
+				"gpu_type:t4",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:t4",
+			},
+		},
+		{
+			name:             "h100 nvl",
+			expectedFlavorID: "h100-nvl",
+			nodeAffinityLabels: map[string]string{
+				"nvidia.com/gpu.product": "NVIDIA-H100-NVL-MIG-3g.47gb",
+			},
+			expectedLowCard: []string{
+				"gpu_device:nvidia_h100_nvl_mig_3g.47gb",
+				"gpu_type:h100",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:h100-nvl",
+			},
+		},
+		{
+			name:             "rtx ada",
+			expectedFlavorID: "rtx-6000",
+			nodeAffinityLabels: map[string]string{
+				"nvidia.com/gpu.product": "NVIDIA-RTX-6000-Ada-Generation",
+			},
+			expectedLowCard: []string{
+				"gpu_device:nvidia_rtx_6000_ada_generation",
+				"gpu_type:rtx_6000",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:rtx-6000",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flavorID := workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+				ID:   tt.expectedFlavorID,
+			}
+
+			actual := collector.handleKubeKueueResourceFlavor(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesKueueResourceFlavor{
+					EntityID: flavorID,
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: tt.expectedFlavorID,
+					},
+					NodeAffinityLabels: tt.nodeAffinityLabels,
+				},
+				IsComplete: true,
+			})
+
+			expected := []*types.TagInfo{
+				{
+					Source:               kueueResourceFlavorSource,
+					EntityID:             types.NewEntityID(types.KueueResourceFlavor, flavorID.ID),
+					IsComplete:           true,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          tt.expectedLowCard,
+					StandardTags:         []string{},
+				},
+			}
+			assertTagInfoListEqual(t, expected, actual)
+		})
+	}
 }
 
 func TestKueueQueueEntityTagsPropagateToPodContainers(t *testing.T) {
@@ -2138,7 +2266,7 @@ func TestHandleECSTask(t *testing.T) {
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						"task_arn:foobar",
-						"task_definition_arn:arn:aws:ecs:us-east-1:1234567891234:daemon-task-definition/datadog-agent-daemon:1",
+						"daemon_task_definition_arn:arn:aws:ecs:us-east-1:1234567891234:daemon-task-definition/datadog-agent-daemon:1",
 					},
 					LowCardTags: []string{
 						"cluster_name:ecs-cluster",

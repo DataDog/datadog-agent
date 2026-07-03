@@ -196,7 +196,6 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 			Source: "datadog-cluster-autoscaler",
 		})
 	}
-
 	// When we use both bundled and unbundled transformers, we apply two filters: filtered_event_types and collected_event_types.
 	// When we use only the bundled transformer, we apply filtered_event_types.
 	// When we use only the unbundled transformer, we apply collected_event_types.
