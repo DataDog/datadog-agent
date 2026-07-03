@@ -84,6 +84,24 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult RemoveFleetProcmgrConfigOnRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveFleetProcmgrConfigOnRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveParFleetProcmgrConfigOnUpgradeRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveParFleetProcmgrConfigOnUpgradeRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveProcessFleetProcmgrConfigOnUpgradeRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveProcessFleetProcmgrConfigOnUpgradeRollback(session);
+        }
+
+        [CustomAction]
         public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
         {
             return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirOnRollback(session);

@@ -88,6 +88,8 @@ namespace Datadog.CustomActions
 
         public static ActionResult ReportSuccess(Session session)
         {
+            CleanUpFilesCustomAction.ClearPARProcmgrConfigWrittenThisInstallMarker(session);
+            CleanUpFilesCustomAction.ClearProcessProcmgrConfigWrittenThisInstallMarker(session);
             return Report(new SessionWrapper(session), "agent.installation.success");
         }
     }

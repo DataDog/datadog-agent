@@ -14,6 +14,14 @@ namespace Datadog.CustomActions
         public const string ProcmonServiceName = "ddprocmon";
         public const string ProcmgrServiceName = "dd-procmgr-service";
 
+        // Set to 1 when postinst creates processes.d/datadog-agent-action.yaml for the first time
+        // during an MSI install/upgrade; used to scope upgrade rollback cleanup.
+        public const string PARProcmgrConfigWrittenThisInstallValue = "PARProcmgrConfigWrittenThisInstall";
+
+        // Set to 1 when postinst creates processes.d/datadog-agent-process.yaml for the first time
+        // during an MSI install/upgrade; used to scope upgrade rollback cleanup.
+        public const string ProcessProcmgrConfigWrittenThisInstallValue = "ProcessProcmgrConfigWrittenThisInstall";
+
         // Key under HKLM that contains our options
         public const string DatadogAgentRegistryKey = @"Software\Datadog\Datadog Agent";
 
