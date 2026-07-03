@@ -1305,11 +1305,15 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	last := sorted[len(sorted)-1].Timestamp
 
 	collector := &scorerEventCollector{}
-	unsubscribe := scorer.Subscribe(severityeventsdef.SeverityEventsConfiguration{
+	subscription, err := scorer.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
 		Listener:     collector,
 		CooldownSecs: req.CooldownSecs,
 	})
-	defer unsubscribe()
+	if err != nil {
+		api.writeError(w, http.StatusInternalServerError, "subscribe severity events: "+err.Error())
+		return
+	}
+	defer subscription.Unsubscribe()
 
 	ai := 0
 	for sec := first; sec <= last; sec++ {

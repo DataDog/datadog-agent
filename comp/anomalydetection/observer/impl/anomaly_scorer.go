@@ -284,6 +284,8 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 type anomalyScorer struct {
 	mu sync.Mutex
 
+	dispatchersMu sync.RWMutex
+
 	config AnomalyScorerConfig
 
 	// pending holds anomalies received since the last Advance, grouped by second.
@@ -314,9 +316,10 @@ type anomalyScorer struct {
 	rawLevel            severityeventsdef.SeverityLevel
 	rawLevelInitialized bool
 
-	// dispatcher fans the raw severity stream out to push-based subscribers and
-	// helper adapters like SeverityReader.
-	dispatcher *severityeventsimpl.Dispatcher
+	// dispatchers fan the raw severity stream out to push-based subscribers and
+	// helper adapters like SeverityReader. Each dispatcher owns its own
+	// filter/cooldown state machine.
+	dispatchers []*severityeventsimpl.Dispatcher
 
 	// Internal watcher fields (non-nil only when constructed with telemetry).
 	ewmaGauge  telemetry.Gauge // may be nil; set on every Advance tick
@@ -336,7 +339,7 @@ type anomalyScorer struct {
 // StandaloneAnomalyScorer is the public interface for a scorer that is used
 // independently of the observer engine (e.g. testbench replay path).
 type StandaloneAnomalyScorer interface {
-	Subscribe(cfg severityeventsdef.SeverityEventsConfiguration) func()
+	SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error)
 	ProcessAnomaly(a observerdef.Anomaly)
 	Advance(dataTime int64)
 	LastScore() float64
@@ -358,10 +361,9 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 		cfg.SaturationK = defaults.SaturationK
 	}
 	return &anomalyScorer{
-		config:     cfg,
-		pending:    make(map[int64][]observerdef.Anomaly),
-		windowMap:  make(map[string]windowEntry),
-		dispatcher: severityeventsimpl.NewDispatcher(),
+		config:    cfg,
+		pending:   make(map[int64][]observerdef.Anomaly),
+		windowMap: make(map[string]windowEntry),
 	}
 }
 
@@ -395,10 +397,12 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGaug
 	s.stateGauge = stateGauge
 
 	// Self-subscribe as the internal watcher.
-	s.dispatcher.SubscribeScorer(severityeventsdef.SeverityEventsConfiguration{
+	if _, err := s.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
 		Listener:     s,
 		CooldownSecs: cfg.CooldownSecs,
-	})
+	}); err != nil {
+		pkglog.Errorf("[observer] anomaly scorer self-subscription failed: %v", err)
+	}
 
 	return s
 }
@@ -529,10 +533,15 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 		s.ewmaGauge.Set(last.ewma, s.Name())
 	}
 
-	// Drive the dispatcher outside the scorer lock so listeners can safely call
+	// Drive the dispatchers outside the scorer lock so listeners can safely call
 	// back into the scorer without deadlocking.
+	s.dispatchersMu.RLock()
+	dispatchers := append([]*severityeventsimpl.Dispatcher(nil), s.dispatchers...)
+	s.dispatchersMu.RUnlock()
 	for _, st := range states {
-		s.dispatcher.Advance(st.sec, st.level)
+		for _, dispatcher := range dispatchers {
+			dispatcher.Advance(st.sec, st.level)
+		}
 	}
 }
 
@@ -571,7 +580,7 @@ func (s *anomalyScorer) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	return []observerdef.ActiveCorrelation{*s.openEpisode}
 }
 
-// Reset clears all internal EWMA/window state and resets the dispatcher so
+// Reset clears all internal EWMA/window state and resets every dispatcher so
 // subscriptions re-seed on the next Advance call.
 // Implements observerdef.Correlator.
 func (s *anomalyScorer) Reset() {
@@ -587,17 +596,55 @@ func (s *anomalyScorer) Reset() {
 	s.pendingEvents = nil
 	s.mu.Unlock()
 
-	s.dispatcher.Reset()
+	s.dispatchersMu.RLock()
+	dispatchers := append([]*severityeventsimpl.Dispatcher(nil), s.dispatchers...)
+	s.dispatchersMu.RUnlock()
+	for _, dispatcher := range dispatchers {
+		dispatcher.Reset()
+	}
 }
 
 // ---------------------------------------------------------------------------
 // Standalone scorer methods (retained for testbench replay)
 // ---------------------------------------------------------------------------
 
-// Subscribe registers cfg.Listener to receive severity transitions matching
-// cfg.Filter. Returns an unsubscribe function. Safe to call concurrently.
-func (s *anomalyScorer) Subscribe(cfg severityeventsdef.SeverityEventsConfiguration) func() {
-	return s.dispatcher.SubscribeScorer(cfg)
+// SubscribeSeverityEvents creates a dispatcher for cfg, seeds it from the
+// current raw severity when available, and returns it with an unsubscribe
+// function.
+func (s *anomalyScorer) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
+	if cfg.Listener == nil {
+		return severityeventsdef.SeverityEventsSubscription{}, severityeventsdef.ErrNilListener
+	}
+
+	dispatcher := severityeventsimpl.NewDispatcher(cfg)
+
+	s.mu.Lock()
+	knownLevel := s.rawLevelInitialized
+	lastSec := s.lastAdvancedSec
+	level := s.rawLevel
+	s.mu.Unlock()
+
+	if knownLevel {
+		dispatcher.DeliverInitial(lastSec, level)
+	}
+
+	s.dispatchersMu.Lock()
+	s.dispatchers = append(s.dispatchers, dispatcher)
+	s.dispatchersMu.Unlock()
+
+	return severityeventsdef.SeverityEventsSubscription{
+		Dispatcher: dispatcher,
+		Unsubscribe: func() {
+			s.dispatchersMu.Lock()
+			defer s.dispatchersMu.Unlock()
+			for i, existing := range s.dispatchers {
+				if existing == dispatcher {
+					s.dispatchers = append(s.dispatchers[:i], s.dispatchers[i+1:]...)
+					return
+				}
+			}
+		},
+	}, nil
 }
 
 // LastScore returns the most recently computed EWMA score. Thread-safe.

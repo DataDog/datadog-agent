@@ -477,6 +477,16 @@ func (l *collectingListener) OnSeverityTransition(e severityeventsdef.SeverityEv
 	l.events = append(l.events, e)
 }
 
+func mustSubscribeSeverityEvents(t *testing.T, s StandaloneAnomalyScorer, cfg severityeventsdef.SeverityEventsConfiguration) severityeventsdef.SeverityEventsSubscription {
+	t.Helper()
+
+	sub, err := s.SubscribeSeverityEvents(cfg)
+	if err != nil {
+		t.Fatalf("SubscribeSeverityEvents() error = %v", err)
+	}
+	return sub
+}
+
 // TestSubscribeBasic verifies that a listener receives an escalation event when
 // the EWMA crosses the Low threshold.
 func TestSubscribeBasic(t *testing.T) {
@@ -487,7 +497,7 @@ func TestSubscribeBasic(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	s.Subscribe(severityeventsdef.SeverityEventsConfiguration{Listener: l})
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{Listener: l})
 
 	// Advance with no anomalies: EWMA=0, stays Low — no event.
 	s.Advance(1000)
@@ -521,7 +531,7 @@ func TestSubscribeCooldown(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	s.Subscribe(severityeventsdef.SeverityEventsConfiguration{
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
 		Listener:     l,
 		CooldownSecs: 60, // 60s cooldown on de-escalations
 	})
@@ -575,7 +585,7 @@ func TestSubscribeFilter(t *testing.T) {
 
 	// Only receive escalations.
 	l := &collectingListener{}
-	s.Subscribe(severityeventsdef.SeverityEventsConfiguration{
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
 		Listener: l,
 		Filter: severityeventsdef.SeverityEventFilter{
 			Direction: severityeventsdef.SeverityEventEscalation,
@@ -598,14 +608,12 @@ func TestSubscribeFilter(t *testing.T) {
 	}
 }
 
-// TestSubscribeNilPanics verifies that Subscribe panics on a nil Listener.
-func TestSubscribeNilPanics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("expected panic for nil Listener, got none")
-		}
-	}()
-	NewAnomalyScorer(DefaultAnomalyScorerConfig()).Subscribe(severityeventsdef.SeverityEventsConfiguration{})
+// TestSubscribeNilListenerReturnsError verifies that nil listeners are rejected.
+func TestSubscribeNilListenerReturnsError(t *testing.T) {
+	sub, err := NewAnomalyScorer(DefaultAnomalyScorerConfig()).SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{})
+	if err != severityeventsdef.ErrNilListener {
+		t.Fatalf("expected ErrNilListener, got subscription=%v err=%v", sub, err)
+	}
 }
 
 // TestUnsubscribe verifies that the returned unsubscribe function stops delivery.
@@ -617,14 +625,14 @@ func TestUnsubscribe(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	unsub := s.Subscribe(severityeventsdef.SeverityEventsConfiguration{Listener: l})
+	sub := mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{Listener: l})
 
 	// Warm-up: seed at Low.
 	s.Advance(1000)
 
 	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
 	s.Advance(1001) // escalation fires
-	unsub()
+	sub.Unsubscribe()
 
 	s.Advance(1002) // de-escalation would fire, but subscription already removed
 	if len(l.events) != 1 {
@@ -642,7 +650,7 @@ func TestResetClearsSubscriptionState(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	s.Subscribe(severityeventsdef.SeverityEventsConfiguration{
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
 		Listener:     l,
 		CooldownSecs: 3600, // long cooldown — would suppress de-escalation if stale
 	})
@@ -668,6 +676,49 @@ func TestResetClearsSubscriptionState(t *testing.T) {
 	}
 	if l.events[after-1].Direction != severityeventsdef.SeverityEventEscalation {
 		t.Errorf("post-reset event should be escalation, got direction=%d", l.events[after-1].Direction)
+	}
+}
+
+func TestSubscribeSeverityEventsCreatesIndependentDispatchers(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.Alpha = 0.99
+	cfg.SaturationK = 1.0
+	cfg.WindowSecs = 1
+	s := NewAnomalyScorer(cfg)
+
+	fast := &collectingListener{}
+	slow := &collectingListener{}
+
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
+		Listener: fast,
+	})
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
+		Listener:     slow,
+		CooldownSecs: 60,
+	})
+
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
+	s.Advance(1001)
+	s.Advance(1002)
+
+	if len(fast.events) != 2 {
+		t.Fatalf("expected fast dispatcher to see escalation and immediate de-escalation, got %d events: %v", len(fast.events), fast.events)
+	}
+	if fast.events[0].Direction != severityeventsdef.SeverityEventEscalation || fast.events[1].Direction != severityeventsdef.SeverityEventDeescalation {
+		t.Fatalf("unexpected fast dispatcher event sequence: %v", fast.events)
+	}
+
+	if len(slow.events) != 1 {
+		t.Fatalf("expected slow dispatcher to only see the escalation before cooldown expiry, got %d events: %v", len(slow.events), slow.events)
+	}
+	if slow.events[0].Direction != severityeventsdef.SeverityEventEscalation {
+		t.Fatalf("expected slow dispatcher event to be the escalation, got %v", slow.events[0])
+	}
+
+	s.Advance(1062)
+	if len(slow.events) != 2 || slow.events[1].Direction != severityeventsdef.SeverityEventDeescalation {
+		t.Fatalf("expected slow dispatcher to emit a delayed de-escalation after cooldown, got %v", slow.events)
 	}
 }
 

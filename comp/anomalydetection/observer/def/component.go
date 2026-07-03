@@ -29,12 +29,8 @@ type Component interface {
 	// DumpMetrics writes all stored metrics to the specified file (for debugging).
 	DumpMetrics(path string) error
 
-	// SubscribeScorer registers a scorer event listener described by cfg.
-	// cfg.Listener is called synchronously on the data clock for every severity
-	// transition that matches cfg.Filter. The zero-value filter delivers all
-	// transitions. If the current severity level is already known, an initial
-	// synthetic event reflecting it is delivered immediately (see
-	// severityeventsdef.Subscriber for details). Returns an unsubscribe
-	// function; call it to stop delivery.
-	SubscribeScorer(cfg severityeventsdef.SeverityEventsConfiguration) func()
+	// SubscribeSeverityEvents registers a scorer listener described by cfg and
+	// returns the created dispatcher plus the first listener's unsubscribe
+	// function.
+	SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error)
 }

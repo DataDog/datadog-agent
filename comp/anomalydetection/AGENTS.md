@@ -17,7 +17,7 @@ comp/anomalydetection/
   internal/logsfilter/     ← shared severity bucketing + rate limiting
   severityevents/
     def/                 ← Subscriber contract + severity event types (own go.mod)
-    impl/                ← Dispatcher: push subscriptions, cooldown, filtering
+    impl/                ← Dispatcher: one listener, cooldown, filtering
   observer/
     def/                 ← public interfaces (own go.mod)
     fx/                  ← production Fx wiring (python build tag)
@@ -95,23 +95,29 @@ and dropped before they reach observer storage.
 
 ## Severity Events (Scorer Push Contract)
 
-`severityevents/def` defines the `Subscriber` interface (`SubscribeScorer(cfg) func()`)
-and the `SeverityEvent`/`SeverityLevel`/`SeverityEventsConfiguration` types shared by
-any consumer of anomaly scorer severity transitions. `severityevents/impl.Dispatcher`
-is the concrete implementation: it owns push subscriptions, per-subscription cooldown
-and filtering, and delivery. The anomaly scorer (`observer/impl/anomaly_scorer.go`)
-only derives the raw EWMA-based severity level per second and feeds it into a
-`Dispatcher` instance it owns — it does not implement subscription logic itself.
+`severityevents/def` defines the `Subscriber` interface
+(`SubscribeSeverityEvents(cfg) SeverityEventsSubscription`) and the
+`SeverityEvent`/`SeverityLevel`/`SeverityEventsConfiguration` types shared by any
+consumer of anomaly scorer severity transitions. `severityevents/impl.Dispatcher`
+is the concrete implementation: it owns one push listener plus one fixed
+cooldown/filter state machine. The anomaly scorer
+(`observer/impl/anomaly_scorer.go`) only derives the raw EWMA-based severity
+level per second and feeds it into the dispatchers it owns — it does not
+implement subscription logic itself.
 
-A subscription added mid-stream (after the dispatcher already knows the current
-level) is delivered a synthetic initial event (`FromLevel == ToLevel`, `Direction ==
-SeverityEventBoth`) synchronously before `SubscribeScorer` returns, so late
-subscribers learn the current state immediately instead of only future transitions.
+Each `SubscribeSeverityEvents` call creates one new dispatcher bound to one
+listener. If the scorer already knows the current level, it first seeds that
+dispatcher with a synthetic initial event (`FromLevel == ToLevel`, `Direction ==
+SeverityEventBoth`) before publishing it, so late subscribers learn the current
+state immediately instead of only future transitions. Before the scorer knows
+its current level, new dispatchers start at `Low`, so the first observed
+`Medium`/`High` level emits a real escalation instead of being treated as a
+pure seed.
 
-`observer.Component.SubscribeScorer` structurally satisfies `severityevents/def`'s
-`Subscriber` interface (same method signature), so any caller holding an
-`observer.Component` can be passed directly wherever a `Subscriber` is expected,
-without importing `observer` from the consuming side.
+`observer.Component.SubscribeSeverityEvents` structurally satisfies
+`severityevents/def`'s `Subscriber` interface (same method signature), so any
+caller holding an `observer.Component` can be passed directly wherever a
+`Subscriber` is expected, without importing `observer` from the consuming side.
 
 ## Reporter Model
 

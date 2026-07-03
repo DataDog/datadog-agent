@@ -12,12 +12,10 @@ package severityevents
 // Subscriber is the minimal push-based severity event source exposed to
 // consumers that only care about severity transitions.
 type Subscriber interface {
-	// SubscribeScorer registers a severity transition listener described by cfg.
-	// If the current severity level is already known, an initial synthetic
-	// event (FromLevel == ToLevel == current level, Direction ==
-	// SeverityEventBoth) is delivered synchronously before SubscribeScorer
-	// returns, so a subscriber joining mid-stream learns the current state
-	// immediately instead of only future transitions.
-	// Returns an unsubscribe function; call it to stop delivery.
-	SubscribeScorer(cfg SeverityEventsConfiguration) func()
+	// SubscribeSeverityEvents registers the listener described by cfg. If the
+	// current level is known, an initial synthetic event is delivered before it
+	// returns. Otherwise the dispatcher starts at Low, so the first observed
+	// non-Low level emits a real escalation event. The result includes the
+	// created dispatcher and unsubscribe function.
+	SubscribeSeverityEvents(cfg SeverityEventsConfiguration) (SeverityEventsSubscription, error)
 }

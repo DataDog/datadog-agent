@@ -198,8 +198,12 @@ type disabledObserver struct{}
 func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
 func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
-func (*disabledObserver) SubscribeScorer(_ severityeventsdef.SeverityEventsConfiguration) func() {
-	return func() {}
+
+func (*disabledObserver) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
+	return severityeventsdef.SeverityEventsSubscription{
+		Dispatcher:  nil,
+		Unsubscribe: func() {},
+	}, nil
 }
 
 // NewComponent creates an observer.Component.
@@ -688,16 +692,19 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	return o.engine.Storage().DumpToFile(path)
 }
 
-// SubscribeScorer registers a scorer event listener described by cfg.
+// SubscribeSeverityEvents registers a scorer event listener described by cfg.
 // Delegates to the engine scorer when one is configured.
-func (o *observerImpl) SubscribeScorer(cfg severityeventsdef.SeverityEventsConfiguration) func() {
+func (o *observerImpl) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
 	o.engine.mu.RLock()
 	scorer := o.engine.scorer
 	o.engine.mu.RUnlock()
 	if scorer == nil {
-		return func() {}
+		return severityeventsdef.SeverityEventsSubscription{
+			Dispatcher:  nil,
+			Unsubscribe: func() {},
+		}, nil
 	}
-	return scorer.Subscribe(cfg)
+	return scorer.SubscribeSeverityEvents(cfg)
 }
 
 // --- DebugView implementation ---

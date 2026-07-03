@@ -5,6 +5,8 @@
 
 package severityevents
 
+import "errors"
+
 // SeverityLevel represents one of three severity states: Low, Medium, High.
 type SeverityLevel int
 
@@ -48,6 +50,10 @@ type SeverityEventListener interface {
 	OnSeverityTransition(event SeverityEvent)
 }
 
+// Dispatcher is the handle returned for one push-based severity event stream.
+// Its concrete type is owned by the implementation package.
+type Dispatcher interface{}
+
 // SeverityEventFilter selects which SeverityEvents are delivered to a listener.
 // All conditions are ANDed; a nil or empty slice means "any value".
 // The zero value SeverityEventFilter{} matches every transition.
@@ -60,9 +66,7 @@ type SeverityEventFilter struct {
 	Direction SeverityEventDirection
 }
 
-// SeverityEventsConfiguration is the single object passed to SubscribeScorer
-// when registering a listener. It bundles who to call (Listener), which
-// transitions to deliver (Filter), and per-subscription state-machine tuning.
+// SeverityEventsConfiguration configures one severity event subscription.
 type SeverityEventsConfiguration struct {
 	// Listener is called for each matching severity transition. Required.
 	Listener SeverityEventListener
@@ -75,3 +79,12 @@ type SeverityEventsConfiguration struct {
 	// Zero means no cooldown (every matching transition is delivered).
 	CooldownSecs int64
 }
+
+// SeverityEventsSubscription is returned by SubscribeSeverityEvents.
+type SeverityEventsSubscription struct {
+	Dispatcher  Dispatcher
+	Unsubscribe func()
+}
+
+// ErrNilListener is returned when a nil severity event listener is registered.
+var ErrNilListener = errors.New("nil severity event listener")

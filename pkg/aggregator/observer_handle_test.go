@@ -62,8 +62,8 @@ func (c *recordingComponent) DumpMetrics(_ string) error {
 	return nil
 }
 
-func (c *recordingComponent) SubscribeScorer(_ severityeventsdef.SeverityEventsConfiguration) func() {
-	return func() {}
+func (c *recordingComponent) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
+	return severityeventsdef.SeverityEventsSubscription{Unsubscribe: func() {}}, nil
 }
 
 // TestTimeSamplerObserverHandle verifies that ObserveMetric is called for each

@@ -7,178 +7,81 @@
 // severityevents contract.
 package severityeventsimpl
 
-import (
-	"sync"
+import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 
-	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
-)
-
-// Dispatcher owns push-based severity event subscriptions and their
-// per-subscription cooldown/filter delivery state. It also remembers the
-// last level fed via Advance, so a subscription added mid-stream can be told
-// the current severity immediately instead of only learning about it on the
-// next transition.
+// Dispatcher owns one listener plus one fixed filter/cooldown state machine.
 type Dispatcher struct {
-	subsMu sync.RWMutex
-	subs   []*subscription
+	listener     severityeventsdef.SeverityEventListener
+	filter       severityeventsdef.SeverityEventFilter
+	cooldownSecs int64
 
-	hasLevel bool
-	level    severityeventsdef.SeverityLevel
-	lastSec  int64
-}
+	level   severityeventsdef.SeverityLevel
+	lastSec int64
 
-// subscription is a registered listener with its own per-subscription
-// severity state machine.
-type subscription struct {
-	cfg severityeventsdef.SeverityEventsConfiguration
-
-	state            severityeventsdef.SeverityLevel
 	lastStateEntryTs int64
-	stateInitialized bool
 }
 
-// NewDispatcher creates an empty severity event dispatcher.
-func NewDispatcher() *Dispatcher {
-	return &Dispatcher{}
-}
-
-// SubscribeScorer registers cfg.Listener to receive severity transitions
-// matching cfg.Filter. Each subscription runs its own state machine using
-// cfg.CooldownSecs.
-//
-// If the dispatcher already knows the current severity level (i.e. at least
-// one Advance call has happened since the last Reset), an initial synthetic
-// event is delivered synchronously before SubscribeScorer returns, with
-// FromLevel == ToLevel == the current level and Direction ==
-// SeverityEventBoth. This lets a subscriber that joins mid-stream learn
-// the current state immediately rather than only being told about future
-// transitions relative to a silently-adopted baseline. The initial event is
-// still subject to cfg.Filter, so a directional filter (escalations-only or
-// de-escalations-only) will not receive it, since it is neither.
-//
-// The subscription is not made visible to Advance until after the initial
-// event has been delivered, so a concurrent Advance call can never deliver a
-// "real" transition to this listener ahead of its own initial snapshot.
-//
-// Returns an unsubscribe function. Safe to call concurrently. Panics if
-// cfg.Listener is nil.
-func (d *Dispatcher) SubscribeScorer(cfg severityeventsdef.SeverityEventsConfiguration) func() {
-	if cfg.Listener == nil {
-		panic("severityeventsimpl.Dispatcher.SubscribeScorer: Listener must not be nil")
-	}
-	sub := &subscription{cfg: cfg}
-
-	// Compute the initial snapshot without yet publishing sub into d.subs, so
-	// a concurrent Advance cannot see (and advance) this subscription before
-	// its initial event has been delivered below.
-	d.subsMu.RLock()
-	var initialEvt severityeventsdef.SeverityEvent
-	deliverInitial := false
-	if d.hasLevel {
-		level := clampSeverityLevel(d.level)
-		sub.state = level
-		sub.stateInitialized = true
-		initialEvt = severityeventsdef.SeverityEvent{
-			Timestamp: d.lastSec,
-			FromLevel: level,
-			ToLevel:   level,
-			Direction: severityeventsdef.SeverityEventBoth,
-		}
-		// Only start the cooldown clock if the initial event is actually
-		// delivered. Otherwise a filtered-out initial event (e.g. a
-		// de-escalations-only subscriber joining while already Low) would
-		// silently seed lastStateEntryTs and could suppress the listener's
-		// very first real transition, even though it never received anything.
-		if deliverInitial = eventFilterMatches(cfg.Filter, initialEvt); deliverInitial {
-			sub.lastStateEntryTs = d.lastSec
-		}
-	}
-	d.subsMu.RUnlock()
-
-	if deliverInitial {
-		cfg.Listener.OnSeverityTransition(initialEvt)
-	}
-
-	// Only now does the subscription become visible to Advance. Any level
-	// change that happened between the snapshot above and this point is not
-	// lost: it will simply be picked up as a normal transition on the next
-	// Advance call, computed relative to the state snapshotted above.
-	d.subsMu.Lock()
-	d.subs = append(d.subs, sub)
-	d.subsMu.Unlock()
-
-	return func() {
-		d.subsMu.Lock()
-		defer d.subsMu.Unlock()
-		for i, existing := range d.subs {
-			if existing == sub {
-				d.subs = append(d.subs[:i], d.subs[i+1:]...)
-				return
-			}
-		}
+// NewDispatcher creates a dispatcher from cfg.
+func NewDispatcher(cfg severityeventsdef.SeverityEventsConfiguration) *Dispatcher {
+	return &Dispatcher{
+		listener:     cfg.Listener,
+		filter:       cfg.Filter,
+		cooldownSecs: cfg.CooldownSecs,
+		level:        severityeventsdef.SeverityLow,
 	}
 }
 
-// Advance feeds the raw scorer severity level for one second into every
-// subscription state machine and delivers any resulting events. Also records
-// the level so subscriptions added later can be told the current state
-// immediately (see SubscribeScorer).
-func (d *Dispatcher) Advance(sec int64, level severityeventsdef.SeverityLevel) {
-	d.subsMu.Lock()
-	d.hasLevel = true
+// DeliverInitial seeds the dispatcher from the current level and may deliver a
+// synthetic snapshot event.
+func (d *Dispatcher) DeliverInitial(sec int64, level severityeventsdef.SeverityLevel) {
+	level = clampSeverityLevel(level)
 	d.level = level
 	d.lastSec = sec
-	subs := make([]*subscription, len(d.subs))
-	copy(subs, d.subs)
-	d.subsMu.Unlock()
 
-	for _, sub := range subs {
-		if evt, ok := sub.advance(sec, level); ok && eventFilterMatches(sub.cfg.Filter, evt) {
-			sub.cfg.Listener.OnSeverityTransition(evt)
-		}
+	evt := severityeventsdef.SeverityEvent{
+		Timestamp: sec,
+		FromLevel: level,
+		ToLevel:   level,
+		Direction: severityeventsdef.SeverityEventBoth,
+	}
+	if eventFilterMatches(d.filter, evt) {
+		d.listener.OnSeverityTransition(evt)
 	}
 }
 
-// Reset clears all per-subscription delivery state and the dispatcher's
-// knowledge of the current level, so subscriptions registered before the
-// next Advance call are seeded silently instead of being delivered a stale
-// initial event.
-func (d *Dispatcher) Reset() {
-	d.subsMu.Lock()
-	defer d.subsMu.Unlock()
-	d.hasLevel = false
-	for _, sub := range d.subs {
-		sub.stateInitialized = false
-		sub.lastStateEntryTs = 0
-	}
-}
-
-func (sub *subscription) advance(sec int64, level severityeventsdef.SeverityLevel) (severityeventsdef.SeverityEvent, bool) {
-	if !sub.stateInitialized {
-		sub.state = clampSeverityLevel(level)
-		sub.stateInitialized = true
-		return severityeventsdef.SeverityEvent{}, false
-	}
-
+// Advance feeds one raw severity level into the dispatcher state machine.
+func (d *Dispatcher) Advance(sec int64, level severityeventsdef.SeverityLevel) {
 	next := clampSeverityLevel(level)
-	if next == sub.state {
-		return severityeventsdef.SeverityEvent{}, false
+	if next == d.level {
+		d.lastSec = sec
+		return
 	}
 
-	cooldown := sub.cfg.CooldownSecs
-	if next < sub.state && cooldown > 0 && sec-sub.lastStateEntryTs < cooldown {
-		return severityeventsdef.SeverityEvent{}, false
+	if next < d.level && d.cooldownSecs > 0 && sec-d.lastStateEntryTs < d.cooldownSecs {
+		d.lastSec = sec
+		return
 	}
 
 	evt := severityeventsdef.SeverityEvent{
 		Timestamp: sec,
-		FromLevel: sub.state,
+		FromLevel: d.level,
 		ToLevel:   next,
-		Direction: eventDirection(sub.state, next),
+		Direction: eventDirection(d.level, next),
 	}
-	sub.state = next
-	sub.lastStateEntryTs = sec
-	return evt, true
+	d.level = next
+	d.lastSec = sec
+	d.lastStateEntryTs = sec
+
+	if eventFilterMatches(d.filter, evt) {
+		d.listener.OnSeverityTransition(evt)
+	}
+}
+
+// Reset clears delivery state and known level.
+func (d *Dispatcher) Reset() {
+	d.level = severityeventsdef.SeverityLow
+	d.lastSec = 0
+	d.lastStateEntryTs = 0
 }
 
 func eventDirection(from, to severityeventsdef.SeverityLevel) severityeventsdef.SeverityEventDirection {
