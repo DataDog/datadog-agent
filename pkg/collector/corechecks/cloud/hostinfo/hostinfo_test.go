@@ -39,7 +39,7 @@ func TestHostInfoCheckNoCloudProvider(t *testing.T) {
 		return "", ""
 	}
 
-	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
@@ -74,7 +74,7 @@ func TestHostInfoCheckWithPreemptionTermination(t *testing.T) {
 	// Mock uptime
 	uptime = uptimeSampler
 
-	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
@@ -112,7 +112,7 @@ func TestHostInfoCheckNoPreemptionScheduled(t *testing.T) {
 		return time.Time{}, errors.New("no rebalance recommendation")
 	}
 
-	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
@@ -147,7 +147,7 @@ func TestHostInfoCheckPreemptionEventSentOnlyOnce(t *testing.T) {
 	// Mock uptime
 	uptime = uptimeSampler
 
-	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
@@ -188,7 +188,7 @@ func TestHostInfoCheckNotPreemptibleStopsPolling(t *testing.T) {
 		return time.Time{}, cloudproviders.ErrNotPreemptible
 	}
 
-	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
@@ -229,7 +229,7 @@ func TestHostInfoCheckPreemptionUnsupportedStopsPolling(t *testing.T) {
 		return time.Time{}, cloudproviders.ErrPreemptionUnsupported
 	}
 
-	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
@@ -274,7 +274,7 @@ func TestHostInfoCheckWithRebalanceRecommendation(t *testing.T) {
 
 	uptime = uptimeSampler
 
-	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
@@ -314,7 +314,7 @@ func TestHostInfoCheckRebalanceEventSentOnlyOnce(t *testing.T) {
 
 	uptime = uptimeSampler
 
-	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
@@ -357,7 +357,7 @@ func TestHostInfoCheckRebalanceSkippedWhenTerminationSet(t *testing.T) {
 
 	uptime = uptimeSampler
 
-	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
@@ -396,7 +396,7 @@ func TestHostInfoCheckNoRebalanceRecommendation(t *testing.T) {
 		return time.Time{}, errors.New("no rebalance recommendation")
 	}
 
-	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)

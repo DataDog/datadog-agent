@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "ndmtmp",
+    srcs = [
+        "bundle.go",
+        "bundle_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/ndmtmp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/ndmtmp/forwarder/fx",
+        "//comp/ndmtmp/forwarder/mock",
+        "//pkg/util/fxutil",
+    ],
+)
+
+dd_agent_go_test(
+    name = "ndmtmp_test",
+    srcs = ["bundle_test.go"],
+    embed = [":ndmtmp"],
+    deps = [
+        "//comp/aggregator/demultiplexer/impl",
+        "//comp/core",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/forwarder/defaultforwarder/mock",
+        "//comp/forwarder/eventplatform/mock",
+        "//comp/forwarder/orchestrator/mock",
+        "//pkg/aggregator",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
