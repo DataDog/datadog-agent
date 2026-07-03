@@ -10,11 +10,20 @@
 //! `pkg/fleet/installer/packages/user/windows` and `pkg/util/filesystem/rights_windows.go`.
 
 use anyhow::{Context, Result, bail};
-use std::ffi::OsStr;
-use std::os::windows::ffi::OsStrExt;
 use std::ptr;
+use windows_sys::Win32::Security::{
+    IsWellKnownSid, LookupAccountNameW, WinLocalSystemSid,
+};
+use windows_sys::Win32::Security::Authentication::Identity::{
+    LsaClose, LsaFreeMemory, LsaOpenPolicy, LsaRetrievePrivateData,
+    LSA_OBJECT_ATTRIBUTES, LSA_UNICODE_STRING, LSA_HANDLE, POLICY_GET_PRIVATE_INFORMATION,
+};
 
+use super::wide;
 use super::{open_datadog_agent_key, registry_nonempty_string};
+
+const AGENT_PASSWORD_LSA_KEY: &str = "L$datadog_ddagentuser_password";
+const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 
 /// Agent service account resolved from installer state.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,17 +63,14 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
         return Ok(AgentAccount::LocalSystem);
     }
 
-    if let Some(password) = read_agent_password_from_lsa()? {
-        if !password.is_empty() {
-            return Ok(AgentAccount::PasswordLogon {
-                domain,
-                user,
-                password,
-            });
-        }
+    match read_agent_password_from_lsa()? {
+        Some(password) if !password.is_empty() => Ok(AgentAccount::PasswordLogon {
+            domain,
+            user,
+            password,
+        }),
+        _ => Ok(AgentAccount::ServiceAccountLogon { domain, user }),
     }
-
-    Ok(AgentAccount::ServiceAccountLogon { domain, user })
 }
 
 fn is_local_system_name(domain: &str, user: &str) -> bool {
@@ -73,12 +79,7 @@ fn is_local_system_name(domain: &str, user: &str) -> bool {
 }
 
 fn is_local_system_sid(sid: &[u8]) -> bool {
-    unsafe {
-        windows_sys::Win32::Security::IsWellKnownSid(
-            sid.as_ptr() as *mut _,
-            windows_sys::Win32::Security::WinLocalSystemSid,
-        ) != 0
-    }
+    unsafe { IsWellKnownSid(sid.as_ptr() as *mut _, WinLocalSystemSid) != 0 }
 }
 
 fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
@@ -87,15 +88,15 @@ fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
     } else {
         format!("{domain}\\{user}")
     };
-    let system_wide = wide_nullterminated("");
-    let account_wide = wide_nullterminated(&account);
+    let system_wide = wide::null_terminated("");
+    let account_wide = wide::null_terminated(&account);
 
     unsafe {
         let mut sid_size = 0u32;
         let mut domain_size = 0u32;
         let mut sid_type = 0i32;
 
-        let _ = windows_sys::Win32::Security::LookupAccountNameW(
+        let _ = LookupAccountNameW(
             system_wide.as_ptr(),
             account_wide.as_ptr(),
             ptr::null_mut(),
@@ -106,13 +107,13 @@ fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
         );
 
         let mut sid = vec![0u8; sid_size as usize];
-        let mut domain_buf = vec![0u16; domain_size as usize];
-        let ok = windows_sys::Win32::Security::LookupAccountNameW(
+        let mut _domain_buf = vec![0u16; domain_size as usize];
+        let ok = LookupAccountNameW(
             system_wide.as_ptr(),
             account_wide.as_ptr(),
             sid.as_mut_ptr() as *mut _,
             &mut sid_size,
-            domain_buf.as_mut_ptr(),
+            _domain_buf.as_mut_ptr(),
             &mut domain_size,
             &mut sid_type,
         );
@@ -127,49 +128,32 @@ fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
     }
 }
 
-/// LSA secret name written by the MSI (`ConfigureUserCustomActions`).
-fn agent_password_lsa_key() -> &'static str {
-    "L$datadog_ddagentuser_password"
-}
-
 fn read_agent_password_from_lsa() -> Result<Option<String>> {
-    const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
-
-    let mut key_wide = wide_nullterminated(agent_password_lsa_key());
+    let mut key_wide = wide::null_terminated(AGENT_PASSWORD_LSA_KEY);
     let key_len = key_wide.len().saturating_sub(1);
-    let mut key_name = windows_sys::Win32::Security::Authentication::Identity::LSA_UNICODE_STRING {
+    let mut key_name = LSA_UNICODE_STRING {
         Length: (key_len * 2) as u16,
         MaximumLength: (key_wide.len() * 2) as u16,
         Buffer: key_wide.as_mut_ptr(),
     };
 
     unsafe {
-        let mut object_attributes: windows_sys::Win32::Security::Authentication::Identity::LSA_OBJECT_ATTRIBUTES =
-            std::mem::zeroed();
-        let mut policy_handle: windows_sys::Win32::Security::Authentication::Identity::LSA_HANDLE = 0;
+        let mut object_attributes: LSA_OBJECT_ATTRIBUTES = std::mem::zeroed();
+        let mut policy_handle: LSA_HANDLE = 0;
 
-        let status = windows_sys::Win32::Security::Authentication::Identity::LsaOpenPolicy(
+        let status = LsaOpenPolicy(
             ptr::null(),
             &mut object_attributes,
-            windows_sys::Win32::Security::Authentication::Identity::POLICY_GET_PRIVATE_INFORMATION
-                as u32,
+            POLICY_GET_PRIVATE_INFORMATION as u32,
             &mut policy_handle,
         );
         if status != 0 {
-            bail!(
-                "LsaOpenPolicy: NTSTATUS {status:#010x}",
-            );
+            bail!("LsaOpenPolicy: NTSTATUS {status:#010x}");
         }
 
         let policy = PolicyHandle(policy_handle);
-        let mut secret: *mut windows_sys::Win32::Security::Authentication::Identity::LSA_UNICODE_STRING =
-            ptr::null_mut();
-        let status =
-            windows_sys::Win32::Security::Authentication::Identity::LsaRetrievePrivateData(
-                policy.0,
-                &mut key_name,
-                &mut secret,
-            );
+        let mut secret: *mut LSA_UNICODE_STRING = ptr::null_mut();
+        let status = LsaRetrievePrivateData(policy.0, &mut key_name, &mut secret);
 
         if status == STATUS_OBJECT_NAME_NOT_FOUND {
             return Ok(None);
@@ -190,25 +174,21 @@ fn read_agent_password_from_lsa() -> Result<Option<String>> {
             String::from_utf16_lossy(slice)
         };
 
-        windows_sys::Win32::Security::Authentication::Identity::LsaFreeMemory(secret as _);
+        LsaFreeMemory(secret as _);
         Ok(Some(password))
     }
 }
 
-struct PolicyHandle(windows_sys::Win32::Security::Authentication::Identity::LSA_HANDLE);
+struct PolicyHandle(LSA_HANDLE);
 
 impl Drop for PolicyHandle {
     fn drop(&mut self) {
         if self.0 != 0 {
             unsafe {
-                windows_sys::Win32::Security::Authentication::Identity::LsaClose(self.0);
+                LsaClose(self.0);
             }
         }
     }
-}
-
-fn wide_nullterminated(value: &str) -> Vec<u16> {
-    OsStr::new(value).encode_wide().chain([0]).collect()
 }
 
 #[cfg(test)]
@@ -220,13 +200,5 @@ mod tests {
         assert!(is_local_system_name("", "LocalSystem"));
         assert!(is_local_system_name("NT AUTHORITY", "SYSTEM"));
         assert!(!is_local_system_name("WIN-HOST", "ddagentuser"));
-    }
-
-    #[test]
-    fn lsa_key_matches_msi_secret_name() {
-        assert_eq!(
-            agent_password_lsa_key(),
-            "L$datadog_ddagentuser_password"
-        );
     }
 }

@@ -7,8 +7,6 @@
 
 use anyhow::{Context, Result, bail};
 use log::info;
-use std::ffi::OsStr;
-use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 use tokio::process::{Child, Command};
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
@@ -17,33 +15,36 @@ use windows_sys::Win32::Security::{
     LOGON32_PROVIDER_DEFAULT,
 };
 
+use crate::spawn_context;
 use crate::spawn_profile::SpawnProfile;
 
 use super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::setup_process_group;
+use super::wide;
 
 /// Spawn a managed child using the platform spawn profile for `process_name`.
 ///
 /// Caller must hold [`super::console_lock`] on Windows (see `ManagedProcess::try_spawn`).
-#[allow(dead_code)]
-pub fn spawn_child(
+pub(crate) fn spawn_child(
     process_name: &str,
+    command: &str,
     profile: SpawnProfile,
     cmd: &mut Command,
 ) -> Result<Child> {
-    info!("[{process_name}] spawn profile: {}", profile.as_str());
+    info!("[{process_name}] spawn profile: {profile}");
     match profile {
-        SpawnProfile::Host => spawn_inherit(cmd),
-        SpawnProfile::Agent => spawn_as_agent_user(process_name, cmd),
+        SpawnProfile::Host => exec_spawn(process_name, command, cmd),
+        SpawnProfile::Agent => spawn_as_agent_user(process_name, command, cmd),
     }
 }
 
-fn spawn_inherit(cmd: &mut Command) -> Result<Child> {
+fn exec_spawn(process_name: &str, command: &str, cmd: &mut Command) -> Result<Child> {
     setup_process_group(cmd);
-    cmd.spawn().context("CreateProcess (inherit) failed")
+    cmd.spawn()
+        .with_context(|| spawn_context::failed_message(process_name, command))
 }
 
-fn spawn_as_agent_user(process_name: &str, cmd: &mut Command) -> Result<Child> {
+fn spawn_as_agent_user(process_name: &str, command: &str, cmd: &mut Command) -> Result<Child> {
     let account = resolve_agent_account().with_context(|| {
         format!("[{process_name}] resolve agent service account for spawn")
     })?;
@@ -51,29 +52,42 @@ fn spawn_as_agent_user(process_name: &str, cmd: &mut Command) -> Result<Child> {
     match account {
         AgentAccount::LocalSystem => {
             info!("[{process_name}] agent account is LocalSystem; inheriting supervisor token");
-            spawn_inherit(cmd)
+            exec_spawn(process_name, command, cmd)
         }
         AgentAccount::PasswordLogon {
             domain,
             user,
             password,
-        } => spawn_with_impersonation(process_name, cmd, &domain, &user, Some(password.as_str())),
-        AgentAccount::ServiceAccountLogon { domain, user } => {
-            spawn_with_impersonation(process_name, cmd, &domain, &user, None)
-        }
+        } => spawn_with_impersonation(
+            process_name,
+            command,
+            cmd,
+            &domain,
+            &user,
+            Some(password.as_str()),
+        ),
+        AgentAccount::ServiceAccountLogon { domain, user } => spawn_with_impersonation(
+            process_name,
+            command,
+            cmd,
+            &domain,
+            &user,
+            None,
+        ),
     }
 }
 
 fn spawn_with_impersonation(
     process_name: &str,
+    command: &str,
     cmd: &mut Command,
     domain: &str,
     user: &str,
     password: Option<&str>,
 ) -> Result<Child> {
-    let domain_wide = wide_nullterminated(logon_domain(domain));
-    let user_wide = wide_nullterminated(user);
-    let password_wide = password.map(|p| wide_nullterminated(p));
+    let domain_wide = wide::null_terminated(logon_domain(domain));
+    let user_wide = wide::null_terminated(user);
+    let password_wide = password.map(wide::null_terminated);
 
     unsafe {
         let mut logon_token = TokenHandle(ptr::null_mut());
@@ -104,9 +118,7 @@ fn spawn_with_impersonation(
         let _impersonation = ImpersonationGuard {
             _token: logon_token,
         };
-        setup_process_group(cmd);
-        cmd.spawn()
-            .with_context(|| format!("[{process_name}] CreateProcess (impersonated) failed"))
+        exec_spawn(process_name, command, cmd)
     }
 }
 
@@ -142,10 +154,6 @@ impl Drop for ImpersonationGuard {
             }
         }
     }
-}
-
-fn wide_nullterminated(value: &str) -> Vec<u16> {
-    OsStr::new(value).encode_wide().chain([0]).collect()
 }
 
 #[cfg(test)]

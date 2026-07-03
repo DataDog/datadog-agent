@@ -5,8 +5,8 @@
 
 mod agent_credentials;
 mod spawn;
+mod wide;
 
-#[allow(unused_imports)]
 pub(crate) use spawn::spawn_child;
 
 use anyhow::Result;

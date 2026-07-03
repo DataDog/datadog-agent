@@ -42,6 +42,12 @@ impl SpawnProfile {
     }
 }
 
+impl std::fmt::Display for SpawnProfile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Resolve the spawn profile for a process from its procmgr name.
 ///
 /// Unknown processes default to [`SpawnProfile::Agent`]. Only processes that ran

@@ -11,6 +11,7 @@ pub mod manager;
 pub mod ordering;
 pub mod platform;
 pub mod process;
+mod spawn_context;
 #[cfg(windows)]
 pub mod service;
 pub mod shutdown;

@@ -6,6 +6,7 @@
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::parse_environment_file;
 use crate::platform;
+use crate::spawn_profile;
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{info, warn};
@@ -226,10 +227,14 @@ impl ManagedProcess {
         let _console_guard = platform::console_lock();
 
         let mut cmd = self.build_command()?;
+        let profile = spawn_profile::profile_for(&self.name);
 
-        let child = cmd
-            .spawn()
-            .with_context(|| format!("[{}] failed to spawn: {}", self.name, self.config.command))?;
+        let child = platform::spawn_child(
+            &self.name,
+            &self.config.command,
+            profile,
+            &mut cmd,
+        )?;
 
         self.pid = child.id();
         info!(
@@ -281,8 +286,6 @@ impl ManagedProcess {
         }
 
         apply_child_stdio(&mut cmd, &self.config);
-
-        platform::setup_process_group(&mut cmd);
 
         Ok(cmd)
     }

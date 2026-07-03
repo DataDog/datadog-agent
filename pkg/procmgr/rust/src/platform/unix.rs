@@ -4,15 +4,34 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
+use log::info;
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
+use tokio::process::{Child, Command};
+
+use crate::spawn_context;
+use crate::spawn_profile::SpawnProfile;
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
 pub fn setup_process_group(cmd: &mut tokio::process::Command) {
     cmd.process_group(0);
+}
+
+/// Spawn a managed child. On Unix, procmgr already runs as `dd-agent`; both profiles
+/// use the supervisor identity until a distinct host-privileged child is needed.
+pub(crate) fn spawn_child(
+    process_name: &str,
+    command: &str,
+    profile: SpawnProfile,
+    cmd: &mut Command,
+) -> Result<Child> {
+    info!("[{process_name}] spawn profile: {profile}");
+    setup_process_group(cmd);
+    cmd.spawn()
+        .with_context(|| spawn_context::failed_message(process_name, command))
 }
 
 /// Negate a PID to produce the process group ID for `kill(2)`.
