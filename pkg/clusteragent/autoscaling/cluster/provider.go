@@ -38,7 +38,7 @@ func StartClusterAutoscaling(
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
-	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "datadog-cluster-autoscaler"})
+	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: EventSourceComponent})
 
 	store := autoscaling.NewStore[model.NodePoolInternal]()
 	f := false

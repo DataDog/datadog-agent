@@ -59,7 +59,7 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test", "provider")
 	assert.NoError(t, err)
 
@@ -830,7 +830,7 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test", "provider")
 	assert.NoError(t, err)
 
@@ -1591,7 +1591,7 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test", "provider")
 	assert.NoError(t, err)
 
@@ -2353,7 +2353,7 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test", "provider")
 	assert.NoError(t, err)
 
