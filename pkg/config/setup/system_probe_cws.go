@@ -15,7 +15,14 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// the following entries are platform specific
 	// - runtime_security_config.policies.dir
 	// - runtime_security_config.socket
-	platformCWSConfig(cfg)
+	cfg.BindEnvAndSetDefault("runtime_security_config.socket", GetPlatformDefault(map[string]interface{}{
+		"windows": "localhost:3335",
+		"other":   "${install_path}/run/runtime-security.sock",
+	}))
+	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", GetPlatformDefault(map[string]interface{}{
+		"other":   DefaultRuntimePoliciesDir,
+		"windows": "${conf_path}/runtime-security.d",
+	}))
 
 	// CWS - general config
 	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
@@ -117,7 +124,8 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.profile_cleanup_delay", "60m")
 
 	// CWS - Security Profile V2
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "dns", "bind", "connect"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "dns", "bind", "connect", "open"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.sample_refresh_period", "30s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.excluded_images", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.max_dump_size", 5120)
 
