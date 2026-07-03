@@ -276,7 +276,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 }
 
-//go:embed testdata/stringcode.go.tmpl
+//go:embed testdata/stringcode.go
 var stringCodeBody string
 
 func TestConfigHostname(t *testing.T) {
@@ -380,7 +380,7 @@ func TestConfigHostname(t *testing.T) {
 		}
 		// The subtests below all shell out to the same compiled helper binary,
 		// which reads its response and exit code from environment variables
-		// (see testdata/stringcode.go.tmpl). It is built once here and reused
+		// (see testdata/stringcode.go). It is built once here and reused
 		// across subtests via setProgramBehavior: compiling a fresh binary per
 		// subtest with an isolated (cold) GOCACHE made this test flaky under
 		// CI parallelism, occasionally exhausting the package's 180s timeout.
