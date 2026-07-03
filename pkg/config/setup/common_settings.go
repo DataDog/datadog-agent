@@ -39,6 +39,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// (variable bit rate storage). Experimental; see
 	// pkg/aggregator/sender/vbrsender.
 	config.BindEnvAndSetDefault("checks.vbr_compression_checks", []string{})
+	// A plain string-slice env var binding does not comma-split its value
+	// (it falls back to whitespace-splitting only), so
+	// DD_CHECKS_VBR_COMPRESSION_CHECKS=foo,bar would otherwise become a
+	// single-element ["foo,bar"] instead of ["foo","bar"].
+	config.ParseEnvSplitComma("checks.vbr_compression_checks")
 	// When true, VBR-compressed checks still run every sample through the
 	// compressor for measurement (see the vbrsender_samples_total /
 	// vbrsender_breakpoints_total telemetry), but ship their original,
