@@ -626,7 +626,7 @@ func TestShadowWorkerDoesNotSendServiceCheck(t *testing.T) {
 	pendingChecksChan <- newCheck(t, "shadowcheck:123:shadow", false, nil)
 	close(pendingChecksChan)
 
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 
 	worker, err := newWorkerWithOptions(
 		100,
