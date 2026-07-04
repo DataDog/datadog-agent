@@ -17,7 +17,13 @@ set -euo pipefail
 # build-time location, so a hardcoded path would run fipsinstall against the
 # wrong tree or fail outright. Resolving relative to the script keeps the
 # self-test and the generated fipsmodule.cnf pinned to the tree it belongs to.
-INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Use realpath to resolve the physical path of the script, not the logical one.
+# When invoked through a symlink (e.g. experiment/ → stable/ → version-dir/), bash's
+# `pwd` returns the logical path. If we wrote ${BASH_SOURCE[0]}-relative paths into
+# openssl.cnf they would point at the symlink name rather than the physical directory,
+# so they break as soon as the symlink is removed or retargeted (e.g. after an
+# experiment is stopped). The physical path is stable for the lifetime of the package.
+INSTALL_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")/..")"
 
 FIPS_MODULE_PATH="${INSTALL_DIR}/ssl/fipsmodule.cnf"
 OPENSSL_CONF_PATH="${INSTALL_DIR}/ssl/openssl.cnf"
