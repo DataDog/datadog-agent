@@ -406,39 +406,89 @@ func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
 	}
 }
 
-// TestFlushErrortracking_DrainIsBoundedToSnapshot: a producer that keeps
-// writing into the channel during a flush must not extend the current
-// batch beyond the items that were already queued at flush start. Only the
-// snapshot-at-start items are dispatched; the new arrivals wait for the
-// next tick.
+// TestFlushErrortracking_DrainIsBoundedToSnapshot: a hot producer that
+// keeps refilling the channel throughout the drain must not inflate the
+// batch or stall the flush. The race is made deterministic instead of
+// timing-dependent: with nothing draining it yet, a saturated bounded
+// channel can only sit at cap(errLogsCh) — so once the producer has
+// filled it, flushErrortracking's own len() snapshot is guaranteed to
+// read exactly bufSize, no matter when it runs. A regression from a fixed
+// n-item snapshot to a "drain while non-empty" loop would either capture
+// more than bufSize (chasing the producer's concurrent refills) or never
+// return (the timeout below), so this test exercises exactly the
+// production risk flushErrortracking's doc comment calls out: "a hot
+// error stream holding the flush job indefinitely."
 func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
 	sm := &senderMock{}
 	const bufSize = 10
 	a := newTestAtelMinimal(t, sm, bufSize)
 	defer a.cancel()
 
-	// Pre-fill half the buffer before the flush.
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				a.SubmitErrorLog(errorLog("hot"))
+			}
+		}
+	})
+	t.Cleanup(func() {
+		close(stop)
+		wg.Wait()
+	})
+
+	for len(a.errLogsCh) < bufSize {
+		runtime.Gosched()
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		a.flushErrortracking(context.Background())
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("flush did not return while a producer kept refilling the channel; the drain is not bounded to a fixed snapshot")
+	}
+
+	require.Len(t, sm.capturedLogs(), bufSize,
+		"flush must dispatch exactly the snapshot count (channel capacity, %d), not chase concurrent refills", bufSize)
+	assert.Equal(t, 1, sm.sendLogsCalls(),
+		"snapshot-bounded flush must dispatch in exactly one sendLogsBatch call")
+}
+
+// TestFlushErrortracking_LateArrivalsWaitForNextTick: records enqueued
+// after a flush has already returned must not be lost — they are picked
+// up by the following flush rather than requiring the batch that already
+// shipped to somehow retroactively include them.
+func TestFlushErrortracking_LateArrivalsWaitForNextTick(t *testing.T) {
+	sm := &senderMock{}
+	const bufSize = 10
+	a := newTestAtelMinimal(t, sm, bufSize)
+	defer a.cancel()
+
 	const preFilled = 5
 	for i := range preFilled {
 		a.SubmitErrorLog(errorLog(fmt.Sprintf("pre-%d", i)))
 	}
-
-	// Inject 3 more items concurrently while the flush runs. Because the
-	// flush is bounded to len(ch) at start (= preFilled), these arrivals
-	// must not be included in this batch.
-	go func() {
-		for i := range 3 {
-			a.SubmitErrorLog(errorLog(fmt.Sprintf("late-%d", i)))
-		}
-	}()
-
 	a.flushErrortracking(context.Background())
 
-	got := sm.capturedLogs()
-	assert.LessOrEqual(t, len(got), preFilled,
-		"flush must not dispatch more than the snapshot count (%d)", preFilled)
-	assert.Equal(t, 1, sm.sendLogsCalls(),
-		"snapshot-bounded flush must still dispatch in exactly one sendLogsBatch call")
+	const late = 3
+	for i := range late {
+		a.SubmitErrorLog(errorLog(fmt.Sprintf("late-%d", i)))
+	}
+	a.flushErrortracking(context.Background())
+
+	assert.Len(t, sm.capturedLogs(), preFilled+late,
+		"items enqueued after the first flush must be picked up by the next one")
+	assert.Equal(t, 2, sm.sendLogsCalls(),
+		"the late arrivals must be dispatched in their own batch")
 }
 
 // TestFlushErrortracking_FinalDrain: records enqueued shortly before
