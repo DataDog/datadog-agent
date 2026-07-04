@@ -37,7 +37,7 @@ def main():
     config.setdefault("tool", {}).setdefault("hatch", {}).setdefault("build", {})["ignore-vcs"] = True
 
     # This is essentially equivalent to to hatchling's `build_wheel` PEP-517 hook
-    next(WheelBuilder(str(args.src), config=config).build(args.output_dir, ["standard"]))
+    next(WheelBuilder(str(args.src), config=config).build(directory=args.output_dir, versions=["standard"]))
 
 
 if __name__ == "__main__":

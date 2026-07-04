@@ -96,8 +96,7 @@ type telemetryMetrics struct {
 type IssueState = healthplatform.IssueState
 
 const (
-	IssueStateNew      = healthplatform.IssueState_ISSUE_STATE_NEW
-	IssueStateOngoing  = healthplatform.IssueState_ISSUE_STATE_ONGOING
+	IssueStateActive   = healthplatform.IssueState_ISSUE_STATE_ACTIVE
 	IssueStateResolved = healthplatform.IssueState_ISSUE_STATE_RESOLVED
 
 	// resolvedIssueTTL is the time after which resolved issues are pruned from the persistence file.
@@ -109,18 +108,15 @@ const (
 )
 
 var issueStateToString = map[IssueState]string{
-	IssueStateNew:      "new",
-	IssueStateOngoing:  "ongoing",
+	IssueStateActive:   "active",
 	IssueStateResolved: "resolved",
 }
 
 func issueStateFromString(s string) IssueState {
-	for k, v := range issueStateToString {
-		if v == s {
-			return k
-		}
+	if s == "resolved" {
+		return IssueStateResolved
 	}
-	return 0
+	return IssueStateActive
 }
 
 // PersistedIssue tracks the lifecycle state of an issue.
@@ -570,27 +566,26 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		h.persistedIssues[issueID] = &PersistedIssue{
 			IssueID:   issueID,
 			IssueType: issueType,
-			State:     IssueStateNew,
+			State:     IssueStateActive,
 			FirstSeen: now,
 			LastSeen:  now,
 		}
 	} else if existing.State == IssueStateResolved {
 		existing.IssueID = issueID
 		existing.IssueType = issueType
-		existing.State = IssueStateNew
+		existing.State = IssueStateActive
 		existing.FirstSeen = now
 		existing.LastSeen = now
 		existing.ResolvedAt = ""
 	} else if existing.IssueType != issueType {
-		h.log.Warnf("health platform: issue %s changed type from %s to %s; resetting to new", issueID, existing.IssueType, issueType)
+		h.log.Warnf("health platform: issue %s changed type from %s to %s; resetting", issueID, existing.IssueType, issueType)
 		existing.IssueID = issueID
 		existing.IssueType = issueType
-		existing.State = IssueStateNew
+		existing.State = IssueStateActive
 		existing.FirstSeen = now
 		existing.LastSeen = now
 		existing.ResolvedAt = ""
 	} else {
-		existing.State = IssueStateOngoing
 		existing.LastSeen = now
 	}
 

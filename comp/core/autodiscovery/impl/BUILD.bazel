@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -40,7 +41,7 @@ go_library(
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//comp/def",
-        "//comp/healthplatform/issues/admisconfig",
+        "//comp/healthplatform/issues/ad-misconfiguration",
         "//comp/healthplatform/store/def",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
@@ -58,7 +59,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "autoconfig_cel_test.go",
@@ -72,8 +73,6 @@ go_test(
         "store_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
-    tags = ["manual"],  # keep
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",
@@ -94,7 +93,7 @@ go_test(
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
-        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/issues/ad-misconfiguration",
         "//comp/healthplatform/store/mock",
         "//comp/healthplatform/store/noop-impl",
         "//pkg/collector/check/id",

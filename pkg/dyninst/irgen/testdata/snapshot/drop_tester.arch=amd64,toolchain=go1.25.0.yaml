@@ -3611,6 +3611,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 25
           Kind: argument
@@ -3624,6 +3625,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1314
       Name: Probe[main.CaptureBytesReturn]Return
@@ -3643,6 +3645,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: r1
           Offset: 25
           Kind: return
@@ -3656,6 +3659,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1311
       Name: Probe[main.CaptureBytes]
@@ -3675,6 +3679,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: tag
           Offset: 25
           Kind: argument
@@ -3688,6 +3693,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1312
       Name: Probe[main.CaptureBytes]Return
@@ -3710,6 +3716,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: returnLen
           Offset: 9
           Kind: argument
@@ -3723,6 +3730,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1322
       Name: Probe[main.CaptureChainReturn]Return
@@ -3742,6 +3750,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: r1
           Offset: 9
           Kind: return
@@ -3755,6 +3764,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1317
       Name: Probe[main.CaptureChain]
@@ -3774,6 +3784,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1318
       Name: Probe[main.CaptureChain]Return
@@ -3796,6 +3807,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1316
       Name: Probe[main.CaptureSleep]Return
@@ -3818,6 +3830,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 1320
       Name: Probe[main.CaptureStringChain]Return
@@ -3851,6 +3864,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: ArrayType
       ID: 756
       Name: '[0]*net/http.response'

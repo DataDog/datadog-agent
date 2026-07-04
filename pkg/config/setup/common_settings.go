@@ -8,7 +8,6 @@ package setup
 
 import (
 	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
@@ -69,15 +68,18 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("disk_check.use_core_loader", true)
 
 	// the darwin and bsd network check has not been ported from python
-	if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
-		// If true, then new version of network v2 check will be used.
-		// Otherwise, the python version of network check will be used.
-		config.BindEnvAndSetDefault("use_networkv2_check", true)
-		config.BindEnvAndSetDefault("network_check.use_core_loader", true)
-	} else {
-		config.BindEnvAndSetDefault("use_networkv2_check", false)
-		config.BindEnvAndSetDefault("network_check.use_core_loader", false)
-	}
+	// If true, then new version of network v2 check will be used.
+	// Otherwise, the python version of network check will be used.
+	config.BindEnvAndSetDefault("use_networkv2_check", GetPlatformDefault(map[string]interface{}{
+		"linux":   true,
+		"windows": true,
+		"other":   false,
+	}))
+	config.BindEnvAndSetDefault("network_check.use_core_loader", GetPlatformDefault(map[string]interface{}{
+		"linux":   true,
+		"windows": true,
+		"other":   false,
+	}))
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -966,11 +968,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	if runtime.GOOS == "windows" {
-		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3335")
-	} else {
-		config.BindEnvAndSetDefault("runtime_security_config.socket", "${install_path}/run/runtime-security.sock")
-	}
+	config.BindEnvAndSetDefault("runtime_security_config.socket", GetPlatformDefault(map[string]interface{}{
+		"windows": "localhost:3335",
+		"other":   "${install_path}/run/runtime-security.sock",
+	}))
 	config.BindEnvAndSetDefault("runtime_security_config.cmd_socket", "")
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
@@ -1139,6 +1140,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.enabled", false)
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.period", 0)
+	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.port", 0)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
@@ -1228,11 +1230,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("health_platform.enabled", true)
 	config.BindEnvAndSetDefault("health_platform.persist_on_kubernetes", false)
 	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 15*time.Minute)
-	// health_platform.invalidconfig_check.enabled is off by default because the check calls
-	// schema.ValidateCoreConfig which decompresses, parses, and compiles the full core_schema.yaml
-	// (~8000 lines) into a *jsonschema.Schema retained globally for the process lifetime.
-	// This adds ~8 MiB of permanent heap even when the agent config is valid.
-	// Enable it deliberately if you need schema validation at startup.
 	config.BindEnvAndSetDefault("health_platform.invalidconfig_check.enabled", true)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
@@ -1252,7 +1249,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
-	// The possible values are: full, basic, end_user_device, none.
+	// The possible values are: full, basic, end_user_device, cloud_cost_only, none.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Infrastructure full mode section (default mode, allows all checks)
@@ -1262,6 +1259,9 @@ func agent(config pkgconfigmodel.Setup) {
 	// Infrastructure end_user_device mode section
 	// integration.end_user_device.allowed: empty means all checks are allowed
 	config.BindEnvAndSetDefault("integration.end_user_device.allowed", []string{})
+
+	// integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only (empty means all checks)
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.tagged", []string{})
 
 	// Infrastructure basic mode section [UNDOCUMENTED]
 	// Note: All checks starting with "custom_" are always allowed.
@@ -1321,7 +1321,10 @@ func agent(config pkgconfigmodel.Setup) {
 	// 		By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
 	config.BindEnvAndSetDefault("GUI_host", "localhost")
 	// Agent GUI access port
-	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
+	config.BindEnvAndSetDefault("GUI_port", GetPlatformDefault(map[string]interface{}{
+		"linux": -1,
+		"other": 5002,
+	}))
 	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
 
 	// Core agent (disabled for Error Tracking Standalone, Logs Collection Only)
@@ -1466,8 +1469,12 @@ func autoconfig(config pkgconfigmodel.Setup) {
 
 func containerSyspath(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("procfs_path", "")
-	config.BindEnvAndSetDefault("container_proc_root", "")
-	config.BindEnvAndSetDefault("container_cgroup_root", "")
+	// The correct default is deduce at runtime by scanning for mounted volumes (see fixupContainerSyspath).
+	// The value here is a generic place holder used for our configuration examples.
+	config.BindEnvAndSetDefault("container_proc_root", "/host/proc")
+	// The correct default is deduce at runtime by scanning for mounted volumes (see fixupContainerSyspath).
+	// The value here is a generic place holder used for our configuration examples.
+	config.BindEnvAndSetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
 	config.BindEnvAndSetDefault("container_pid_mapper", "")
 
 	config.BindEnvAndSetDefault("ignore_host_etc", false)
@@ -1517,6 +1524,16 @@ func telemetry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("agent_telemetry.compression_level", 1)
 	config.BindEnvAndSetDefault("agent_telemetry.use_compression", true)
 	config.BindEnvAndSetDefault("agent_telemetry.startup_trace_sampling", 0)
+
+	// experimental error log forwarding to telemetry. Use-sites must
+	// additionally gate on pkg/config/utils.IsAgentTelemetryEnabled so
+	// gov/FIPS exclusion is inherited from the parent agent_telemetry flag.
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.enabled", false)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.bouncer_window_seconds", 900)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.flush_interval_seconds", 60)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.buffer_size", 2048)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.startup_jitter_seconds", 0)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.shutdown_drain_timeout_seconds", 5)
 }
 
 func serializer(config pkgconfigmodel.Setup) {
@@ -1667,8 +1684,12 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", defaultpaths.GetDefaultStatsdSocket()) // Only enabled on unix systems
-	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")                             // Experimental || Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_socket", GetPlatformDefault(map[string]interface{}{
+		"linux": defaultpaths.GetDefaultStatsdSocket(),
+		"other": "",
+	}))
+
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_stream_log_too_big", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
@@ -1776,16 +1797,16 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// maximum log message size in bytes
 	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
 
-	// increase the number of files that can be tailed in parallel:
-	if runtime.GOOS == "darwin" {
-		// The default limit on darwin is 256.
-		// This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
-		config.BindEnvAndSetDefault("logs_config.open_files_limit", 200)
-	} else {
-		// There is no effective limit for windows due to use of CreateFile win32 API
-		// The OS default for most linux distributions is 1024
-		config.BindEnvAndSetDefault("logs_config.open_files_limit", 500)
-	}
+	// Increase the number of files that can be tailed in parallel:
+	// The default limit on darwin is 256. This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
+	//
+	// There is no effective limit for windows due to use of CreateFile win32 API
+	// The OS default for most linux distributions is 1024
+	config.BindEnvAndSetDefault("logs_config.open_files_limit",
+		GetPlatformDefault(map[string]interface{}{
+			"darwin": 200,
+			"other":  500,
+		}))
 	// add global processing rules that are applied on all logs
 	config.BindEnvAndSetDefault("logs_config.processing_rules", []interface{}{})
 	// enforce the agent to use files to collect container logs on kubernetes environment
@@ -1814,6 +1835,12 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.kubelet_api_client_read_timeout", "30s")
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", "${run_path}")
+	// DEPRECATED in favor of `logs_config.force_use_http`.
+	config.BindEnvAndSetDefault("logs_config.use_http", false)
+	config.BindEnvAndSetDefault("logs_config.force_use_http", false)
+	// DEPRECATED in favor of `logs_config.force_use_tcp`.
+	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
+	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
 	// Maximum interval for HTTP connectivity retry checks with exponential backoff (in seconds)
 	// When TCP fallback occurs, the agent will retry HTTP connectivity at increasing intervals
 	// up to this ceiling, then continue checking at this interval. Default: 1 hour
@@ -1893,6 +1920,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.include", []map[string]interface{}{})
 	// Exclude prevents adaptive sampling from applying to logs matching any rule when configured.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.exclude", []map[string]interface{}{})
+	// Sources listed here will not have adaptive sampling or noisy log detection applied, even if enabled globally.
+	// Useful for auto-discovered sources that cannot be configured via integration-level YAML.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.disabled_sources", []string{})
 	// Tag repetitive logs that would be dropped by the adaptive sampler with noisy_log:true
 	// without dropping them. Real adaptive sampling takes precedence when enabled.
 	config.BindEnvAndSetDefault("logs_config.experimental_noisy_log_detection", false)
@@ -2082,13 +2112,14 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
 	config.BindEnvAndSetDefault("kubernetes_kube_service_ignore_readiness", false)
 
-	if runtime.GOOS == "windows" {
-		config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", `\\.\pipe\kubelet-pod-resources`)
-		config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", `\\.\pipe\kubelet-device-plugins`)
-	} else {
-		config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", "/var/lib/kubelet/pod-resources/kubelet.sock")
-		config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", "/var/lib/kubelet/device-plugins")
-	}
+	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", GetPlatformDefault(map[string]interface{}{
+		"windows": `\\.\pipe\kubelet-pod-resources`,
+		"other":   "/var/lib/kubelet/pod-resources/kubelet.sock",
+	}))
+	config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", GetPlatformDefault(map[string]interface{}{
+		"windows": `\\.\pipe\kubelet-device-plugins`,
+		"other":   "/var/lib/kubelet/device-plugins",
+	}))
 
 	config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_cache_duration", 5*time.Second)
 }
@@ -2156,6 +2187,12 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.debug.dump_interval", 0)
 	config.BindEnvAndSetDefault("anomaly_detection.debug.events_dump_path", "")
 
+	// Ordered metric-processing rules applied at the observer handle boundary.
+	config.BindEnvAndSetDefault("anomaly_detection.metrics.processing_rules", []map[string]interface{}{})
+
+	// Ordered log-processing rules applied to anomaly-detection log sources.
+	config.BindEnvAndSetDefault("anomaly_detection.logs.processing_rules", []map[string]interface{}{})
+
 	// Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_metrics_extractor.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.connection_error_extractor.enabled", false)
@@ -2187,4 +2224,10 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.5)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention_secs", 120)
+
+	// Baseline analysis window.
+	config.BindEnvAndSetDefault("anomaly_detection.baseline_analysis.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.baseline_analysis.mute_noisy_metrics", true)
+	config.BindEnvAndSetDefault("anomaly_detection.baseline_analysis.duration", "10m")
+	config.BindEnvAndSetDefault("anomaly_detection.baseline_analysis.verbose", false)
 }
