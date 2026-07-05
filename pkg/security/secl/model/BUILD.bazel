@@ -201,6 +201,7 @@ go_library(
         "consts_linux_arm.go",
         "consts_linux_arm64.go",
         "consts_map_names_linux.go",
+        "consts_unsupported.go",
         "consts_windows.go",
         "dns_helpers_linux.go",
         "errors.go",
