@@ -6,6 +6,7 @@ exporters:
             dd-api-key: main_key
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
     otlp_http/datadoghq.eu_0:
         compression: zstd
         endpoint: https://otlp.datadoghq.eu
@@ -13,6 +14,7 @@ exporters:
             dd-api-key: eu_key_1
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
     otlp_http/datadoghq.eu_1:
         compression: zstd
         endpoint: https://otlp.datadoghq.eu
@@ -20,6 +22,7 @@ exporters:
             dd-api-key: eu_key_2
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
     otlp_http/datadoghq.eu_2:
         compression: zstd
         endpoint: https://otlp.datadoghq.eu
@@ -27,6 +30,7 @@ exporters:
             dd-api-key: eu_key_3
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 extensions:
     hpflare:
         endpoint: localhost:7778

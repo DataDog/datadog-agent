@@ -75,17 +75,9 @@ xcopy /f %OPENSSL_DIR%*.dll %build_outdir%\
 
 :: Create final layout from the build
 :: --include-dev - include include/ and libs/ directories
-:: --include-venv - necessary for ensurepip to work
+:: --include-venv - include venv support
 :: --include-stable - adds python3.dll
 %build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --precompile --copy %destdir% --include-dev --include-venv --include-stable -vv
-
-if %errorlevel% neq 0 (
-   set script_errorlevel=%errorlevel%
-   goto :cleanup
-)
-
-:: Bootstrap pip
-%destdir%\python.exe -m ensurepip
 
 if %errorlevel% neq 0 (
    set script_errorlevel=%errorlevel%

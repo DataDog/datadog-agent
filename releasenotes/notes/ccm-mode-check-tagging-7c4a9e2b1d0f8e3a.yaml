@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    When ``infrastructure_mode`` is set to ``cloud_cost_only``, the Agent adds an
+    ``infra_mode:cloud_cost_only`` tag to metrics from selected integrations. Use
+    ``integration.cloud_cost_only.tagged`` to list which checks receive the tag; when
+    the list is empty (the default), all checks are tagged.
