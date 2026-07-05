@@ -39,6 +39,7 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.203
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
@@ -147,7 +148,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.80.2
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/pkg/util/log v0.81.0-devel.0.20260603133502-a41610237dba
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.77.0-devel.0.20260213154712-e02b9359151a
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.77.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.80.2
@@ -163,7 +164,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0-devel.0.20260624113434-509b872045c2
 	github.com/DataDog/datadog-agent/pkg/version v0.81.0-devel.0.20260603133502-a41610237dba
 	github.com/DataDog/datadog-go/v5 v5.8.3
-	github.com/DataDog/datadog-operator/api v0.0.0-20260626172128-45c4b00ac27b
+	github.com/DataDog/datadog-operator/api v0.0.0-20260626205451-dfafc0810597
 	github.com/DataDog/datadog-traceroute v1.0.17
 	github.com/DataDog/dd-trace-go/v2 v2.9.0
 	github.com/DataDog/ebpf-manager v0.7.18
@@ -184,11 +185,11 @@ require (
 	github.com/aquasecurity/trivy v0.71.2
 	github.com/aquasecurity/trivy-db v0.0.0-20251222105351-a833f47f8f0d
 	github.com/avast/retry-go/v4 v4.7.0
-	github.com/aws/aws-sdk-go-v2 v1.42.0
-	github.com/aws/aws-sdk-go-v2/config v1.32.25
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.24
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.308.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.119.3
+	github.com/aws/aws-sdk-go-v2 v1.42.1
+	github.com/aws/aws-sdk-go-v2/config v1.32.27
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.26
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.311.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.119.5
 	github.com/aws/karpenter-provider-aws v1.9.0
 	github.com/beevik/ntp v1.5.0
 	github.com/benbjohnson/clock v1.3.5
@@ -223,8 +224,8 @@ require (
 	github.com/fatih/structtag v1.2.0
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
 	github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344
-	github.com/glaslos/ssdeep v0.4.0
-	github.com/go-delve/delve v1.26.3
+	github.com/glaslos/ssdeep v1.0.0
+	github.com/go-delve/delve v1.27.0
 	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8
 	github.com/go-ole/go-ole v1.3.0
 	github.com/go-sql-driver/mysql v1.10.0
@@ -277,7 +278,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/netsampler/goflow2 v1.3.8-0.20260412031118-ad727784ae6f
 	github.com/oliveagle/jsonpath v0.1.4
-	github.com/open-policy-agent/opa v1.17.1
+	github.com/open-policy-agent/opa v1.18.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
@@ -477,19 +478,19 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.29 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.29 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.29 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.30 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.30 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.30 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.58.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.85.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.12 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.29 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.86.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.13 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.30 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.54.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.40.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.31.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.43.3
-	github.com/aws/smithy-go v1.27.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.31.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.8 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.43.5
+	github.com/aws/smithy-go v1.27.3 // indirect
 	github.com/awslabs/operatorpkg v0.0.0-20251222193911-34e9a1898737 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bboreham/go-loser v0.0.0-20230920113527-fcc2c21820a3 // indirect
@@ -518,7 +519,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/digitalocean/go-metadata v0.0.0-20250129100319-e3650a3df44b // indirect
 	github.com/digitalocean/godo v1.193.0 // indirect
-	github.com/docker/cli v29.6.0+incompatible // indirect
+	github.com/docker/cli v29.6.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
@@ -926,15 +927,15 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
 	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
 	github.com/DataDog/rshell v0.0.22
-	github.com/aptly-dev/aptly v1.6.3-0.20260504093056-0d31298f3709
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.42.3
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3
+	github.com/aptly-dev/aptly v1.6.3
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.42.5
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.5
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/bazelbuild/rules_go v0.61.1
 	github.com/cenkalti/backoff/v6 v6.0.1
 	github.com/creack/pty v1.1.24
 	github.com/go-jose/go-jose/v4 v4.1.4
-	github.com/hashicorp/consul/api v1.34.3
+	github.com/hashicorp/consul/api/v2 v2.0.0
 	github.com/hashicorp/vault v1.21.4
 	github.com/hashicorp/vault/api v1.23.0
 	github.com/hashicorp/vault/api/auth/approle v0.12.0
@@ -951,7 +952,7 @@ require (
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.etcd.io/etcd/client/v2 v2.305.31
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.155.0
-	go.temporal.io/api v1.62.14
+	go.temporal.io/api v1.63.0
 	go.temporal.io/sdk v1.45.0
 	go.uber.org/mock v0.6.0
 	mvdan.cc/sh/v3 v3.13.1
@@ -1004,10 +1005,10 @@ require (
 	github.com/apache/arrow-go/v18 v18.6.0 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.30 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.31 // indirect
 	github.com/aws/aws-sdk-go-v2/service/elasticache v1.52.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.52.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.2.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.2.2 // indirect
 	github.com/benbjohnson/immutable v0.4.0 // indirect
 	github.com/bgentry/speakeasy v0.2.0 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
@@ -1045,6 +1046,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/hashicorp/cli v1.1.7 // indirect
+	github.com/hashicorp/consul/api v1.34.3 // indirect
 	github.com/hashicorp/eventlogger v0.2.10 // indirect
 	github.com/hashicorp/go-bexpr v0.1.12 // indirect
 	github.com/hashicorp/go-discover v1.1.1-0.20250922102917-55e5010ad859 // indirect
@@ -1166,9 +1168,6 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
 )
 
-// TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
-replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
-
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
 // use datadog fork of vault/api/auth/aws to reduce binary size for secret-generic-connector
@@ -1232,6 +1231,7 @@ replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog =>
 replace (
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ./comp/anomalydetection/observer/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ./comp/anomalydetection/recorder/def
+	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def => ./comp/anomalydetection/severityevents/def
 	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ./comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ./comp/core/agenttelemetry/fx
@@ -1323,7 +1323,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/setup => ./pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ./pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ./pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ./pkg/discovery/tracermetadata/model
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ./pkg/fips

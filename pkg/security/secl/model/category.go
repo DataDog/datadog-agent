@@ -175,7 +175,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 
 	// Internal
 	case
-		NopEventType.String():
+		NopEventType.String(),
+		SampleRefreshEventType.String():
 		return InternalCategory
 	}
 

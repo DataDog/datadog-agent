@@ -72,6 +72,7 @@ go_library(
         "//pkg/util/stat",
         "//pkg/util/strings",
         "//pkg/util/tags",
+        "@//pkg/util/infratags",
     ],
 )
 
@@ -144,6 +145,7 @@ dd_agent_go_test(
         "//pkg/util/log/setup",
         "//pkg/util/option",
         "//pkg/util/strings",
+        "@//pkg/util/infratags",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",

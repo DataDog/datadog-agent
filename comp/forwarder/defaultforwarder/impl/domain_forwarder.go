@@ -296,7 +296,8 @@ func NewHTTPTransport(config config.Component, numberOfWorkers int, log log.Comp
 	return transport
 }
 
-// Stop stops a domainForwarder, all transactions not yet flushed will be lost.
+// Stop stops a domainForwarder and persists retryable queued transactions when
+// disk storage is enabled.
 func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	// Lock so we can't start a Forwarder while is stopping
 	f.m.Lock()
@@ -320,6 +321,9 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	close(f.requeuedTransaction)
 
 	for t := range f.requeuedTransaction {
+		f.requeueTransaction(t)
+	}
+	for t := range f.lowPrio {
 		f.requeueTransaction(t)
 	}
 	if err := f.retryQueue.FlushToDisk(); err != nil {
