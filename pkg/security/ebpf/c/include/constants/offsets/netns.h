@@ -78,6 +78,12 @@ __attribute__((always_inline)) u32 get_netns_from_socket(struct socket *socket) 
     return get_netns_from_sock(sk);
 }
 
+__attribute__((always_inline)) u64 get_nf_conn_tuplehash_offset(void) {
+    u64 nf_conn_tuplehash_offset;
+    LOAD_CONSTANT("nf_conn_tuplehash_offset", nf_conn_tuplehash_offset);
+    return nf_conn_tuplehash_offset;
+}
+
 __attribute__((always_inline)) u32 get_netns_from_nf_conn(struct nf_conn *ct) {
     u64 nf_conn_ct_net_offset;
     LOAD_CONSTANT("nf_conn_ct_net_offset", nf_conn_ct_net_offset);

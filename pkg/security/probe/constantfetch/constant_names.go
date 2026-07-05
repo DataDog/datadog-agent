@@ -26,6 +26,8 @@ const (
 	OffsetNameLinuxBinprmArgc           = "linux_binprm_argc_offset"
 	OffsetNameLinuxBinprmEnvc           = "linux_binprm_envc_offset"
 	OffsetNameVMAreaStructFlags         = "vm_area_struct_flags_offset"
+	OffsetNameVMAreaStructVMStart       = "vm_area_struct_vm_start_offset"
+	OffsetNameVMAreaStructVMEnd         = "vm_area_struct_vm_end_offset"
 	OffsetNameKernelCloneArgsExitSignal = "kernel_clone_args_exit_signal_offset"
 	OffsetNameFileFinode                = "file_f_inode_offset"
 	OffsetNameFileFpath                 = "file_f_path_offset"
@@ -110,6 +112,7 @@ const (
 	OffsetNameSockCommonStructSKCNet    = "sock_common_skc_net_offset"
 	OffsetNameSocketStructSK            = "socket_sock_offset"
 	OffsetNameNFConnStructCTNet         = "nf_conn_ct_net_offset"
+	OffsetNameNFConnStructTuplehash     = "nf_conn_tuplehash_offset"
 	OffsetNameSockCommonStructSKCFamily = "sock_common_skc_family_offset"
 	OffsetNameSockCommonStructSKCNum    = "sock_common_skc_num_offset"
 	OffsetNameFlowI4StructSADDR         = "flowi4_saddr_offset"
@@ -122,8 +125,14 @@ const (
 	OffsetNameFlowI6StructProto = "flowi6_proto_offset"
 	OffsetNameRtnlLinkOpsKind   = "rtnl_link_ops_kind_offset"
 
+	// nsproxy offsets
+	OffsetNameNsproxyMntNs = "nsproxy_mnt_ns_offset"
+	OffsetNameNsproxyNetNs = "nsproxy_net_ns_offset"
+
 	// Interpreter constants
-	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"
+	OffsetNameLinuxBinprmStructFile     = "binprm_file_offset"
+	OffsetNameLinuxBinprmStructFilename = "linux_binprm_filename_offset"
+	OffsetNameLinuxBinprmStructInterp   = "linux_binprm_interp_offset"
 
 	// iouring constants
 	OffsetNameIoKiocbStructCtx = "iokiocb_ctx_offset"

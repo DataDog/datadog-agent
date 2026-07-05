@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 )
 
@@ -399,14 +400,14 @@ func TestLateAnomalyBeforeFirstAdvance(t *testing.T) {
 func TestRawSeverityLevel(t *testing.T) {
 	cases := []struct {
 		ewma float64
-		want observer.SeverityLevel
+		want severityeventsdef.SeverityLevel
 	}{
-		{0.000, observer.SeverityLow},
-		{0.039, observer.SeverityLow},
-		{0.040, observer.SeverityMedium},
-		{0.059, observer.SeverityMedium},
-		{0.060, observer.SeverityHigh},
-		{1.000, observer.SeverityHigh},
+		{0.000, severityeventsdef.SeverityLow},
+		{0.039, severityeventsdef.SeverityLow},
+		{0.040, severityeventsdef.SeverityMedium},
+		{0.059, severityeventsdef.SeverityMedium},
+		{0.060, severityeventsdef.SeverityHigh},
+		{1.000, severityeventsdef.SeverityHigh},
 	}
 	for _, tc := range cases {
 		got := rawSeverityLevel(tc.ewma, 0.040, 0.060)
@@ -421,13 +422,13 @@ func TestNextSeverityLevelEscalation(t *testing.T) {
 	// margin = 0.060 * 0.20 = 0.012
 	cases := []struct {
 		ewma    float64
-		current observer.SeverityLevel
-		want    observer.SeverityLevel
+		current severityeventsdef.SeverityLevel
+		want    severityeventsdef.SeverityLevel
 	}{
-		{0.060, observer.SeverityLow, observer.SeverityHigh},    // skip straight to High
-		{0.045, observer.SeverityLow, observer.SeverityMedium},  // crosses low threshold
-		{0.030, observer.SeverityLow, observer.SeverityLow},     // stays Low
-		{0.065, observer.SeverityMedium, observer.SeverityHigh}, // escalate Medium→High
+		{0.060, severityeventsdef.SeverityLow, severityeventsdef.SeverityHigh},    // skip straight to High
+		{0.045, severityeventsdef.SeverityLow, severityeventsdef.SeverityMedium},  // crosses low threshold
+		{0.030, severityeventsdef.SeverityLow, severityeventsdef.SeverityLow},     // stays Low
+		{0.065, severityeventsdef.SeverityMedium, severityeventsdef.SeverityHigh}, // escalate Medium→High
 	}
 	for _, tc := range cases {
 		got := nextSeverityLevel(tc.ewma, tc.current, 0.040, 0.060, 0.060*0.20)
@@ -446,15 +447,15 @@ func TestNextSeverityLevelHysteresis(t *testing.T) {
 	// From Medium: drop only when ewma < 0.040-0.012 = 0.028.
 	cases := []struct {
 		ewma    float64
-		current observer.SeverityLevel
-		want    observer.SeverityLevel
+		current severityeventsdef.SeverityLevel
+		want    severityeventsdef.SeverityLevel
 		desc    string
 	}{
-		{0.049, observer.SeverityHigh, observer.SeverityHigh, "High: within hysteresis band"},
-		{0.047, observer.SeverityHigh, observer.SeverityMedium, "High: below hysteresis → Medium"},
-		{0.005, observer.SeverityHigh, observer.SeverityLow, "High: far below → Low"},
-		{0.029, observer.SeverityMedium, observer.SeverityMedium, "Medium: within hysteresis band"},
-		{0.027, observer.SeverityMedium, observer.SeverityLow, "Medium: below hysteresis → Low"},
+		{0.049, severityeventsdef.SeverityHigh, severityeventsdef.SeverityHigh, "High: within hysteresis band"},
+		{0.047, severityeventsdef.SeverityHigh, severityeventsdef.SeverityMedium, "High: below hysteresis -> Medium"},
+		{0.005, severityeventsdef.SeverityHigh, severityeventsdef.SeverityLow, "High: far below -> Low"},
+		{0.029, severityeventsdef.SeverityMedium, severityeventsdef.SeverityMedium, "Medium: within hysteresis band"},
+		{0.027, severityeventsdef.SeverityMedium, severityeventsdef.SeverityLow, "Medium: below hysteresis -> Low"},
 	}
 	for _, tc := range cases {
 		got := nextSeverityLevel(tc.ewma, tc.current, 0.040, 0.060, 0.060*0.20)
@@ -465,77 +466,25 @@ func TestNextSeverityLevelHysteresis(t *testing.T) {
 	}
 }
 
-// ---- scorerEventFilterMatches ----
-
-func TestScorerEventFilterMatches(t *testing.T) {
-	mkEvt := func(from, to observer.SeverityLevel) observer.SeverityEvent {
-		return observer.SeverityEvent{
-			FromLevel: from, ToLevel: to,
-			Direction: severityDirection(from, to),
-		}
-	}
-	cases := []struct {
-		filter observer.AnomalyScorerEventFilter
-		evt    observer.SeverityEvent
-		want   bool
-		desc   string
-	}{
-		{
-			observer.AnomalyScorerEventFilter{},
-			mkEvt(observer.SeverityLow, observer.SeverityMedium),
-			true, "zero filter matches everything",
-		},
-		{
-			observer.AnomalyScorerEventFilter{Direction: observer.AnomalyScorerEventEscalation},
-			mkEvt(observer.SeverityLow, observer.SeverityMedium),
-			true, "escalation filter matches escalation",
-		},
-		{
-			observer.AnomalyScorerEventFilter{Direction: observer.AnomalyScorerEventEscalation},
-			mkEvt(observer.SeverityHigh, observer.SeverityLow),
-			false, "escalation filter rejects de-escalation",
-		},
-		{
-			observer.AnomalyScorerEventFilter{Direction: observer.AnomalyScorerEventDeescalation},
-			mkEvt(observer.SeverityHigh, observer.SeverityLow),
-			true, "de-escalation filter matches de-escalation",
-		},
-		{
-			observer.AnomalyScorerEventFilter{ToLevels: []observer.SeverityLevel{observer.SeverityHigh}},
-			mkEvt(observer.SeverityLow, observer.SeverityHigh),
-			true, "ToLevels match",
-		},
-		{
-			observer.AnomalyScorerEventFilter{ToLevels: []observer.SeverityLevel{observer.SeverityHigh}},
-			mkEvt(observer.SeverityLow, observer.SeverityMedium),
-			false, "ToLevels mismatch",
-		},
-		{
-			observer.AnomalyScorerEventFilter{FromLevels: []observer.SeverityLevel{observer.SeverityMedium}},
-			mkEvt(observer.SeverityMedium, observer.SeverityLow),
-			true, "FromLevels match",
-		},
-		{
-			observer.AnomalyScorerEventFilter{FromLevels: []observer.SeverityLevel{observer.SeverityMedium}},
-			mkEvt(observer.SeverityLow, observer.SeverityMedium),
-			false, "FromLevels mismatch",
-		},
-	}
-	for _, tc := range cases {
-		got := scorerEventFilterMatches(tc.filter, tc.evt)
-		if got != tc.want {
-			t.Errorf("%s: got %v, want %v", tc.desc, got, tc.want)
-		}
-	}
-}
-
 // ---- Subscribe / subscription state machine ----
 
 // collectingListener records every SeverityEvent it receives.
-type collectingListener struct{ events []observer.SeverityEvent }
+type collectingListener struct {
+	events []severityeventsdef.SeverityEvent
+}
 
-func (l *collectingListener) OnSeverityTransition(e observer.SeverityEvent) {
+func (l *collectingListener) OnSeverityTransition(e severityeventsdef.SeverityEvent) {
 	l.events = append(l.events, e)
+}
+
+func mustSubscribeSeverityEvents(t *testing.T, s StandaloneAnomalyScorer, cfg severityeventsdef.SeverityEventsConfiguration) severityeventsdef.SeverityEventsSubscription {
+	t.Helper()
+
+	sub, err := s.SubscribeSeverityEvents(cfg)
+	if err != nil {
+		t.Fatalf("SubscribeSeverityEvents() error = %v", err)
+	}
+	return sub
 }
 
 // TestSubscribeBasic verifies that a listener receives an escalation event when
@@ -548,7 +497,7 @@ func TestSubscribeBasic(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	s.Subscribe(observer.AnomalyScorerConfiguration{Listener: l})
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{Listener: l})
 
 	// Advance with no anomalies: EWMA=0, stays Low — no event.
 	s.Advance(1000)
@@ -565,10 +514,10 @@ func TestSubscribeBasic(t *testing.T) {
 		t.Fatalf("expected 1 escalation event, got %d: %v", len(l.events), l.events)
 	}
 	evt := l.events[0]
-	if evt.FromLevel != observer.SeverityLow || evt.ToLevel != observer.SeverityHigh {
+	if evt.FromLevel != severityeventsdef.SeverityLow || evt.ToLevel != severityeventsdef.SeverityHigh {
 		t.Errorf("escalation event wrong levels: from=%d to=%d", evt.FromLevel, evt.ToLevel)
 	}
-	if evt.Direction != observer.AnomalyScorerEventEscalation {
+	if evt.Direction != severityeventsdef.SeverityEventEscalation {
 		t.Errorf("expected escalation direction, got %d", evt.Direction)
 	}
 }
@@ -582,7 +531,7 @@ func TestSubscribeCooldown(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	s.Subscribe(observer.AnomalyScorerConfiguration{
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
 		Listener:     l,
 		CooldownSecs: 60, // 60s cooldown on de-escalations
 	})
@@ -600,7 +549,7 @@ func TestSubscribeCooldown(t *testing.T) {
 
 	escalations, deescalations := 0, 0
 	for _, e := range l.events {
-		if e.Direction == observer.AnomalyScorerEventEscalation {
+		if e.Direction == severityeventsdef.SeverityEventEscalation {
 			escalations++
 		} else {
 			deescalations++
@@ -617,7 +566,7 @@ func TestSubscribeCooldown(t *testing.T) {
 	s.Advance(1062)
 	deescalations = 0
 	for _, e := range l.events {
-		if e.Direction == observer.AnomalyScorerEventDeescalation {
+		if e.Direction == severityeventsdef.SeverityEventDeescalation {
 			deescalations++
 		}
 	}
@@ -636,9 +585,11 @@ func TestSubscribeFilter(t *testing.T) {
 
 	// Only receive escalations.
 	l := &collectingListener{}
-	s.Subscribe(observer.AnomalyScorerConfiguration{
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
 		Listener: l,
-		Filter:   observer.AnomalyScorerEventFilter{Direction: observer.AnomalyScorerEventEscalation},
+		Filter: severityeventsdef.SeverityEventFilter{
+			Direction: severityeventsdef.SeverityEventEscalation,
+		},
 	})
 
 	// Warm-up: seed state at Low.
@@ -652,19 +603,17 @@ func TestSubscribeFilter(t *testing.T) {
 	if len(l.events) != 1 {
 		t.Fatalf("expected 1 event (only escalation), got %d: %v", len(l.events), l.events)
 	}
-	if l.events[0].Direction != observer.AnomalyScorerEventEscalation {
+	if l.events[0].Direction != severityeventsdef.SeverityEventEscalation {
 		t.Errorf("delivered event should be escalation, got direction=%d", l.events[0].Direction)
 	}
 }
 
-// TestSubscribeNilPanics verifies that Subscribe panics on a nil Listener.
-func TestSubscribeNilPanics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("expected panic for nil Listener, got none")
-		}
-	}()
-	NewAnomalyScorer(DefaultAnomalyScorerConfig()).Subscribe(observer.AnomalyScorerConfiguration{})
+// TestSubscribeNilListenerReturnsError verifies that nil listeners are rejected.
+func TestSubscribeNilListenerReturnsError(t *testing.T) {
+	sub, err := NewAnomalyScorer(DefaultAnomalyScorerConfig()).SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{})
+	if err != severityeventsdef.ErrNilListener {
+		t.Fatalf("expected ErrNilListener, got subscription=%v err=%v", sub, err)
+	}
 }
 
 // TestUnsubscribe verifies that the returned unsubscribe function stops delivery.
@@ -676,14 +625,14 @@ func TestUnsubscribe(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	unsub := s.Subscribe(observer.AnomalyScorerConfiguration{Listener: l})
+	sub := mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{Listener: l})
 
 	// Warm-up: seed at Low.
 	s.Advance(1000)
 
 	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
 	s.Advance(1001) // escalation fires
-	unsub()
+	sub.Unsubscribe()
 
 	s.Advance(1002) // de-escalation would fire, but subscription already removed
 	if len(l.events) != 1 {
@@ -701,7 +650,7 @@ func TestResetClearsSubscriptionState(t *testing.T) {
 	s := NewAnomalyScorer(cfg)
 
 	l := &collectingListener{}
-	s.Subscribe(observer.AnomalyScorerConfiguration{
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
 		Listener:     l,
 		CooldownSecs: 3600, // long cooldown — would suppress de-escalation if stale
 	})
@@ -725,8 +674,51 @@ func TestResetClearsSubscriptionState(t *testing.T) {
 	if after-before != 1 {
 		t.Errorf("expected 1 new escalation event after Reset+replay, got %d new events", after-before)
 	}
-	if l.events[after-1].Direction != observer.AnomalyScorerEventEscalation {
+	if l.events[after-1].Direction != severityeventsdef.SeverityEventEscalation {
 		t.Errorf("post-reset event should be escalation, got direction=%d", l.events[after-1].Direction)
+	}
+}
+
+func TestSubscribeSeverityEventsCreatesIndependentDispatchers(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.Alpha = 0.99
+	cfg.SaturationK = 1.0
+	cfg.WindowSecs = 1
+	s := NewAnomalyScorer(cfg)
+
+	fast := &collectingListener{}
+	slow := &collectingListener{}
+
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
+		Listener: fast,
+	})
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{
+		Listener:     slow,
+		CooldownSecs: 60,
+	})
+
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
+	s.Advance(1001)
+	s.Advance(1002)
+
+	if len(fast.events) != 2 {
+		t.Fatalf("expected fast dispatcher to see escalation and immediate de-escalation, got %d events: %v", len(fast.events), fast.events)
+	}
+	if fast.events[0].Direction != severityeventsdef.SeverityEventEscalation || fast.events[1].Direction != severityeventsdef.SeverityEventDeescalation {
+		t.Fatalf("unexpected fast dispatcher event sequence: %v", fast.events)
+	}
+
+	if len(slow.events) != 1 {
+		t.Fatalf("expected slow dispatcher to only see the escalation before cooldown expiry, got %d events: %v", len(slow.events), slow.events)
+	}
+	if slow.events[0].Direction != severityeventsdef.SeverityEventEscalation {
+		t.Fatalf("expected slow dispatcher event to be the escalation, got %v", slow.events[0])
+	}
+
+	s.Advance(1062)
+	if len(slow.events) != 2 || slow.events[1].Direction != severityeventsdef.SeverityEventDeescalation {
+		t.Fatalf("expected slow dispatcher to emit a delayed de-escalation after cooldown, got %v", slow.events)
 	}
 }
 
@@ -1087,7 +1079,7 @@ func TestPendingEvents_EpisodeStarted(t *testing.T) {
 	if evts[0].Kind != observer.CorrelatorEventEpisodeStarted {
 		t.Errorf("expected EpisodeStarted, got kind %d", evts[0].Kind)
 	}
-	if evts[0].ToLevel != observer.SeverityHigh {
+	if evts[0].ToLevel != severityeventsdef.SeverityHigh {
 		t.Errorf("expected ToLevel=High, got %d", evts[0].ToLevel)
 	}
 	if evts[0].Timestamp != ts {
@@ -1122,7 +1114,7 @@ func TestPendingEvents_EpisodeEnded(t *testing.T) {
 	if evts[0].Kind != observer.CorrelatorEventEpisodeEnded {
 		t.Errorf("expected EpisodeEnded, got kind %d", evts[0].Kind)
 	}
-	if evts[0].FromLevel != observer.SeverityHigh {
+	if evts[0].FromLevel != severityeventsdef.SeverityHigh {
 		t.Errorf("expected FromLevel=High, got %d", evts[0].FromLevel)
 	}
 	if evts[0].Correlation.LastUpdated != endTs {

@@ -12,7 +12,7 @@ import (
 	"errors"
 	"testing"
 
-	consul "github.com/hashicorp/consul/api"
+	consul "github.com/hashicorp/consul/api/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

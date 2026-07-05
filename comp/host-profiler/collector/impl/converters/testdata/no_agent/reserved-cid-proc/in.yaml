@@ -1,0 +1,23 @@
+receivers:
+  profiling:
+    symbol_uploader:
+      enabled: false
+processors:
+  resource/dd-autoconfigured-container-attribute:
+    attributes:
+      - key: container.id
+        value: user-defined-value
+        action: insert
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers:
+      - profiling
+      exporters:
+      - otlp_http
+exporters:
+  otlp_http:
+    headers:
+      dd-api-key: test-api-key
+    profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles

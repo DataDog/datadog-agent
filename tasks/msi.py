@@ -111,8 +111,8 @@ def sign_file(ctx, path, force=False):
     if dd_wcs_enabled or force:
         cert = os.environ.get('WINDOWS_SIGNING_CERT')
         config = os.environ.get('WINDOWS_SIGNING_CONFIG')
-        cert_args = f'--cert {cert} --config {config} ' if cert and config else ''
-        return ctx.run(f'dd-wcs sign {cert_args}"{path}"')
+        cert_args = f'--cert {cert} --key-info {config} ' if cert and config else ''
+        return ctx.run(f'C:/devtools/windows-code-signer.exe sign {cert_args} "{path}"')
 
 
 def _ensure_wix_tools(ctx):

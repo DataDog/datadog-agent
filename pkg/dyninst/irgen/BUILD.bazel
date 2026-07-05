@@ -19,6 +19,7 @@ go_library(
         "visit_type_references.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/irgen",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/dwarf/loclist",
@@ -54,7 +55,12 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":irgen"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/compiler",
         "//pkg/dyninst/dyninsttest",

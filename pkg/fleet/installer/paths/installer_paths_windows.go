@@ -118,6 +118,22 @@ func init() {
 	StableInstallerPath = filepath.Join(DatadogProgramFilesDir, "bin", "datadog-installer.exe")
 }
 
+// ResolveDatadogProgramFilesDir returns the MSI install root, preferring live env and registry
+// over the process-init snapshot. Fleet/OCI installs can run postinst before registry keys exist
+// in the parent process; MSI hooks pass DD_PROJECTLOCATION for the same reason.
+func ResolveDatadogProgramFilesDir() string {
+	if dir := env.FromEnv().MsiParams.ProjectLocation; dir != "" {
+		return filepath.Clean(dir)
+	}
+	if dir, err := winutil.GetProgramFilesDirForProduct("Datadog Agent"); err == nil && dir != "" {
+		return filepath.Clean(dir)
+	}
+	if DatadogProgramFilesDir != "" {
+		return filepath.Clean(DatadogProgramFilesDir)
+	}
+	return ""
+}
+
 // createDirIfNotExists creates a directory if it doesn't exist.
 // Returns an error if the path exists but is not a directory, or if creation fails.
 //

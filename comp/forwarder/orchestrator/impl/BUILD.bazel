@@ -23,8 +23,6 @@ go_library(
         "//pkg/config/env",
         "//pkg/orchestrator/config",
         "//pkg/process/util/api/config",
-        "//pkg/util/fxutil",
         "//pkg/util/option",
-        "@org_uber_go_fx//:fx",
     ],
 )

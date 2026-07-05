@@ -273,7 +273,7 @@ func TestRun(t *testing.T) {
 				time.Minute,
 			)
 
-			mockedSender := mocksender.NewMockSender(CheckName)
+			mockedSender := mocksender.NewMockSender(t, CheckName)
 			mockedSender.SetupAcceptAll()
 
 			// The informers are set up in the first run, but the first metrics
@@ -331,7 +331,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 	k8sClient := fake.NewSimpleClientset()
 	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
 
-	mockedSender := mocksender.NewMockSender(CheckName)
+	mockedSender := mocksender.NewMockSender(t, CheckName)
 	mockedSender.SetupAcceptAll()
 
 	// First run to set up the informers.
@@ -434,7 +434,7 @@ func TestRun_skipEventForExistingRelease(t *testing.T) {
 	k8sClient := fake.NewSimpleClientset()
 	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
 
-	mockedSender := mocksender.NewMockSender(CheckName)
+	mockedSender := mocksender.NewMockSender(t, CheckName)
 	mockedSender.SetupAcceptAll()
 
 	// Create a new release and check that we never send an event for it
@@ -570,7 +570,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 				check.store.add(rel, test.storage, commonTags(rel, test.storage), check.tagsForMetricsAndEvents(rel, true))
 			}
 
-			mockedSender := mocksender.NewMockSender(CheckName)
+			mockedSender := mocksender.NewMockSender(t, CheckName)
 			mockedSender.SetupAcceptAll()
 
 			k8sClient := fake.NewSimpleClientset()

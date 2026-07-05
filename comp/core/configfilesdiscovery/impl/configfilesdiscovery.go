@@ -23,6 +23,7 @@ type Requires struct {
 	Lifecycle     compdef.Lifecycle
 	Autodiscovery autodiscovery.Component
 	WorkloadMeta  workloadmeta.Component
+	Collectors    map[string]ConfigCollector
 }
 
 // Provides defines the output of the config files discovery component.
@@ -40,17 +41,18 @@ type component struct {
 func newComponent(
 	ad autodiscovery.Component,
 	resolver targetResolver,
+	configCollectors map[string]ConfigCollector,
 ) *component {
 	readers := map[RuntimeType]configReaderFactory{
 		RuntimeDocker:     newDockerConfigReader,
 		RuntimeKubernetes: newKubernetesConfigReader,
 	}
-	collectors := map[string]configCollector{
-		redisIntegrationName: newRedisConfigCollector(),
+	if configCollectors == nil {
+		configCollectors = map[string]ConfigCollector{}
 	}
 	return &component{
 		ad:        ad,
-		scheduler: newADScheduler(resolver, readers, collectors, noopConfigFileReporter{}),
+		scheduler: newADScheduler(resolver, readers, configCollectors, noopConfigFileReporter{}),
 	}
 }
 
@@ -59,6 +61,7 @@ func NewComponent(reqs Requires) Provides {
 	c := newComponent(
 		reqs.Autodiscovery,
 		targetResolver{store: reqs.WorkloadMeta},
+		reqs.Collectors,
 	)
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: c.start, OnStop: c.stop})
 	return Provides{Comp: c}

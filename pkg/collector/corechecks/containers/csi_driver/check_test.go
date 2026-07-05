@@ -48,7 +48,7 @@ func newTestCheck() *Check {
 
 func TestConfigureDefault(t *testing.T) {
 	chk := newTestCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	err := chk.Configure(senderManager, integration.FakeConfigHash, []byte(`{}`), []byte(``), "test", "provider")
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestConfigureDefault(t *testing.T) {
 
 func TestConfigureCustomEndpoint(t *testing.T) {
 	chk := newTestCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	instanceCfg := []byte(`openmetrics_endpoint: http://custom:9090/metrics`)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider")
@@ -73,7 +73,7 @@ func TestRunSuccess(t *testing.T) {
 	defer ts.Close()
 
 	chk := newTestCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider")
@@ -121,7 +121,7 @@ func TestRunSuccessWithTotalSuffix(t *testing.T) {
 	defer ts.Close()
 
 	chk := newTestCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider")
@@ -159,7 +159,7 @@ func TestRunSuccessWithTotalSuffix(t *testing.T) {
 
 func TestRunEndpointDown(t *testing.T) {
 	chk := newTestCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	instanceCfg := []byte(`openmetrics_endpoint: http://127.0.0.1:1/bad`)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider")
@@ -185,7 +185,7 @@ func TestRunEmptyResponse(t *testing.T) {
 	defer ts.Close()
 
 	chk := newTestCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider")

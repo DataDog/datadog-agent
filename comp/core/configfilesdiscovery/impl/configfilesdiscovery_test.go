@@ -268,7 +268,7 @@ func TestSchedulerDispatchesKubernetesOwnedContainerToKubernetesReader(t *testin
 	s := newADScheduler(
 		targetResolver{store: store},
 		map[RuntimeType]configReaderFactory{RuntimeKubernetes: readerFactory.Build},
-		map[string]configCollector{"redis": collector},
+		map[string]ConfigCollector{"redis": collector},
 		nil,
 	)
 	defer s.Stop()
@@ -278,8 +278,7 @@ func TestSchedulerDispatchesKubernetesOwnedContainerToKubernetesReader(t *testin
 		checkConfig("redis", "containerd://standalone"),
 	})
 
-	runs := collector.waitForRuns(t, 1)
-	assert.Equal(t, RuntimeKubernetes, runs[0].reader.Runtime())
+	collector.waitForRuns(t, 1)
 	targets := readerFactory.recordedTargets()
 	require.Len(t, targets, 1)
 	assert.Equal(t, target{runtime: RuntimeKubernetes, entityID: "abc123"}, targets[0])
@@ -314,7 +313,7 @@ func TestSchedulerClosesReaderAfterCollection(t *testing.T) {
 			s := newADScheduler(
 				targetResolver{},
 				map[RuntimeType]configReaderFactory{RuntimeDocker: readerFactory},
-				map[string]configCollector{"redis": collector},
+				map[string]ConfigCollector{"redis": collector},
 				nil,
 			)
 			defer s.Stop()
@@ -342,7 +341,7 @@ func TestSchedulerDispatchesRegisteredIntegrationsOnly(t *testing.T) {
 	s := newADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build},
-		map[string]configCollector{"redis": collector},
+		map[string]ConfigCollector{"redis": collector},
 		nil,
 	)
 	defer s.Stop()
@@ -355,8 +354,7 @@ func TestSchedulerDispatchesRegisteredIntegrationsOnly(t *testing.T) {
 		{Name: "redis", ServiceID: "process://9999", ClusterCheck: true, Instances: []integration.Data{[]byte("{}")}},
 	})
 
-	runs := collector.waitForRuns(t, 1)
-	assert.Equal(t, RuntimeHost, runs[0].reader.Runtime())
+	collector.waitForRuns(t, 1)
 	targets := readerFactory.recordedTargets()
 	require.Len(t, targets, 1)
 	assert.Equal(t, target{runtime: RuntimeHost, entityID: "1234"}, targets[0])
@@ -364,10 +362,11 @@ func TestSchedulerDispatchesRegisteredIntegrationsOnly(t *testing.T) {
 
 func TestSchedulerContinuesAfterInvalidConfigInBatch(t *testing.T) {
 	collector := &recordingConfigCollector{}
+	readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: RuntimeDocker}}
 	s := newADScheduler(
 		targetResolver{},
-		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
-		map[string]configCollector{"redis": collector},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: readerFactory.Build},
+		map[string]ConfigCollector{"redis": collector},
 		nil,
 	)
 	defer s.Stop()
@@ -377,8 +376,10 @@ func TestSchedulerContinuesAfterInvalidConfigInBatch(t *testing.T) {
 		checkConfig("redis", "docker://abc123"),
 	})
 
-	runs := collector.waitForRuns(t, 1)
-	assert.Equal(t, RuntimeDocker, runs[0].reader.Runtime())
+	collector.waitForRuns(t, 1)
+	targets := readerFactory.recordedTargets()
+	require.Len(t, targets, 1)
+	assert.Equal(t, target{runtime: RuntimeDocker, entityID: "abc123"}, targets[0])
 }
 
 func TestSchedulerRunsCollectorOutsideScheduleCallback(t *testing.T) {
@@ -389,7 +390,7 @@ func TestSchedulerRunsCollectorOutsideScheduleCallback(t *testing.T) {
 	s := newADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeHost: readerFactory.Build},
-		map[string]configCollector{"redis": collector},
+		map[string]ConfigCollector{"redis": collector},
 		nil,
 	)
 	defer s.Stop()
@@ -427,18 +428,18 @@ func TestSchedulerReportsCollectedFiles(t *testing.T) {
 	s := newADScheduler(
 		targetResolver{},
 		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
-		map[string]configCollector{redisIntegrationName: collector},
+		map[string]ConfigCollector{"redisdb": collector},
 		reporter,
 	)
 	defer s.Stop()
 
 	s.Schedule([]integration.Config{
-		checkConfig(redisIntegrationName, "docker://abc123"),
+		checkConfig("redisdb", "docker://abc123"),
 	})
 
 	reports := reporter.waitForReports(t, 1)
 	assert.Equal(t, configFileReportCall{
-		integration: redisIntegrationName,
+		integration: "redisdb",
 		file: ConfigFile{
 			Path:      "/etc/redis/redis.conf",
 			Content:   []byte("port 6379\n"),
@@ -467,16 +468,17 @@ func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
 	assert.Equal(t, schedulerName, ac.removedName)
 }
 
-func TestComponentRegistersRedisCollector(t *testing.T) {
-	c := newComponent(nil, targetResolver{})
+func TestComponentRegistersProvidedCollectors(t *testing.T) {
+	collector := &recordingConfigCollector{}
+	c := newComponent(nil, targetResolver{}, map[string]ConfigCollector{"custom": collector})
 	adScheduler, ok := c.scheduler.(*adScheduler)
 	require.True(t, ok)
 
-	assert.Contains(t, adScheduler.collectors, redisIntegrationName)
+	assert.Same(t, collector, adScheduler.collectors["custom"])
 }
 
 func TestComponentRegistersKubernetesConfigReader(t *testing.T) {
-	c := newComponent(nil, targetResolver{})
+	c := newComponent(nil, targetResolver{}, nil)
 	adScheduler, ok := c.scheduler.(*adScheduler)
 	require.True(t, ok)
 

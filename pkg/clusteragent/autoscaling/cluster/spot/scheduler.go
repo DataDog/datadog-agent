@@ -34,10 +34,11 @@ type scheduler struct {
 	tracker     *podTracker
 	controller  *workloadController
 	telemetry   *telemetry
+	events      *spotEventRecorder
 	synced      chan struct{}
 }
 
-func newScheduler(cfg Config, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, dynamicClient dynamic.Interface, lister podLister, isLeader func() bool, tel *telemetry) *scheduler {
+func newScheduler(cfg Config, wlm workloadmeta.Component, evictor podEvictor, patcher workloadPatcher, dynamicClient dynamic.Interface, lister podLister, isLeader func() bool, tel *telemetry, events *spotEventRecorder) *scheduler {
 	s := &scheduler{
 		config:    cfg,
 		wlm:       wlm,
@@ -45,6 +46,7 @@ func newScheduler(cfg Config, wlm workloadmeta.Component, evictor podEvictor, pa
 		patcher:   patcher,
 		isLeader:  isLeader,
 		telemetry: tel,
+		events:    events,
 		synced:    make(chan struct{}),
 	}
 	defaultConfig := workloadSpotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}
@@ -146,6 +148,7 @@ func (s *scheduler) rebalance(ctx context.Context) {
 			}
 			log.Infof("Evicted pod %s/%s (%s) for rebalancing", owner.Namespace, name, uid)
 			s.telemetry.observeRebalanceEviction(owner, isSpot)
+			s.events.rebalancingEviction(owner.Namespace, name, isSpot)
 		}
 	}
 }
@@ -258,6 +261,7 @@ func (s *scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time
 			}
 			log.Infof("Evicted timed-out pending spot pod %s (%s) of %s for on-demand fallback", pod.name, uid, pod.topLevelOwner)
 			s.tracker.deletePendingSpotPod(uid)
+			s.events.fallbackEviction(pod.topLevelOwner.Namespace, pod.name)
 		}
 	}
 }
@@ -286,6 +290,7 @@ func (s *scheduler) disableSpotScheduling(ctx context.Context, topLevelOwner obj
 	err := s.patcher.setDisabledUntil(ctx, topLevelOwner, disabledUntil)
 	if err == nil {
 		s.telemetry.observeFallback(topLevelOwner)
+		s.events.schedulingDisabled(topLevelOwner, disabledUntil)
 	}
 	return err
 }

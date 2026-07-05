@@ -43,7 +43,7 @@ type TargetCommandline struct {
 	WorkingDir string
 }
 
-// ConfigReader is the runtime-specific config access layer used by config collectors.
+// ConfigReader is the runtime-specific config access layer managed by the scheduler.
 type ConfigReader interface {
 	Runtime() RuntimeType
 	ReadFile(context.Context, string) (ConfigFile, error)
@@ -54,7 +54,8 @@ type ConfigReader interface {
 
 type configReaderFactory func(target) (ConfigReader, error)
 
-type configCollector interface {
+// ConfigCollector reads integration-specific config files through a collector reader.
+type ConfigCollector interface {
 	Collect(context.Context, ConfigReader) ([]ConfigFile, error)
 }
 

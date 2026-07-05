@@ -11,8 +11,6 @@ package orchestratorimpl
 import (
 	"context"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -27,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -43,17 +40,9 @@ type Requires struct {
 	Params  orchestrator.Params
 }
 
-// Module defines the fx options for this component.
-func Module(params orchestrator.Params) fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(newOrchestratorForwarder),
-		fx.Supply(params),
-	)
-}
-
-// newOrchestratorForwarder returns an orchestratorForwarder
+// NewComponent returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func newOrchestratorForwarder(deps Requires) orchestrator.Component {
+func NewComponent(deps Requires) orchestrator.Component {
 	if deps.Params.UseNoopOrchestratorForwarder() {
 		return createComponent(defaultforwardernoop.NewComponent())
 	}

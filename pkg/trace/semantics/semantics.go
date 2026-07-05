@@ -162,4 +162,7 @@ type Registry interface {
 
 	// Version returns the semantic registry version string.
 	Version() string
+
+	// ContentHash returns the content-bound hash of the registry's concept mappings.
+	ContentHash() string
 }

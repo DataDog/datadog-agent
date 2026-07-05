@@ -33,6 +33,7 @@
     "acl": "Pending tracking. Hosted on Savannah (download.savannah.nongnu.org); needs a customDatasource. Phase 3.",
     "curl": "Pending tracking in Phase 2a (github-releases batch). Tarball is on curl.haxx.se but releases are tagged on github.com/curl/curl.",
     "cpython": "Pending tracking in Phase 2a (github-releases batch). Released on python.org; corresponding GitHub tags exist at github.com/python/cpython.",
+    "pip": "Pending tracking.",
     "freetds": "Pending tracking in Phase 2a (github-releases batch). Tarballs on freetds.org; releases tagged at github.com/FreeTDS/freetds.",
     "libpcap": "Pending tracking in Phase 2a (github-releases batch). Tarball on tcpdump.org; releases tagged at github.com/the-tcpdump-group/libpcap.",
     "nfsiostat": "Pending tracking in Phase 2c. Hosted on kernel.org mirrors (no GitHub mirror with reliable tags). Needs a customDatasource.",

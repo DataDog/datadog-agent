@@ -25,6 +25,15 @@ dda inv -- schema.locate <setting.path>
 `datadog.yaml` / `system-probe.yaml` — e.g. `api_key`, `proxy.https`,
 `apm_config.enabled`. (Use `--` so invoke treats the path as a positional arg.)
 
+It can also be a **pattern**: any argument containing a character outside
+`[A-Za-z0-9_.]` (e.g. `*`, `$`, `[`) is matched against *every* full dotted path
+in the schema instead of looked up exactly. The pattern is treated as a regular
+expression (`re.search`); if it isn't valid regex it falls back to shell-style
+glob (`fnmatch`). So `'*enabled'` lists every setting whose path ends with
+`enabled`. Pattern matches are printed as a compact, sorted
+`[<schema>] <path>  ->  <file>:<line>` list (one line per match) rather than full
+node blocks; pass `--json` for the full `{schema, path, file, line, node}` array.
+
 ### Flags
 
 | Flag | Effect |
@@ -76,6 +85,13 @@ dda inv -- schema.locate apm_config
 
 # Restrict to one schema and get machine-readable output
 dda inv -- schema.locate process_config.enabled --target core --json
+
+# Pattern (glob): every setting whose full path ends with 'enabled'
+dda inv -- schema.locate '*enabled'
+
+# Pattern (regex): every path containing 'proxy' (a bare word like 'proxy' is an
+# exact lookup, so add metacharacters to force a pattern/contains-match)
+dda inv -- schema.locate '.*proxy'
 ```
 
 ## Related

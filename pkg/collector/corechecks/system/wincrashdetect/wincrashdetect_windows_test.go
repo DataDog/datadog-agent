@@ -90,7 +90,7 @@ func TestWinCrashReporting(t *testing.T) {
 
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
-		mock := mocksender.NewMockSender(crashCheck.ID())
+		mock := mocksender.NewMockSender(t, crashCheck.ID())
 		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
@@ -118,7 +118,7 @@ func TestWinCrashReporting(t *testing.T) {
 		}
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
-		mock := mocksender.NewMockSender(crashCheck.ID())
+		mock := mocksender.NewMockSender(t, crashCheck.ID())
 		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
@@ -248,7 +248,7 @@ func TestCrashReportingStates(t *testing.T) {
 
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
-		mock := mocksender.NewMockSender(crashCheck.ID())
+		mock := mocksender.NewMockSender(t, crashCheck.ID())
 		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
@@ -311,7 +311,7 @@ func TestCrashReportingStates(t *testing.T) {
 
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
-		mock := mocksender.NewMockSender(crashCheck.ID())
+		mock := mocksender.NewMockSender(t, crashCheck.ID())
 		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
@@ -336,7 +336,7 @@ func TestCrashReportingStates(t *testing.T) {
 
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
-		mock := mocksender.NewMockSender(crashCheck.ID())
+		mock := mocksender.NewMockSender(t, crashCheck.ID())
 		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 

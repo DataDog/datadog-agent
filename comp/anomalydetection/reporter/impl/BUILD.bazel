@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/reporter/def",
+        "//comp/anomalydetection/severityevents/def",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",

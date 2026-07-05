@@ -209,6 +209,7 @@ impl ManagedProcess {
         if !self.state.can_transition_to(ProcessState::Starting) {
             bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
         }
+        self.stop_requested = false;
         self.transition_to(ProcessState::Starting);
         let result = self.try_spawn();
         if result.is_err() {
@@ -441,6 +442,7 @@ impl ManagedProcess {
     }
 
     fn mark_stopped(&mut self) {
+        self.stop_requested = false;
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
         #[cfg(windows)]
@@ -1140,6 +1142,33 @@ runtime_success_sec: 5
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn test_stop_start_then_crash_restarts_on_failure() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::OnFailure;
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+        proc.spawn().unwrap();
+
+        proc.request_stop();
+        let _ = proc.take_child();
+        // Mirrors handle_stop: wait_for_stop may call mark_stopped before the exit
+        // watcher runs set_last_status, leaving stop_requested set without this clear.
+        proc.mark_stopped();
+
+        proc.spawn().unwrap();
+        let mut child = proc.take_child().unwrap();
+        child.kill().await.expect("kill child");
+        let status = child.wait().await.unwrap();
+        proc.set_last_status(status);
+
+        assert_eq!(proc.state(), ProcessState::Failed);
+        assert!(
+            proc.handle_restart().is_some(),
+            "on-failure should restart after stop -> start -> external kill"
+        );
     }
 
     #[tokio::test]

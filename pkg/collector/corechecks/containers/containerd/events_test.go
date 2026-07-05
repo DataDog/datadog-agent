@@ -323,7 +323,7 @@ container_exclude_logs: image:dd-log-exclude
 		containerFilter: fakeFilterStore.GetContainerSharedMetricFilters(),
 		tagger:          fakeTagger,
 	}
-	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	mocked := mocksender.NewMockSender(t, containerdCheck.ID())
 
 	tests := []struct {
 		name          string

@@ -6,7 +6,7 @@
 mod helpers;
 
 use dd_procmgrd::test_helpers;
-use helpers::{CliRunner, TestEnv, pid_is_alive, wait_for_pid_gone, write_config};
+use helpers::{CliRunner, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gone, write_config};
 use std::path::Path;
 use std::time::Duration;
 
@@ -1257,6 +1257,42 @@ fn test_cli_create_stop_start_cycle() {
 
     let new_pid = env.cli(&["describe", "svc"]).pid_from_field("PID");
     assert!(pid_is_alive(new_pid), "PID {new_pid} should be alive");
+}
+
+#[test]
+fn test_cli_stop_start_then_kill_restarts_on_failure() {
+    let env = TestEnv::new()
+        .with_config(
+            "sleeper",
+            &test_helpers::sleep_config_with("restart: on-failure\n"),
+        )
+        .start();
+
+    env.daemon().wait_for_log_default("[sleeper] spawned");
+
+    env.cli(&["stop", "sleeper"]).assert_success();
+    env.cli(&["start", "sleeper"]).assert_success();
+    assert!(
+        env.daemon()
+            .wait_for_log_count("[sleeper] spawned", 2, Duration::from_secs(10)),
+        "start after stop should spawn a new child"
+    );
+
+    let pid = env.cli(&["describe", "sleeper"]).pid_from_field("PID");
+    kill_pid_force(pid);
+
+    assert!(
+        env.daemon()
+            .wait_for_log_count("[sleeper] spawned", 3, Duration::from_secs(10)),
+        "on-failure should auto-restart after stop -> start -> external kill"
+    );
+
+    let json = env.cli(&["list", "--json"]).stdout_json();
+    assert_eq!(json[0]["state"], "Running");
+    assert!(
+        json[0]["restart_count"].as_u64().unwrap() >= 1,
+        "restart_count should reflect the crash restart"
+    );
 }
 
 #[test]

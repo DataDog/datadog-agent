@@ -16,14 +16,13 @@ load(
     "LIB_CURLU_SRCS_DARWIN",
     "LIB_CURLU_SRCS_LINUX",
     "LIB_CURL_SRCS_ALL",
+    "VERSION",
 )
 
 package(
     default_package_metadata = [":license"],
     default_visibility = ["@@//packages:__subpackages__"],
 )
-
-VERSION = "8.18.0"
 
 SO_VERSION = "4.8.0"
 

@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "processmanager",
     srcs = [
+        "adp_procmgr_config_windows.go",
         "ddot_procmgr_config_windows.go",
         "reload_windows.go",
     ],

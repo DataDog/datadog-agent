@@ -50,8 +50,9 @@ const (
 	cacheValidityNoRT = 2 * time.Second
 
 	// Service discovery constants
-	maxPortCheckTries                   = 10
-	serviceCollectionBatchSizeConfigKey = "discovery.service_collection_batch_size"
+	maxPortCheckTries                       = 10
+	serviceCollectionBatchSizeConfigKey     = "discovery.service_collection_batch_size"
+	serviceCollectionMinProcessAgeConfigKey = "discovery.service_collection_min_process_age"
 )
 
 type collector struct {
@@ -68,13 +69,14 @@ type collector struct {
 	containerProvider      proccontainers.ContainerProvider
 
 	// Service discovery fields
-	sysProbeClient             *sysprobeclient.CheckClient
-	serviceCollectionBatchSize int
-	serviceRetries             map[int32]uint
-	ignoredPids                core.PidSet
-	pidHeartbeats              map[int32]time.Time
-	knownInjectionStatusPids   core.PidSet // Track PIDs whose injection status we've already reported (but have no service data yet)
-	metricDiscoveredServices   telemetry.Gauge
+	sysProbeClient                 *sysprobeclient.CheckClient
+	serviceCollectionBatchSize     int
+	serviceCollectionMinProcessAge time.Duration
+	serviceRetries                 map[int32]uint
+	ignoredPids                    core.PidSet
+	pidHeartbeats                  map[int32]time.Time
+	knownInjectionStatusPids       core.PidSet // Track PIDs whose injection status we've already reported (but have no service data yet)
+	metricDiscoveredServices       telemetry.Gauge
 }
 
 // EventType represents the type of collector event
@@ -116,13 +118,14 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
 
 		// Initialize service discovery fields
-		sysProbeClient:             sysprobeclient.GetCheckClient(),
-		serviceCollectionBatchSize: systemProbeConfig.GetInt(serviceCollectionBatchSizeConfigKey),
-		serviceRetries:             make(map[int32]uint),
-		ignoredPids:                make(core.PidSet),
-		pidHeartbeats:              make(map[int32]time.Time),
-		knownInjectionStatusPids:   make(core.PidSet),
-		metricDiscoveredServices:   discoveredServicesGauge,
+		sysProbeClient:                 sysprobeclient.GetCheckClient(),
+		serviceCollectionBatchSize:     systemProbeConfig.GetInt(serviceCollectionBatchSizeConfigKey),
+		serviceCollectionMinProcessAge: systemProbeConfig.GetDuration(serviceCollectionMinProcessAgeConfigKey),
+		serviceRetries:                 make(map[int32]uint),
+		ignoredPids:                    make(core.PidSet),
+		pidHeartbeats:                  make(map[int32]time.Time),
+		knownInjectionStatusPids:       make(core.PidSet),
+		metricDiscoveredServices:       discoveredServicesGauge,
 	}
 }
 
@@ -346,10 +349,10 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 			continue
 		}
 
-		// Filter out processes that started less than a minute ago
+		// Filter out processes that have not reached the minimum age yet
 		if proc, exists := procs[pid]; exists {
 			processStartTime := time.UnixMilli(proc.Stats.CreateTime).UTC()
-			if now.Sub(processStartTime) < time.Minute {
+			if now.Sub(processStartTime) < c.serviceCollectionMinProcessAge {
 				continue
 			}
 		}

@@ -8,6 +8,13 @@ go_library(
         "kernel_bugs_arm64.go",
         "kernel_bugs_nobpf.go",
     ],
+    embedsrcs = select({
+        "@rules_go//go/platform:linux_amd64": [
+            "//pkg/ebpf/kernelbugs/c:uprobe-trigger",  # keep
+            "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug",  # keep
+        ],
+        "//conditions:default": [],
+    }),
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs",
     visibility = ["//visibility:public"],
     deps = select({

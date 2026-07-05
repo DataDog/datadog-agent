@@ -30,6 +30,7 @@ go_library(
         "//pkg/metrics/servicecheck",
         "//pkg/util/log",
         "//pkg/util/option",
+        "@//pkg/util/infratags",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )

@@ -9,6 +9,7 @@ package retry
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -146,8 +147,82 @@ func TestTransactionRetryQueueZeroMaxMemSizeInBytes(t *testing.T) {
 	a.Equal(pointDropped+1, transactionContainerPointDroppedCountTelemetry.expvar.Value())
 }
 
+// Verifies that when memory is tight, normal-priority transactions are dropped
+// before high-priority ones regardless of insertion order.
+//
+// Setup: max=15, queue has high(5)+normal(5)=10. Adding new(10) needs 5 bytes freed.
+// The drop sorter extracts from the low-priority tail, so normal(5) is dropped, high(5) survives.
+func TestTransactionRetryQueueDropsNormalPriorityBeforeHigh(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 15, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+
+	high := createTransactionWithPayloadSize(5)
+	high.Priority = transaction.TransactionPriorityHigh
+	_, err := container.Add(high)
+	a.NoError(err)
+
+	normal := createTransactionWithPayloadSize(5)
+	normal.Priority = transaction.TransactionPriorityNormal
+	_, err = container.Add(normal)
+	a.NoError(err)
+
+	// Adding a 10-byte item overflows by 5: (5+5+10)-15=5. The normal-priority transaction
+	// (5 bytes) should be dropped; the high-priority one should survive.
+	newTx := createTransactionWithPayloadSize(10)
+	newTx.Priority = transaction.TransactionPriorityNormal
+	dropCount, err := container.Add(newTx)
+	a.NoError(err)
+	a.Equal(1, dropCount)
+
+	transactions, err := container.ExtractTransactions()
+	a.NoError(err)
+	r.Len(transactions, 2)
+	priorities := []transaction.Priority{transactions[0].GetPriority(), transactions[1].GetPriority()}
+	a.Contains(priorities, transaction.TransactionPriorityHigh)
+}
+
+// Verifies that among same-priority transactions, the oldest are dropped first
+// when the memory limit is reached.
+//
+// Setup: max=25, add old(10)+middle(10)=20. Adding recent(10) overflows by 5,
+// so one transaction must be dropped. The oldest (`old`) should be chosen.
+func TestTransactionRetryQueueDropsOldestFirst(t *testing.T) {
+	a := assert.New(t)
+	r := require.New(t)
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 25, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+
+	old := createTransactionWithPayloadSize(10)
+	old.Priority = transaction.TransactionPriorityNormal
+	middle := createTransactionWithPayloadSize(10)
+	middle.Priority = transaction.TransactionPriorityNormal
+	recent := createTransactionWithPayloadSize(10)
+	recent.Priority = transaction.TransactionPriorityNormal
+	// Ensure deterministic creation-time ordering by explicit assignment.
+	old.CreatedAt = old.CreatedAt.Add(-2 * time.Second)
+	middle.CreatedAt = middle.CreatedAt.Add(-1 * time.Second)
+
+	_, _ = container.Add(middle)
+	_, _ = container.Add(old)
+
+	// Adding `recent` overflows by 5: (20+10)-25=5. Should drop `old` (oldest, 10 bytes >= 5).
+	dropCount, err := container.Add(recent)
+	a.NoError(err)
+	a.Equal(1, dropCount)
+
+	transactions, err := container.ExtractTransactions()
+	a.NoError(err)
+	r.Len(transactions, 2)
+	// middle and recent survive; old was dropped.
+	survivingTimes := []time.Time{transactions[0].GetCreatedAt(), transactions[1].GetCreatedAt()}
+	a.Contains(survivingTimes, middle.CreatedAt)
+	a.Contains(survivingTimes, recent.CreatedAt)
+	a.NotContains(survivingTimes, old.CreatedAt)
+}
+
 func createTransactionWithPayloadSize(payloadSize int) *transaction.HTTPTransaction {
 	tr := transaction.NewHTTPTransaction()
+	tr.CreatedAt = time.Unix(int64(payloadSize), 0)
 	payload := make([]byte, payloadSize)
 	tr.Payload = transaction.NewBytesPayload(payload, 1)
 	return tr
@@ -170,7 +245,7 @@ func assertPayloadSizeFromExtractTransactions(
 }
 
 func createDropPrioritySorter() transaction.SortByCreatedTimeAndPriority {
-	return transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
+	return transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 }
 
 func newOnDiskRetryQueueTest(t *testing.T, a *assert.Assertions) *onDiskRetryQueue {

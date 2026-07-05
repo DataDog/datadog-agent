@@ -17,7 +17,7 @@ import (
 	"sort"
 	"strings"
 
-	consul "github.com/hashicorp/consul/api"
+	consul "github.com/hashicorp/consul/api/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"

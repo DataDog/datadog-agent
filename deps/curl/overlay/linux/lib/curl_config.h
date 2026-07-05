@@ -3,13 +3,13 @@
 
 /* !checksrc! disable COPYRIGHT all */
 
-/* Location of default ca bundle */
+/* Location of default CA bundle */
 #define CURL_CA_BUNDLE "/etc/ssl/certs/ca-certificates.crt"
 
 /* define "1" to use OpenSSL's built-in CA store */
 /* #undef CURL_CA_FALLBACK */
 
-/* Location of default ca path */
+/* Location of default CA path */
 #define CURL_CA_PATH "/etc/ssl/certs"
 
 /* If safe CA bundle search is enabled */
@@ -108,7 +108,7 @@
 /* to disable NTLM support */
 /* #undef CURL_DISABLE_NTLM */
 
-/* if the OpenSSL configuration will not be loaded automatically */
+/* if the OpenSSL configuration is not loaded automatically */
 /* #undef CURL_DISABLE_OPENSSL_AUTO_LOAD_CONFIG */
 
 /* disable date parsing */
@@ -446,6 +446,12 @@
 /* Define to 1 if you have the memrchr function or macro. */
 #define HAVE_MEMRCHR 1
 
+/* Define to 1 if you have the `memset_explicit' function. */
+/* #undef HAVE_MEMSET_EXPLICIT */
+
+/* Define to 1 if you have the memset_s function. */
+/* #undef HAVE_MEMSET_S */
+
 /* Define to 1 if you have the MSG_NOSIGNAL flag. */
 #define HAVE_MSG_NOSIGNAL 1
 
@@ -695,6 +701,9 @@
 /* Define to 1 if you have the <termio.h> header file. */
 #define HAVE_TERMIO_H 1
 
+/* if POSIX pthreads are supported */
+#define HAVE_THREADS_POSIX 1
+
 /* Define this if time_t is unsigned */
 /* #undef HAVE_TIME_T_UNSIGNED */
 
@@ -881,8 +890,17 @@
 /* if openssl QUIC is in use */
 /* #undef USE_OPENSSL_QUIC */
 
+/* if HTTP/3 proxy support is available */
+/* #undef USE_PROXY_HTTP3 */
+
 /* if quiche is in use */
 /* #undef USE_QUICHE */
+
+/* if you want c-ares for DNS lookup */
+/* #undef USE_RESOLV_ARES */
+
+/* if you want threaded DNS lookup */
+#define USE_RESOLV_THREADED 1
 
 /* if Rustls is enabled */
 /* #undef USE_RUSTLS */
@@ -892,9 +910,6 @@
 
 /* if SSL session export support is available */
 /* #undef USE_SSLS_EXPORT */
-
-/* if you want POSIX threaded DNS lookup */
-#define USE_THREADS_POSIX 1
 
 /* if you want Win32 threaded DNS lookup */
 /* #undef USE_THREADS_WIN32 */

@@ -166,7 +166,7 @@ func TestProvider_Provide(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+			mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -230,7 +230,7 @@ func TestProvider_DisableProvider(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+	mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)

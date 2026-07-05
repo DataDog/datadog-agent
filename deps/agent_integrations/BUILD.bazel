@@ -35,7 +35,10 @@ entrypoints_dirname = select({
 
 install_wheels(
     name = "integrations",
-    srcs = ["@integration_source_packages//:all_wheels"] + select(
+    srcs = [
+        "@integration_source_packages//:all_wheels",
+        "@pip//file",
+    ] + select(
         {
             "//:linux_x86_64": ["@integration_dependency_wheels_linux_x86_64//:dependency_wheels"],
             "//:linux_arm64": ["@integration_dependency_wheels_linux_aarch64//:dependency_wheels"],

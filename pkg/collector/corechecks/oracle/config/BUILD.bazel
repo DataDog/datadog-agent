@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = [
+        "config.go",
+        "metric.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/metadata/host/impl/hosttags",
+        "//pkg/collector/corechecks/oracle/common",
+        "//pkg/config/setup",
+        "//pkg/obfuscate",
+        "//pkg/util/log",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)

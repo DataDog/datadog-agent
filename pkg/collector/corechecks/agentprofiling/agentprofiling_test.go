@@ -38,7 +38,7 @@ user_email: "%s"
 terminate_agent_on_threshold: %t`, memoryThreshold, cpuThreshold, ticketID, userEmail, terminateAgent))
 
 	initConfig := []byte("")
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test", "provider")
 	require.NoError(t, err)
 
@@ -103,7 +103,7 @@ func createCheckWithFailingFlare(t *testing.T, memoryThreshold string, cpuThresh
 cpu_threshold: %d`, memoryThreshold, cpuThreshold))
 
 	initConfig := []byte("")
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test", "provider")
 	require.NoError(t, err)
 
@@ -256,7 +256,7 @@ ticket_id: "1234567"
 user_email: "user@example.com"`)
 
 	initConfig := []byte("")
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test", "provider")
 	require.NoError(t, err)
 

@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+#gazelle:dd_linux_bpf on
+
+go_library(
+    name = "verifier",
+    srcs = [
+        "elf.go",
+        "stats.go",
+        "stats_no_linux.go",
+        "types.go",
+        "verifier_log_parser.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/verifier",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/impl/noops",
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/names",
+        "//pkg/ebpf/telemetry",
+        "//pkg/util/kernel",
+        "//pkg/util/safeelf",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+    ],
+)
+
+go_test(
+    name = "verifier_test",
+    srcs = [
+        "elf_test.go",
+        "stats_test.go",
+        "verifier_log_parser_test.go",
+    ],
+    embed = [":verifier"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    tags = ["manual"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/util/filesystem",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//rlimit",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

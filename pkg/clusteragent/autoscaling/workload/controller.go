@@ -395,8 +395,6 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// Fall through to normal scaling logic.
 	} else if podAutoscalerInternal.Spec().Owner == datadoghqcommon.DatadogPodAutoscalerLocalOwner {
 		// Sync logic for local ownership: Kubernetes is the source of truth.
-		// UpdateFromPodAutoscaler internally short-circuits when neither .metadata.generation
-		// nor any of the watched labels/annotations has changed.
 		podAutoscalerInternal.UpdateFromPodAutoscaler(podAutoscaler)
 	}
 

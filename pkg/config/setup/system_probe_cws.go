@@ -95,7 +95,6 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enrichment_interval", "1m")
-	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enrichment_ticker", "1m")
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.refresh_interval", "3s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.forward_interval", "20s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
@@ -124,7 +123,8 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.profile_cleanup_delay", "60m")
 
 	// CWS - Security Profile V2
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "dns", "bind", "connect"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "dns", "bind", "connect", "open"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.sample_refresh_period", "30s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.excluded_images", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.max_dump_size", 5120)
 

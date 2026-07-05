@@ -66,7 +66,7 @@ func TestIoCheckWindows(t *testing.T) {
 	addDefaultQueryReturnValues()
 
 	ioCheck := new(IOCheck)
-	mock := mocksender.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
 	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/kB, "", []string{"device:C:"}).Return().Times(1)
@@ -102,7 +102,7 @@ func TestIoCheckLowercaseDeviceTag(t *testing.T) {
 	rawInitConfigYaml := []byte(`
 lowercase_device_tag: true
 `)
-	mock := mocksender.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
 	err := ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, rawInitConfigYaml, "test", "provider")
 	require.NoError(t, err)
 
@@ -140,7 +140,7 @@ func TestIoCheckInstanceAdded(t *testing.T) {
 	addDriveDReturnValues()
 
 	ioCheck := new(IOCheck)
-	mock := mocksender.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
 	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	pdhtest.AddCounterInstance("LogicalDisk", "Y:")
@@ -200,7 +200,7 @@ func TestIoCheckInstanceRemoved(t *testing.T) {
 	addDriveDReturnValues()
 
 	ioCheck := new(IOCheck)
-	mock := mocksender.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
 	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/kB, "", []string{"device:C:"}).Return().Times(3)

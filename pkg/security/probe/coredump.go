@@ -41,10 +41,10 @@ func (cd *CoreDump) ToJSON() ([]byte, error) {
 	}
 
 	content := struct {
-		Event   json.RawMessage
-		Process json.RawMessage
-		Mount   json.RawMessage
-		Dentry  json.RawMessage
+		Event   json.RawMessage `json:"event"`
+		Process json.RawMessage `json:"process"`
+		Mount   json.RawMessage `json:"mount"`
+		Dentry  json.RawMessage `json:"dentry"`
 	}{
 		Event: data,
 	}

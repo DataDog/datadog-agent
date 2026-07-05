@@ -1902,6 +1902,12 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
+	case model.SampleRefreshEventType:
+		var ev model.SampleRefreshEvent
+		if _, err := ev.UnmarshalBinary(data[offset:]); err == nil {
+			p.profileManager.HandleSampleRefresh(ev.Cookie)
+		}
+		return false
 	case model.NopEventType:
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
@@ -2268,12 +2274,19 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
+	// Network interface and socket tracking probes are required independently of the current ruleset or
+	// network filter actions as these are used to track resources that are needed if we later
+	// dynamically load network rules or network filter actions.
+	if p.config.Probe.NetworkEnabled {
+		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket())...)
+	}
+
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
 		activatedProbes = append(activatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
 	}
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket()) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
 			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
@@ -2956,6 +2969,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
 		},
 		manager.ConstantEditor{
+			Name:  "sample_refresh_period_ns",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_dns_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDNSEnabled),
 		},
@@ -3472,7 +3489,11 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructFilename, "struct linux_binprm", "filename")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructInterp, "struct linux_binprm", "interp")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMStart, "struct vm_area_struct", "vm_start")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMEnd, "struct vm_area_struct", "vm_end")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFinode, "struct file", "f_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFpath, "struct file", "f_path")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
@@ -3485,6 +3506,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
 	}
+
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyMntNs, "struct nsproxy", "mnt_ns")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyNetNs, "struct nsproxy", "net_ns")
 
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
@@ -3592,6 +3616,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	if !kv.IsRH7Kernel() {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructCTNet, "struct nf_conn", "ct_net")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructTuplehash, "struct nf_conn", "tuplehash")
 	}
 
 	if getNetStructType(kv) == netStructHasProcINum {

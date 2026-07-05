@@ -29,7 +29,7 @@ import (
 import "C"
 
 func testSubmitMetric(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -107,7 +107,7 @@ func testSubmitMetric(t *testing.T) {
 }
 
 func testSubmitMetricEmptyTags(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -129,7 +129,7 @@ func testSubmitMetricEmptyTags(t *testing.T) {
 }
 
 func testSubmitMetricEmptyHostname(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -151,7 +151,7 @@ func testSubmitMetricEmptyHostname(t *testing.T) {
 }
 
 func testSubmitServiceCheck(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -172,7 +172,7 @@ func testSubmitServiceCheck(t *testing.T) {
 }
 
 func testSubmitServiceCheckEmptyTag(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -193,7 +193,7 @@ func testSubmitServiceCheckEmptyTag(t *testing.T) {
 }
 
 func testSubmitServiceCheckEmptyHostame(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -214,7 +214,7 @@ func testSubmitServiceCheckEmptyHostame(t *testing.T) {
 }
 
 func testSubmitEvent(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -253,7 +253,7 @@ func testSubmitEvent(t *testing.T) {
 }
 
 func testSubmitHistogramBucket(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -279,7 +279,7 @@ func testSubmitHistogramBucket(t *testing.T) {
 }
 
 func testSubmitEventPlatformEvent(t *testing.T) {
-	sender := mocksender.NewMockSender("testID")
+	sender := mocksender.NewMockSender(t, "testID")
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)

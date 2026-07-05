@@ -23,7 +23,7 @@ import (
 import "C"
 
 func testIsContainerExcluded(t *testing.T) {
-	sender := mocksender.NewMockSender("testID")
+	sender := mocksender.NewMockSender(t, "testID")
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 

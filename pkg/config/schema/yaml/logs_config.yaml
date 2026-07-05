@@ -802,6 +802,7 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: DEPRECATED in favor of `logs_config.force_use_http`.
   use_podman_logs:
     node_type: setting
     type: boolean
@@ -825,6 +826,7 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: DEPRECATED in favor of `logs_config.force_use_tcp`.
   use_v2_api:
     node_type: setting
     type: boolean

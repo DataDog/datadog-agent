@@ -330,8 +330,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	}
 
 	flushToDiskMemRatio := config.GetFloat64("forwarder_flush_to_disk_mem_ratio")
-	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
-	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
+	transactionSorter := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 
 	for domain, resolver := range options.DomainResolvers {
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
@@ -356,7 +355,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				flushToDiskMemRatio,
 				domainFolderPath,
 				diskUsageLimit,
-				transactionContainerSort,
+				transactionSorter,
 				resolver,
 				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
@@ -374,7 +373,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				transactionContainer,
 				numberOfWorkers,
 				options.ConnectionResetInterval,
-				domainForwarderSort,
+				transactionSorter,
 				pointCountTelemetry,
 				options.transport)
 			f.domainForwarders[domain] = fwd

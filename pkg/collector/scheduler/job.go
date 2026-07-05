@@ -60,6 +60,7 @@ func (jb *jobBucket) removeJob(id checkid.ID) bool {
 // scheduled at a certain interval.
 type jobQueue struct {
 	interval            time.Duration
+	isShadow            bool
 	stop                chan bool // to stop this queue
 	stopped             chan bool // signals that this queue has stopped
 	buckets             []*jobBucket
@@ -74,12 +75,17 @@ type jobQueue struct {
 }
 
 // newJobQueue creates a new jobQueue instance
-func newJobQueue(interval time.Duration) *jobQueue {
+func newJobQueue(interval time.Duration, isShadow bool) *jobQueue {
+	healthName := fmt.Sprintf("collector-queue-%vs", interval.Seconds())
+	if isShadow {
+		healthName += "-shadow"
+	}
 	jq := &jobQueue{
 		interval:     interval,
+		isShadow:     isShadow,
 		stop:         make(chan bool),
 		stopped:      make(chan bool),
-		health:       health.RegisterLiveness(fmt.Sprintf("collector-queue-%vs", interval.Seconds())),
+		health:       health.RegisterLiveness(healthName),
 		bucketTicker: time.NewTicker(time.Second),
 	}
 
@@ -153,6 +159,7 @@ func (jq *jobQueue) stats() map[string]interface{} {
 		"Interval": jq.interval / time.Second,
 		"Buckets":  nBuckets,
 		"Size":     nJobs,
+		"Shadow":   jq.isShadow,
 	}
 }
 
@@ -197,30 +204,44 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 
 		log.Tracef("Jobs in bucket: %v", jobs)
 
-		for _, check := range jobs {
-			if !s.IsCheckScheduled(check.ID()) {
-				continue
-			}
-
-			select {
-			// blocking, we'll be here as long as it takes
-			case s.checksPipe <- check:
-			case <-jq.stop:
-				_ = jq.health.Deregister()
-				return false
-			}
-
-			select {
-			// we were able to schedule a check so we're not stuck, therefore poll the health chan
-			case <-jq.health.C:
-			default:
-			}
+		if !jq.dispatchJobs(s, jobs) {
+			return false
 		}
+
 		jq.mu.Lock()
 		jq.currentBucketIdx = (jq.currentBucketIdx + 1) % uint(len(jq.buckets))
 		jq.mu.Unlock()
 	case <-jq.health.C:
 		// nothing
+	}
+
+	return true
+}
+
+func (jq *jobQueue) dispatchJobs(s *Scheduler, jobs []check.Check) bool {
+	checksPipe := s.checksPipe
+	if jq.isShadow {
+		checksPipe = s.shadowChecksPipe
+	}
+
+	for _, ch := range jobs {
+		if !s.IsCheckScheduled(ch.ID()) {
+			continue
+		}
+
+		select {
+		// blocking, we'll be here as long as it takes
+		case checksPipe <- ch:
+		case <-jq.stop:
+			_ = jq.health.Deregister()
+			return false
+		}
+
+		select {
+		// we were able to schedule a check so we're not stuck, therefore poll the health chan
+		case <-jq.health.C:
+		default:
+		}
 	}
 
 	return true

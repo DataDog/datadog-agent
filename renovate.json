@@ -169,6 +169,11 @@
         "enabled": false
       },
       {
+        "matchManagers": ["bazel-module"],
+        "matchDepNames": ["rules_rust", "rules_rust_prost"],
+        "groupName": "rules_rust"
+      },
+      {
         "matchManagers": ["bundler"],
         "matchDepNames": ["omnibus"],
         "enabled": false

@@ -75,6 +75,7 @@ enum event_type
     EVENT_TRACER_MEMFD_CREATE,
     EVENT_TRACER_MEMFD_SEAL,
     EVENT_PIVOT_ROOT,
+    EVENT_SAMPLE_REFRESH,
     EVENT_SETSID,
     EVENT_NOP,
     EVENT_SOCKET,
@@ -111,6 +112,7 @@ enum
     RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP = 1 << 1, // defines if the dentry should have been discarded, but was saved because of an activity dump
     RESOLVER_FLAG_APPLY_DISCARDERS = 1 << 2, // defines whether to apply the discarders or not
     RESOLVER_FLAG_BASENAME_APPROVED = 1 << 3, // defines that the dentry was approved by basename during the dentry resolution
+    SAMPLE_REFRESH_NEEDED = 1 << 4, // a sample refresh event should be emitted for this dedup cookie
 };
 
 enum policy_mode

@@ -469,7 +469,7 @@ func TestGivenADiskCheckWithCreateMountsConfiguredWithoutHost_WhenCheckIsConfigu
 		return nil
 	}
 	diskCheck := createWindowsCheck(t)
-	m := mocksender.NewMockSender(diskCheck.ID())
+	m := mocksender.NewMockSender(t, diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 create_mounts:
@@ -497,7 +497,7 @@ func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckRunsAndIOCountersSys
 		return errors.New("error calling NetAddConnection")
 	}
 	diskCheck := createWindowsCheck(t)
-	m := mocksender.NewMockSender(diskCheck.ID())
+	m := mocksender.NewMockSender(t, diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
 create_mounts:

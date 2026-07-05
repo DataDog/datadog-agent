@@ -162,6 +162,7 @@ func compileRuleTags(tags []string) ([]string, error) {
 		compiled = append(compiled, trimmed)
 	}
 	slices.Sort(compiled)
+	compiled = slices.Compact(compiled)
 	return compiled, nil
 }
 
@@ -197,6 +198,8 @@ func (f *metricsFilterRules) setMuted(m map[uint64]struct{}) {
 	f.muted.Store(&m)
 }
 
+// matches reports whether the rule applies to the given metric.
+// tags must be sorted in ascending order (guaranteed by canonicalizeTags in prepareMetricIngest).
 func (r metricsCompiledRule) matches(name, source string, tags []string) bool {
 	if r.source != "" && source != r.source {
 		return false
@@ -206,20 +209,17 @@ func (r metricsCompiledRule) matches(name, source string, tags []string) bool {
 		return false
 	}
 
-	for _, ruleTag := range r.tags {
-		if !containsRuleTag(tags, ruleTag) {
-			return false
-		}
-	}
-
-	return true
+	return containsAllTagsSorted(tags, r.tags)
 }
 
-func containsRuleTag(tags []string, want string) bool {
-	for _, tag := range tags {
-		if tag == want {
-			return true
+// containsAllTagsSorted reports whether all ruleTags appear in sampleTags.
+// Both slices must be sorted in ascending order.
+func containsAllTagsSorted(sampleTags, ruleTags []string) bool {
+	j := 0
+	for i := 0; i < len(sampleTags) && j < len(ruleTags); i++ {
+		if sampleTags[i] == ruleTags[j] {
+			j++
 		}
 	}
-	return false
+	return j == len(ruleTags)
 }

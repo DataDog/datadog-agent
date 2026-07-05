@@ -323,7 +323,7 @@ func (h *RemoteConfigHandler) onSemanticCoreUpdate(
 		}
 		if !semantics.RegistryEqual(embedded, semantics.DefaultRegistry()) {
 			semantics.UpdateRegistry(embedded)
-			pkglog.Infof("semantic-core RC: empty payload received; reverted to embedded registry version=%s", embedded.Version())
+			pkglog.Infof("semantic-core RC: empty payload received; reverted to embedded registry content_hash=%s", embedded.ContentHash())
 		}
 		return
 	}
@@ -356,14 +356,14 @@ func (h *RemoteConfigHandler) onSemanticCoreUpdate(
 
 	if chosen != nil {
 		if semantics.RegistryEqual(chosen, semantics.DefaultRegistry()) {
-			// Same registry version as the one already live: skip the swap.
+			// Same registry content_hash as the one already live: skip the swap.
 			// Downstream consumers detect registry replacement themselves by
-			// comparing the live registry's version against their own cached
+			// comparing the live registry's content_hash against their own cached
 			// state, so we don't need to notify them explicitly.
-			pkglog.Debugf("semantic-core RC payload %s matches the live registry version; no-op", chosenPath)
+			pkglog.Debugf("semantic-core RC payload %s matches the live registry content_hash; no-op", chosenPath)
 		} else {
 			semantics.UpdateRegistry(chosen)
-			pkglog.Infof("semantic-core registry updated via RC: version=%s, cfgPath=%s", chosen.Version(), chosenPath)
+			pkglog.Infof("semantic-core registry updated via RC: content_hash=%s, cfgPath=%s", chosen.ContentHash(), chosenPath)
 		}
 	}
 

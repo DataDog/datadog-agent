@@ -166,7 +166,7 @@ func createTestComponent(t *testing.T) (*networkDeviceConfigImpl, *services) {
 	t.Cleanup(func() { cache.Cache.Delete(cache.BuildAgentKey("hostname")) })
 
 	conf := agentconfig.NewMock(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	sender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
 	clock := clock.NewMock()
 	clock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))

@@ -26,6 +26,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/log",
         "//pkg/util/option",
+        "@//pkg/util/infratags",
         "@in_yaml_go_yaml_v2//:yaml",
         "@org_golang_x_text//cases",
         "@org_golang_x_text//language",

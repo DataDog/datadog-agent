@@ -3,8 +3,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "trietest",
     srcs = ["trie.go"],
+    cdeps = ["//pkg/dyninst/ebpf:dyninst_ebpf_headers"],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/trietest",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
 )
 
@@ -15,7 +17,11 @@ go_test(
         "trie_test.go",
     ],
     embed = [":trietest"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "@com_github_stretchr_testify//require",
         "@net_pgregory_rapid//:rapid",

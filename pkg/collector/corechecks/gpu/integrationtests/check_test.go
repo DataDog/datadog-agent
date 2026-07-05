@@ -60,7 +60,7 @@ func (suite *CheckTestSuite) SetupTest() {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	gpu.SetupWorkloadmetaGPUs(t, wmetaMock, fakeTagger, gpuspec.DeviceModePhysical, false)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	checkInstance := gpu.NewCheck(fakeTagger, testutil.GetTelemetryMock(t), wmetaMock)
 	mockSender := mocksender.NewMockSenderWithSenderManager(checkInstance.ID(), senderManager)
 	mockSender.SetupAcceptAll()

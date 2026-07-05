@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix a bug in the OTel Agent where OTLP explicit-bucket histograms with
+    bounds beyond the internal sketch's representable range could exhaust
+    memory and crash the process, or — once the loop was bounded — record
+    non-finite ``min``, ``max``, ``sum``, and ``avg`` in the resulting
+    sketch. Saturating bounds are now clamped to the largest representable
+    finite bin.

@@ -7,7 +7,7 @@ require (
 	github.com/bazelbuild/bazelisk v1.29.0
 	github.com/favadi/protoc-go-inject-tag v1.4.0
 	github.com/frapposelli/wwhrd v0.4.0
-	github.com/go-delve/delve v1.26.3
+	github.com/go-delve/delve v1.27.0
 	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/golangci/golangci-lint/v2 v2.12.2
 	github.com/goware/modvendor v0.5.0

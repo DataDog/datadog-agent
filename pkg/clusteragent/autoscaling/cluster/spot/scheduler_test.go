@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/record"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -37,21 +38,23 @@ var defaultTestConfig = spot.Config{
 }
 
 // runTestScheduler creates and starts a Scheduler for testing.
-func runTestScheduler(ctx context.Context, cluster *fakeCluster) (*spot.TestScheduler, *mocksender.MockSender) {
+// It returns the scheduler, the metric sender, and a FakeRecorder that captures Kubernetes events emitted by the scheduler.
+func runTestScheduler(ctx context.Context, cluster *fakeCluster) (*spot.TestScheduler, *mocksender.MockSender, *record.FakeRecorder) {
 	// Use a bare MockSender without a demultiplexer: the demultiplexer starts
 	// background goroutines that get trapped in the synctest bubble and cause
 	// a deadlock when the test exits. All assertion methods only use mock.Mock.
 	m := new(mocksender.MockSender)
 	m.SetupAcceptAll()
 
-	scheduler := spot.NewTestScheduler(defaultTestConfig, m, cluster.WLM(), cluster.EvictPodByName, cluster.DynamicClient())
+	r := record.NewFakeRecorder(100)
+	scheduler := spot.NewTestScheduler(defaultTestConfig, m, r, cluster.WLM(), cluster.EvictPodByName, cluster.DynamicClient())
 	scheduler.Start(ctx)
 	scheduler.WaitSynced()
 
 	cluster.OnPodCreated(scheduler.PodCreated)
 	cluster.OnPodDeleted(scheduler.PodDeleted)
 
-	return scheduler, m
+	return scheduler, m, r
 }
 
 // spotEnabledLabels returns the labels required to opt a workload into spot scheduling.
@@ -110,7 +113,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		_, m := runTestScheduler(t.Context(), cluster)
+		_, m, _ := runTestScheduler(t.Context(), cluster)
 
 		// When
 		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(100, 2), 1)
@@ -132,7 +135,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddSpotNode("spot")
 
 		const replicas = 10
-		_, m := runTestScheduler(t.Context(), cluster)
+		_, m, _ := runTestScheduler(t.Context(), cluster)
 		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(60, 2), replicas)
 
 		// When
@@ -155,7 +158,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		_, m := runTestScheduler(t.Context(), cluster)
+		_, m, _ := runTestScheduler(t.Context(), cluster)
 
 		// When: initial deployment with 5 replicas at 60%
 		labels := spotEnabledLabels()
@@ -188,7 +191,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		_, m := runTestScheduler(t.Context(), cluster)
+		_, m, _ := runTestScheduler(t.Context(), cluster)
 
 		// When
 		const replicas = 10
@@ -241,7 +244,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		// No spot node: spot-assigned pods stay Pending.
 
-		s, m := runTestScheduler(t.Context(), cluster)
+		s, m, r := runTestScheduler(t.Context(), cluster)
 
 		// When
 		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(60, 2), 10)
@@ -265,6 +268,11 @@ func TestScenarios(t *testing.T) {
 		expectRunningOnDemand(t, pods, 4)
 		// Pending pods evicted
 		expectPending(t, pods, 0)
+		// SpotSchedulingDisabled on the workload, then one SpotFallbackEviction per evicted pending pod
+		assertEvent(t, r, spot.EventReasonSpotSchedulingDisabled)
+		for range 6 {
+			assertEvent(t, r, spot.EventReasonSpotFallbackEviction)
+		}
 
 		// When
 		// ReplicaSet recreates pods
@@ -298,6 +306,7 @@ func TestScenarios(t *testing.T) {
 			// ReplicaSet recreates pod
 			d.Reconcile()
 			waitSchedulerTickAfter(s.Config().RebalanceStabilizationPeriod)
+			assertEvent(t, r, spot.EventReasonSpotRebalancingEviction)
 		}
 
 		// Then
@@ -317,7 +326,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		_, m := runTestScheduler(t.Context(), cluster)
+		_, m, _ := runTestScheduler(t.Context(), cluster)
 
 		const replicas = 10
 		const minOnDemand = 2
@@ -372,7 +381,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		s, m := runTestScheduler(t.Context(), cluster)
+		s, m, r := runTestScheduler(t.Context(), cluster)
 
 		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(60, 2), 10)
 		rs := d.ReplicaSet()
@@ -395,6 +404,7 @@ func TestScenarios(t *testing.T) {
 		// Then: excess on-demand pod evicted
 		pods = cluster.ListOwnerPods(kubernetes.ReplicaSetKind, "default", rs)
 		expectRunningOnDemand(t, pods, 2)
+		assertEvent(t, r, spot.EventReasonSpotRebalancingEviction)
 
 		// ReplicaSet recreates the evicted pod as spot
 		d.Reconcile()
@@ -404,7 +414,6 @@ func TestScenarios(t *testing.T) {
 		pods = cluster.ListOwnerPods(kubernetes.ReplicaSetKind, "default", rs)
 		expectRunningSpot(t, pods, 3)
 		expectRunningOnDemand(t, pods, 2)
-
 		wait(spot.MetricsFlushInterval)
 		expectWorkloadMetrics(t, m, kubernetes.DeploymentKind, "default", "nginx", workloadMetricValues{spot: 3, onDemand: 2, evictedOnDemand: 1})
 		expectWorkloadKindMetrics(t, m, workloadKindMetricsValues{deployments: 1})
@@ -416,7 +425,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		s, m := runTestScheduler(t.Context(), cluster)
+		s, m, r := runTestScheduler(t.Context(), cluster)
 
 		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(60, 2), 10)
 		rs := d.ReplicaSet()
@@ -444,6 +453,7 @@ func TestScenarios(t *testing.T) {
 			// Then: excess spot pod evicted
 			pods = cluster.ListOwnerPods(kubernetes.ReplicaSetKind, "default", rs)
 			expectRunningSpot(t, pods, 4-i)
+			assertEvent(t, r, spot.EventReasonSpotRebalancingEviction)
 
 			// ReplicaSet recreates the evicted pod as on-demand (on-demand count still below minOnDemand)
 			d.Reconcile()
@@ -467,7 +477,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		s, m := runTestScheduler(t.Context(), cluster)
+		s, m, r := runTestScheduler(t.Context(), cluster)
 
 		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(60, 1), 10)
 		rs := d.ReplicaSet()
@@ -491,6 +501,7 @@ func TestScenarios(t *testing.T) {
 		// Then: excess spot pod evicted
 		pods = cluster.ListOwnerPods(kubernetes.ReplicaSetKind, "default", rs)
 		expectRunningSpot(t, pods, 3)
+		assertEvent(t, r, spot.EventReasonSpotRebalancingEviction)
 
 		// ReplicaSet recreates the evicted pod as on-demand
 		d.Reconcile()
@@ -500,7 +511,6 @@ func TestScenarios(t *testing.T) {
 		pods = cluster.ListOwnerPods(kubernetes.ReplicaSetKind, "default", rs)
 		expectRunningSpot(t, pods, 3)
 		expectRunningOnDemand(t, pods, 2)
-
 		wait(spot.MetricsFlushInterval)
 		expectWorkloadMetrics(t, m, kubernetes.DeploymentKind, "default", "nginx", workloadMetricValues{spot: 3, onDemand: 2, evictedSpot: 1})
 		expectWorkloadKindMetrics(t, m, workloadKindMetricsValues{deployments: 1})
@@ -512,7 +522,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		s, m := runTestScheduler(t.Context(), cluster)
+		s, m, _ := runTestScheduler(t.Context(), cluster)
 
 		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(60, 2), 10)
 		rs := d.ReplicaSet()
@@ -548,7 +558,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		_, m := runTestScheduler(t.Context(), cluster)
+		_, m, _ := runTestScheduler(t.Context(), cluster)
 
 		// When
 		d := cluster.CreateDeployment("default", "nginx", nil, nil, 5)
@@ -569,7 +579,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		s, m := runTestScheduler(t.Context(), cluster)
+		s, m, _ := runTestScheduler(t.Context(), cluster)
 
 		const replicas = 10
 		const spotPercentage = 60
@@ -622,7 +632,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		s, m := runTestScheduler(t.Context(), cluster)
+		s, m, _ := runTestScheduler(t.Context(), cluster)
 
 		const replicas = 5
 		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(60, 1), replicas)
@@ -658,7 +668,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		s, m := runTestScheduler(t.Context(), cluster)
+		s, m, _ := runTestScheduler(t.Context(), cluster)
 
 		const replicas = 5
 		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(60, 1), replicas)
@@ -694,7 +704,7 @@ func TestScenarios(t *testing.T) {
 		cluster.AddOnDemandNode("on-demand")
 		cluster.AddSpotNode("spot")
 
-		s, m := runTestScheduler(t.Context(), cluster)
+		s, m, _ := runTestScheduler(t.Context(), cluster)
 
 		// When
 		d := cluster.CreateDeployment("default", "nginx", nil, nil, 5)
@@ -735,7 +745,7 @@ func TestScenarios(t *testing.T) {
 		// When
 		stopScheduler()
 
-		s2, m := runTestScheduler(t.Context(), cluster)
+		s2, m, _ := runTestScheduler(t.Context(), cluster)
 
 		// Then
 		waitABit()
@@ -834,6 +844,17 @@ type workloadMetricValues struct {
 type workloadKindMetricsValues struct {
 	deployments               int
 	activeDeploymentFallbacks int
+}
+
+// assertEvent asserts that the next event in the recorder contains the given reason.
+func assertEvent(t *testing.T, recorder *record.FakeRecorder, reason string) {
+	t.Helper()
+	select {
+	case event := <-recorder.Events:
+		assert.Contains(t, event, reason)
+	default:
+		t.Errorf("expected %s event, got none", reason)
+	}
 }
 
 // expectWorkloadMetrics verifies per-workload metrics for the given kind/namespace/name.

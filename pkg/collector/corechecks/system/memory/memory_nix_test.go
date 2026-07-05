@@ -86,7 +86,7 @@ pgsteal_direct 450
 		return nil, errors.New("file not found")
 	}
 
-	mock := mocksender.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(t, memCheck.ID())
 
 	runtimeOS = "linux"
 
@@ -139,7 +139,7 @@ func TestMemoryCheckFreebsd(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(Check)
 
-	mock := mocksender.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(t, memCheck.ID())
 
 	runtimeOS = "freebsd"
 
@@ -172,7 +172,7 @@ func TestMemoryCheckDarwin(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(Check)
 
-	mock := mocksender.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(t, memCheck.ID())
 
 	runtimeOS = "darwin"
 
@@ -205,7 +205,7 @@ func TestMemoryError(t *testing.T) {
 	swapMemory = func() (*mem.SwapMemoryStat, error) { return nil, errors.New("some error") }
 	memCheck := new(Check)
 
-	mock := mocksender.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(t, memCheck.ID())
 
 	runtimeOS = "linux"
 	mock.On("FinalizeCheckServiceTag").Return().Times(1)
@@ -228,7 +228,7 @@ func TestSwapMemoryError(t *testing.T) {
 		return nil, errors.New("file not found")
 	}
 
-	mock := mocksender.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(t, memCheck.ID())
 
 	runtimeOS = "linux"
 
@@ -263,7 +263,7 @@ func TestVirtualMemoryError(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(Check)
 
-	mock := mocksender.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(t, memCheck.ID())
 
 	runtimeOS = "linux"
 

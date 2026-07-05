@@ -19,9 +19,11 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -197,8 +199,12 @@ type disabledObserver struct{}
 func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
 func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
-func (*disabledObserver) SubscribeScorer(_ observerdef.AnomalyScorerConfiguration) func() {
-	return func() {}
+
+func (*disabledObserver) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
+	return severityeventsdef.SeverityEventsSubscription{
+		Dispatcher:  nil,
+		Unsubscribe: func() {},
+	}, nil
 }
 
 // NewComponent creates an observer.Component.
@@ -367,6 +373,14 @@ func NewComponent(deps Requires) (Provides, error) {
 	// defaults to true when unset (explicit false disables it).
 	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
 	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.logs.internal.enabled") || cfg.GetBool("anomaly_detection.logs.internal.enabled")
+
+	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
+	logsRules, err := logsfilter.LoadRules(cfg, logsProcessingRulesKey)
+	if err != nil {
+		deps.Log.Warnf("[observer] %s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
+		logsRules = &logsfilter.Rules{}
+	}
+
 	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
 		minSeverity := cfg.GetString("anomaly_detection.logs.internal.min_severity")
 		maxRateHigh := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_high_priority")
@@ -375,7 +389,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		agentLogsHandle := obs.GetHandle("agent_logs")
 		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
 			obsTelemetry.recordSamplerDropped("internal", priority)
-		})
+		}, logsRules)
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
 				pkglog.SetLogObserver(nil)
@@ -687,16 +701,19 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	return o.engine.Storage().DumpToFile(path)
 }
 
-// SubscribeScorer registers a scorer event listener described by cfg.
+// SubscribeSeverityEvents registers a scorer event listener described by cfg.
 // Delegates to the engine scorer when one is configured.
-func (o *observerImpl) SubscribeScorer(cfg observerdef.AnomalyScorerConfiguration) func() {
+func (o *observerImpl) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
 	o.engine.mu.RLock()
 	scorer := o.engine.scorer
 	o.engine.mu.RUnlock()
 	if scorer == nil {
-		return func() {}
+		return severityeventsdef.SeverityEventsSubscription{
+			Dispatcher:  nil,
+			Unsubscribe: func() {},
+		}, nil
 	}
-	return scorer.Subscribe(cfg)
+	return scorer.SubscribeSeverityEvents(cfg)
 }
 
 // --- DebugView implementation ---

@@ -1,3 +1,5 @@
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
 integration_dependency_wheels = use_repo_rule(
     "//deps/agent_integrations:dependency_wheels.bzl",
     "integration_dependency_wheels",
@@ -9,6 +11,15 @@ integration_source_packages = use_repo_rule(
 )
 
 integration_source_packages(name = "integration_source_packages")
+
+PIP_VERSION = "26.1.1"
+
+http_file(
+    name = "pip",
+    downloaded_file_path = "pip-{version}-py3-none-any.whl".format(version = PIP_VERSION),
+    integrity = "sha256-mcscKJmJOwdf9W5O0K9VZpqVW0mtf7jYYD7Nr07WU/s=",
+    urls = ["https://files.pythonhosted.org/packages/py3/p/pip/pip-{version}-py3-none-any.whl".format(version = PIP_VERSION)],
+)
 
 integration_dependency_wheels(
     name = "integration_dependency_wheels_linux_x86_64",

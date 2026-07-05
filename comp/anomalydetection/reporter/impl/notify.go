@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -250,13 +251,13 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 }
 
 // severityLevelName returns a human-readable label for a SeverityLevel.
-func severityLevelName(level observerdef.SeverityLevel) string {
+func severityLevelName(level severityeventsdef.SeverityLevel) string {
 	switch level {
-	case observerdef.SeverityLow:
+	case severityeventsdef.SeverityLow:
 		return "low"
-	case observerdef.SeverityMedium:
+	case severityeventsdef.SeverityMedium:
 		return "medium"
-	case observerdef.SeverityHigh:
+	case severityeventsdef.SeverityHigh:
 		return "high"
 	default:
 		return fmt.Sprintf("level(%d)", int(level))
