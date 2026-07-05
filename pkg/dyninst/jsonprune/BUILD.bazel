@@ -7,6 +7,7 @@ go_library(
         "prune.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/jsonprune",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = ["@com_github_go_json_experiment_json//jsontext"],
 )
@@ -19,7 +20,11 @@ go_test(
         "prune_test.go",
     ],
     embed = [":jsonprune"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

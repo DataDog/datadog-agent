@@ -9,6 +9,7 @@ go_library(
         "reader.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/dwarf/dwarfutil",
@@ -23,5 +24,9 @@ go_test(
         "parse_test.go",
     ],
     embed = [":loclist"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
 )
