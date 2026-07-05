@@ -227,7 +227,7 @@ func (tc *TransactionRetryQueue) extractTransactionsForDisk(payloadSize int) [][
 	sizeInBytesToFlush := int(float64(tc.maxMemSizeInBytes) * tc.flushToStorageRatio)
 	var payloadsGroupToFlush [][]transaction.Transaction
 	for tc.currentMemSizeInBytes+payloadSize > tc.maxMemSizeInBytes && len(tc.transactions) > 0 {
-		// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
+		// Flush the N last (lowest-priority/oldest) transactions whose payload size sum is greater than `sizeInBytesToFlush`
 		transactions := tc.extractTransactionsFromMemory(sizeInBytesToFlush)
 
 		if len(transactions) == 0 {
@@ -241,19 +241,26 @@ func (tc *TransactionRetryQueue) extractTransactionsForDisk(payloadSize int) [][
 	return payloadsGroupToFlush
 }
 
+// Extracts transactions whose combined payload size is not less than `payloadSizeInBytesToExtract`.
 func (tc *TransactionRetryQueue) extractTransactionsFromMemory(payloadSizeInBytesToExtract int) []transaction.Transaction {
-	i := 0
+	i := len(tc.transactions) - 1
 	sizeInBytesExtracted := 0
 	var transactionsExtracted []transaction.Transaction
 
+	// dropPrioritySorter places high-priority/newest transactions at the front
+	// (index 0) and low-priority/oldest at the tail. Extracting from the tail
+	// evicts the least-valuable transactions first and lets us shrink the slice
+	// with a simple reslice instead of cutting from the front, so this way we
+	// preserve the capacity.
 	tc.dropPrioritySorter.Sort(tc.transactions)
-	for ; i < len(tc.transactions) && sizeInBytesExtracted < payloadSizeInBytesToExtract; i++ {
+	for ; i >= 0 && sizeInBytesExtracted < payloadSizeInBytesToExtract; i-- {
 		transaction := tc.transactions[i]
 		sizeInBytesExtracted += transaction.GetPayloadSize()
 		transactionsExtracted = append(transactionsExtracted, transaction)
+		tc.transactions[i] = nil
 	}
 
-	tc.transactions = tc.transactions[i:]
+	tc.transactions = tc.transactions[:i+1]
 	tc.currentMemSizeInBytes -= sizeInBytesExtracted
 	return transactionsExtracted
 }

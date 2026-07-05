@@ -21,7 +21,7 @@ go_library(
         "//comp/forwarder/eventplatform/fx",
         "//comp/forwarder/eventplatformreceiver/impl",
         "//comp/forwarder/orchestrator/def",
-        "//comp/forwarder/orchestrator/impl",
+        "//comp/forwarder/orchestrator/fx",
         "//comp/haagent/fx",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/fx",
