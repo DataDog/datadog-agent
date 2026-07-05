@@ -54,13 +54,14 @@ properties:
         - full: default server/host-monitoring behavior (all checks allowed).
         - basic: minimal host-level metrics only.
         - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+        - cloud_cost_only: Cloud Cost Management lightweight tagging.
         - none: disables infrastructure checks.
     tags:
     - template_section:Common
     comment: |-
       Infrastructure mode
       The infrastructure mode is used to determine the features that are available to the agent.
-      The possible values are: full, basic, end_user_device, none.
+      The possible values are: full, basic, end_user_device, cloud_cost_only, none.
   dd_url:
     node_type: setting
     type: string
@@ -2027,14 +2028,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -2077,14 +2070,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -2198,14 +2183,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -2248,14 +2225,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -4787,14 +4756,6 @@ properties:
                 default: false
                 tags:
                 - no-env
-              force_use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              force_use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               input_chan_size:
                 node_type: setting
                 type: integer
@@ -4837,14 +4798,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-              use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               use_v2_api:
                 node_type: setting
                 type: boolean
@@ -5008,14 +4961,6 @@ properties:
                 default: false
                 tags:
                 - no-env
-              force_use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              force_use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               input_chan_size:
                 node_type: setting
                 type: integer
@@ -5058,14 +5003,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-              use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               use_v2_api:
                 node_type: setting
                 type: boolean
@@ -5128,14 +5065,6 @@ properties:
                 default: false
                 tags:
                 - no-env
-              force_use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              force_use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               input_chan_size:
                 node_type: setting
                 type: integer
@@ -5178,14 +5107,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-              use_http:
-                node_type: setting
-                type: boolean
-                default: false
-              use_tcp:
-                node_type: setting
-                type: boolean
-                default: false
               use_v2_api:
                 node_type: setting
                 type: boolean
@@ -5253,14 +5174,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -5303,14 +5216,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -6489,6 +6394,14 @@ properties:
                 default: warn
                 comment: Kubelet journald log rate limits (enabled flag already set
                   above).
+          processing_rules:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+            comment: Ordered log-processing rules applied to anomaly-detection log
+              sources.
       metrics:
         node_type: section
         type: object
@@ -7161,14 +7074,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7211,14 +7116,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7402,14 +7299,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7452,14 +7341,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7522,14 +7403,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7572,14 +7445,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7712,14 +7577,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7762,14 +7619,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -7828,14 +7677,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -7878,14 +7719,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -8341,14 +8174,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -8391,14 +8216,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -8666,14 +8483,6 @@ properties:
         default: false
         tags:
         - no-env
-      force_use_http:
-        node_type: setting
-        type: boolean
-        default: false
-      force_use_tcp:
-        node_type: setting
-        type: boolean
-        default: false
       input_chan_size:
         node_type: setting
         type: integer
@@ -8716,14 +8525,6 @@ properties:
         node_type: setting
         type: boolean
         default: true
-      use_http:
-        node_type: setting
-        type: boolean
-        default: false
-      use_tcp:
-        node_type: setting
-        type: boolean
-        default: false
       use_v2_api:
         node_type: setting
         type: boolean
@@ -8821,6 +8622,10 @@ properties:
             type: boolean
             default: false
           period:
+            node_type: setting
+            type: integer
+            default: 0
+          port:
             node_type: setting
             type: integer
             default: 0
@@ -9020,6 +8825,18 @@ properties:
               Infrastructure basic mode section [UNDOCUMENTED]
               Note: All checks starting with "custom_" are always allowed.
               integration.basic.allowed: default allowed checks (internal, should not need user configuration)
+      cloud_cost_only:
+        node_type: section
+        type: object
+        properties:
+          tagged:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            comment: 'integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only
+              (empty means all checks)'
       enabled:
         node_type: setting
         type: boolean
@@ -9280,14 +9097,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -9330,14 +9139,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -10156,14 +9957,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -10206,14 +9999,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean
@@ -10298,14 +10083,6 @@ properties:
             default: false
             tags:
             - no-env
-          force_use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          force_use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           input_chan_size:
             node_type: setting
             type: integer
@@ -10348,14 +10125,6 @@ properties:
             node_type: setting
             type: boolean
             default: true
-          use_http:
-            node_type: setting
-            type: boolean
-            default: false
-          use_tcp:
-            node_type: setting
-            type: boolean
-            default: false
           use_v2_api:
             node_type: setting
             type: boolean

@@ -245,11 +245,14 @@ func TestMergeRuntimeProperties_DefaultsLastSeenRunningToZero(t *testing.T) {
 	assert.True(t, ok, "LastAccessProperty must be defaulted to 0 when neither side supplies it")
 	assert.Equal(t, "0", v)
 
-	// HasSetSuidBit / RunningAsRoot are not defaulted.
-	_, ok = findProp(c, HasSetSuidBitProperty)
-	assert.False(t, ok)
-	_, ok = findProp(c, RunningAsRootProperty)
-	assert.False(t, ok)
+	// HasSetSuidBit / RunningAsRoot are defaulted to "false" too, so consumers can
+	// distinguish "not in use" from "unknown".
+	v, ok = findProp(c, HasSetSuidBitProperty)
+	assert.True(t, ok)
+	assert.Equal(t, "false", v)
+	v, ok = findProp(c, RunningAsRootProperty)
+	assert.True(t, ok)
+	assert.Equal(t, "false", v)
 }
 
 func TestMergeRuntimeProperties_DeduplicatesAcrossRounds(t *testing.T) {

@@ -47,6 +47,8 @@ import (
 	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
+
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 )
 
 var (
@@ -261,6 +263,8 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	}
 	sort.UniqInPlace(extraTags)
 
+	infraTagger := infratags.NewTagger(cfg)
+
 	entityIDPrecedenceEnabled := cfg.GetBool("dogstatsd_entity_id_precedence")
 
 	eolTerminationUDP := false
@@ -318,6 +322,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
+			infraTagger:               infraTagger,
 		},
 		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,
