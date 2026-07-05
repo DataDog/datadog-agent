@@ -311,6 +311,8 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileDNSMatchMaxDepth int
 	// SecurityProfileNodeEvictionTimeout defines the timeout after which non-touched nodes are evicted from profiles
 	SecurityProfileNodeEvictionTimeout time.Duration
+	// SecurityProfileSampleRefreshPeriod defines the minimum interval between sample refresh events for the same dedup cookie
+	SecurityProfileSampleRefreshPeriod time.Duration
 	// SecurityProfileCleanupDelay defines the delay before removing a profile after all its cgroups are deleted
 	SecurityProfileCleanupDelay time.Duration
 	// SecurityProfileV2EventTypes defines the list of event types that should be captured by the V2 security profile manager
@@ -363,8 +365,6 @@ type RuntimeSecurityConfig struct {
 	SBOMResolverHostEnabled bool
 	// SBOMResolverEnrichmentInterval defines the minimum amount of time to wait before enriching an SBOM with runtime usage information
 	SBOMResolverEnrichmentInterval time.Duration
-	// SBOMResolverEnrichmentTicker defines the ticker for enriching SBOMs with runtime usage information
-	SBOMResolverEnrichmentTicker time.Duration
 	// SBOMResolverForwardInterval defines the interval for forwarding SBOMs
 	SBOMResolverForwardInterval time.Duration
 	// SBOMResolverRefreshInterval defines the interval for refreshing SBOMs
@@ -603,7 +603,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// SBOM resolver
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled") || pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
-		SBOMResolverEnrichmentTicker:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_ticker"),
 		SBOMResolverEnrichmentInterval: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_interval"),
 		SBOMResolverRefreshInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.refresh_interval"),
 		SBOMResolverForwardInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.forward_interval"),
@@ -649,6 +648,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
 		SecurityProfileCleanupDelay:        pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.profile_cleanup_delay"),
 		SecurityProfileV2EventTypes:        parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.event_types")),
+		SecurityProfileSampleRefreshPeriod: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.sample_refresh_period"),
 		SecurityProfileV2ExcludedImages:    pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.excluded_images"),
 		SecurityProfileV2MaxDumpSize: func() int {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)

@@ -85,6 +85,7 @@ architectures:
           fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
+            - FI_DEV_GET_GPU_RECOVERY_ACTION
     support:
       - device_modes: [physical]
         unsupported_fields: []
@@ -107,6 +108,7 @@ architectures:
           fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
+            - FI_DEV_GET_GPU_RECOVERY_ACTION
     support:
       - device_modes: [physical]
         unsupported_fields: []
@@ -129,6 +131,7 @@ architectures:
           fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
+            - FI_DEV_GET_GPU_RECOVERY_ACTION
     support:
       - device_modes: [physical]
         unsupported_fields: []
@@ -149,6 +152,7 @@ architectures:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
+            - FI_DEV_GET_GPU_RECOVERY_ACTION
     support:
       - device_modes: [physical]
         unsupported_fields: []
@@ -168,6 +172,7 @@ architectures:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
+            - FI_DEV_GET_GPU_RECOVERY_ACTION
     support:
       - device_modes: [physical]
         unsupported_fields: []
@@ -196,6 +201,7 @@ architectures:
           fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
+            - FI_DEV_GET_GPU_RECOVERY_ACTION
     support:
       - device_modes: [physical]
         unsupported_fields: []
@@ -214,6 +220,7 @@ architectures:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
+            - FI_DEV_GET_GPU_RECOVERY_ACTION
     support:
       - device_modes: [physical]
         unsupported_fields: []
