@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 type HTTP2Suite struct {
@@ -200,6 +201,48 @@ func (s *HTTP2Suite) TestFormatHTTP2StatsDiscoveryMode() {
 		assert.Zero(t, bucket.FirstLatencySample, "bucket %d: firstLatencySample should not be set in discovery mode", code)
 		assert.Empty(t, bucket.Latencies, "bucket %d: latencies (DDSketch) should not be set in discovery mode", code)
 	}
+}
+
+func (s *HTTP2Suite) TestFormatHTTP2StatsDiscoveryModeTags() {
+	t := s.T()
+	mock.NewSystemProbe(t).SetInTest("discovery.service_map.enabled", true)
+
+	const (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+	)
+	localhost := util.AddressFromString("127.0.0.1")
+
+	key := http.Key{
+		ConnectionKey: types.NewConnectionKey(localhost, localhost, clientPort, serverPort),
+		Path:          http.Path{Content: http.Interner.GetString("")},
+	}
+	stats := http.NewRequestStats()
+	stats.AddDiscoveryRequest(200, 1_000_000.0, tagGnuTLS, common.NewStringSet("env:test"))
+
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{ConnectionTuple: network.ConnectionTuple{
+					Source: localhost, Dest: localhost,
+					SPort: clientPort, DPort: serverPort,
+				}},
+			},
+		},
+		USMData: network.USMProtocolsData{HTTP2: map[http.Key]*http.RequestStats{key: stats}},
+	}
+
+	http2Encoder := newHTTP2Encoder(in.USMData.HTTP2)
+	require.True(t, http2Encoder.discoveryMode)
+
+	aggregations, staticTags, dynamicTags := getHTTP2Aggregations(t, http2Encoder, in.Conns[0])
+	require.NotNil(t, aggregations)
+
+	// Tags must still propagate even though path/method are dropped.
+	assert.Equal(t, uint64(tagGnuTLS), staticTags)
+	_, hasDynamic := dynamicTags["env:test"]
+	assert.True(t, hasDynamic, "dynamic tags should propagate in discovery mode")
+	assert.Empty(t, aggregations.EndpointAggregations[0].Path, "path still dropped in discovery mode")
 }
 
 func (s *HTTP2Suite) TestFormatHTTP2StatsByPath() {
