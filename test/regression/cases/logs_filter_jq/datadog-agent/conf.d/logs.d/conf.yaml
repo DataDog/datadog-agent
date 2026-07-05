@@ -1,9 +1,9 @@
 logs:
   - type: file
-    path: /tmp/agent-logs/synthetic.log
+    path: "/smp-shared/*.log"
     service: benchmark
     source: benchmark
     log_processing_rules:
       - type: include_at_jq_match
-        name: jq_filter
-        pattern: 'select(.seed < 32768)'
+        name: jq_only
+        pattern: select(.name == "jq")
