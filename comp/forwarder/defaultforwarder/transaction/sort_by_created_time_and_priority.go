@@ -7,19 +7,10 @@ package transaction
 
 import "sort"
 
-// SortByCreatedTimeAndPriority sorts transactions by creation time and priority
-type SortByCreatedTimeAndPriority struct {
-	HighPriorityFirst bool
-}
-
-// Sort sorts transactions by creation time and priority
-func (s SortByCreatedTimeAndPriority) Sort(transactions []Transaction) {
-	sorter := byCreatedTimeAndPriority(transactions)
-	if s.HighPriorityFirst {
-		sort.Sort(sorter)
-	} else {
-		sort.Sort(sort.Reverse(sorter))
-	}
+// SortByCreatedTimeAndPriority sorts transactions by priority (highest first) and,
+// for transactions with equal priority, by creation time (newest first).
+func SortByCreatedTimeAndPriority(transactions []Transaction) {
+	sort.Sort(byCreatedTimeAndPriority(transactions))
 }
 
 type byCreatedTimeAndPriority []Transaction
