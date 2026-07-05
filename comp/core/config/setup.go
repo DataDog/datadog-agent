@@ -103,6 +103,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 		// ADP overrides that depend on values fleet policies may set.
 		pkgconfigsetup.ApplyUseDogstatsdSuppression(config)
 		pkgconfigsetup.ComputeDataPlaneStopTimeout(config)
+		pkgconfigsetup.SanitizeDataPlaneConfig(config)
 	}
 
 	for k, v := range p.cliOverride {
