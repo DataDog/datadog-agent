@@ -1,3 +1,1 @@
-# Placeholder to turn on per-flavor tests for this component
-
-# gazelle:dd_agent_go_test on
+# gazelle:ignore

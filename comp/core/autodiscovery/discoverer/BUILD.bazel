@@ -32,7 +32,7 @@ dd_agent_go_test(
         "worker_test.go",
     ],
     embed = [":discoverer"],
-    tags = ["manual"],
+    tags = ["manual"],  # keep
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/telemetry",
