@@ -20,6 +20,10 @@ const (
 	DDInfraOpenShiftCPUs           = "local/openshift/cpus"
 	DDInfraOpenShiftMemory         = "local/openshift/memory"
 	DDInfraOpenShiftDisk           = "local/openshift/disk"
+	DDInfraVMCPUs                  = "local/vm/cpus"
+	DDInfraVMMemory                = "local/vm/memory"
+	DDInfraVMDisk                  = "local/vm/disk"
+	DDInfraVMHostname              = "local/vm/hostname"
 )
 
 type Environment struct {
@@ -72,9 +76,42 @@ func (e *Environment) DefaultPublicKeyPath() string {
 	return e.InfraConfig.Get(DDInfraDefaultPublicKeyPath)
 }
 
-// OpenShiftPullSecretPath returns the path to the OpenShift pull secret file.
+// OpenShiftPullSecretPath returns the path to the OpenShift pull secret file
 func (e *Environment) OpenShiftPullSecretPath() string {
 	return e.InfraConfig.Get(DDInfraOpenShiftPullSecretPath)
+}
+
+// VMCPUs returns the number of CPUs to allocate to a local VM (default: 2).
+func (e *Environment) VMCPUs() string {
+	if v := e.InfraConfig.Get(DDInfraVMCPUs); v != "" {
+		return v
+	}
+	return "2"
+}
+
+// VMMemory returns the memory to allocate to a local VM (default: 4G).
+func (e *Environment) VMMemory() string {
+	if v := e.InfraConfig.Get(DDInfraVMMemory); v != "" {
+		return v
+	}
+	return "4G"
+}
+
+// VMDisk returns the disk size to allocate to a local VM (default: 10G).
+func (e *Environment) VMDisk() string {
+	if v := e.InfraConfig.Get(DDInfraVMDisk); v != "" {
+		return v
+	}
+	return "10G"
+}
+
+// VMHostname returns the hostname to configure on the agent for a local VM.
+// Defaults to the Pulumi stack name so each deployment has a unique, identifiable host in Datadog.
+func (e *Environment) VMHostname() string {
+	if v := e.InfraConfig.Get(DDInfraVMHostname); v != "" {
+		return v
+	}
+	return e.Ctx().Stack()
 }
 
 // OpenShiftCPUs returns the number of CPUs to allocate to the CRC cluster (default: 8).

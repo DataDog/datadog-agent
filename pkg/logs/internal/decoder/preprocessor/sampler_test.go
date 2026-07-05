@@ -778,7 +778,6 @@ func TestAdaptiveSampler_DetectionOnly_TracksBytesWithoutDropping(t *testing.T) 
 	beforeTagBytes := tlmAdaptiveSamplerTagBytesDropped.WithValues("test_detect", "true").Get()
 
 	msg := testMsg()
-	// In detection-only mode the message is returned (not nil) with the noisy tag
 	result := s.Process(msg, tokens)
 	require.NotNil(t, result, "detection-only must not drop messages")
 	assert.Contains(t, result.ParsingExtra.Tags, adaptiveSamplerNoisyLogTag)
@@ -788,4 +787,77 @@ func TestAdaptiveSampler_DetectionOnly_TracksBytesWithoutDropping(t *testing.T) 
 
 	assert.Greater(t, afterBytes-beforeBytes, float64(0), "bytes_dropped should be tracked in detection-only mode")
 	assert.Equal(t, float64(20), afterTagBytes-beforeTagBytes, "tag_bytes_dropped should reflect baseBytesEstimate")
+}
+
+func TestAdaptiveSampler_IsSourceDisabled(t *testing.T) {
+	t0 := time.Now()
+
+	t.Run("disabled source passes all messages through", func(t *testing.T) {
+		s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+			MaxPatterns:      10,
+			RateLimit:        1.0,
+			BurstSize:        1,
+			MatchThreshold:   0.3,
+			IsSourceDisabled: func() bool { return true },
+		}, "test", 0)
+		s.now = func() time.Time { return t0 }
+
+		tokens := tokenize("connection timeout to host abc")
+		assert.NotNil(t, s.Process(testMsg(), tokens), "first message allowed")
+		assert.NotNil(t, s.Process(testMsg(), tokens), "second message also allowed — source is disabled")
+		assert.NotNil(t, s.Process(testMsg(), tokens), "third message also allowed — no rate limiting")
+	})
+
+	t.Run("enabled source rate-limits normally", func(t *testing.T) {
+		s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+			MaxPatterns:      10,
+			RateLimit:        1.0,
+			BurstSize:        1,
+			MatchThreshold:   0.3,
+			IsSourceDisabled: func() bool { return false },
+		}, "test", 0)
+		s.now = func() time.Time { return t0 }
+
+		tokens := tokenize("connection timeout to host abc")
+		assert.NotNil(t, s.Process(testMsg(), tokens), "first message allowed (new pattern)")
+		assert.Nil(t, s.Process(testMsg(), tokens), "second message dropped — burst exhausted")
+	})
+
+	t.Run("nil IsSourceDisabled behaves as enabled", func(t *testing.T) {
+		s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+			MaxPatterns:      10,
+			RateLimit:        1.0,
+			BurstSize:        1,
+			MatchThreshold:   0.3,
+			IsSourceDisabled: nil,
+		}, "test", 0)
+		s.now = func() time.Time { return t0 }
+
+		tokens := tokenize("connection timeout to host abc")
+		assert.NotNil(t, s.Process(testMsg(), tokens), "first message allowed")
+		assert.Nil(t, s.Process(testMsg(), tokens), "second message dropped — nil means enabled")
+	})
+
+	t.Run("dynamic toggle mid-stream", func(t *testing.T) {
+		disabled := false
+		s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+			MaxPatterns:      10,
+			RateLimit:        1.0,
+			BurstSize:        1,
+			MatchThreshold:   0.3,
+			IsSourceDisabled: func() bool { return disabled },
+		}, "test", 0)
+		s.now = func() time.Time { return t0 }
+
+		tokens := tokenize("connection timeout to host abc")
+		assert.NotNil(t, s.Process(testMsg(), tokens), "first message allowed (new pattern)")
+		assert.Nil(t, s.Process(testMsg(), tokens), "second message dropped — enabled, burst exhausted")
+
+		disabled = true
+		assert.NotNil(t, s.Process(testMsg(), tokens), "third message allowed — source now disabled")
+		assert.NotNil(t, s.Process(testMsg(), tokens), "fourth message allowed — still disabled")
+
+		disabled = false
+		assert.Nil(t, s.Process(testMsg(), tokens), "fifth message dropped — re-enabled, credits still exhausted")
+	})
 }

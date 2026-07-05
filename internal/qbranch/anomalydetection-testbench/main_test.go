@@ -19,6 +19,7 @@ import (
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/require"
@@ -34,6 +35,14 @@ func TestFxApp(t *testing.T) {
 			fx.Supply(option.None[workloadfilterdef.Component]()),
 			fx.Supply(option.None[taggerdef.Component]()),
 			core.Bundle(),
+			// Mirror main(): force anomaly detection on so NewComponent yields the
+			// full observerImpl (with DebugView) instead of the disabled stub, and
+			// keep the agent-internal log tap off so it never ingests scenario data.
+			fx.Decorate(func(c config.Component) config.Component {
+				c.Set("anomaly_detection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+				c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+				return c
+			}),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(""),
 				LogParams:    log.ForOneShot("", "off", true),
