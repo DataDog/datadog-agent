@@ -67,15 +67,48 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if _, err := os.Stat(installerBinPath); err != nil {
 		return nil, err
 	}
-	// The installer extracted from the agent package's installer layer is a bare
-	// binary. For FIPS builds it is compiled with requirefips and would panic at
-	// init unless an OpenSSL FIPS provider is available, so give it the env that
-	// points at a configured provider (a no-op for non-FIPS builds).
-	extraEnv, err := fipsInstallerEnv()
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve FIPS provider for bootstrap installer: %w", err)
-	}
+	// The installer extracted from the agent package's installer layer may be a
+	// FIPS-flavor build (compiled with requirefips). Such binaries panic at init
+	// unless the embedded OpenSSL FIPS provider has been self-tested and a
+	// matching libcrypto is loaded. Point the child at the running process's own
+	// embedded FIPS tree so it finds a compatible, configured provider.
+	//
+	// We detect this by checking whether the running binary's tree has the FIPS
+	// provider files rather than relying on a build-time flag, because the daemon
+	// binary that calls us may be a deb-installed binary whose build system did
+	// not set the goexperiment.systemcrypto flag even though the tree is FIPS.
+	extraEnv := fipsEnvFromRunningInstaller()
 	return exec.NewInstallerExecWithExtraEnv(env, installerBinPath, extraEnv), nil
+}
+
+// fipsEnvFromRunningInstaller returns the OpenSSL FIPS provider environment
+// that a requirefips bootstrap installer binary needs to start on this machine.
+// It derives the provider paths from the running binary's own embedded tree
+// (OPENSSL_CONF, OPENSSL_MODULES, LD_LIBRARY_PATH) so the child loads the
+// version-matched libcrypto and fips.so from the same tree rather than the
+// host's system OpenSSL (which may be a different version and fail the FIPS
+// self-test). Returns nil when the running binary's tree does not have a FIPS
+// provider (non-FIPS install), leaving library resolution to the child's
+// defaults — a no-op for non-requirefips binaries.
+func fipsEnvFromRunningInstaller() []string {
+	exePath, err := exec.GetExecutable()
+	if err != nil {
+		return nil
+	}
+	// <install>/embedded/bin/installer → <install>/embedded
+	embedded := filepath.Dir(filepath.Dir(exePath))
+	opensslConf := filepath.Join(embedded, "ssl", "openssl.cnf")
+	opensslModules := filepath.Join(embedded, "lib", "ossl-modules")
+	for _, p := range []string{opensslConf, opensslModules} {
+		if _, statErr := os.Stat(p); statErr != nil {
+			return nil
+		}
+	}
+	return []string{
+		"OPENSSL_CONF=" + opensslConf,
+		"OPENSSL_MODULES=" + opensslModules,
+		"LD_LIBRARY_PATH=" + filepath.Join(embedded, "lib"),
+	}
 }
 
 func getInstallerOCI(_ context.Context, env *env.Env) (string, error) {

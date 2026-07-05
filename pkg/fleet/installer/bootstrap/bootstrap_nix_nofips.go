@@ -6,9 +6,3 @@
 //go:build !goexperiment.systemcrypto && !windows
 
 package bootstrap
-
-// fipsInstallerEnv returns no additional environment: a non-FIPS installer does
-// not require an OpenSSL FIPS provider to start.
-func fipsInstallerEnv() ([]string, error) {
-	return nil, nil
-}
