@@ -124,36 +124,24 @@ func (s *HTTP2Suite) TestFormatHTTP2Stats() {
 func (s *HTTP2Suite) TestFormatHTTP2StatsDiscoveryMode() {
 	t := s.T()
 
-	mockSystemProbe := mock.NewSystemProbe(t)
-	mockSystemProbe.SetInTest("discovery.service_map.enabled", true)
+	mock.NewSystemProbe(t).SetInTest("discovery.service_map.enabled", true)
 
 	const (
 		clientPort = uint16(52800)
 		serverPort = uint16(8080)
-		// Per-request latency (nanoseconds) used as the running sum increment.
-		latencyNs = 1_000_000.0 // 1ms
+		latencyNs  = 1_000_000.0 // 1ms
 	)
 	localhost := util.AddressFromString("127.0.0.1")
 
-	// Discovery mode: empty path, MethodUnknown, and the in-memory
-	// LatencySum is populated as a running sum.
 	key := http.Key{
 		ConnectionKey: types.NewConnectionKey(localhost, localhost, clientPort, serverPort),
 		Path:          http.Path{Content: http.Interner.GetString("")},
 	}
-	// Feed a spread of status codes across both classes. Discovery mode must
-	// collapse them into exactly two buckets: 2xx/3xx -> 200, 4xx/5xx -> 400.
+	// One success + one error bucket. Status collapse itself is covered by the
+	// statkeeper discovery tests; here we only assert the encoder serialization.
 	stats := http.NewRequestStats()
-	const (
-		numSuccess = 4 // land in the 200 bucket
-		numError   = 3 // land in the 400 bucket
-	)
-	for _, code := range []uint16{200, 201, 301, 302} { // 4 success-class codes
-		stats.AddDiscoveryRequest(code, latencyNs, 0, nil)
-	}
-	for _, code := range []uint16{404, 500, 503} { // 3 error-class codes
-		stats.AddDiscoveryRequest(code, latencyNs, 0, nil)
-	}
+	stats.AddDiscoveryRequest(200, latencyNs, 0, nil)
+	stats.AddDiscoveryRequest(500, latencyNs, 0, nil)
 
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
@@ -164,9 +152,7 @@ func (s *HTTP2Suite) TestFormatHTTP2StatsDiscoveryMode() {
 				}},
 			},
 		},
-		USMData: network.USMProtocolsData{
-			HTTP2: map[http.Key]*http.RequestStats{key: stats},
-		},
+		USMData: network.USMProtocolsData{HTTP2: map[http.Key]*http.RequestStats{key: stats}},
 	}
 
 	http2Encoder := newHTTP2Encoder(in.USMData.HTTP2)
@@ -177,29 +163,19 @@ func (s *HTTP2Suite) TestFormatHTTP2StatsDiscoveryMode() {
 	require.Len(t, aggregations.EndpointAggregations, 1)
 
 	endpoint := aggregations.EndpointAggregations[0]
-	// Path/method/fullPath should be skipped in discovery mode.
-	assert.Empty(t, endpoint.Path, "path should not be serialized in discovery mode")
-	assert.False(t, endpoint.FullPath, "fullPath should not be serialized in discovery mode")
-	assert.Equal(t, model.HTTPMethod(0), endpoint.Method, "method should not be serialized in discovery mode")
+	// Path/method/fullPath must not be serialized in discovery mode.
+	assert.Empty(t, endpoint.Path)
+	assert.False(t, endpoint.FullPath)
+	assert.Equal(t, model.HTTPMethod(0), endpoint.Method)
 
-	// Status codes must be minimized to exactly the two discovery buckets.
-	require.Len(t, endpoint.StatsByStatusCode, 2, "discovery mode should collapse to only 200/400 buckets")
-
-	success := endpoint.StatsByStatusCode[int32(200)]
-	require.NotNil(t, success, "expected collapsed 200 success bucket")
-	assert.Equal(t, uint32(numSuccess), success.Count, "all 2xx/3xx should collapse into the 200 bucket")
-
-	errBucket := endpoint.StatsByStatusCode[int32(400)]
-	require.NotNil(t, errBucket, "expected collapsed 400 error bucket")
-	assert.Equal(t, uint32(numError), errBucket.Count, "all 4xx/5xx should collapse into the 400 bucket")
-
+	// The encoder serializes every bucket it is given (success + error).
+	require.Len(t, endpoint.StatsByStatusCode, 2)
 	for code, bucket := range endpoint.StatsByStatusCode {
-		// LatencySum should be the raw running sum of per-request latencies.
-		assert.Equal(t, latencyNs*float64(bucket.Count), bucket.LatencySum,
-			"bucket %d: latencySum should equal count * per-request latency", code)
-		// FirstLatencySample and Latencies (DDSketch) must NOT be populated in discovery mode.
-		assert.Zero(t, bucket.FirstLatencySample, "bucket %d: firstLatencySample should not be set in discovery mode", code)
-		assert.Empty(t, bucket.Latencies, "bucket %d: latencies (DDSketch) should not be set in discovery mode", code)
+		assert.Equal(t, uint32(1), bucket.Count, "bucket %d", code)
+		// LatencySum is serialized; FirstLatencySample / DDSketch are not.
+		assert.Equal(t, latencyNs, bucket.LatencySum, "bucket %d", code)
+		assert.Zero(t, bucket.FirstLatencySample, "bucket %d", code)
+		assert.Empty(t, bucket.Latencies, "bucket %d", code)
 	}
 }
 
