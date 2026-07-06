@@ -614,6 +614,46 @@ properties:
         tags:
         - golang_type:float64
         comment: Steady-state logs per second allowed for each matched pattern.
+      smart_severity_profiles:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          high:
+            node_type: section
+            type: object
+            properties:
+              burst_size:
+                node_type: setting
+                type: number
+                default: 1000
+                tags:
+                - golang_type:float64
+              rate_limit:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
+          medium:
+            node_type: section
+            type: object
+            properties:
+              burst_size:
+                node_type: setting
+                type: number
+                default: 1000
+                tags:
+                - golang_type:float64
+              rate_limit:
+                node_type: setting
+                type: number
+                default: 1
+                tags:
+                - golang_type:float64
       tag_pattern_hash:
         node_type: setting
         type: boolean

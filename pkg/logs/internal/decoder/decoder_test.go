@@ -756,6 +756,22 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 		assert.Equal(t, low, got.Profiles[severityeventsdef.SeverityHigh])
 	})
 
+	t.Run("smart severity profiles enabled: unset high falls back to configured medium", func(t *testing.T) {
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", 5.0, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size", 200.0, pkgconfigmodel.SourceAgentRuntime)
+		defer func() {
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", 1.0, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size", 1000.0, pkgconfigmodel.SourceAgentRuntime)
+		}()
+
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
+
+		assert.Equal(t, preprocessor.SamplerProfile{RateLimit: 5.0, BurstSize: 200.0}, got.Profiles[severityeventsdef.SeverityMedium])
+		assert.Equal(t, got.Profiles[severityeventsdef.SeverityMedium], got.Profiles[severityeventsdef.SeverityHigh])
+	})
+
 	t.Run("smart severity profiles enabled: explicit medium/high overrides win", func(t *testing.T) {
 		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 		mockConfig.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit", 5.0, pkgconfigmodel.SourceAgentRuntime)

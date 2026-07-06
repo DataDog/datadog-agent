@@ -209,17 +209,29 @@ func resolveSmartSeverityProfiles(low preprocessor.SamplerProfile) [severityeven
 		severityeventsdef.SeverityHigh:   low,
 	}
 
+	mediumConfigured := false
 	if cfg.IsConfigured(smartSeverityProfilesMediumRateLimitConfigKey) {
 		profiles[severityeventsdef.SeverityMedium].RateLimit = cfg.GetFloat64(smartSeverityProfilesMediumRateLimitConfigKey)
+		mediumConfigured = true
 	}
 	if cfg.IsConfigured(smartSeverityProfilesMediumBurstSizeConfigKey) {
 		profiles[severityeventsdef.SeverityMedium].BurstSize = clampBurstSize(cfg.GetFloat64(smartSeverityProfilesMediumBurstSizeConfigKey))
+		mediumConfigured = true
 	}
+
+	highConfigured := false
 	if cfg.IsConfigured(smartSeverityProfilesHighRateLimitConfigKey) {
 		profiles[severityeventsdef.SeverityHigh].RateLimit = cfg.GetFloat64(smartSeverityProfilesHighRateLimitConfigKey)
+		highConfigured = true
 	}
 	if cfg.IsConfigured(smartSeverityProfilesHighBurstSizeConfigKey) {
 		profiles[severityeventsdef.SeverityHigh].BurstSize = clampBurstSize(cfg.GetFloat64(smartSeverityProfilesHighBurstSizeConfigKey))
+		highConfigured = true
+	}
+
+	if mediumConfigured && !highConfigured {
+		profiles[severityeventsdef.SeverityHigh] = profiles[severityeventsdef.SeverityMedium]
+		log.Infof("smart severity profiles: high profile unset, defaulting to medium profile")
 	}
 
 	return profiles

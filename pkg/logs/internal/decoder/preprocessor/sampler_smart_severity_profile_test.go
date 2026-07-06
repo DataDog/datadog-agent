@@ -160,3 +160,69 @@ func TestAdaptiveSampler_EscalationResetsEveryTrackedPattern(t *testing.T) {
 	assert.InDelta(t, 99.0, s.entries[0].credits, 0.0001, "patternA: reset to 100, then one credit spent")
 	assert.InDelta(t, 100.0, s.entries[1].credits, 0.0001, "patternB: reset to 100, untouched by the match")
 }
+
+func TestAdaptiveSampler_MultipleStepTransitionsApplyEachProfile(t *testing.T) {
+	emit := activateSeverity(t)
+	emit(severityeventsdef.SeverityLow)
+
+	profiles := [severityeventsdef.NumSeverityLevels]SamplerProfile{
+		severityeventsdef.SeverityLow:    {RateLimit: 1, BurstSize: 5},
+		severityeventsdef.SeverityMedium: {RateLimit: 4, BurstSize: 20},
+		severityeventsdef.SeverityHigh:   {RateLimit: 10, BurstSize: 100},
+	}
+	s := newAnomalyProfileSampler(profiles)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	require.Len(t, s.entries, 1)
+	assert.Equal(t, 1.0, s.config.RateLimit)
+	assert.Equal(t, 5.0, s.config.BurstSize)
+	assert.InDelta(t, 4.0, s.entries[0].credits, 0.0001)
+
+	emit(severityeventsdef.SeverityMedium)
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	assert.Equal(t, 4.0, s.config.RateLimit)
+	assert.Equal(t, 20.0, s.config.BurstSize)
+	assert.InDelta(t, 19.0, s.entries[0].credits, 0.0001, "escalation to medium resets burst, then spends one credit")
+
+	emit(severityeventsdef.SeverityHigh)
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	assert.Equal(t, 10.0, s.config.RateLimit)
+	assert.Equal(t, 100.0, s.config.BurstSize)
+	assert.InDelta(t, 99.0, s.entries[0].credits, 0.0001, "escalation to high resets burst, then spends one credit")
+
+	emit(severityeventsdef.SeverityMedium)
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	assert.Equal(t, 4.0, s.config.RateLimit)
+	assert.Equal(t, 20.0, s.config.BurstSize)
+	assert.InDelta(t, 19.0, s.entries[0].credits, 0.0001, "de-escalation to medium clamps to new burst, then spends one credit")
+
+	emit(severityeventsdef.SeverityLow)
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	assert.Equal(t, 1.0, s.config.RateLimit)
+	assert.Equal(t, 5.0, s.config.BurstSize)
+	assert.InDelta(t, 4.0, s.entries[0].credits, 0.0001, "de-escalation to low clamps again, then spends one credit")
+}
+
+func TestAdaptiveSampler_NewPatternAfterSeverityChangeUsesActiveProfile(t *testing.T) {
+	emit := activateSeverity(t)
+	emit(severityeventsdef.SeverityLow)
+
+	s := newAnomalyProfileSampler(testProfiles())
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	require.Len(t, s.entries, 1)
+	assert.InDelta(t, 4.0, s.entries[0].credits, 0.0001, "low profile seeds BurstSize-1 credits")
+
+	emit(severityeventsdef.SeverityHigh)
+	require.NotNil(t, s.Process(testMsg(), patternB))
+
+	require.Len(t, s.entries, 2)
+	assert.Equal(t, 10.0, s.config.RateLimit)
+	assert.Equal(t, 100.0, s.config.BurstSize)
+	assert.InDelta(t, 100.0, s.entries[0].credits, 0.0001, "existing pattern is reset on escalation before the new pattern is tracked")
+	assert.InDelta(t, 99.0, s.entries[1].credits, 0.0001, "new pattern seeds High BurstSize-1 credits after the severity change")
+}

@@ -247,9 +247,6 @@ func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, to
 // credits untouched, letting the refill-time clamp in processMatchedEntry
 // shrink them naturally.
 func (s *AdaptiveSampler) applyProfileIfChanged() {
-	if !s.config.SmartSeverityProfilesEnabled {
-		return
-	}
 	level, ok := dynamicadaptivesampling.Current()
 	if !ok {
 		return
@@ -276,7 +273,9 @@ func (s *AdaptiveSampler) applyProfileIfChanged() {
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
-	s.applyProfileIfChanged()
+	if s.config.SmartSeverityProfilesEnabled {
+		s.applyProfileIfChanged()
+	}
 	if s.config.IsSourceDisabled != nil && s.config.IsSourceDisabled() {
 		return msg
 	}

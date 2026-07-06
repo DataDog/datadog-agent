@@ -16,10 +16,7 @@ import (
 	"go.uber.org/fx"
 )
 
-const (
-	noActiveAnomalyScorerError            = "no active anomaly scorer"
-	smartSeverityProfilesEnabledConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
-)
+const smartSeverityProfilesEnabledConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
 
 // Module wires the dynamic adaptive sampling reader into the app lifecycle once
 // the observer component is ready.
@@ -39,10 +36,6 @@ func Module() fx.Option {
 
 				sub, err := observerComp.SubscribeSeverityEventsReader(severityeventsdef.SeverityEventsConfiguration{})
 				if err != nil {
-					if err.Error() == noActiveAnomalyScorerError {
-						log.Infof("dynamic adaptive-sampling severity reader not registered: %v", err)
-						return nil
-					}
 					return err
 				}
 
