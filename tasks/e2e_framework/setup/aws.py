@@ -62,7 +62,7 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
     # Team tag — single prompt, only on first setup.
     if not aws.teamTag:
         team = ask(
-            "🔖 GitHub team (used to tag AWS resources, kebab-case e.g. agent-platform) " "[default: unspecified]: ",
+            "🔖 GitHub team (used to tag AWS resources, kebab-case e.g. agent-platform) [default: unspecified]: ",
             color="cyan",
         ).strip()
         aws.teamTag = team or "unspecified"
