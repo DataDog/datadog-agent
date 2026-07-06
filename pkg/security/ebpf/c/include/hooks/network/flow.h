@@ -160,7 +160,7 @@ __attribute__((always_inline)) int trace_nat_manip_pkt(struct nf_conn *ct) {
     u32 netns = get_netns_from_nf_conn(ct);
 
     struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
-    bpf_probe_read(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
+    bpf_probe_read(&tuplehash, sizeof(tuplehash), (void *)ct + get_nf_conn_tuplehash_offset());
 
     struct nf_conntrack_tuple *orig_tuple = &tuplehash[IP_CT_DIR_ORIGINAL].tuple;
     struct nf_conntrack_tuple *reply_tuple = &tuplehash[IP_CT_DIR_REPLY].tuple;
@@ -221,7 +221,7 @@ int hook_nf_ct_delete(ctx_t *ctx) {
     u32 netns = get_netns_from_nf_conn(ct);
 
     struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
-    bpf_probe_read(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
+    bpf_probe_read(&tuplehash, sizeof(tuplehash), (void *)ct + get_nf_conn_tuplehash_offset());
     struct nf_conntrack_tuple *orig_tuple = &tuplehash[IP_CT_DIR_ORIGINAL].tuple;
     struct nf_conntrack_tuple *reply_tuple = &tuplehash[IP_CT_DIR_REPLY].tuple;
 

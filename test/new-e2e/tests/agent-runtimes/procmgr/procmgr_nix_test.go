@@ -59,6 +59,9 @@ var linuxPlatform = platformConfig{
 	checkSvcRunning:   "systemctl is-active datadog-agent-procmgr",
 	svcRunningOutput:  "active",
 	cliCmd:            func(args string) string { return linuxCLIBin + " " + args },
+	killPIDCmd: func(pid uint32) string {
+		return fmt.Sprintf("sudo kill -9 %d", pid)
+	},
 }
 
 type procmgrLinuxSuite struct {
