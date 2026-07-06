@@ -44,18 +44,6 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 	for _, node := range d.store.nodes {
 		rawConfigs := makeConfigArray(node.digestToConfig)
 
-		// IDs must be computed before scrubbing because ScrubYaml re-serializes
-		// YAML bytes which changes the digest used in check ID computation.
-		instanceIDs := make([][]string, len(rawConfigs))
-		for i, config := range rawConfigs {
-			digest := config.FastDigest()
-			ids := make([]string, 0, len(config.Instances))
-			for _, inst := range config.Instances {
-				ids = append(ids, string(checkid.BuildID(config.Name, digest, inst, config.InitConfig)))
-			}
-			instanceIDs[i] = ids
-		}
-
 		// Copy runner stats for this node. Stats are populated by the periodic
 		// rebalance cycle when advanced dispatching is enabled. Without advanced
 		// dispatching or when the runner is unreachable, stats will be empty.
@@ -71,13 +59,27 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 		node.RUnlock()
 
 		nodeSnapshots = append(nodeSnapshots, nodeConfigsSnapshot{
-			name:        node.name,
-			rawConfigs:  rawConfigs,
-			instanceIDs: instanceIDs,
-			stats:       stats,
+			name:       node.name,
+			rawConfigs: rawConfigs,
+			stats:      stats,
 		})
 	}
 	d.store.RUnlock()
+
+	// IDs must be computed before scrubbing, since scrubbing changes the
+	// digest. BuildID unmarshals YAML, so do this after releasing d.store.
+	for i, snap := range nodeSnapshots {
+		instanceIDs := make([][]string, len(snap.rawConfigs))
+		for j, config := range snap.rawConfigs {
+			digest := config.FastDigest()
+			ids := make([]string, 0, len(config.Instances))
+			for _, inst := range config.Instances {
+				ids = append(ids, string(checkid.BuildID(config.Name, digest, inst, config.InitConfig)))
+			}
+			instanceIDs[j] = ids
+		}
+		nodeSnapshots[i].instanceIDs = instanceIDs
+	}
 
 	if scrub {
 		scrubbedConf := make([]integration.Config, 0, len(danglingConf))
