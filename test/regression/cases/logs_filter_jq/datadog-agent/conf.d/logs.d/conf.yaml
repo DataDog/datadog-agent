@@ -6,4 +6,4 @@ logs:
     log_processing_rules:
       - type: include_at_jq_match
         name: jq_only
-        pattern: select(.name == "jq")
+        pattern: select(.seed < 32768)

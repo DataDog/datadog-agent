@@ -6,4 +6,4 @@ logs:
     log_processing_rules:
       - type: include_at_match_ottl
         name: ottl_only
-        pattern: attributes["name"] == "ottl"
+        pattern: attributes["seed"] < 32768

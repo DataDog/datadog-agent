@@ -6,4 +6,4 @@ logs:
     log_processing_rules:
       - type: include_at_match
         name: baseline_only
-        pattern: '"name":"baseline"'
+        pattern: '"seed":\d*[02468],'
