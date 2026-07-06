@@ -10,6 +10,7 @@ import (
 	"context"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	io_prometheus_client "github.com/prometheus/client_model/go"
@@ -61,6 +62,41 @@ func TestFlareProvider(t *testing.T) {
 
 	fb.AssertFileExists(flareFilePath)
 	fb.AssertFileContent("test_content", flareFilePath)
+}
+
+// TestFillFlareWritesUnreachableOnGRPCError verifies that when ADP is enabled
+// but the gRPC call to GetFlareFiles fails, fillFlare writes an UNREACHABLE.txt
+// file instead of silently dropping the failure.
+func TestFillFlareWritesUnreachableOnGRPCError(t *testing.T) {
+	provides, _, cfg, _, ipcComp := buildComponent(t)
+	// Use a short timeout so the test doesn't wait 3 s for the default.
+	cfg.SetInTest("remote_agent.registry.query_timeout", 500*time.Millisecond)
+
+	component := provides.Comp
+	flareProvider := provides.FlareProvider
+
+	// Register an agent with a flare provider, then immediately stop its gRPC server
+	// so that the subsequent GetFlareFiles RPC fails.
+	agent := buildAndRegisterRemoteAgent(t, ipcComp, component, "adp", "Agent Data Plane", "42",
+		WithFlareProvider(map[string][]byte{
+			"runtime_config_dump.yaml": []byte("config: true"),
+		}),
+	)
+	agent.Stop() // bring down the gRPC server before the flare is collected
+
+	fb := helpers.NewFlareBuilderMock(t, false)
+
+	err := flareProvider.FlareFiller.Callback(context.Background(), fb)
+	require.NoError(t, err)
+
+	// The nominal artifact must NOT be written because the server is down.
+	fb.AssertNoFileExists("agent-data-plane/runtime_config_dump.yaml")
+
+	// UNREACHABLE.txt must be present under the agent's sanitized display name.
+	fb.AssertFileExists("agent-data-plane/UNREACHABLE.txt")
+	// The file should contain a non-empty error message.
+	unreachablePath := "agent-data-plane/UNREACHABLE.txt"
+	fb.AssertFileContentMatch("could not be reached:", unreachablePath)
 }
 
 func TestGetTelemetry(t *testing.T) {

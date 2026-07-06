@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "k8s",
+    srcs = [
+        "manifest.go",
+        "modifiers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx/k8s",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/apps",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/apps/v1:apps",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/meta/v1:meta",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

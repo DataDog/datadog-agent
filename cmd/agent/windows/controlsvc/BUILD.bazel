@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "controlsvc",
+    srcs = ["controlsvc.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/windows/controlsvc",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//cmd/agent/common",
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)

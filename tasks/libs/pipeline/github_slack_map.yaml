@@ -223,13 +223,6 @@
   review:
     name: '#aaa-authn'
     id: 'C02S3STU39N'
-'@datadog/data-jobs-monitoring':
-  notification:
-    name: ''
-    id: ''
-  review:
-    name: '#data-jobs-monitoring'
-    id: 'C05DAN6ULF6'
 '@datadog/data-observability':
   notification:
     name: '#data-observability-ops'
