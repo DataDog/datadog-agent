@@ -20,6 +20,7 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
@@ -374,6 +375,14 @@ func NewComponent(deps Requires) (Provides, error) {
 	// defaults to true when unset (explicit false disables it).
 	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
 	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.logs.internal.enabled") || cfg.GetBool("anomaly_detection.logs.internal.enabled")
+
+	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
+	logsRules, err := logsfilter.LoadRules(cfg, logsProcessingRulesKey)
+	if err != nil {
+		deps.Log.Warnf("[observer] %s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
+		logsRules = &logsfilter.Rules{}
+	}
+
 	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
 		minSeverity := cfg.GetString("anomaly_detection.logs.internal.min_severity")
 		maxRateHigh := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_high_priority")
@@ -382,7 +391,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		agentLogsHandle := obs.GetHandle("agent_logs")
 		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
 			obsTelemetry.recordSamplerDropped("internal", priority)
-		})
+		}, logsRules)
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
 				pkglog.SetLogObserver(nil)

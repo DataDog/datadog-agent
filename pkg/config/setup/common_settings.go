@@ -1140,6 +1140,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.enabled", false)
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.period", 0)
+	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.port", 0)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
@@ -1523,6 +1524,16 @@ func telemetry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("agent_telemetry.compression_level", 1)
 	config.BindEnvAndSetDefault("agent_telemetry.use_compression", true)
 	config.BindEnvAndSetDefault("agent_telemetry.startup_trace_sampling", 0)
+
+	// experimental error log forwarding to telemetry. Use-sites must
+	// additionally gate on pkg/config/utils.IsAgentTelemetryEnabled so
+	// gov/FIPS exclusion is inherited from the parent agent_telemetry flag.
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.enabled", false)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.bouncer_window_seconds", 900)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.flush_interval_seconds", 60)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.buffer_size", 2048)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.startup_jitter_seconds", 0)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.shutdown_drain_timeout_seconds", 5)
 }
 
 func serializer(config pkgconfigmodel.Setup) {
@@ -1824,6 +1835,12 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.kubelet_api_client_read_timeout", "30s")
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", "${run_path}")
+	// DEPRECATED in favor of `logs_config.force_use_http`.
+	config.BindEnvAndSetDefault("logs_config.use_http", false)
+	config.BindEnvAndSetDefault("logs_config.force_use_http", false)
+	// DEPRECATED in favor of `logs_config.force_use_tcp`.
+	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
+	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
 	// Maximum interval for HTTP connectivity retry checks with exponential backoff (in seconds)
 	// When TCP fallback occurs, the agent will retry HTTP connectivity at increasing intervals
 	// up to this ceiling, then continue checking at this interval. Default: 1 hour
@@ -2172,6 +2189,9 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 
 	// Ordered metric-processing rules applied at the observer handle boundary.
 	config.BindEnvAndSetDefault("anomaly_detection.metrics.processing_rules", []map[string]interface{}{})
+
+	// Ordered log-processing rules applied to anomaly-detection log sources.
+	config.BindEnvAndSetDefault("anomaly_detection.logs.processing_rules", []map[string]interface{}{})
 
 	// Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_metrics_extractor.enabled", true)

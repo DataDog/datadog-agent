@@ -110,6 +110,7 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
+        "//comp/anomalydetection/internal/logsfilter",
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/recorder/def",
         "//comp/anomalydetection/reporter/def",

@@ -154,9 +154,11 @@ Keys are registered in `pkg/config/setup/common_settings.go`.
 |-----|---------|---------|
 | `anomaly_detection.enabled` | `false` | Master analysis gate |
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
+| `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
 | `anomaly_detection.reporting.enabled` | `false` | Event reporter (change events) |
 | `anomaly_detection.recording.enabled` | `false` | Parquet recording middleware |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |
+| `anomaly_detection.logs.processing_rules` | `[]` | Ordered log filter rules evaluated per message for all log sources (container, kubelet, agent-internal) |
 | `anomaly_detection.logs.containers.enabled` | `true` | Workloadmeta container logs |
 | `anomaly_detection.logs.kubelet.enabled` | `true` | Kubelet journald source |
 | `anomaly_detection.logs.internal.enabled` | `true` | Agent-internal log tap |
@@ -166,6 +168,11 @@ Keys are registered in `pkg/config/setup/common_settings.go`.
 
 Per-source log rate limits and min severity live under
 `anomaly_detection.logs.{internal,kubelet,containers}.*`.
+
+Log `processing_rules` fields: `type` (`exclude_at_match` / `include_at_match`), `name` (required),
+`source` (e.g. `containerd`, `docker`, `kubelet`, `datadog-agent`), `tags` (list of `key:value`).
+Rules are evaluated per-message for all sources (container, kubelet, agent-internal).
+Both `source` and `tags` constraints are supported; first-match wins.
 
 ## Allium Specifications
 
