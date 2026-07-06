@@ -60,9 +60,11 @@
   - cmd/otel-agent/**/*
 
 # Bazel build system paths - single source of truth for all Bazel-related change detection.
-# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion.
+# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion,
+# including nested BUILD.bazel files (a single "*" does not cross "/" in GitLab's changes:paths glob).
 .bazel_paths: &bazel_paths
   - "*.bazel*"
+  - "**/*.bazel*"
   - deps/**/*
   - bazel/**/*
   - tasks/build_tags.bzl
