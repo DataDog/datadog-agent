@@ -44,10 +44,13 @@ func (h *Handler) RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.R
 
 // GetState returns the state of the dispatching, for the clusterchecks cmd
 func (h *Handler) GetState(scrub bool) (types.StateResponse, error) {
+	// Release h.m before calling getState: holding it for the scrubbing
+	// duration blocks updateLeaderIP and starves the leadership health probe.
 	h.m.RLock()
-	defer h.m.RUnlock()
+	currentState := h.state
+	h.m.RUnlock()
 
-	switch h.state {
+	switch currentState {
 	case leader:
 		return h.dispatcher.getState(scrub)
 	case follower:
