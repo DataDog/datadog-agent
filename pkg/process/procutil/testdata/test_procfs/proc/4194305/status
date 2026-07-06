@@ -1,20 +1,20 @@
 Name:	test_ns_old_lin
 State:	S (sleeping)
-Tgid:	8226
+Tgid:	4194305
 Ngid:	0
-Pid:	8226
-PPid:	8225
+Pid:	4194305
+PPid:	8224
 TracerPid:	0
 Uid:	0	0	0	0
 Gid:	0	0	0	0
 FDSize:	64
 Groups:	0 
-VmPeak:	    4200 kB
+VmPeak:	    4232 kB
 VmSize:	    4200 kB
 VmLck:	       0 kB
 VmPin:	       0 kB
-VmHWM:	      84 kB
-VmRSS:	      84 kB
+VmHWM:	     352 kB
+VmRSS:	     352 kB
 VmData:	      52 kB
 VmStk:	     132 kB
 VmExe:	       4 kB
@@ -38,5 +38,5 @@ Cpus_allowed:	3
 Cpus_allowed_list:	0-1
 Mems_allowed:	00000000,00000001
 Mems_allowed_list:	0
-voluntary_ctxt_switches:	2
-nonvoluntary_ctxt_switches:	0
+voluntary_ctxt_switches:	3
+nonvoluntary_ctxt_switches:	4
