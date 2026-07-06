@@ -138,8 +138,8 @@ type RequestStat struct {
 
 	// LatencySum is the running sum of request latencies in nanoseconds.
 	// Populated by discovery service map mode in lieu of DDSketches; the
-	// encoder converts it to an average (sum / count) at serialization
-	// time. Unused outside of discovery mode.
+	// encoder serializes it directly, and deriving an average (sum / count)
+	// is left to downstream consumers. Unused outside of discovery mode.
 	LatencySum float64
 
 	// Tags bitfields from tags-types.h
