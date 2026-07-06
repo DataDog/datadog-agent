@@ -51,6 +51,18 @@ lint_gopls_plugin:
   script:
     - dda inv -- -e claude.set-buildtags --check
 
+lint_e2e_framework_configdoc:
+  extends: .lint
+  rules:
+    - changes:
+        paths:
+          - test/e2e-framework/common/config/**/*
+          - test/e2e-framework/resources/**/*
+          - test/e2e-framework/cmd/configdoc/**/*
+        compare_to: $COMPARE_TO_BRANCH
+  script:
+    - dda inv -- -e e2e.configdoc --check
+
 lint_python:
   extends: .lint
   script:
