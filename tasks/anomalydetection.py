@@ -37,13 +37,6 @@ from tasks.libs.anomalydetection.eval import (
 )
 from tasks.libs.common.color import Color, color_message
 
-DEFAULT_DDEVAL_CONFIG_TEMPLATE = os.path.join(
-    os.path.dirname(__file__),
-    "anomalydetection",
-    "ddeval",
-    "observer-log-ad-experiment-config.json",
-)
-
 
 @dataclass(frozen=True)
 class _DDEvalOptions:
@@ -59,6 +52,8 @@ class _DDEvalOptions:
     max_attempts: int
     limit: int
     where_in: str
+    testbench_binary_s3_uri: str
+    scorer_binary_s3_uri: str
 
 
 # --- Build ---
@@ -788,6 +783,8 @@ def eval_bayesian(
     ddeval_max_attempts: int = 1,
     ddeval_limit: int = 0,
     ddeval_where_in: str = "",
+    ddeval_testbench_binary_s3_uri: str = "",
+    ddeval_scorer_binary_s3_uri: str = "",
     _logger: StepLogger | None = None,
 ):
     """
@@ -821,8 +818,8 @@ def eval_bayesian(
         scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
         eval_backend: Evaluation backend. "local" runs eval_scenarios; "ddeval" submits
             each trial to the remote ddeval workflow and optimizes the returned mean F1.
-        ddeval_config_template: JSON experiment config template for ddeval. The trial's
-            sampled testbench config is injected into input_parameters.testbench_config.
+        ddeval_config_template: Optional JSON experiment config template for ddeval. When omitted, the task
+            builds a minimal config from the generated trial config and binary artifact URIs.
         ddeval_ddsource_dir: dd-source checkout containing the ddeval Bazel target.
             Defaults to $DDSOURCE_DIR or $DD_SOURCE_DIR when --ddeval-command is not set.
         ddeval_command: Installed ddeval command or wrapper. When set, this is used
@@ -836,13 +833,21 @@ def eval_bayesian(
         ddeval_max_attempts: Max attempts per scenario.
         ddeval_limit: Optional dataset limit for smoke tests.
         ddeval_where_in: Optional ddeval --where-in filter, e.g. metadata.record_id=a,b.
+        ddeval_testbench_binary_s3_uri: S3 URI for the anomalydetection-testbench binary.
+            Defaults to $OBSERVER_LOG_AD_DDEVAL_TESTBENCH_BINARY_S3_URI.
+        ddeval_scorer_binary_s3_uri: S3 URI for the anomalydetection-scorer binary.
+            Defaults to $OBSERVER_LOG_AD_DDEVAL_SCORER_BINARY_S3_URI.
 
     Examples:
         dda inv --dep optuna anomalydetection.eval-bayesian
         dda inv --dep optuna anomalydetection.eval-bayesian --components bocpd,rrcf,time_cluster
         dda inv --dep optuna anomalydetection.eval-bayesian --only bocpd
         dda inv --dep optuna anomalydetection.eval-bayesian --n-trials 100 --seed 42
-        dda inv --dep optuna anomalydetection.eval-bayesian --eval-backend ddeval --ddeval-command ddeval --n-trials 3
+        dda inv --dep optuna anomalydetection.eval-bayesian --eval-backend ddeval \
+            --ddeval-command ddeval \
+            --ddeval-testbench-binary-s3-uri s3://.../anomalydetection-testbench \
+            --ddeval-scorer-binary-s3-uri s3://.../anomalydetection-scorer \
+            --n-trials 3
     """
     import pickle
 
@@ -919,6 +924,8 @@ def eval_bayesian(
             ddeval_max_attempts=ddeval_max_attempts,
             ddeval_limit=ddeval_limit,
             ddeval_where_in=ddeval_where_in,
+            ddeval_testbench_binary_s3_uri=ddeval_testbench_binary_s3_uri,
+            ddeval_scorer_binary_s3_uri=ddeval_scorer_binary_s3_uri,
         )
     except ValueError as e:
         print(color_message(f"Error: {e}", Color.RED))
@@ -1112,6 +1119,8 @@ def _resolve_ddeval_options(
     ddeval_max_attempts: int,
     ddeval_limit: int,
     ddeval_where_in: str,
+    ddeval_testbench_binary_s3_uri: str,
+    ddeval_scorer_binary_s3_uri: str,
 ) -> tuple[str, _DDEvalOptions | None]:
     eval_backend = eval_backend.strip().lower()
     if eval_backend not in {"local", "ddeval"}:
@@ -1119,11 +1128,13 @@ def _resolve_ddeval_options(
     if eval_backend == "local":
         return eval_backend, None
 
-    config_template = (
-        ddeval_config_template
-        or os.environ.get("OBSERVER_LOG_AD_DDEVAL_CONFIG_TEMPLATE", "")
-        or DEFAULT_DDEVAL_CONFIG_TEMPLATE
-    )
+    config_template = (ddeval_config_template or os.environ.get("OBSERVER_LOG_AD_DDEVAL_CONFIG_TEMPLATE", "")).strip()
+    testbench_binary_s3_uri = (
+        ddeval_testbench_binary_s3_uri or os.environ.get("OBSERVER_LOG_AD_DDEVAL_TESTBENCH_BINARY_S3_URI", "")
+    ).strip()
+    scorer_binary_s3_uri = (
+        ddeval_scorer_binary_s3_uri or os.environ.get("OBSERVER_LOG_AD_DDEVAL_SCORER_BINARY_S3_URI", "")
+    ).strip()
     command = (ddeval_command or os.environ.get("DDEVAL_COMMAND", "")).strip()
     if command:
         ddsource_dir = os.path.abspath(ddeval_ddsource_dir) if ddeval_ddsource_dir else ""
@@ -1137,12 +1148,18 @@ def _resolve_ddeval_options(
         )
     if ddsource_dir:
         ddsource_dir = os.path.abspath(ddsource_dir)
-    config_template = os.path.abspath(config_template)
+    if config_template:
+        config_template = os.path.abspath(config_template)
 
     if ddsource_dir and not os.path.isdir(ddsource_dir):
         raise ValueError(f"dd-source directory not found: {ddsource_dir}")
-    if not os.path.isfile(config_template):
+    if config_template and not os.path.isfile(config_template):
         raise ValueError(f"ddeval config template not found: {config_template}")
+    if not config_template and (not testbench_binary_s3_uri or not scorer_binary_s3_uri):
+        raise ValueError(
+            "--ddeval-testbench-binary-s3-uri and --ddeval-scorer-binary-s3-uri "
+            "are required when --ddeval-config-template is not set"
+        )
 
     return eval_backend, _DDEvalOptions(
         config_template=config_template,
@@ -1157,6 +1174,8 @@ def _resolve_ddeval_options(
         max_attempts=ddeval_max_attempts,
         limit=ddeval_limit,
         where_in=ddeval_where_in,
+        testbench_binary_s3_uri=testbench_binary_s3_uri,
+        scorer_binary_s3_uri=scorer_binary_s3_uri,
     )
 
 
@@ -1176,6 +1195,8 @@ def _ddeval_options_kwargs(options: _DDEvalOptions | None) -> dict[str, object]:
         "ddeval_max_attempts": options.max_attempts,
         "ddeval_limit": options.limit,
         "ddeval_where_in": options.where_in,
+        "ddeval_testbench_binary_s3_uri": options.testbench_binary_s3_uri,
+        "ddeval_scorer_binary_s3_uri": options.scorer_binary_s3_uri,
     }
 
 
@@ -1193,9 +1214,45 @@ def _validate_ddeval_scenario_filter(eval_backend: str, scenarios: str) -> bool:
 
 
 def _log_trial_config(logger: StepLogger, config: dict) -> None:
-    logger.detail("testbench config:")
+    logger.detail("component config:")
     for line in json.dumps(config, indent=2, sort_keys=True).splitlines():
         logger.detail(f"  {line}")
+
+
+def _ddeval_experiment_config(
+    *,
+    options: _DDEvalOptions,
+    trial_config: dict,
+    trial_config_path: str,
+    sigma: float,
+) -> dict:
+    if options.config_template:
+        with open(options.config_template) as f:
+            experiment_config = json.load(f)
+    else:
+        experiment_config = {}
+
+    input_parameters = dict(experiment_config.get("input_parameters") or {})
+    input_parameters["component_config"] = trial_config
+    input_parameters["trial_metadata"] = {
+        **dict(input_parameters.get("trial_metadata") or {}),
+        "trial_config_path": trial_config_path,
+        "eval_source": "anomalydetection.eval-bayesian",
+    }
+    experiment_config["input_parameters"] = input_parameters
+
+    executor_config = dict(experiment_config.get("executor_config") or {})
+    if options.testbench_binary_s3_uri or options.scorer_binary_s3_uri:
+        binary_artifacts = dict(executor_config.get("binary_artifacts") or {})
+        if options.testbench_binary_s3_uri:
+            binary_artifacts["testbench"] = {"s3_uri": options.testbench_binary_s3_uri}
+        if options.scorer_binary_s3_uri:
+            binary_artifacts["scorer"] = {"s3_uri": options.scorer_binary_s3_uri}
+        executor_config["binary_artifacts"] = binary_artifacts
+    executor_config["sigma"] = sigma
+    experiment_config["executor_config"] = executor_config
+
+    return experiment_config
 
 
 def _run_ddeval_trial(
@@ -1214,21 +1271,12 @@ def _run_ddeval_trial(
 
     with open(trial_config_path) as f:
         trial_config = json.load(f)
-    with open(options.config_template) as f:
-        experiment_config = json.load(f)
-
-    input_parameters = dict(experiment_config.get("input_parameters") or {})
-    input_parameters["testbench_config"] = trial_config
-    input_parameters["trial_metadata"] = {
-        **dict(input_parameters.get("trial_metadata") or {}),
-        "trial_config_path": trial_config_path,
-        "eval_source": "anomalydetection.eval-bayesian",
-    }
-    experiment_config["input_parameters"] = input_parameters
-
-    executor_config = dict(experiment_config.get("executor_config") or {})
-    executor_config["sigma"] = sigma
-    experiment_config["executor_config"] = executor_config
+    experiment_config = _ddeval_experiment_config(
+        options=options,
+        trial_config=trial_config,
+        trial_config_path=trial_config_path,
+        sigma=sigma,
+    )
 
     trial_experiment_config_path = os.path.abspath(os.path.join(trial_dir, "ddeval-experiment-config.json"))
     with open(trial_experiment_config_path, "w") as f:
@@ -1408,6 +1456,8 @@ def eval_pipeline(
     ddeval_max_attempts: int = 1,
     ddeval_limit: int = 0,
     ddeval_where_in: str = "",
+    ddeval_testbench_binary_s3_uri: str = "",
+    ddeval_scorer_binary_s3_uri: str = "",
 ):
     """
     Full pipeline fine-tuning: Bayesian search over component combinations, then deep tuning on the winner.
@@ -1441,7 +1491,7 @@ def eval_pipeline(
         timeout: Per-scenario time budget in seconds (0 = no limit).
         scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
         eval_backend: Evaluation backend for each Bayesian trial ("local" or "ddeval").
-        ddeval_config_template: JSON experiment config template for ddeval.
+        ddeval_config_template: Optional JSON experiment config template for ddeval.
         ddeval_ddsource_dir: dd-source checkout containing the ddeval Bazel target.
         ddeval_command: Installed ddeval command or wrapper. When set, this is used
             instead of running the ddeval Bazel target from dd-source.
@@ -1454,13 +1504,21 @@ def eval_pipeline(
         ddeval_max_attempts: Max attempts per scenario.
         ddeval_limit: Optional dataset limit for smoke tests.
         ddeval_where_in: Optional ddeval --where-in filter.
+        ddeval_testbench_binary_s3_uri: S3 URI for the anomalydetection-testbench binary.
+            Defaults to $OBSERVER_LOG_AD_DDEVAL_TESTBENCH_BINARY_S3_URI.
+        ddeval_scorer_binary_s3_uri: S3 URI for the anomalydetection-scorer binary.
+            Defaults to $OBSERVER_LOG_AD_DDEVAL_SCORER_BINARY_S3_URI.
 
     Examples:
         dda inv --dep optuna anomalydetection.eval-pipeline
         dda inv --dep optuna anomalydetection.eval-pipeline --n-combos 20 --n-trials-search 10 --n-trials-tune 50 --seed 42
         dda inv --dep optuna anomalydetection.eval-pipeline --force-enable scanmw
         dda inv --dep optuna anomalydetection.eval-pipeline --force-disable cusum,scanwelch
-        dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval --ddeval-command ddeval --n-combos 3 --n-trials-search 2 --n-trials-tune 3
+        dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval \
+            --ddeval-command ddeval \
+            --ddeval-testbench-binary-s3-uri s3://.../anomalydetection-testbench \
+            --ddeval-scorer-binary-s3-uri s3://.../anomalydetection-scorer \
+            --n-combos 3 --n-trials-search 2 --n-trials-tune 3
     """
     try:
         eval_backend, ddeval_options = _resolve_ddeval_options(
@@ -1477,6 +1535,8 @@ def eval_pipeline(
             ddeval_max_attempts=ddeval_max_attempts,
             ddeval_limit=ddeval_limit,
             ddeval_where_in=ddeval_where_in,
+            ddeval_testbench_binary_s3_uri=ddeval_testbench_binary_s3_uri,
+            ddeval_scorer_binary_s3_uri=ddeval_scorer_binary_s3_uri,
         )
     except ValueError as e:
         print(color_message(f"Error: {e}", Color.RED))
