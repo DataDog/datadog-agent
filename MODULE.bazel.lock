@@ -228,10 +228,10 @@
     "https://bcr.bazel.build/modules/rules_rs/0.0.27/source.json": "ce3422d9111f3e5f70deaeafc90233ca8efd4cf3c2b7da883f7ad382634f2ecf",
     "https://bcr.bazel.build/modules/rules_rust/0.66.0/MODULE.bazel": "86ef763a582f4739a27029bdcc6c562258ed0ea6f8d58294b049e215ceb251b3",
     "https://bcr.bazel.build/modules/rules_rust/0.69.0/MODULE.bazel": "4326fec48f2fef0d514de46346f7f77e200c82936dd08b91c9ef039fbdad5c10",
-    "https://bcr.bazel.build/modules/rules_rust/0.71.2/MODULE.bazel": "e1857f08dab5ba2f3049104993e453cea71183661dc5e5e92be73523f742353f",
-    "https://bcr.bazel.build/modules/rules_rust/0.71.2/source.json": "a7ccb5614b194ffedc5a539f06d9bfc64aa47f48c40d9e6f6bbb840e1a55ff30",
-    "https://bcr.bazel.build/modules/rules_rust_prost/0.71.2/MODULE.bazel": "17bf3325838593126122eb117455f25373dd5a8505fb65b68d4111e63318738a",
-    "https://bcr.bazel.build/modules/rules_rust_prost/0.71.2/source.json": "5a93132e4133af15f8816e637c5de93228bf6e64be3ff65dc59c830df3b08df4",
+    "https://bcr.bazel.build/modules/rules_rust/0.71.3/MODULE.bazel": "e2390c96f77d65f00c769bf665678c5424188e9c777239cfaae2a8d2dde7b981",
+    "https://bcr.bazel.build/modules/rules_rust/0.71.3/source.json": "5eb5d8068571725bc893045f8137ed7937988f23d73c53ea443470e8047598ad",
+    "https://bcr.bazel.build/modules/rules_rust_prost/0.71.3/MODULE.bazel": "c72a64e09634f684e90f269ee7988226e4703b62012ceb6bf2477c2606f5f6d9",
+    "https://bcr.bazel.build/modules/rules_rust_prost/0.71.3/source.json": "7f579d55171e671cda7f2961cc1aa5b0187ef8dd5d62751766d8515866caa947",
     "https://bcr.bazel.build/modules/rules_shell/0.2.0/MODULE.bazel": "fda8a652ab3c7d8fee214de05e7a9916d8b28082234e8d2c0094505c5268ed3c",
     "https://bcr.bazel.build/modules/rules_shell/0.3.0/MODULE.bazel": "de4402cd12f4cc8fda2354fce179fdb068c0b9ca1ec2d2b17b3e21b24c1a937b",
     "https://bcr.bazel.build/modules/rules_shell/0.4.0/MODULE.bazel": "0f8f11bb3cd11755f0b48c1de0bbcf62b4b34421023aa41a2fc74ef68d9584f0",
@@ -255,8 +255,6 @@
     "https://bcr.bazel.build/modules/tar.bzl/0.6.0/source.json": "4a620381df075a16cb3a7ed57bd1d05f7480222394c64a20fa51bdb636fda658",
     "https://bcr.bazel.build/modules/toml.bzl/0.4.1/MODULE.bazel": "6bc0b938f03ade8d58c2fca0ad5c3fa12b4764e1e1927ad50b0c860286db2167",
     "https://bcr.bazel.build/modules/toml.bzl/0.4.1/source.json": "86a90afd8b43c9b69ad31f5c03998c3adcf4b08175e621addb93e3a38eec538b",
-    "https://bcr.bazel.build/modules/toolchains_llvm/1.8.0/MODULE.bazel": "68259b66e5fb84f94fa37125ad476c3eb8edf602a34bf58377cde9a16dd8fa98",
-    "https://bcr.bazel.build/modules/toolchains_llvm/1.8.0/source.json": "70d80fe5b626a3fadf812af41dda4a028640a1184f5a3c7e6cb20130d93ed783",
     "https://bcr.bazel.build/modules/xz/5.4.5.bcr.7/MODULE.bazel": "6ad4a612745322cb1b64b971f9de54d1e604810043da14ca5578f963075b5dac",
     "https://bcr.bazel.build/modules/xz/5.4.5.bcr.7/source.json": "8f42ea24ea4bf0d34e9fca53ee39de4fd4aeb93459a777600975ba18857fd2a9",
     "https://bcr.bazel.build/modules/yq.bzl/0.1.1/MODULE.bazel": "9039681f9bcb8958ee2c87ffc74bdafba9f4369096a2b5634b88abc0eaefa072",
@@ -339,8 +337,8 @@
         "usagesDigest": "CKsn1dtme4oztWA0td45Tt6oCZK6MZnpIocVVZK14sU=",
         "recordedInputs": [
           "FILE:@@//.bazelversion 7b6188c072705b1c51d6ccdedea92238feb4199b75c58b321c5b632d981b0aba",
-          "FILE:@@//tools/bazel 8cd8e05bc6563f0ec312c10447f63c0d984f3bee34418ee07490e007f3ebfc3f",
-          "FILE:@@//tools/bazel.bat 44c2cabd3fb22bd06abf1eb64f11b8eacd046190b221edb1d2cd9aa9922df319",
+          "FILE:@@//tools/bazel 690073a0ab1e62a71c0acbe7eb9312b9a5937951759be4c0f457d97fa7e992e4",
+          "FILE:@@//tools/bazel.bat 9ead9c74fdd6e8200f38c5b68b1f0caae77d6e15b0434fc42043ce87ae41ec7b",
           "FILE:@@//tools/bazelisk.md 184864dc41f9cd398f786ba7c7cd858942d19daa792203e0b18a1a3bfaf372f0"
         ],
         "generatedRepoSpecs": {}
@@ -726,8 +724,8 @@
     },
     "@@rules_rust+//crate_universe/private:internal_extensions.bzl%cu_nr": {
       "general": {
-        "bzlTransitiveDigest": "zUJAqbxXIR4S9kC20gLHymkiOyMp+4PIJWeTIAlwSl8=",
-        "usagesDigest": "ktJkA8mbcEN099auKYxmxyChAR/e0WGK8fVdYkiP9mU=",
+        "bzlTransitiveDigest": "uj+LBcdKHg6ATwIKEFV9in+NMO9B9OEYgClWY7qh3jM=",
+        "usagesDigest": "cXwM8V1dYpvU0qY6LVYuUUf4Ql389ZhymEzwJhYVr2o=",
         "recordedInputs": [
           "REPO_MAPPING:apple_support+,bazel_skylib bazel_skylib+",
           "REPO_MAPPING:bazel_features+,bazel_features_globals bazel_features++version_extension+bazel_features_globals",
@@ -806,7 +804,7 @@
               "binary": "cargo-bazel",
               "cargo_lockfile": "@@rules_rust+//crate_universe:Cargo.lock",
               "cargo_toml": "@@rules_rust+//crate_universe:Cargo.toml",
-              "version": "1.96.0",
+              "version": "1.96.1",
               "rust_toolchain_cargo_template": "@rust_host_tools//:bin/{tool}",
               "rust_toolchain_rustc_template": "@rust_host_tools//:bin/{tool}",
               "compressed_windows_toolchain_names": false,
@@ -827,7 +825,7 @@
     "@@toolchains_llvm+//toolchain/extensions:distributions.bzl%llvm_distributions": {
       "general": {
         "bzlTransitiveDigest": "gCdXpBt3HBBc280OILOFheHmO7lXWXJYnPgYiTtyapI=",
-        "usagesDigest": "VyKGZSw79ryPJ9gt0sqBfIkA7qGOU6tnlDHd7awkb6Q=",
+        "usagesDigest": "3B/1Qf38oum/lRpBvi3mnJwV6XMAQF+4//DH0B29rNA=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "llvm_distributions_data": {
@@ -1899,7 +1897,7 @@
       "anstyle-query_1.1.5": "{\"dependencies\":[{\"features\":[\"Win32_System_Console\",\"Win32_Foundation\"],\"name\":\"windows-sys\",\"req\":\">=0.60.2, <0.62\",\"target\":\"cfg(windows)\"}],\"features\":{}}",
       "anstyle-wincon_3.0.11": "{\"dependencies\":[{\"name\":\"anstyle\",\"req\":\"^1.0.0\"},{\"kind\":\"dev\",\"name\":\"lexopt\",\"req\":\"^0.3.1\"},{\"name\":\"once_cell_polyfill\",\"req\":\"^1.56.1\",\"target\":\"cfg(windows)\"},{\"features\":[\"Win32_System_Console\",\"Win32_Foundation\"],\"name\":\"windows-sys\",\"req\":\">=0.60.2, <0.62\",\"target\":\"cfg(windows)\"}],\"features\":{}}",
       "anstyle_1.0.14": "{\"dependencies\":[{\"kind\":\"dev\",\"name\":\"lexopt\",\"req\":\"^0.3.1\"},{\"kind\":\"dev\",\"name\":\"snapbox\",\"req\":\"^0.6.23\"}],\"features\":{\"default\":[\"std\"],\"std\":[]}}",
-      "anyhow_1.0.102": "{\"dependencies\":[{\"default_features\":false,\"kind\":\"dev\",\"name\":\"futures\",\"req\":\"^0.3\"},{\"kind\":\"dev\",\"name\":\"rustversion\",\"req\":\"^1.0.6\"},{\"features\":[\"full\"],\"kind\":\"dev\",\"name\":\"syn\",\"req\":\"^2.0\"},{\"kind\":\"dev\",\"name\":\"thiserror\",\"req\":\"^2\"},{\"features\":[\"diff\"],\"kind\":\"dev\",\"name\":\"trybuild\",\"req\":\"^1.0.108\"}],\"features\":{\"backtrace\":[],\"default\":[\"std\"],\"std\":[]}}",
+      "anyhow_1.0.103": "{\"dependencies\":[{\"default_features\":false,\"kind\":\"dev\",\"name\":\"futures\",\"req\":\"^0.3\"},{\"kind\":\"dev\",\"name\":\"rustversion\",\"req\":\"^1.0.6\"},{\"features\":[\"full\"],\"kind\":\"dev\",\"name\":\"syn\",\"req\":\"^2.0\"},{\"kind\":\"dev\",\"name\":\"thiserror\",\"req\":\"^2\"},{\"features\":[\"diff\"],\"kind\":\"dev\",\"name\":\"trybuild\",\"req\":\"^1.0.108\"}],\"features\":{\"backtrace\":[],\"default\":[\"std\"],\"std\":[]}}",
       "arraydeque_0.5.1": "{\"dependencies\":[],\"features\":{\"default\":[\"std\"],\"std\":[]}}",
       "async-trait_0.1.89": "{\"dependencies\":[{\"kind\":\"dev\",\"name\":\"futures\",\"req\":\"^0.3.30\"},{\"name\":\"proc-macro2\",\"req\":\"^1.0.74\"},{\"name\":\"quote\",\"req\":\"^1.0.35\"},{\"kind\":\"dev\",\"name\":\"rustversion\",\"req\":\"^1.0.13\"},{\"default_features\":false,\"features\":[\"clone-impls\",\"full\",\"parsing\",\"printing\",\"proc-macro\",\"visit-mut\"],\"name\":\"syn\",\"req\":\"^2.0.46\"},{\"kind\":\"dev\",\"name\":\"tracing\",\"req\":\"^0.1.40\"},{\"kind\":\"dev\",\"name\":\"tracing-attributes\",\"req\":\"^0.1.27\"},{\"features\":[\"diff\"],\"kind\":\"dev\",\"name\":\"trybuild\",\"req\":\"^1.0.81\"}],\"features\":{}}",
       "atomic-waker_1.1.2": "{\"dependencies\":[{\"default_features\":false,\"features\":[\"cargo_bench_support\"],\"kind\":\"dev\",\"name\":\"criterion\",\"req\":\"^0.4.0\"},{\"kind\":\"dev\",\"name\":\"futures\",\"req\":\"^0.3.5\"},{\"default_features\":false,\"name\":\"portable-atomic\",\"optional\":true,\"req\":\"^1\"},{\"kind\":\"dev\",\"name\":\"rayon\",\"req\":\"^1.7.0\"}],\"features\":{}}",
