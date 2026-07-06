@@ -119,7 +119,7 @@ def build_images(_, versions):
 
     built_images = []
 
-    for tag in versions.keys():
+    for tag, version_data in versions.items():
         try:
             image = build_kind_node_image(tag)
             built_images.append(image)
