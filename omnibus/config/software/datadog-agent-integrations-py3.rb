@@ -100,7 +100,7 @@ build do
   end
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
-  command "#{python} -m pip check"
+  command "#{python} -B -m pip check"
 
   unless windows_target?
     block "Remove .exe files" do
@@ -164,9 +164,9 @@ build do
       include_folder = File.join(install_dir, "embedded3", "include")
 
       block "Build cryptography library against Agent's OpenSSL" do
-        cryptography_requirement = (shellout! "#{python} -m pip list --format=freeze").stdout[/cryptography==.*?$/]
+        cryptography_requirement = (shellout! "#{python} -B -m pip list --format=freeze").stdout[/cryptography==.*?$/]
 
-        shellout! "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
+        shellout! "#{python} -B -m pip install --no-compile --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
                 env: {
                   "OPENSSL_LIB_DIR" => lib_folder,
                   "OPENSSL_INCLUDE_DIR" => include_folder,
