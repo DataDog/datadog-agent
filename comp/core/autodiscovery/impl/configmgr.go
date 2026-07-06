@@ -6,6 +6,7 @@
 package autodiscoveryimpl
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"sync"
@@ -465,6 +466,10 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	digest := tpl.Digest()
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
+		if errors.Is(err, configresolver.ErrServiceNotReady) {
+			log.Debugf("autodiscovery: config for %s not resolved yet, service %s not ready", tpl.Name, svc.GetServiceID())
+			return tpl, false
+		}
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
 		log.Errorf("autodiscovery: skipping config - %s", msg)
 		errorStats.setResolveWarning(tpl.Name, msg)
