@@ -1,0 +1,14 @@
+// This is a template for a program which returns a string and an exit code.
+// It is used (as one example) to test the retrieval of the hostname from an external binary.
+
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	fmt.Println("{{.Response}}")
+	os.Exit({{.ExitCode}})
+}
