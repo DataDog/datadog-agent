@@ -32,10 +32,12 @@
 //   - When the env var is set: the agent forwards each hook to
 //     127.0.0.1:<user-app-port> on the same path and mirrors the user app's
 //     response (status, body, Content-Type) back to the platform. /ready and
-//     /validate wait for TCP reachability before forwarding. For /run,
-//     /resume, /suspend, and /terminate the agent's own work — metric
-//     emission, /suspend and /terminate telemetry flush — runs in a goroutine
-//     in parallel with the pass-through.
+//     /validate check TCP reachability with a single fast dial before
+//     forwarding, answering 503 immediately if the app isn't up yet rather
+//     than blocking — the platform owns the retry loop for those two hooks.
+//     For /run, /resume, /suspend, and /terminate the agent's own work —
+//     metric emission, /suspend and /terminate telemetry flush — runs in a
+//     goroutine in parallel with the pass-through.
 //
 // /terminate does NOT synthesize SIGTERM. The platform owns process
 // termination via OS signals delivered independently of this HTTP event.
@@ -238,8 +240,8 @@ func NewServer(
 	// WriteTimeout must cover the full handler wall-clock for every path:
 	//   - No forwarder: flushTimeout (flush budget + write headroom)
 	//   - /run, /resume, /suspend, /terminate: forwardTimeout (default 1s)
-	//   - /ready: readyTimeout (default 60s, matching platform /ready timeout)
-	//   - /validate: validateTimeout (default 1s)
+	//   - /ready: dialCheckTimeout + readyTimeout (default 30s)
+	//   - /validate: dialCheckTimeout + validateTimeout (default 30s)
 	// Use the largest of all applicable budgets so the HTTP server does not
 	// close the platform-facing connection before the handler writes the
 	// mirrored response.
@@ -247,7 +249,9 @@ func NewServer(
 	if s.fwd != nil {
 		// /terminate uses flushSequential: flush runs after the forward, so its
 		// wall-clock is forwardTimeout+flushTimeout, not max of the two.
-		maxTimeout = max(maxTimeout, s.fwd.forwardTimeout+s.flushTimeout, s.fwd.readyTimeout, s.fwd.validateTimeout)
+		readyBudget := dialCheckTimeout + s.fwd.readyTimeout
+		validateBudget := dialCheckTimeout + s.fwd.validateTimeout
+		maxTimeout = max(maxTimeout, s.fwd.forwardTimeout+s.flushTimeout, readyBudget, validateBudget)
 	}
 	writeTimeout := maxTimeout + writeTimeoutHeadroom
 	s.httpServer = &http.Server{
@@ -347,7 +351,8 @@ func (s *Server) handler() http.Handler {
 //
 // Dispatcher:
 //   - If a Forwarder is configured (env-var opt-in), pass-through to the user
-//     app with TCP-wait: dial errors map to 503, deadline to 504.
+//     app with a fast reachability check: dial errors and deadline exceeded
+//     both map to 503.
 //   - Otherwise, alive-check via ChildHandle: child alive → 200, anything
 //     else (not yet started, already exited, or nil handle) → 503. The
 //     pre-spawn race is absorbed by the platform's /ready retry behavior;
@@ -375,9 +380,10 @@ func (s *Server) passThroughReady(w http.ResponseWriter, r *http.Request) {
 // lifecycle of a production MicroVM.
 //
 // When a Forwarder is configured (DD_AWS_MICROVM_USER_APP_PORT set):
-// pass-through to the user app with TCP-wait, mirroring the response, so the
-// user app's own smoke test drives the build's validity decision. The TCP-wait
-// absorbs the window before the app is reachable on the test run. Without a
+// pass-through to the user app with a fast reachability check, mirroring the
+// response, so the user app's own smoke test drives the build's validity
+// decision. A 503 while the app isn't yet reachable on the test run relies on
+// the platform's own /validate retry to absorb the window. Without a
 // forwarder the agent returns 200 directly; the user app is not required to
 // implement /validate in that mode.
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
@@ -467,7 +473,8 @@ func (s *Server) flushAll(flushCtx context.Context) {
 //
 // Used for /run and /resume (noFlush), /suspend (flushParallel), and
 // /terminate (flushSequential). /ready and /validate use passThroughReady
-// and passThroughValidate directly (TCP-wait path, not this function).
+// and passThroughValidate directly (fast-reachability-check path, not this
+// function).
 //
 // flushParallel: flush runs concurrently with the forward; wall-clock is
 // max(forwardTimeout, flushTimeout)+ε. Known limitation: telemetry produced
@@ -570,7 +577,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	_ = r.Body.Close()
 	if err != nil {
-		log.Debugf("MicroVM lifecycle: could not read run body: %v", err)
+		log.Warnf("MicroVM lifecycle: could not read run body: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
