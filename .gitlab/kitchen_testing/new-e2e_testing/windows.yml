@@ -10,9 +10,15 @@
   before_script:
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
-    - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
+    # NOTE: `export VAR=$(cmd)` masks cmd's exit code (export's own status wins),
+    # so a failing invoke here used to fail silently, leaving WINDOWS_AGENT_VERSION
+    # empty and causing test failures deep inside the test run ("expected '0.0.0'")
+    # instead of a clear failure here. Assign first, check, then export.
+    - WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION) || exit $?
+    - export WINDOWS_AGENT_VERSION
     # LAST_STABLE_VERSION must be set before tests run (upgrade/rollback tests read it at startup)
-    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
+    - LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION") || exit $?
+    - export LAST_STABLE_VERSION
     - !reference [.new_e2e_template, before_script]
   script:
     - !reference [.new_e2e_template, script]
@@ -26,9 +32,15 @@
   before_script:
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
-    - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
+    # NOTE: `export VAR=$(cmd)` masks cmd's exit code (export's own status wins),
+    # so a failing invoke here used to fail silently, leaving WINDOWS_AGENT_VERSION
+    # empty and causing test failures deep inside the test run ("expected '0.0.0'")
+    # instead of a clear failure here. Assign first, check, then export.
+    - WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION) || exit $?
+    - export WINDOWS_AGENT_VERSION
     # LAST_STABLE_VERSION must be set before tests run (upgrade/rollback tests read it at startup)
-    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
+    - LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION") || exit $?
+    - export LAST_STABLE_VERSION
     - !reference [.new_e2e_template, before_script]
   script:
     - !reference [.new_e2e_template, script]

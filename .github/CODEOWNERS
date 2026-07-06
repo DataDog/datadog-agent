@@ -115,7 +115,6 @@
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-devx-loops
 /.gitlab/binary_build/otel_agent.yml                 @DataDog/opentelemetry @DataDog/agent-delivery
 /.gitlab/binary_build/serverless.yml                 @DataDog/serverless @Datadog/serverless-aws @DataDog/agent-delivery
-/.gitlab/binary_build/otel_agent.yml                 @DataDog/opentelemetry-agent @DataDog/agent-delivery
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-delivery
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-delivery @DataDog/windows-agent
 

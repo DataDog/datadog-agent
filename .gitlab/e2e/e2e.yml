@@ -6,8 +6,17 @@
   stage: e2e
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   before_script:
     - go install gotest.tools/gotestsum@v1.11.0
+    - command -v aws >/dev/null 2>&1 || (apt-get update && apt-get install -y unzip && curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip && unzip -q /tmp/awscliv2.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/awscliv2.zip /tmp/aws)
+    # Mint a short-lived, read-only GitHub token so Pulumi's plugin downloads use
+    # the authenticated (5000/hr) rate limit instead of the unauthenticated
+    # per-IP one (60/hr), which multiple concurrent e2e jobs exhaust quickly.
+    # See: https://datadoghq.atlassian.net/wiki/spaces/SECENG/pages/5138645099
+    - GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read) || exit $?; export GITHUB_TOKEN
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?

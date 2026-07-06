@@ -11,7 +11,31 @@ set -e
 # default, which rejects those clients outright with "Permission denied
 # (publickey)" even though the key itself is valid. Re-allow it on these
 # short-lived test VMs so old and new clients can both connect.
-if [ -f /etc/ssh/sshd_config ]; then
-  echo "PubkeyAcceptedAlgorithms +ssh-rsa" >> /etc/ssh/sshd_config
-  systemctl restart ssh || systemctl restart sshd || service ssh restart || service sshd restart
+#
+# PubkeyAcceptedAlgorithms was only introduced in OpenSSH 8.5 (its predecessor,
+# PubkeyAcceptedKeyTypes, in 7.0). Appending either directive unconditionally
+# would make sshd on older servers (e.g. CentOS 6/7's OpenSSH 5.3/6.x, which
+# predate both and don't recognize either name) refuse to start at all,
+# knocking out SSH entirely instead of just the RSA/SHA-1 edge case. Servers
+# that old only ever spoke the legacy ssh-rsa algorithm anyway, so they need no
+# accommodation here in the first place.
+SSHD_BIN="$(command -v sshd || echo /usr/sbin/sshd)"
+if [ -f /etc/ssh/sshd_config ] && [ -x "$SSHD_BIN" ]; then
+  if "$SSHD_BIN" -t -o "PubkeyAcceptedAlgorithms=+ssh-rsa" >/dev/null 2>&1; then
+    DIRECTIVE="PubkeyAcceptedAlgorithms"
+  elif "$SSHD_BIN" -t -o "PubkeyAcceptedKeyTypes=+ssh-rsa" >/dev/null 2>&1; then
+    DIRECTIVE="PubkeyAcceptedKeyTypes"
+  else
+    DIRECTIVE=""
+  fi
+
+  if [ -n "$DIRECTIVE" ]; then
+    echo "${DIRECTIVE} +ssh-rsa" >> /etc/ssh/sshd_config
+    # Validate the full config before touching the running daemon; if this
+    # somehow doesn't pass, leave the existing sshd process untouched rather
+    # than restart into a broken config and lose SSH access altogether.
+    if "$SSHD_BIN" -t; then
+      systemctl restart ssh || systemctl restart sshd || service ssh restart || service sshd restart || true
+    fi
+  fi
 fi
