@@ -28,6 +28,7 @@ import (
 
 const (
 	scheduledType = "scheduled"
+	dynamicType   = "dynamic"
 	configSource  = names.NetworkPathRemoteConfig + ":scheduled"
 )
 
@@ -133,6 +134,13 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 	for path, rawConfig := range updates {
 		seenPaths[path] = struct{}{}
 
+		if isDynamicConfig(rawConfig.Config) {
+			log.Debugf("Ignoring dynamic NETWORK_PATH update %s: dynamic Network Path config handling is not implemented yet", path)
+			delete(p.configErrors, path)
+			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			continue
+		}
+
 		configs, err := parseConfig(rawConfig.Config)
 		if err != nil {
 			log.Warnf("Skipping invalid NETWORK_PATH update %s: %v", path, err)
@@ -235,6 +243,13 @@ func parseConfig(raw []byte) ([]integration.Config, error) {
 	}
 
 	return configs, nil
+}
+
+func isDynamicConfig(raw []byte) bool {
+	var envelope struct {
+		Type string `json:"type"`
+	}
+	return json.Unmarshal(raw, &envelope) == nil && envelope.Type == dynamicType
 }
 
 func translateEndpoint(testConfigID string, endpoint endpointConfig) (networkPathInstanceConfig, error) {

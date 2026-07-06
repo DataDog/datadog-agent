@@ -241,7 +241,7 @@ func TestProviderEmptyTestsUnschedulesPath(t *testing.T) {
 	assert.Empty(t, second.Schedule)
 }
 
-func TestProviderRejectsUnsupportedType(t *testing.T) {
+func TestProviderIgnoresDynamicType(t *testing.T) {
 	provider := NewProvider()
 	changesCh := provider.Stream(context.Background())
 	assert.Empty(t, <-changesCh)
@@ -251,8 +251,23 @@ func TestProviderRejectsUnsupportedType(t *testing.T) {
 		"path/a": {Config: []byte(`{"type":"dynamic","test_config_id":"test-config-a","filters":[]}`)},
 	}, statuses.callback)
 
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses.values["path/a"].State)
+	assert.Empty(t, provider.GetConfigErrors())
+	assertNoChanges(t, changesCh)
+}
+
+func TestProviderRejectsUnsupportedType(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	statuses := applyStatuses()
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: []byte(`{"type":"triggered","test_config_id":"test-config-a","tests":[]}`)},
+	}, statuses.callback)
+
 	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
-	assert.Contains(t, statuses.values["path/a"].Error, `unsupported Network Path config type "dynamic"`)
+	assert.Contains(t, statuses.values["path/a"].Error, `unsupported Network Path config type "triggered"`)
 	assertNoChanges(t, changesCh)
 }
 
