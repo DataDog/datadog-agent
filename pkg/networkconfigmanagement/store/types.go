@@ -26,4 +26,6 @@ type ConfigStore interface {
 	UpdateStoreConfig(minConfigsPerDevice int, maxConfigsPerDevice int, maxRawConfigStoreBytes int64)
 	// EvictConfigs runs the eviction policy using the parameters set by UpdateStoreConfig.
 	EvictConfigs() ([]string, error)
+	// NeedsEviction reports whether the store currently exceeds the size threshold set by UpdateStoreConfig.
+	NeedsEviction() (bool, error)
 }

@@ -47,6 +47,15 @@ func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremo
 		if err != nil {
 			logger.Warnf("unable to store %s config: %v", mode, err)
 		}
+		if stored {
+			if needsEviction, err := configStore.NeedsEviction(); err != nil {
+				logger.Warnf("unable to check store size: %v", err)
+			} else if needsEviction {
+				if _, err := configStore.EvictConfigs(); err != nil {
+					logger.Warnf("unable to evict configs: %v", err)
+				}
+			}
+		}
 	}
 	conf := ncmreport.ToNetworkDeviceConfig(deviceID, dc.device.IPAddress, confType, result.Metadata, dc.GetTags(), result.Redacted, configID, configHash)
 	return &conf, stored, nil
