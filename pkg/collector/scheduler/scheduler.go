@@ -42,11 +42,13 @@ func init() {
 // More docs to come...
 type Scheduler struct {
 	running          *atomic.Bool                // Flag to see if the scheduler is running
-	checksPipe       chan<- check.Check          // The pipe the Runner pops the checks from, initially set to nil
+	checksPipe       chan<- check.Check          // The pipe the Runner pops normal checks from
+	shadowChecksPipe chan<- check.Check          // The pipe the Runner pops shadow checks from
 	done             chan bool                   // Guard for the main loop
 	halted           chan bool                   // Used to internally communicate all queues are done
 	started          chan bool                   // Used to internally communicate the queues are up
-	jobQueues        map[time.Duration]*jobQueue // We have one scheduling queue for every interval
+	jobQueues        map[time.Duration]*jobQueue // We have one normal scheduling queue for every interval
+	shadowJobQueues  map[time.Duration]*jobQueue // We have one shadow scheduling queue for every interval
 	tlmTrackedChecks map[checkid.ID]string       // Keep track of the checks that are tracked with telemetry
 	mu               sync.Mutex                  // To protect critical sections in struct's fields
 
@@ -62,13 +64,15 @@ type Scheduler struct {
 }
 
 // NewScheduler create a Scheduler and returns a pointer to it.
-func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
+func NewScheduler(checksPipe chan<- check.Check, shadowChecksPipe chan<- check.Check) *Scheduler {
 	return &Scheduler{
 		checksPipe:       checksPipe,
+		shadowChecksPipe: shadowChecksPipe,
 		done:             make(chan bool),
 		halted:           make(chan bool),
 		started:          make(chan bool),
 		jobQueues:        make(map[time.Duration]*jobQueue),
+		shadowJobQueues:  make(map[time.Duration]*jobQueue),
 		checkToQueue:     make(map[checkid.ID]*jobQueue),
 		tlmTrackedChecks: make(map[checkid.ID]string),
 		running:          atomic.NewBool(false),
@@ -79,42 +83,48 @@ func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
 
 // Enter schedules a `Check`s for execution accordingly to the `Check.Interval()` value.
 // If the interval is 0, the check is supposed to run only once.
-func (s *Scheduler) Enter(check check.Check) error {
+func (s *Scheduler) Enter(ch check.Check) error {
 	// enqueue immediately if this is a one-time schedule
-	if check.Interval() == 0 {
-		s.enqueueOnce(check)
+	if ch.Interval() == 0 {
+		s.enqueueOnce(ch)
 		return nil
 	}
 
-	if check.Interval() < minAllowedInterval {
+	if ch.Interval() < minAllowedInterval {
 		return fmt.Errorf("schedule interval must be greater than %v or 0", minAllowedInterval)
 	}
 
-	log.Infof("Scheduling check %s with an interval of %v", check.ID(), check.Interval())
+	log.Infof("Scheduling check %s with an interval of %v", ch.ID(), ch.Interval())
 
 	// sync when accessing `jobQueues` and `check2queue`
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.jobQueues[check.Interval()]; !ok {
-		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
-		s.startQueue(s.jobQueues[check.Interval()])
-		if check.IsTelemetryEnabled() {
+	queues := s.jobQueues
+	isShadow := check.IsShadow(ch)
+	if isShadow {
+		queues = s.shadowJobQueues
+	}
+
+	if _, ok := queues[ch.Interval()]; !ok {
+		queues[ch.Interval()] = newJobQueue(ch.Interval(), isShadow)
+		s.startQueue(queues[ch.Interval()])
+		if ch.IsTelemetryEnabled() {
 			tlmQueuesCount.Inc()
 		}
 		schedulerQueuesCount.Add(1)
 	}
-	s.jobQueues[check.Interval()].addJob(check)
+	queues[ch.Interval()].addJob(ch)
 
 	// map each check to the Job Queue it was assigned to
 	s.checkToQueueMutex.Lock()
-	s.checkToQueue[check.ID()] = s.jobQueues[check.Interval()]
+	s.checkToQueue[ch.ID()] = queues[ch.Interval()]
 	s.checkToQueueMutex.Unlock()
 
 	schedulerChecksEntered.Add(1)
-	if check.IsTelemetryEnabled() {
-		checkName := check.String()
-		s.tlmTrackedChecks[check.ID()] = checkName
+	if ch.IsTelemetryEnabled() {
+		checkName := ch.String()
+		s.tlmTrackedChecks[ch.ID()] = checkName
 		tlmChecksEntered.Inc(checkName)
 	}
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
@@ -224,15 +234,17 @@ func (s *Scheduler) stopQueues() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	log.Debugf("Stopping %v queue(s)", len(s.jobQueues))
-	for _, q := range s.jobQueues {
-		// check that the queue is actually running or this blocks
-		// while posting to the channel
-		if q.running {
-			q.stop <- true
-			<-q.stopped
-			log.Debugf("Stopped queue %v", q.interval)
-			q.running = false
+	log.Debugf("Stopping %v normal queue(s) and %v shadow queue(s)", len(s.jobQueues), len(s.shadowJobQueues))
+	for _, queues := range []map[time.Duration]*jobQueue{s.jobQueues, s.shadowJobQueues} {
+		for _, q := range queues {
+			// check that the queue is actually running or this blocks
+			// while posting to the channel
+			if q.running {
+				q.stop <- true
+				<-q.stopped
+				log.Debugf("Stopped queue %v", q.interval)
+				q.running = false
+			}
 		}
 	}
 }
@@ -244,6 +256,9 @@ func (s *Scheduler) startQueues() {
 	defer s.mu.Unlock()
 
 	for _, q := range s.jobQueues {
+		s.startQueue(q)
+	}
+	for _, q := range s.shadowJobQueues {
 		s.startQueue(q)
 	}
 }
@@ -259,14 +274,18 @@ func (s *Scheduler) startQueue(q *jobQueue) {
 // enqueueOnce enqueues a check once to the checksPipe.
 // Do not block, in case the runner has not started yet.
 // The queuing can be cancelled by closing the `cancelOneTime` channel.
-func (s *Scheduler) enqueueOnce(check check.Check) {
-	log.Infof("Scheduling check %v for one-time execution", check)
+func (s *Scheduler) enqueueOnce(ch check.Check) {
+	log.Infof("Scheduling check %v for one-time execution", ch)
 	s.wgOneTime.Add(1)
 
 	go func(cancelOneTime <-chan bool) {
 		defer s.wgOneTime.Done()
+		checksPipe := s.checksPipe
+		if check.IsShadow(ch) {
+			checksPipe = s.shadowChecksPipe
+		}
 		select {
-		case s.checksPipe <- check:
+		case checksPipe <- ch:
 		case <-cancelOneTime:
 		}
 	}(s.cancelOneTime)
@@ -280,6 +299,9 @@ func expQueues(s *Scheduler) func() interface{} {
 		queues := make([]map[string]interface{}, 0)
 
 		for _, queue := range s.jobQueues {
+			queues = append(queues, queue.stats())
+		}
+		for _, queue := range s.shadowJobQueues {
 			queues = append(queues, queue.stats())
 		}
 		return queues

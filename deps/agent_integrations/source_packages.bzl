@@ -68,11 +68,29 @@ pyproject_wheel(
     rctx.file(
         "BUILD.bazel",
         """
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+
 package(default_visibility = ["//visibility:public"])
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [":license"],
+    purl = "pkg:github/DataDog/integrations-core@{commit}",
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-3-Clause"],
+    license_text = "LICENSE",
+)
+
+exports_files(["requirements-agent-release.txt"])
 
 filegroup(
     name = "all_wheels",
     srcs = ["base_wheels", "integrations_wheels"],
+    package_metadata = [":package_metadata"],
 )
 
 filegroup(
@@ -87,6 +105,7 @@ filegroup(
 """.format(
             base_wheel_srcs = base_wheel_srcs,
             integrations_select = integrations_select,
+            commit = commit,
         ),
     )
 
