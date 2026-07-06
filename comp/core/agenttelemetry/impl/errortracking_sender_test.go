@@ -406,13 +406,29 @@ func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
 	}
 }
 
+type blockingSender struct {
+	senderMock
+	sendStarted chan struct{}
+	releaseSend chan struct{}
+	once        sync.Once
+}
+
+func (s *blockingSender) sendLogsBatch(ctx context.Context, logs []Log) error {
+	s.once.Do(func() { close(s.sendStarted) })
+	<-s.releaseSend
+	return s.senderMock.sendLogsBatch(ctx, logs)
+}
+
 // TestFlushErrortracking_DrainIsBoundedToSnapshot: a producer that keeps
 // writing into the channel during a flush must not extend the current
 // batch beyond the items that were already queued at flush start. Only the
 // snapshot-at-start items are dispatched; the new arrivals wait for the
 // next tick.
 func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
-	sm := &senderMock{}
+	sm := &blockingSender{
+		sendStarted: make(chan struct{}),
+		releaseSend: make(chan struct{}),
+	}
 	const bufSize = 10
 	a := newTestAtelMinimal(t, sm, bufSize)
 	defer a.cancel()
@@ -423,22 +439,28 @@ func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
 		a.SubmitErrorLog(errorLog(fmt.Sprintf("pre-%d", i)))
 	}
 
-	// Inject 3 more items concurrently while the flush runs. Because the
-	// flush is bounded to len(ch) at start (= preFilled), these arrivals
-	// must not be included in this batch.
+	flushDone := make(chan struct{})
 	go func() {
-		for i := range 3 {
-			a.SubmitErrorLog(errorLog(fmt.Sprintf("late-%d", i)))
-		}
+		a.flushErrortracking(context.Background())
+		close(flushDone)
 	}()
 
-	a.flushErrortracking(context.Background())
+	<-sm.sendStarted
+	for i := range 3 {
+		a.SubmitErrorLog(errorLog(fmt.Sprintf("late-%d", i)))
+	}
+	close(sm.releaseSend)
+	<-flushDone
 
 	got := sm.capturedLogs()
-	assert.LessOrEqual(t, len(got), preFilled,
-		"flush must not dispatch more than the snapshot count (%d)", preFilled)
+	assert.Equal(t, preFilled, len(got),
+		"flush must dispatch exactly the snapshot count (%d)", preFilled)
 	assert.Equal(t, 1, sm.sendLogsCalls(),
 		"snapshot-bounded flush must still dispatch in exactly one sendLogsBatch call")
+
+	a.flushErrortracking(context.Background())
+	assert.Equal(t, preFilled+3, len(sm.capturedLogs()),
+		"records submitted while first flush was in-flight must be sent in the next flush")
 }
 
 // TestFlushErrortracking_FinalDrain: records enqueued shortly before
