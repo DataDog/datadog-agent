@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.79.0-devel.0.20260402163801-bfa4eff6c991
 	github.com/DataDog/datadog-agent/pkg/proto v0.77.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.77.0
-	github.com/DataDog/datadog-go/v5 v5.8.3
+	github.com/DataDog/datadog-go/v5 v5.9.0
 	github.com/DataDog/dd-trace-go/v2 v2.9.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.61.0
