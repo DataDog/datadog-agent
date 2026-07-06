@@ -225,6 +225,34 @@ func TestGetChecksFromConfigsDoesNotLoadShadowChecksWhenCacheIsNotPopulated(t *t
 	assert.Empty(t, shadowSenderManager.requestedIDs)
 }
 
+func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowSenderManagerMissing(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("metric_lookback.enabled", true)
+	cfg.SetInTest("metric_lookback.enabled_checks", []string{"cpu"})
+
+	normalSenderManager := &recordingSchedulerSenderManager{name: "normal"}
+	loader := &recordingSchedulerLoader{name: "core"}
+	s := CheckScheduler{
+		configToChecks: make(map[string][]checkid.ID),
+		senderManager:  normalSenderManager,
+	}
+	s.addLoader(loader)
+
+	config := integration.Config{
+		Name:       "cpu",
+		Instances:  []integration.Data{integration.Data("name: first\n")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	checks := s.GetChecksFromConfigs([]integration.Config{config}, true)
+
+	require.Len(t, checks, 1)
+	assert.False(t, check.IsShadow(checks[0]))
+	assert.Equal(t, []checkid.ID{checks[0].ID()}, s.configToChecks[config.Digest()])
+	require.Len(t, loader.calls, 1)
+	assert.Same(t, normalSenderManager, loader.calls[0].senderManager)
+}
+
 func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowLoadFails(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("metric_lookback.enabled", true)
