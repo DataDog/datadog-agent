@@ -72,8 +72,12 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 		}},
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
 			hookFunc("hook_dev_get_valid_name"),
+			// dev_new_index was replaced by dev_index_reserve in kernel 6.6; both are best-effort
+			// alternatives used to resolve the ifindex of a newly registered device
 			hookFunc("hook_dev_new_index"),
 			hookFunc("rethook_dev_new_index"),
+			hookFunc("hook_dev_index_reserve"),
+			hookFunc("rethook_dev_index_reserve"),
 			hookFunc("hook___dev_get_by_index"),
 		}},
 	}
