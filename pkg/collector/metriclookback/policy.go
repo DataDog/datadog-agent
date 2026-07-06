@@ -23,11 +23,9 @@ const (
 	instanceConfigKey      = "metric_lookback"
 	instanceEnabledKey     = "enabled"
 
-	// The scheduler rejects recurring check intervals below one second.
-	minShadowCheckInterval = time.Second
-
 	// defaultShadowCheckInterval is the collection interval for selected metric
-	// lookback shadow checks.
+	// lookback shadow checks and the minimum recurring interval accepted by the
+	// scheduler.
 	defaultShadowCheckInterval = time.Second
 )
 
@@ -93,7 +91,8 @@ func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptio
 }
 
 func normalizeShadowInterval(interval time.Duration) time.Duration {
-	if interval < minShadowCheckInterval {
+	// The default is also the scheduler's minimum recurring check interval.
+	if interval < defaultShadowCheckInterval {
 		return defaultShadowCheckInterval
 	}
 	return interval
