@@ -19,8 +19,12 @@ import (
 const (
 	enabledConfigKey       = "metric_lookback.enabled"
 	enabledChecksConfigKey = "metric_lookback.enabled_checks"
+	collectionIntervalKey  = "metric_lookback.collection_interval"
 	instanceConfigKey      = "metric_lookback"
 	instanceEnabledKey     = "enabled"
+
+	// The scheduler rejects recurring check intervals below one second.
+	minShadowCheckInterval = time.Second
 
 	// defaultShadowCheckInterval is the collection interval for selected metric
 	// lookback shadow checks.
@@ -31,6 +35,7 @@ const (
 type ShadowPolicyOptions struct {
 	ShadowChecksEnabled bool
 	ChecksToShadow      []string
+	ShadowInterval      time.Duration
 }
 
 // ShadowPolicyOptionsFromConfig reads metric lookback policy options from Agent config.
@@ -38,6 +43,7 @@ func ShadowPolicyOptionsFromConfig(cfg model.Reader) ShadowPolicyOptions {
 	return ShadowPolicyOptions{
 		ShadowChecksEnabled: cfg.GetBool(enabledConfigKey),
 		ChecksToShadow:      cfg.GetStringSlice(enabledChecksConfigKey),
+		ShadowInterval:      normalizeShadowInterval(cfg.GetDuration(collectionIntervalKey)),
 	}
 }
 
@@ -54,6 +60,7 @@ type ShadowCandidate struct {
 // Loading, scheduling, and execution routing are handled by the caller.
 func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptions) []ShadowCandidate {
 	candidates := []ShadowCandidate{}
+	shadowInterval := normalizeShadowInterval(opts.ShadowInterval)
 	for _, config := range configs {
 		if !isSupportedCheckConfig(config, opts) {
 			continue
@@ -77,11 +84,18 @@ func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptio
 				Instance:           shadowInstance,
 				InstanceIndex:      instanceIndex,
 				SourceConfigDigest: config.Digest(),
-				ShadowInterval:     defaultShadowCheckInterval,
+				ShadowInterval:     shadowInterval,
 			})
 		}
 	}
 	return candidates
+}
+
+func normalizeShadowInterval(interval time.Duration) time.Duration {
+	if interval < minShadowCheckInterval {
+		return defaultShadowCheckInterval
+	}
+	return interval
 }
 
 func isSupportedCheckConfig(config integration.Config, opts ShadowPolicyOptions) bool {
