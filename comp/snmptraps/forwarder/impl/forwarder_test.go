@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	configfx "github.com/DataDog/datadog-agent/comp/snmptraps/config/fx"
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	formatterfx "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/fx"
@@ -97,4 +97,19 @@ func TestForwarderTelemetry(t *testing.T) {
 	s.Listener.Send(makeSnmpPacket(packet.NetSNMPExampleHeartbeatNotification))
 	time.Sleep(100 * time.Millisecond)
 	s.Sender.AssertMetric(t, "Count", "datadog.snmp_traps.forwarded", 1, "", []string{"snmp_device:1.1.1.1", "device_namespace:totoro", "snmp_version:2"})
+}
+
+func TestForwarderCustomTagsOnForwardedMetric(t *testing.T) {
+	s := setUp(t)
+	pkt := makeSnmpPacket(packet.NetSNMPExampleHeartbeatNotification)
+	pkt.Tags = []string{"application:my-app", "team:netops"}
+	s.Listener.Send(pkt)
+	time.Sleep(100 * time.Millisecond)
+	s.Sender.AssertMetric(t, "Count", "datadog.snmp_traps.forwarded", 1, "", []string{
+		"snmp_version:2",
+		"device_namespace:totoro",
+		"snmp_device:1.1.1.1",
+		"application:my-app",
+		"team:netops",
+	})
 }

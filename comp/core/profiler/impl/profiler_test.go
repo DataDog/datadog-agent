@@ -25,7 +25,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	profilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
 	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 
@@ -51,15 +51,15 @@ func createGenericConfig(t *testing.T) model.Config {
 	port := u.Port()
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("expvar_port", port)
-	mockConfig.SetWithoutSource("apm_config.debug.port", port)
-	mockConfig.SetWithoutSource("process_config.expvar_port", port)
-	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
+	mockConfig.SetInTest("expvar_port", port)
+	mockConfig.SetInTest("apm_config.debug.port", port)
+	mockConfig.SetInTest("process_config.expvar_port", port)
+	mockConfig.SetInTest("security_agent.expvar_port", port)
 
-	mockConfig.SetWithoutSource("process_config.enabled", false)
-	mockConfig.SetWithoutSource("process_config.container_collection.enabled", false)
-	mockConfig.SetWithoutSource("process_config.process_collection.enabled", false)
-	mockConfig.SetWithoutSource("apm_config.enabled", false)
+	mockConfig.SetInTest("process_config.enabled", false)
+	mockConfig.SetInTest("process_config.container_collection.enabled", false)
+	mockConfig.SetInTest("process_config.process_collection.enabled", false)
+	mockConfig.SetInTest("apm_config.enabled", false)
 
 	return mockConfig
 }
@@ -80,7 +80,7 @@ func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler
 		}),
 		fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 		fxutil.ProvideOptional[sysprobeconfigdef.Component](),
-		settingsimpl.MockModule(),
+		settingsmock.MockModule(),
 		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
@@ -274,13 +274,13 @@ func TestTimeout(t *testing.T) {
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
 			cfg := createGenericConfig(t)
-			cfg.SetWithoutSource("flare.profile_overhead_runtime", baseTimeout)
+			cfg.SetInTest("flare.profile_overhead_runtime", baseTimeout)
 
 			fArgs := types.FlareArgs{
 				ProfileDuration: s.profileDuration,
 			}
 			for k, v := range s.extraCfgs {
-				cfg.SetWithoutSource(k, v)
+				cfg.SetInTest(k, v)
 			}
 			fb := helpers.NewFlareBuilderMockWithArgs(t, true, fArgs)
 			profiler := getProfiler(t, s.extraSysCfgs)

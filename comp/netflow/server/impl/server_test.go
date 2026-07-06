@@ -19,10 +19,10 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	nfconfigmock "github.com/DataDog/datadog-agent/comp/netflow/config/mock"
@@ -68,7 +68,7 @@ var testOptions = fx.Options(
 	nfconfigmock.MockModule(),
 	forwardermock.MockModule(),
 	demultiplexerimpl.MockModule(),
-	defaultforwarder.MockModule(),
+	defaultforwardermock.MockModule(),
 	core.MockBundle(),
 	hostnameimpl.MockModule(),
 	rdnsquerierfxmock.MockModule(),
@@ -112,4 +112,27 @@ func TestStartServerAndStopServer(t *testing.T) {
 	assert.True(t, srv.running)
 	app.RequireStop()
 	assert.False(t, srv.running)
+}
+
+// TestNewComponentSkipsAggregatorWhenDisabled verifies that with netflow
+// disabled (the default), NewComponent returns the zero-allocation
+// disabledServer stub rather than building the flow aggregator (10k-cap
+// input channel + accumulator + filter).
+func TestNewComponentSkipsAggregatorWhenDisabled(t *testing.T) {
+	var component server.Component
+	fxtest.New(t, fx.Options(
+		fxutil.FxAgentBase(),
+		fxutil.Component(fxutil.ProvideComponentConstructor(NewComponent)),
+		nfconfigmock.MockModule(),
+		forwardermock.MockModule(),
+		demultiplexerimpl.MockModule(),
+		defaultforwardermock.MockModule(),
+		core.MockBundle(),
+		hostnameimpl.MockModule(),
+		rdnsquerierfxmock.MockModule(),
+		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+		fx.Populate(&component),
+	))
+	_, ok := component.(*disabledServer)
+	require.Truef(t, ok, "expected *disabledServer when netflow is disabled, got %T", component)
 }

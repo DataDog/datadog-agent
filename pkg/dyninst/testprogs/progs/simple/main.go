@@ -397,7 +397,7 @@ func main() {
 	// 4097 entries with all values == 1 and no match for ==42. The any
 	// loop walks every slot and trips CollectionTooLarge; all(>0)
 	// short-circuits never and also trips the cap.
-	anyAllIntMap(makeIntMapFilled(4097, 1, "", 0), "toolarge")
+	anyAllIntMapMassive(makeIntMapFilled(4097, 1, "", 0), "toolarge")
 	// 100 entries (comfortably under the cap), with one match keyed
 	// "match"=42 and one miss keyed "miss"=-1. any(==42) and all(>0)
 	// both terminate well before the cap regardless of iteration order
@@ -497,6 +497,20 @@ func main() {
 		{Field1: 1}: 10,
 	}, "miss")
 	anyAllBigKeyMap(nil, "empty")
+
+	// Slices and arrays of strings (used by both any/all and contains
+	// probes).
+	anyAllStringSlice([]string{"alpha", "match", "gamma"}, "match")
+	anyAllStringSlice([]string{"alpha", "beta", "gamma"}, "miss")
+	anyAllStringSlice(nil, "empty")
+	anyAllStringArray([3]string{"alpha", "match", "gamma"}, "match")
+	anyAllStringArray([3]string{"alpha", "beta", "gamma"}, "miss")
+
+	// Negative targets for contains: slice element types that are not
+	// comparable base types (slice-of-slice, slice-of-map). The probe must
+	// be rejected at irgen.
+	anyAllIntSliceOfSlice([][]int{{1, 2}, {3, 4}}, "match")
+	anyAllIntSliceOfMap([]map[string]int{{"a": 1}, {"b": 2}}, "match")
 }
 
 //go:noinline
@@ -1289,6 +1303,19 @@ func anyAllIntMap(m map[string]int, tag string) {
 	fmt.Println("anyAllIntMap", len(m), tag)
 }
 
+// anyAllIntMapMassive carries the same payload as anyAllIntMap but lives
+// in its own function so probes that need to fire on a too-large map can
+// target it independently. The parameter is named `redactMyEntries` so
+// the test JSON redactor (defaultRedactors in json_redaction_test.go)
+// replaces the captured entries with a placeholder — necessary because
+// chased_slices truncation makes the captured key set non-deterministic
+// across Go toolchains for maps with > MAX_CHASED_SLICES entries.
+//
+//go:noinline
+func anyAllIntMapMassive(redactMyEntries map[string]int, tag string) {
+	fmt.Println("anyAllIntMapMassive", len(redactMyEntries), tag)
+}
+
 // anyAllPtrMap is the target for `any` / `all` over a map[string]*condFields,
 // exercising short-circuit through the @value pointer access.
 //
@@ -1369,4 +1396,37 @@ func anyAllBigValMap(m map[string]bigStruct, tag string) {
 //go:noinline
 func anyAllBigKeyMap(m map[bigStruct]int, tag string) {
 	fmt.Println("anyAllBigKeyMap", len(m), tag)
+}
+
+// anyAllStringSlice is the target for any/all (and contains) over a slice
+// of strings.
+//
+//go:noinline
+func anyAllStringSlice(xs []string, tag string) {
+	fmt.Println("anyAllStringSlice", len(xs), tag)
+}
+
+// anyAllStringArray is the target for any/all (and contains) over a Go
+// array of strings.
+//
+//go:noinline
+func anyAllStringArray(xs [3]string, tag string) {
+	fmt.Println("anyAllStringArray", xs, tag)
+}
+
+// anyAllIntSliceOfSlice exists so we can attach `contains` probes whose
+// element type is `[]int` and verify the resulting Issue surfaces at irgen
+// (slice-of-slice elements are not a comparable base type).
+//
+//go:noinline
+func anyAllIntSliceOfSlice(xs [][]int, tag string) {
+	fmt.Println("anyAllIntSliceOfSlice", len(xs), tag)
+}
+
+// anyAllIntSliceOfMap is the same negative-target shape, for slice elements
+// of map type.
+//
+//go:noinline
+func anyAllIntSliceOfMap(xs []map[string]int, tag string) {
+	fmt.Println("anyAllIntSliceOfMap", len(xs), tag)
 }

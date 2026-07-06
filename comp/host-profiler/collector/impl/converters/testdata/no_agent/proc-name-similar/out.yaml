@@ -1,14 +1,15 @@
 exporters:
-    otlphttp:
+    otlp_http:
         compression: zstd
         headers:
             dd-api-key: test-key
             dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 processors:
     batch:
         timeout: 10s
-    ddhostname/default: {}
+    ddhostname/dd-autoconfigured: {}
     infraattributes_custom:
         other_config: value
     myinfraat tributes:
@@ -21,7 +22,7 @@ processors:
             - action: upsert
               key: telemetry.distro.version
               value: 7.0.0-test
-    resourcedetection/default:
+    resourcedetection/dd-autoconfigured:
         detectors:
             - system
         system:
@@ -38,17 +39,15 @@ receivers:
             enabled: false
 service:
     pipelines:
-        metrics:
-            processors: []
         profiles:
             exporters:
-                - otlphttp
+                - otlp_http
             processors:
                 - myinfraattributes
                 - infraattributes_custom
                 - batch
-                - resourcedetection/default
-                - ddhostname/default
+                - resourcedetection/dd-autoconfigured
+                - ddhostname/dd-autoconfigured
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

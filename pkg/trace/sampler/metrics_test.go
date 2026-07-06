@@ -9,10 +9,11 @@ import (
 	"sync"
 	"testing"
 
+	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
+	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
-	"github.com/golang/mock/gomock"
 )
 
 func Test_Metrics(t *testing.T) {

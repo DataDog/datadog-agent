@@ -22,6 +22,7 @@ typedef struct {
     OptionalInt instantAmperage;
     OptionalBool isCharging;
     OptionalBool externalConnected;
+    OptionalBool isCritical;
 } BatteryInfo;
 
 bool hasInternalBattery(void);

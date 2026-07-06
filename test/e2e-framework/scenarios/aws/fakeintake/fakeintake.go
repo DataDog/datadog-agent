@@ -28,7 +28,7 @@ import (
 	awsxEcs "github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 )
 
 const (
@@ -228,6 +228,10 @@ func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, para
 	if params.RetentionPeriod != "" {
 		command = append(command, "-retention-period="+params.RetentionPeriod)
 	}
+
+	// Always supply the global RC signing key so fakeintake's TUF root is
+	// deterministic and matches what the agent is configured with at provision time.
+	command = append(command, "--rc-key-data="+fakeintake.DefaultRCSigningKeySeed)
 
 	return &awsxEcs.TaskDefinitionContainerDefinitionArgs{
 		Name:        pulumi.String(containerName),

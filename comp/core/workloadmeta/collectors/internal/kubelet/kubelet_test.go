@@ -88,7 +88,7 @@ func TestPodParser(t *testing.T) {
 					{
 						Name:  "nginx-container",
 						Image: "nginx:1.25.2",
-						Resources: &kubelet.ContainerResourcesSpec{
+						Resources: &kubelet.ResourcesSpec{
 							Requests: kubelet.ResourceList{
 								"nvidia.com/gpu":              resource.MustParse("1"),
 								"cpu":                         resource.MustParse("100m"),

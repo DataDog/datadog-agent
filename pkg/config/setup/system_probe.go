@@ -8,8 +8,6 @@ package setup
 import (
 	"os"
 	"path"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -48,11 +46,6 @@ const (
 	defaultEnvoyPath = "/bin/envoy"
 )
 
-var (
-	// defaultSystemProbeBPFDir is the default path for eBPF programs
-	defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
-)
-
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
 func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ignore_host_etc", false)
@@ -65,13 +58,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
 
 	// statsd
-	cfg.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("bind_host", "localhost")
 	cfg.BindEnvAndSetDefault("dogstatsd_port", 8125)
 
 	// logging
 	cfg.BindEnvAndSetDefault("system_probe_config.log_file", "")
 	cfg.BindEnvAndSetDefault("system_probe_config.log_level", "")
-	cfg.BindEnvAndSetDefault("log_file", defaultSystemProbeLogFilePath)
+	cfg.BindEnvAndSetDefault("log_file", "${log_path}/system-probe.log")
 	cfg.BindEnvAndSetDefault("log_level", "info", "DD_LOG_LEVEL", "LOG_LEVEL")
 	cfg.BindEnvAndSetDefault("syslog_uri", "")
 	cfg.BindEnvAndSetDefault("syslog_rfc", false)
@@ -96,7 +89,11 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.external", false, "DD_SYSTEM_PROBE_EXTERNAL")
 	cfg.SetDefault("system_probe_config.adjusted", false)
 
-	cfg.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", DefaultSystemProbeAddress, "DD_SYSPROBE_SOCKET")
+	cfg.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", GetPlatformDefault(map[string]interface{}{
+		"linux":   "${run_path}/sysprobe.sock",
+		"darwin":  "${run_path}/sysprobe.sock",
+		"windows": `\\.\pipe\dd_system_probe`,
+	}), "DD_SYSPROBE_SOCKET")
 	cfg.BindEnvAndSetDefault("system_probe_config.max_conns_per_message", defaultConnsMessageBatchSize)
 
 	cfg.BindEnvAndSetDefault("system_probe_config.debug_port", 0)
@@ -128,13 +125,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// ebpf general settings
 	cfg.BindEnvAndSetDefault("system_probe_config.bpf_debug", false, "DD_SYSTEM_PROBE_CONFIG_BPF_DEBUG", "BPF_DEBUG")
-	cfg.BindEnvAndSetDefault("system_probe_config.bpf_dir", defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
+	cfg.BindEnvAndSetDefault("system_probe_config.bpf_dir", "${install_path}/embedded/share/system-probe/ebpf", "DD_SYSTEM_PROBE_BPF_DIR")
 	cfg.BindEnvAndSetDefault("system_probe_config.excluded_linux_versions", []string{})
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_tracepoints", false)
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_co_re", true, "DD_ENABLE_CO_RE")
 	cfg.BindEnvAndSetDefault("system_probe_config.btf_path", "", "DD_SYSTEM_PROBE_BTF_PATH")
 	cfg.BindEnvAndSetDefault("system_probe_config.btf_output_dir", defaultBTFOutputDir, "DD_SYSTEM_PROBE_BTF_OUTPUT_DIR")
-	cfg.BindEnvAndSetDefault("system_probe_config.remote_config_btf_enabled", false, "DD_SYSTEM_PROBE_REMOTE_CONFIG_BTF_ENABLED")
+	cfg.BindEnvAndSetDefault("system_probe_config.remote_config_btf_enabled", true, "DD_SYSTEM_PROBE_REMOTE_CONFIG_BTF_ENABLED")
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_runtime_compiler", false, "DD_ENABLE_RUNTIME_COMPILER")
 	// deprecated in favor of allow_prebuilt_fallback below
 	cfg.BindEnvAndSetDefault("system_probe_config.allow_precompiled_fallback", false, "DD_ALLOW_PRECOMPILED_FALLBACK")
@@ -167,11 +164,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interrupt_overhead", 2*time.Microsecond)
 
 	// network_tracer settings
-	// migration to BindEnvAndSetDefault is possible but requires switching
-	// the IsSet caller in pkg/system-probe/config/adjust.go to IsConfigured
-	// (same pattern as allow_prebuilt_fallback) so the legacy auto-enable
-	// from system_probe_config.enabled keeps respecting an explicit false.
-	cfg.BindEnv("network_config.enabled", "DD_SYSTEM_PROBE_NETWORK_ENABLED") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
+	cfg.BindEnvAndSetDefault("network_config.enabled", false, "DD_SYSTEM_PROBE_NETWORK_ENABLED")
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_tcp", false, "DD_DISABLE_TCP_TRACING")
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_udp", false, "DD_DISABLE_UDP_TRACING")
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_ipv6", false, "DD_DISABLE_IPV6_TRACING")
@@ -221,12 +214,21 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault("system_probe_config.process_service_inference.use_improved_algorithm", false)
 
-	// For backward compatibility
-	cfg.BindEnv("service_monitoring_config.process_service_inference.enabled", "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnvAndSetDefault("system_probe_config.process_service_inference.enabled", runtime.GOOS == "windows")
+	// For backward compatibility. Default is false because the canonical key
+	// (system_probe_config.process_service_inference.enabled, below) is the
+	// authoritative source; deprecateBool only forwards this deprecated alias
+	// when it is explicitly configured.
+	cfg.BindEnvAndSetDefault("service_monitoring_config.process_service_inference.enabled", false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
+	cfg.BindEnvAndSetDefault("system_probe_config.process_service_inference.enabled", GetPlatformDefault(map[string]interface{}{
+		"windows": true,
+		"other":   false,
+	}))
 
-	// For backward compatibility
-	cfg.BindEnv("service_monitoring_config.process_service_inference.use_windows_service_name", "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// For backward compatibility. Default is false because the canonical key
+	// (system_probe_config.process_service_inference.use_windows_service_name,
+	// below) is the authoritative source; deprecateBool only forwards this
+	// deprecated alias when it is explicitly configured.
+	cfg.BindEnvAndSetDefault("service_monitoring_config.process_service_inference.use_windows_service_name", false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
 	// default on windows is now enabled; default on linux is still disabled
 	cfg.BindEnvAndSetDefault("system_probe_config.process_service_inference.use_windows_service_name", true)
 
@@ -300,6 +302,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.pid_cache_size", 10000)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dns_resolution.cache_size", 1024)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dns_resolution.enabled", true)
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dns_resolution.cname_max_depth", 2)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.events_stats.tags_cardinality", "high")
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.custom_sensitive_words", []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.custom_sensitive_regexps", []string{})
@@ -337,7 +340,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("event_monitoring_config.env_vars_resolution.enabled", true)
 
 	// process event monitoring data limits for network tracer
-	eventMonitorBindEnv(cfg, "event_monitoring_config.network_process.max_processes_tracked")
+	// 1024 mirrors defaultMaxProcessesTracked enforced by validateInt in pkg/system-probe/config/adjust_npm.go
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.network_process.max_processes_tracked", 1024)
 
 	cfg.BindEnvAndSetDefault("event_monitoring_config.network_process.container_store.enabled", true)
 	cfg.BindEnvAndSetDefault("event_monitoring_config.network_process.container_store.max_containers_tracked", 1024)
@@ -360,10 +364,19 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ccm_network_config.enabled", false)
 
 	// Discovery config
-	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux")
-	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
+	cfg.BindEnvAndSetDefault("discovery.enabled", GetPlatformDefault(map[string]interface{}{
+		"fargate": false,
+		"linux":   true,
+		"other":   false,
+	}))
+	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", GetPlatformDefault(map[string]interface{}{
+		"linux": true,
+		"other": false,
+	}))
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
+	cfg.BindEnvAndSetDefault("discovery.service_collection_batch_size", 500)
+	cfg.BindEnvAndSetDefault("discovery.service_collection_min_process_age", time.Minute)
 	cfg.BindEnvAndSetDefault("discovery.service_map.enabled", false)
 
 	// Privileged Logs config
@@ -373,7 +386,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("logon_duration.enabled", false)
 
 	// Fleet policies
-	cfg.BindEnv("fleet_policies_dir") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("fleet_policies_dir", "")
 
 	// GPU monitoring
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enabled", false)
@@ -407,7 +420,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	initCWSSystemProbeConfig(cfg)
 	initUSMSystemProbeConfig(cfg)
 
-	cfg.BindEnvAndSetDefault("network_config.direct_send", runtime.GOOS == "linux")
+	cfg.BindEnvAndSetDefault("network_config.direct_send", false)
 }
 
 func suffixHostEtc(suffix string) string {
@@ -426,16 +439,7 @@ func eventMonitorBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, v
 	emConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
 	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
 
-	envs := []string{emConfigKey, runtimeSecKey}
-	config.BindEnvAndSetDefault(key, val, envs...)
-}
-
-// eventMonitorBindEnv is the same as eventMonitorBindEnvAndSetDefault, but without setting a default.
-func eventMonitorBindEnv(config pkgconfigmodel.Setup, key string) {
-	emConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
-	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
-
-	config.BindEnv(key, emConfigKey, runtimeSecKey) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault(key, val, emConfigKey, runtimeSecKey)
 }
 
 // DefaultPrivateIPCIDRs is a list of private IP CIDRs that are used to determine if an IP is private or not.

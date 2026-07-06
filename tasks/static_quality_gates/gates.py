@@ -15,7 +15,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from io import UnsupportedOperation
-from typing import Protocol
+from typing import Any, Protocol
 
 import yaml
 from invoke import Context
@@ -103,6 +103,21 @@ def read_byte_input(byte_input: str | int) -> int:
         return string_to_byte(byte_input)
     else:
         return byte_input
+
+
+def _sum_manifest_sizes(node: Any) -> int:
+    """Recursively sum every `size` field found in a manifest tree."""
+    if isinstance(node, list):
+        return sum(_sum_manifest_sizes(item) for item in node)
+    if isinstance(node, dict):
+        total = 0
+        for key, value in node.items():
+            if key == "size":
+                total += value
+            else:
+                total += _sum_manifest_sizes(value)
+        return total
+    return 0
 
 
 class StaticQualityGateError(Exception):
@@ -322,6 +337,9 @@ class PackageArtifactMeasurer:
         package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
         if config.os == "windows":
             package_dir = f"{package_dir}/pipeline-{os.environ['CI_PIPELINE_ID']}"
+        elif config.os == "suse":
+            # SUSE producer jobs relocate their RPM to OMNIBUS_PACKAGE_DIR_SUSE.
+            package_dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
 
         # Map architecture for certain OSes
         arch = config.arch
@@ -427,13 +445,16 @@ class DockerArtifactMeasurer:
     def _calculate_image_wire_size(self, ctx: Context, image_url: str) -> int:
         """Calculate Docker image compressed size using manifest inspection"""
         manifest_output = ctx.run(
-            "DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
-            + image_url
-            + " | grep size | awk -F ':' '{sum+=$NF} END {printf(\"%d\",sum)}'",
-            hide=True,
+            f"DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v {image_url}",
+            hide="out",
+            warn=True,
         )
-
-        return int(manifest_output.stdout)
+        if manifest_output.exited != 0:
+            raise InfraError(f"Docker manifest inspect failed to retrieve {image_url}. Retrying... (infra flake)")
+        wire_size = _sum_manifest_sizes(json.loads(manifest_output.stdout))
+        if wire_size <= 0:
+            raise StaticQualityGateError(f"Docker manifest for {image_url} reported a wire size of {wire_size} bytes")
+        return wire_size
 
     def _calculate_image_disk_size(self, ctx: Context, image_url: str) -> int:
         """Calculate Docker image uncompressed size by pulling and extracting"""

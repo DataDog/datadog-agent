@@ -17,6 +17,7 @@ import (
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -739,7 +740,7 @@ func TestProcessMetrics(t *testing.T) {
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
-		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
+		mocked := mocksender.NewMockSender(t, kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
 
 		if _, ok := test.metricsToProcess["kube_customresource_metric_info"]; ok {
@@ -999,7 +1000,7 @@ func TestSendTelemetry(t *testing.T) {
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
-		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
+		mocked := mocksender.NewMockSender(t, kubeStateMetricsSCheck.ID())
 		mocked.SetupAcceptAll()
 
 		kubeStateMetricsSCheck.telemetry = test.cache
@@ -1706,6 +1707,45 @@ func TestResourceNameFromMetric(t *testing.T) {
 	}
 }
 
+func TestUsesCustomResourceMetrics(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *KSMConfig
+		expected bool
+	}{
+		{
+			name:     "empty config",
+			config:   &KSMConfig{},
+			expected: false,
+		},
+		{
+			name: "custom resource metrics configured",
+			config: &KSMConfig{
+				CustomResource: customresourcestate.Metrics{
+					Spec: customresourcestate.MetricsSpec{
+						Resources: []customresourcestate.Resource{
+							{
+								GroupVersionKind: customresourcestate.GroupVersionKind{
+									Group:   "datadoghq.com",
+									Version: "v1",
+									Kind:    "DatadogAgent",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.config.usesCustomResourceMetrics())
+		})
+	}
+}
+
 func TestAllowDeny(t *testing.T) {
 	deniedMetrics := buildDeniedMetricsSet(defaultCollectors())
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
@@ -1863,7 +1903,7 @@ func TestKSMCheckInitTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := configmock.New(t)
-			conf.SetWithoutSource("tags", tt.tagsInConfig)
+			conf.SetInTest("tags", tt.tagsInConfig)
 
 			k := &KSMCheck{
 				instance:            tt.fields.instance,

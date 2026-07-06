@@ -70,14 +70,13 @@ def get_dda_tab_complete_docs():
 
 
 def get_vscode_extensions():
-    url = "https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/refs/heads/main/dev-envs/linux/default-vscode-extensions.txt"
+    url = "https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/refs/heads/main/dev-envs/linux/default-vscode-extensions.json"
     response = httpx.get(url)
     response.raise_for_status()
     marketplace_url_base = "https://marketplace.visualstudio.com/items?itemName="
     return "\n".join(
         f"- [{extension}]({marketplace_url_base}{extension})"
-        for extension in response.text.splitlines()
-        if not extension.startswith("#")
+        for extension in response.json()
     )
 
 

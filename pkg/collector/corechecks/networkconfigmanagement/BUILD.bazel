@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "networkconfigmanagement",
+    srcs = [
+        "networkconfigmanagement.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkconfigmanagement",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/networkconfigmanagement/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/networkconfigmanagement/config",
+        "//pkg/util/option",
+    ],
+)
+
+dd_agent_go_test(
+    name = "networkconfigmanagement_test",
+    srcs = ["networkconfigmanagement_test.go"],
+    embed = [":networkconfigmanagement"],
+    flavors = [
+        "base",
+        "fips",
+        "heroku",
+    ],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/networkconfigmanagement/mock",
+        "//pkg/aggregator/mocksender",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

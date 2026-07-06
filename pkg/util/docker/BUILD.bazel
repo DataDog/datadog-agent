@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "docker",
@@ -16,6 +17,7 @@ go_library(
         "metadata.go",
         "metadata_no_docker.go",
         "rancher.go",
+        "safe_info.go",
         "storage.go",
         "util_common.go",
         "util_docker.go",
@@ -43,7 +45,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "docker_test",
     srcs = [
         "docker_test.go",
@@ -51,15 +53,14 @@ go_test(
         "event_stream_test.go",
         "host_tags_test.go",
         "rancher_test.go",
+        "safe_info_test.go",
         "storage_test.go",
         "util_docker_test.go",
     ],
     embed = [":docker"],
-    gotags = ["test"],
     deps = [
         "//comp/core/workloadfilter/fx-mock",
         "//pkg/config/mock",
-        "//pkg/util/docker/fake",
         "@com_github_moby_moby_api//types/container",
         "@com_github_moby_moby_api//types/events",
         "@com_github_moby_moby_api//types/swarm",

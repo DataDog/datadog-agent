@@ -177,8 +177,8 @@ func TestProvider(t *testing.T) {
 		},
 		{
 			name:         "additional-endpoints-only",
-			agentConfig:  "provider/additional-endpoints-only/agent.yaml",
-			expectedOTel: "provider/additional-endpoints-only/otel.yaml",
+			agentConfig:  "provider/additional-ep-only/agent.yaml",
+			expectedOTel: "provider/additional-ep-only/otel.yaml",
 		},
 		{
 			name:         "profiling-dd-url-precedence",
@@ -192,7 +192,7 @@ func TestProvider(t *testing.T) {
 		},
 		{
 			name:        "invalid-profiling-dd-url",
-			agentConfig: "provider/invalid-profiling-dd-url/agent.yaml",
+			agentConfig: "provider/inval-prof-dd-url/agent.yaml",
 			shouldError: true,
 		},
 		{
@@ -231,24 +231,19 @@ func TestProvider(t *testing.T) {
 			expectedOTel: "provider/add-headers-debug/otel.yaml",
 		},
 		{
-			name:         "ddprofiling-enabled",
-			agentConfig:  "provider/ddprofiling-enabled/agent.yaml",
-			expectedOTel: "provider/ddprofiling-enabled/otel.yaml",
-		},
-		{
-			name:         "ddprofiling-period",
-			agentConfig:  "provider/ddprofiling-period/agent.yaml",
-			expectedOTel: "provider/ddprofiling-period/otel.yaml",
+			name:         "ddprofiling",
+			agentConfig:  "provider/ddprofiling/agent.yaml",
+			expectedOTel: "provider/ddprofiling/otel.yaml",
 		},
 		{
 			name:         "health-metrics-disabled",
-			agentConfig:  "provider/health-metrics-disabled/agent.yaml",
-			expectedOTel: "provider/health-metrics-disabled/otel.yaml",
+			agentConfig:  "provider/health-metrics-dis/agent.yaml",
+			expectedOTel: "provider/health-metrics-dis/otel.yaml",
 		},
 		{
 			name:         "health-metrics-custom",
-			agentConfig:  "provider/health-metrics-custom/agent.yaml",
-			expectedOTel: "provider/health-metrics-custom/otel.yaml",
+			agentConfig:  "provider/health-metrics-cust/agent.yaml",
+			expectedOTel: "provider/health-metrics-cust/otel.yaml",
 		},
 		{
 			name:         "hpflare-custom-port",
@@ -259,7 +254,7 @@ func TestProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := loadConfig(t, filepath.Join("td", tt.agentConfig))
+			cfg := loadConfig(t, filepath.Join("testdata", tt.agentConfig))
 			provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
 
 			retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
@@ -280,7 +275,7 @@ func TestProvider(t *testing.T) {
 			require.NoError(t, err, "OTEL config validation failed")
 
 			if *updateGolden {
-				path := filepath.Join("td", tt.expectedOTel)
+				path := filepath.Join("testdata", tt.expectedOTel)
 				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
 				data, err := yaml.Marshal(actual.ToStringMap())
 				require.NoError(t, err)
@@ -288,7 +283,7 @@ func TestProvider(t *testing.T) {
 				return
 			}
 
-			expectedData, err := os.ReadFile(filepath.Join("td", tt.expectedOTel))
+			expectedData, err := os.ReadFile(filepath.Join("testdata", tt.expectedOTel))
 			require.NoError(t, err)
 			expectedRetrieved, err := confmap.NewRetrievedFromYAML(expectedData)
 			require.NoError(t, err)
@@ -303,7 +298,7 @@ func TestProvider(t *testing.T) {
 // TestProviderMultipleEndpoints tests the multiple-endpoints case with structure validation
 // instead of golden file comparison due to non-deterministic map iteration order
 func TestProviderMultipleEndpoints(t *testing.T) {
-	cfg := loadConfig(t, filepath.Join("td", "provider/multiple-endpoints/agent.yaml"))
+	cfg := loadConfig(t, filepath.Join("testdata", "provider/multiple-endpoints/agent.yaml"))
 	provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
 
 	retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)

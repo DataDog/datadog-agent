@@ -35,12 +35,15 @@ tags:
     regex: "^\\d+$"
   kube_container_name: {}
   memory_location:
-    regex: "^(l1_cache|l2_cache|device_memory|register_file|texture_memory|texture_\
+    regex:
+      "^(l1_cache|l2_cache|device_memory|register_file|texture_memory|texture_\
       shm|cbu|sram|sm|pcie|microcontroller|other)$"
   error_subtype:
     regex: "^(parity|secded)$"
   nvlink_port:
     regex: "^\\d+$"
+  recovery_action:
+    regex: "^(none|reset|reboot|drain|drain_and_reset|unknown_-?\\d+)$"
 
 tagsets:
   container:
@@ -59,6 +62,9 @@ tagsets:
       - gpu_type
       - gpu_parent_uuid
       - gpu_host
+  nvlink:
+    tags:
+      - nvlink_port
   process:
     workload_only: true
     tags:

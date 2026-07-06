@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"sort"
 	"strings"
 	"sync"
 
@@ -111,10 +110,10 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 
 			if err != nil {
 				k.configErrors[entityName] = err
-				k.reportConfigurationError(entityName, err, errorSource)
+				reportConfigurationError(k.healthPlatform, entityName, err, errorSource)
 			} else {
 				delete(k.configErrors, entityName)
-				k.clearConfigurationErrors(entityName)
+				clearConfigurationErrors(k.healthPlatform, entityName)
 			}
 
 			configCache, ok := k.configCache[entityName]
@@ -152,7 +151,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 				changes.UnscheduleConfig(oldConfig)
 			}
 
-			k.clearConfigurationErrors(entityName)
+			clearConfigurationErrors(k.healthPlatform, entityName)
 			delete(k.configCache, entityName)
 			delete(k.configErrors, entityName)
 
@@ -303,45 +302,6 @@ func (k *ContainerConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet
 	maps.Copy(errors, k.configErrors)
 
 	return errors
-}
-
-// reportConfigurationError reports the AD configuration errors to the health platform.
-func (k *ContainerConfigProvider) reportConfigurationError(entityName string, errMsgSet types.ErrorMsgSet, errorSource types.ErrorSource) {
-	if k.healthPlatform == nil {
-		return
-	}
-
-	// Sort error messages for stable checkID assignment
-	errMsgs := make([]string, 0, len(errMsgSet))
-	for msg := range errMsgSet {
-		errMsgs = append(errMsgs, msg)
-	}
-	sort.Strings(errMsgs)
-	errorMsg := strings.Join(errMsgs, ", ")
-
-	issueID := "ad-annotation:" + entityName
-	report := healthplatformdef.IssueReport{
-		IssueID:   issueID,
-		IssueType: healthplatformdef.ADMisconfigurationIssueType,
-		Source:    healthplatformdef.ADMisconfigurationSource,
-		Context: map[string]string{
-			"entityName":   entityName,
-			"errorMessage": errorMsg,
-			"errorSource":  string(errorSource),
-		},
-	}
-
-	if err := k.healthPlatform.ReportIssue(report); err != nil {
-		log.Debugf("Failed to report AD annotation issue for %s: %v", entityName, err)
-	}
-}
-
-// clearConfigurationErrors clears all previously reported configuration errors for the given entity.
-func (k *ContainerConfigProvider) clearConfigurationErrors(entityName string) {
-	if k.healthPlatform == nil {
-		return
-	}
-	k.healthPlatform.ResolveIssue("ad-annotation:" + entityName)
 }
 
 // buildEntityName is also used as display key in `agent status` "Configuration Errors" display.

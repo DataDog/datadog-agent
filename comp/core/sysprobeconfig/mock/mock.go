@@ -31,7 +31,7 @@ func NewMock(t testing.TB) sysprobeconfigdef.Component {
 func NewMockWithOverrides(t testing.TB, overrides map[string]interface{}) sysprobeconfigdef.Component {
 	cfg := configmock.NewSystemProbe(t)
 	for k, v := range overrides {
-		cfg.SetWithoutSource(k, v)
+		cfg.SetInTest(k, v)
 	}
 
 	// Viper's `GetXxx` methods read environment variables at the time they are

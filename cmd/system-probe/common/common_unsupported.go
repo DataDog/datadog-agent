@@ -7,7 +7,8 @@
 
 package common
 
-const (
-	// DefaultLogFile is the default path to the system-probe log file
-	DefaultLogFile = ""
-)
+// DefaultLogFile returns the default path to the system-probe log file
+// (empty on unsupported platforms)
+func DefaultLogFile() string {
+	return ""
+}

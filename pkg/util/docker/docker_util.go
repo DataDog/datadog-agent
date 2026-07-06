@@ -84,10 +84,13 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Looks like docker is not actually doing a call to server when `NewClient` is called
-	// Forcing it to verify server availability by calling Info()
-	_, err = cli.Info(ctx, client.InfoOptions{})
-	if err != nil {
+	// client.New does not actually contact the server. Force a round-trip to
+	// verify availability. Use Ping rather than Info: Ping only reads HTTP
+	// headers, while Info decodes the full /info JSON payload. Some daemons
+	// emit DefaultAddressPools[].Base values that are not valid CIDRs, which
+	// fail moby v29's strict netip.Prefix decoding and would prevent
+	// DockerUtil from initializing at all.
+	if _, err := cli.Ping(ctx, client.PingOptions{}); err != nil {
 		return nil, err
 	}
 
@@ -129,6 +132,31 @@ func (d *DockerUtil) CountVolumes(ctx context.Context) (int, int, error) {
 // RawClient returns the underlying docker client being used by this object.
 func (d *DockerUtil) RawClient() *client.Client {
 	return d.cli
+}
+
+// CopyFromContainer wraps the Docker archive API for a single path.
+// The caller is responsible for closing the returned archive stream.
+func (d *DockerUtil) CopyFromContainer(ctx context.Context, containerID string, path string) (io.ReadCloser, error) {
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
+	result, err := d.cli.CopyFromContainer(ctx, containerID, client.CopyFromContainerOptions{SourcePath: path})
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	return readCloserWithCancel{
+		ReadCloser: result.Content,
+		cancel:     cancel,
+	}, nil
+}
+
+type readCloserWithCancel struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (r readCloserWithCancel) Close() error {
+	r.cancel()
+	return r.ReadCloser.Close()
 }
 
 // RawContainerList wraps around the docker client's ContainerList method.
@@ -182,11 +210,11 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options cli
 func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	result, err := d.cli.Info(ctx, client.InfoOptions{})
+	info, err := safeInfo(ctx, d.cli)
 	if err != nil {
 		return "", fmt.Errorf("unable to get Docker info: %s", err)
 	}
-	return result.Info.Name, nil
+	return info.Name, nil
 }
 
 // GetStorageStats returns the docker global storage stats if available
@@ -194,11 +222,11 @@ func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
 func (d *DockerUtil) GetStorageStats(ctx context.Context) ([]*StorageStats, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	result, err := d.cli.Info(ctx, client.InfoOptions{})
+	info, err := safeInfo(ctx, d.cli)
 	if err != nil {
 		return []*StorageStats{}, fmt.Errorf("unable to get Docker info: %s", err)
 	}
-	return parseStorageStatsFromInfo(result.Info)
+	return parseStorageStatsFromInfo(info)
 }
 
 func isImageShaOrRepoDigest(image string) bool {
@@ -386,6 +414,10 @@ func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) 
 	if err != nil {
 		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
 	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, stats.Body)
+		stats.Body.Close()
+	}()
 	containerStats := &dcontainer.StatsResponse{}
 	err = json.NewDecoder(stats.Body).Decode(&containerStats)
 	if err != nil {

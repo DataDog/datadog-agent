@@ -11,8 +11,10 @@ package ntpdrift
 import (
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 func init() {
@@ -20,7 +22,11 @@ func init() {
 }
 
 const (
-	// IssueID is the unique identifier for NTP clock drift issues
+	// IssueName is the identifier for NTP clock drift issues,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "NTP Clock Drift"
+
+	// IssueID is the unique instance id used when reporting this issue
 	IssueID = "ntp-clock-drift"
 
 	// checkInterval is how often the NTP drift check runs
@@ -39,26 +45,26 @@ func NewModule(_ config.Component) issues.Module {
 	}
 }
 
-// IssueType returns the unique identifier for this issue type
-func (m *ntpDriftModule) IssueType() string {
-	return IssueID
+func (m *ntpDriftModule) IssueName() string {
+	return IssueName
 }
 
-// IssueTemplate returns the template for building complete issues
-func (m *ntpDriftModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
+func (m *ntpDriftModule) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return m.template.BuildIssue(context)
 }
 
 // BuiltInPeriodicHealthCheck returns the periodic health check for NTP drift.
-func (m *ntpDriftModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
-	return &issues.BuiltInPeriodicHealthCheck{
-		Source:   "ntp-drift",
-		Fn:       Check,
+func (m *ntpDriftModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
+	return &runnerdef.BuiltInPeriodicHealthCheck{
+		BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
+			Source: "ntp-drift",
+			Fn:     Check,
+		},
 		Interval: checkInterval,
 	}
 }
 
 // BuiltInStartupHealthCheck returns nil — NTP drift uses a periodic check only.
-func (m *ntpDriftModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
+func (m *ntpDriftModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return nil
 }

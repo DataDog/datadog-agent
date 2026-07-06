@@ -15,7 +15,9 @@ import (
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/fx"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
@@ -83,6 +85,12 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	config.Set("serializer_zstd_compressor_level", pkgconfigsetup.DefaultZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 
 	config.Set("use_v2_api.series", true, pkgconfigmodel.SourceDefault)
+
+	// The serializer exporter forces zlib compression (metricscompressionfx
+	// fx-otel), which is incompatible with the v3 metrics intake.
+	config.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
+	config.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
+
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.Set("enable_payloads.events", true, pkgconfigmodel.SourceDefault)
 	config.Set("enable_payloads.series", true, pkgconfigmodel.SourceDefault)
@@ -114,7 +122,7 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 }
 
 // InitSerializer initializes the serializer and forwarder for sending metrics. Should only be used in OSS Datadog exporter or in tests.
-func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarder.DefaultForwarder, error) {
+func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarderimpl.DefaultForwarder, error) {
 	var f defaultforwarder.Component
 	var s *serializer.Serializer
 	app := fx.New(
@@ -124,7 +132,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Supply(logger),
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
-			pkgconfig := create.NewConfig("DD", "")
+			pkgconfig := create.NewConfig("DD")
 			pkgconfigsetup.InitConfig(pkgconfig)
 			pkgconfig.BuildSchema()
 
@@ -132,7 +140,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceFile)
 			pkgconfig.Set("site", cfg.API.Site, pkgconfigmodel.SourceFile)
 			if cfg.Metrics.Metrics.TCPAddrConfig.Endpoint != "" {
-				pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceDefault)
+				pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceFile)
 			}
 			setupSerializer(pkgconfig, cfg)
 			setupForwarder(pkgconfig)
@@ -150,7 +158,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		}),
 		// casts the defaultforwarder.Component to a defaultforwarder.Forwarder
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
-			return defaultforwarder.Forwarder(c), nil
+			return c, nil
 		}),
 		// this is the hostname argument for serializer.NewSerializer
 		// this should probably be wrapped by a type
@@ -168,7 +176,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			return c
 		}),
 		fx.Provide(func() secrets.Component { return &secretnooptypes.SecretNoop{} }),
-		defaultforwarder.Module(defaultforwarder.NewParams()),
+		defaultforwarderfx.Module(defaultforwarder.NewParams()),
 		delegatedauthnoopfx.Module(),
 		fx.Populate(&f),
 		fx.Populate(&s),
@@ -176,9 +184,9 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 	if err := app.Err(); err != nil {
 		return nil, nil, err
 	}
-	fw, ok := f.(*defaultforwarder.DefaultForwarder)
+	fw, ok := f.(*defaultforwarderimpl.DefaultForwarder)
 	if !ok {
-		return nil, nil, errors.New("failed to cast forwarder to defaultforwarder.DefaultForwarder")
+		return nil, nil, errors.New("failed to cast forwarder to defaultforwarderimpl.DefaultForwarder")
 	}
 	return s, fw, nil
 }

@@ -49,7 +49,7 @@ func TestIngressHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewIngressHandlers(tagger)
 
-	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -117,16 +117,16 @@ func TestIngressHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*netv1.Ingress)
 	assert.True(t, ok)
 	assert.Equal(t, "ingress-1", resource1.Name)
-	assert.NotSame(t, ingress1, resource1) // Should be a copy
+	assert.Same(t, ingress1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*netv1.Ingress)
 	assert.True(t, ok)
 	assert.Equal(t, "ingress-2", resource2.Name)
-	assert.NotSame(t, ingress2, resource2) // Should be a copy
+	assert.Same(t, ingress2, resource2) // ResourceList returns raw informer references
 }
 
 func TestIngressHandlers_ResourceUID(t *testing.T) {
@@ -492,4 +492,14 @@ func createTestIngress(name, namespace string) *netv1.Ingress {
 			},
 		},
 	}
+}
+
+func TestIngressHandlers_CloneResource(t *testing.T) {
+	handlers := &IngressHandlers{}
+	original := createTestIngress("test", "ns")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*netv1.Ingress)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

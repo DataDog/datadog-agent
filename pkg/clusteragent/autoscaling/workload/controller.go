@@ -48,6 +48,8 @@ const (
 	controllerID autoscaling.SenderID = "dpa-c"
 
 	defaultStaleTimestampThreshold = 30 * time.Minute // time to wait before considering a recommendation stale
+
+	podWatcherSyncRequeueAfter = 30 * time.Second
 )
 
 var (
@@ -146,7 +148,6 @@ func NewController(
 			DeleteFunc: func(key string, _ autoscaling.SenderID) { c.metricsStore.Delete(key) },
 		})
 
-	// TODO: Ensure that controllers do not take action before the podwatcher is synced
 	c.horizontalController = newHorizontalReconciler(c.clock, eventRecorder, c.scaler)
 
 	patchClient := workloadpatcher.NewPatcher(dynamicClient, nil) // let controller handle leader check
@@ -393,10 +394,8 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 
 		// Fall through to normal scaling logic.
 	} else if podAutoscalerInternal.Spec().Owner == datadoghqcommon.DatadogPodAutoscalerLocalOwner {
-		// Implement sync logic for local ownership, source of truth is Kubernetes
-		if podAutoscalerInternal.Generation() != podAutoscaler.Generation {
-			podAutoscalerInternal.UpdateFromPodAutoscaler(podAutoscaler)
-		}
+		// Sync logic for local ownership: Kubernetes is the source of truth.
+		podAutoscalerInternal.UpdateFromPodAutoscaler(podAutoscaler)
 	}
 
 	// Reaching this point, we had no errors in processing, clearing up global error
@@ -434,6 +433,13 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		notFoundErr := autoscaling.NewConditionError(autoscaling.ConditionReasonTargetNotFound,
 			fmt.Errorf("target %s %s/%s not found", targetGVK.Kind, target.Namespace, target.Name))
 		return handleNonRetryableError(notFoundErr)
+	}
+
+	// The PodWatcher starts lazily and may not have indexed pods yet.
+	if !c.podWatcher.HasSynced() {
+		log.Debugf("PodWatcher not synced yet, requeuing %s in %s", key, podWatcherSyncRequeueAfter)
+		storeUnlock()
+		return autoscaling.Requeue.After(podWatcherSyncRequeueAfter), nil
 	}
 
 	// Now that everything is synced, we can perform the actual processing

@@ -35,6 +35,8 @@ func NewVM(e local.Environment, name string) (*remote.Host, error) {
 			address,
 			user,
 			remote.WithPort(port),
+			remote.WithDialErrorLimit(e.InfraDialErrorLimit()),
+			remote.WithPerDialTimeoutSeconds(e.InfraPerDialTimeoutSeconds()),
 		)
 		if err != nil {
 			return err

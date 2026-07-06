@@ -11,7 +11,7 @@ package trivy
 import (
 	"testing"
 
-	"github.com/containerd/containerd/mount"
+	"github.com/containerd/containerd/v2/core/mount"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -53,6 +53,19 @@ func TestExtractLayersFromOverlayFSMounts(t *testing.T) {
 				{Options: []string{"someoption=somevalue", "lowerdir=/path/to/lower1:/path/to/lower2"}},
 			},
 			want: []string{"/path/to/upper1", "/path/to/lower1", "/path/to/lower2"},
+		},
+		{
+			// A single-layer image is exposed by containerd as a single bind mount
+			// (no lowerdir/upperdir); its only layer is the mount source.
+			name:   "Single-layer bind mount",
+			mounts: []mount.Mount{{Type: "bind", Source: "/path/to/snapshots/132/fs", Options: []string{"ro", "rbind"}}},
+			want:   []string{"/path/to/snapshots/132/fs"},
+		},
+		{
+			// Overlay options take precedence; the mount source is not a layer path.
+			name:   "Overlay mount source ignored",
+			mounts: []mount.Mount{{Type: "overlay", Source: "overlay", Options: []string{"lowerdir=/path/to/lower"}}},
+			want:   []string{"/path/to/lower"},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

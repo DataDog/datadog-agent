@@ -13,6 +13,8 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+const issueName = IssueName
+
 // NTPDriftIssue provides the complete issue template (metadata + remediation) for NTP clock drift.
 type NTPDriftIssue struct{}
 
@@ -42,8 +44,7 @@ func (t *NTPDriftIssue) BuildIssue(context map[string]string) (*healthplatform.I
 	}
 
 	return &healthplatform.Issue{
-		Id:        IssueID,
-		IssueName: "ntp_clock_drift",
+		IssueName: issueName,
 		Title:     "System Clock Drift Detected",
 		Description: fmt.Sprintf(
 			"The system clock is drifting from NTP reference time by %s, which exceeds the %s threshold. "+
@@ -54,9 +55,9 @@ func (t *NTPDriftIssue) BuildIssue(context map[string]string) (*healthplatform.I
 		),
 		Category:   "configuration",
 		Location:   "system",
-		Severity:   "warning",
+		Severity:   healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 		DetectedAt: "", // Filled by the health platform
-		Source:     "agent",
+		Source:     "ntp-drift",
 		Extra:      extra,
 		Remediation: &healthplatform.Remediation{
 			Summary: "Synchronise the system clock with an NTP server",

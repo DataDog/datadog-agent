@@ -11,7 +11,7 @@ import (
 	"net"
 	"time"
 
-	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 const (
@@ -33,21 +33,23 @@ const (
 
 // Check queries pool.ntp.org and reports an issue when the local clock differs
 // by more than driftThreshold from the NTP reference time.
-func Check() ([]storedef.IssueReport, error) {
+func Check() ([]runnerdef.IssueReport, error) {
 	offset, err := queryNTPOffset(ntpServer)
 	if err != nil {
-		// If the NTP server is unreachable we skip the check rather than
-		// raising a false-positive — network issues are a separate concern.
-		return nil, nil //nolint:nilerr
+		// Propagate probe failures instead of returning no issues: the scheduler
+		// leaves previously reported issues untouched when Check returns an error,
+		// so a transient probe failure won't wrongly resolve an active drift issue.
+		return nil, fmt.Errorf("ntp drift check: %w", err)
 	}
 
 	if abs(offset) <= driftThreshold {
 		return nil, nil
 	}
 
-	return []storedef.IssueReport{{
+	return []runnerdef.IssueReport{{
 		IssueID:   IssueID,
-		IssueType: IssueID,
+		IssueName: IssueName,
+		Source:    "ntp-drift",
 		Context: map[string]string{
 			"drift":     formatDuration(offset),
 			"ntpServer": ntpServer,
@@ -81,10 +83,14 @@ func queryNTPOffset(server string) (time.Duration, error) {
 	}
 
 	resp := make([]byte, ntpPacketSize)
-	if _, err := conn.Read(resp); err != nil {
+	n, err := conn.Read(resp)
+	if err != nil {
 		return 0, fmt.Errorf("ntp read: %w", err)
 	}
 	t4 := time.Now()
+	if n < ntpPacketSize {
+		return 0, fmt.Errorf("ntp read: short response (%d bytes, want %d)", n, ntpPacketSize)
+	}
 
 	// Transmit Timestamp (T3) is at bytes 40–47 (seconds in the upper 32 bits).
 	ntpSecs := binary.BigEndian.Uint32(resp[40:44])

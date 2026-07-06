@@ -86,86 +86,22 @@ def has_type_component(content) -> bool:
 # The migration of these components is in progresss.
 # Please do not add a new component to this list.
 components_to_migrate = [
-    "comp/aggregator/demultiplexer/component.go",
     "comp/core/config/component.go",
     "comp/core/flare/component.go",
-    "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
-    "comp/metadata/inventoryagent/component.go",
-    "comp/remote-config/rcclient/component.go",
-    "comp/trace/config/component.go",
-    "comp/process/apiserver/component.go",
 ]
 
 
 # List of components that use the classic style, where `comp/<component>/<component>impl` exists
 # New components should use the new style of `def`, `impl`, `fx` folders
 components_classic_style = [
-    'comp/agent/autoexit/autoexitimpl',
-    'comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl',
-    'comp/agent/expvarserver/expvarserverimpl',
-    'comp/agent/jmxlogger/jmxloggerimpl',
     'comp/api/api/apiimpl',
     'comp/api/api/def',
-    'comp/api/authtoken/fetchonlyimpl',
-    'comp/api/authtoken/createandfetchimpl',
-    'comp/checks/agentcrashdetect/agentcrashdetectimpl',
     "comp/checks/winregistry/impl",
-    'comp/collector/collector/collectorimpl',
-    'comp/core/autodiscovery/autodiscoveryimpl',
-    'comp/core/configsync/configsyncimpl',
     'comp/core/hostname/hostnameimpl',
-    'comp/core/pid/pidimpl',
-    'comp/core/settings/settingsimpl',
     'comp/core/status/statusimpl',
-    'comp/dogstatsd/pidmap/pidmapimpl',
-    'comp/dogstatsd/serverDebug/serverdebugimpl',
-    'comp/dogstatsd/status/statusimpl',
     'comp/etw/impl',
-    'comp/forwarder/eventplatform/eventplatformimpl',
-    'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
-    'comp/forwarder/orchestrator/orchestratorimpl',
-    'comp/logs/adscheduler/adschedulerimpl',
-    'comp/logs/agent/agentimpl',
-    'comp/metadata/host/hostimpl',
-    'comp/metadata/inventorychecks/inventorychecksimpl',
-    'comp/metadata/inventoryhost/inventoryhostimpl',
-    'comp/metadata/packagesigning/packagesigningimpl',
-    'comp/metadata/resources/resourcesimpl',
-    'comp/metadata/runner/runnerimpl',
-    'comp/ndmtmp/forwarder/forwarderimpl',
-    'comp/networkpath/npcollector/npcollectorimpl',
     'comp/otelcol/logsagentpipeline/logsagentpipelineimpl',
-    'comp/process/agent/agentimpl',
-    'comp/process/connectionscheck/connectionscheckimpl',
-    'comp/process/containercheck/containercheckimpl',
-    'comp/process/expvars/expvarsimpl',
-    'comp/process/forwarders/forwardersimpl',
-    'comp/process/hostinfo/hostinfoimpl',
-    'comp/process/processcheck/processcheckimpl',
-    'comp/process/processdiscoverycheck/processdiscoverycheckimpl',
-    'comp/process/profiler/profilerimpl',
-    'comp/process/rtcontainercheck/rtcontainercheckimpl',
-    'comp/process/runner/runnerimpl',
-    'comp/process/status/statusimpl',
-    'comp/process/submitter/submitterimpl',
-    'comp/remote-config/rcservice/rcserviceimpl',
-    'comp/remote-config/rcservicemrf/rcservicemrfimpl',
-    'comp/remote-config/rcstatus/rcstatusimpl',
-    'comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl',
-    'comp/snmptraps/config/configimpl',
-    'comp/snmptraps/formatter/formatterimpl',
-    'comp/snmptraps/forwarder/forwarderimpl',
-    'comp/snmptraps/listener/listenerimpl',
-    'comp/snmptraps/oidresolver/oidresolverimpl',
-    'comp/snmptraps/status/statusimpl',
-    'comp/systray/systray/systrayimpl',
-    'comp/trace/etwtracer/etwtracerimpl',
-    'comp/trace/status/statusimpl',
-    'comp/updater/localapi/localapiimpl',
-    'comp/updater/localapiclient/localapiclientimpl',
-    'comp/updater/telemetry/telemetryimpl',
-    'comp/updater/updater/updaterimpl',
 ]
 
 
@@ -179,6 +115,12 @@ components_missing_implementation_folder = [
 ]
 
 ignore_fx_import = [
+    "comp/aggregator/demultiplexer",
+    "comp/forwarder/eventplatform",
+    "comp/collector/collector",
+    "comp/forwarder/eventplatformreceiver",
+    "comp/forwarder/orchestrator",
+    "comp/logs/agent",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/rdnsquerier",
@@ -187,9 +129,16 @@ ignore_fx_import = [
 ]
 
 ignore_provide_component_constructor_missing = [
+    "comp/aggregator/demultiplexer",
+    "comp/forwarder/eventplatform",
+    "comp/collector/collector",
+    "comp/forwarder/eventplatformreceiver",
+    "comp/forwarder/orchestrator",
+    "comp/logs/agent",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",
+    "comp/core/configsync",
 ]
 
 mock_definitions = [
@@ -248,7 +197,7 @@ def check_component_contents_and_file_hiearchy(comp):
             for part in src_file.parts:
                 if "impl-" in part:
                     parts = part.split("-")
-                    expectname = parts[1] + 'impl'
+                    expectname = ''.join(parts[1:]) + 'impl'
 
             if pkgname != expectname:
                 return f"** {src_file} has wrong package name '{pkgname}', must be '{expectname}'"
@@ -310,7 +259,7 @@ def locate_implementation_folders(comp):
             continue
 
         if to_posix_path(entry) in components_missing_implementation_folder:
-            return 'skip'
+            continue
 
         if comp.version == 2:
             # Check for component implementation using the new-style folder structure: comp/<component>/impl[-suffix]

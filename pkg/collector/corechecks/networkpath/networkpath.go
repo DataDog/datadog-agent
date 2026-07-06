@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -53,17 +53,18 @@ func (c *Check) Run() error {
 	metricSender := metricsender.NewMetricSenderAgent(senderInstance)
 
 	cfg := config.Config{
-		DestHostname:              c.config.DestHostname,
-		DestPort:                  c.config.DestPort,
-		MaxTTL:                    c.config.MaxTTL,
-		Timeout:                   c.config.Timeout,
-		Protocol:                  c.config.Protocol,
-		TCPMethod:                 c.config.TCPMethod,
-		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
-		DisableWindowsDriver:      c.config.DisableWindowsDriver,
-		ReverseDNS:                true,
-		TracerouteQueries:         c.config.TracerouteQueries,
-		E2eQueries:                c.config.E2eQueries,
+		DestHostname:                    c.config.DestHostname,
+		DestPort:                        c.config.DestPort,
+		MaxTTL:                          c.config.MaxTTL,
+		Timeout:                         c.config.Timeout,
+		Protocol:                        c.config.Protocol,
+		TCPMethod:                       c.config.TCPMethod,
+		TCPSynParisTracerouteMode:       c.config.TCPSynParisTracerouteMode,
+		DisableWindowsDriver:            c.config.DisableWindowsDriver,
+		DisableSourcePublicIPCollection: c.config.DisableSourcePublicIPCollection,
+		ReverseDNS:                      true,
+		TracerouteQueries:               c.config.TracerouteQueries,
+		E2eQueries:                      c.config.E2eQueries,
 	}
 
 	path, err := c.traceroute.Run(context.TODO(), cfg)

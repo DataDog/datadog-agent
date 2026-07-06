@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
@@ -34,7 +34,7 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 
-	ncmSender := NewNCMSender(mockSender, namespace, mockClock)
+	ncmSender := NewNCMSender(mockSender, namespace, mockClock, "test-agent-host")
 
 	// Create test payload
 	configs := []ncmreport.NetworkDeviceConfig{
@@ -49,13 +49,14 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 		},
 	}
 
-	payload := ncmreport.ToNCMPayload(namespace, configs, mockClock.Now().Unix())
+	payload := ncmreport.ToNCMPayload(namespace, "test-agent-host", configs, []ncmreport.InventoryEntry{}, mockClock.Now().Unix())
 
 	// Set up mock expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	// Send the config
-	err := ncmSender.SendNCMConfig(payload)
+	err := ncmSender.SendNCMPayload(payload)
 	assert.NoError(t, err)
 
 	var expectedEvent = []byte(`
@@ -72,7 +73,8 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
       "content": "version 15.1\nhostname Router1"
     }
   ],
-  "collect_timestamp": 1754043600
+  "collect_timestamp": 1754043600,
+  "agent_hostname": "test-agent-host"
 }
 `)
 
@@ -97,45 +99,62 @@ func TestNCMSender_SendNCMCheckMetrics(t *testing.T) {
 		startTime       time.Time
 		lastCheckTime   time.Time
 		tags            []string
+		success         bool
 		expectedMetrics []expectedMetric
 	}{
 		{
 			name:          "Submit NCM check metrics successfully",
 			startTime:     time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC),
 			lastCheckTime: time.Date(2025, 8, 1, 10, 05, 0, 0, time.UTC), // 15 minutes before
+			success:       true,
 			tags:          []string{"device_ip:10.0.0.1"},
 			expectedMetrics: []expectedMetric{
 				{
 					submissionType: "Gauge",
 					name:           ncmCheckDurationMetric,
 					value:          5,
-					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion},
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, "status:ok"},
 				},
 				{
 					submissionType: "Gauge",
 					name:           ncmCheckIntervalMetric,
 					value:          900, // 15 minutes in seconds
-					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion},
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, "status:ok"},
 				},
 			},
 		},
 		{
 			name:      "Last check time is zero (first run), no interval metric sent",
 			startTime: time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC),
+			success:   true,
 			tags:      []string{"device_ip:10.0.0.1"},
 			expectedMetrics: []expectedMetric{
 				{
 					submissionType: "Gauge",
 					name:           ncmCheckDurationMetric,
 					value:          5,
-					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion},
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, "status:ok"},
+				},
+			},
+		},
+		{
+			name:      "Failure",
+			startTime: time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC),
+			success:   false,
+			tags:      []string{"device_ip:10.0.0.1"},
+			expectedMetrics: []expectedMetric{
+				{
+					submissionType: "Gauge",
+					name:           ncmCheckDurationMetric,
+					value:          5,
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, "status:error"},
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("test")
+			mockSender := mocksender.NewMockSender(t, "test")
 			mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
@@ -143,13 +162,13 @@ func TestNCMSender_SendNCMCheckMetrics(t *testing.T) {
 			mockClock.Set(tt.startTime)
 			mockClock.Add(5 * time.Second)
 
-			sender := NewNCMSender(mockSender, "test-namespace", mockClock)
+			sender := NewNCMSender(mockSender, "test-namespace", mockClock, "test-agent-host")
 			sender.SetDeviceTags(tt.tags)
 
-			sender.SendNCMCheckMetrics(tt.startTime, tt.lastCheckTime)
+			sender.SendNCMCheckMetrics(tt.startTime, tt.lastCheckTime, tt.success)
 
 			for _, metric := range tt.expectedMetrics {
-				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "", metric.tags)
+				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "test-agent-host", metric.tags)
 			}
 		})
 	}
@@ -185,15 +204,15 @@ func TestNCMSender_SendMetricsFromExtractedMetadata(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender("test")
+			mockSender := mocksender.NewMockSender(t, "test")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			sender := NewNCMSender(mockSender, "test-namespace", clock.NewMock())
+			sender := NewNCMSender(mockSender, "test-namespace", clock.NewMock(), "test-agent-host")
 			sender.SetDeviceTags(tt.tags)
 			sender.SendMetricsFromExtractedMetadata(tt.extractedMetadata, tt.configType)
 
 			for _, metric := range tt.expectedMetrics {
-				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "", tt.tags)
+				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "test-agent-host", tt.tags)
 			}
 		})
 	}
@@ -207,7 +226,7 @@ func TestNCMSender_SendDeviceMetadata(t *testing.T) {
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 
-	ncmSender := NewNCMSender(mockSender, namespace, mockClock)
+	ncmSender := NewNCMSender(mockSender, namespace, mockClock, "test-agent-host")
 
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
 
@@ -240,4 +259,56 @@ func TestNCMSender_SendDeviceMetadata(t *testing.T) {
 
 	// Verify the integration constant value
 	assert.Equal(t, integrations.Integration("network-configuration-management"), integrations.NetworkConfigManagement)
+}
+
+func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
+	mockSender := &mocksender.MockSender{}
+	namespace := "default"
+	mockClock := clock.NewMock()
+	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
+
+	ncmSender := NewNCMSender(mockSender, namespace, mockClock, "test-agent-host")
+
+	payload := ncmreport.NCMPayload{
+		Namespace:        namespace,
+		AgentHostname:    "test-agent-host",
+		CollectTimestamp: mockClock.Now().Unix(),
+		Inventories: []ncmreport.InventoryEntry{
+			{
+				Namespace:  "default",
+				ConfigID:   "abc-123",
+				DeviceID:   "default:10.0.0.1",
+				ReportedAt: mockClock.Now().Unix(),
+			},
+		},
+	}
+
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	err := ncmSender.SendNCMPayload(payload)
+	assert.NoError(t, err)
+	expectedEvent := []byte(`
+{
+  "namespace": "default",
+  "inventories": [
+    {
+	  "namespace": "default",
+      "config_id": "abc-123",
+      "device_id": "default:10.0.0.1",
+      "reported_at": 1754043600
+    }
+  ],
+  "collect_timestamp": 1754043600,
+  "agent_hostname": "test-agent-host"
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, expectedEvent)
+	assert.NoError(t, err)
+
+	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+	mockSender.AssertEventPlatformEvent(t, compactEvent.Bytes(), eventplatform.EventTypeNetworkConfigManagement)
+	mockSender.AssertMetric(t, "Count", ncmCheckInventoryEntriesSentMetric, 1, "test-agent-host", []string{"agent_version:" + version.AgentVersion})
+	mockSender.AssertExpectations(t)
 }

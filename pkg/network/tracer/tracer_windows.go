@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
+	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -284,6 +285,7 @@ func (t *Tracer) getStats() (map[string]interface{}, error) {
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
 		"universal_service_monitoring": map[string]interface{}{
+			"state":                         usmstate.Get(),
 			"discovery_service_map_enabled": t.config.DiscoveryServiceMapEnabled,
 		},
 	}

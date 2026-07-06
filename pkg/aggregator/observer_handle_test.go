@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -55,8 +56,14 @@ func (c *recordingComponent) GetHandle(_ string) observer.Handle {
 	return c.handle
 }
 
+func (c *recordingComponent) RecordSamplerDropped(_, _ string) {}
+
 func (c *recordingComponent) DumpMetrics(_ string) error {
 	return nil
+}
+
+func (c *recordingComponent) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
+	return severityeventsdef.SeverityEventsSubscription{Unsubscribe: func() {}}, nil
 }
 
 // TestTimeSamplerObserverHandle verifies that ObserveMetric is called for each

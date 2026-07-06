@@ -134,7 +134,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
+	mockSender := mocksender.NewMockSender(suite.T(), checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
@@ -166,9 +166,9 @@ func (suite *ProviderTestSuite) SetupTest() {
 	}
 
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("dd_container_exclude", "name:agent-excluded")
-	mockConfig.SetWithoutSource("dd_container_exclude_metrics", "image:^hkaj/demo-app$")
-	mockConfig.SetWithoutSource("dd_container_exclude_logs", "name:*") // should not affect metrics
+	mockConfig.SetInTest("dd_container_exclude", "name:agent-excluded")
+	mockConfig.SetInTest("dd_container_exclude_metrics", "image:^hkaj/demo-app$")
+	mockConfig.SetInTest("dd_container_exclude_logs", "name:*") // should not affect metrics
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
 	p, err := NewProvider(
@@ -285,7 +285,7 @@ func (suite *ProviderTestSuite) TestPVCMetricsExcludedByNamespace() {
 	}
 
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("container_exclude", "kube_namespace:default")
+	mockConfig.SetInTest("container_exclude", "kube_namespace:default")
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 	suite.provider.containerFilter = mockFilterStore.GetContainerSharedMetricFilters()
 	suite.provider.podFilter = mockFilterStore.GetPodSharedMetricFilters()

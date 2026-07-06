@@ -96,20 +96,13 @@ int hook_vfs_rename(ctx_t *ctx) {
         get_path_id(inode, syscall->rename.target_file.path_key.mount_id, 0, invalidate_type);
     }
 
-    // always return after any invalidate_inode call
-    if (approve_syscall(syscall, rename_approvers) == DISCARDED) {
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        return 0;
-    }
-    if (is_auid_discarder(EVENT_RENAME)) {
-        syscall->state = DISCARDED;
-        return 0;
-    }
+    approve_syscall(syscall, rename_approvers);
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->rename.src_dentry;
     syscall->resolver.key = syscall->rename.src_file.path_key;
-    syscall->resolver.discarder_event_type = 0;
+    syscall->resolver.event_type = syscall->type;
+    syscall->resolver.flags = get_resolver_flags(syscall, 1);
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -151,6 +144,11 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, enum TA
         }
     }
 
+    if (syscall->state != DISCARDED && is_auid_discarder(EVENT_RENAME)) {
+        syscall->state = DISCARDED;
+        monitor_discarded(EVENT_RENAME);
+    }
+
     if (syscall->state != DISCARDED && is_event_enabled(EVENT_RENAME)) {
         syscall->retval = retval;
 
@@ -161,7 +159,8 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, enum TA
             syscall->resolver.dentry = syscall->rename.target_dentry;
         }
         syscall->resolver.key = syscall->rename.target_file.path_key;
-        syscall->resolver.discarder_event_type = 0;
+        syscall->resolver.event_type = syscall->type;
+        syscall->resolver.flags = get_resolver_flags(syscall, 1);
         syscall->resolver.callback = select_dr_key(prog_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;

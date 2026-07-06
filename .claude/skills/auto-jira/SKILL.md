@@ -2,6 +2,7 @@
 name: auto-jira
 description: Autonomously work on Jira backlog tickets, creating PRs and shepherding them to merge
 argument-hint: "<BOARD-KEY> [--max-cards N] [--before-date YYYY-MM-DD] [--exclude word1,word2]"
+model: sonnet
 ---
 
 ## Overview

@@ -10,46 +10,49 @@ import (
 	"sync"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 // Registry manages issue modules — providing issue templates, built-in periodic
-// health checks, and built-in startup health checks.
+// health checks, and built-in once-at-startup health checks.
 type Registry struct {
 	mu             sync.RWMutex
-	templates      map[string]IssueTemplate
-	periodicChecks []*BuiltInPeriodicHealthCheck
-	startupChecks  []*BuiltInStartupHealthCheck
+	templates      map[string]Template
+	periodicChecks []*runnerdef.BuiltInPeriodicHealthCheck
+	healthChecks   []*runnerdef.BuiltInHealthCheck
 }
 
 // NewRegistry creates a new issue registry
 func NewRegistry() *Registry {
 	return &Registry{
-		templates:      make(map[string]IssueTemplate),
-		periodicChecks: make([]*BuiltInPeriodicHealthCheck, 0),
-		startupChecks:  make([]*BuiltInStartupHealthCheck, 0),
+		templates:      make(map[string]Template),
+		periodicChecks: make([]*runnerdef.BuiltInPeriodicHealthCheck, 0),
+		healthChecks:   make([]*runnerdef.BuiltInHealthCheck, 0),
 	}
 }
 
 // RegisterModule registers an issue module, extracting its template, periodic
 // check, and once check.
 func (r *Registry) RegisterModule(module Module) {
+	name := module.IssueName()
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.templates[module.IssueType()] = module.IssueTemplate()
+	r.templates[name] = module
 
 	if check := module.BuiltInPeriodicHealthCheck(); check != nil {
-		check.IssueTypes = append(check.IssueTypes, module.IssueType())
+		check.IssueNames = append(check.IssueNames, module.IssueName())
 		r.periodicChecks = append(r.periodicChecks, check)
 	}
 	if once := module.BuiltInStartupHealthCheck(); once != nil {
-		once.IssueTypes = append(once.IssueTypes, module.IssueType())
-		r.startupChecks = append(r.startupChecks, once)
+		once.IssueNames = append(once.IssueNames, module.IssueName())
+		r.healthChecks = append(r.healthChecks, once)
 	}
 }
 
 // GetTemplate retrieves an issue template by issue ID
-func (r *Registry) GetTemplate(issueID string) (IssueTemplate, bool) {
+func (r *Registry) GetTemplate(issueID string) (Template, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	template, exists := r.templates[issueID]
@@ -66,19 +69,19 @@ func (r *Registry) BuildIssue(issueType string, context map[string]string) (*hea
 }
 
 // GetBuiltInPeriodicHealthChecks returns all registered periodic health periodicChecks.
-func (r *Registry) GetBuiltInPeriodicHealthChecks() []*BuiltInPeriodicHealthCheck {
+func (r *Registry) GetBuiltInPeriodicHealthChecks() []*runnerdef.BuiltInPeriodicHealthCheck {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	result := make([]*BuiltInPeriodicHealthCheck, len(r.periodicChecks))
+	result := make([]*runnerdef.BuiltInPeriodicHealthCheck, len(r.periodicChecks))
 	copy(result, r.periodicChecks)
 	return result
 }
 
-// GetBuiltInStartupHealthChecks returns all registered startup-time once periodicChecks.
-func (r *Registry) GetBuiltInStartupHealthChecks() []*BuiltInStartupHealthCheck {
+// GetBuiltInStartupHealthChecks returns all registered once-at-startup health checks.
+func (r *Registry) GetBuiltInStartupHealthChecks() []*runnerdef.BuiltInHealthCheck {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	result := make([]*BuiltInStartupHealthCheck, len(r.startupChecks))
-	copy(result, r.startupChecks)
+	result := make([]*runnerdef.BuiltInHealthCheck, len(r.healthChecks))
+	copy(result, r.healthChecks)
 	return result
 }

@@ -6,11 +6,13 @@ go_library(
     name = "rcjson",
     srcs = [
         "doc.go",
+        "rcjson.go",
         "type.go",
         "type_string.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/rcjson",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/dyninst/ir"],
 )
 
 go_stringer(

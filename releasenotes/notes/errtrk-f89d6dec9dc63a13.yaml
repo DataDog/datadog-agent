@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Added an experimental telemetry error log
+    forwarder. Disabled by default, the Agent forwards records logged at 
+    ``ERROR`` level or higher to the COAT intake so Datadog Engineers 
+    can aggregate Agent errors across customer organizations. The 
+    forwarder shares the agent telemetry transport, inheriting endpoint 
+    and compression settings from the agent telemetry configuration.
