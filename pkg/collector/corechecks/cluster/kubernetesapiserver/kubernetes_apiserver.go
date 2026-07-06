@@ -12,6 +12,7 @@ package kubernetesapiserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +53,11 @@ const (
 	defaultTimeoutEventCollection      = 2000
 	defaultMaxEstimatedEventTextLength = 3750
 	defaultEventCollectionBufferSize   = 10000
+
+	// eventCollectionModePoll re-opens a watch against the API server on every check run (legacy behavior).
+	eventCollectionModePoll = "poll"
+	// eventCollectionModeWatch streams events through a single persistent reflector-backed watch.
+	eventCollectionModeWatch = "watch"
 )
 
 var (
@@ -81,14 +87,14 @@ type KubeASConfig struct {
 	UseComponentStatus  bool `yaml:"use_component_status"`
 
 	// Event collection configuration
-	CollectEvent              bool `yaml:"collect_events"`
-	MaxEventCollection        int  `yaml:"max_events_per_run"` // legacy path only; new path drains the full buffer each run
-	EventCollectionTimeoutMs  int  `yaml:"kubernetes_event_read_timeout_ms"`
-	ResyncPeriodEvents        int  `yaml:"kubernetes_event_resync_period_s"`
-	UnbundleEvents            bool `yaml:"unbundle_events"`
-	BundleUnspecifiedEvents   bool `yaml:"bundle_unspecified_events"`
-	UseNewEventCollection     bool `yaml:"use_new_event_collection"`
-	EventCollectionBufferSize int  `yaml:"event_collection_buffer_size"`
+	CollectEvent              bool   `yaml:"collect_events"`
+	MaxEventCollection        int    `yaml:"max_events_per_run"` // legacy path only; new path drains the full buffer each run
+	EventCollectionTimeoutMs  int    `yaml:"kubernetes_event_read_timeout_ms"`
+	ResyncPeriodEvents        int    `yaml:"kubernetes_event_resync_period_s"`
+	UnbundleEvents            bool   `yaml:"unbundle_events"`
+	BundleUnspecifiedEvents   bool   `yaml:"bundle_unspecified_events"`
+	EventCollectionMode       string `yaml:"event_collection_mode"` // "poll" (default) or "watch"
+	EventCollectionBufferSize int    `yaml:"event_collection_buffer_size"`
 
 	// FilteredEventTypes is a slice of kubernetes field selectors that
 	// works as a deny list of events to filter out.
@@ -145,8 +151,22 @@ func (c *KubeASConfig) parse(data []byte) error {
 	c.CollectOShiftQuotas = true
 	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
 	c.UseComponentStatus = true
+	c.EventCollectionMode = eventCollectionModePoll
 
-	return yaml.Unmarshal(data, c)
+	if err := yaml.Unmarshal(data, c); err != nil {
+		return err
+	}
+
+	if c.EventCollectionMode != eventCollectionModePoll && c.EventCollectionMode != eventCollectionModeWatch {
+		return fmt.Errorf("invalid event_collection_mode %q: must be %q or %q", c.EventCollectionMode, eventCollectionModePoll, eventCollectionModeWatch)
+	}
+
+	return nil
+}
+
+// useEventWatchCollection reports whether events should be collected via the persistent reflector-backed watch.
+func (c *KubeASConfig) useEventWatchCollection() bool {
+	return c.EventCollectionMode == eventCollectionModeWatch
 }
 
 // NewKubeASCheck returns a new KubeASCheck
@@ -261,7 +281,7 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	if !isCurrentLeader {
-		if k.instance.UseNewEventCollection {
+		if k.instance.useEventWatchCollection() {
 			k.stopEventCollection()
 		}
 		return nil
@@ -285,7 +305,7 @@ func (k *KubeASCheck) Run() error {
 		}
 	}
 
-	if k.instance.CollectEvent && k.instance.UseNewEventCollection {
+	if k.instance.CollectEvent && k.instance.useEventWatchCollection() {
 		if err := k.startEventCollection(); err != nil {
 			return err
 		}
@@ -309,7 +329,7 @@ func (k *KubeASCheck) Run() error {
 	if k.instance.CollectEvent {
 		var events []event.Event
 		var err error
-		if k.instance.UseNewEventCollection {
+		if k.instance.useEventWatchCollection() {
 			events, err = k.newEventCollectionCheck(sender)
 		} else {
 			events, err = k.legacyEventCollectionCheck()
