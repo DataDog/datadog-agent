@@ -170,11 +170,9 @@ func warnSmartSeverityOverrides(cfg config.Component, log log.Component) {
 	if cfg == nil || log == nil || !smartSeverityProfilesEnabled(cfg) {
 		return
 	}
-	if cfg.IsConfigured(anomalyDetectionEnabledConfigKey) && !cfg.GetBool(anomalyDetectionEnabledConfigKey) {
-		log.Warnf("[observer] %s=false but smart severity profiles require anomaly detection; enabling it", anomalyDetectionEnabledConfigKey)
-	}
-	if cfg.IsConfigured(anomalyScorerEnabledConfigKey) && !cfg.GetBool(anomalyScorerEnabledConfigKey) {
-		log.Warnf("[observer] %s=false but smart severity profiles require the anomaly scorer; enabling it", anomalyScorerEnabledConfigKey)
+	if effectiveAnalysisEnabled(cfg) &&
+		cfg.IsConfigured(anomalyDetectionEnabledConfigKey) && !cfg.GetBool(anomalyDetectionEnabledConfigKey) {
+		log.Infof("[observer] Auto-enabling anomaly detection since smart adaptive log sampling enabled")
 	}
 }
 
