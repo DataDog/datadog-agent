@@ -7,6 +7,7 @@ from __future__ import annotations
 import dataclasses
 import fnmatch
 import glob
+import json
 import operator
 import os
 import re
@@ -31,7 +32,7 @@ from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import color_message
-from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.common.datadog_api import create_count, create_gauge, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
@@ -772,9 +773,12 @@ def test(
         # Critically important to sort the gotags because their order matters for configuration calculation.
         # That is, you don't cache unless they come out the same way.
         bazel_flags.append(f"--@rules_go//go/config:tags={','.join(sorted(unit_tests_tags))}")
+    bazel_query_duration_s: float = 0.0
     if skip_tests_covered_by_bazel or write_bazel_test_list or run_bazel_tests:
+        _t0 = time.monotonic()
         bazel_targets = get_bazel_test_targets(ctx, flavor=flavor, modules=list(modules), bazel_flags=bazel_flags)
-        print(f"Found {len(bazel_targets)} Bazel-covered go_test targets")
+        bazel_query_duration_s = time.monotonic() - _t0
+        print(f"Found {len(bazel_targets)} Bazel-covered go_test targets, in {bazel_query_duration_s}s")
 
         if write_bazel_test_list:
             with open(write_bazel_test_list, 'w') as f:
@@ -785,8 +789,10 @@ def test(
             exclude_packages = set(bazel_targets.values())
             print(f"Skipping {len(exclude_packages)} Bazel-covered packages from go test")
 
+    go_tests_duration_s: float = 0.0
     with gitlab_section("Running unit tests", collapsed=True):
         result_junit = f"junit-out-{flavor.name}.xml" if junit_tar else ""
+        _t0 = time.monotonic()
         test_result = test_flavor(
             ctx,
             flavor=flavor,
@@ -803,6 +809,7 @@ def test(
             exclude_packages=exclude_packages or None,
             skip_tests_covered_by_bazel=skip_tests_covered_by_bazel,
         )
+        go_tests_duration_s = time.monotonic() - _t0
 
     # Go test output (only if tests ran)
     go_success = True
@@ -829,12 +836,15 @@ def test(
     # Bazel test output — displayed after go test results.
     bazel_success = True
     bazel_stats: TestStats | None = None
+    bazel_tests_duration_s: float = 0.0
     if run_bazel_tests and bazel_targets:
         print(f"\n{'=' * 12} Bazel tests {'=' * 12}")
         with gitlab_section("Bazel test results", collapsed=True):
+            _t0 = time.monotonic()
             bazel_stats = _run_bazel_tests(
                 ctx, flavor=flavor, targets=list(bazel_targets), bazel_flags=bazel_flags, verbose=verbose
             )
+            bazel_tests_duration_s = time.monotonic() - _t0
         bazel_success = bazel_stats.failed == 0
         bazel_status = (
             color_message('All tests passed', 'green') if bazel_success else color_message('Tests FAILED', 'red')
@@ -859,6 +869,16 @@ def test(
         print(sep)
         print()
         print("  ".join(parts))
+
+    with open(UNIT_TESTS_TIMING_FILE, 'w') as _f:
+        json.dump(
+            {
+                'bazel_query_s': bazel_query_duration_s,
+                'go_tests_s': go_tests_duration_s,
+                'bazel_tests_s': bazel_tests_duration_s,
+            },
+            _f,
+        )
 
     if not go_success or not bazel_success:
         raise Exit(code=1)
@@ -1075,6 +1095,22 @@ def send_unit_tests_stats(_, job_name, extra_tag=None):
             + extra_tag,
         )
     )
+
+    if os.path.isfile(UNIT_TESTS_TIMING_FILE):
+        with open(UNIT_TESTS_TIMING_FILE) as _f:
+            timings = json.load(_f)
+        timing_tags = [
+            "repository:datadog-agent",
+            f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+            f"job_name:{job_name}",
+        ] + extra_tag
+        for metric_key, metric_name in (
+            ('bazel_query_s', 'datadog.ci.unit_tests.bazel_query_duration_s'),
+            ('go_tests_s', 'datadog.ci.unit_tests.go_tests_duration_s'),
+            ('bazel_tests_s', 'datadog.ci.unit_tests.bazel_tests_duration_s'),
+        ):
+            if metric_key in timings:
+                series.append(create_gauge(metric_name, timestamp, timings[metric_key], timing_tags))
 
     send_metrics(series)
 
