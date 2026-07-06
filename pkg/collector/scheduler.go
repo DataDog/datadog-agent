@@ -99,6 +99,17 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 	return checkScheduler
 }
 
+// SetMetricLookbackShadowSenderManager sets the sender manager used by metric
+// lookback shadow checks loaded by this scheduler.
+func (s *CheckScheduler) SetMetricLookbackShadowSenderManager(senderManager sender.SenderManager) {
+	if s == nil {
+		return
+	}
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.shadowSenderManager = senderManager
+}
+
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	if coll, ok := s.collector.Get(); ok {

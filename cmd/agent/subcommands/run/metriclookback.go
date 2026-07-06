@@ -6,12 +6,15 @@
 package run
 
 import (
+	"context"
 	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/ringbuffer"
@@ -26,6 +29,13 @@ func newMetricLookbackRetention(cfg config.Component) *metriclookback.Retention 
 		Capacity:   cfg.GetInt("metric_lookback.capacity"),
 		ShardCount: cfg.GetInt("metric_lookback.shard_count"),
 	})
+}
+
+func configureMetricLookbackCheckScheduler(ctx context.Context, checkScheduler *pkgcollector.CheckScheduler, retention *metriclookback.Retention, hostname hostnameinterface.Component) {
+	if checkScheduler == nil || retention == nil {
+		return
+	}
+	checkScheduler.SetMetricLookbackShadowSenderManager(retention.NewSenderManager(ctx, hostname.GetSafe(ctx)))
 }
 
 func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Component, retention *metriclookback.Retention) aggregator.DogStatsDLookbackFactory {
