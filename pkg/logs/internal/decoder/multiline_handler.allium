@@ -3,8 +3,9 @@
 
 -- Scope: The MultiLineHandler at
 --   pkg/logs/internal/decoder/multiline_handler.go. The
---   MultiLineHandler is the legacy path B regex-driven
---   aggregator: it combines consecutive log lines into a single
+--   MultiLineHandler is the regex-driven aggregator in the
+--   legacy decoder pipeline: it combines consecutive log lines
+--   into a single
 --   multi-line message, emitting on regex pattern boundaries
 --   (lines matching newContentRe start a new group) or on
 --   buffer overflow. Carries truncation state across emissions
@@ -67,8 +68,8 @@
 ------------------------------------------------------------
 
 entity MultiLineHandler {
-    -- A configured MultiLineHandler instance. One per path B
-    -- decoder pipeline using regex-based multi-line
+    -- A configured MultiLineHandler instance. One per
+    -- legacy decoder pipeline using regex-based multi-line
     -- aggregation.
     --
     -- line_limit:               byte threshold at which the
@@ -382,8 +383,8 @@ surface MultiLineHandling {
         -- unambiguous.
         --
         -- The MultiLineHandler is the regex-driven
-        -- aggregator of the legacy decoder pipeline's
-        -- path B. Its per-call flow is:
+        -- aggregator of the legacy decoder pipeline. Its
+        -- per-call flow is:
         --
         -- 1. Stop the flush timer if buffer is
         --    non-empty.

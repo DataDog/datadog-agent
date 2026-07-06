@@ -22,7 +22,7 @@
 --   into multiple emissions). What it does NOT do is byte-level
 --   trimming or marker-byte decoration within an emission — each
 --   emission carries its full buffer byte-for-byte, and
---   downstream consumers (e.g. SingleLineHandler in path A)
+--   downstream consumers (typically the SingleLineHandler)
 --   handle marker decoration and byte-limit enforcement on the
 --   received content.
 --
@@ -141,7 +141,7 @@ surface MultiLineParserTruncation {
         -- forcing an emission boundary when the accumulated
         -- buffer crosses line_limit (see
         -- BufferOverflowForcesEmission). Downstream consumers
-        -- (e.g. SingleLineHandler in path A) handle marker
+        -- (typically the SingleLineHandler) handle marker
         -- decoration when needed.
 
     @guarantee BufferOverflowMarksTruncated
@@ -213,8 +213,8 @@ surface MultiLineParserTruncation {
         -- — this is a message-boundary cut, not a byte-level
         -- cut. Downstream consumers responsible for enforcing
         -- a hard byte limit on emitted content (typically the
-        -- SingleLineHandler's Truncatable behaviour in path A)
-        -- must do their own check on the received content.
+        -- SingleLineHandler's Truncatable behaviour) must do
+        -- their own check on the received content.
 
     @guarantee NoCarryOverBetweenEmissions
         -- The is_buffer_truncated flag, the
@@ -257,8 +257,9 @@ surface MultiLineParserTruncation {
         --
         -- The MultiLineParser sits between the framer
         -- (which produces parser-tagged frames) and the
-        -- LineHandler (typically SingleLineHandler at
-        -- path A) in the legacy decoder pipeline. Its
+        -- downstream LineHandler (typically the
+        -- SingleLineHandler) in the legacy decoder pipeline.
+        -- Its
         -- inputs are parser-tagged messages, each
         -- carrying ParsingExtra.IsPartial set or unset
         -- according to whether the embedded parser
