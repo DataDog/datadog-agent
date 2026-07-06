@@ -6,6 +6,7 @@
 package transform
 
 import (
+	"math"
 	"strconv"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling"
@@ -21,7 +22,7 @@ import (
 const keySamplingRateGlobal = "_sample_rate"
 
 // pValueNotSampled is the reserved p-value sentinel meaning "not sampled"
-// in the consistent-probability sampling encoding (p:63 has no probability).
+// in the consistent-probability sampling encoding.
 const pValueNotSampled = 63
 
 // samplingProbFromTracestate extracts the head-based sampling probability from a
@@ -53,8 +54,8 @@ func samplingProbFromTracestate(raw string) (float64, bool) {
 
 	// p encoding: used by go.opentelemetry.io/contrib/samplers/probability/consistent.
 	// p:N means sampling probability = 2^-N (e.g. p:1 → 0.5, p:4 → 1/16).
-	// Valid range is [0, 62]; p:63 is the reserved "not sampled" sentinel and
-	// carries no meaningful probability, so we skip it.
+	// Valid range is [0, 62]; p:63 is the reserved "not sampled" sentinel indicating
+	// we should not sample the span.
 	for _, kv := range otel.ExtraValues() {
 		if kv.Key != "p" {
 			continue
@@ -70,7 +71,7 @@ func samplingProbFromTracestate(raw string) (float64, bool) {
 		if pVal == 0 {
 			return 1.0, true
 		}
-		return 1.0 / float64(uint64(1)<<pVal), true
+		return math.Ldexp(1.0, -int(pVal)), true
 	}
 
 	return 0, false
