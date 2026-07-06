@@ -277,8 +277,8 @@
     name: 'DEFAULT_SLACK_CHANNEL'
     id: 'C0795C1C2AE'
   review:
-    name: '#documentation'
-    id: 'C0DESMBQU'
+    name: ''
+    id: ''
 '@datadog/ebpf-platform':
   notification:
     name: '#ebpf-platform-ops'
