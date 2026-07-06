@@ -50,3 +50,25 @@ sed -i "s#^\.include .*/fipsmodule\.cnf#.include ${FIPS_MODULE_PATH}#" "${OPENSS
 if ! "${OPENSSL_BIN}" fipsinstall -module "${FIPS_SO_PATH}" -in "${FIPS_MODULE_PATH}" -verify; then
     echo "openssl fipsinstall: verification of FIPS compliance failed. $INSTALL_DIR/fipsmodule.cnf was corrupted or the installation failed."
 fi
+
+# Register the embedded lib directory in the system's dynamic-linker cache so
+# that any requirefips binary spawned with a restricted exec context (where
+# $ORIGIN RPATH expansion may be blocked) still finds the version-matched
+# libcrypto before the system's copy. The installer.layer binaries embedded in
+# the agent OCI package are compiled with $ORIGIN-relative RPATH, which is
+# silently ignored when the Linux kernel sets AT_SECURE on exec (e.g. because
+# the parent process holds elevated capabilities in its permitted set). Without
+# this entry the dynamic linker falls through to /etc/ld.so.cache and loads the
+# host's system libcrypto, which may be a different build/version and will fail
+# the FIPS self-test, causing the binary to panic at init.
+if command -v ldconfig >/dev/null 2>&1; then
+    LDCONF_DIR=/etc/ld.so.conf.d
+    LDCONF_FILE="${LDCONF_DIR}/datadog-fips.conf"
+    LIB_DIR="${INSTALL_DIR}/lib"
+    if [ -d "${LDCONF_DIR}" ] && [ -d "${LIB_DIR}" ]; then
+        if ! grep -qxF "${LIB_DIR}" "${LDCONF_FILE}" 2>/dev/null; then
+            echo "${LIB_DIR}" > "${LDCONF_FILE}"
+        fi
+        ldconfig 2>/dev/null || true
+    fi
+fi
