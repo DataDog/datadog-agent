@@ -115,6 +115,19 @@ func (m *MicroVM) GetMetricPrefix() string { return MicroVMPrefix }
 // GetUsageMetricSuffix returns the usage metric suffix.
 func (m *MicroVM) GetUsageMetricSuffix() string { return MicroVMUsageMetricSuffix }
 
+// CurrentUsageMetricTags returns the dynamic tags to attach to the enhanced
+// usage metric on each periodic emission: the per-instance tag, once known
+// from /run, or nil before that (see GetEnhancedMetricTags's doc comment on
+// why Usage never carries it directly). "instance" matches the tag key
+// AppService.GetEnhancedMetricTags and CloudRun.GetEnhancedMetricTags use for
+// their own per-instance usage tag.
+func (m *MicroVM) CurrentUsageMetricTags() []string {
+	if id := m.server.InstanceID(); id != "" {
+		return []string{"instance:" + id}
+	}
+	return nil
+}
+
 // GetOrigin returns the origin tag value.
 func (m *MicroVM) GetOrigin() string { return MicroVMOrigin }
 
