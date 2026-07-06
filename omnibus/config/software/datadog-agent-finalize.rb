@@ -176,6 +176,24 @@ build do
             if install_dir.include?("/opt/datadog-packages")
               # The healthcheck will fail as the rpath doesn't contain install_dir
               command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
+
+              # After rpath-edit converts all RPATHs to $ORIGIN-relative, re-add an
+              # absolute RPATH entry to the embedded installer binary. This is needed
+              # because the installer.layer is extracted to a temp directory by the
+              # FIPS agent daemon and exec'd from there. The daemon process has
+              # CapabilityBoundingSet=all from its systemd unit, which causes the
+              # Linux kernel to set AT_SECURE on the exec'd child. Under AT_SECURE
+              # the dynamic linker silently drops $ORIGIN-based RPATH entries, so
+              # the binary falls through to the system libcrypto (wrong version).
+              # The absolute entry /opt/datadog-agent/embedded/lib is always honored
+              # regardless of AT_SECURE and points at the FIPS agent's embedded
+              # libcrypto, which is the correct version-matched library.
+              if fips_mode?
+                installer_bin = "#{install_dir}/embedded/bin/installer"
+                if File.exist?(installer_bin)
+                  command "patchelf --add-rpath /opt/datadog-agent/embedded/lib #{installer_bin}"
+                end
+              end
             end
         end
 

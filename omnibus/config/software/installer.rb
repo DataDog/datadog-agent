@@ -65,21 +65,6 @@ build do
         fips_check_binary_for_expected_symbol(File.join(install_dir, "bin", "installer", "installer"))
       end
 
-      # The FIPS installer binary (requirefips) uses a $ORIGIN-relative RPATH to
-      # find libcrypto at runtime. When it is exec'd from a temp directory by the
-      # FIPS agent daemon (which has CapabilityBoundingSet=all in its systemd unit),
-      # the kernel sets AT_SECURE on the exec and the dynamic linker silently drops
-      # $ORIGIN expansion. The binary falls through to the ldconfig cache and loads
-      # the host's system libcrypto which may be a different version from the
-      # embedded one, causing the requirefips self-test to fail with a panic.
-      #
-      # Add /opt/datadog-agent/embedded/lib as an absolute RPATH entry. Absolute
-      # entries are always honoured regardless of AT_SECURE. On any host with
-      # datadog-fips-agent installed this path contains the correct version-matched
-      # libcrypto. The agent's own embedded lib is always the right version to use
-      # because the daemon passes OPENSSL_CONF and OPENSSL_MODULES from the same
-      # tree (fipsEnvFromRunningInstaller), so all three are version-consistent.
-      command "patchelf --add-rpath /opt/datadog-agent/embedded/lib #{install_dir}/bin/installer/installer"
     end
 
     # Build both packages and dump them where gitlab will upload them.
