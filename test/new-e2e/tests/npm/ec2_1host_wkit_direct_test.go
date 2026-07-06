@@ -91,7 +91,7 @@ func (v *ec2VMWKitDirectSuite) AfterTest(suiteName, testName string) {
 //
 // The test start by 00 to validate the agent/system-probe is up and running
 func (v *ec2VMWKitDirectSuite) Test00FakeIntakeNPM_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	v.Env().RemoteHost.MustExecute("$result = Invoke-WebRequest -UseBasicParsing -Uri " + testURL)
 
@@ -103,7 +103,7 @@ func (v *ec2VMWKitDirectSuite) Test00FakeIntakeNPM_HostRequests() {
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func (v *ec2VMWKitDirectSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("C:\\Users\\Administrator\\httpd\\Apache24\\bin\\ab.exe -n 1500 -c 600 " + testURL)
@@ -114,7 +114,7 @@ func (v *ec2VMWKitDirectSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMWKitDirectSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("$result = Invoke-WebRequest -UseBasicParsing -Uri " + testURL)
