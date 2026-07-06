@@ -150,7 +150,7 @@ def _resolve_target(parts, schema_label):
         inner = parts[1:]
         if not inner:
             raise Exit(
-                f"'{first}' is a section, not a leaf setting. Add at least one more path component after it.",
+                f"'{first}' is a section, not a leaf setting. " "Add at least one more path component after it.",
                 code=1,
             )
         return sub_file, inner
@@ -205,7 +205,7 @@ def _insert(schema, path_parts, setting_node):
     props = current.setdefault("properties", {})
     if leaf in props:
         raise Exit(
-            f"Setting '{leaf}' already exists at this path. Use `dda inv schema.locate` to inspect it.",
+            f"Setting '{leaf}' already exists at this path. " "Use `dda inv schema.locate` to inspect it.",
             code=1,
         )
     props[leaf] = setting_node

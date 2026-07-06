@@ -87,7 +87,7 @@ class TestPulumiExtractorUnit(unittest.TestCase):
             out,
             (
                 "infrastructure",
-                "command:remote:Command (do-the-thing):\n  error: Process exited with status 1\n  stderr: oops",
+                "command:remote:Command (do-the-thing):\n" "  error: Process exited with status 1\n" "  stderr: oops",
             ),
         )
 
@@ -106,7 +106,7 @@ class TestPulumiExtractorUnit(unittest.TestCase):
         # Resources are separated by a blank line for readability.
         self.assertEqual(
             msg,
-            "command:remote:Command (a):\n  error: first failure\n\npulumi:pulumi:Stack (b):\n  error: stack failed",
+            "command:remote:Command (a):\n  error: first failure\n\n" "pulumi:pulumi:Stack (b):\n  error: stack failed",
         )
 
     def test_extract_includes_continuation_context(self):

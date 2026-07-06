@@ -249,7 +249,7 @@ def run(raw_args=None):
         metavar='N',
         type=int,
         default=0,
-        help='run N clang-format jobs in parallel (default number of cpus + 1)',
+        help='run N clang-format jobs in parallel' ' (default number of cpus + 1)',
     )
     parser.add_argument(
         '--color', default='auto', choices=['auto', 'always', 'never'], help='show colored diff (default: auto)'
@@ -260,7 +260,7 @@ def run(raw_args=None):
         metavar='PATTERN',
         action='append',
         default=[],
-        help='exclude paths matching the given glob-like pattern(s) from recursive search',
+        help='exclude paths matching the given glob-like pattern(s)' ' from recursive search',
     )
     parser.add_argument('--style', help='formatting style to apply (LLVM, Google, Chromium, Mozilla, WebKit)')
 

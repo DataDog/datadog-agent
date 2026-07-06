@@ -28,7 +28,7 @@ class TestParseTopLevelNamespace(unittest.TestCase):
 
     def test_stops_before_http_archive(self):
         # Variables defined inside a block must not bleed into the namespace.
-        text = 'top = "yes"\nhttp_archive(\n    name = "x",\n    inside = "no",\n)\n'
+        text = 'top = "yes"\n' 'http_archive(\n' '    name = "x",\n' '    inside = "no",\n' ')\n'
         ns = _parse_top_level_namespace(text)
         self.assertIn("top", ns)
         self.assertNotIn("inside", ns)
@@ -111,7 +111,8 @@ class TestSqliteIntegration(unittest.TestCase):
     """End-to-end: namespace parsed from a sqlite-style preamble resolves both blocks."""
 
     PREAMBLE = (
-        'sqlite_ver = ("3", "45", "00")\nsqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))\n'
+        'sqlite_ver = ("3", "45", "00")\n'
+        'sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))\n'
     )
 
     SQLITE3_BODY = (

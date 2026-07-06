@@ -60,9 +60,9 @@ def test_send_usage_event(proc):
     )
     print(f'  Response: {json.dumps(response, indent=2)}')
 
-    assert response['type'] == 'SEND_USAGE_EVENT_RESULT', (
-        f'Expected SEND_USAGE_EVENT_RESULT, got {response.get("type")}'
-    )
+    assert (
+        response['type'] == 'SEND_USAGE_EVENT_RESULT'
+    ), f'Expected SEND_USAGE_EVENT_RESULT, got {response.get("type")}'
     assert 'success' in response, 'Missing success field'
     print(f'  ✓ SEND_USAGE_EVENT shape OK (success={response["success"]})')
     return response
