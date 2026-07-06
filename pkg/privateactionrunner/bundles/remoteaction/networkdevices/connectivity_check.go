@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -62,14 +63,11 @@ type SNMPCredential struct {
 	ContextName  string `json:"contextName,omitempty"`
 }
 
-type Credentials struct {
-	Creds []SNMPCredential `json:"creds"`
-}
-
 type SNMPOptions struct {
-	Port      int `json:"port"`
-	TimeoutMs int `json:"timeoutMs"`
-	Retries   int `json:"retries"`
+	Port      int              `json:"port"`
+	Creds     []SNMPCredential `json:"creds"`
+	TimeoutMs int              `json:"timeoutMs"`
+	Retries   int              `json:"retries"`
 }
 
 type ConnectivityCheckRequest struct {
@@ -79,6 +77,12 @@ type ConnectivityCheckRequest struct {
 	SNMPOptions          *SNMPOptions                        `json:"snmpOptions,omitempty"`
 	EncryptedCredentials string                              `json:"encryptedCredentials"`
 	EncryptionContext    encryptioncontext.EncryptionContext `json:"encryptionContext"`
+}
+
+// secretInputs is the decrypted per-task secret_inputs payload — the SNMP
+// credentials the API sends encrypted instead of in the plaintext action inputs.
+type secretInputs struct {
+	SNMP []SNMPCredential `json:"snmp"`
 }
 
 type CheckResult struct {
@@ -123,12 +127,21 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 		return nil, fmt.Errorf("failed to parse connectivityCheck inputs: %w", err)
 	}
 
-	decryptedCredentials, err := encryptioncontext.DecryptInto[Credentials](h.encryptionStore, req.EncryptionContext, req.EncryptedCredentials)
+	// Decrypt the per-task secret inputs (SNMP credentials, sent encrypted rather
+	// than in the plaintext action inputs) and apply them to the SNMP options.
+	secrets, err := encryptioncontext.DecryptInto[secretInputs](h.encryptionStore, req.EncryptionContext, req.EncryptedCredentials)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt credentials: %w", err)
+		return nil, fmt.Errorf("failed to decrypt secret inputs: %w", err)
 	}
+	if len(secrets.SNMP) > 0 {
+		if req.SNMPOptions == nil {
+			req.SNMPOptions = &SNMPOptions{}
+		}
+		req.SNMPOptions.Creds = secrets.SNMP
+	}
+	log.Debugf("connectivityCheck applied %d decrypted SNMP secret input(s) (encryptionContextId=%s)", len(secrets.SNMP), req.EncryptionContext.EncryptionContextID)
 
-	res, err := runChecks(ctx, req, decryptedCredentials.Creds)
+	res, err := runChecks(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run connectivity checks: %w", err)
 	}
@@ -136,7 +149,7 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 	return res, nil
 }
 
-func runChecks(ctx context.Context, req ConnectivityCheckRequest, credentials []SNMPCredential) (ConnectivityCheckResult, error) {
+func runChecks(ctx context.Context, req ConnectivityCheckRequest) (ConnectivityCheckResult, error) {
 	devices := make([]DeviceResult, 0, len(req.TargetIPs))
 	for _, ip := range req.TargetIPs {
 		if err := ctx.Err(); err != nil {
@@ -154,7 +167,7 @@ func runChecks(ctx context.Context, req ConnectivityCheckRequest, credentials []
 
 				dr.PingResult = res
 			case checkSNMP:
-				res, err := runSNMP(ctx, ip, req.SNMPOptions, credentials)
+				res, err := runSNMP(ctx, ip, req.SNMPOptions)
 				if err != nil {
 					return ConnectivityCheckResult{}, fmt.Errorf("failed to run SNMP check for host '%s': %w", ip, err)
 				}
@@ -218,13 +231,13 @@ func buildPinger(opts *PingOptions) (pinger.Pinger, error) {
 	})
 }
 
-func runSNMP(ctx context.Context, host string, opts *SNMPOptions, credentials []SNMPCredential) (*SNMPResult, error) {
+func runSNMP(ctx context.Context, host string, opts *SNMPOptions) (*SNMPResult, error) {
 	if opts == nil {
 		return nil, errors.New("options are required for SNMP")
 	}
 
 	var lastResult *SNMPResult
-	for _, cred := range credentials {
+	for _, cred := range opts.Creds {
 		res, err := trySNMPCredential(ctx, host, opts, cred)
 		if err != nil {
 			return nil, err
