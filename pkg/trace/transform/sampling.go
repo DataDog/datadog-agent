@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -100,5 +101,35 @@ func SetSampleRateFromTracestate(span *pb.Span, rawTracestate string) bool {
 		span.Metrics = make(map[string]float64)
 	}
 	span.Metrics[keySamplingRateGlobal] = prob
+	return true
+}
+
+// SetSampleRateFromAttribute records an explicit _sample_rate set as a numeric
+// span attribute by an upstream tracer onto the span's Metrics. This value takes
+// precedence over the one decoded from the W3C tracestate: it is applied before
+// SetSampleRateFromTracestate, whose "gated on absence" guard then preserves it.
+// Only numeric (double/int) attributes are honored, mirroring how the full
+// conversion maps span attributes to Metrics. Returns true if _sample_rate was set.
+func SetSampleRateFromAttribute(span *pb.Span, sattr pcommon.Map) bool {
+	if span == nil {
+		return false
+	}
+	v, ok := sattr.Get(keySamplingRateGlobal)
+	if !ok {
+		return false
+	}
+	var rate float64
+	switch v.Type() {
+	case pcommon.ValueTypeDouble:
+		rate = v.Double()
+	case pcommon.ValueTypeInt:
+		rate = float64(v.Int())
+	default:
+		return false
+	}
+	if span.Metrics == nil {
+		span.Metrics = make(map[string]float64)
+	}
+	span.Metrics[keySamplingRateGlobal] = rate
 	return true
 }

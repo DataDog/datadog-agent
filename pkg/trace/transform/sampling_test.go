@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
@@ -126,6 +127,69 @@ func TestSetSampleRateFromTracestate(t *testing.T) {
 	t.Run("nil span is safe", func(t *testing.T) {
 		assert.NotPanics(t, func() {
 			assert.False(t, SetSampleRateFromTracestate(nil, "ot=th:8"))
+		})
+	})
+}
+
+func TestSetSampleRateFromAttribute(t *testing.T) {
+	t.Run("sets rate from double attribute", func(t *testing.T) {
+		s := &pb.Span{Metrics: map[string]float64{}}
+		attrs := pcommon.NewMap()
+		attrs.PutDouble(keySamplingRateGlobal, 0.25)
+		ok := SetSampleRateFromAttribute(s, attrs)
+		assert.True(t, ok)
+		assert.InDelta(t, 0.25, s.Metrics[keySamplingRateGlobal], 1e-9)
+	})
+
+	t.Run("sets rate from int attribute", func(t *testing.T) {
+		s := &pb.Span{Metrics: map[string]float64{}}
+		attrs := pcommon.NewMap()
+		attrs.PutInt(keySamplingRateGlobal, 1)
+		ok := SetSampleRateFromAttribute(s, attrs)
+		assert.True(t, ok)
+		assert.InDelta(t, 1.0, s.Metrics[keySamplingRateGlobal], 1e-9)
+	})
+
+	t.Run("attribute takes precedence over tracestate", func(t *testing.T) {
+		s := &pb.Span{Metrics: map[string]float64{}}
+		attrs := pcommon.NewMap()
+		attrs.PutDouble(keySamplingRateGlobal, 0.25)
+		// Apply the attribute first, then the tracestate must not overwrite it.
+		assert.True(t, SetSampleRateFromAttribute(s, attrs))
+		assert.False(t, SetSampleRateFromTracestate(s, "ot=th:8"))
+		assert.InDelta(t, 0.25, s.Metrics[keySamplingRateGlobal], 1e-9)
+	})
+
+	t.Run("no-op when attribute absent", func(t *testing.T) {
+		s := &pb.Span{Metrics: map[string]float64{}}
+		ok := SetSampleRateFromAttribute(s, pcommon.NewMap())
+		assert.False(t, ok)
+		_, exists := s.Metrics[keySamplingRateGlobal]
+		assert.False(t, exists)
+	})
+
+	t.Run("no-op for non-numeric attribute", func(t *testing.T) {
+		s := &pb.Span{Metrics: map[string]float64{}}
+		attrs := pcommon.NewMap()
+		attrs.PutStr(keySamplingRateGlobal, "0.25")
+		ok := SetSampleRateFromAttribute(s, attrs)
+		assert.False(t, ok)
+		_, exists := s.Metrics[keySamplingRateGlobal]
+		assert.False(t, exists)
+	})
+
+	t.Run("nil Metrics map is allocated", func(t *testing.T) {
+		s := &pb.Span{}
+		attrs := pcommon.NewMap()
+		attrs.PutDouble(keySamplingRateGlobal, 0.5)
+		ok := SetSampleRateFromAttribute(s, attrs)
+		assert.True(t, ok)
+		assert.InDelta(t, 0.5, s.Metrics[keySamplingRateGlobal], 1e-9)
+	})
+
+	t.Run("nil span is safe", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			assert.False(t, SetSampleRateFromAttribute(nil, pcommon.NewMap()))
 		})
 	})
 }
