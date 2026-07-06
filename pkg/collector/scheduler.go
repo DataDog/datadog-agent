@@ -7,6 +7,7 @@
 package collector
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"slices"
@@ -298,7 +299,7 @@ func (s *CheckScheduler) applyInfraTagger(senderManager sender.SenderManager, ch
 func (s *CheckScheduler) loadShadowCheck(candidate metriclookback.ShadowCandidate, loader check.Loader, sourceCheckID checkid.ID) (check.Check, error) {
 	shadowSenderManager := s.shadowSenderManager
 	if shadowSenderManager == nil {
-		return nil, fmt.Errorf("metric lookback shadow sender manager is not configured")
+		return nil, errors.New("metric lookback shadow sender manager is not configured")
 	}
 	shadowCheckID := check.ShadowID(sourceCheckID)
 	checkSenderManager := shadowCheckSenderManager{
