@@ -33,7 +33,7 @@ func TestShadowPolicyOptionsFromConfig(t *testing.T) {
 
 func TestShadowPolicyOptionsFromConfigDefaultsInvalidShadowInterval(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetInTest("metric_lookback.collection_interval", minShadowCheckInterval-time.Millisecond)
+	cfg.SetInTest("metric_lookback.collection_interval", defaultShadowCheckInterval-time.Millisecond)
 
 	assert.Equal(t, defaultShadowCheckInterval, ShadowPolicyOptionsFromConfig(cfg).ShadowInterval)
 }
