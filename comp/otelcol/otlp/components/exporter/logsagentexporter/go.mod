@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/lo
 go 1.25.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.202-0.20260608085134-d08b6ebf99eb
+	github.com/DataDog/agent-payload/v5 v5.0.203
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.80.2
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.80.2
@@ -113,7 +113,7 @@ require (
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.0 // indirect
 	github.com/knadh/koanf/v2 v2.3.5 // indirect
-	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
+	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
 	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -130,9 +130,9 @@ require (
 	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.69.0 // indirect
-	github.com/prometheus/procfs v0.20.1 // indirect
+	github.com/prometheus/procfs v0.21.0 // indirect
 	github.com/rs/cors v1.11.1 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.5 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.6 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
@@ -189,8 +189,6 @@ require (
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 )
 
-replace go.opentelemetry.io/otel/sdk/metric v1.43.1-0.20260514180605-442cdbdd9466 => go.opentelemetry.io/otel/sdk/metric v1.44.0
-
 replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog => github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.155.1-0.20260626121343-03d2fb4a4514
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
@@ -198,6 +196,7 @@ replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog =>
 replace (
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../../../../../comp/anomalydetection/observer/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../../../../../comp/anomalydetection/recorder/def
+	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def => ../../../../../../comp/anomalydetection/severityevents/def
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../../../../comp/core/agenttelemetry/fx
@@ -257,6 +256,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ../../../../../../comp/otelcol/ddprofilingextension/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../../../../../comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../../../../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector => ../../../../../../comp/otelcol/otlp/components/connector/datadogconnector
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../../../../../comp/otelcol/otlp/components/exporter/datadogexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../../../../../comp/otelcol/otlp/components/exporter/serializerexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ../../../../../../comp/otelcol/otlp/components/metricsclient
@@ -287,7 +287,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../../pkg/config/utils
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../../../../pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../../../../pkg/discovery/tracermetadata/model
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../../../../pkg/fips

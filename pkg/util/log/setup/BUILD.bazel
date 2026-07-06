@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "setup",
@@ -30,7 +31,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "setup_test",
     srcs = [
         "log_nix_test.go",
@@ -38,10 +39,11 @@ go_test(
         "split_writer_test.go",
     ],
     embed = [":setup"],
-    gotags = ["test"],
     deps = [
         "//pkg/config/setup",
         "//pkg/util/log",
+        "//pkg/util/log/errortracking",
+        "//pkg/util/log/slog",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({

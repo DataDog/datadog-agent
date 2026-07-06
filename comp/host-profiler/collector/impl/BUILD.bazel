@@ -117,6 +117,14 @@ dd_agent_go_test(
     srcs = ["otel_col_factories_test.go"],
     embed = [":impl"],
     deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/host-profiler/version",
+            "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor//:attributesprocessor",
+            "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_k8sattributesprocessor//:k8sattributesprocessor",
+            "@com_github_open_telemetry_opentelemetry_collector_contrib_receiver_filelogreceiver//:filelogreceiver",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
         "@rules_go//go/platform:linux": [
             "//comp/host-profiler/version",
             "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor//:attributesprocessor",
