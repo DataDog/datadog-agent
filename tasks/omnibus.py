@@ -834,7 +834,19 @@ def _replace_dylib_id_paths_with_rpath(ctx, otool_output, install_path, file):
 
 def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file):
     if platform == "linux":
-        ctx.run(f"patchelf --force-rpath --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
+        # Include the absolute install-tree path alongside the $ORIGIN-relative one.
+        # $ORIGIN-relative RPATH is silently ignored when the Linux kernel sets
+        # AT_SECURE on exec (e.g. because the parent process holds elevated
+        # capabilities in its permitted set — the FIPS agent daemon has
+        # CapPrm=all which causes AT_SECURE on the installer.layer subprocess).
+        # The absolute entry is always honoured and provides a reliable fallback.
+        # For binaries running from their installed location the absolute path
+        # resolves to the same directory as $ORIGIN would, so it is redundant but
+        # harmless.  For binaries extracted to a temp directory (the bootstrap
+        # installer.layer) it is the only path that works under AT_SECURE.
+        abs_rpath = f"{install_path}/embedded/lib"
+        rel_rpath = f"\\$ORIGIN/{new_rpath}/embedded/lib"
+        ctx.run(f"patchelf --force-rpath --set-rpath {rel_rpath}:{abs_rpath} {file}")
     else:
         # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
         # but just in case we're replacing them all.
