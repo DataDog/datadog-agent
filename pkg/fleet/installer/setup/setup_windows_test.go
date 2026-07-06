@@ -88,28 +88,35 @@ func TestRequestedAgentVersion(t *testing.T) {
 }
 
 func TestApplyAgentDistChannel(t *testing.T) {
-	t.Run("stable is a no-op", func(t *testing.T) {
-		t.Setenv(envInstallerRegistryURLAgent, "")
-		e := &env.Env{RegistryOverrideByImage: map[string]string{}}
-		assert.NoError(t, applyAgentDistChannel(e, channelStable))
-		assert.Empty(t, e.RegistryOverrideByImage)
-		assert.Empty(t, os.Getenv(envInstallerRegistryURLAgent))
-	})
-
-	t.Run("beta sets per-image override and env var", func(t *testing.T) {
-		t.Setenv(envInstallerRegistryURLAgent, "")
-		e := &env.Env{RegistryOverrideByImage: map[string]string{}}
-		assert.NoError(t, applyAgentDistChannel(e, channelBeta))
-		assert.Equal(t, betaRegistry, e.RegistryOverrideByImage[agentPackageImage])
-		assert.Equal(t, betaRegistry, os.Getenv(envInstallerRegistryURLAgent))
-	})
-
-	t.Run("user-provided override wins over beta", func(t *testing.T) {
-		const userRegistry = "user.registry.example.com"
-		t.Setenv(envInstallerRegistryURLAgent, userRegistry)
-		e := &env.Env{RegistryOverrideByImage: map[string]string{agentPackageImage: userRegistry}}
-		assert.NoError(t, applyAgentDistChannel(e, channelBeta))
-		assert.Equal(t, userRegistry, e.RegistryOverrideByImage[agentPackageImage])
-		assert.Equal(t, userRegistry, os.Getenv(envInstallerRegistryURLAgent))
-	})
+	cases := []struct {
+		name             string
+		channel          string
+		existingOverride string
+		wantOverride     string
+		wantEnvVar       string
+		wantErr          bool
+	}{
+		{name: "unset is a no-op", channel: ""},
+		{name: "stable is a no-op", channel: channelStable},
+		{name: "beta sets per-image override and env var", channel: channelBeta, wantOverride: betaRegistry, wantEnvVar: betaRegistry},
+		{name: "user-provided override wins over beta", channel: channelBeta, existingOverride: "user.registry.example.com", wantOverride: "user.registry.example.com", wantEnvVar: "user.registry.example.com"},
+		{name: "bad-value returns error", channel: "bad-value", wantErr: true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv(envInstallerRegistryURLAgent, c.existingOverride)
+			e := &env.Env{AgentDistChannel: c.channel, RegistryOverrideByImage: map[string]string{}}
+			if c.existingOverride != "" {
+				e.RegistryOverrideByImage[agentPackageImage] = c.existingOverride
+			}
+			err := applyAgentDistChannel(e)
+			if c.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, c.wantOverride, e.RegistryOverrideByImage[agentPackageImage])
+			assert.Equal(t, c.wantEnvVar, os.Getenv(envInstallerRegistryURLAgent))
+		})
+	}
 }

@@ -113,16 +113,13 @@ func requestedAgentVersion(e *env.Env) (string, error) {
 	return v, nil
 }
 
-// applyAgentDistChannel changes the effective default registry for the
-// agent-package OCI image based on DD_AGENT_DIST_CHANNEL. The override
-// is applied in-process (parent's Downloader.Download) and via
-// os.Setenv on DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE (child re-exec
-// inherits via os.Environ()).
+// applyAgentDistChannel reads DD_AGENT_DIST_CHANNEL and overrides the
+// registry used for agent-package OCI fetches before running setup.
 //
 // Cases:
 //
 //   - DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE is already set → no-op (user wins)
-//   - channel == channelStable → no-op
+//   - channel == channelStable or unset → no-op
 //   - channel == channelBeta → default flips to betaRegistry
 //
 // Scope: agent-package only (suffix _AGENT_PACKAGE). APM SSI and other
@@ -141,7 +138,11 @@ func requestedAgentVersion(e *env.Env) (string, error) {
 // Future work in pkg/fleet/installer/oci/download.go could extend
 // getRefAndKeychains to try {per-image override, global override,
 // defaults} in order rather than short-circuiting on the first override.
-func applyAgentDistChannel(e *env.Env, channel string) error {
+func applyAgentDistChannel(e *env.Env) error {
+	channel, err := agentDistChannel(e)
+	if err != nil {
+		return err
+	}
 	if channel != channelBeta {
 		return nil
 	}
@@ -182,14 +183,6 @@ func runAgentInstaller(ctx context.Context, e *env.Env, flavor, tag string) erro
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-
-	channel, err := agentDistChannel(e)
-	if err != nil {
-		return err
-	}
-	if err := applyAgentDistChannel(e, channel); err != nil {
-		return err
-	}
 
 	url := oci.PackageURL(e, agentPackage, tag)
 	fmt.Fprintf(os.Stdout, "Downloading installer for Datadog Agent %s ...\n", tag)
