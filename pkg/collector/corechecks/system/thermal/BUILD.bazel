@@ -87,7 +87,6 @@ go_test(
     name = "thermal_test",
     srcs = ["thermal_windows_test.go"],
     embed = [":thermal"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "//comp/core/autodiscovery/integration",
