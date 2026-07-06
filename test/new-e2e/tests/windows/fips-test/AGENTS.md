@@ -5,10 +5,13 @@ FIPS Agent in standard and alternate directories, and mutual exclusivity
 between the standard Agent and the FIPS Agent (each should refuse to install
 over the other).
 
-These tests use the FIPS-flavor MSI (`WINDOWS_AGENT_FLAVOR=fips`) alongside
-the standard MSI. Both are resolved from environment variables using the same
-`CURRENT_AGENT_*` / `STABLE_AGENT_*` pattern as the other MSI tests (see
-parent `AGENTS.md`).
+These tests use the FIPS-flavor MSI alongside the standard MSI. The flavor is
+selected in the test code — `windowsAgent.GetPackageFromEnv(windowsAgent.WithFlavor("fips"))`
+(and `WithFlavor("base")` for the standard MSI) — not by an environment
+variable. Both packages are resolved using the same `CURRENT_AGENT_*` /
+`STABLE_AGENT_*` pattern as the other MSI tests (see parent `AGENTS.md`); the
+flavor can be overridden per artifact with `<PREFIX>_MSI_FLAVOR` (e.g.
+`CURRENT_AGENT_MSI_FLAVOR=fips`).
 
 ## What is tested
 
