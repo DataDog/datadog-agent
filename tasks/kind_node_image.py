@@ -16,7 +16,6 @@ try:
 except ImportError:
     boto3 = None
 
-GITHUB_URL_BASE = "https://api.github.com"
 IMAGE_NAME = "kindest/node"
 
 KIND = 'kind'
@@ -43,36 +42,6 @@ def _check_environment():
             f"Missing required binaries: {', '.join(missing)}",
             code=1,
         )
-
-
-def get_github_rc_releases() -> list[dict[str, str]]:
-    """Get RC releases from Kubernetes GitHub repository."""
-    releases = []
-
-    # Get the last 100 releases
-    # TODO(TBD): Should we fetch all releases or is the last 100 enough?
-    url = f"{GITHUB_URL_BASE}/repos/kubernetes/kubernetes/releases?per_page=100&page=1"
-
-    try:
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-
-        for release in response.json():
-            tag_name = release.get('tag_name', '')
-            # Only return rc tags to build the kind image
-            if 'rc' in tag_name:
-                releases.append({'tag_name': tag_name})
-
-    except requests.exceptions.RequestException as e:
-        raise Exit(f"Error fetching releases from Github: {e}", code=1) from e
-
-    return releases
-
-
-@task
-def get_rc_releases(_) -> list[dict[str, str]]:
-    """Get RC releases from Kubernetes GitHub repository (Invoke task wrapper)."""
-    return get_github_rc_releases()
 
 
 def build_kind_node_image(version: str) -> str:
@@ -126,11 +95,11 @@ def _set_github_output(name: str, value: str) -> None:
 
 
 @task
-def build_rc_images(_, versions):
+def build_images(_, versions):
     """
-    Build kind node images for RC versions.
+    Build kind node images for specified versions.
 
-    This task processes new versions and builds Docker images for any RC versions.
+    This task processes new versions and builds Docker images.
     The images are built locally but not pushed.
 
     Args:
@@ -138,8 +107,8 @@ def build_rc_images(_, versions):
                       (e.g., '{"v1.35.0-rc.1": {"tag": "v1.35.0-rc.1", "rc": true}}')
 
     Outputs (GitHub Actions):
-        built_count: Number of RC images built
-        built_tags: Space delimited list of built image tags
+        built_count: Number of images built
+        built_images: Space delimited list of built image tags
     """
     # Parse if it's a JSON string
     if isinstance(versions, str):
@@ -151,23 +120,20 @@ def build_rc_images(_, versions):
     built_images = []
 
     for tag, version_data in versions.items():
-        if version_data.get('rc'):
-            try:
-                image = build_kind_node_image(tag)
-                built_images.append(image)
-                print(f"Successfully built: {image}")
+        try:
+            image = build_kind_node_image(tag)
+            built_images.append(image)
+            print(f"Successfully built: {image}")
 
-            except Exception as e:
-                print(f"Error building RC image {tag}: {e}")
-                raise
-        else:
-            print(f"Skipping non-RC version: {tag}")
+        except Exception as e:
+            print(f"Error building image {tag}: {e}")
+            raise
 
     # Set GitHub Actions outputs
     _set_github_output('built_count', str(len(built_images)))
     _set_github_output('built_images', ' '.join(built_images))
 
     if built_images:
-        print(f"\nSuccessfully built {len(built_images)} RC image(s): {', '.join(built_images)}")
+        print(f"\nSuccessfully built {len(built_images)} image(s): {', '.join(built_images)}")
     else:
-        print("\nNo RC images to build")
+        print("\nNo images to build")
