@@ -206,6 +206,7 @@ type MapSpecEditorOpts struct {
 	ReducedProcPidCacheSize       bool
 	NetworkFlowMonitorEnabled     bool
 	NetworkSkStorageEnabled       bool
+	NetworkSkLookupPidEnabled     bool
 	SpanTrackMaxCount             int
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
@@ -387,6 +388,20 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		// We need this so that the eBPF manager can link the SK_Storage maps in our eBPF programs, even if deadcode
 		// elimination will clean up the piece of code that work with them prior to running the verifier.
 		editors["sk_storage_meta"] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			KeySize:    1,
+			ValueSize:  1,
+			MaxEntries: 1,
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries | manager.EditFlags,
+		}
+	}
+
+	if !opts.NetworkSkLookupPidEnabled {
+		// Transform the sk_storage_pid SK_Storage map into a basic hash map so it can be loaded by
+		// kernels that don't support sk-local storage or bpf_sk_lookup. Dead code elimination removes
+		// the code working with it before the verifier runs.
+		editors["sk_storage_pid"] = manager.MapSpecEditor{
 			Type:       ebpf.Hash,
 			KeySize:    1,
 			ValueSize:  1,

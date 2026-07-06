@@ -218,6 +218,22 @@ func (k *Version) HasBpfGetCurrentCgroupIDForSchedCLS() bool {
 	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnGetCurrentCgroupId) == nil
 }
 
+// HasSkLookupForSchedCLS returns true if the kernel supports bpf_sk_lookup_tcp/udp for the Sched CLS program type
+// https://github.com/torvalds/linux/commit/6acc9b432e6714d72d7d77ec7c27f6f8358d0c71
+func (k *Version) HasSkLookupForSchedCLS() bool {
+	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnSkLookupTcp) == nil
+}
+
+// HasSKStorageInSchedCLS returns true if the kernel supports bpf_sk_storage_get in Sched CLS programs
+func (k *Version) HasSKStorageInSchedCLS() bool {
+	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnSkStorageGet) == nil
+}
+
+// HasSKStorageInCgroupSock returns true if the kernel supports bpf_sk_storage_get in cgroup/sock programs
+func (k *Version) HasSKStorageInCgroupSock() bool {
+	return features.HaveProgramHelper(ebpf.CGroupSock, asm.FnSkStorageGet) == nil
+}
+
 // HasBpfGetCurrentCgroupID returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type
 // Kernel version >= 4.18
 func (k *Version) HasBpfGetCurrentCgroupID() bool {

@@ -250,6 +250,14 @@ static __attribute__((always_inline)) u64 is_sk_storage_supported() {
     return is_sk_storage_supported;
 }
 
+// is_sk_lookup_pid_supported returns whether TC pid resolution uses bpf_sk_lookup + sk-local storage
+// instead of the flow_pid map.
+static __attribute__((always_inline)) u64 is_sk_lookup_pid_supported() {
+    u64 is_sk_lookup_pid_supported;
+    LOAD_CONSTANT("sk_lookup_pid_supported", is_sk_lookup_pid_supported);
+    return is_sk_lookup_pid_supported;
+}
+
 static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
     u64 is_network_flow_monitor_enabled;
     LOAD_CONSTANT("is_network_flow_monitor_enabled", is_network_flow_monitor_enabled);

@@ -7,12 +7,12 @@
 #include "constants/enums.h"
 #include "structs/all.h"
 
-#define BPF_SK_MAP(_name, _value_type)         \
-    struct {                                   \
-        __uint(type, BPF_MAP_TYPE_SK_STORAGE); \
-        __type(value, _value_type);            \
-        __uint(map_flags, BPF_F_NO_PREALLOC);  \
-        __type(key, u32);                      \
+#define BPF_SK_MAP(_name, _value_type, _flags)       \
+    struct {                                         \
+        __uint(type, BPF_MAP_TYPE_SK_STORAGE);       \
+        __type(value, _value_type);                  \
+        __uint(map_flags, _flags);                   \
+        __type(key, u32);                            \
     } _name SEC(".maps");
 
 BPF_ARRAY_MAP(path_id_high, u32, PATH_ID_HIGH_MAP_SIZE)
@@ -108,7 +108,10 @@ BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 1, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
-BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
+BPF_SK_MAP(sk_storage_meta, struct sock_meta_t, BPF_F_NO_PREALLOC);
+// sk_storage_pid stores the pid owning a socket, used for TC pid resolution through bpf_sk_lookup.
+// BPF_F_CLONE allows the storage entry to be cloned when a socket is cloned.
+BPF_SK_MAP(sk_storage_pid, u32, BPF_F_NO_PREALLOC | BPF_F_CLONE);
 
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, struct cgroup_tracing_event_t, EVENT_GEN_SIZE)
