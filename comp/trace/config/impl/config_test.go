@@ -389,6 +389,9 @@ func TestConfigHostname(t *testing.T) {
 			t.Fatal(err)
 		}
 		binpath := strings.TrimSuffix(srcpath, ".go")
+		if runtime.GOOS == "windows" {
+			binpath += ".exe"
+		}
 		if err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).Run(); err != nil {
 			t.Fatal(err)
 		}
