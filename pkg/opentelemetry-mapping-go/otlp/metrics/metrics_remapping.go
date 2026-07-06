@@ -42,26 +42,13 @@ const (
 
 var emptyAttributesMapping = attributesMapping{}
 
-// remapMetrics extracts any Datadog specific metrics from m and appends them to all.
+// remapMetrics extracts Datadog-specific metrics from m and appends them to all.
 func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
-	if m.Name() == sdkTraceMetricName {
-		remapSDKTraceMetrics(all, m)
-		return
-	}
+	remapSDKTraceMetrics(all, m)
 	remapSystemMetrics(all, m)
 	remapContainerMetrics(all, m)
 	remapKafkaMetrics(all, m)
 	remapJvmMetrics(all, m)
-}
-
-// isFullyRemappedMetric reports whether m is remapped into an entirely new set of
-// series and must not also be emitted under its original name. Unlike the system,
-// container, kafka and jvm remappings (which append Sum/Gauge copies while the
-// original metric still flows through unchanged), the SDK trace histogram is
-// translated into trace.* Sums and would otherwise also produce an unwanted
-// DDSketch series under its raw name.
-func isFullyRemappedMetric(m pmetric.Metric) bool {
-	return m.Name() == sdkTraceMetricName
 }
 
 // renameMetrics adds the `otel.` or `otelcol_` prefix to metrics.
@@ -278,18 +265,8 @@ func renameAgentInternalOTelMetric(m pmetric.Metric) {
 	}
 }
 
-// remapSDKTraceMetrics remaps the SDK-emitted histogram traces.span.sdk.metrics.duration
-// into Datadog trace.<operation>.* series (hits, errors, duration), duplicating the
-// TraceMetrics remapping the otlp-intake backend applies. Each histogram datapoint yields
-// one operation, keyed on the datapoint attributes:
-//
-//   - trace.<operation>.hits     — count == histogram datapoint count
-//   - trace.<operation>.errors   — count == hits when the datapoint is an error, else absent
-//   - trace.<operation>.duration — total duration in nanoseconds (histogram Sum scaled by unit)
-//
-// The metric name is left as its span-derived operation; the resource, span.kind and
-// status information are carried as datapoint attributes so downstream aggregation
-// mirrors the trace-stats produced by the intake path.
+// remapSDKTraceMetrics maps traces.span.sdk.metrics.duration datapoints into
+// trace.<operation>.{hits,errors,hits.by_type,duration} delta Sum series.
 func remapSDKTraceMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
 	if m.Type() != pmetric.MetricTypeHistogram {
 		return

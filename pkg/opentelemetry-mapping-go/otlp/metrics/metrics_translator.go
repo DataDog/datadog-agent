@@ -580,9 +580,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 
 				if t.cfg.withRemapping {
 					remapMetrics(newMetrics, md)
-					if isFullyRemappedMetric(md) {
-						// The original metric is fully represented by the remapped
-						// series appended to newMetrics; do not also emit it raw.
+					if md.Name() == sdkTraceMetricName {
 						continue
 					}
 				}
