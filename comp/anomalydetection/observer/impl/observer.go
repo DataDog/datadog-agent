@@ -140,6 +140,44 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 // Component-specific keys are read via the AgentConfigurable interface —
 // config structs that implement it will have their fields populated
 // automatically.
+const (
+	anomalyDetectionEnabledConfigKey      = "anomaly_detection.enabled"
+	anomalyScorerEnabledConfigKey         = "anomaly_detection.anomaly_scorer.enabled"
+	smartSeverityProfilesEnabledConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
+)
+
+func smartSeverityProfilesEnabled(cfg config.Component) bool {
+	return cfg != nil && cfg.GetBool(smartSeverityProfilesEnabledConfigKey)
+}
+
+// effectiveAnalysisEnabled returns whether anomaly detection pipeline is enabled.
+// We enable anomaly detection if any feature using it are enabled
+func effectiveAnalysisEnabled(cfg config.Component) bool {
+	return cfg != nil && (cfg.GetBool(anomalyDetectionEnabledConfigKey) || smartSeverityProfilesEnabled(cfg))
+}
+
+func effectiveAnomalyScorerEnabled(cfg config.Component) bool {
+	if cfg == nil {
+		return false
+	}
+	if smartSeverityProfilesEnabled(cfg) {
+		return true
+	}
+	return cfg.IsConfigured(anomalyScorerEnabledConfigKey) && cfg.GetBool(anomalyScorerEnabledConfigKey)
+}
+
+func warnSmartSeverityOverrides(cfg config.Component, log log.Component) {
+	if cfg == nil || log == nil || !smartSeverityProfilesEnabled(cfg) {
+		return
+	}
+	if cfg.IsConfigured(anomalyDetectionEnabledConfigKey) && !cfg.GetBool(anomalyDetectionEnabledConfigKey) {
+		log.Warnf("[observer] %s=false but smart severity profiles require anomaly detection; enabling it", anomalyDetectionEnabledConfigKey)
+	}
+	if cfg.IsConfigured(anomalyScorerEnabledConfigKey) && !cfg.GetBool(anomalyScorerEnabledConfigKey) {
+		log.Warnf("[observer] %s=false but smart severity profiles require the anomaly scorer; enabling it", anomalyScorerEnabledConfigKey)
+	}
+}
+
 func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) ComponentSettings {
 	var settings ComponentSettings
 	if cfg == nil {
@@ -165,14 +203,14 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 
 	// Dedicated scorer read path under anomaly_detection.anomaly_scorer.*
 	const scorerPrefix = "anomaly_detection.anomaly_scorer."
-	if cfg.IsConfigured(scorerPrefix + "enabled") {
-		settings.Enabled["anomaly_scorer"] = cfg.GetBool(scorerPrefix + "enabled")
-	}
-	if settings.Enabled["anomaly_scorer"] {
+	if effectiveAnomalyScorerEnabled(cfg) {
+		settings.Enabled["anomaly_scorer"] = true
 		if settings.configs == nil {
 			settings.configs = make(map[string]any)
 		}
 		settings.configs["anomaly_scorer"] = readAnomalyScorerConfig(cfg, scorerPrefix)
+	} else if cfg.IsConfigured(scorerPrefix + "enabled") {
+		settings.Enabled["anomaly_scorer"] = false
 	}
 
 	settings.Baseline = DefaultBaselineConfig()
@@ -216,12 +254,14 @@ func NewComponent(deps Requires) (Provides, error) {
 		return Provides{Comp: &disabledObserver{}}, nil
 	}
 
+	warnSmartSeverityOverrides(cfg, deps.Log)
+
 	// Off-by-default fast path: when neither analysis nor recording is active the
 	// live observer noops every handle (see handleFunc below) and installs no log
 	// tap, so skip building the catalog, engine, storage, 1000-cap channel, and
 	// dispatch goroutine — return the zero-allocation stub instead. The predicate
 	// mirrors the analysisEnabled/recorderEnabled gates used further down.
-	if !cfg.GetBool("anomaly_detection.enabled") {
+	if !effectiveAnalysisEnabled(cfg) {
 		if _, recorderEnabled := deps.Recorder.Get(); !recorderEnabled {
 			return Provides{Comp: &disabledObserver{}}, nil
 		}
@@ -327,7 +367,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	// Set up handle function based on recording and analysis configuration.
 	// Recording (anomaly_detection.recording.enabled) enables parquet writers.
 	// Analysis (anomaly_detection.enabled) enables the anomaly detection pipeline.
-	analysisEnabled := cfg.GetBool("anomaly_detection.enabled")
+	analysisEnabled := effectiveAnalysisEnabled(cfg)
 	if analysisEnabled {
 		obsTelemetry.initLogsInFlight()
 		obsTelemetry.setSeriesCount(0)
