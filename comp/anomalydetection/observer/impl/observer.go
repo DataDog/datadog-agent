@@ -237,8 +237,13 @@ func NewComponent(deps Requires) (Provides, error) {
 		if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
 			storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
 		}
-		if cfg.IsConfigured("anomaly_detection.storage.point_retention_secs") {
-			storageCfg.PointRetentionSecs = cfg.GetInt64("anomaly_detection.storage.point_retention_secs")
+		if cfg.IsConfigured("anomaly_detection.storage.point_retention") {
+			d := cfg.GetDuration("anomaly_detection.storage.point_retention")
+			if d < 0 {
+				pkglog.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s — using default", d)
+			} else {
+				storageCfg.PointRetentionSecs = int64(d.Seconds())
+			}
 		}
 	}
 

@@ -6098,10 +6098,10 @@ properties:
             node_type: section
             type: object
             properties:
-              cooldown_secs:
+              cooldown:
                 node_type: setting
-                type: integer
-                default: 300
+                type: string
+                default: 300s
               correlation_events:
                 node_type: setting
                 type: boolean
@@ -6120,10 +6120,10 @@ properties:
             default: 5
             tags:
             - golang_type:float64
-          window_secs:
+          window:
             node_type: setting
-            type: integer
-            default: 15
+            type: string
+            default: 15s
       baseline_analysis:
         node_type: section
         type: object
@@ -6490,10 +6490,10 @@ properties:
             type: integer
             default: 50000
             comment: Storage tuning. See storageConfig in the observer component.
-          point_retention_secs:
+          point_retention:
             node_type: setting
-            type: integer
-            default: 120
+            type: string
+            default: 120s
   appsec:
     node_type: section
     type: object

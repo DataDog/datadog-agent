@@ -76,7 +76,7 @@ anomaly_detection:
   anomaly_scorer:
     enabled: true
     alpha: 0.3
-    window_secs: 5
+    window: 5s
     low_threshold: 0.005
     high_threshold: 0.010
     output:

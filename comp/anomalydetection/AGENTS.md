@@ -164,7 +164,7 @@ Keys are registered in `pkg/config/setup/common_settings.go`.
 | `anomaly_detection.logs.internal.enabled` | `true` | Agent-internal log tap |
 | `anomaly_detection.detectors.<name>.enabled` | varies | Per detector/correlator/extractor |
 | `anomaly_detection.storage.max_series` | `50000` | Storage series cap |
-| `anomaly_detection.storage.point_retention_secs` | `120` | Per-series point retention |
+| `anomaly_detection.storage.point_retention` | `120s` | Per-series point retention |
 
 Per-source log rate limits and min severity live under
 `anomaly_detection.logs.{internal,kubelet,containers}.*`.
