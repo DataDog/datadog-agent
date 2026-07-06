@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    eBPF: Fix the `notify_ebpf_complexity_changes` CI notification task to avoid GitHub comment-size failures by summarizing unchanged groups and enforcing a strict comment length budget.
+    eBPF: Fix the ``notify_ebpf_complexity_changes`` CI notification task to avoid GitHub comment-size failures by summarizing unchanged groups and enforcing a strict comment length budget.
