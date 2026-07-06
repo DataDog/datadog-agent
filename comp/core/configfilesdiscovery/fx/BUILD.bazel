@@ -10,6 +10,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/configfilesdiscovery/def",
         "//comp/core/configfilesdiscovery/impl",
+        "//comp/core/configfilesdiscovery/impl/collectors",
         "//comp/core/workloadmeta/def",
         "//comp/def",
         "//pkg/util/fxutil",
