@@ -302,7 +302,7 @@ func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
 				err = d.moveConfig(sourceNodeName, destNodeName, digest)
 				if err != nil {
 					log.Debugf("Cannot move config %s: %v", digest, err)
-					continue
+					break
 				}
 
 				successfulRebalancing.Inc(le.JoinLeaderValue)

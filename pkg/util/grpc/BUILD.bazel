@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # hack.go uses //go:build hack_no_include (blank import to pin cloud.google.com/go/compute)
 # scope tag here, not in root ALL_BUILD_TAGS.
@@ -41,11 +42,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "grpc_test",
     srcs = ["agent_client_test.go"],
     embed = [":grpc"],
-    gotags = ["test"],
     deps = [
         "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
