@@ -60,7 +60,6 @@ type ShadowCandidate struct {
 // Loading, scheduling, and execution routing are handled by the caller.
 func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptions) []ShadowCandidate {
 	candidates := []ShadowCandidate{}
-	shadowInterval := normalizeShadowInterval(opts.ShadowInterval)
 	for _, config := range configs {
 		if !isSupportedCheckConfig(config, opts) {
 			continue
@@ -86,7 +85,7 @@ func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptio
 				Instance:           shadowInstance,
 				InstanceIndex:      instanceIndex,
 				SourceConfigDigest: config.Digest(),
-				ShadowInterval:     shadowInterval,
+				ShadowInterval:     opts.ShadowInterval,
 			})
 		}
 	}
