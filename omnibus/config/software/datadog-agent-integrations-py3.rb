@@ -60,16 +60,7 @@ build do
         "{conf.yaml.example,conf.yaml.default,metrics.yaml,auto_conf.yaml}",
       )
     ).sort
-    profile_dirs = Dir.glob(
-      File.join(
-        site_packages_path,
-        "datadog_checks",
-        "*",
-        "data",
-        "{profiles,default_profiles}",
-      )
-    ).select { |path| File.directory?(path) }.sort
-    raise "No integration configuration found under #{site_packages_path}/datadog_checks" if config_files.empty? && profile_dirs.empty?
+    raise "No integration configuration found under #{site_packages_path}/datadog_checks" if config_files.empty?
 
     # For each conf file, if it already exists, that means the `datadog-agent` software def
     # wrote it first. In that case, since the agent's confs take precedence, skip the conf.
@@ -88,14 +79,13 @@ build do
     # Drop the example files from the installed packages since they are copied in /etc/datadog-agent/conf.d and not used here.
     FileUtils.rm_f(config_files)
 
-    # Copy SNMP profiles.
-    profile_dirs.each do |src|
-      data_dir = File.dirname(src)
-      check = File.basename(File.dirname(data_dir))
-      check_conf_dir = File.join(conf_dir, "#{check}.d")
-
-      FileUtils.mkdir_p(check_conf_dir)
-      FileUtils.cp_r(src, check_conf_dir)
+    # Move SNMP profiles to conf.d.
+    snmp_data_dir = File.join(site_packages_path, "datadog_checks", "snmp", "data")
+    snmp_conf_dir = File.join(conf_dir, "snmp.d")
+    %w[profiles default_profiles].each do |profile_dir|
+      src = File.join(snmp_data_dir, profile_dir)
+      FileUtils.mkdir_p(snmp_conf_dir)
+      FileUtils.mv(src, snmp_conf_dir)
     end
   end
 
