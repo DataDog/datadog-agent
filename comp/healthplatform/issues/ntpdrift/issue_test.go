@@ -50,7 +50,7 @@ func TestBuildIssue(t *testing.T) {
 			require.NotNil(t, issue)
 
 			assert.Empty(t, issue.Id, "Id is set by the caller (ReportIssue), not by the template")
-			assert.Equal(t, issueName, issue.IssueName)
+			assert.Equal(t, IssueName, issue.IssueName)
 			assert.Equal(t, "System Clock Drift Detected", issue.Title)
 			assert.Contains(t, issue.Description, tt.expectedDescSub)
 			assert.Equal(t, "integration", issue.Category)

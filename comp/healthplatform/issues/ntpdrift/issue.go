@@ -26,8 +26,6 @@ const (
 
 	// IssueID is the unique instance id used when reporting this issue.
 	IssueID = "ntp-clock-drift"
-
-	issueName = IssueName
 )
 
 // Context keys read by BuildIssue.
@@ -70,7 +68,7 @@ func (t *NTPDriftIssue) BuildIssue(context map[string]string) (*healthplatform.I
 	}
 
 	return &healthplatform.Issue{
-		IssueName: issueName,
+		IssueName: IssueName,
 		Title:     "System Clock Drift Detected",
 		Description: fmt.Sprintf(
 			"The system clock is drifting from NTP reference time by %s, which exceeds the %s threshold. "+
