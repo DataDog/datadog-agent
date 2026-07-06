@@ -42,12 +42,12 @@ github_team = "agent-configuration"
 github_labels = ["team/agent-configuration"]
 exclude_members = ["sgnn7"]
 
-[teams."Agent Health"]
+[teams."Fleet Remediation"]
 jira_project = "AGTHEAL"
 jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-health"
-github_labels = ["team/agent-health"]
+github_team = "fleet-remediation"
+github_labels = ["team/fleet-remediation"]
 exclude_members = ["iglendd", "kunalkxxxxxxxxr", "mwdd146980"]
 
 [teams."Agent Developer Experience"]

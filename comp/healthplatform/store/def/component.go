@@ -9,7 +9,7 @@
 // /health-platform/issues HTTP endpoint.
 package store
 
-// team: agent-health
+// team: fleet-remediation
 
 import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
