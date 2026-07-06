@@ -44,6 +44,7 @@ namespace Datadog.AgentCustomActions
                     RegistryValueProperty(_session, "PROJECTLOCATION", subkey, "InstallPath");
                     RegistryValueProperty(_session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
                     RegistryValueProperty(_session, ConfigureUserCustomActions.KeepRightsPropertyName, subkey, KeepRightsRegistryValueName);
+                    RegistryValueProperty(_session, "DD_INFRASTRUCTURE_MODE", subkey, InfrastructureModeRegistryValueName);
                 }
 
                 GetWindowsBuildVersion();
@@ -220,6 +221,7 @@ namespace Datadog.AgentCustomActions
 
                 StoreAgentUserInRegistry(subkey);
                 StoreKeepUserRightsInRegistry(subkey);
+                StoreInfrastructureModeInRegistry(subkey);
             }
             catch (Exception e)
             {

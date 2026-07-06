@@ -12,6 +12,14 @@ namespace WixSetup.Datadog_Agent
         [SuppressMessage("ReSharper", "InconsistentNaming")]
         private static readonly Condition NOT_Being_Reinstalled = Condition.NOT(Being_Reinstalled);
 
+        // End-User Device Monitoring (EUDM) gate. Matches infrastructure_mode == "end_user_device".
+        // DD_INFRASTRUCTURE_MODE is public + Secure and re-hydrated from the registry by
+        // ReadInstallState, so this evaluates consistently across install/upgrade/repair.
+        private static readonly Condition EudmEnabled = Condition.Create("DD_INFRASTRUCTURE_MODE=\"end_user_device\"");
+
+        [SuppressMessage("ReSharper", "InconsistentNaming")]
+        private static readonly Condition NOT_EudmEnabled = Condition.NOT(EudmEnabled);
+
         public ManagedAction RunAsAdmin { get; }
 
         public ManagedAction ReadConfig { get; }
@@ -259,7 +267,8 @@ namespace WixSetup.Datadog_Agent
                     "PYVER=[PYVER], " +
                     "HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED], " +
                     "NPM=[NPM], " +
-                    "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]")
+                    "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION], " +
+                    "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]")
                 .HideTarget(true);
 
             // Cleanup leftover files on rollback. DecompressPythonDistributions must be sequenced
@@ -377,7 +386,8 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.After,
                     new Step(WriteConfig.Id),
-                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                    // Only register the desktop-monitor task when EUDM is enabled.
+                    (Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance) & EudmEnabled
                 )
             {
                 Execute = Execute.deferred,
@@ -408,7 +418,10 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.Before,
                     new Step(CleanupOnUninstall.Id),
-                    Conditions.RemovingForUpgrade | Conditions.Uninstalling
+                    // Keep removal EUDM-independent so the task is always cleaned up on uninstall/
+                    // upgrade-removal. The extra (Maintenance & NOT_EudmEnabled) term deletes a stale
+                    // task on a same-version change that turns EUDM off. Removal is idempotent.
+                    Conditions.RemovingForUpgrade | Conditions.Uninstalling | (Conditions.Maintenance & NOT_EudmEnabled)
                 )
             {
                 Execute = Execute.deferred,
@@ -762,7 +775,8 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
                                "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
-                               "DDAGENTUSER_KEEP_RIGHTS=[DDAGENTUSER_KEEP_RIGHTS]");
+                               "DDAGENTUSER_KEEP_RIGHTS=[DDAGENTUSER_KEEP_RIGHTS], " +
+                               "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]");
 
             DeleteInstallState = new CustomAction<CustomActions>(
                     new Id(nameof(DeleteInstallState)),

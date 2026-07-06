@@ -494,6 +494,11 @@ namespace Datadog.CustomActions
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
             var projectLocation = session.Property("PROJECTLOCATION");
+            // DD_INFRASTRUCTURE_MODE arrives via CustomActionData (WriteConfig is deferred) and
+            // reflects the value re-hydrated by ReadInstallState or supplied on the command line.
+            // Match the EUDM-gated feature value exactly (case-sensitive), consistent with the
+            // Go-side canonical "end_user_device".
+            var eudmEnabled = session.Property("DD_INFRASTRUCTURE_MODE") == "end_user_device";
             try
             {
                 var copyFileFn = new Action<string>(c => File.Copy(c + ".example", c));
@@ -527,32 +532,38 @@ namespace Datadog.CustomActions
                                     output.Write(yaml);
                                 })
                             }
-                        })
-                        .Concat(new[]
-                        {
-                            new
-                            {
-                                Path = AiUsageNativeHostConfigName,
-                                CreateFn = new Action<string>(c =>
-                                {
-                                    string yaml;
-                                    using (var input = new StreamReader(Path.Combine(configFolder, $"{AiUsageNativeHostConfigName}.example")))
-                                    {
-                                        yaml = input.ReadToEnd();
-                                    }
-
-                                    var port = ReadAgentReceiverPort(configFolder);
-                                    yaml = Regex.Replace(
-                                        yaml,
-                                        "^[ #]*trace_agent_url:.*$",
-                                        $"trace_agent_url: \"http://127.0.0.1:{port}\"",
-                                        RegexOptions.Multiline);
-
-                                    using var output = new StreamWriter(c);
-                                    output.Write(yaml);
-                                })
-                            }
                         });
+
+                // The AI-usage native host config is generated only when EUDM is enabled, matching
+                // the EUDM-gated feature that installs the binary and Chrome registrations.
+                if (eudmEnabled)
+                {
+                    configFiles = configFiles.Concat(new[]
+                    {
+                        new
+                        {
+                            Path = AiUsageNativeHostConfigName,
+                            CreateFn = new Action<string>(c =>
+                            {
+                                string yaml;
+                                using (var input = new StreamReader(Path.Combine(configFolder, $"{AiUsageNativeHostConfigName}.example")))
+                                {
+                                    yaml = input.ReadToEnd();
+                                }
+
+                                var port = ReadAgentReceiverPort(configFolder);
+                                yaml = Regex.Replace(
+                                    yaml,
+                                    "^[ #]*trace_agent_url:.*$",
+                                    $"trace_agent_url: \"http://127.0.0.1:{port}\"",
+                                    RegexOptions.Multiline);
+
+                                using var output = new StreamWriter(c);
+                                output.Write(yaml);
+                            })
+                        }
+                    });
+                }
 
                 foreach (var c in configFiles)
                 {
@@ -579,7 +590,10 @@ namespace Datadog.CustomActions
                     }
                 }
 
-                WriteAiUsageNativeMessagingManifest(projectLocation, configFolder, session);
+                if (eudmEnabled)
+                {
+                    WriteAiUsageNativeMessagingManifest(projectLocation, configFolder, session);
+                }
             }
             catch (Exception e)
             {

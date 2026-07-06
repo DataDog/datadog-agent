@@ -204,7 +204,7 @@ namespace WixSetup.Datadog_Agent
                     Win64 = true
                 },
                 new RegKey(
-                    _agentFeatures.MainApplication,
+                    _agentFeatures.AiUsageNativeHost,
                     RegistryHive.LocalMachine, @"Software\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_usage_agent.native_host",
                     new RegValue("", @"[AGENT]dist\com.datadoghq.ai_usage_agent.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
                 )
@@ -212,7 +212,7 @@ namespace WixSetup.Datadog_Agent
                     Win64 = true
                 },
                 new RegKey(
-                    _agentFeatures.MainApplication,
+                    _agentFeatures.AiUsageNativeHost,
                     RegistryHive.LocalMachine, @"Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_usage_agent.native_host",
                     new RegValue("", @"[AGENT]dist\com.datadoghq.ai_usage_agent.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
                 )
@@ -727,7 +727,7 @@ namespace WixSetup.Datadog_Agent
 
             // AI usage Chrome native messaging host (Rust). Plain non-service file in bin\agent.
             // Explicit Id only on the .exe so future custom actions can reference it via [#ai_usage_agent_native_host].
-            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AiUsageAgentNativeHostId, _agentBinaries.AiUsageAgentNativeHost));
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AiUsageAgentNativeHostId, _agentFeatures.AiUsageNativeHost, _agentBinaries.AiUsageAgentNativeHost));
 
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
@@ -782,7 +782,10 @@ namespace WixSetup.Datadog_Agent
         private Dir CreateAppDataFolder()
         {
             var appData = new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
-                new DirFiles($@"{EtcSource}\*.yaml.example"),
+                // ai_usage_native_host.yaml.example is excluded here and re-added below under the
+                // EUDM-gated AiUsageNativeHost feature so it only ships when EUDM is enabled.
+                new DirFiles($@"{EtcSource}\*.yaml.example",
+                    f => !f.EndsWith("ai_usage_native_host.yaml.example", StringComparison.OrdinalIgnoreCase)),
                 new Dir("checks.d"),
                 new Dir("protected"),
                 new Dir("run"),
@@ -799,6 +802,10 @@ namespace WixSetup.Datadog_Agent
             appData.AddDir(new Dir("private-action-runner",
                        new Files($@"{EtcSource}\private-action-runner\*.*")
             ));
+
+            // Ships only when EUDM is enabled (gated via the AiUsageNativeHost feature).
+            appData.AddFile(new WixSharp.File(_agentFeatures.AiUsageNativeHost,
+                $@"{EtcSource}\ai_usage_native_host.yaml.example"));
 
             return new Dir(new Id("%CommonAppData%"), appData)
             {

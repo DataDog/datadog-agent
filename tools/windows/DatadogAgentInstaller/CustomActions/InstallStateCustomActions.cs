@@ -19,6 +19,12 @@ namespace Datadog.CustomActions
         // operator's opt-out without it being re-supplied on the command line.
         protected const string KeepRightsRegistryValueName = "keepRights";
 
+        // Registry value name under HKLM\Constants.DatadogAgentRegistryKey that mirrors the
+        // DD_INFRASTRUCTURE_MODE MSI property. Persisting it lets upgrades/repairs (which inherit
+        // only on-disk state, not command-line properties) keep the operator's EUDM choice, which
+        // gates whether the AI-usage native host artifacts are installed.
+        protected const string InfrastructureModeRegistryValueName = "infrastructureMode";
+
         protected readonly ISession _session;
         protected readonly IRegistryServices _registryServices;
         protected readonly IServiceController _serviceController;
@@ -149,7 +155,7 @@ namespace Datadog.CustomActions
 
         protected void RemoveAgentUserInRegistry(IRegistryKey subkey)
         {
-            foreach (var value in new[] { "installedDomain", "installedUser", KeepRightsRegistryValueName })
+            foreach (var value in new[] { "installedDomain", "installedUser", KeepRightsRegistryValueName, InfrastructureModeRegistryValueName })
             {
                 try
                 {
@@ -182,6 +188,33 @@ namespace Datadog.CustomActions
                 try
                 {
                     subkey.DeleteValue(KeepRightsRegistryValueName);
+                }
+                catch (Exception)
+                {
+                    // Value was not previously set; nothing to do.
+                }
+            }
+        }
+
+        /// <summary>
+        /// Persist DD_INFRASTRUCTURE_MODE so upgrades/repairs that inherit only on-disk state
+        /// (not command-line properties) keep the operator's EUDM choice, which gates the AI-usage
+        /// native host. The value is cleared from the registry when the property is empty so
+        /// reverting to the default takes effect on the next run.
+        /// </summary>
+        protected void StoreInfrastructureModeInRegistry(IRegistryKey subkey)
+        {
+            var mode = _session.Property("DD_INFRASTRUCTURE_MODE");
+            if (!string.IsNullOrEmpty(mode))
+            {
+                _session.Log($"Storing {InfrastructureModeRegistryValueName}={mode}");
+                subkey.SetValue(InfrastructureModeRegistryValueName, mode, RegistryValueKind.String);
+            }
+            else
+            {
+                try
+                {
+                    subkey.DeleteValue(InfrastructureModeRegistryValueName);
                 }
                 catch (Exception)
                 {

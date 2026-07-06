@@ -97,6 +97,7 @@ random_property: test
                 File.WriteAllText(Path.Combine(AiUsageManifestDir(projectLocation), "com.datadoghq.ai_prompt_logger.native_host.json"), "{}");
                 sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
                 sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
+                sessionMock.Setup(session => session["DD_INFRASTRUCTURE_MODE"]).Returns("end_user_device");
 
                 var result = InvokeWriteConfig(sessionMock.Object);
 
@@ -126,6 +127,7 @@ random_property: test
                 WriteAiUsageNativeHostExample(configFolder);
                 sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
                 sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
+                sessionMock.Setup(session => session["DD_INFRASTRUCTURE_MODE"]).Returns("end_user_device");
 
                 var result = InvokeWriteConfig(sessionMock.Object);
 
@@ -151,6 +153,7 @@ random_property: test
                 File.WriteAllText(Path.Combine(configFolder, "ai_usage_native_host.yaml"), existingAiUsageConfig);
                 sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
                 sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
+                sessionMock.Setup(session => session["DD_INFRASTRUCTURE_MODE"]).Returns("end_user_device");
 
                 var result = InvokeWriteConfig(sessionMock.Object);
 
@@ -170,6 +173,7 @@ random_property: test
                 File.WriteAllText(Path.Combine(configFolder, "datadog.yaml.example"), "api_key:\n");
                 sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
                 sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
+                sessionMock.Setup(session => session["DD_INFRASTRUCTURE_MODE"]).Returns("end_user_device");
 
                 var result = InvokeWriteConfig(sessionMock.Object);
 
@@ -183,6 +187,30 @@ random_property: test
                         It.IsAny<string>(),
                         It.IsAny<int>()),
                     Times.Once);
+            });
+        }
+
+        [Theory]
+        [InlineAutoData("")]
+        [InlineAutoData("full")]
+        public void WriteConfig_Should_Not_Generate_AiUsage_Artifacts_When_Not_Eudm(string infraMode, Mock<ISession> sessionMock)
+        {
+            WithTempInstallFolders((configFolder, projectLocation) =>
+            {
+                File.WriteAllText(Path.Combine(configFolder, "datadog.yaml.example"), "api_key:\n");
+                WriteAiUsageNativeHostExample(configFolder);
+                sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
+                sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
+                sessionMock.Setup(session => session["DD_INFRASTRUCTURE_MODE"]).Returns(infraMode);
+
+                var result = InvokeWriteConfig(sessionMock.Object);
+
+                Assert.Equal(ActionResult.Success, result);
+                // The CA still runs and writes datadog.yaml ...
+                Assert.True(File.Exists(Path.Combine(configFolder, "datadog.yaml")));
+                // ... but generates no AI-usage yaml or Chrome manifest when EUDM is not enabled.
+                Assert.False(File.Exists(Path.Combine(configFolder, "ai_usage_native_host.yaml")));
+                Assert.False(File.Exists(AiUsageManifestPath(projectLocation)));
             });
         }
 

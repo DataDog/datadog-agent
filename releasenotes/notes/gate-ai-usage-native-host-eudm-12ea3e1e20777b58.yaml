@@ -1,0 +1,11 @@
+---
+enhancements:
+  - |
+    On Windows, the AI Usage Chrome Native Messaging Host and its desktop-monitor
+    scheduled task are now installed only when End-User Device Monitoring (EUDM)
+    is enabled at install time (``DD_INFRASTRUCTURE_MODE=end_user_device``). When
+    EUDM is not enabled, the MSI no longer lays down the native host binary, the
+    Chrome ``NativeMessagingHosts`` registry entries, the ``ai_usage_native_host.yaml``
+    configuration, the Chrome host manifest, or the ``Datadog AI Usage Agent`` task.
+    The infrastructure mode is persisted to the registry so upgrades and repairs
+    that do not re-supply the property preserve the original choice.
