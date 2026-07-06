@@ -100,9 +100,9 @@ func genPipelineInput() *rapid.Generator[pipelineInput] {
 }
 
 // pipelineRun feeds a sequence of inputs through a freshly-
-// constructed Path C pipeline plus a final flush, and returns the
-// emitted messages and the input content bytes (for byte-
-// conservation checks).
+// constructed auto-multiline-combining pipeline plus a final
+// flush, and returns the emitted messages and the input content
+// bytes (for byte-conservation checks).
 func pipelineRun(maxContent int, samplerCfg AdaptiveSamplerConfig, inputs []pipelineInput) (emitted []*message.Message, inputContents [][]byte) {
 	tailerInfo := status.NewInfoRegistry()
 	tok := NewTokenizer(2048)

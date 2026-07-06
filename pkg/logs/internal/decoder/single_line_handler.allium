@@ -4,7 +4,7 @@
 -- Scope: The SingleLineHandler at
 --   pkg/logs/internal/decoder/single_line_handler.go. The
 --   SingleLineHandler is the canonical Truncatable fulfiller in
---   the legacy decoder pipeline's path A: a stateful per-message
+--   the legacy decoder pipeline: a stateful per-message
 --   handler that applies head/tail truncation marker bytes to
 --   over-threshold content, propagates the upstream
 --   IsTruncated flag, and emits each input as a single message
@@ -54,8 +54,8 @@ use "./preprocessor/truncation.allium" as truncation
 ------------------------------------------------------------
 
 entity SingleLineHandler {
-    -- A configured SingleLineHandler instance. One per path A
-    -- decoder pipeline (per log source using single-line
+    -- A configured SingleLineHandler instance. One per
+    -- legacy decoder pipeline (per log source using single-line
     -- legacy handling).
     --
     -- line_limit:       the byte threshold above which the
@@ -239,8 +239,8 @@ surface SingleLineHandling {
         -- is unambiguous.
         --
         -- The SingleLineHandler is the truncation
-        -- workhorse of the legacy decoder's path A. Its
-        -- per-call flow is:
+        -- workhorse of the legacy decoder. Its per-call
+        -- flow is:
         --
         -- 1. Capture lastWasTruncated = h.should_truncate
         --    (the Truncatable contract's prior_carryover
@@ -266,15 +266,7 @@ surface SingleLineHandling {
         --
         -- The truncation behaviour is structurally
         -- identical to PassThroughAggregator's
-        -- (pass_through_aggregator.allium), reflecting
-        -- the parallel existence of both legacy (path A)
-        -- and preprocessor (path C / D / E) handling
-        -- pipelines. A refactor extracting a shared
-        -- "cut at limit + flag" utility from this code
-        -- would replace steps 2-6 with a single utility
-        -- call; the surrounding emission scaffolding
-        -- (input parsing, outputFn invocation) is
-        -- handler-specific and would remain.
+        -- (pass_through_aggregator.allium).
         --
         -- For property tests anchored to this surface,
         -- the input distributions of interest are:
