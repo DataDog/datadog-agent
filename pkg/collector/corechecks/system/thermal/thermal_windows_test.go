@@ -61,7 +61,7 @@ func TestThermalCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			pdhtest.SetupTesting(`..\testfiles\counter_indexes_en-us.txt`, `..\testfiles\allcounters_en-us.txt`)
 			check := new(thermalCheck)
-			mock := mocksender.NewMockSender(check.ID())
+			mock := mocksender.NewMockSender(t, check.ID())
 			mock.On("FinalizeCheckServiceTag").Return()
 			require.NoError(t, check.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider"))
 
@@ -103,7 +103,7 @@ func TestThermalCheckNoInstances(t *testing.T) {
 	})
 
 	check := new(thermalCheck)
-	mock := mocksender.NewMockSender(check.ID())
+	mock := mocksender.NewMockSender(t, check.ID())
 	mock.On("FinalizeCheckServiceTag").Return()
 	require.NoError(t, check.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider"))
 	mock.On("Commit").Return().Times(2)
