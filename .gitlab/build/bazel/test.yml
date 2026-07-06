@@ -38,7 +38,7 @@ bazel:test:windows-amd64:
 .bazel:test:flavor:
   extends: .bazel:test
   script:
-    - bazel test --keep_going --build_tests_only --config=$FLAVOR //pkg/... //comp/... //cmd/...
+    - bazel test --keep_going --build_tests_only --config=$FLAVOR --config=go_race //pkg/... //comp/... //cmd/...
 
 bazel:test:linux-amd64:base:
   extends: [ .bazel:test:flavor, .bazel:runner:linux-amd64 ]
