@@ -3,6 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package ntpdrift provides the health-platform issue template for NTP clock drift.
+// Detection lives in the existing pkg/collector/corechecks/net/ntp check, which
+// already queries NTP servers and computes the clock offset on every run; that
+// check reports/resolves this issue directly via store.ReportIssue (Path B), so
+// this package has no init()/module registration and is not blank-imported in
+// bundle.go.
 package ntpdrift
 
 import (
@@ -13,7 +19,23 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-const issueName = IssueName
+const (
+	// IssueName is the identifier for NTP clock drift issues,
+	// used as the template registry key and the proto IssueName field.
+	IssueName = "NTP Clock Drift"
+
+	// IssueID is the unique instance id used when reporting this issue.
+	IssueID = "ntp-clock-drift"
+
+	issueName = IssueName
+)
+
+// Context keys read by BuildIssue.
+const (
+	contextKeyDrift     = "drift"
+	contextKeyNTPServer = "ntpServer"
+	contextKeyThreshold = "threshold"
+)
 
 // NTPDriftIssue provides the complete issue template (metadata + remediation) for NTP clock drift.
 type NTPDriftIssue struct{}
@@ -25,19 +47,23 @@ func NewNTPDriftIssue() *NTPDriftIssue {
 
 // BuildIssue creates a complete issue with metadata and platform-appropriate remediation.
 func (t *NTPDriftIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
-	drift := context["drift"]
+	drift := context[contextKeyDrift]
 	if drift == "" {
 		drift = "unknown"
 	}
-	ntpSrv := context["ntpServer"]
+	ntpSrv := context[contextKeyNTPServer]
 	if ntpSrv == "" {
-		ntpSrv = ntpServer
+		ntpSrv = "unknown"
+	}
+	threshold := context[contextKeyThreshold]
+	if threshold == "" {
+		threshold = "unknown"
 	}
 
 	extra, err := structpb.NewStruct(map[string]any{
 		"drift":      drift,
 		"ntp_server": ntpSrv,
-		"threshold":  driftThreshold.String(),
+		"threshold":  threshold,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create issue extra: %w", err)
@@ -51,7 +77,7 @@ func (t *NTPDriftIssue) BuildIssue(context map[string]string) (*healthplatform.I
 				"Clock drift causes metric timestamps to be inaccurate, making it difficult to correlate events "+
 				"across hosts and potentially triggering false anomaly alerts in Datadog. "+
 				"Affected NTP server: %s.",
-			drift, driftThreshold, ntpSrv,
+			drift, threshold, ntpSrv,
 		),
 		Category:   "configuration",
 		Location:   "system",
