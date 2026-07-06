@@ -7,26 +7,14 @@ require './lib/ostools.rb'
 
 name 'datadog-agent-integrations-py3'
 
-license "BSD-3-Clause"
-license_file "./LICENSE"
-
 dependency 'python3'
 
 python_version = "3.13"
 
-relative_path 'integrations-core'
 whitelist_file "embedded/lib/python#{python_version}/site-packages/.libsaerospike"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/aerospike.libs"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg_binary.libs"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/pymqi"
-
-source git: 'https://github.com/DataDog/integrations-core.git'
-
-integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
-if integrations_core_version.nil? || integrations_core_version.empty?
-  integrations_core_version = 'master'
-end
-default_version integrations_core_version
 
 site_packages_path = "#{install_dir}/embedded/lib/python#{python_version}/site-packages"
 if windows_target?
@@ -112,7 +100,7 @@ build do
   end
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
-  command "#{python} -m pip check"
+  command "#{python} -B -m pip check"
 
   unless windows_target?
     block "Remove .exe files" do
@@ -176,9 +164,9 @@ build do
       include_folder = File.join(install_dir, "embedded3", "include")
 
       block "Build cryptography library against Agent's OpenSSL" do
-        cryptography_requirement = (shellout! "#{python} -m pip list --format=freeze").stdout[/cryptography==.*?$/]
+        cryptography_requirement = (shellout! "#{python} -B -m pip list --format=freeze").stdout[/cryptography==.*?$/]
 
-        shellout! "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
+        shellout! "#{python} -B -m pip install --no-compile --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
                 env: {
                   "OPENSSL_LIB_DIR" => lib_folder,
                   "OPENSSL_INCLUDE_DIR" => include_folder,
@@ -193,9 +181,4 @@ build do
       end
     end
   end
-
-  # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
-  # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
-  # older than the one shipped in the agent
-  copy "#{project_dir}/requirements-agent-release.txt", "#{install_dir}/"
 end

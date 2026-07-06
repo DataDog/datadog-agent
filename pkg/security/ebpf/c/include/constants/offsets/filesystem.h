@@ -580,6 +580,12 @@ static __attribute__((always_inline)) u64 get_iokiocb_ctx_offset() {
     return iokiocb_ctx_offset;
 }
 
+static __attribute__((always_inline)) u64 get_iokiocb_opcode_offset() {
+    u64 iokiocb_opcode_offset;
+    LOAD_CONSTANT("iokiocb_opcode_offset", iokiocb_opcode_offset);
+    return iokiocb_opcode_offset;
+}
+
 static __attribute__((always_inline)) u64 get_getattr2() {
     u64 getattr2;
     LOAD_CONSTANT("getattr2", getattr2);

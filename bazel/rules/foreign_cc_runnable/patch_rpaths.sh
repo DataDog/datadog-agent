@@ -10,12 +10,36 @@
 # A FILE must exist; a GLOB must match at least one file.
 set -euo pipefail
 
+PATCHELF=""
+INSTALL_NAME_TOOL=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --patchelf)
+            shift
+            PATCHELF="$1"
+            ;;
+        --install-name-tool)
+            shift
+            INSTALL_NAME_TOOL="$1"
+            ;;
+        *)
+            break
+            ;;
+    esac
+    shift
+done
+
+if [ "$#" -lt 4 ]; then
+    echo "Usage: patch_rpaths.sh [--patchelf <path>|--install-name-tool <path>] <platform> <input> <output> <manifest> [rpath dirs...]" >&2
+    exit 1
+fi
+
 PLATFORM="$1"
-PATCHELF="$2"
-INPUT="$3"
-OUTPUT="$4"
-MANIFEST="$5"
-shift 5
+INPUT="$2"
+OUTPUT="$3"
+MANIFEST="$4"
+shift 4
 RPATH_DIRS=("$@")
 
 # `cp -rL` materializes a real copy and dereferences any symlinks that
@@ -36,8 +60,9 @@ patch_file() {
     done
 
     if [[ "$PLATFORM" == "darwin" ]]; then
+        "$INSTALL_NAME_TOOL" -delete_all_rpaths "$f"
         for dir in "${RPATH_DIRS[@]}"; do
-            install_name_tool -add_rpath "@loader_path/${ups}${dir}" "$f"
+            "$INSTALL_NAME_TOOL" -add_rpath "@loader_path/${ups}${dir}" "$f"
         done
         # Re-sign with an ad-hoc signature; install_name_tool invalidates any existing code signature.
         codesign --sign - --force "$f" 2>/dev/null

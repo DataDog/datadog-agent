@@ -20,9 +20,9 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
-	"text/template"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -276,7 +276,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 }
 
-//go:embed testdata/stringcode.go.tmpl
+//go:embed testdata/stringcode.go
 var stringCodeBody string
 
 func TestConfigHostname(t *testing.T) {
@@ -378,84 +378,70 @@ func TestConfigHostname(t *testing.T) {
 		if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
 			t.Skip("TestConfigHostname/external is known to fail on the macOS Gitlab runners.")
 		}
-		// makeProgram creates a new binary file which returns the given response and exits to the OS
-		// given the specified code, returning the path of the program.
-		makeProgram := func(t *testing.T, response string, code int) string {
-			f, err := os.CreateTemp("", "trace-test-hostname.*.go")
-			if err != nil {
-				t.Fatal(err)
-			}
-			tmpl, err := template.New("program").Parse(stringCodeBody)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := tmpl.Execute(f, struct {
-				Response string
-				ExitCode int
-			}{response, code}); err != nil {
-				t.Fatal(err)
-			}
-			stat, err := f.Stat()
-			if err != nil {
-				t.Fatal(err)
-			}
-			srcpath := filepath.Join(os.TempDir(), stat.Name())
-			binpath := strings.TrimSuffix(srcpath, ".go")
-			if err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).Run(); err != nil {
-				t.Fatal(err)
-			}
-			os.Remove(srcpath)
-			return binpath
+		// The subtests below all shell out to the same compiled helper binary,
+		// which reads its response and exit code from environment variables
+		// (see testdata/stringcode.go). It is built once here and reused
+		// across subtests via setProgramBehavior: compiling a fresh binary per
+		// subtest with an isolated (cold) GOCACHE made this test flaky under
+		// CI parallelism, occasionally exhausting the package's 180s timeout.
+		srcpath := filepath.Join(t.TempDir(), "trace-test-hostname.go")
+		if err := os.WriteFile(srcpath, []byte(stringCodeBody), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		binpath := strings.TrimSuffix(srcpath, ".go")
+		if err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).Run(); err != nil {
+			t.Fatal(err)
+		}
+
+		setProgramBehavior := func(t *testing.T, response string, code int) {
+			t.Setenv("TRACE_TEST_HOSTNAME_RESPONSE", response)
+			t.Setenv("TRACE_TEST_HOSTNAME_EXIT_CODE", strconv.Itoa(code))
 		}
 
 		defer func(old func() (string, error)) { fallbackHostnameFunc = old }(fallbackHostnameFunc)
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
 
 		t.Run("good", func(t *testing.T) {
-			bin := makeProgram(t, "host.name", 0)
-			defer os.Remove(bin)
+			setProgramBehavior(t, "host.name", 0)
 
 			config := buildConfigComponent(t, false)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
-			cfg.DDAgentBin = bin
+			cfg.DDAgentBin = binpath
 			assert.NoError(t, acquireHostnameFallback(cfg))
 			assert.Equal(t, cfg.Hostname, "host.name")
 
 		})
 
 		t.Run("empty", func(t *testing.T) {
-			bin := makeProgram(t, "", 0)
-			defer os.Remove(bin)
+			setProgramBehavior(t, "", 0)
 
 			config := buildConfigComponent(t, false)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
-			cfg.DDAgentBin = bin
+			cfg.DDAgentBin = binpath
 			assert.NoError(t, acquireHostnameFallback(cfg))
 			assert.Empty(t, cfg.Hostname)
 		})
 
 		t.Run("empty+disallowed", func(t *testing.T) {
-			bin := makeProgram(t, "", 0)
-			defer os.Remove(bin)
+			setProgramBehavior(t, "", 0)
 
 			config := buildConfigComponent(t, false)
 
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
-			cfg.DDAgentBin = bin
+			cfg.DDAgentBin = binpath
 			cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
 			assert.NoError(t, acquireHostnameFallback(cfg))
 			assert.Equal(t, "fallback.host", cfg.Hostname)
 		})
 
 		t.Run("empty+disallowed+containerized", func(t *testing.T) {
-			bin := makeProgram(t, "", 0)
-			defer os.Remove(bin)
+			setProgramBehavior(t, "", 0)
 
 			// Build the config first (uses TestMain's osHostnameUsableFunc=true),
 			// then override to false so only acquireHostnameFallback sees it.
@@ -465,7 +451,7 @@ func TestConfigHostname(t *testing.T) {
 			defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
 			osHostnameUsableFunc = func(_ context.Context) bool { return false }
 
-			cfg.DDAgentBin = bin
+			cfg.DDAgentBin = binpath
 			cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
 			err := acquireHostnameFallback(cfg)
 			assert.Error(t, err)
@@ -473,27 +459,25 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("fallback1", func(t *testing.T) {
-			bin := makeProgram(t, "", 1)
-			defer os.Remove(bin)
+			setProgramBehavior(t, "", 1)
 
 			config := buildConfigComponent(t, false)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
-			cfg.DDAgentBin = bin
+			cfg.DDAgentBin = binpath
 			assert.NoError(t, acquireHostnameFallback(cfg))
 			assert.Equal(t, cfg.Hostname, "fallback.host")
 		})
 
 		t.Run("fallback2", func(t *testing.T) {
-			bin := makeProgram(t, "some text", 1)
-			defer os.Remove(bin)
+			setProgramBehavior(t, "some text", 1)
 
 			config := buildConfigComponent(t, false)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
-			cfg.DDAgentBin = bin
+			cfg.DDAgentBin = binpath
 			assert.NoError(t, acquireHostnameFallback(cfg))
 			assert.Equal(t, cfg.Hostname, "fallback.host")
 		})

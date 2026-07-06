@@ -45,9 +45,6 @@ build do
 
             # load isn't supported by windows
             delete "#{confd_dir}/load.d"
-
-            # Remove .pyc files from embedded Python
-            command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end
 
         if linux_target? || osx_target?
@@ -109,9 +106,6 @@ build do
 
             # cleanup clutter
             delete "#{install_dir}/etc"
-
-            # Python bytecode caches (pyc files) are generated at runtime and should not be shipped.
-            command "find #{install_dir}/embedded -type d -name __pycache__ -prune -exec rm -rf {} +"
 
             # The prerm and preinst scripts of the package will use this list to detect which files
             # have been setup by the installer, this way, on removal, we'll be able to delete only files

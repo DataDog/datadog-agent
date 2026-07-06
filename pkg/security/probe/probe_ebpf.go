@@ -2821,6 +2821,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "do_truncate_has_idmap_arg",
+			Value: getDoTruncateHasIdmapArg(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "ovl_path_in_ovl_inode",
 			Value: getOvlPathInOvlInode(p.kernelVersion),
 		},
@@ -3371,6 +3375,25 @@ func getDoDentryOpenWithoutInode(kernelversion *kernel.Version) uint64 {
 	return 0
 }
 
+// getDoTruncateHasIdmapArg reports whether do_truncate takes an idmap/user_namespace first argument,
+// which shifts the filp argument from the 4th to the 5th position. This is do_truncate-specific: the
+// idmapped-mounts series added it in 5.12, independently of when other hooks gained an idmap argument.
+func getDoTruncateHasIdmapArg(kernelVersion *kernel.Version) uint64 {
+	// do_truncate is an exported symbol, so prefer its actual BTF prototype: the legacy signature has
+	// 4 arguments (dentry, length, time_attrs, filp) while the idmapped one has 5
+	if count, err := constantfetch.GetBTFFunctionArgCount("do_truncate"); err == nil {
+		if count >= 5 {
+			return 1
+		}
+		return 0
+	}
+
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_12 {
+		return 1
+	}
+	return 0
+}
+
 func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	if val, err := constantfetch.GetHasUsernamespaceFirstArgWithBtf(); err == nil {
 		if val {
@@ -3628,6 +3651,14 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// iouring
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoKiocbStructOpcode, "struct io_kiocb", "opcode")
+	}
+
+	// IORING_OP_SOCKET (struct io_socket) was added in 5.19
+	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_19) {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructDomain, "struct io_socket", "domain")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructType, "struct io_socket", "type")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructProtocol, "struct io_socket", "protocol")
 	}
 
 	// inode
