@@ -8,6 +8,8 @@
 package autodiscoveryimpl
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -123,6 +125,10 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 
 	resolved, err := configresolver.Resolve(merged, svcAndADIDs.svc)
 	if err != nil {
+		if errors.Is(err, configresolver.ErrServiceNotReady) {
+			log.Debugf("autodiscovery: discovered config %s for service %s not resolved yet, service not ready", merged.Name, svcID)
+			return changes
+		}
 		log.Errorf("error resolving discovered config %s for service %s: %v", merged.Name, svcID, err)
 		errorStats.setResolveWarning(tpl.Name, err.Error())
 		return changes

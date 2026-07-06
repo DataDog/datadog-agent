@@ -121,7 +121,7 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":impl"],
-    embedsrcs = ["testdata/stringcode.go.tmpl"],
+    embedsrcs = ["testdata/stringcode.go"],
     gotags = sorted(["test"] + list(COMMON_TAGS) + list(TRACE_AGENT_TAGS)),
     tags = ["manual"],
     deps = [
