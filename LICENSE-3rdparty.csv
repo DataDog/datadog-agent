@@ -1413,6 +1413,7 @@ core,github.com/h2non/filetype/matchers,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/matchers/isobmff,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/types,MIT,Copyright (c) Tomas Aparicio
 core,github.com/hashicorp/consul/api,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
+core,github.com/hashicorp/consul/api/v2,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/cronexpr,Apache-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/errwrap,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-cleanhttp,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"

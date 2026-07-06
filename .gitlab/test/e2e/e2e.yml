@@ -437,8 +437,7 @@ new-e2e-agent-health:
 new-e2e-agent-telemetry:
   extends: .new_e2e_template_needs_deb_x64
   rules:
-    # only manual, will enable on changes in follow up pr
-    # - !reference [.on_agenttelemetry_or_e2e_changes]
+    - !reference [.on_agenttelemetry_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-telemetry

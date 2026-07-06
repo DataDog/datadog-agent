@@ -9,6 +9,7 @@ exporters:
             dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 extensions:
     ddprofiling:
+        endpoint: "8501"
         profiler_options:
             period: 30
     hpflare:

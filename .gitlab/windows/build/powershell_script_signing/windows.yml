@@ -24,6 +24,7 @@ powershell_script_signing:
       -e "AWS_SHARED_CREDENTIALS_FILE=C:\aws-creds\${CI_JOB_ID}"
       -e AWS_NETWORKING=true
       -e CI
+      -e GITLAB_CI
       -e IS_AWS_CONTAINER=true
       -e CI_IDENTITIES_GITLAB_ID_TOKEN
       -e CI_JOB_NAME_SLUG
