@@ -46,8 +46,10 @@ Downstream (trace-agent / Datadog exporter) only promotes a resource attribute i
 The `trace_container_tag_promotion` option opts into rewriting these custom tags so the downstream promotion path picks them up:
 
 * `trace_container_tag_promotion: off` *(default)* — tags are written as-is. Existing behavior.
-* `trace_container_tag_promotion: duplicate` — each non-exempt tag is written twice: under its original key **and** under `datadog.container.tag.<key>`. The original survives for any downstream consumer that reads the raw key; the prefixed copy reaches `_dd.tags.container`.
-* `trace_container_tag_promotion: rename` — each non-exempt tag is written **only** under `datadog.container.tag.<key>`. Smaller resource payload, but consumers that read the raw key lose access to the value.
+* `trace_container_tag_promotion: duplicate` — each non-exempt tag is written twice: once under its non-prefixed key **and** once under the `datadog.container.tag.<key>` prefixed key. The non-prefixed tag survives for any downstream consumer that reads the raw key; the prefixed copy reaches `_dd.tags.container`.
+* `trace_container_tag_promotion: rename` — each non-exempt tag is written **only** under the `datadog.container.tag.<key>` prefixed key. Smaller resource payload, but consumers that read the non-prefixed key lose access to the value.
+
+In `duplicate` mode the non-prefixed and prefixed forms are written independently, so the two can coexist. If a `datadog.container.tag.<key>` prefixed attribute is already present on the incoming resource (see exemptions below), the processor keeps that value and still writes the tagger-derived non-prefixed key alongside it — the result is both the pre-existing prefixed tag and the non-prefixed tag.
 
 **Exemptions (never prefixed, regardless of mode):**
 * Keys recognized by trace-agent's container-tag promotion path (`ConsumeContainerTagsFromResource`) — the union of `attributes.ContainerMappings` keys (OTel semantic conventions: `k8s.pod.name`, `container.id`, `container.image.name`, ...) and its values (DD-format names produced by the OTel→DD mapping: `pod_name`, `kube_namespace`, `container_id`, `runtime`, `cloud_provider`, ...). These already reach `_dd.tags.container` under their canonical key.
