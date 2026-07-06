@@ -91,7 +91,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		HealthCheckEndpoint:             defaultHealthCheckEndpoint,
 		HeartbeatInterval:               heartbeatInterval,
 		Version:                         version.AgentVersion,
-		MetricsClient:                   &statsd.NoOpClient{},
+		MetricsClient:                   metricsClient,
 		ActionsAllowlist:                makeActionsAllowlist(config),
 		Allowlist:                       config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:               config.GetBool(setup.PARHttpAllowImdsEndpoint),
