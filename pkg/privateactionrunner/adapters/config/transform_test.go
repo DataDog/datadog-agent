@@ -6,9 +6,9 @@
 package config
 
 import (
-	"errors"
 	"bufio"
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -502,7 +502,7 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsWarnsForBackslash(t *testing.
 	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
 
 	logs := captureTransformWarnings(t, func() {
-		_, err := FromDDConfig(mockConfig)
+		_, err := FromDDConfig(mockConfig, nil)
 		require.NoError(t, err)
 	})
 
@@ -524,7 +524,7 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsWarnsForNonDirectory(t *testi
 	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
 
 	logs := captureTransformWarnings(t, func() {
-		_, err := FromDDConfig(mockConfig)
+		_, err := FromDDConfig(mockConfig, nil)
 		require.NoError(t, err)
 	})
 
@@ -555,7 +555,7 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsWarnsForConfiguredUnnamesp
 	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
 
 	logs := captureTransformWarnings(t, func() {
-		_, err := FromDDConfig(mockConfig)
+		_, err := FromDDConfig(mockConfig, nil)
 		require.NoError(t, err)
 	})
 
@@ -572,7 +572,7 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsDefaultDoesNotWarn(t *test
 	mockConfig.SetInTest(setup.PARUrn, "")
 
 	logs := captureTransformWarnings(t, func() {
-		_, err := FromDDConfig(mockConfig)
+		_, err := FromDDConfig(mockConfig, nil)
 		require.NoError(t, err)
 	})
 
@@ -596,7 +596,6 @@ private_action_runner:
 	assert.False(t, cfg.RShellAllowedCommandsConfigured)
 }
 
-<<<<<<< HEAD
 func TestNewMetricsClient(t *testing.T) {
 	createErr := errors.New("permission denied")
 	tests := []struct {
@@ -696,49 +695,6 @@ func (r *recordingStatsdComponent) CreateForHostPort(host string, port int, _ ..
 	r.host = host
 	r.port = port
 	return r.client, r.err
-func TestFromDDConfigPARRestrictedShellAllowedUnsetDoesNotWarn(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-
-	logs := captureTransformWarnings(t, func() {
-		_, err := FromDDConfig(mockConfig)
-		require.NoError(t, err)
-	})
-
-	assert.NotContains(t, logs, "client-side rshell allowlists are no-ops")
-}
-
-func TestFromDDConfigPARRestrictedShellAllowedPathsConfiguredWarns(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{"/var/log"})
-
-	logs := captureTransformWarnings(t, func() {
-		_, err := FromDDConfig(mockConfig)
-		require.NoError(t, err)
-	})
-
-	assert.Contains(t, logs, setup.PARRestrictedShellAllowedPaths)
-	assert.Contains(t, logs, "client-side rshell allowlists are no-ops")
-	assert.Contains(t, logs, "Action Platform execution policies")
-}
-
-func TestFromDDConfigPARRestrictedShellAllowedCommandsConfiguredWarns(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"rshell:cat"})
-
-	logs := captureTransformWarnings(t, func() {
-		_, err := FromDDConfig(mockConfig)
-		require.NoError(t, err)
-	})
-
-	assert.Contains(t, logs, setup.PARRestrictedShellAllowedCommands)
-	assert.Contains(t, logs, "client-side rshell allowlists are no-ops")
-	assert.Contains(t, logs, "Action Platform execution policies")
 }
 
 func captureTransformWarnings(t *testing.T, fn func()) string {
