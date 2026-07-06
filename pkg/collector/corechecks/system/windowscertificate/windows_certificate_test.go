@@ -645,7 +645,7 @@ filters:
   exclude:
     subject_CN: "internal"
 `)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
@@ -662,7 +662,7 @@ filters:
   include:
     certificate_thumbprint: "["
 `)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
@@ -677,7 +677,7 @@ filters:
   include:
     certificate_thumbprint: "^THISDOESNOTMATCH99999$"
 `)
-	m := mocksender.NewMockSender(certCheck.ID())
+	m := mocksender.NewMockSender(t, certCheck.ID())
 	m.On("FinalizeCheckServiceTag").Return()
 	m.On("Commit").Return()
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
