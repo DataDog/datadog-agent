@@ -84,7 +84,7 @@ type metricDef struct {
 // "library") the latest scrape wins. Counters are keyed per endpoint since
 // summing per-scrape deltas is correct regardless of instance count.
 type sharedState struct {
-	prevValues map[string]float64     // counter delta cache, keyed per endpoint+labels
+	prevValues map[string]float64     // counter delta cache, keyed per endpoint+preserved-tag context
 	gaugeKeys  map[string]gaugeSeries // gauge series from the last successful scrape, keyed by COAT series identity
 	mu         sync.Mutex
 }
@@ -286,13 +286,30 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 			continue
 		}
 
+		// Aggregate cumulative counter values by their low-cardinality tag set,
+		// dropping the high-cardinality `path` label. The driver never removes its
+		// Prometheus series, so the per-context sum stays monotonic and
+		// MonotonicCount derives a correct delta — without caching anything per
+		// series, which would grow unbounded on ephemeral (per-pod) paths.
+		counterSums := make(map[string]float64)
+		counterTags := make(map[string][]string)
+
+		// Same aggregation for the COAT counter: sum cumulative values per
+		// preserved-tag context (endpoint + ordered tagValues) so prevValues is
+		// keyed by the bounded context instead of the full label set (incl.
+		// path), which would leak on ephemeral per-pod paths.
+		coatCounterSums := make(map[string]float64)
+		coatCounterTags := make(map[string][]string)
+
 		for _, sample := range mf.Samples {
-			tags := labelsToTags(sample.Metric)
 			switch def.kind {
 			case counterMetric:
-				s.MonotonicCount(metricNs+def.ddName+".count", sample.Value, "", tags)
+				tags := clientTags(sample.Metric)
+				key := strings.Join(tags, "|")
+				counterSums[key] += sample.Value
+				counterTags[key] = tags
 			case gaugeMetric:
-				s.Gauge(metricNs+def.ddName, sample.Value, "", tags)
+				s.Gauge(metricNs+def.ddName, sample.Value, "", labelsToTags(sample.Metric))
 			}
 
 			if def.coat != nil {
@@ -303,7 +320,9 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 
 				switch def.coat.kind {
 				case counterMetric:
-					c.addCounterDeltaLocked(def.coat.counter, c.endpointSeriesKey(def.ddName, sample.Metric), sample.Value, tagValues)
+					key := c.endpointCoatKey(def.ddName, tagValues)
+					coatCounterSums[key] += sample.Value
+					coatCounterTags[key] = tagValues
 				case gaugeMetric:
 					// Keyed by COAT series identity; see sharedState (no cross-endpoint aggregation).
 					key := coatSeriesKey(def.ddName, tagValues)
@@ -335,6 +354,16 @@ func (c *Check) submitMetrics(s sender.Sender, families []prometheus.MetricFamil
 					}
 					c.addCounterDeltaLocked(target, c.endpointSeriesKey(rawName, sample.Metric), sample.Value, tagValues)
 				}
+			}
+		}
+
+		for key, sum := range counterSums {
+			s.MonotonicCount(metricNs+def.ddName+".count", sum, "", counterTags[key])
+		}
+
+		if def.coat != nil && def.coat.kind == counterMetric {
+			for key, sum := range coatCounterSums {
+				c.addCounterDeltaLocked(def.coat.counter, key, sum, coatCounterTags[key])
 			}
 		}
 	}
@@ -380,6 +409,14 @@ func (c *Check) endpointSeriesKey(name string, labels prometheus.Metric) string 
 	return c.config.OpenmetricsEndpoint + "|" + seriesKey(name, labels)
 }
 
+// endpointCoatKey builds the counter delta-cache key for a COAT counter from its
+// preserved-tag context (ordered tagValues) rather than the full source label
+// set. This bounds prevValues by the low-cardinality context (e.g. type×status)
+// instead of growing per ephemeral path.
+func (c *Check) endpointCoatKey(name string, tagValues []string) string {
+	return c.config.OpenmetricsEndpoint + "|" + coatSeriesKey(name, tagValues)
+}
+
 func coatSeriesKey(name string, tagValues []string) string {
 	return name + "|" + strings.Join(tagValues, "|")
 }
@@ -421,5 +458,30 @@ func labelsToTags(m prometheus.Metric) []string {
 		}
 		tags = append(tags, k+":"+v)
 	}
+	return tags
+}
+
+// pathLabel is the Prometheus label carrying the volume mount target (or, on
+// success, the publisher-specific VolumePath). For per-pod publishers and any
+// failed/unsupported mount it embeds the kubelet target path (with the pod UID),
+// so its cardinality is unbounded and it must not become a Datadog tag.
+const pathLabel = "path"
+
+// clientTags converts Prometheus labels to Datadog tags for the client-facing
+// (piste A) metrics, dropping the high-cardinality path label and returning a
+// sorted slice usable as a stable grouping key. Dropping path collapses the
+// per-path source series into the low-cardinality context (e.g. type, status)
+// that matches the COAT preserved-tag set; callers sum the cumulative values
+// per context before submitting, which stays monotonic because the driver never
+// removes its Prometheus series.
+func clientTags(m prometheus.Metric) []string {
+	tags := make([]string, 0, len(m))
+	for k, v := range m {
+		if k == "__name__" || k == pathLabel {
+			continue
+		}
+		tags = append(tags, k+":"+v)
+	}
+	sort.Strings(tags)
 	return tags
 }

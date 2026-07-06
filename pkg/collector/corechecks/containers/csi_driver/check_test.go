@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -134,9 +135,9 @@ func TestRunSuccess(t *testing.T) {
 	err = chk.Run()
 	require.NoError(t, err)
 
+	// The high-cardinality `path` label is dropped from client-facing metrics.
 	expectedTags := []string{
 		"status:success",
-		"path:/var/run/datadog",
 		"type:DSDSocketDirectory",
 	}
 	matchTags := func(tags []string) bool {
@@ -199,9 +200,9 @@ func TestRunSuccessWithTotalSuffix(t *testing.T) {
 	err = chk.Run()
 	require.NoError(t, err)
 
+	// The high-cardinality `path` label is dropped from client-facing metrics.
 	expectedTags := []string{
 		"status:success",
-		"path:/var/run/datadog",
 		"type:DSDSocketDirectory",
 	}
 	matchTags := func(tags []string) bool {
@@ -219,6 +220,70 @@ func TestRunSuccessWithTotalSuffix(t *testing.T) {
 	mockSender.AssertCalled(t, "MonotonicCount",
 		"datadog.csi_driver.node_unpublish_volume_attempts.count",
 		6.0, "", mock.MatchedBy(matchTags))
+
+	mockSender.AssertCalled(t, "Commit")
+}
+
+// TestClientPublishAggregatesAcrossPathsDroppingPath verifies that client-facing
+// (piste A) publish counts drop the high-cardinality `path` label and are summed
+// per low-cardinality context (type, status). This must hold for every volume
+// type, not just libraries: ephemeral per-pod paths (e.g. DatadogInjectorPreload)
+// would otherwise be under-counted, and the socket types predate the library
+// feature. The summed value is submitted to MonotonicCount, which is correct
+// because the driver never removes its Prometheus series (the per-context sum
+// stays monotonic).
+func TestClientPublishAggregatesAcrossPathsDroppingPath(t *testing.T) {
+	fixture := `# TYPE datadog_csi_driver_node_publish_volume_attempts counter
+datadog_csi_driver_node_publish_volume_attempts{path="/var/lib/kubelet/pods/aaaa/volumes/kubernetes.io~csi/x/mount",status="success",type="DatadogInjectorPreload"} 1
+datadog_csi_driver_node_publish_volume_attempts{path="/var/lib/kubelet/pods/bbbb/volumes/kubernetes.io~csi/x/mount",status="success",type="DatadogInjectorPreload"} 1
+datadog_csi_driver_node_publish_volume_attempts{path="registry.datadoghq.com/dd-lib-java-init@sha256:aaaa",status="success",type="DatadogLibrary"} 2
+datadog_csi_driver_node_publish_volume_attempts{path="registry.datadoghq.com/dd-lib-js-init@sha256:bbbb",status="success",type="DatadogLibrary"} 3
+datadog_csi_driver_node_publish_volume_attempts{path="/var/run/datadog",status="success",type="DSDSocketDirectory"} 6
+`
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(fixture))
+	}))
+	defer ts.Close()
+
+	chk := newTestCheck()
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	require.NoError(t, chk.Run())
+
+	tagsEqual := func(want ...string) func([]string) bool {
+		return func(tags []string) bool {
+			for _, tag := range tags {
+				if tag == "path" || len(tag) >= 5 && tag[:5] == "path:" {
+					return false
+				}
+			}
+			sorted := slices.Clone(tags)
+			slices.Sort(sorted)
+			expected := slices.Clone(want)
+			slices.Sort(expected)
+			return slices.Equal(sorted, expected)
+		}
+	}
+
+	// Ephemeral per-pod paths are summed (1+1), not lost.
+	mockSender.AssertCalled(t, "MonotonicCount",
+		"datadog.csi_driver.node_publish_volume_attempts.count",
+		2.0, "", mock.MatchedBy(tagsEqual("status:success", "type:DatadogInjectorPreload")))
+
+	// Distinct library image paths are summed (2+3) under one context.
+	mockSender.AssertCalled(t, "MonotonicCount",
+		"datadog.csi_driver.node_publish_volume_attempts.count",
+		5.0, "", mock.MatchedBy(tagsEqual("status:success", "type:DatadogLibrary")))
+
+	// Pre-existing socket type is unaffected.
+	mockSender.AssertCalled(t, "MonotonicCount",
+		"datadog.csi_driver.node_publish_volume_attempts.count",
+		6.0, "", mock.MatchedBy(tagsEqual("status:success", "type:DSDSocketDirectory")))
 
 	mockSender.AssertCalled(t, "Commit")
 }
@@ -648,6 +713,61 @@ datadog_csi_driver_node_publish_volume_attempts{status="success",type="DSDSocket
 	require.Len(t, publishMetrics, 1)
 	assert.Equal(t, 13.0, publishMetrics[0].Value(),
 		"after a counter reset the post-reset value should be added, not subtracted")
+}
+
+// TestCOATCountersAggregateAcrossPathsBoundedCache verifies that the COAT
+// publish counter sums all ephemeral per-path source series into a single
+// series per preserved-tag context (status,type), and — critically — that the
+// delta cache (prevValues) is keyed by that bounded context rather than by the
+// unbounded path label. Without this, each new pod path would add a permanent
+// prevValues entry, leaking memory for the lifetime of the Agent process.
+func TestCOATCountersAggregateAcrossPathsBoundedCache(t *testing.T) {
+	tm := telemetryimpl.NewMock(t)
+
+	var scrapeCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := int(scrapeCount.Add(1))
+		// Simulate churn: the number of ephemeral per-pod paths grows every
+		// scrape (the driver never removes its series), but they all collapse
+		// to the same (status=success, type=DatadogInjectorPreload) context.
+		var b strings.Builder
+		b.WriteString("# TYPE datadog_csi_driver_node_publish_volume_attempts counter\n")
+		nPaths := 3 * n // 3 paths on run 1, 6 on run 2, ...
+		for i := 0; i < nPaths; i++ {
+			fmt.Fprintf(&b, "datadog_csi_driver_node_publish_volume_attempts{path=\"/var/lib/kubelet/pods/uid-%d/mount\",status=\"success\",type=\"DatadogInjectorPreload\"} 1\n", i)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(b.String()))
+	}))
+	defer ts.Close()
+
+	chk := &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+		metrics:   buildMetricDefs(tm),
+		state:     newTestState(),
+	}
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
+	mockSender.SetupAcceptAll()
+
+	require.NoError(t, chk.Run()) // 3 paths x 1 = 3
+	require.NoError(t, chk.Run()) // 6 paths x 1 = 6 (delta 3)
+
+	publishMetrics, err := tm.GetCountMetric(CheckName, "node_publish_volume_attempts")
+	require.NoError(t, err)
+	require.Len(t, publishMetrics, 1, "all per-path series must collapse into a single COAT context series")
+	assert.Equal(t, 6.0, publishMetrics[0].Value(),
+		"COAT counter should equal the latest summed cumulative value across all paths")
+
+	// The delta cache must stay bounded by the number of contexts (1 here),
+	// not grow with the number of ephemeral paths (9 seen across both scrapes).
+	chk.state.mu.Lock()
+	prevLen := len(chk.state.prevValues)
+	chk.state.mu.Unlock()
+	assert.Equal(t, 1, prevLen,
+		"prevValues must be keyed by the bounded preserved-tag context, not per ephemeral path")
 }
 
 // TestCOATGaugesDeleteMissingSeriesSelectively verifies that when only one of
