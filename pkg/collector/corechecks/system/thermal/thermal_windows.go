@@ -87,17 +87,16 @@ func (c *thermalCheck) Run() error {
 	if err != nil {
 		return err
 	}
+	defer sender.Commit()
 
 	err = c.pdhQuery.CollectQueryData()
 	if err != nil {
 		// PDH_NO_DATA is expected on systems with zero thermal zone instances
 		// (e.g. VMs, build machines). Silently emit no metrics in that case.
 		if errors.Is(err, windows.Errno(pdhutil.PDH_NO_DATA)) {
-			sender.Commit()
 			return nil
 		}
 		c.Warnf("Could not collect performance counter data: %v", err)
-		sender.Commit()
 		return nil
 	}
 
@@ -141,6 +140,5 @@ func (c *thermalCheck) Run() error {
 		}
 	}
 
-	sender.Commit()
 	return nil
 }
