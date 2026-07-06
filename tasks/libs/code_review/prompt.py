@@ -39,8 +39,13 @@ def build_review_prompt(
     extra_prompt: str | None = None,
     prompt: str | None = None,
 ) -> ReviewPrompt:
+    """
+    Build the prompt passed to review providers for the current git diff.
+    """
     if prompt and extra_prompt:
-        raise CodeReviewError("--prompt replaces the generated prompt and cannot be combined with --extra-prompt")
+        raise CodeReviewError(
+            "--override-prompt replaces the generated prompt and cannot be combined with extra prompt"
+        )
 
     resolved_base = base or get_origin_default_branch(ctx)
 
@@ -63,6 +68,9 @@ def load_guidelines(
     changed_files: tuple[str, ...],
     prompt_files: tuple[str, ...] | None = None,
 ) -> tuple[Guideline, ...]:
+    """
+    Read the guideline files that apply to the changed files.
+    """
     guidelines = []
     for prompt_file in select_guideline_paths(changed_files, prompt_files or get_prompt_files(repo_root)):
         path = repo_root / prompt_file
@@ -76,10 +84,16 @@ def select_guideline_paths(
     changed_files: tuple[str, ...],
     prompt_files: tuple[str, ...] = DEFAULT_PROMPT_FILES,
 ) -> tuple[str, ...]:
+    """
+    Keep root guidelines and scoped guidelines whose parent directory was touched.
+    """
     return tuple(prompt_file for prompt_file in prompt_files if _guideline_applies(prompt_file, changed_files))
 
 
 def _guideline_applies(prompt_file: str, changed_files: tuple[str, ...]) -> bool:
+    """
+    Return whether a configured guideline file applies to the current diff.
+    """
     path = PurePosixPath(prompt_file)
     if str(path.parent) == ".":
         return True
@@ -89,6 +103,9 @@ def _guideline_applies(prompt_file: str, changed_files: tuple[str, ...]) -> bool
 
 
 def get_prompt_files(repo_root: Path) -> tuple[str, ...]:
+    """
+    Load the guideline file list from the code-review workflow when available.
+    """
     workflow_path = repo_root / WORKFLOW_PATH
     if not workflow_path.is_file():
         return DEFAULT_PROMPT_FILES
@@ -99,6 +116,9 @@ def get_prompt_files(repo_root: Path) -> tuple[str, ...]:
 
 
 def _prompt_files_from_block_scalar(workflow: str) -> tuple[str, ...]:
+    """
+    Extract the workflow's literal prompt_file block without parsing the whole YAML file.
+    """
     lines = workflow.splitlines()
     for index, line in enumerate(lines):
         stripped = line.strip()
@@ -122,6 +142,9 @@ def _prompt_files_from_block_scalar(workflow: str) -> tuple[str, ...]:
 
 
 def render_prompt(guidelines: tuple[Guideline, ...], *, extra_prompt: str | None = None) -> str:
+    """
+    Render selected guidelines and optional user instructions into one prompt.
+    """
     sections = [
         "# Code Review Prompt",
         "",

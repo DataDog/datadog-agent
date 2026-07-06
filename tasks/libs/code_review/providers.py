@@ -90,6 +90,8 @@ def build_provider_invocation(
     output_path = artifact_dir / f"{provider}.md"
 
     if provider == "codex":
+        # `codex review --base ... [PROMPT]` rejects combining a base ref and a prompt.
+        # Use `codex exec` instead and ask Codex to inspect the same diff explicitly.
         prompt = (
             f"Review the current git changes against {review_prompt.base}.\n"
             f"Use `git diff --find-renames {review_prompt.base}...HEAD` to inspect the patch.\n"
@@ -140,6 +142,9 @@ def expand_providers(provider: str) -> tuple[str, ...]:
 
 
 def create_artifact_dir(repo_root: Path) -> Path:
+    """
+    Create a durable artifact directory so users can inspect prompts and provider output.
+    """
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     artifact_dir = repo_root / ".tmp" / "code-review" / stamp
     artifact_dir.mkdir(parents=True, exist_ok=True)
