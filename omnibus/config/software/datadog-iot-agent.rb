@@ -47,6 +47,9 @@ build do
     # - Drop the invoke here
     # - Drop the copy bin/agent -> install_dir/bin
     command "invoke agent.build --flavor iot --no-development", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    # Clean out the things that invoke agent.build leaves in bin/agent/dist, which we now get via bazel belowe.
+    delete 'bin/agent/dist/conf.d'
+    delete 'bin/agent/dist/datadog.yaml'
 
     # Installs: bin/ and run/ dirs
     command "bazel run --//packages/agent:flavor=iot --//:install_dir='#{install_dir}' -- " \
