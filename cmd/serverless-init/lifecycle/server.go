@@ -318,6 +318,18 @@ func (s *Server) Child() *Child {
 // Exposed for white-box tests in external packages; not part of the stable API.
 func (s *Server) Heartbeat() *Heartbeat { return s.heartbeat }
 
+// InstanceID returns the MicroVM instance ID captured from /run, or "" if
+// /run has not fired yet (or the server is nil). Lets callers outside this
+// package — e.g. the enhanced-metrics collector — attach the current
+// per-instance tag to metrics emitted after Init, without this package
+// needing to know about metric-agent internals.
+func (s *Server) InstanceID() string {
+	if s == nil {
+		return ""
+	}
+	return s.instanceID.Load()
+}
+
 func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(postReady, s.handleReady)

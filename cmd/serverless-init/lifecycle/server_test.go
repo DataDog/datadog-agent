@@ -158,6 +158,26 @@ func TestHandleRun_OversizedBody_Returns500(t *testing.T) {
 	assert.NotContains(t, emitter.getEmitted(), runMetricName, "run metric must not be emitted when the body exceeds the cap")
 }
 
+// TestInstanceID_EmptyBeforeRun verifies that InstanceID returns "" before
+// /run fires, and the captured ID afterward — the accessor the enhanced
+// metrics collector uses to attach a per-instance tag to the usage metric.
+func TestInstanceID_EmptyBeforeRun(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	assert.Empty(t, srv.InstanceID(), "InstanceID must be empty before /run fires")
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+
+	assert.Equal(t, "vm-abc123", srv.InstanceID())
+}
+
+// TestInstanceID_NilServer verifies InstanceID is safe to call on a nil
+// *Server, mirroring the existing nil-safety of Child().
+func TestInstanceID_NilServer(t *testing.T) {
+	var srv *Server
+	assert.Empty(t, srv.InstanceID())
+}
+
 // TestHandleRunWithForwarderParsesInstanceID verifies that when a forwarder is
 // configured, /run still decodes the MicroVM instance ID from the request body
 // before delegating to handleWithForwarder. Without the decode-then-restore fix, the
