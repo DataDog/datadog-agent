@@ -15,9 +15,17 @@
 package metrics
 
 import (
+	"context"
+	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 const (
@@ -25,11 +33,15 @@ const (
 	divMebibytes = 1024 * 1024
 	// divPercentage specifies the division necessary for converting fractions to percentages.
 	divPercentage = 0.01
+
+	// sdkTraceMetricName is the DD-SDK OTLP histogram remapped here so Agent/DDOT
+	// customers get trace.* series before the otlp-intake endpoint is GA.
+	sdkTraceMetricName = "traces.span.sdk.metrics.duration"
 )
 
 var emptyAttributesMapping = attributesMapping{}
 
-// remapMetrics extracts any Datadog specific metrics from m and appends them to all.
+// remapMetrics extracts Datadog-specific metrics from m and appends them to all.
 func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
 	remapSystemMetrics(all, m)
 	remapContainerMetrics(all, m)
@@ -249,4 +261,164 @@ func renameAgentInternalOTelMetric(m pmetric.Metric) {
 	if isAgentInternalOTelMetric(m.Name()) {
 		m.SetName("otelcol_" + m.Name())
 	}
+}
+
+// remapSDKTraceMetrics maps sdkTraceMetricName into trace.<op>.{hits,errors,hits.by_type}
+// delta Sums and a trace.<op>.duration DDSketch (preserving latency distribution).
+func remapSDKTraceMetrics(ctx context.Context, logger *zap.Logger, consumer Consumer, baseDims *Dimensions, all pmetric.MetricSlice, m pmetric.Metric) {
+	if m.Type() != pmetric.MetricTypeHistogram {
+		return
+	}
+	unit := m.Unit()
+	dps := m.Histogram().DataPoints()
+	for i := 0; i < dps.Len(); i++ {
+		dp := dps.At(i)
+		if dp.Flags().NoRecordedValue() {
+			continue
+		}
+		attrs := dp.Attributes()
+		operation := sdkOperationName(attrs)
+
+		hits := dp.Count()
+		isError := sdkIsError(attrs)
+		topLevelHits := sdkTopLevelHits(hits, attrs)
+
+		ts := dp.Timestamp()
+		start := dp.StartTimestamp()
+		tags := sdkTraceTags(attrs)
+
+		appendSDKTraceSum(all, "trace."+operation+".hits", ts, start, float64(hits), tags)
+		if isError {
+			appendSDKTraceSum(all, "trace."+operation+".errors", ts, start, float64(hits), tags)
+		}
+		if topLevelHits > 0 {
+			appendSDKTraceSum(all, "trace."+operation+".hits.by_type", ts, start, float64(topLevelHits), tags)
+		}
+
+		consumeSDKTraceDuration(ctx, logger, consumer, baseDims, "trace."+operation+".duration", dp, unit, tags)
+	}
+}
+
+func consumeSDKTraceDuration(ctx context.Context, logger *zap.Logger, consumer Consumer, baseDims *Dimensions, name string, dp pmetric.HistogramDataPoint, unit string, tags []kv) {
+	ddSketch, err := CreateDDSketchFromHistogramOfDuration(&dp, unit)
+	if err != nil {
+		logger.Debug("Failed to convert SDK trace histogram into DDSketch",
+			zap.String(metricName, name), zap.Error(err))
+		return
+	}
+	agentSketch, err := quantile.ConvertDDSketchIntoSketch(ddSketch)
+	if err != nil {
+		logger.Debug("Failed to convert DDSketch into Sketch",
+			zap.String(metricName, name), zap.Error(err))
+		return
+	}
+	dims := baseDims.AddTags(sdkTagStrings(tags)...)
+	dims.name = name
+	consumer.ConsumeSketch(ctx, dims, uint64(dp.Timestamp()), 0, agentSketch)
+}
+
+func sdkTagStrings(tags []kv) []string {
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		out = append(out, t.K+":"+t.V)
+	}
+	return out
+}
+
+func appendSDKTraceSum(all pmetric.MetricSlice, name string, ts, start pcommon.Timestamp, value float64, tags []kv) {
+	metric := all.AppendEmpty()
+	metric.SetName(name)
+	sum := metric.SetEmptySum()
+	sum.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	sum.SetIsMonotonic(true)
+	ndp := sum.DataPoints().AppendEmpty()
+	ndp.SetTimestamp(ts)
+	ndp.SetStartTimestamp(start)
+	ndp.SetDoubleValue(value)
+	for _, t := range tags {
+		ndp.Attributes().PutStr(t.K, t.V)
+	}
+}
+
+// sdkOperationName prefers datadog.operation.name; falls back to semconv-derived operation.
+func sdkOperationName(attrs pcommon.Map) string {
+	if op := attributes.GetOTelAttrVal(attrs, false, "datadog.operation.name"); op != "" {
+		return op
+	}
+	spanKind := spanKindFromAttr(attrs)
+	if op := attributes.GetOperationName(attrs, spanKind); op != "" {
+		return op
+	}
+	return "unknown"
+}
+
+// sdkIsError gates on status.code only; HTTP heuristics used by the SMC path don't apply here.
+func sdkIsError(attrs pcommon.Map) bool {
+	switch attributes.GetOTelAttrVal(attrs, false, "status.code") {
+	case "ERROR", "STATUS_CODE_ERROR", "2":
+		return true
+	}
+	return false
+}
+
+func sdkTopLevelHits(hits uint64, attrs pcommon.Map) uint64 {
+	switch attributes.GetOTelAttrVal(attrs, false, "datadog.span.top_level") {
+	case "true", "1":
+		return hits
+	}
+	return 0
+}
+
+// sdkTraceTags omits http.status_code for non-HTTP spans (unlike the SMC path which defaults to 200).
+func sdkTraceTags(attrs pcommon.Map) []kv {
+	spanKind := spanKindFromAttr(attrs)
+	tags := []kv{
+		{"resource", sdkResourceName(attrs)},
+		{"span.kind", sdkSpanKindName(spanKind)},
+	}
+	if status := attributes.GetStatusCode(attrs); status != 0 {
+		tags = append(tags, kv{"http.status_code", uintToStr(status)})
+	}
+	for _, m := range []struct{ key, attr string }{
+		{"span.type", "datadog.span.type"},
+		{"origin", "datadog.origin"},
+	} {
+		if v := attributes.GetOTelAttrVal(attrs, false, m.attr); v != "" {
+			tags = append(tags, kv{m.key, v})
+		}
+	}
+	return tags
+}
+
+func sdkResourceName(attrs pcommon.Map) string {
+	if v := attributes.GetOTelAttrVal(attrs, false, "span.name"); v != "" {
+		return v
+	}
+	return "unspecified"
+}
+
+// sdkSpanKindName lowercases SpanKind.String(); inlined to avoid importing pkg/trace/transform.
+func sdkSpanKindName(k ptrace.SpanKind) string {
+	return strings.ToLower(k.String())
+}
+
+func spanKindFromAttr(attrs pcommon.Map) ptrace.SpanKind {
+	switch strings.ToUpper(attributes.GetOTelAttrVal(attrs, false, "span.kind")) {
+	case "SERVER", "SPAN_KIND_SERVER":
+		return ptrace.SpanKindServer
+	case "CLIENT", "SPAN_KIND_CLIENT":
+		return ptrace.SpanKindClient
+	case "PRODUCER", "SPAN_KIND_PRODUCER":
+		return ptrace.SpanKindProducer
+	case "CONSUMER", "SPAN_KIND_CONSUMER":
+		return ptrace.SpanKindConsumer
+	case "INTERNAL", "SPAN_KIND_INTERNAL":
+		return ptrace.SpanKindInternal
+	default:
+		return ptrace.SpanKindUnspecified
+	}
+}
+
+func uintToStr(v uint32) string {
+	return strconv.FormatUint(uint64(v), 10)
 }
