@@ -166,9 +166,9 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 	return appsecconfig.MutationMutated, nil
 }
 
-// PodDeleted is a no-op for nginx. Cleanup is handled by Deleted() on IngressClass.
 func (n *nginxSidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
-	return appsecconfig.MutationNoop, nil
+	// PodDeleted is a no-op; the returned outcome is only consulted for the DELETE admission error path (the metric is not emitted on delete).
+	return appsecconfig.MutationMutated, nil
 }
 
 // MatchCondition returns a CEL expression for server-side pod filtering.

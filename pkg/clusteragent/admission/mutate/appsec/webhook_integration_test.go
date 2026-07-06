@@ -294,7 +294,7 @@ func TestAppsecWebhookIntegration(t *testing.T) {
 
 			// Mutate pod
 			in := test.pod.DeepCopy()
-			matched, outcome, err := webhook.callPattern(in, in.Namespace, mockDynamic, operationMutatePod, appsecconfig.SidecarInjectionPattern.MutatePod)
+			matched, _, outcome, err := webhook.callPattern(in, in.Namespace, mockDynamic, appsecconfig.SidecarInjectionPattern.MutatePod)
 			mutated := false
 			if matched {
 				var admErr error
@@ -438,7 +438,7 @@ func TestAppsecWebhookMultiplePatterns(t *testing.T) {
 	in := pod.DeepCopy()
 
 	// Mutate pod
-	matched, outcome, err := webhook.callPattern(in, in.Namespace, mockDynamic, operationMutatePod, appsecconfig.SidecarInjectionPattern.MutatePod)
+	matched, _, outcome, err := webhook.callPattern(in, in.Namespace, mockDynamic, appsecconfig.SidecarInjectionPattern.MutatePod)
 	require.NoError(t, err)
 	mutated, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err)
 	require.NoError(t, admErr)

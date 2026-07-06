@@ -729,7 +729,7 @@ func TestPodDeleted_returns_noop_when_nginx_pod_deleted(t *testing.T) {
 	outcome, err := pattern.PodDeleted(pod, "ingress-nginx", client)
 
 	require.NoError(t, err)
-	assert.Equal(t, appsecconfig.MutationNoop, outcome)
+	assert.Equal(t, appsecconfig.MutationMutated, outcome)
 }
 
 func TestBuildInitContainerRunAsConfig(t *testing.T) {

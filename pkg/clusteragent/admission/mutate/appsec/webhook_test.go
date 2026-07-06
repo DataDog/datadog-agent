@@ -328,13 +328,11 @@ const sidecarMutationsMetricName = "appsec_injector__sidecar_mutations"
 
 type sidecarMutationLabels struct {
 	proxyType appsecconfig.ProxyType
-	transport Transport
-	operation string
 	outcome   string
 	reason    string
 }
 
-func TestWebhook_callPattern_countsCanonicalMutationOutcomes(t *testing.T) {
+func TestWebhook_WebhookFunc_CreateOperation_countsCanonicalMutationOutcomes(t *testing.T) {
 	realErr := errors.New("boom")
 	tests := []struct {
 		name        string
@@ -370,12 +368,6 @@ func TestWebhook_callPattern_countsCanonicalMutationOutcomes(t *testing.T) {
 			wantOutcome: "error",
 			wantReason:  "error",
 		},
-		{
-			name:        "noop with nil error",
-			outcome:     appsecconfig.MutationNoop,
-			wantOutcome: "noop",
-			wantReason:  "none",
-		},
 	}
 
 	for _, tt := range tests {
@@ -387,38 +379,31 @@ func TestWebhook_callPattern_countsCanonicalMutationOutcomes(t *testing.T) {
 					return tt.outcome, tt.err
 				},
 			}
-			webhook := &Webhook{patterns: newTestPatternMap(pattern)}
+			webhook := &Webhook{
+				name:          webhookName,
+				patterns:      newTestPatternMap(pattern),
+				configMutator: &mockMutator{},
+			}
 			labels := sidecarMutationLabels{
 				proxyType: appsecconfig.ProxyTypeEnvoyGateway,
-				transport: TransportUDS,
-				operation: operationMutatePod,
 				outcome:   tt.wantOutcome,
 				reason:    tt.wantReason,
 			}
-			pod := newTestPod("test-pod", "default")
-			client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
+			request := newTestAdmissionRequest(t, admissionregistrationv1.Create)
 
-			var gotOutcome appsecconfig.MutationOutcome
-			var gotErr error
 			assertSidecarMutationCounterDelta(t, labels, 1, func() {
-				var matched bool
-				matched, gotOutcome, gotErr = webhook.callPattern(pod, "default", client, operationMutatePod, appsecconfig.SidecarInjectionPattern.MutatePod)
-				require.True(t, matched)
+				response := webhook.WebhookFunc()(request)
+				require.NotNil(t, response)
+				require.True(t, response.Allowed)
 			})
 
-			assert.Equal(t, tt.outcome, gotOutcome)
-			if tt.err == nil {
-				require.NoError(t, gotErr)
-			} else {
-				assert.ErrorIs(t, gotErr, tt.err)
-			}
 			assert.Equal(t, 1, pattern.mutatePodCallCount)
 			assertNoSidecarMutationLabelContains(t, "boom")
 		})
 	}
 }
 
-func TestWebhook_callPattern_countsPodDeletedOperation(t *testing.T) {
+func TestWebhook_WebhookFunc_DeleteOperation_doesNotCountSidecarMutations(t *testing.T) {
 	pattern := &mockPattern{
 		matchExpression: "true",
 		podEligible:     true,
@@ -431,23 +416,17 @@ func TestWebhook_callPattern_countsPodDeletedOperation(t *testing.T) {
 			appsecconfig.ProxyTypeIngressNginx: pattern,
 		},
 	}
-	labels := sidecarMutationLabels{
-		proxyType: appsecconfig.ProxyTypeIngressNginx,
-		transport: TransportNginxModule,
-		operation: operationPodDeleted,
-		outcome:   "mutated",
-		reason:    "none",
-	}
-	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
+	request := newTestAdmissionRequest(t, admissionregistrationv1.Delete)
+	before := totalSidecarMutationCount(t)
 
-	assertSidecarMutationCounterDelta(t, labels, 1, func() {
-		matched, outcome, err := webhook.callPattern(newTestPod("test-pod", "default"), "default", client, operationPodDeleted, appsecconfig.SidecarInjectionPattern.PodDeleted)
-		require.True(t, matched)
-		require.NoError(t, err)
-		assert.Equal(t, appsecconfig.MutationMutated, outcome)
-	})
+	response := webhook.WebhookFunc()(request)
 
+	require.NotNil(t, response)
+	require.True(t, response.Allowed)
+	require.Nil(t, response.Result)
+	assert.Equal(t, []byte("[]"), response.Patch)
 	assert.Equal(t, 1, pattern.podDeletedCallCount)
+	assert.Equal(t, before, totalSidecarMutationCount(t))
 }
 
 func TestWebhook_callPattern_doesNotCountWhenNoPatternOwnsPod(t *testing.T) {
@@ -456,10 +435,11 @@ func TestWebhook_callPattern_doesNotCountWhenNoPatternOwnsPod(t *testing.T) {
 	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	before := totalSidecarMutationCount(t)
 
-	matched, outcome, err := webhook.callPattern(newTestPod("test-pod", "default"), "default", client, operationMutatePod, appsecconfig.SidecarInjectionPattern.MutatePod)
+	matched, proxyType, outcome, err := webhook.callPattern(newTestPod("test-pod", "default"), "default", client, appsecconfig.SidecarInjectionPattern.MutatePod)
 
 	require.NoError(t, err)
 	assert.False(t, matched)
+	assert.Equal(t, appsecconfig.ProxyType(""), proxyType)
 	assert.Equal(t, appsecconfig.MutationOutcome(0), outcome)
 	assert.Equal(t, 0, pattern.mutatePodCallCount)
 	assert.Equal(t, before, totalSidecarMutationCount(t))
@@ -540,11 +520,10 @@ func metricTags(labels []*dto.LabelPair) map[string]string {
 }
 
 func sidecarMutationLabelsMatch(tags map[string]string, labels sidecarMutationLabels) bool {
-	return tags["proxy_type"] == string(labels.proxyType) &&
-		tags["operation"] == labels.operation &&
+	return len(tags) == 3 &&
+		tags["proxy_type"] == string(labels.proxyType) &&
 		tags["outcome"] == labels.outcome &&
-		tags["reason"] == labels.reason &&
-		tags["transport"] == string(labels.transport)
+		tags["reason"] == labels.reason
 }
 
 func TestWebhook_callPattern_OwnershipFiltering(t *testing.T) {
@@ -586,7 +565,7 @@ func TestWebhook_callPattern_OwnershipFiltering(t *testing.T) {
 			scheme := runtime.NewScheme()
 			client := dynamicfake.NewSimpleDynamicClient(scheme)
 
-			matched, outcome, err := webhook.callPattern(pod, tt.podNamespace, client, operationMutatePod, appsecconfig.SidecarInjectionPattern.MutatePod)
+			matched, _, outcome, err := webhook.callPattern(pod, tt.podNamespace, client, appsecconfig.SidecarInjectionPattern.MutatePod)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectMatched, matched)
@@ -623,10 +602,11 @@ func TestWebhook_callPattern_MultiplePatterns(t *testing.T) {
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
 
-	matched, outcome, err := webhook.callPattern(pod, "default", client, operationMutatePod, appsecconfig.SidecarInjectionPattern.MutatePod)
+	matched, proxyType, outcome, err := webhook.callPattern(pod, "default", client, appsecconfig.SidecarInjectionPattern.MutatePod)
 
 	require.NoError(t, err)
 	assert.True(t, matched)
+	assert.Equal(t, appsecconfig.AllProxyTypes[1], proxyType)
 	assert.Equal(t, appsecconfig.MutationMutated, outcome)
 	assert.Equal(t, 0, pattern1.mutatePodCallCount, "First pattern should not be called")
 	assert.Equal(t, 1, pattern2.mutatePodCallCount, "Second pattern should be called")
@@ -651,7 +631,7 @@ func TestWebhook_callPattern_CallbackReceivesNamespace(t *testing.T) {
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
 
-	matched, outcome, err := webhook.callPattern(pod, "custom-namespace", client, operationMutatePod, appsecconfig.SidecarInjectionPattern.MutatePod)
+	matched, _, outcome, err := webhook.callPattern(pod, "custom-namespace", client, appsecconfig.SidecarInjectionPattern.MutatePod)
 
 	require.NoError(t, err)
 	assert.True(t, matched)

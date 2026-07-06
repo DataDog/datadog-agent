@@ -20,7 +20,6 @@ func TestNormalizeOutcome(t *testing.T) {
 	mutatedErr := errors.New("mutate failed")
 	skippedErr := errors.New("boom")
 	errorErr := errors.New("boom")
-	noopErr := errors.New("boom")
 
 	tests := []struct {
 		name                  string
@@ -49,22 +48,6 @@ func TestNormalizeOutcome(t *testing.T) {
 			expectedReason:        "error",
 			expectedRetainedError: mutatedErr,
 			expectedAdmissionErr:  mutatedErr,
-			wantAdmissionErr:      true,
-		},
-		{
-			name:            "noop with nil error is acknowledged without admission patch",
-			outcome:         MutationNoop,
-			expectedOutcome: MutationNoop,
-			expectedReason:  "none",
-		},
-		{
-			name:                  "noop with error is promoted to error",
-			outcome:               MutationNoop,
-			err:                   noopErr,
-			expectedOutcome:       MutationError,
-			expectedReason:        "error",
-			expectedRetainedError: noopErr,
-			expectedAdmissionErr:  noopErr,
 			wantAdmissionErr:      true,
 		},
 		{

@@ -53,8 +53,8 @@ func (e *istioGatewaySidecarPattern) IsPodEligible(pod *corev1.Pod, _ string) bo
 }
 
 func (e *istioGatewaySidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
-	// We don't care about a pod being deleted here
-	return appsecconfig.MutationNoop, nil
+	// PodDeleted is a no-op; the returned outcome is only consulted for the DELETE admission error path (the metric is not emitted on delete).
+	return appsecconfig.MutationMutated, nil
 }
 
 func (e *istioGatewaySidecarPattern) MatchCondition() admissionregistrationv1.MatchCondition {

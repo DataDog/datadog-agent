@@ -154,10 +154,13 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 				request.Namespace,
 				w.Name(),
 				func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
-					matched, outcome, err := w.callPattern(pod, ns, cl, operationMutatePod, appsecconfig.SidecarInjectionPattern.MutatePod)
+					matched, proxyType, outcome, err := w.callPattern(pod, ns, cl, appsecconfig.SidecarInjectionPattern.MutatePod)
 					if !matched {
 						return false, nil
 					}
+					canonical, reason, _ := appsecconfig.NormalizeOutcome(outcome, err)
+					sidecarMutationsCounter.Inc(string(proxyType), outcomeString(canonical), reason)
+					log.Debugf("appsec sidecar mutate_pod for pod %s: outcome=%s reason=%s", mutatecommon.PodString(pod), outcomeString(canonical), reason)
 					mutated, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err)
 					if admErr == nil && mutated {
 						// Add APM config, label and tags so the pod is treated as a first-class citizen APM service.
@@ -172,7 +175,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 			if err := json.Unmarshal(request.OldObject, &pod); err != nil {
 				return common.MutationResponse(nil, fmt.Errorf("failed to decode raw object: %v", err))
 			}
-			matched, outcome, err := w.callPattern(&pod, request.Namespace, request.DynamicClient, operationPodDeleted, appsecconfig.SidecarInjectionPattern.PodDeleted)
+			matched, _, outcome, err := w.callPattern(&pod, request.Namespace, request.DynamicClient, appsecconfig.SidecarInjectionPattern.PodDeleted)
 			if matched {
 				if _, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err); admErr != nil {
 					return common.MutationResponse(nil, fmt.Errorf("failed to delete resources associated with sidecar: %v", admErr))
@@ -187,19 +190,16 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	}
 }
 
-func (w *Webhook) callPattern(pod *corev1.Pod, ns string, dl dynamic.Interface, operation string,
+func (w *Webhook) callPattern(pod *corev1.Pod, ns string, dl dynamic.Interface,
 	podCallback func(appsecconfig.SidecarInjectionPattern, *corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error),
-) (matched bool, outcome appsecconfig.MutationOutcome, err error) {
+) (matched bool, proxyType appsecconfig.ProxyType, outcome appsecconfig.MutationOutcome, err error) {
 	for proxyType, pattern := range w.patterns {
 		if !pattern.IsPodEligible(pod, ns) {
 			continue
 		}
 
 		outcome, err = podCallback(pattern, pod, ns, dl)
-		canonical, reason, _ := appsecconfig.NormalizeOutcome(outcome, err)
-		sidecarMutationsCounter.Inc(string(proxyType), operation, outcomeString(canonical), reason, string(transportByProxyType[proxyType]))
-		log.Debugf("appsec sidecar %s for pod %s: outcome=%s reason=%s", operation, mutatecommon.PodString(pod), outcomeString(canonical), reason)
-		return true, outcome, err
+		return true, proxyType, outcome, err
 	}
-	return false, 0, nil
+	return false, "", 0, nil
 }

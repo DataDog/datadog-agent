@@ -370,7 +370,7 @@ func TestGatewaySidecar_PodDeleted_IsNoOp(t *testing.T) {
 	outcome, err := pattern.PodDeleted(pod, "default", pattern.client)
 
 	require.NoError(t, err)
-	assert.Equal(t, appsecconfig.MutationNoop, outcome)
+	assert.Equal(t, appsecconfig.MutationMutated, outcome)
 	assert.False(t, deleteCalled, "PodDeleted should be a no-op")
 }
 

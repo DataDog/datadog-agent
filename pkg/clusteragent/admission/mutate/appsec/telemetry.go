@@ -13,16 +13,11 @@ import (
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 )
 
-const (
-	operationMutatePod  = "mutate_pod"
-	operationPodDeleted = "pod_deleted"
-)
-
 var sidecarMutationsCounter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 	"appsec_injector",
 	"sidecar_mutations",
-	[]string{"proxy_type", "operation", "outcome", "reason", "transport"},
-	"Tracks appsec injector sidecar MutatePod/PodDeleted admission outcomes",
+	[]string{"proxy_type", "outcome", "reason"},
+	"Tracks appsec injector sidecar MutatePod admission outcomes",
 	telemetry.DefaultOptions,
 )
 
@@ -34,8 +29,6 @@ func outcomeString(o appsecconfig.MutationOutcome) string {
 		return "skipped"
 	case appsecconfig.MutationError:
 		return "error"
-	case appsecconfig.MutationNoop:
-		return "noop"
 	default:
 		return "error"
 	}

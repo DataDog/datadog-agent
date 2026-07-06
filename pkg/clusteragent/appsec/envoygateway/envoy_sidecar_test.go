@@ -472,7 +472,7 @@ func TestEnvoyGatewaySidecarPodDeletedReturnsMutatedNoop(t *testing.T) {
 	outcome, err := pattern.PodDeleted(newEnvoyGatewayDataPlanePod("envoy-eg"), envoyGatewaySystemNamespace, client)
 
 	require.NoError(t, err)
-	assert.Equal(t, appsecconfig.MutationNoop, outcome)
+	assert.Equal(t, appsecconfig.MutationMutated, outcome)
 }
 
 func TestEnvoyGatewaySidecarBackendCheckUsesControllerNamespace(t *testing.T) {

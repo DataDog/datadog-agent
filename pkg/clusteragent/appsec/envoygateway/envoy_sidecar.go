@@ -84,7 +84,8 @@ func (e *envoyGatewaySidecarPattern) IsPodEligible(pod *corev1.Pod, ns string) b
 }
 
 func (e *envoyGatewaySidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
-	return appsecconfig.MutationNoop, nil
+	// PodDeleted is a no-op; the returned outcome is only consulted for the DELETE admission error path (the metric is not emitted on delete).
+	return appsecconfig.MutationMutated, nil
 }
 
 // Added is a no-op in sidecar mode: the Backend + EnvoyExtensionPolicy are created lazily on the

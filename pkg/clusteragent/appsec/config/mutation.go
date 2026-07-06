@@ -22,11 +22,6 @@ func NormalizeOutcome(o MutationOutcome, err error) (MutationOutcome, string, er
 			return MutationError, "error", err
 		}
 		return MutationMutated, "none", nil
-	case MutationNoop:
-		if err != nil {
-			return MutationError, "error", err
-		}
-		return MutationNoop, "none", nil
 	case MutationSkipped:
 		if err == nil {
 			log.Warnf("mutation skipped with nil error")
@@ -55,8 +50,6 @@ func NormalizeOutcomeForAdmission(o MutationOutcome, err error) (bool, error) {
 	switch canonical {
 	case MutationMutated:
 		return true, nil
-	case MutationNoop:
-		return false, nil
 	case MutationSkipped:
 		return false, nil
 	case MutationError:

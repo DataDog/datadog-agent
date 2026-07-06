@@ -35,9 +35,6 @@ const (
 	MutationMutated MutationOutcome = iota // success, err == nil
 	MutationSkipped                        // owned but declined, err is *MutationSkippedReason
 	MutationError                          // real failure, err is a real error
-	// MutationNoop means the pattern owned and acknowledged the pod, but no action was required.
-	// It is used by no-op PodDeleted handlers and is not a skip, error, or mutation.
-	MutationNoop
 )
 
 // MutationSkipReason is a bounded enum of owned-but-skipped reasons.
