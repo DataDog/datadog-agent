@@ -130,5 +130,15 @@ func cloneConfig(config integration.Config) integration.Config {
 	config.LogsConfig = cloneData(config.LogsConfig)
 	config.ADIdentifiers = slices.Clone(config.ADIdentifiers)
 	config.AdvancedADIdentifiers = slices.Clone(config.AdvancedADIdentifiers)
+	config.CELSelector = cloneCELSelector(config.CELSelector)
 	return config
+}
+
+func cloneCELSelector(selector workloadfilter.Rules) workloadfilter.Rules {
+	selector.Containers = slices.Clone(selector.Containers)
+	selector.Processes = slices.Clone(selector.Processes)
+	selector.Pods = slices.Clone(selector.Pods)
+	selector.KubeServices = slices.Clone(selector.KubeServices)
+	selector.KubeEndpoints = slices.Clone(selector.KubeEndpoints)
+	return selector
 }

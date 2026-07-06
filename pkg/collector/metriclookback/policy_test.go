@@ -13,6 +13,7 @@ import (
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -133,6 +134,11 @@ func TestSelectShadowCandidatesSkipsNonCheckAndMetricsFilteredConfigs(t *testing
 }
 
 func TestSelectShadowCandidatesDoesNotMutateSourceConfig(t *testing.T) {
+	expectedCELSelector := func() workloadfilter.Rules {
+		return workloadfilter.Rules{
+			Containers: []string{`container.name == "cpu"`},
+		}
+	}
 	source := integration.Config{
 		Name:         "cpu",
 		InitConfig:   integration.Data("loader: python\n"),
@@ -142,6 +148,7 @@ func TestSelectShadowCandidatesDoesNotMutateSourceConfig(t *testing.T) {
 			integration.Data("name: first\ntags:\n  - env:test\n"),
 		},
 		ADIdentifiers: []string{"cpu-ad"},
+		CELSelector:   expectedCELSelector(),
 	}
 	original := cloneConfig(source)
 
@@ -154,6 +161,9 @@ func TestSelectShadowCandidatesDoesNotMutateSourceConfig(t *testing.T) {
 
 	candidates[0].SourceConfig.Instances[0][0] = 'X'
 	assert.Equal(t, original, source)
+	candidates[0].SourceConfig.CELSelector.Containers[0] = `container.name == "mutated"`
+	assert.Equal(t, original, source)
+	assert.Equal(t, expectedCELSelector(), source.CELSelector)
 }
 
 func TestSelectShadowCandidatesIncludesPythonAndDefaultLoaderConfigs(t *testing.T) {
