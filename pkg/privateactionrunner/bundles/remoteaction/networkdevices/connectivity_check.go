@@ -50,18 +50,6 @@ type PingOptions struct {
 	TimeoutMs int `json:"timeoutMs"`
 }
 
-type SNMPCredential struct {
-	ID           string `json:"id"`
-	Version      string `json:"version"`
-	Community    string `json:"community,omitempty"`
-	User         string `json:"user,omitempty"`
-	AuthProtocol string `json:"authProtocol,omitempty"`
-	AuthKey      string `json:"authKey,omitempty"`
-	PrivProtocol string `json:"privProtocol,omitempty"`
-	PrivKey      string `json:"privKey,omitempty"`
-	ContextName  string `json:"contextName,omitempty"`
-}
-
 type SNMPOptions struct {
 	Port      int `json:"port"`
 	TimeoutMs int `json:"timeoutMs"`
@@ -75,6 +63,18 @@ type ConnectivityCheckRequest struct {
 	SNMPOptions          *SNMPOptions                        `json:"snmpOptions,omitempty"`
 	EncryptedCredentials string                              `json:"encryptedCredentials"`
 	EncryptionContext    encryptioncontext.EncryptionContext `json:"encryptionContext"`
+}
+
+type SNMPCredential struct {
+	ID           string `json:"id"`
+	Version      string `json:"version"`
+	Community    string `json:"community,omitempty"`
+	User         string `json:"user,omitempty"`
+	AuthProtocol string `json:"authProtocol,omitempty"`
+	AuthKey      string `json:"authKey,omitempty"`
+	PrivProtocol string `json:"privProtocol,omitempty"`
+	PrivKey      string `json:"privKey,omitempty"`
+	ContextName  string `json:"contextName,omitempty"`
 }
 
 type secretInputs struct {
