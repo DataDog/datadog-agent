@@ -110,11 +110,17 @@ Two agent versions are resolved at suite startup from environment variables:
 
 | Prefix | Role | Key env vars |
 |---|---|---|
-| `CURRENT_AGENT` | Agent built by the current pipeline | `CURRENT_AGENT_VERSION`, `CURRENT_AGENT_VERSION_PACKAGE` |
-| `STABLE_AGENT` | Baseline for upgrade tests (default: 7.75.0) | `STABLE_AGENT_VERSION`, `STABLE_AGENT_VERSION_PACKAGE` |
+| `CURRENT_AGENT` | Agent built by the current pipeline | Assertions: `CURRENT_AGENT_ASSERT_VERSION`, `CURRENT_AGENT_ASSERT_PACKAGE_VERSION`. Resolution: `CURRENT_AGENT_PIPELINE` or `CURRENT_AGENT_SOURCE_VERSION` (falls back to `E2E_PIPELINE_ID`). |
+| `STABLE_AGENT` | Baseline for upgrade tests (default: 7.77.0) | Assertions: `STABLE_AGENT_ASSERT_VERSION`, `STABLE_AGENT_ASSERT_PACKAGE_VERSION`. Resolution: `STABLE_AGENT_SOURCE_VERSION` or `STABLE_AGENT_PIPELINE`. |
 
-Both MSI and OCI artifacts are resolved per version. `WithDevEnvOverrides(prefix)`
-applies env var overrides locally but is a no-op in CI (when `CI` is set).
+These are exactly the variables `dda inv new-e2e-tests.setup-env` emits.
+`getAgentVersionVars()` reads the `_ASSERT_*` pair (the `_ASSERT_VERSION` is
+required; locally the package version defaults to the version), and
+`WithArtifactOverrides(prefix)` reads the resolution vars plus per-artifact
+overrides (`<prefix>_OCI_URL` / `_OCI_PIPELINE` / `_OCI_VERSION`,
+`<prefix>_MSI_*`). Both MSI and OCI artifacts are resolved per version.
+`WithDevEnvOverrides(prefix)` applies these overrides locally but is a no-op in
+CI (when `CI` is set).
 
 ## Running tests
 

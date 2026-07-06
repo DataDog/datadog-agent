@@ -50,8 +50,12 @@ The MSI under test is resolved from environment variables at suite startup.
 For upgrade tests, the same pattern applies with the `STABLE_AGENT_` prefix.
 `GetLastStablePackageFromEnv()` reads `STABLE_AGENT_*` variables.
 
-Resolution priority: direct URL > pipeline ID > version lookup. If none are
-set, `GetPackageFromEnv()` falls back to the latest stable MSI.
+Resolution priority: direct URL > pipeline ID > version lookup. If none of
+these resolve to a URL, `GetPackageFromEnv()` returns an error
+(`CURRENT_AGENT_SOURCE_VERSION, CURRENT_AGENT_PIPELINE, or a more specific
+CURRENT_AGENT_MSI_* override is required`) and the suite fails in `SetupSuite` —
+there is **no** automatic fallback to the latest stable MSI, so `setup-env` (or
+an explicit override) must be run first.
 
 ## Test entry point pattern
 
