@@ -28,7 +28,7 @@ import (
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
-//go:embed fake-traceroute/network_path_remote_config_local.yaml
+//go:embed fake-traceroute/rc_local.yaml
 var remoteConfigLocalNetworkPathYaml []byte
 
 var remoteConfigAgentDatadogYaml = []byte(`
