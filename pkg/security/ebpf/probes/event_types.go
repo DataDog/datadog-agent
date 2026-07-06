@@ -86,6 +86,14 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 		ps = append(ps, &manager.BestEffort{Selectors: []manager.ProbesSelector{
 			hookFunc("hook_sock_create"),
 			hookFunc("hook_sock_release"),
+			hookFunc("hook_post_bind4"),
+			hookFunc("hook_post_bind6"),
+			hookFunc("hook_connect4"),
+			hookFunc("hook_connect6"),
+			hookFunc("hook_sendmsg4"),
+			hookFunc("hook_sendmsg6"),
+			hookFunc("hook_recvmsg4"),
+			hookFunc("hook_recvmsg6"),
 		}})
 	}
 
