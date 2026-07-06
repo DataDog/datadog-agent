@@ -180,6 +180,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
+	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -288,6 +289,7 @@ func run(log log.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
+	metricLookbackRetention *metriclookback.Retention,
 	_ serializer.MetricSerializer,
 	_ option.Option[logsAgent.Component],
 	_ statsd.Component,
@@ -374,6 +376,7 @@ func run(log log.Component,
 		ac,
 		rcclient,
 		demultiplexer,
+		metricLookbackRetention,
 		invChecks,
 		logReceiver,
 		collector,
@@ -644,6 +647,7 @@ func startAgent(
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	demultiplexer demultiplexer.Component,
+	metricLookbackRetention *metriclookback.Retention,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
 	collectorComponent collector.Component,
@@ -747,7 +751,9 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
+	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
+	configureMetricLookbackCheckScheduler(ctx, checkScheduler, metricLookbackRetention, hostname)
+	ac.AddScheduler("check", checkScheduler, true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
