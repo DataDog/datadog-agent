@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"sync"
 	"testing"
@@ -501,6 +502,22 @@ func TestServiceDiscoveryStartupErrorsDoNotCountTowardTimeoutDisable(t *testing.
 
 	assert.False(t, c.collector.serviceDiscoveryDisabledByTimeouts())
 	assert.Zero(t, c.collector.consecutiveServiceDiscoveryTimeouts)
+}
+
+func TestServiceDiscoveryStartupCheckTimeoutIsNotRequestTimeout(t *testing.T) {
+	startupCheckErr := &url.Error{
+		Op:  "Get",
+		URL: systemProbeStartupCheckURL,
+		Err: context.DeadlineExceeded,
+	}
+	serviceDiscoveryErr := &url.Error{
+		Op:  "Post",
+		URL: "http://sysprobe/discovery/services",
+		Err: context.DeadlineExceeded,
+	}
+
+	assert.False(t, isServiceDiscoveryRequestTimeout(startupCheckErr))
+	assert.True(t, isServiceDiscoveryRequestTimeout(serviceDiscoveryErr))
 }
 
 func TestServiceDiscoveryTimeoutGuardDisabledWhenThresholdIsZero(t *testing.T) {

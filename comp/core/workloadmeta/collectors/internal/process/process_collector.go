@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -400,6 +401,8 @@ var (
 	errServiceDiscoveryRequestTimeout = errors.New("service discovery request timeout")
 )
 
+const systemProbeStartupCheckURL = "http://sysprobe/debug/stats"
+
 type serviceDiscoveryPIDBatch struct {
 	newPids       []int32
 	heartbeatPids []int32
@@ -504,6 +507,11 @@ func (c *collector) getDiscoveryServicesBatched(ctx context.Context, newPids []i
 
 func isServiceDiscoveryRequestTimeout(err error) bool {
 	if err == nil {
+		return false
+	}
+
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) && urlErr.URL == systemProbeStartupCheckURL {
 		return false
 	}
 
