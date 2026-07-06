@@ -43,6 +43,8 @@ dd_agent_go_test(
     embed = [":ntp"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/healthplatform/issues/ntpdrift",
+        "//comp/healthplatform/store/mock",
         "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
         "//pkg/config/mock",
@@ -51,5 +53,6 @@ dd_agent_go_test(
         "@com_github_beevik_ntp//:ntp",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
     ],
 )

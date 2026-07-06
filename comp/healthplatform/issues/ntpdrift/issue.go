@@ -87,15 +87,15 @@ func (t *NTPDriftIssue) BuildIssue(context map[string]string) (*healthplatform.I
 		Extra:      extra,
 		Remediation: &healthplatform.Remediation{
 			Summary: "Synchronise the system clock with an NTP server",
-			Steps:   remediationSteps(),
+			Steps:   remediationSteps(runtime.GOOS),
 		},
 		Tags: []string{"ntp", "clock-drift", "timestamps", "configuration", runtime.GOOS},
 	}, nil
 }
 
-// remediationSteps returns platform-appropriate fix steps.
-func remediationSteps() []*healthplatform.RemediationStep {
-	switch runtime.GOOS {
+// remediationSteps returns platform-appropriate fix steps for osName (a runtime.GOOS value).
+func remediationSteps(osName string) []*healthplatform.RemediationStep {
+	switch osName {
 	case "windows":
 		return []*healthplatform.RemediationStep{
 			{Order: 1, Text: "Open an elevated Command Prompt or PowerShell."},

@@ -298,7 +298,7 @@ func (c *NTPCheck) reportDriftIssue(clockOffset float64, offsetThreshold int) {
 		log.Warnf("Failed to build NTP drift issue: %v", err)
 		return
 	}
-	issue.Id = ntpdrift.IssueID
+	issue.Id = c.driftIssueID()
 	if err := c.healthPlatform.ReportIssue(issue); err != nil {
 		log.Warnf("Failed to report NTP drift issue: %v", err)
 	}
@@ -309,7 +309,15 @@ func (c *NTPCheck) resolveDriftIssue() {
 	if c.healthPlatform == nil {
 		return
 	}
-	c.healthPlatform.ResolveIssue(ntpdrift.IssueID)
+	c.healthPlatform.ResolveIssue(c.driftIssueID())
+}
+
+// driftIssueID returns the per-instance issue id, so multiple configured NTP
+// instances don't resolve or overwrite each other's drift issue. The report
+// and resolve paths must use the same id, so both call this helper rather
+// than inlining the string.
+func (c *NTPCheck) driftIssueID() string {
+	return ntpdrift.IssueID + ":" + string(c.ID())
 }
 
 // formatDrift formats a duration as a signed human-readable string, e.g. "+2m30s" or "-45s".
