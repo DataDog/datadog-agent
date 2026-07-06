@@ -442,7 +442,7 @@ type observerImpl struct {
 	metricFilter         *metricsFilterRules
 
 	// replayMu serialises engine access between the run() dispatch loop and
-	// the testbench's direct-ingest path (PreloadLogForReplay, IngestMetricSync).
+	// the testbench's direct-ingest path (IngestTestbenchLog, IngestMetricSync).
 	// In production these methods are never called so this mutex is always
 	// uncontended. In the testbench it prevents a data race between the
 	// agent-internal-log observer (which can post to obsCh while run() is
@@ -870,12 +870,12 @@ func (o *observerImpl) StorageReader() observerdef.StorageReader {
 	return o.engine.storage
 }
 
-// PreloadLogForReplay feeds a log directly into the engine without driving any
+// IngestTestbenchLog feeds a log directly into the engine without driving any
 // scheduler-triggered advances. Implements DebugView. Used during batch
 // pre-loading in the testbench replay path so that extractor state is built up
 // and log metrics are written to storage, but detector/correlator advances are
 // deferred to the subsequent ReplayStoredData call.
-func (o *observerImpl) PreloadLogForReplay(source string, msg observerdef.LogView) {
+func (o *observerImpl) IngestTestbenchLog(source string, msg observerdef.LogView) {
 	timestampMs := msg.GetTimestampUnixMilli()
 	lo := &logObs{
 		content:     msg.GetContent(),

@@ -45,12 +45,12 @@ type DebugView interface {
 	// the dispatch channel. Synchronous: returns after IngestMetric and any
 	// scheduler-triggered advances complete. Testbench-only.
 	IngestMetricSync(source string, sample observerdef.MetricView)
-	// PreloadLogForReplay feeds a log directly into the engine without driving
+	// IngestTestbenchLog feeds a log directly into the engine without driving
 	// any scheduler-triggered advances. Used during batch pre-loading in the
 	// testbench replay path so that extractor state is built up and log
 	// metrics are written to storage, but detector/correlator advances are
 	// deferred to the subsequent ReplayStoredData call.
-	PreloadLogForReplay(source string, msg observerdef.LogView)
+	IngestTestbenchLog(source string, msg observerdef.LogView)
 }
 
 // StateView is a read-only window into engine state.
