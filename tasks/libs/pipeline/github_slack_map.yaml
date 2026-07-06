@@ -267,8 +267,8 @@
     id: ''
 '@datadog/debugger-go':
   notification:
-    name: '#dynamic-instrumentation-go'
-    id: 'C04J1N8L2Q6'
+    name: '#debugger-go'
+    id: 'C09DBHFJE4E'
   review:
     name: '#debugger-go'
     id: 'C09DBHFJE4E'
@@ -277,8 +277,8 @@
     name: 'DEFAULT_SLACK_CHANNEL'
     id: 'C0795C1C2AE'
   review:
-    name: '#documentation'
-    id: 'C0DESMBQU'
+    name: ''
+    id: ''
 '@datadog/ebpf-platform':
   notification:
     name: '#ebpf-platform-ops'
@@ -309,8 +309,8 @@
     id: 'C0B7VF7LKGT'
 '@datadog/injection-platform':
   notification:
-    name: '#injection-platform'
-    id: 'C06UEUW9A75'
+    name: '#injection-platform-alerts'
+    id: 'C09LN4BCCP7'
   review:
     name: '#injection-platform'
     id: 'C06UEUW9A75'

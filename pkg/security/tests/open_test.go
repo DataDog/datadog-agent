@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -379,6 +380,69 @@ func TestOpen(t *testing.T) {
 
 			assertFieldEqual(t, event, "process.file.path", executable)
 		}, "test_rule")
+	})
+
+	t.Run("io_uring_ftruncate", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
+		checkKernelCompatibility(t, "io_uring ftruncate needs Linux 6.9", func(kv *kernel.Version) bool {
+			return kv.Code < kernel.Kernel6_9
+		})
+
+		f, err := os.OpenFile(testFileTrunc, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := f.Write([]byte("this data will soon be truncated\n")); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Sync(); err != nil {
+			t.Fatal(err)
+		}
+
+		defer os.Remove(testFileTrunc)
+		defer f.Close()
+
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		prepRequest := ioUringPrepFtruncate(int(f.Fd()), 4)
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignalFromRule(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			ret, err := ioUringResult(result)
+			if err != nil {
+				return fmt.Errorf("io_uring error: %w", err)
+			}
+
+			if ret < 0 {
+				// On a supported kernel a negative result is a real failure, not a skip:
+				// a malformed SQE would also return a negative errno and hide the gap.
+				return fmt.Errorf("failed to ftruncate with io_uring: %d", ret)
+			}
+
+			return nil
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
+			assert.Equal(t, getInode(t, testFileTrunc), event.Open.File.Inode, "wrong inode")
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, true, value.(bool), "io_uring ftruncate event should be async")
+		}, "test_rule_truncate")
 	})
 
 	_ = os.Remove(testFile)

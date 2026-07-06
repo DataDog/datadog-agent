@@ -31,7 +31,7 @@ func TestLoad_FakeCheck(t *testing.T) {
 		Source:    "fake_check:/path/to/conf/fake_check.yaml",
 	}
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -57,7 +57,7 @@ func TestLoad_WithoutLibrary(t *testing.T) {
 		Instances: []integration.Data{{}},
 	}
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -72,7 +72,7 @@ func TestLoad_WithoutLibrary(t *testing.T) {
 }
 
 func TestLoad_RejectsPathTraversalName(t *testing.T) {
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
