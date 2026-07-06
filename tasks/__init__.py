@@ -102,6 +102,7 @@ from tasks.e2e_framework import azure as e2e_azure
 from tasks.e2e_framework import gcp as e2e_gcp
 from tasks.e2e_framework import localpodman as e2e_localpodman
 from tasks.e2e_framework import test as e2e_test
+from tasks.e2e_framework.configdoc import configdoc as e2e_configdoc
 from tasks.e2e_framework.deploy import check_s3_image_exists
 from tasks.e2e_framework.setup import setup as e2e_setup
 from tasks.fuzz import fuzz
@@ -294,6 +295,7 @@ e2e_ns = Collection("e2e")
 e2e_ns.add_collection(e2e_setup)
 e2e_ns.add_collection(e2e_test)
 e2e_ns.add_task(check_s3_image_exists)
+e2e_ns.add_task(e2e_configdoc)
 
 ns.add_collection(e2e_ns)
 ns.configure(
