@@ -36,7 +36,6 @@
       -e CI_COMMIT_REF_NAME
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS_DD_WCS=true
-      -e "AWS_SHARED_CREDENTIALS_FILE=c:\mnt\.aws\credentials-by-job-id\${CI_JOB_ID}"
       -e GOMODCACHE="c:\modcache"
       -e GOPROXY
       -e GONOSUMDB
