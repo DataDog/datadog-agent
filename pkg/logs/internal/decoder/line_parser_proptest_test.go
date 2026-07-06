@@ -68,20 +68,24 @@ func sendLineParser(p *MultiLineParser, content string, isPartial bool, isTrunca
 	p.process(msg, len(content))
 }
 
-// TestMultiLineParser_FlagOnlyAccumulator_Property anchors:
+// TestMultiLineParser_NoMarkerByteDecoration_Property anchors:
 //
 //	surface MultiLineParserTruncation (line_parser.allium)
-//	    @guarantee FlagOnlyAccumulator — the MultiLineParser adds
-//	                                      no `...TRUNCATED...`
-//	                                      marker bytes and cuts no
-//	                                      content; only the
-//	                                      IsTruncated flag is
-//	                                      produced.
+//	    @guarantee NoMarkerByteDecoration — the MultiLineParser
+//	                                         adds no
+//	                                         `...TRUNCATED...`
+//	                                         marker bytes to any
+//	                                         emission; its
+//	                                         observable
+//	                                         truncation effects
+//	                                         are the IsTruncated
+//	                                         flag and the
+//	                                         buffer-overflow
+//	                                         emission boundary.
 //
 // Across arbitrary input sequences, no emission's content
-// contains the truncation marker byte sequence. The parser is
-// purely a flag accumulator.
-func TestMultiLineParser_FlagOnlyAccumulator_Property(t *testing.T) {
+// contains the truncation marker byte sequence.
+func TestMultiLineParser_NoMarkerByteDecoration_Property(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		lineLimit := rapid.IntRange(10, 100).Draw(t, "lineLimit")
 		n := rapid.IntRange(1, 8).Draw(t, "n")
@@ -101,7 +105,7 @@ func TestMultiLineParser_FlagOnlyAccumulator_Property(t *testing.T) {
 		marker := message.TruncatedFlag
 		for i, e := range h.emitted {
 			if bytes.Contains(e.content, marker) {
-				t.Fatalf("FlagOnlyAccumulator violated: emission %d contains marker bytes; content %q", i, e.content)
+				t.Fatalf("NoMarkerByteDecoration violated: emission %d contains marker bytes; content %q", i, e.content)
 			}
 		}
 	})
@@ -283,22 +287,26 @@ func TestMultiLineParser_EarlierContributorFlagsLostWithinCycle_Property(t *test
 	})
 }
 
-// TestMultiLineParser_NoContentCutting_Property anchors:
+// TestMultiLineParser_EmissionCarriesFullBuffer_Property anchors:
 //
 //	surface MultiLineParserTruncation (line_parser.allium)
-//	    @guarantee NoContentCutting — the emitted message's
-//	                                   content is the FULL
-//	                                   accumulated buffer
-//	                                   byte-for-byte, regardless
-//	                                   of whether
-//	                                   buffered_content_len
-//	                                   exceeded line_limit.
+//	    @guarantee EmissionCarriesFullBuffer — the emitted
+//	                                            message's content
+//	                                            is the FULL
+//	                                            accumulated buffer
+//	                                            byte-for-byte,
+//	                                            regardless of
+//	                                            whether
+//	                                            buffered_content_len
+//	                                            exceeded
+//	                                            line_limit.
 //
 // When accumulated buffer crosses lineLimit, the resulting
-// emission contains the FULL accumulated bytes (not cut to
-// lineLimit). MultiLineParser does NOT enforce a hard byte
-// limit on emitted content — it only flags it.
-func TestMultiLineParser_NoContentCutting_Property(t *testing.T) {
+// emission contains the FULL accumulated bytes (no byte-level
+// trimming). MultiLineParser does NOT enforce a hard byte limit
+// on emitted content within an emission — it flags and forces
+// an emission boundary.
+func TestMultiLineParser_EmissionCarriesFullBuffer_Property(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		lineLimit := rapid.IntRange(10, 30).Draw(t, "lineLimit")
 		// Build a content that's strictly larger than lineLimit.
@@ -315,7 +323,7 @@ func TestMultiLineParser_NoContentCutting_Property(t *testing.T) {
 			t.Fatalf("expected 1 emission, got %d", len(h.emitted))
 		}
 		if !bytes.Equal(h.emitted[0].content, content) {
-			t.Fatalf("NoContentCutting violated: emission content len=%d != input len=%d (full content was NOT preserved)", len(h.emitted[0].content), len(content))
+			t.Fatalf("EmissionCarriesFullBuffer violated: emission content len=%d != input len=%d (full content was NOT preserved)", len(h.emitted[0].content), len(content))
 		}
 	})
 }

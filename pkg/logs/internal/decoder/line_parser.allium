@@ -14,13 +14,17 @@
 --   accumulation contract itself are out of scope.
 --
 --   The MultiLineParser does NOT declare fulfilment of either
---   TruncationDetector or Truncatable. It is a flag-only
---   accumulator: it neither cuts content (unlike a Detector
---   that conforms to "cut at threshold") nor decorates with
---   marker bytes (unlike a Truncatable), but it does propagate
---   the upstream IsTruncated flag and set its own flag on
---   buffer-overflow. The safety net for the refactor is the
---   @guarantees below, not contract fulfilment.
+--   TruncationDetector or Truncatable. It propagates the
+--   upstream IsTruncated flag and sets its own flag on
+--   buffer-overflow, and it does cut content at the message
+--   boundary by forcing emission when the accumulated buffer
+--   crosses line_limit (splitting a logical multi-line stream
+--   into multiple emissions). What it does NOT do is byte-level
+--   trimming or marker-byte decoration within an emission — each
+--   emission carries its full buffer byte-for-byte, and
+--   downstream consumers (e.g. SingleLineHandler in path A)
+--   handle marker decoration and byte-limit enforcement on the
+--   received content.
 --
 --   The SingleLineParser sibling type in the same file is a
 --   stateless pass-through that performs no truncation
@@ -55,7 +59,7 @@
 --     of the tailer; orthogonal to truncation.
 --   - The literal byte value of the truncation marker. The
 --     MultiLineParser does not handle marker bytes at all
---     (see FlagOnlyAccumulator).
+--     (see NoMarkerByteDecoration).
 
 ------------------------------------------------------------
 -- Entities
@@ -112,12 +116,14 @@ entity MultiLineParser {
 
 surface MultiLineParserTruncation {
     -- The truncation-related boundary of the MultiLineParser.
-    -- Captures the flag-only propagation model: the upstream
-    -- IsTruncated flag flows through (subject to the
-    -- last-input-wins overwrite semantics) and an
-    -- over-buffer-limit condition adds an additional
-    -- IsTruncated=true signal. No content is cut and no
-    -- marker bytes are added at this surface.
+    -- Captures: (1) propagation of the upstream IsTruncated flag
+    -- through to emission (subject to the last-input-wins
+    -- overwrite semantics), (2) the over-buffer-limit emission
+    -- trigger that adds an IsTruncated=true signal, and (3) the
+    -- resulting message-boundary cut when a partial-line
+    -- accumulation cycle is split by buffer overflow. No marker
+    -- bytes are added; no byte-level trimming is performed within
+    -- an emission.
 
     context p: MultiLineParser
 
@@ -127,13 +133,16 @@ surface MultiLineParserTruncation {
         p.is_buffer_truncated
         p.last_input_upstream_truncated
 
-    @guarantee FlagOnlyAccumulator
+    @guarantee NoMarkerByteDecoration
         -- The MultiLineParser adds no `...TRUNCATED...`
-        -- marker bytes to any emission and cuts no content.
-        -- Its sole observable truncation effect is on the
-        -- emitted message's ParsingExtra.IsTruncated field.
-        -- Downstream consumers (e.g. SingleLineHandler in
-        -- path A) handle marker decoration when needed.
+        -- marker bytes to any emission. Its observable
+        -- truncation effects are: (1) setting the emitted
+        -- message's ParsingExtra.IsTruncated flag, and (2)
+        -- forcing an emission boundary when the accumulated
+        -- buffer crosses line_limit (see
+        -- BufferOverflowForcesEmission). Downstream consumers
+        -- (e.g. SingleLineHandler in path A) handle marker
+        -- decoration when needed.
 
     @guarantee BufferOverflowMarksTruncated
         -- During a process call, after the parsed input's
@@ -191,17 +200,21 @@ surface MultiLineParserTruncation {
         -- would be a deliberate behaviour change, not a
         -- behaviour-preserving refactor.)
 
-    @guarantee NoContentCutting
+    @guarantee EmissionCarriesFullBuffer
         -- The emitted message's content is the FULL
         -- accumulated buffer, byte-for-byte, regardless of
         -- whether buffered_content_len exceeded line_limit
-        -- during accumulation. The MultiLineParser does
-        -- NOT cut content at line_limit. Downstream
-        -- consumers responsible for enforcing a hard byte
-        -- limit on emitted content (typically the
-        -- SingleLineHandler's Truncatable behaviour in
-        -- path A) must do their own check on the received
-        -- content.
+        -- during accumulation. The MultiLineParser does NOT
+        -- byte-trim emission content at line_limit; a single
+        -- emission may exceed line_limit by an arbitrary
+        -- amount. Note the parser DOES cut the logical
+        -- multi-line stream at the line_limit boundary by
+        -- forcing emission (see BufferOverflowForcesEmission)
+        -- — this is a message-boundary cut, not a byte-level
+        -- cut. Downstream consumers responsible for enforcing
+        -- a hard byte limit on emitted content (typically the
+        -- SingleLineHandler's Truncatable behaviour in path A)
+        -- must do their own check on the received content.
 
     @guarantee NoCarryOverBetweenEmissions
         -- The is_buffer_truncated flag, the
@@ -256,26 +269,16 @@ surface MultiLineParserTruncation {
         -- buffer reaches line_limit.
         --
         -- The truncation behaviour is intentionally
-        -- minimal: this surface only PROPAGATES and
-        -- SIGNALS truncation. It neither cuts content
-        -- nor decorates with markers. Both responsibilities
-        -- (decoration and downstream limit enforcement)
+        -- minimal at the byte level: this surface
+        -- PROPAGATES the upstream IsTruncated flag,
+        -- SIGNALS overflow via the buffer-truncation flag,
+        -- and CUTS the logical multi-line stream at the
+        -- line_limit boundary by forcing emission. It
+        -- does NOT byte-trim content within an emission
+        -- or decorate with marker bytes; both byte-level
+        -- decoration and downstream byte-limit enforcement
         -- lie with the SingleLineHandler that consumes
         -- this surface's emissions.
-        --
-        -- For the refactor, this surface's behaviour
-        -- does NOT require a shared truncation utility.
-        -- A consolidated truncation refactor that
-        -- introduces a shared "cut + flag" utility for
-        -- limit enforcement would NOT change this
-        -- surface's logic — because MultiLineParser does
-        -- not cut. The safety net for this surface is:
-        -- ensure the IsTruncated flag is set correctly
-        -- on every emission under all input sequences,
-        -- including the subtler cases captured in
-        -- EarlierContributorFlagsLostWithinCycle and the
-        -- buffer-overflow-forces-emission interaction
-        -- with IsPartial.
         --
         -- For property tests anchored to this surface,
         -- the input distributions of interest are:
