@@ -8,13 +8,10 @@ package setup
 import (
 	"os"
 	"path"
-	"runtime"
 	"strings"
 	"time"
 
-	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 const (
@@ -92,7 +89,11 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.external", false, "DD_SYSTEM_PROBE_EXTERNAL")
 	cfg.SetDefault("system_probe_config.adjusted", false)
 
-	cfg.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", defaultpaths.GetDefaultSystemProbeAddress(), "DD_SYSPROBE_SOCKET")
+	cfg.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", GetPlatformDefault(map[string]interface{}{
+		"linux":   "${run_path}/sysprobe.sock",
+		"darwin":  "${run_path}/sysprobe.sock",
+		"windows": `\\.\pipe\dd_system_probe`,
+	}), "DD_SYSPROBE_SOCKET")
 	cfg.BindEnvAndSetDefault("system_probe_config.max_conns_per_message", defaultConnsMessageBatchSize)
 
 	cfg.BindEnvAndSetDefault("system_probe_config.debug_port", 0)
@@ -218,7 +219,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// authoritative source; deprecateBool only forwards this deprecated alias
 	// when it is explicitly configured.
 	cfg.BindEnvAndSetDefault("service_monitoring_config.process_service_inference.enabled", false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
-	cfg.BindEnvAndSetDefault("system_probe_config.process_service_inference.enabled", runtime.GOOS == "windows")
+	cfg.BindEnvAndSetDefault("system_probe_config.process_service_inference.enabled", GetPlatformDefault(map[string]interface{}{
+		"windows": true,
+		"other":   false,
+	}))
 
 	// For backward compatibility. Default is false because the canonical key
 	// (system_probe_config.process_service_inference.use_windows_service_name,
@@ -360,10 +364,19 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ccm_network_config.enabled", false)
 
 	// Discovery config
-	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux" && !pkgconfigenv.IsECSFargate())
-	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
+	cfg.BindEnvAndSetDefault("discovery.enabled", GetPlatformDefault(map[string]interface{}{
+		"fargate": false,
+		"linux":   true,
+		"other":   false,
+	}))
+	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", GetPlatformDefault(map[string]interface{}{
+		"linux": true,
+		"other": false,
+	}))
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
+	cfg.BindEnvAndSetDefault("discovery.service_collection_batch_size", 500)
+	cfg.BindEnvAndSetDefault("discovery.service_collection_min_process_age", time.Minute)
 	cfg.BindEnvAndSetDefault("discovery.service_map.enabled", false)
 
 	// Privileged Logs config
