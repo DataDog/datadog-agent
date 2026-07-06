@@ -262,14 +262,18 @@ def get_bazel_test_targets(
         return True
 
     targets = {}
-    # bazel_query ignores errors. There may be broken packages during development so we don't
-    # want to skip testing the rest.  We might want to revisit that choice some day.
-    for obj in bazel_query(f'kind(go_test, {scope})', _keep, flags=flags):
-        # Keep map of bazel target to Go package name: //pkg/util/log:log_test -> pkg/util/log
-        label = obj['rule']['name']
-        package = label.split(':')[0]
-        dir_path = package[2:]  # strip //
-        targets[label] = f'{MODULE_PREFIX}/{dir_path}'
+    # -k (keep going) means Bazel exits non-zero when some packages fail to load but still
+    # streams valid results for the rest.  We iterate directly (not via list()) so that results
+    # already processed into `targets` are kept even when the generator raises at the end.
+    try:
+        for obj in bazel_query(f'kind(go_test, {scope})', _keep, flags=flags):
+            # Keep map of bazel target to Go package name: //pkg/util/log:log_test -> pkg/util/log
+            label = obj['rule']['name']
+            package = label.split(':')[0]
+            dir_path = package[2:]  # strip //
+            targets[label] = f'{MODULE_PREFIX}/{dir_path}'
+    except RuntimeError as e:
+        print(f"Warning: bazel query returned an error; results may be incomplete:\n{e}", file=sys.stderr)
     return targets
 
 

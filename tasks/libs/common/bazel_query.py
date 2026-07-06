@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import threading
 from collections.abc import Callable, Generator
 
 
@@ -29,7 +30,7 @@ def bazel_query(
         Decoded JSON objects for which filter_func returns True.
 
     Raises:
-        RuntimeError: If bazel is not found on PATH.
+        RuntimeError: If bazel is not found on PATH or if the query exits non-zero.
     """
     resolved_bazel = shutil.which("bazelisk")
     if not resolved_bazel:
@@ -40,9 +41,16 @@ def bazel_query(
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         encoding='utf-8',
     )
+
+    # Drain stderr in a background thread so a full pipe buffer never deadlocks
+    # the stdout reader.
+    stderr_chunks: list[str] = []
+    stderr_thread = threading.Thread(target=lambda: stderr_chunks.append(proc.stderr.read()))
+    stderr_thread.start()
+
     try:
         for line in proc.stdout:
             line = line.strip()
@@ -57,3 +65,8 @@ def bazel_query(
     finally:
         proc.stdout.close()
         proc.wait()
+        stderr_thread.join()
+
+    if proc.returncode != 0:
+        stderr = ''.join(stderr_chunks).strip()
+        raise RuntimeError(f"bazel query exited with code {proc.returncode}:\n{stderr}")
