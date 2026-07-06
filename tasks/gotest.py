@@ -29,6 +29,7 @@ from tasks.collector import OTEL_CONTRIB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
@@ -72,6 +73,7 @@ WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/build/source_test/*", ".gitlab-ci.yml"]
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
+UNIT_TESTS_TIMING_FILE = "test_timing.json"
 OTEL_UPSTREAM_GO_MOD_PATH = (
     f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
 )
@@ -239,40 +241,31 @@ def get_bazel_test_targets(
         return {}
 
     scope = ' + '.join(bazel_patterns)
-    all_flags = ['-k', '--curses=no', '--color=no'] + (bazel_flags or [])
-    # We don't care about failure or stderr. There might be broken packages
-    # during development. We enumerate what we can and test those.
-    result = _run_bazel(
-        'cquery',
-        *all_flags,
-        f'kind(go_test, {scope}) except attr(tags, manual, {scope})',
-    )
-    output = result.stdout
-
-    if not output:
-        return {}
+    flags = ['-k', '--curses=no', '--color=no'] + (bazel_flags or [])
 
     # We must filter out the tests which are for the other flavors.
     # The naming pattern of flavorized tests is {name}_test_{flavor}, so we
     # can detect them by the suffix.
     other_flavors_suffixes = [f'_test_{flvr.name}' for flvr in AgentFlavor if flvr != flavor]
 
-    def should_skip(label):
-        for suffix in other_flavors_suffixes:
-            if label.endswith(suffix):
-                return True
-        return False
+    def _keep(obj: dict) -> bool:
+        if obj.get('type') != 'RULE':
+            return False
+        rule = obj.get('rule', {})
+        label = rule.get('name', '')
+        if any(label.endswith(s) for s in other_flavors_suffixes):
+            return False
+        tags_attr = next((a for a in rule.get('attribute', []) if a['name'] == 'tags'), None)
+        if tags_attr and 'manual' in tags_attr.get('stringListValue', []):
+            return False
+        return True
 
     targets = {}
-    for line in output.splitlines():
-        line = line.strip()
-        if not line or not line.startswith('//'):
-            continue
-        # Strip config hash: //pkg/util/log:log_test (abc1234) -> //pkg/util/log:log_test
-        label = line.split(' ')[0]
-        if should_skip(label):
-            continue
+    # bazel_query ignores errors. There may be broken packages during development so we don't
+    # want to skip testing the rest.  We might want to revisit that choice some day.
+    for obj in bazel_query(f'kind(go_test, {scope})', _keep, flags=flags):
         # Keep map of bazel target to Go package name: //pkg/util/log:log_test -> pkg/util/log
+        label = obj['rule']['name']
         package = label.split(':')[0]
         dir_path = package[2:]  # strip //
         targets[label] = f'{MODULE_PREFIX}/{dir_path}'
@@ -322,7 +315,7 @@ def _run_bazel_tests(
     # Windows-safe command-length limit.
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
-    base_args = ["test", "--keep_going", "--build_tests_only", "--color=no"]
+    base_args = ["test", "--keep_going", "--build_tests_only", "--curses=no", "--color=no"]
     if bazel_flags:
         base_args.extend(bazel_flags)
     fixed_len = sum([len(a) for a in base_args]) + len(base_args) + 1  # args + spaces

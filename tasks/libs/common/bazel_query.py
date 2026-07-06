@@ -11,17 +11,19 @@ from collections.abc import Callable, Generator
 def bazel_query(
     query: str,
     filter_func: Callable[[dict], bool],
-    extra_flags: list[str] | None = None,
+    flags: list[str] | None = None,
 ) -> Generator[dict, None, None]:
     """Run a Bazel query with --output=streamed_jsonproto and yield matching objects.
 
     Each line of the stream is a JSON-encoded build target proto. The caller
     supplies filter_func to select which objects to yield.
 
+    TODO: Support cquery with --output=streamed_proto.
+
     Args:
         query: The query expression.
         filter_func: Called for each decoded JSON object; yields the object only if it returns True.
-        extra_flags: Additional flags passed to bazel query (e.g. ['-k', '--curses=no']).
+        flags: Additional flags passed to bazel query (e.g. ['-k', '--curses=no']).
 
     Yields:
         Decoded JSON objects for which filter_func returns True.
@@ -33,7 +35,7 @@ def bazel_query(
     if not resolved_bazel:
         raise RuntimeError("bazel not found in PATH")
 
-    cmd = [resolved_bazel, 'query', '--output=streamed_jsonproto'] + list(extra_flags or []) + [query]
+    cmd = [resolved_bazel, 'query', '--output=streamed_jsonproto'] + list(flags or []) + [query]
 
     proc = subprocess.Popen(
         cmd,
