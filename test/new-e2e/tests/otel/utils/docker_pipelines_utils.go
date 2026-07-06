@@ -82,9 +82,9 @@ func TestTracesDocker(s OTelDockerTestSuite) {
 		assert.Equal(s.T(), version, sp.Meta["version"])
 		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
 		if sp.Meta["span.kind"] == "client" {
-			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.scope.name"])
+			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
 		} else {
-			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.scope.name"])
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
 		}
 		assert.Equal(s.T(), traces[0].HostName, tp.Hostname)
 	}

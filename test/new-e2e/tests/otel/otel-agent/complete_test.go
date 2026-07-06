@@ -67,26 +67,16 @@ func (s *completeTestSuite) SetupSuite() {
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
-// completeParams mirrors minimalParams but flags the v1 OTLP receiver path
-// (disable_receive_resource_spans_v2 is set in the suite's agent config), which
-// still emits otel.library.name/version instead of otel.scope.name/version.
-var completeParams = utils.IAParams{
-	InfraAttributes:        minimalParams.InfraAttributes,
-	EKS:                    minimalParams.EKS,
-	Cardinality:            minimalParams.Cardinality,
-	ReceiveResourceSpansV1: true,
-}
-
 func (s *completeTestSuite) TestOTLPTraces() {
-	utils.TestTraces(s, completeParams)
+	utils.TestTraces(s, minimalParams)
 }
 
 func (s *completeTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s, completeParams)
+	utils.TestMetrics(s, minimalParams)
 }
 
 func (s *completeTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s, completeParams)
+	utils.TestLogs(s, minimalParams)
 }
 
 func (s *completeTestSuite) TestHosts() {
