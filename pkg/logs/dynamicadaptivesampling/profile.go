@@ -8,7 +8,6 @@
 package dynamicadaptivesampling
 
 import (
-	"fmt"
 	"sync/atomic"
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
@@ -24,13 +23,10 @@ var activeReader atomic.Pointer[readerState]
 // wiring layer; nil until then (or in builds where the feature is disabled).
 func SetReader(r severityeventsdef.Reader) {
 	if r == nil {
-		fmt.Printf("dynamicadaptivesampling.SetReader: clearing active severity reader\n")
 		activeReader.Store(nil)
 		return
 	}
 
-	level := r.GetSeverity()
-	fmt.Printf("dynamicadaptivesampling.SetReader: registered severity reader level=%d\n", level)
 	activeReader.Store(&readerState{reader: r})
 }
 

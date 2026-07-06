@@ -7,7 +7,6 @@
 package preprocessor
 
 import (
-	"fmt"
 	"hash/fnv"
 	"regexp"
 	"strconv"
@@ -263,15 +262,6 @@ func (s *AdaptiveSampler) applyProfileIfChanged() {
 	escalation := s.appliedLevelInitialized && level > s.appliedLevel
 	s.config.RateLimit = profile.RateLimit
 	s.config.BurstSize = profile.BurstSize
-
-	fmt.Printf(
-		"AdaptiveSampler.applyProfileIfChanged: source=%s level=%d escalation=%t rate_limit=%.3f burst_size=%.3f\n",
-		s.source,
-		level,
-		escalation,
-		s.config.RateLimit,
-		s.config.BurstSize,
-	)
 
 	if escalation {
 		for i := range s.entries {
