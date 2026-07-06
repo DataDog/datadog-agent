@@ -83,7 +83,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "thermal_test",
     srcs = ["thermal_windows_test.go"],
     embed = [":thermal"],
