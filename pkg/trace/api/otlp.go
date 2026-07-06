@@ -701,14 +701,8 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		}
 	}
 
-	if ts := in.TraceState().AsRaw(); ts != "" {
-		transform.SetMetaOTLP(span, "w3c.tracestate", ts)
-		// Mirror the V2 conversion path (transform.otelSpanToDDSpanMinimal):
-		// decode the head-based sampling probability from the tracestate and set
-		// _sample_rate so the downstream Concentrator scales APM stats back up by
-		// the head-sampling weight (1/_sample_rate). Gated on absence to preserve
-		// any explicit upstream value.
-		transform.SetSampleRateFromTracestate(span, ts)
+	if in.TraceState().AsRaw() != "" {
+		transform.SetMetaOTLP(span, "w3c.tracestate", in.TraceState().AsRaw())
 	}
 	if lib.Name() != "" {
 		transform.SetMetaOTLP(span, string(semconv117.OtelLibraryNameKey), lib.Name())

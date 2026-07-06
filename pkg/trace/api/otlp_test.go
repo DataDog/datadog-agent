@@ -262,23 +262,9 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 // probability encoded in the W3C tracestate (ot=th:8 → 50%) is decoded during
 // OTLP ingestion and set as _sample_rate=0.5 on the emitted pb.Span, so the
 // downstream Concentrator scales APM stats by the head-sampling weight. Covers
-// both the V1 (convertSpan) and V2 (transform.OtelSpanToDDSpan) receiver paths.
+// the V2 (transform.OtelSpanToDDSpan) receiver path.
 func TestOTLPSampleRateFromTracestate(t *testing.T) {
-	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
-		testOTLPSampleRateFromTracestate(false, t)
-	})
-
-	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
-		testOTLPSampleRateFromTracestate(true, t)
-	})
-}
-
-func testOTLPSampleRateFromTracestate(enableReceiveResourceSpansV2 bool, t *testing.T) {
-	t.Helper()
 	cfg := NewTestConfig(t)
-	if !enableReceiveResourceSpansV2 {
-		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
-	}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
