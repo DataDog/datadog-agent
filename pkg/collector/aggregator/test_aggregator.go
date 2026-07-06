@@ -106,6 +106,32 @@ func testSubmitMetric(t *testing.T) {
 	sender.AssertMetric(t, "Historate", "test_historate", 21, "my_hostname", []string{"tag1", "tag2"})
 }
 
+func testSubmitMetricUsesRegisteredSenderManager(t *testing.T) {
+	defaultSender := mocksender.NewMockSender(t, checkid.ID("normalID"))
+	overrideSender := mocksender.NewMockSender(t, checkid.ID("shadowID"))
+	logReceiver := option.None[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	release := ScopeInitCheckContext(defaultSender.GetSenderManager(), logReceiver, tagger, filterStore)
+	defer release()
+
+	defaultSender.SetupAcceptAll()
+	overrideSender.SetupAcceptAll()
+	RegisterCheckSenderManager(checkid.ID("shadowID"), overrideSender.GetSenderManager())
+
+	cTags := []*C.char{C.CString("tag1"), nil}
+	SubmitMetric(C.CString("shadowID"),
+		C.DATADOG_AGENT_RTLOADER_GAUGE,
+		C.CString("test_shadow_gauge"),
+		C.double(21),
+		&cTags[0],
+		C.CString("my_hostname"),
+		C.bool(false))
+
+	defaultSender.AssertMetricMissing(t, "Gauge", "test_shadow_gauge")
+	overrideSender.AssertMetric(t, "Gauge", "test_shadow_gauge", 21, "my_hostname", []string{"tag1"})
+}
+
 func testSubmitMetricEmptyTags(t *testing.T) {
 	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()

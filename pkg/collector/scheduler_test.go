@@ -174,14 +174,15 @@ func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t
 
 	shadowSenderOverride, ok := check.SenderManagerOverride(shadowCheck)
 	require.True(t, ok)
-	shadowSenderOverrideAdapter, ok := shadowSenderOverride.(shadowCheckSenderManager)
+	shadowSenderOverrideAdapter, ok := shadowSenderOverride.(*shadowCheckSenderManager)
 	require.True(t, ok)
 	assert.Same(t, shadowSenderManager, shadowSenderOverrideAdapter.SenderManager)
+	assert.Equal(t, []checkid.ID{loader.calls[1].checkID}, shadowSenderOverrideAdapter.callbackIDs)
 
 	assert.Equal(t, []checkid.ID{sourceID, check.ShadowID(sourceID)}, s.configToChecks[config.Digest()])
 	require.Len(t, loader.calls, 2)
 	assert.Same(t, normalSenderManager, loader.calls[0].senderManager)
-	shadowLoadSenderManager, ok := loader.calls[1].senderManager.(shadowCheckSenderManager)
+	shadowLoadSenderManager, ok := loader.calls[1].senderManager.(*shadowCheckSenderManager)
 	require.True(t, ok)
 	assert.Same(t, shadowSenderManager, shadowLoadSenderManager.SenderManager)
 	assert.NotContains(t, string(loader.calls[0].instance), "_datadog")

@@ -24,6 +24,7 @@ import (
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -302,7 +303,7 @@ func (s *CheckScheduler) loadShadowCheck(candidate metriclookback.ShadowCandidat
 		return nil, errors.New("metric lookback shadow sender manager is not configured")
 	}
 	shadowCheckID := check.ShadowID(sourceCheckID)
-	checkSenderManager := shadowCheckSenderManager{
+	checkSenderManager := &shadowCheckSenderManager{
 		SenderManager: shadowSenderManager,
 		shadowCheckID: shadowCheckID,
 	}
@@ -311,6 +312,7 @@ func (s *CheckScheduler) loadShadowCheck(candidate metriclookback.ShadowCandidat
 		checkSenderManager.DestroySender(shadowCheckID)
 		return nil, err
 	}
+	checkSenderManager.RegisterCallbackID(loadedCheck.ID())
 	s.applyInfraTagger(checkSenderManager, candidate.SourceConfig.Name, shadowCheckID)
 	return check.NewShadowCheckForSource(loadedCheck, sourceCheckID, candidate.ShadowInterval, checkSenderManager), nil
 }
@@ -318,6 +320,7 @@ func (s *CheckScheduler) loadShadowCheck(candidate metriclookback.ShadowCandidat
 type shadowCheckSenderManager struct {
 	sender.SenderManager
 	shadowCheckID checkid.ID
+	callbackIDs   []checkid.ID
 }
 
 func (m shadowCheckSenderManager) GetSender(checkid.ID) (sender.Sender, error) {
@@ -328,8 +331,16 @@ func (m shadowCheckSenderManager) SetSender(s sender.Sender, _ checkid.ID) error
 	return m.SenderManager.SetSender(s, m.shadowCheckID)
 }
 
-func (m shadowCheckSenderManager) DestroySender(checkid.ID) {
+func (m *shadowCheckSenderManager) DestroySender(checkid.ID) {
+	for _, id := range m.callbackIDs {
+		collectoraggregator.UnregisterCheckSenderManager(id)
+	}
 	m.SenderManager.DestroySender(m.shadowCheckID)
+}
+
+func (m *shadowCheckSenderManager) RegisterCallbackID(id checkid.ID) {
+	m.callbackIDs = append(m.callbackIDs, id)
+	collectoraggregator.RegisterCheckSenderManager(id, m)
 }
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
