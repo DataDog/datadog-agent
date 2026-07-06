@@ -741,9 +741,6 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsConfiguredWarns(t *testing
 	assert.Contains(t, logs, "Action Platform execution policies")
 }
 
-||||||| parent of f231493c55d (Warn on unprefixed configured rshell commands)
-=======
->>>>>>> f231493c55d (Warn on unprefixed configured rshell commands)
 func captureTransformWarnings(t *testing.T, fn func()) string {
 	t.Helper()
 
