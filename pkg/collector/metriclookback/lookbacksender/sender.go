@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	log "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -117,6 +118,7 @@ type sender struct {
 	mu                      sync.Mutex
 	defaultHostnameDisabled bool
 	checkTags               []string
+	infraTagger             *infratags.Tagger
 	service                 string
 	noIndex                 bool
 	samples                 []metrics.MetricSample
@@ -184,6 +186,7 @@ func (s *sender) appendScalarSample(metric string, value float64, hostname strin
 		timestamp = s.now()
 	}
 	sampleTags := slices.Concat(tags, s.checkTags)
+	sampleTags = s.infraTagger.AppendTags(sampleTags)
 	sample := metrics.MetricSample{
 		Name:            metric,
 		Value:           value,
@@ -225,6 +228,13 @@ func (s *sender) SetCheckCustomTags(tags []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.checkTags = slices.Clone(tags)
+}
+
+// SetInfraTagger stores the tagger that appends infra mode tags to scalar metric samples.
+func (s *sender) SetInfraTagger(tagger *infratags.Tagger) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.infraTagger = tagger
 }
 
 // SetCheckService stores the check service to add as a tag when finalized.
@@ -405,6 +415,8 @@ func (n *noopSender) GetSenderStats() stats.SenderStats { return stats.NewSender
 func (n *noopSender) DisableDefaultHostname(_ bool) {}
 
 func (n *noopSender) SetCheckCustomTags(_ []string) {}
+
+func (n *noopSender) SetInfraTagger(_ *infratags.Tagger) {}
 
 func (n *noopSender) SetCheckService(_ string) {}
 

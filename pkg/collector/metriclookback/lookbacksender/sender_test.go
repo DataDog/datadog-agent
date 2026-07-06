@@ -17,9 +17,11 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -154,6 +156,30 @@ func TestSenderCopiesTagsBeforeBuffering(t *testing.T) {
 	assert.Equal(t, []string{"device:first"}, appends[0].samples[0].Tags)
 	assert.Equal(t, []string{"device:second"}, appends[0].samples[1].Tags)
 	assert.True(t, appends[0].samples[0].NoIndex)
+}
+
+func TestSenderAppendsInfraTags(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+	tagger := infratags.NewTagger(cfg)
+	require.NotNil(t, tagger)
+
+	writer := &recordingWriter{}
+	manager := NewSenderManager(context.Background(), "default-host", writer, func() float64 { return 42 })
+
+	gotSender, err := manager.GetSender(checkid.ID("cpu:shadow"))
+	require.NoError(t, err)
+	lookbackSender := gotSender.(*sender)
+	lookbackSender.SetCheckCustomTags([]string{"check:tag"})
+	lookbackSender.SetInfraTagger(tagger)
+
+	lookbackSender.Gauge("metric.gauge", 1, "", []string{"metric:tag"})
+	lookbackSender.Commit()
+
+	appends := writer.snapshots()
+	require.Len(t, appends, 1)
+	require.Len(t, appends[0].samples, 1)
+	assert.Equal(t, []string{"metric:tag", "check:tag", "infra_mode:cloud_cost_only"}, appends[0].samples[0].Tags)
 }
 
 func TestSenderDropsUnsupportedPayloadsAndRejectsInvalidTimestamps(t *testing.T) {
