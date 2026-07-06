@@ -53,11 +53,6 @@ type loadInstanceResult struct {
 	loaderErrors map[string]error
 }
 
-type loadChecksOptions struct {
-	includeShadowChecks bool
-	populateCache       bool
-}
-
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
 	schedulerErrs.Set("LoaderErrors", expvar.Func(func() interface{} {
@@ -361,10 +356,6 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 	s.m.Lock()
 	defer s.m.Unlock()
 
-	opts := loadChecksOptions{
-		includeShadowChecks: populateCache,
-		populateCache:       populateCache,
-	}
 	var allChecks []check.Check
 	for _, config := range configs {
 		if !config.IsCheckConfig() {
@@ -376,14 +367,14 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 			continue
 		}
 		configDigest := config.Digest()
-		checks, err := s.getChecks(config, opts.includeShadowChecks)
+		checks, err := s.getChecks(config, populateCache)
 		if err != nil {
 			log.Errorf("Unable to load the check: %v", err)
 			continue
 		}
 		for _, c := range checks {
 			allChecks = append(allChecks, c)
-			if opts.populateCache {
+			if populateCache {
 				// store the checks we schedule for this config locally
 				s.configToChecks[configDigest] = append(s.configToChecks[configDigest], c.ID())
 			}

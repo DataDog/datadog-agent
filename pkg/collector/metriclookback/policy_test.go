@@ -86,7 +86,7 @@ func TestSelectShadowCandidatesAllowsPerInstanceEnablement(t *testing.T) {
 		},
 	}
 
-	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{})
+	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{ShadowInterval: defaultShadowCheckInterval})
 
 	require.Len(t, candidates, 1)
 	assert.Equal(t, 1, candidates[0].InstanceIndex)
