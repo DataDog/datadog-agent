@@ -50,11 +50,16 @@ class _DDEvalOptions:
     config_template: str
     ddsource_dir: str
     command: str
+    submitter: str
     service: str
     project: str
     dataset: str
     env: str
     test_drive: str
+    atlas_domain: str
+    atlas_datacenter: str
+    atlas_task_queue: str
+    atlas_workflow_type: str
     jobs: int
     max_attempts: int
     limit: int
@@ -760,6 +765,18 @@ def _run_bayesian_runs(
     }
 
 
+def _require_optuna():
+    try:
+        import optuna
+    except Exception:
+        import sys
+
+        print(color_message('Please use dda inv --dep optuna ... to run this task', Color.RED), file=sys.stderr)
+        raise Exit from None
+
+    return optuna
+
+
 @task
 def eval_bayesian(
     ctx,
@@ -779,11 +796,16 @@ def eval_bayesian(
     ddeval_config_template: str = "",
     ddeval_ddsource_dir: str = "",
     ddeval_command: str = "",
+    ddeval_submitter: str = "ddeval",
     ddeval_service: str = "eval_worker_observer_log_ad",
     ddeval_project: str = "observer-log-ad",
     ddeval_dataset: str = "observer-log-ad-gensim-store-working",
     ddeval_env: str = "staging",
     ddeval_test_drive: str = "observer-log-ad-ddeval-worker",
+    ddeval_atlas_domain: str = "ai_platform",
+    ddeval_atlas_datacenter: str = "us1.staging.dog",
+    ddeval_atlas_task_queue: str = "eval-worker-observer-log-ad:rapid-td-observer-log-ad-ddeval-worker",
+    ddeval_atlas_workflow_type: str = "evalworker.EvalWorker_EvalWorkflow",
     ddeval_jobs: int = 6,
     ddeval_max_attempts: int = 1,
     ddeval_limit: int = 0,
@@ -827,11 +849,17 @@ def eval_bayesian(
             Defaults to $DDSOURCE_DIR or $DD_SOURCE_DIR when --ddeval-command is not set.
         ddeval_command: Installed ddeval command or wrapper. When set, this is used
             instead of running the ddeval Bazel target from dd-source.
+        ddeval_submitter: Remote submitter. "ddeval" uses ddeval workflow run;
+            "atlas" uses atlas workflow start/output directly.
         ddeval_service: ddeval executor service name.
         ddeval_project: LLMObs/ddEval project name.
         ddeval_dataset: ddEval dataset name.
         ddeval_env: ddEval environment.
         ddeval_test_drive: Rapid Test Drive name for the Atlas worker.
+        ddeval_atlas_domain: Atlas domain for --ddeval-submitter=atlas.
+        ddeval_atlas_datacenter: Atlas datacenter for --ddeval-submitter=atlas.
+        ddeval_atlas_task_queue: Atlas task queue for --ddeval-submitter=atlas.
+        ddeval_atlas_workflow_type: Atlas workflow type for --ddeval-submitter=atlas.
         ddeval_jobs: Scenario concurrency passed to ddeval (-j).
         ddeval_max_attempts: Max attempts per scenario.
         ddeval_limit: Optional dataset limit for smoke tests.
@@ -846,13 +874,7 @@ def eval_bayesian(
     """
     import pickle
 
-    try:
-        import optuna
-    except Exception:
-        import sys
-
-        print(color_message('Please use dda inv --dep optuna ... to run this task', Color.RED), file=sys.stderr)
-        raise Exit from None
+    optuna = _require_optuna()
 
     only_list = [c.strip() for c in only.split(",") if c.strip()]
     if only_list and lock:
@@ -910,11 +932,16 @@ def eval_bayesian(
             ddeval_config_template=ddeval_config_template,
             ddeval_ddsource_dir=ddeval_ddsource_dir,
             ddeval_command=ddeval_command,
+            ddeval_submitter=ddeval_submitter,
             ddeval_service=ddeval_service,
             ddeval_project=ddeval_project,
             ddeval_dataset=ddeval_dataset,
             ddeval_env=ddeval_env,
             ddeval_test_drive=ddeval_test_drive,
+            ddeval_atlas_domain=ddeval_atlas_domain,
+            ddeval_atlas_datacenter=ddeval_atlas_datacenter,
+            ddeval_atlas_task_queue=ddeval_atlas_task_queue,
+            ddeval_atlas_workflow_type=ddeval_atlas_workflow_type,
             ddeval_jobs=ddeval_jobs,
             ddeval_max_attempts=ddeval_max_attempts,
             ddeval_limit=ddeval_limit,
@@ -1103,11 +1130,16 @@ def _resolve_ddeval_options(
     ddeval_config_template: str,
     ddeval_ddsource_dir: str,
     ddeval_command: str,
+    ddeval_submitter: str,
     ddeval_service: str,
     ddeval_project: str,
     ddeval_dataset: str,
     ddeval_env: str,
     ddeval_test_drive: str,
+    ddeval_atlas_domain: str,
+    ddeval_atlas_datacenter: str,
+    ddeval_atlas_task_queue: str,
+    ddeval_atlas_workflow_type: str,
     ddeval_jobs: int,
     ddeval_max_attempts: int,
     ddeval_limit: int,
@@ -1118,6 +1150,9 @@ def _resolve_ddeval_options(
         raise ValueError(f"unknown eval backend: {eval_backend}")
     if eval_backend == "local":
         return eval_backend, None
+    submitter = (ddeval_submitter or os.environ.get("DDEVAL_SUBMITTER", "") or "ddeval").strip().lower()
+    if submitter not in {"ddeval", "atlas"}:
+        raise ValueError(f"unknown ddeval submitter: {submitter}")
 
     config_template = (
         ddeval_config_template
@@ -1130,7 +1165,7 @@ def _resolve_ddeval_options(
     else:
         ddsource_dir = ddeval_ddsource_dir or os.environ.get("DDSOURCE_DIR") or os.environ.get("DD_SOURCE_DIR") or ""
 
-    if not command and not ddsource_dir:
+    if submitter == "ddeval" and not command and not ddsource_dir:
         raise ValueError(
             "--ddeval-command, $DDEVAL_COMMAND, --ddeval-ddsource-dir, or $DDSOURCE_DIR is required for "
             "--eval-backend=ddeval"
@@ -1148,11 +1183,16 @@ def _resolve_ddeval_options(
         config_template=config_template,
         ddsource_dir=ddsource_dir,
         command=command,
+        submitter=submitter,
         service=ddeval_service,
         project=ddeval_project,
         dataset=ddeval_dataset,
         env=ddeval_env,
         test_drive=ddeval_test_drive,
+        atlas_domain=ddeval_atlas_domain,
+        atlas_datacenter=ddeval_atlas_datacenter,
+        atlas_task_queue=ddeval_atlas_task_queue,
+        atlas_workflow_type=ddeval_atlas_workflow_type,
         jobs=ddeval_jobs,
         max_attempts=ddeval_max_attempts,
         limit=ddeval_limit,
@@ -1167,11 +1207,16 @@ def _ddeval_options_kwargs(options: _DDEvalOptions | None) -> dict[str, object]:
         "ddeval_config_template": options.config_template,
         "ddeval_ddsource_dir": options.ddsource_dir,
         "ddeval_command": options.command,
+        "ddeval_submitter": options.submitter,
         "ddeval_service": options.service,
         "ddeval_project": options.project,
         "ddeval_dataset": options.dataset,
         "ddeval_env": options.env,
         "ddeval_test_drive": options.test_drive,
+        "ddeval_atlas_domain": options.atlas_domain,
+        "ddeval_atlas_datacenter": options.atlas_datacenter,
+        "ddeval_atlas_task_queue": options.atlas_task_queue,
+        "ddeval_atlas_workflow_type": options.atlas_workflow_type,
         "ddeval_jobs": options.jobs,
         "ddeval_max_attempts": options.max_attempts,
         "ddeval_limit": options.limit,
@@ -1235,10 +1280,18 @@ def _run_ddeval_trial(
         json.dump(experiment_config, f, indent=4)
 
     result_log_path = os.path.abspath(os.path.join(trial_dir, "ddeval-workflow.log"))
-    cmd = _ddeval_workflow_command(
-        config_path=trial_experiment_config_path,
-        options=options,
-    )
+    if options.submitter == "atlas":
+        cmd, workflow_id = _atlas_workflow_command(
+            experiment_config=experiment_config,
+            trial_dir=trial_dir,
+            options=options,
+        )
+    else:
+        cmd = _ddeval_workflow_command(
+            config_path=trial_experiment_config_path,
+            options=options,
+        )
+        workflow_id = None
     logger.detail(f"ddeval config: {trial_experiment_config_path}")
     logger.detail(f"ddeval log: {result_log_path}")
 
@@ -1256,7 +1309,9 @@ def _run_ddeval_trial(
     if result.failed:
         raise RuntimeError(f"ddeval workflow command failed; see {result_log_path}")
 
-    workflow_result = _parse_ddeval_workflow_result(stdout)
+    workflow_result = (
+        _parse_atlas_workflow_result(stdout) if options.submitter == "atlas" else _parse_ddeval_workflow_result(stdout)
+    )
     metrics_json = workflow_result.get("metricsJson") or workflow_result.get("metrics_json") or "{}"
     try:
         metrics = json.loads(metrics_json) if isinstance(metrics_json, str) else dict(metrics_json)
@@ -1269,7 +1324,7 @@ def _run_ddeval_trial(
         "metadata": {},
         "metrics": metrics,
         "experiment_url": workflow_result.get("experimentUrl") or workflow_result.get("experiment_url"),
-        "workflow_id": _parse_ddeval_workflow_id(stdout),
+        "workflow_id": workflow_id or _parse_ddeval_workflow_id(stdout),
         "workflow_run_id": _parse_ddeval_workflow_run_id(stdout),
         "duration_s": duration_s,
         "ddeval_result": workflow_result,
@@ -1331,6 +1386,62 @@ def _ddeval_workflow_command(
     return " && ".join([cd_part, command]) if cd_part else command
 
 
+def _atlas_workflow_command(
+    *,
+    experiment_config: dict,
+    trial_dir: str,
+    options: _DDEvalOptions,
+) -> tuple[str, str]:
+    if options.where_in:
+        raise ValueError("--ddeval-where-in is not supported with --ddeval-submitter=atlas yet")
+
+    workflow_id = _atlas_workflow_id(options)
+    dataset_filter: dict[str, object] = {}
+    if options.limit:
+        dataset_filter["limit"] = int(options.limit)
+
+    workflow_input = {
+        "project_name": options.project,
+        "dataset_name": options.dataset,
+        "experiment_config": json.dumps(experiment_config, separators=(",", ":")),
+        "max_attempts": int(options.max_attempts),
+        "scenario_concurrency": int(options.jobs),
+        "dataset_filter_json": json.dumps(dataset_filter, separators=(",", ":")),
+    }
+    input_path = os.path.abspath(os.path.join(trial_dir, "atlas-workflow-input.json"))
+    with open(input_path, "w") as f:
+        json.dump(workflow_input, f, indent=4)
+
+    input_json = json.dumps(workflow_input, separators=(",", ":"))
+    start_cmd = " ".join(
+        [
+            "atlas workflow start",
+            f"--domain {shlex.quote(options.atlas_domain)}",
+            f"--datacenter {shlex.quote(options.atlas_datacenter)}",
+            f"--workflow-id {shlex.quote(workflow_id)}",
+            f"--task-queue {shlex.quote(options.atlas_task_queue)}",
+            f"--workflow-type {shlex.quote(options.atlas_workflow_type)}",
+            f"--input {shlex.quote(input_json)}",
+        ]
+    )
+    output_cmd = " ".join(
+        [
+            "atlas workflow output",
+            f"--domain {shlex.quote(options.atlas_domain)}",
+            f"--datacenter {shlex.quote(options.atlas_datacenter)}",
+            f"--workflow-id {shlex.quote(workflow_id)}",
+        ]
+    )
+    return f"{start_cmd} && {output_cmd}", workflow_id
+
+
+def _atlas_workflow_id(options: _DDEvalOptions) -> str:
+    project = re.sub(r"[^A-Za-z0-9_.-]+", "-", options.project).strip("-") or "observer-log-ad"
+    dataset = re.sub(r"[^A-Za-z0-9_.-]+", "-", options.dataset).strip("-") or "dataset"
+    timestamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
+    return f"eval/{project}/{dataset}/{timestamp}-{random.randint(0, 999999):06d}"
+
+
 def _quote_command(command: str) -> str:
     """Quote a command string while preserving intentional wrapper arguments."""
     return " ".join(shlex.quote(part) for part in shlex.split(command))
@@ -1349,6 +1460,24 @@ def _parse_ddeval_workflow_result(stdout: str) -> dict[str, object]:
     if not isinstance(parsed, dict):
         raise RuntimeError(f"ddeval Result JSON was not an object: {type(parsed).__name__}")
     return parsed
+
+
+def _parse_atlas_workflow_result(stdout: str) -> dict[str, object]:
+    for idx, char in enumerate(stdout):
+        if char != "{":
+            continue
+        try:
+            parsed, _ = json.JSONDecoder().raw_decode(stdout[idx:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict) and (
+            "metricsJson" in parsed
+            or "metrics_json" in parsed
+            or "experimentUrl" in parsed
+            or "experiment_url" in parsed
+        ):
+            return parsed
+    return _parse_ddeval_workflow_result(stdout)
 
 
 def _parse_ddeval_workflow_id(stdout: str) -> str | None:
@@ -1399,11 +1528,16 @@ def eval_pipeline(
     ddeval_config_template: str = "",
     ddeval_ddsource_dir: str = "",
     ddeval_command: str = "",
+    ddeval_submitter: str = "ddeval",
     ddeval_service: str = "eval_worker_observer_log_ad",
     ddeval_project: str = "observer-log-ad",
     ddeval_dataset: str = "observer-log-ad-gensim-store-working",
     ddeval_env: str = "staging",
     ddeval_test_drive: str = "observer-log-ad-ddeval-worker",
+    ddeval_atlas_domain: str = "ai_platform",
+    ddeval_atlas_datacenter: str = "us1.staging.dog",
+    ddeval_atlas_task_queue: str = "eval-worker-observer-log-ad:rapid-td-observer-log-ad-ddeval-worker",
+    ddeval_atlas_workflow_type: str = "evalworker.EvalWorker_EvalWorkflow",
     ddeval_jobs: int = 6,
     ddeval_max_attempts: int = 1,
     ddeval_limit: int = 0,
@@ -1462,17 +1596,24 @@ def eval_pipeline(
         dda inv --dep optuna anomalydetection.eval-pipeline --force-disable cusum,scanwelch
         dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval --ddeval-command ddeval --n-combos 3 --n-trials-search 2 --n-trials-tune 3
     """
+    _require_optuna()
+
     try:
         eval_backend, ddeval_options = _resolve_ddeval_options(
             eval_backend=eval_backend,
             ddeval_config_template=ddeval_config_template,
             ddeval_ddsource_dir=ddeval_ddsource_dir,
             ddeval_command=ddeval_command,
+            ddeval_submitter=ddeval_submitter,
             ddeval_service=ddeval_service,
             ddeval_project=ddeval_project,
             ddeval_dataset=ddeval_dataset,
             ddeval_env=ddeval_env,
             ddeval_test_drive=ddeval_test_drive,
+            ddeval_atlas_domain=ddeval_atlas_domain,
+            ddeval_atlas_datacenter=ddeval_atlas_datacenter,
+            ddeval_atlas_task_queue=ddeval_atlas_task_queue,
+            ddeval_atlas_workflow_type=ddeval_atlas_workflow_type,
             ddeval_jobs=ddeval_jobs,
             ddeval_max_attempts=ddeval_max_attempts,
             ddeval_limit=ddeval_limit,
@@ -1611,7 +1752,7 @@ def eval_pipeline(
     valid_combos = [c for c in combo_results if c["max_score"] is not None]
     if not valid_combos:
         print(color_message("Error: all combinations failed — aborting.", Color.RED))
-        return
+        raise Exit(code=1)
 
     valid_combos.sort(key=lambda c: c["max_score"], reverse=True)
     best_combo = valid_combos[0]
@@ -1655,7 +1796,7 @@ def eval_pipeline(
 
     if not tune_result or tune_result.get("completed_trials", 0) == 0:
         print(color_message("Error: fine-tuning produced no results.", Color.RED))
-        return
+        raise Exit(code=1)
 
     final_score = tune_result.get("score", 0.0)
     best_config_path = os.path.join(tune_dir, "best_config.json")
@@ -1758,6 +1899,8 @@ def eval_component(
         dda inv --dep optuna anomalydetection.eval-component --component bocpd --timeout 120
         dda inv --dep optuna anomalydetection.eval-component --component bocpd --scenarios food_delivery_redis
     """
+    _require_optuna()
+
     all_known = DETECTORS + CORRELATORS + EXTRACTORS
     if component not in all_known:
         print(color_message(f"Error: unknown component '{component}'. Known: {', '.join(all_known)}", Color.RED))

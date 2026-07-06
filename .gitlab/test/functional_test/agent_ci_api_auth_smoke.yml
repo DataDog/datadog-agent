@@ -1,0 +1,89 @@
+agent_ci_api_auth_smoke:
+  stage: functional_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  allow_failure: true
+  rules:
+    - when: manual
+      allow_failure: true
+  variables:
+    GIT_STRATEGY: none
+    AGENT_CI_API_TEST_DRIVE_NAME: "panoz-mustang-mach-e"
+  script:
+    - |
+      set -euo pipefail
+
+      failed=0
+
+      smoke() {
+        local name="$1"
+        local url="$2"
+        local auth_header="$3"
+        local required="$4"
+        local body="${name}.json"
+        local http_status
+        local curl_exit
+
+        echo "Smoking ${name}: ${url}"
+        set +e
+        http_status="$(
+          curl \
+            --location \
+            --output "${body}" \
+            --show-error \
+            --silent \
+            --write-out "%{http_code}" \
+            -H "${auth_header}" \
+            -H "X-DdOrigin: ${CI_JOB_ID}" \
+            "${url}"
+        )"
+        curl_exit=$?
+        set -e
+
+        echo "${name}: curl_exit=${curl_exit} http_status=${http_status} required=${required}"
+        if [[ -s "${body}" ]]; then
+          cat "${body}"
+          echo
+        fi
+
+        if [[ "${curl_exit}" -ne 0 || "${http_status}" != 2* ]]; then
+          if [[ "${required}" == "required" ]]; then
+            failed=1
+          fi
+        fi
+      }
+
+      auth_header_ddbuild="$(authanywhere --audience rapid-agent-devx)"
+      auth_header_staging="$(authanywhere --audience rapid-agent-devx --dc us1.staging.dog)"
+
+      smoke \
+        "prod_agent_ci_api_default_issuer" \
+        "https://agent-ci-api.us1.ddbuild.io/internal/agent-ci-api/hello" \
+        "${auth_header_ddbuild}" \
+        "required"
+
+      smoke \
+        "staging_agent_ci_api_default_issuer" \
+        "https://agent-ci-api.us1.staging.dog/internal/agent-ci-api/hello" \
+        "${auth_header_ddbuild}" \
+        "optional"
+
+      smoke \
+        "test_drive_default_issuer" \
+        "https://rapid-td-${AGENT_CI_API_TEST_DRIVE_NAME}.us1.staging.dog/internal/agent-ci-api/hello" \
+        "${auth_header_ddbuild}" \
+        "required"
+
+      smoke \
+        "test_drive_staging_issuer" \
+        "https://rapid-td-${AGENT_CI_API_TEST_DRIVE_NAME}.us1.staging.dog/internal/agent-ci-api/hello" \
+        "${auth_header_staging}" \
+        "optional"
+
+      exit "${failed}"
+  artifacts:
+    when: always
+    paths:
+      - "*.json"
+    expire_in: 1 day

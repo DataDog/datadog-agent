@@ -143,6 +143,7 @@
 /.gitlab/build/binary_build/linux.yml                      @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/test/functional_test/static_quality_gate.yml     @DataDog/agent-build
 /.gitlab/test/functional_test/files_inventory_check.yml   @DataDog/agent-build
+/.gitlab/test/functional_test/anomalydetection.yml        @DataDog/q-branch
 /.gitlab/test/install_script_testing/install_script_testing.yml          @DataDog/agent-build
 /.gitlab/test/integration_test/dogstatsd.yml              @DataDog/agent-devx @DataDog/agent-metric-pipelines
 /.gitlab/test/integration_test/linux.yml                  @DataDog/agent-devx

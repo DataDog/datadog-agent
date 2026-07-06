@@ -1,0 +1,71 @@
+observer-ablation-ddeval:
+  stage: functional_test
+  extends: .dd_octo_sts
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  timeout: 6h
+  rules:
+    - !reference [.except_mergequeue]
+    - when: manual
+      allow_failure: true
+  needs: []
+  allow_failure: true
+  interruptible: false
+  variables:
+    GIT_STRATEGY: clone
+    KUBERNETES_CPU_REQUEST: "4"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+    OBSERVER_ABLATION_OUTPUT_DIR: "$CI_PROJECT_DIR/observer-ablation-ddeval"
+    OBSERVER_ABLATION_N_COMBOS: "1"
+    OBSERVER_ABLATION_N_TRIALS_SEARCH: "1"
+    OBSERVER_ABLATION_N_TRIALS_TUNE: "1"
+    OBSERVER_ABLATION_DDEVAL_LIMIT: "1"
+    OBSERVER_ABLATION_DDEVAL_JOBS: "2"
+    OBSERVER_ABLATION_DDEVAL_MAX_ATTEMPTS: "1"
+    OBSERVER_ABLATION_DDEVAL_WHERE_IN: ""
+    OBSERVER_ABLATION_DD_SITE: "datadoghq.com"
+    OBSERVER_ABLATION_TOOLS_DIR: "$CI_PROJECT_DIR/.observer-ablation-tools"
+    OBSERVER_ABLATION_AGENT_CI_API_ENV: "prod"
+    OBSERVER_ABLATION_ATLAS_VERSION: "v2.29.0"
+    OBSERVER_ABLATION_ATLAS_TARBALL: "https://binaries.ddbuild.io/dd-source/atlas/$OBSERVER_ABLATION_ATLAS_VERSION/atlas-tar.tar.gz"
+  script:
+    - mkdir -p "$OBSERVER_ABLATION_OUTPUT_DIR"
+    - DD_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DD_API_KEY
+    - DD_APP_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token)" || exit $?; export DD_APP_KEY
+    - export DD_SITE="$OBSERVER_ABLATION_DD_SITE"
+    - dda inv agent-ci-api.hello --env "$OBSERVER_ABLATION_AGENT_CI_API_ENV"
+    - python3 -m pip install optuna
+    - mkdir -p "$OBSERVER_ABLATION_TOOLS_DIR/bin"
+    - curl --fail --location --show-error "$OBSERVER_ABLATION_ATLAS_TARBALL" | tar -xz -C "$OBSERVER_ABLATION_TOOLS_DIR/bin" atlas-linux-amd64
+    - mv "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas-linux-amd64" "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas"
+    - chmod +x "$OBSERVER_ABLATION_TOOLS_DIR/bin/atlas"
+    - export PATH="$OBSERVER_ABLATION_TOOLS_DIR/bin:$PATH"
+    - atlas --help
+    - |
+      if [[ -n "${OBSERVER_ABLATION_SCENARIOS:-}" ]]; then
+        echo "OBSERVER_ABLATION_SCENARIOS is only supported for local scenario directories."
+        echo "Use OBSERVER_ABLATION_DDEVAL_WHERE_IN to filter remote ddeval dataset records."
+        exit 1
+      fi
+      WHERE_IN_ARG=""
+      if [[ -n "$OBSERVER_ABLATION_DDEVAL_WHERE_IN" ]]; then
+        WHERE_IN_ARG="--ddeval-where-in $OBSERVER_ABLATION_DDEVAL_WHERE_IN"
+      fi
+      dda inv --dep optuna anomalydetection.eval-pipeline \
+        --eval-backend ddeval \
+        --ddeval-submitter atlas \
+        --n-combos "$OBSERVER_ABLATION_N_COMBOS" \
+        --n-trials-search "$OBSERVER_ABLATION_N_TRIALS_SEARCH" \
+        --n-trials-tune "$OBSERVER_ABLATION_N_TRIALS_TUNE" \
+        --ddeval-limit "$OBSERVER_ABLATION_DDEVAL_LIMIT" \
+        --ddeval-jobs "$OBSERVER_ABLATION_DDEVAL_JOBS" \
+        --ddeval-max-attempts "$OBSERVER_ABLATION_DDEVAL_MAX_ATTEMPTS" \
+        --output-dir "$OBSERVER_ABLATION_OUTPUT_DIR" \
+        --overwrite \
+        $WHERE_IN_ARG
+  artifacts:
+    when: always
+    expire_in: 2 weeks
+    paths:
+      - observer-ablation-ddeval/
