@@ -1,0 +1,32 @@
+name: Notify on ebpf-profiler metrics.json changes
+
+on:
+  repository_dispatch:
+    types: [ebpf-profiler-metrics-changed]
+  workflow_dispatch:
+    inputs:
+      payload:
+        description: Slack chat.postMessage payload (JSON)
+        required: true
+
+permissions: {}
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Slack
+        if: github.event_name == 'repository_dispatch'
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          payload: ${{ toJSON(github.event.client_payload) }}
+
+      - name: Post to Slack (manual test)
+        if: github.event_name == 'workflow_dispatch'
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          payload: ${{ inputs.payload }}
