@@ -6,11 +6,11 @@
 --   content exceeds a size threshold, decorate it with `...TRUNCATED...`
 --   marker bytes and propagate a carry-over signal so the next
 --   emission can decorate its head accordingly" pattern. Fulfilled
---   by: SingleLineHandler (legacy decoder path A),
+--   by: SingleLineHandler (legacy decoder),
 --   PassThroughAggregator (preprocessor), and DetectingAggregator
 --   (preprocessor).
 --
---   MultiLineHandler (legacy decoder path B), RegexAggregator
+--   MultiLineHandler (legacy decoder), RegexAggregator
 --   (preprocessor) and CombiningAggregator (preprocessor) share
 --   the marker/carry shape but DO NOT declare fulfils Truncatable:
 --   each deviates from the UpstreamFlagPropagation invariant. See
