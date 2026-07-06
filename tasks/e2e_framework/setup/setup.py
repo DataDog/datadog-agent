@@ -116,7 +116,7 @@ def setup(
 @task
 def aws_sso(ctx: Context, config_path: str | None = None):
     """
-    Setup AWS SSO profile for the configured account if it doesn't exist
+    Setup AWS SSO profile for the agent-sandbox account if it doesn't exist
 
     Helper mainly here for Windows users who can't use the macos laptop setup script
     """
@@ -414,9 +414,8 @@ def debug_env(ctx, config_path: str | None = None):
 
     print()
 
-    # check .aws/config exists and contains the SSO profile for the
-    # configured account. Falls back to agent-sandbox if no config has been
-    # written yet, matching the historical default.
+    # check .aws/config exists and contains the expected profile for the
+    # configured account (falls back to agent-sandbox, the historical default).
     try:
         cfg = e2e_config.get_local_config(config_path)
         account = cfg.get_aws().account or 'agent-sandbox'
