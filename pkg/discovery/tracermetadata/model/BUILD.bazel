@@ -12,7 +12,6 @@ go_msgp(
     name = "tracer_metadata_gen",
     src = "tracer_metadata.go",
     out = "tracer_metadata_gen.go",
-    io = True,
     out_test = "tracer_metadata_gen_test.go",
 )
 

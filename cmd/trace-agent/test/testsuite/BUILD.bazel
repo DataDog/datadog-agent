@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_test")
+load("//tasks:build_tags.bzl", "COMMON_TAGS", "TRACE_AGENT_TAGS")
+
+# These tests are non-hermetic, or depend on unmigrated things.
+# gazelle:exclude proxy_test.go
+# gazelle:exclude secrets_test.go
+# gazelle:exclude stats_test.go
+
+# Do not use dd_agent_go_test. Trace agent tests are only done in the base flavor.
+# keep
+go_test(
+    name = "testsuite_test",
+    srcs = [
+        "cards_test.go",
+        "chunking_test.go",
+        "config_set_test.go",
+        "events_test.go",
+        "hostname_test.go",
+        "otlp_test.go",
+        "span_sampling_test.go",
+        "traces_test.go",
+        "tracesv1_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embedsrcs = ["testdata/v04SpanEvents.msgp"],
+    gotags = ["test"] + sorted(COMMON_TAGS | TRACE_AGENT_TAGS),
+    # This will fail in CI because it non-hermetically calls go build
+    # See cmd/trace-agent/test/agent.go::buildBinaries
+    tags = ["manual"],
+    deps = [
+        "//cmd/trace-agent/test",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
+        "//pkg/trace/api",
+        "//pkg/trace/config",
+        "//pkg/trace/sampler",
+        "//pkg/trace/testutil",
+        "//pkg/trace/writer",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_tinylib_msgp//msgp",
+        "@com_github_vmihailenco_msgpack_v5//:msgpack",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)

@@ -24,6 +24,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -145,6 +146,22 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	assert.Equal(suite.T(), "a check with ID TestCheck is already running", err.Error())
 }
 
+func (suite *CollectorTestSuite) TestRunShadowCheckDoesNotIncrementNormalCheckInstances() {
+	source := NewCheckUnique("TestCheck:abc123", "TestCheck")
+	shadow := check.NewShadowCheck(source, time.Minute)
+
+	id, err := suite.c.RunCheck(shadow)
+	assert.NotNil(suite.T(), id)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), int64(0), suite.c.checkInstances)
+
+	normal := NewCheckUnique("TestCheck:def456", "TestCheck")
+	id, err = suite.c.RunCheck(normal)
+	assert.NotNil(suite.T(), id)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), int64(1), suite.c.checkInstances)
+}
+
 func (suite *CollectorTestSuite) TestStopCheck() {
 	ch := NewCheck()
 
@@ -189,7 +206,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.NewNoOpSenderManager(), option.None[agenttelemetry.Component]())
+	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.NewNoOpSenderManager(), option.None[agenttelemetry.Component](), option.None[healthplatform.Component]())
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")

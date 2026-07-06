@@ -187,8 +187,8 @@ generators and for other languages, sourced from third-party rulesets or written
 **The workflow for any new package is always:**
 
 ```sh
-bazel run //:gazelle -- update ./path/to/package   # generate or update BUILD.bazel
-bazel run //bazel/buildifier                       # format
+bazel run //:gazelle -- ./path/to/package   # generate or update BUILD.bazel
+bazel run //bazel/buildifier                # format
 ```
 
 Do not hand-write `BUILD.bazel` content that Gazelle can infer. A Gazelle extension's job is precisely to keep that

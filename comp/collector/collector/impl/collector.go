@@ -88,7 +88,8 @@ type collectorImpl struct {
 	createdAt time.Time
 }
 
-type provides struct {
+// Provides defines the output types of the collector component.
+type Provides struct {
 	compdef.Out
 
 	Comp             collector.Component
@@ -99,12 +100,13 @@ type provides struct {
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(newProvides),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		fxutil.ProvideOptional[collector.Component](),
 	)
 }
 
-func newProvides(deps dependencies) provides {
+// NewComponent creates a new collector component.
+func NewComponent(deps dependencies) Provides {
 	c := newCollector(deps)
 
 	var agentCheckMetadata metadata.Provider
@@ -112,7 +114,7 @@ func newProvides(deps dependencies) provides {
 		agentCheckMetadata = metadata.NewProvider(c.collectMetadata)
 	}
 
-	return provides{
+	return Provides{
 		Comp:             c,
 		StatusProvider:   status.NewInformationProvider(collectorStatus.NewProvider(c)),
 		MetadataProvider: agentCheckMetadata,
@@ -174,7 +176,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	defer c.m.Unlock()
 
 	run := runner.NewRunner(c.senderManager, c.haAgent, c.healthPlatform)
-	sched := scheduler.NewScheduler(run.GetChan())
+	sched := scheduler.NewScheduler(run.GetChan(), run.GetShadowChan())
 
 	// let the runner some visibility into the scheduler
 	run.SetScheduler(sched)
@@ -211,7 +213,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry)
+	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry, option.New[healthplatform.Component](c.healthPlatform))
 
 	var emptyID checkid.ID
 
@@ -227,15 +229,20 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
-	// Track the total number of checks running in order to have an appropriate number of workers
-	c.checkInstances++
-	if ch.Interval() == 0 {
+	if check.IsShadow(ch) {
+		c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
+		c.runner.AddShadowWorker()
+	} else if ch.Interval() == 0 {
+		// Track the total number of checks running in order to have an appropriate number of workers
+		c.checkInstances++
 		// Adding a temporary runner for long running check in case the
 		// number of runners is lower than the number of long running
 		// checks.
 		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
 		c.runner.AddWorker()
 	} else {
+		// Track the total number of checks running in order to have an appropriate number of workers
+		c.checkInstances++
 		c.runner.UpdateNumWorkers(c.checkInstances)
 	}
 

@@ -27,14 +27,14 @@ build do
         # Push all the pieces built with Bazel.
 
         # TODO: flavor can be defaulted and set from the bazel wrapper based on the environment.
-        command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install",
+        command "bazel run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install",
             :live_stream => Omnibus.logger.live_stream(:info)
 
         if linux_target?
-            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}",
+            command "bazel run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}",
                 :live_stream => Omnibus.logger.live_stream(:info)
         elsif osx_target?
-            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}",
+            command "bazel run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}",
                 :live_stream => Omnibus.logger.live_stream(:info)
         end
 
@@ -45,9 +45,6 @@ build do
 
             # load isn't supported by windows
             delete "#{confd_dir}/load.d"
-
-            # Remove .pyc files from embedded Python
-            command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end
 
         if linux_target? || osx_target?
@@ -110,9 +107,6 @@ build do
             # cleanup clutter
             delete "#{install_dir}/etc"
 
-            # Python bytecode caches (pyc files) are generated at runtime and should not be shipped.
-            command "find #{install_dir}/embedded -type d -name __pycache__ -prune -exec rm -rf {} +"
-
             # The prerm and preinst scripts of the package will use this list to detect which files
             # have been setup by the installer, this way, on removal, we'll be able to delete only files
             # which have not been created by the package.
@@ -143,6 +137,9 @@ build do
 
             # removing the local folder to reduce package size by ~0.5MB
             delete "#{install_dir}/embedded/share/locale"
+
+            # removing ensurepip from the embedded Python to reduce package size by ~1.8MB
+            delete "#{install_dir}/embedded/lib/python*/ensurepip"
 
             # Drop bundled unit-test directories from embedded Python wheels/deps (not used at agent runtime).
             # Deepest paths first so nested tests/ trees are removed safely.

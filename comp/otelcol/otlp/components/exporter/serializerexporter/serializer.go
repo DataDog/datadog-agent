@@ -88,6 +88,7 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 
 	// The serializer exporter forces zlib compression (metricscompressionfx
 	// fx-otel), which is incompatible with the v3 metrics intake.
+	config.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
 	config.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -131,7 +132,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Supply(logger),
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
-			pkgconfig := create.NewConfig("DD", "")
+			pkgconfig := create.NewConfig("DD")
 			pkgconfigsetup.InitConfig(pkgconfig)
 			pkgconfig.BuildSchema()
 
