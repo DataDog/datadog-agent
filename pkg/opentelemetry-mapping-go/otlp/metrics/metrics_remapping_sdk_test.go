@@ -21,10 +21,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.uber.org/zap"
 )
 
 // sdkTraceMetric builds a delta histogram named like the DD-SDK trace metric with a
-// single datapoint carrying the given attributes.
+// single datapoint carrying the given attributes. It populates explicit buckets so
+// the duration DDSketch can be constructed from the distribution.
 func sdkTraceMetric(unit string, count uint64, sum float64, attrs map[string]string) pmetric.Metric {
 	m := pmetric.NewMetric()
 	m.SetName(sdkTraceMetricName)
@@ -34,23 +36,38 @@ func sdkTraceMetric(unit string, count uint64, sum float64, attrs map[string]str
 	dp := h.DataPoints().AppendEmpty()
 	dp.SetCount(count)
 	dp.SetSum(sum)
+	dp.SetMin(0)
+	dp.SetMax(sum)
+	// Single (-inf, +inf) bucket holding the whole population so the sketch has data.
+	dp.BucketCounts().FromRaw([]uint64{count})
 	for k, v := range attrs {
 		dp.Attributes().PutStr(k, v)
 	}
 	return m
 }
 
-// seriesByName indexes the remapped output metrics by name, capturing the single
-// datapoint value and attributes of each.
+// series indexes a remapped Sum output metric by name, capturing the single
+// datapoint value and attributes.
 type series struct {
 	value float64
 	tags  map[string]string
 }
 
-func remapSDK(m pmetric.Metric) map[string]series {
+// remapSDKResult holds the remapped delta Sum series plus the durations captured
+// as sketches through the Consumer.
+type remapSDKResult struct {
+	sums      map[string]series
+	durations map[string]*Dimensions
+}
+
+func remapSDK(t testing.TB, m pmetric.Metric) remapSDKResult {
+	t.Helper()
 	out := pmetric.NewMetricSlice()
-	remapMetrics(out, m)
-	got := map[string]series{}
+	consumer := newTestConsumer()
+	baseDims := &Dimensions{name: m.Name()}
+	remapSDKTraceMetrics(context.Background(), zap.NewNop(), &consumer, baseDims, out, m)
+
+	res := remapSDKResult{sums: map[string]series{}, durations: map[string]*Dimensions{}}
 	for i := 0; i < out.Len(); i++ {
 		metric := out.At(i)
 		dp := metric.Sum().DataPoints().At(0)
@@ -61,9 +78,30 @@ func remapSDK(m pmetric.Metric) map[string]series {
 				s.tags[key] = val.AsString()
 			}
 		}
-		got[metric.Name()] = s
+		res.sums[metric.Name()] = s
 	}
-	return got
+	for i := range consumer.data.Metrics.Sketches {
+		sk := consumer.data.Metrics.Sketches[i]
+		res.durations[sk.Name] = &Dimensions{name: sk.Name, tags: sk.Tags}
+	}
+	return res
+}
+
+func (r remapSDKResult) durationTags(name string) map[string]string {
+	dims, ok := r.durations[name]
+	if !ok {
+		return nil
+	}
+	tags := map[string]string{}
+	for _, tag := range dims.tags {
+		for i := 0; i < len(tag); i++ {
+			if tag[i] == ':' {
+				tags[tag[:i]] = tag[i+1:]
+				break
+			}
+		}
+	}
+	return tags
 }
 
 func TestRemapSDKTraceMetric_DefaultMode(t *testing.T) {
@@ -76,25 +114,29 @@ func TestRemapSDKTraceMetric_DefaultMode(t *testing.T) {
 		"span.kind":              "SERVER",
 		"status.code":            "STATUS_CODE_ERROR",
 	})
-	got := remapSDK(m)
+	got := remapSDK(t, m)
 
-	require.Contains(t, got, "trace.http.request.hits")
-	require.Contains(t, got, "trace.http.request.errors")
-	require.Contains(t, got, "trace.http.request.duration")
+	require.Contains(t, got.sums, "trace.http.request.hits")
+	require.Contains(t, got.sums, "trace.http.request.errors")
+	// Duration is emitted as a sketch, not a Sum series.
+	require.NotContains(t, got.sums, "trace.http.request.duration")
+	require.Contains(t, got.durations, "trace.http.request.duration")
 
-	assert.Equal(t, float64(5), got["trace.http.request.hits"].value)
-	assert.Equal(t, float64(5), got["trace.http.request.errors"].value)
-	assert.Equal(t, float64(5), got["trace.http.request.hits.by_type"].value)
-	// 2s scaled to nanoseconds.
-	assert.Equal(t, 2.0*1e9, got["trace.http.request.duration"].value)
+	assert.Equal(t, float64(5), got.sums["trace.http.request.hits"].value)
+	assert.Equal(t, float64(5), got.sums["trace.http.request.errors"].value)
+	assert.Equal(t, float64(5), got.sums["trace.http.request.hits.by_type"].value)
 
-	tags := got["trace.http.request.hits"].tags
+	tags := got.sums["trace.http.request.hits"].tags
 	assert.Equal(t, "users.lookup", tags["resource"])
-	assert.Equal(t, "Server", tags["span.kind"])
+	// span.kind is lowercased for Datadog APM.
+	assert.Equal(t, "server", tags["span.kind"])
 	assert.Equal(t, "web", tags["span.type"])
 	assert.Equal(t, "synthetics", tags["origin"])
 	// Non-HTTP span: http.status_code left unset.
 	assert.NotContains(t, tags, "http.status_code")
+
+	// The duration sketch carries the same identifying tags.
+	assert.Equal(t, "server", got.durationTags("trace.http.request.duration")["span.kind"])
 }
 
 func TestRemapSDKTraceMetric_NotTopLevel(t *testing.T) {
@@ -102,10 +144,11 @@ func TestRemapSDKTraceMetric_NotTopLevel(t *testing.T) {
 		"datadog.operation.name": "op",
 		"span.name":              "res",
 	})
-	got := remapSDK(m)
-	assert.Contains(t, got, "trace.op.hits")
-	assert.NotContains(t, got, "trace.op.hits.by_type")
-	assert.NotContains(t, got, "trace.op.errors")
+	got := remapSDK(t, m)
+	assert.Contains(t, got.sums, "trace.op.hits")
+	assert.NotContains(t, got.sums, "trace.op.hits.by_type")
+	assert.NotContains(t, got.sums, "trace.op.errors")
+	assert.Contains(t, got.durations, "trace.op.duration")
 }
 
 func TestRemapSDKTraceMetric_ErrorGating(t *testing.T) {
@@ -126,12 +169,12 @@ func TestRemapSDKTraceMetric_ErrorGating(t *testing.T) {
 			for k, v := range tc.attrs {
 				attrs[k] = v
 			}
-			got := remapSDK(sdkTraceMetric("s", 4, 1.0, attrs))
+			got := remapSDK(t, sdkTraceMetric("s", 4, 1.0, attrs))
 			if tc.wantErr {
-				require.Contains(t, got, "trace.op.errors")
-				assert.Equal(t, float64(4), got["trace.op.errors"].value)
+				require.Contains(t, got.sums, "trace.op.errors")
+				assert.Equal(t, float64(4), got.sums["trace.op.errors"].value)
 			} else {
-				assert.NotContains(t, got, "trace.op.errors")
+				assert.NotContains(t, got.sums, "trace.op.errors")
 			}
 		})
 	}
@@ -143,10 +186,11 @@ func TestRemapSDKTraceMetric_HTTPStatusSet(t *testing.T) {
 		"span.kind":              "SERVER",
 	})
 	m.Histogram().DataPoints().At(0).Attributes().PutInt("http.response.status_code", 200)
-	got := remapSDK(m)
-	assert.Equal(t, "200", got["trace.http.server.request.hits"].tags["http.status_code"])
-	// 500ms scaled to nanoseconds.
-	assert.Equal(t, 500.0*1e6, got["trace.http.server.request.duration"].value)
+	got := remapSDK(t, m)
+	assert.Equal(t, "200", got.sums["trace.http.server.request.hits"].tags["http.status_code"])
+	// Duration is a sketch carrying the http.status_code tag.
+	require.Contains(t, got.durations, "trace.http.server.request.duration")
+	assert.Equal(t, "200", got.durationTags("trace.http.server.request.duration")["http.status_code"])
 }
 
 func TestRemapSDKTraceMetric_OTelSemanticsFallback(t *testing.T) {
@@ -156,9 +200,27 @@ func TestRemapSDKTraceMetric_OTelSemanticsFallback(t *testing.T) {
 		"span.kind":           "SERVER",
 		"http.request.method": "GET",
 	})
-	got := remapSDK(m)
-	require.Contains(t, got, "trace.http.server.request.hits")
-	assert.Equal(t, "GET /users/:id", got["trace.http.server.request.hits"].tags["resource"])
+	got := remapSDK(t, m)
+	require.Contains(t, got.sums, "trace.http.server.request.hits")
+	assert.Equal(t, "GET /users/:id", got.sums["trace.http.server.request.hits"].tags["resource"])
+}
+
+// TestRemapSDKTraceMetric_SpanKindCasing verifies every span kind is lowercased.
+func TestRemapSDKTraceMetric_SpanKindCasing(t *testing.T) {
+	for in, want := range map[string]string{
+		"SERVER":   "server",
+		"CLIENT":   "client",
+		"PRODUCER": "producer",
+		"CONSUMER": "consumer",
+		"INTERNAL": "internal",
+		"":         "unspecified",
+	} {
+		got := remapSDK(t, sdkTraceMetric("s", 1, 1.0, map[string]string{
+			"datadog.operation.name": "op",
+			"span.kind":              in,
+		}))
+		assert.Equal(t, want, got.sums["trace.op.hits"].tags["span.kind"], "input %q", in)
+	}
 }
 
 // The SDK trace metric must never be prefixed by renameMetrics: it matches none
@@ -169,10 +231,10 @@ func TestRenameMetrics_SDKTraceMetricUnchanged(t *testing.T) {
 	assert.Equal(t, sdkTraceMetricName, m.Name())
 }
 
-// TestSDKTraceMetric_NoHistogramPassthrough verifies that the SDK trace histogram
-// is fully consumed by remapping and does not also flow through the normal histogram
-// path (i.e. no DDSketch series are emitted alongside the remapped Sums).
-func TestSDKTraceMetric_NoHistogramPassthrough(t *testing.T) {
+// TestSDKTraceMetric_DurationIsSketch verifies the end-to-end translator path:
+// duration is emitted as a DDSketch (not a Sum timeseries) and the counts remain
+// delta Sum series.
+func TestSDKTraceMetric_DurationIsSketch(t *testing.T) {
 	translator := NewTestTranslator(t, WithRemapping())
 
 	md := pmetric.NewMetrics()
@@ -187,12 +249,34 @@ func TestSDKTraceMetric_NoHistogramPassthrough(t *testing.T) {
 	_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
 	require.NoError(t, err)
 
-	assert.Empty(t, consumer.data.Metrics.Sketches, "SDK trace histogram must not produce DDSketch series")
+	require.Len(t, consumer.data.Metrics.Sketches, 1, "duration must be a single DDSketch series")
+	assert.Equal(t, "trace.http.request.duration", consumer.data.Metrics.Sketches[0].Name)
 
 	var names []string
 	for _, ts := range consumer.data.Metrics.TimeSeries {
 		names = append(names, ts.Name)
+		assert.NotEqual(t, "trace.http.request.duration", ts.Name, "duration must not be a timeseries")
 	}
 	assert.Contains(t, names, "trace.http.request.hits")
-	assert.Contains(t, names, "trace.http.request.duration")
+}
+
+// TestSDKTraceMetric_NotBillableHost verifies that a payload containing only the
+// SDK trace metric does not mark the host as billable (no ConsumeHost call).
+func TestSDKTraceMetric_NotBillableHost(t *testing.T) {
+	translator := NewTestTranslator(t, WithRemapping())
+
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	rm.Resource().Attributes().PutStr("host.name", "my-host")
+	sm := rm.ScopeMetrics().AppendEmpty()
+	sdkTraceMetric("s", 1, 1.0, map[string]string{
+		"datadog.operation.name": "op",
+		"span.name":              "res",
+	}).CopyTo(sm.Metrics().AppendEmpty())
+
+	consumer := newTestConsumer()
+	_, err := translator.MapMetrics(context.Background(), md, &consumer, nil)
+	require.NoError(t, err)
+
+	assert.Empty(t, consumer.data.Hosts, "SDK-trace-only payload must not consume a billable host")
 }

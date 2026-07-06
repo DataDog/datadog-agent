@@ -15,14 +15,17 @@
 package metrics
 
 import (
+	"context"
 	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 const (
@@ -44,7 +47,6 @@ var emptyAttributesMapping = attributesMapping{}
 
 // remapMetrics extracts Datadog-specific metrics from m and appends them to all.
 func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
-	remapSDKTraceMetrics(all, m)
 	remapSystemMetrics(all, m)
 	remapContainerMetrics(all, m)
 	remapKafkaMetrics(all, m)
@@ -266,12 +268,17 @@ func renameAgentInternalOTelMetric(m pmetric.Metric) {
 }
 
 // remapSDKTraceMetrics maps traces.span.sdk.metrics.duration datapoints into
-// trace.<operation>.{hits,errors,hits.by_type,duration} delta Sum series.
-func remapSDKTraceMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
+// trace.<operation>.{hits,errors,hits.by_type} delta Sum series (appended to all)
+// and a trace.<operation>.duration DDSketch consumed directly via consumer.
+//
+// The counts are emitted as delta Sums so the translator maps them to Datadog
+// counts. Duration is emitted as a sketch (rather than a Sum of dp.Sum()) to
+// preserve the histogram bucket distribution and produce latency percentiles.
+func remapSDKTraceMetrics(ctx context.Context, logger *zap.Logger, consumer Consumer, baseDims *Dimensions, all pmetric.MetricSlice, m pmetric.Metric) {
 	if m.Type() != pmetric.MetricTypeHistogram {
 		return
 	}
-	scaleToNanos := getTimeUnitScaleToNanos(m.Unit())
+	unit := m.Unit()
 	dps := m.Histogram().DataPoints()
 	for i := 0; i < dps.Len(); i++ {
 		dp := dps.At(i)
@@ -282,7 +289,6 @@ func remapSDKTraceMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
 		operation := sdkOperationName(attrs)
 
 		hits := dp.Count()
-		duration := dp.Sum() * scaleToNanos
 		isError := sdkIsError(attrs)
 		topLevelHits := sdkTopLevelHits(hits, attrs)
 
@@ -297,10 +303,38 @@ func remapSDKTraceMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
 		if topLevelHits > 0 {
 			appendSDKTraceSum(all, "trace."+operation+".hits.by_type", ts, start, float64(topLevelHits), tags)
 		}
-		if duration > 0 {
-			appendSDKTraceSum(all, "trace."+operation+".duration", ts, start, duration, tags)
-		}
+
+		consumeSDKTraceDuration(ctx, logger, consumer, baseDims, "trace."+operation+".duration", dp, unit, tags)
 	}
+}
+
+// consumeSDKTraceDuration converts a histogram datapoint into a DDSketch and
+// consumes it as a Datadog sketch, preserving the latency distribution.
+func consumeSDKTraceDuration(ctx context.Context, logger *zap.Logger, consumer Consumer, baseDims *Dimensions, name string, dp pmetric.HistogramDataPoint, unit string, tags []kv) {
+	ddSketch, err := CreateDDSketchFromHistogramOfDuration(&dp, unit)
+	if err != nil {
+		logger.Debug("Failed to convert SDK trace histogram into DDSketch",
+			zap.String(metricName, name), zap.Error(err))
+		return
+	}
+	agentSketch, err := quantile.ConvertDDSketchIntoSketch(ddSketch)
+	if err != nil {
+		logger.Debug("Failed to convert DDSketch into Sketch",
+			zap.String(metricName, name), zap.Error(err))
+		return
+	}
+	dims := baseDims.AddTags(sdkTagStrings(tags)...)
+	dims.name = name
+	consumer.ConsumeSketch(ctx, dims, uint64(dp.Timestamp()), 0, agentSketch)
+}
+
+// sdkTagStrings renders kv tags as Datadog "key:value" tag strings.
+func sdkTagStrings(tags []kv) []string {
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		out = append(out, t.K+":"+t.V)
+	}
+	return out
 }
 
 // appendSDKTraceSum appends a delta monotonic Sum metric with a single datapoint.
@@ -359,7 +393,7 @@ func sdkTraceTags(attrs pcommon.Map) []kv {
 	spanKind := spanKindFromAttr(attrs)
 	tags := []kv{
 		{"resource", sdkResourceName(attrs)},
-		{"span.kind", spanKind.String()},
+		{"span.kind", sdkSpanKindName(spanKind)},
 	}
 	if status := attributes.GetStatusCode(attrs); status != 0 {
 		tags = append(tags, kv{"http.status_code", uintToStr(status)})
@@ -380,6 +414,14 @@ func sdkResourceName(attrs pcommon.Map) string {
 		return v
 	}
 	return "unspecified"
+}
+
+// sdkSpanKindName renders a span kind as the lowercase form Datadog APM expects
+// (e.g. "server", "client"). ptrace.SpanKind.String() yields capitalized values,
+// so we lowercase it here. Inlined rather than importing pkg/trace/transform to
+// avoid adding a heavy module dependency to this submodule.
+func sdkSpanKindName(k ptrace.SpanKind) string {
+	return strings.ToLower(k.String())
 }
 
 // spanKindFromAttr maps the span.kind attribute to a ptrace.SpanKind.

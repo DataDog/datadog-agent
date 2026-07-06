@@ -572,6 +572,9 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 							mapHistogramRuntimeMetricWithAttributes(md, newMetrics, mp)
 						}
 					}
+				} else if md.Name() == sdkTraceMetricName && t.cfg.withRemapping {
+					// Remapped into trace.* APM series below; like APM stats and
+					// runtime metrics it must not mark the host as billable.
 				} else {
 					// If we are here, we have a non-APM metric:
 					// it is not a stats metric, nor a runtime metric.
@@ -579,10 +582,12 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				}
 
 				if t.cfg.withRemapping {
-					remapMetrics(newMetrics, md)
 					if md.Name() == sdkTraceMetricName {
-						continue
+						baseDims := t.baseDimensions(md.Name(), additionalTags, host, scopeName, rattrs)
+						remapSDKTraceMetrics(ctx, t.logger, consumer, baseDims, newMetrics, md)
+						continue // skip mapToDDFormat: the histogram is fully handled above; passing it through would also produce a raw DDSketch
 					}
+					remapMetrics(newMetrics, md)
 				}
 				if t.cfg.withOTelPrefix {
 					renameMetrics(md)
@@ -620,9 +625,9 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 	return metadata, nil
 }
 
-func (t *defaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
-	baseDims := &Dimensions{
-		name:                md.Name(),
+func (t *defaultTranslator) baseDimensions(name string, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) *Dimensions {
+	return &Dimensions{
+		name:                name,
 		tags:                additionalTags,
 		host:                host,
 		originID:            attributes.OriginIDFromAttributes(rattrs),
@@ -630,6 +635,10 @@ func (t *defaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric
 		originSubProduct:    OriginSubProductOTLP,
 		originProductDetail: originProductDetailFromScopeName(scopeName),
 	}
+}
+
+func (t *defaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
+	baseDims := t.baseDimensions(md.Name(), additionalTags, host, scopeName, rattrs)
 	switch md.Type() {
 	case pmetric.MetricTypeGauge:
 		t.mapper.MapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Gauge().DataPoints())
