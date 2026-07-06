@@ -91,6 +91,8 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameIoSocketStructDomain:            8,
 		OffsetNameIoSocketStructType:              12,
 		OffsetNameIoSocketStructProtocol:          16,
+		OffsetNamePinnedMountpointMp:              8,
+		OffsetNamePinnedMountpointParent:          16,
 		OffsetNameSocketType:                      4,
 	}
 }

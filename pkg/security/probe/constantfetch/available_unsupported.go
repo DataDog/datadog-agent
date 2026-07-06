@@ -57,3 +57,8 @@ func GetBTFFunctionArgCount(_ string) (int, error) {
 func AreFentryTailCallsBroken() (bool, error) {
 	return false, errors.New("unsupported BTF request")
 }
+
+// HasAttachRecursiveMntPinnedMountpointArg not available
+func HasAttachRecursiveMntPinnedMountpointArg() (bool, error) {
+	return false, errors.New("unsupported BTF request")
+}

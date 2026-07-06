@@ -63,18 +63,28 @@ func getBTFFuncProto(funcName string) (*btf.FuncProto, error) {
 	return proto, nil
 }
 
-// GetHasUsernamespaceFirstArgWithBtf uses BTF to check if the security_inode_setattr function has a user namespace as its first argument
-func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
-	proto, err := getBTFFuncProto("security_inode_setattr")
+// HasAttachRecursiveMntPinnedMountpointArg uses BTF to check if the attach_recursive_mnt function has a pinned mountpoint as its second argument
+func HasAttachRecursiveMntPinnedMountpointArg() (bool, error) {
+	proto, err := getBTFFuncProto("attach_recursive_mnt")
 	if err != nil {
 		return false, err
 	}
 
-	if len(proto.Params) == 0 {
-		return false, errors.New("security_inode_setattr has no parameters")
+	if len(proto.Params) < 2 {
+		return false, errors.New("attach_recursive_mnt has less than 2 parameters")
 	}
 
-	return proto.Params[0].Name != "dentry", nil
+	pointer, ok := proto.Params[1].Type.(*btf.Pointer)
+	if !ok {
+		return false, errors.New("attach_recursive_mnt second parameter is not a pointer")
+	}
+
+	st, ok := pointer.Target.(*btf.Struct)
+	if !ok {
+		return false, errors.New("attach_recursive_mnt second parameter is not a pointer to a struct")
+	}
+
+	return st.Name == "pinned_mountpoint", nil
 }
 
 // GetExitItimersTakesTaskStructWithBtf uses BTF to check whether exit_itimers takes a
@@ -129,6 +139,24 @@ func GetBTFFunctionArgCount(funcName string) (int, error) {
 	}
 
 	return len(proto.Params), nil
+}
+
+// GetHasUsernamespaceFirstArgWithBtf uses BTF to check if the security_inode_setattr function has a user namespace as its first argument
+func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
+	proto, err := getBTFFuncProto("vfs_rename")
+	if err != nil {
+		return false, err
+	}
+
+	if len(proto.Params) == 0 {
+		return false, errors.New("vfs_rename has no parameters")
+	}
+
+	if len(proto.Params) == 1 && proto.Params[0].Name == "rd" {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // AreFentryTailCallsBroken checks if fentry tail calls are broken
