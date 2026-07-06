@@ -7,10 +7,9 @@ is fully compatible with JSON Schema tooling.
 
 ## Why it exists
 
-Previously, Agent configuration was defined through a combination of imperative Go code (`BindEnv` and
-`BindEnvAndSetDefault` calls in `pkg/config/setup`), YAML example files maintained by-hand, and scattered validation
-logic. This made it hard to understand what a setting does, what values it accepts, or what its default is — without
-reading source code.
+Previously, Agent configuration was defined through a combination of imperative Go code (`BindEnvAndSetDefault` calls in
+`pkg/config/setup`), YAML example files maintained by-hand, and scattered validation logic. This made it hard to
+understand what a setting does, what values it accepts, or what its default is — without reading source code.
 
 The schema replaces this with a **single source of truth**. All information
 about a setting — its type, default value, documentation, environment variables,
