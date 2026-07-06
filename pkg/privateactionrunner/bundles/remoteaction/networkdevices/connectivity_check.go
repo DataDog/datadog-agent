@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -78,8 +77,6 @@ type ConnectivityCheckRequest struct {
 	EncryptionContext    encryptioncontext.EncryptionContext `json:"encryptionContext"`
 }
 
-// secretInputs is the decrypted per-task secret_inputs payload — the SNMP
-// credentials the API sends encrypted instead of in the plaintext action inputs.
 type secretInputs struct {
 	SNMP []SNMPCredential `json:"snmp"`
 }
@@ -126,15 +123,12 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 		return nil, fmt.Errorf("failed to parse connectivityCheck inputs: %w", err)
 	}
 
-	// Decrypt the per-task secret inputs — the SNMP credentials, sent encrypted in
-	// encryptedCredentials rather than in the plaintext action inputs.
 	secrets, err := encryptioncontext.DecryptInto[secretInputs](h.encryptionStore, req.EncryptionContext, req.EncryptedCredentials)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt secret inputs: %w", err)
 	}
-	log.Debugf("connectivityCheck decrypted %d SNMP secret input(s) (encryptionContextId=%s)", len(secrets.SNMP), req.EncryptionContext.EncryptionContextID)
 
-	res, err := runChecks(ctx, req, secrets.SNMP)
+	res, err := runChecks(ctx, req, secrets)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run connectivity checks: %w", err)
 	}
@@ -142,7 +136,7 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 	return res, nil
 }
 
-func runChecks(ctx context.Context, req ConnectivityCheckRequest, snmpCreds []SNMPCredential) (ConnectivityCheckResult, error) {
+func runChecks(ctx context.Context, req ConnectivityCheckRequest, secrets secretInputs) (ConnectivityCheckResult, error) {
 	devices := make([]DeviceResult, 0, len(req.TargetIPs))
 	for _, ip := range req.TargetIPs {
 		if err := ctx.Err(); err != nil {
@@ -160,7 +154,7 @@ func runChecks(ctx context.Context, req ConnectivityCheckRequest, snmpCreds []SN
 
 				dr.PingResult = res
 			case checkSNMP:
-				res, err := runSNMP(ctx, ip, req.SNMPOptions, snmpCreds)
+				res, err := runSNMP(ctx, ip, req.SNMPOptions, secrets.SNMP)
 				if err != nil {
 					return ConnectivityCheckResult{}, fmt.Errorf("failed to run SNMP check for host '%s': %w", ip, err)
 				}
