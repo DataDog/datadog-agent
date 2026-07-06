@@ -16,7 +16,11 @@ import (
 
 	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -144,6 +148,12 @@ func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t
 
 	normalSenderManager := &recordingSchedulerSenderManager{name: "normal"}
 	shadowSenderManager := &recordingSchedulerSenderManager{name: "shadow"}
+	// Production initializes the aggregator check context before checks are loaded.
+	// This lets the scheduler test verify successful rtloader callback registration
+	// without leaking the global check context into later tests.
+	collectoraggregator.InitializeCheckContext(normalSenderManager, option.None[integrations.Component](), nooptagger.NewComponent(), workloadfilterfxmock.SetupMockFilter(t))
+	t.Cleanup(collectoraggregator.ReleaseCheckContextForTest)
+
 	sourceID := checkid.ID("cpu:loaded-source-id")
 	loader := &recordingSchedulerLoader{name: "core", normalCheckID: sourceID}
 	s := CheckScheduler{
@@ -174,14 +184,15 @@ func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t
 
 	shadowSenderOverride, ok := check.SenderManagerOverride(shadowCheck)
 	require.True(t, ok)
-	shadowSenderOverrideAdapter, ok := shadowSenderOverride.(shadowCheckSenderManager)
+	shadowSenderOverrideAdapter, ok := shadowSenderOverride.(*shadowCheckSenderManager)
 	require.True(t, ok)
 	assert.Same(t, shadowSenderManager, shadowSenderOverrideAdapter.SenderManager)
+	assert.Equal(t, []checkid.ID{loader.calls[1].checkID}, shadowSenderOverrideAdapter.callbackIDs)
 
 	assert.Equal(t, []checkid.ID{sourceID, check.ShadowID(sourceID)}, s.configToChecks[config.Digest()])
 	require.Len(t, loader.calls, 2)
 	assert.Same(t, normalSenderManager, loader.calls[0].senderManager)
-	shadowLoadSenderManager, ok := loader.calls[1].senderManager.(shadowCheckSenderManager)
+	shadowLoadSenderManager, ok := loader.calls[1].senderManager.(*shadowCheckSenderManager)
 	require.True(t, ok)
 	assert.Same(t, shadowSenderManager, shadowLoadSenderManager.SenderManager)
 	assert.NotContains(t, string(loader.calls[0].instance), "_datadog")

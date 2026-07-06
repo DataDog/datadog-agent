@@ -83,6 +83,7 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
+	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -124,6 +125,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ serializer.MetricSerializer,
 			_ otelcollector.Component,
 			demultiplexer demultiplexer.Component,
+			metricLookbackRetention *metriclookback.Retention,
 			_ host.Component,
 			_ inventoryagent.Component,
 			_ inventoryhost.Component,
@@ -165,6 +167,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				ac,
 				rcclient,
 				demultiplexer,
+				metricLookbackRetention,
 				invChecks,
 				logsReceiver,
 				collector,
