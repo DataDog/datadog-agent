@@ -332,15 +332,17 @@ func (s *CheckScheduler) loadShadowCheck(candidate metriclookback.ShadowCandidat
 		checkSenderManager.DestroySender(shadowCheckID)
 		return nil, err
 	}
-	checkSenderManager.RegisterCallbackID(loadedCheck.ID())
+	if !checkSenderManager.RegisterCallbackID(loadedCheck.ID()) {
+		log.Warnf("Unable to register metric lookback rtloader callback route for shadow check %s loaded as %s", shadowCheckID, loadedCheck.ID())
+	}
 	s.applyInfraTagger(checkSenderManager, candidate.SourceConfig.Name, shadowCheckID)
 	return check.NewShadowCheckForSource(loadedCheck, sourceCheckID, candidate.ShadowInterval, checkSenderManager), nil
 }
 
 type shadowCheckSenderManager struct {
 	sender.SenderManager
-	shadowCheckID checkid.ID
-	callbackIDs   []checkid.ID
+	shadowCheckID       checkid.ID
+	unregisterCallbacks []func()
 }
 
 func (m shadowCheckSenderManager) GetSender(checkid.ID) (sender.Sender, error) {
@@ -352,15 +354,20 @@ func (m shadowCheckSenderManager) SetSender(s sender.Sender, _ checkid.ID) error
 }
 
 func (m *shadowCheckSenderManager) DestroySender(checkid.ID) {
-	for _, id := range m.callbackIDs {
-		collectoraggregator.UnregisterCheckSenderManager(id)
+	for _, unregister := range m.unregisterCallbacks {
+		unregister()
 	}
+	m.unregisterCallbacks = nil
 	m.SenderManager.DestroySender(m.shadowCheckID)
 }
 
-func (m *shadowCheckSenderManager) RegisterCallbackID(id checkid.ID) {
-	m.callbackIDs = append(m.callbackIDs, id)
-	collectoraggregator.RegisterCheckSenderManager(id, m)
+func (m *shadowCheckSenderManager) RegisterCallbackID(id checkid.ID) bool {
+	unregister, ok := collectoraggregator.RegisterCheckSenderManager(id, m)
+	if !ok {
+		return false
+	}
+	m.unregisterCallbacks = append(m.unregisterCallbacks, unregister)
+	return true
 }
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
