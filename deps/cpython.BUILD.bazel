@@ -293,10 +293,10 @@ configure_make(
         # Build in parallel but install without parallel execution
         # (see https://github.com/python/cpython/issues/109796)
         "-j 16",
-        # Set compileall options for improved reproducibility of pyc files by enabling hash-based invalidation
-        # and removing the sandbox path from the paths recorded in them.
-        'install COMPILEALL_OPTS="--invalidation-mode checked-hash -s $$BUILD_TMPDIR$$/$$INSTALL_PREFIX$$"',
+        "install",
     ],
+    # $(INSTALL_DIR) is the make-variable provided by //:install_dir.
+    toolchains = ["@@//:install_dir"],
     target_compatible_with = select({
         "@platforms//os:macos": [],
         "@platforms//os:linux": [],
@@ -311,7 +311,7 @@ configure_make(
     # sandbox paths with their install-prefix-relative equivalents.
     postfix_script = """
     $(execpath @python_3_12//:python3) $(execpath @@//deps/cpython:fix_sysconfigdata.py) \
-      --install-prefix "##PREFIX##" \
+      --install-prefix "$(INSTALL_DIR)/embedded" \
       --sandbox-prefix "$$BUILD_TMPDIR/$$INSTALL_PREFIX" \
       $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py
     rm -f $$INSTALLDIR/lib/python{version}/config-*/Makefile
