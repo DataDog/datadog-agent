@@ -573,8 +573,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 						}
 					}
 				} else if md.Name() == sdkTraceMetricName && t.cfg.withRemapping {
-					// Remapped into trace.* APM series below; like APM stats and
-					// runtime metrics it must not mark the host as billable.
+					// APM-only: do not mark the host as billable.
 				} else {
 					// If we are here, we have a non-APM metric:
 					// it is not a stats metric, nor a runtime metric.

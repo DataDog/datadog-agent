@@ -34,12 +34,8 @@ const (
 	// divPercentage specifies the division necessary for converting fractions to percentages.
 	divPercentage = 0.01
 
-	// sdkTraceMetricName is the histogram emitted by Datadog SDKs that ship trace
-	// metrics via OTLP (see the OTLP Trace Metrics Export RFC). The otlp-intake
-	// backend remaps this metric into the trace.* namespace, but that intake
-	// endpoint (otlp.datadoghq.com) is not yet GA. Duplicating the remapping here
-	// lets customers sending OTLP through the Agent/DDOT obtain trace metric
-	// series without relying on it.
+	// sdkTraceMetricName is the DD-SDK OTLP histogram remapped here so Agent/DDOT
+	// customers get trace.* series before the otlp-intake endpoint is GA.
 	sdkTraceMetricName = "traces.span.sdk.metrics.duration"
 )
 
@@ -267,13 +263,8 @@ func renameAgentInternalOTelMetric(m pmetric.Metric) {
 	}
 }
 
-// remapSDKTraceMetrics maps traces.span.sdk.metrics.duration datapoints into
-// trace.<operation>.{hits,errors,hits.by_type} delta Sum series (appended to all)
-// and a trace.<operation>.duration DDSketch consumed directly via consumer.
-//
-// The counts are emitted as delta Sums so the translator maps them to Datadog
-// counts. Duration is emitted as a sketch (rather than a Sum of dp.Sum()) to
-// preserve the histogram bucket distribution and produce latency percentiles.
+// remapSDKTraceMetrics maps sdkTraceMetricName into trace.<op>.{hits,errors,hits.by_type}
+// delta Sums and a trace.<op>.duration DDSketch (preserving latency distribution).
 func remapSDKTraceMetrics(ctx context.Context, logger *zap.Logger, consumer Consumer, baseDims *Dimensions, all pmetric.MetricSlice, m pmetric.Metric) {
 	if m.Type() != pmetric.MetricTypeHistogram {
 		return
@@ -308,8 +299,6 @@ func remapSDKTraceMetrics(ctx context.Context, logger *zap.Logger, consumer Cons
 	}
 }
 
-// consumeSDKTraceDuration converts a histogram datapoint into a DDSketch and
-// consumes it as a Datadog sketch, preserving the latency distribution.
 func consumeSDKTraceDuration(ctx context.Context, logger *zap.Logger, consumer Consumer, baseDims *Dimensions, name string, dp pmetric.HistogramDataPoint, unit string, tags []kv) {
 	ddSketch, err := CreateDDSketchFromHistogramOfDuration(&dp, unit)
 	if err != nil {
@@ -328,7 +317,6 @@ func consumeSDKTraceDuration(ctx context.Context, logger *zap.Logger, consumer C
 	consumer.ConsumeSketch(ctx, dims, uint64(dp.Timestamp()), 0, agentSketch)
 }
 
-// sdkTagStrings renders kv tags as Datadog "key:value" tag strings.
 func sdkTagStrings(tags []kv) []string {
 	out := make([]string, 0, len(tags))
 	for _, t := range tags {
@@ -337,8 +325,6 @@ func sdkTagStrings(tags []kv) []string {
 	return out
 }
 
-// appendSDKTraceSum appends a delta monotonic Sum metric with a single datapoint.
-// Delta sums are mapped to Datadog counts by the translator.
 func appendSDKTraceSum(all pmetric.MetricSlice, name string, ts, start pcommon.Timestamp, value float64, tags []kv) {
 	metric := all.AppendEmpty()
 	metric.SetName(name)
@@ -354,9 +340,7 @@ func appendSDKTraceSum(all pmetric.MetricSlice, name string, ts, start pcommon.T
 	}
 }
 
-// sdkOperationName resolves the DD operation name for the SDK trace metric.
-// Default-mode SDK payloads pre-split the operation via datadog.operation.name;
-// OTel-semantics payloads omit it and fall back to semconv.
+// sdkOperationName prefers datadog.operation.name; falls back to semconv-derived operation.
 func sdkOperationName(attrs pcommon.Map) string {
 	if op := attributes.GetOTelAttrVal(attrs, false, "datadog.operation.name"); op != "" {
 		return op
@@ -368,8 +352,7 @@ func sdkOperationName(attrs pcommon.Map) string {
 	return "unknown"
 }
 
-// sdkIsError gates errors on the RFC status.code wire forms. HTTP heuristics and
-// error.type used by the SMC path do not apply to the SDK duration metric.
+// sdkIsError gates on status.code only; HTTP heuristics used by the SMC path don't apply here.
 func sdkIsError(attrs pcommon.Map) bool {
 	switch attributes.GetOTelAttrVal(attrs, false, "status.code") {
 	case "ERROR", "STATUS_CODE_ERROR", "2":
@@ -378,7 +361,6 @@ func sdkIsError(attrs pcommon.Map) bool {
 	return false
 }
 
-// sdkTopLevelHits returns hits only when the datapoint is flagged top-level.
 func sdkTopLevelHits(hits uint64, attrs pcommon.Map) uint64 {
 	switch attributes.GetOTelAttrVal(attrs, false, "datadog.span.top_level") {
 	case "true", "1":
@@ -387,8 +369,7 @@ func sdkTopLevelHits(hits uint64, attrs pcommon.Map) uint64 {
 	return 0
 }
 
-// sdkTraceTags carries the identifying dimensions for the remapped trace series.
-// http.status_code is left unset for non-HTTP spans (the SMC path defaults it to 200).
+// sdkTraceTags omits http.status_code for non-HTTP spans (unlike the SMC path which defaults to 200).
 func sdkTraceTags(attrs pcommon.Map) []kv {
 	spanKind := spanKindFromAttr(attrs)
 	tags := []kv{
@@ -416,15 +397,11 @@ func sdkResourceName(attrs pcommon.Map) string {
 	return "unspecified"
 }
 
-// sdkSpanKindName renders a span kind as the lowercase form Datadog APM expects
-// (e.g. "server", "client"). ptrace.SpanKind.String() yields capitalized values,
-// so we lowercase it here. Inlined rather than importing pkg/trace/transform to
-// avoid adding a heavy module dependency to this submodule.
+// sdkSpanKindName lowercases SpanKind.String(); inlined to avoid importing pkg/trace/transform.
 func sdkSpanKindName(k ptrace.SpanKind) string {
 	return strings.ToLower(k.String())
 }
 
-// spanKindFromAttr maps the span.kind attribute to a ptrace.SpanKind.
 func spanKindFromAttr(attrs pcommon.Map) ptrace.SpanKind {
 	switch strings.ToUpper(attributes.GetOTelAttrVal(attrs, false, "span.kind")) {
 	case "SERVER", "SPAN_KIND_SERVER":
