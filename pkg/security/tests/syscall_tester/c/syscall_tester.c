@@ -20,6 +20,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 #include <netdb.h>
 #include <linux/un.h>
 #include <linux/prctl.h>
@@ -1312,6 +1313,82 @@ int test_new_netns_exec(int argc, char **argv) {
     return EXIT_FAILURE;
 }
 
+// send_fd sends the file descriptor payload_fd over the unix socket sock_fd using SCM_RIGHTS.
+static int send_fd(int sock_fd, int payload_fd) {
+    char data = 'x';
+    struct iovec io = {.iov_base = &data, .iov_len = 1};
+    union {
+        char buf[CMSG_SPACE(sizeof(int))];
+        struct cmsghdr align;
+    } u;
+    memset(&u, 0, sizeof(u));
+
+    struct msghdr msg = {0};
+    msg.msg_iov = &io;
+    msg.msg_iovlen = 1;
+    msg.msg_control = u.buf;
+    msg.msg_controllen = sizeof(u.buf);
+
+    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    memcpy(CMSG_DATA(cmsg), &payload_fd, sizeof(int));
+
+    if (sendmsg(sock_fd, &msg, 0) < 0) {
+        perror("sendmsg");
+        return -1;
+    }
+    return 0;
+}
+
+// test_create_socket_send_fd creates a socket of the requested domain/type and sends it back to the
+// parent over the unix socket inherited as fd 3 (via SCM_RIGHTS). The socket is created by this
+// (child) process, so the cgroup/sock_create hook records this process's pid in sk_storage_pid.
+int test_create_socket_send_fd(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Please specify a socket domain (ipv4/ipv6/unix) and type (tcp/udp)\n");
+        return EXIT_FAILURE;
+    }
+
+    int domain;
+    if (strcmp(argv[1], "ipv4") == 0) {
+        domain = AF_INET;
+    } else if (strcmp(argv[1], "ipv6") == 0) {
+        domain = AF_INET6;
+    } else if (strcmp(argv[1], "unix") == 0) {
+        domain = AF_UNIX;
+    } else {
+        fprintf(stderr, "invalid domain: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+
+    int type;
+    if (strcmp(argv[2], "tcp") == 0) {
+        type = SOCK_STREAM;
+    } else if (strcmp(argv[2], "udp") == 0) {
+        type = SOCK_DGRAM;
+    } else {
+        fprintf(stderr, "invalid type: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    int fd = socket(domain, type, 0);
+    if (fd < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    // fd 3 is the unix socket passed by the parent through which we send our socket fd
+    if (send_fd(3, fd) < 0) {
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
 int test_network_flow_send_udp4(int argc, char **argv) {
     if (argc < 3) {
         fprintf(stderr, "Please specify the remote IP address and port\n");
@@ -2159,6 +2236,8 @@ int main(int argc, char **argv) {
             exit_code = test_tracer_memfd(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "create_socket_send_fd") == 0) {
+            exit_code = test_create_socket_send_fd(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {
