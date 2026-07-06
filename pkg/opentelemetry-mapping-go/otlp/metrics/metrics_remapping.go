@@ -43,26 +43,29 @@ const (
 var emptyAttributesMapping = attributesMapping{}
 
 // remapMetrics extracts any Datadog specific metrics from m and appends them to all.
-// It reports whether the original metric was fully consumed by remapping and should
-// not be processed further (e.g. through the normal histogram path).
-func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) (consumed bool) {
+func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
 	if m.Name() == sdkTraceMetricName {
 		remapSDKTraceMetrics(all, m)
-		return true
+		return
 	}
 	remapSystemMetrics(all, m)
 	remapContainerMetrics(all, m)
 	remapKafkaMetrics(all, m)
 	remapJvmMetrics(all, m)
-	return false
+}
+
+// isFullyRemappedMetric reports whether m is remapped into an entirely new set of
+// series and must not also be emitted under its original name. Unlike the system,
+// container, kafka and jvm remappings (which append Sum/Gauge copies while the
+// original metric still flows through unchanged), the SDK trace histogram is
+// translated into trace.* Sums and would otherwise also produce an unwanted
+// DDSketch series under its raw name.
+func isFullyRemappedMetric(m pmetric.Metric) bool {
+	return m.Name() == sdkTraceMetricName
 }
 
 // renameMetrics adds the `otel.` or `otelcol_` prefix to metrics.
 func renameMetrics(m pmetric.Metric) {
-	if m.Name() == sdkTraceMetricName {
-		// The SDK trace metric is remapped into the trace.* namespace; never prefix it.
-		return
-	}
 	renameHostMetrics(m)
 	renameKafkaMetrics(m)
 	renameAgentInternalOTelMetric(m)

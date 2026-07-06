@@ -161,7 +161,8 @@ func TestRemapSDKTraceMetric_OTelSemanticsFallback(t *testing.T) {
 	assert.Equal(t, "GET /users/:id", got["trace.http.server.request.hits"].tags["resource"])
 }
 
-// The SDK trace metric must never be renamed (prefixed) by renameMetrics.
+// The SDK trace metric must never be prefixed by renameMetrics: it matches none
+// of the host/kafka/internal rename rules.
 func TestRenameMetrics_SDKTraceMetricUnchanged(t *testing.T) {
 	m := sdkTraceMetric("s", 1, 1.0, nil)
 	renameMetrics(m)
