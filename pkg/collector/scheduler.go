@@ -7,7 +7,6 @@
 package collector
 
 import (
-	"context"
 	"expvar"
 	"fmt"
 	"slices"
@@ -28,7 +27,6 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
-	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -305,8 +303,7 @@ func (s *CheckScheduler) applyInfraTagger(senderManager sender.SenderManager, ch
 func (s *CheckScheduler) loadShadowCheck(candidate metriclookback.ShadowCandidate, loader check.Loader, sourceCheckID checkid.ID) (check.Check, error) {
 	shadowSenderManager := s.shadowSenderManager
 	if shadowSenderManager == nil {
-		shadowSenderManager = lookbacksender.NewSenderManager(context.Background(), "", nil, nil)
-		s.shadowSenderManager = shadowSenderManager
+		return nil, fmt.Errorf("metric lookback shadow sender manager is not configured")
 	}
 	shadowCheckID := check.ShadowID(sourceCheckID)
 	checkSenderManager := shadowCheckSenderManager{
