@@ -68,7 +68,6 @@ from tasks.libs.releasing.version import (
     RC_VERSION_RE,
     RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,
-    _create_version_from_match,
     deduce_version,
     get_version_major,
     next_final_version,
