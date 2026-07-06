@@ -22,7 +22,7 @@ const (
 type adScheduler struct {
 	resolver   targetResolver
 	readers    map[RuntimeType]configReaderFactory
-	collectors map[string]configCollector
+	collectors map[string]ConfigCollector
 	reporter   configFileReporter
 
 	ctx             context.Context
@@ -37,7 +37,7 @@ var _ scheduler.Scheduler = (*adScheduler)(nil)
 type configCollectionWork struct {
 	config        integration.Config
 	target        target
-	collector     configCollector
+	collector     ConfigCollector
 	readerFactory configReaderFactory
 }
 
@@ -55,7 +55,7 @@ func (noopConfigFileReporter) ReportConfigFile(context.Context, string, ConfigFi
 // Autodiscovery calls this scheduler when integration configs appear or
 // disappear; this component only uses the scheduled configs as triggers for
 // one-shot config collection.
-func newADScheduler(resolver targetResolver, readers map[RuntimeType]configReaderFactory, collectors map[string]configCollector, reporter configFileReporter) *adScheduler {
+func newADScheduler(resolver targetResolver, readers map[RuntimeType]configReaderFactory, collectors map[string]ConfigCollector, reporter configFileReporter) *adScheduler {
 	if reporter == nil {
 		reporter = noopConfigFileReporter{}
 	}

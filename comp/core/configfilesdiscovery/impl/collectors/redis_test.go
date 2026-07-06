@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package configfilesdiscoveryimpl
+package collectors
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,13 +18,13 @@ import (
 func TestRedisGetConfigPath(t *testing.T) {
 	tests := []struct {
 		name        string
-		commandline TargetCommandline
+		commandline configfilesdiscoveryimpl.TargetCommandline
 		wantPath    string
 		wantOK      bool
 	}{
 		{
 			name: "official docker custom config",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{
 					"docker-entrypoint.sh",
 					"redis-server",
@@ -35,7 +36,7 @@ func TestRedisGetConfigPath(t *testing.T) {
 		},
 		{
 			name: "explicit redis command",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{"redis-server", "/etc/redis/redis.conf"},
 			},
 			wantPath: "/etc/redis/redis.conf",
@@ -43,7 +44,7 @@ func TestRedisGetConfigPath(t *testing.T) {
 		},
 		{
 			name: "redis full config",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{"redis-server", "/etc/redis/redis-full.conf"},
 			},
 			wantPath: "/etc/redis/redis-full.conf",
@@ -51,7 +52,7 @@ func TestRedisGetConfigPath(t *testing.T) {
 		},
 		{
 			name: "relative path",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args:       []string{"redis-server", "redis.conf"},
 				WorkingDir: "/usr/local/etc/redis",
 			},
@@ -60,7 +61,7 @@ func TestRedisGetConfigPath(t *testing.T) {
 		},
 		{
 			name: "relative path with docker default working dir",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args:       []string{"redis-server", "redis.conf"},
 				WorkingDir: "/",
 			},
@@ -69,7 +70,7 @@ func TestRedisGetConfigPath(t *testing.T) {
 		},
 		{
 			name: "arbitrary config filename",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{"redis-server", "/usr/local/etc/redis/foo.bar"},
 			},
 			wantPath: "/usr/local/etc/redis/foo.bar",
@@ -77,25 +78,25 @@ func TestRedisGetConfigPath(t *testing.T) {
 		},
 		{
 			name: "direct config path without redis server",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{"/usr/local/etc/redis/redis.conf"},
 			},
 		},
 		{
 			name: "default startup",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{"redis-server"},
 			},
 		},
 		{
 			name: "flags only",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{"redis-server", "--save", "60", "1", "--loglevel", "warning"},
 			},
 		},
 		{
 			name: "shell form",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{"/bin/sh", "-c", "redis-server /etc/redis/redis.conf"},
 			},
 			wantPath: "/etc/redis/redis.conf",
@@ -103,13 +104,13 @@ func TestRedisGetConfigPath(t *testing.T) {
 		},
 		{
 			name: "non redis command",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{"nginx", "-c", "/etc/nginx/nginx.conf"},
 			},
 		},
 		{
 			name: "relative path without absolute working dir",
-			commandline: TargetCommandline{
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{"redis-server", "redis.conf"},
 			},
 		},
@@ -127,23 +128,23 @@ func TestRedisGetConfigPath(t *testing.T) {
 
 func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 	reader := &redisCollectorTestReader{
-		commandline: TargetCommandline{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"redis-server", "/etc/redis/redis.conf"},
 		},
-		file: ConfigFile{
+		file: configfilesdiscoveryimpl.ConfigFile{
 			Path:      "/etc/redis/redis.conf",
 			Content:   []byte("port 6379\n"),
 			Truncated: true,
 		},
 	}
-	collector := newRedisConfigCollector()
+	collector := NewRedis()
 
 	files, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
 	require.Len(t, files, 1)
-	assert.Equal(t, ConfigFile{
+	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
 		Path:      "/etc/redis/redis.conf",
 		Content:   []byte("port 6379\n"),
 		Truncated: true,
@@ -152,11 +153,11 @@ func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 
 func TestRedisCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
 	reader := &redisCollectorTestReader{
-		commandline: TargetCommandline{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"redis-server", "--save", "60", "1"},
 		},
 	}
-	collector := newRedisConfigCollector()
+	collector := NewRedis()
 
 	files, err := collector.Collect(context.Background(), reader)
 
@@ -168,7 +169,7 @@ func TestRedisCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
 func TestRedisCollectorReturnsCommandlineErrors(t *testing.T) {
 	expectedErr := errors.New("command line unavailable")
 	reader := &redisCollectorTestReader{commandlineErr: expectedErr}
-	collector := newRedisConfigCollector()
+	collector := NewRedis()
 
 	files, err := collector.Collect(context.Background(), reader)
 
@@ -179,12 +180,12 @@ func TestRedisCollectorReturnsCommandlineErrors(t *testing.T) {
 func TestRedisCollectorReturnsReadFileErrors(t *testing.T) {
 	expectedErr := errors.New("read failed")
 	reader := &redisCollectorTestReader{
-		commandline: TargetCommandline{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"redis-server", "/etc/redis/redis.conf"},
 		},
 		readFileErr: expectedErr,
 	}
-	collector := newRedisConfigCollector()
+	collector := NewRedis()
 
 	files, err := collector.Collect(context.Background(), reader)
 
@@ -194,23 +195,23 @@ func TestRedisCollectorReturnsReadFileErrors(t *testing.T) {
 }
 
 type redisCollectorTestReader struct {
-	commandline    TargetCommandline
+	commandline    configfilesdiscoveryimpl.TargetCommandline
 	commandlineErr error
 	readFileCalls  []string
-	file           ConfigFile
+	file           configfilesdiscoveryimpl.ConfigFile
 	readFileErr    error
 }
 
-func (r *redisCollectorTestReader) Runtime() RuntimeType {
-	return RuntimeDocker
+func (r *redisCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeType {
+	return configfilesdiscoveryimpl.RuntimeDocker
 }
 
 func (r *redisCollectorTestReader) Close() {}
 
-func (r *redisCollectorTestReader) ReadFile(_ context.Context, path string) (ConfigFile, error) {
+func (r *redisCollectorTestReader) ReadFile(_ context.Context, path string) (configfilesdiscoveryimpl.ConfigFile, error) {
 	r.readFileCalls = append(r.readFileCalls, path)
 	if r.readFileErr != nil {
-		return ConfigFile{}, r.readFileErr
+		return configfilesdiscoveryimpl.ConfigFile{}, r.readFileErr
 	}
 	return r.file, nil
 }
@@ -219,9 +220,9 @@ func (r *redisCollectorTestReader) ReadEnvVars(context.Context, []string) (map[s
 	return nil, errors.New("not implemented")
 }
 
-func (r *redisCollectorTestReader) ReadCommandline(context.Context) (TargetCommandline, error) {
+func (r *redisCollectorTestReader) ReadCommandline(context.Context) (configfilesdiscoveryimpl.TargetCommandline, error) {
 	if r.commandlineErr != nil {
-		return TargetCommandline{}, r.commandlineErr
+		return configfilesdiscoveryimpl.TargetCommandline{}, r.commandlineErr
 	}
 	return r.commandline, nil
 }

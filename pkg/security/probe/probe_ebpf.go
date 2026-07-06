@@ -3489,7 +3489,11 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructFilename, "struct linux_binprm", "filename")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructInterp, "struct linux_binprm", "interp")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMStart, "struct vm_area_struct", "vm_start")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMEnd, "struct vm_area_struct", "vm_end")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFinode, "struct file", "f_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFpath, "struct file", "f_path")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
@@ -3502,6 +3506,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
 	}
+
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyMntNs, "struct nsproxy", "mnt_ns")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyNetNs, "struct nsproxy", "net_ns")
 
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
@@ -3609,6 +3616,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	if !kv.IsRH7Kernel() {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructCTNet, "struct nf_conn", "ct_net")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructTuplehash, "struct nf_conn", "tuplehash")
 	}
 
 	if getNetStructType(kv) == netStructHasProcINum {
@@ -3620,6 +3628,14 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// iouring
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoKiocbStructOpcode, "struct io_kiocb", "opcode")
+	}
+
+	// IORING_OP_SOCKET (struct io_socket) was added in 5.19
+	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_19) {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructDomain, "struct io_socket", "domain")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructType, "struct io_socket", "type")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructProtocol, "struct io_socket", "protocol")
 	}
 
 	// inode

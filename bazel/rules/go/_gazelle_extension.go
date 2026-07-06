@@ -129,6 +129,7 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 				addStringToListIfMissing(r, "gotags", "test")
 			}
 		}
+		result = l.revertDdAgentGoTests(result, args.File)
 	}
 	if linuxBPFEnabled(args.Config) {
 		result = l.applyLinuxBPF(result, args)
@@ -247,6 +248,34 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 		Empty:   append(result.Empty, empty...),
 		Imports: imports,
 	}
+}
+
+// revertDdAgentGoTests is the inverse of replaceGoTests: it runs when a
+// package's directive has just flipped from "on" back to "off". Deleting the
+// old rule and inserting the fresh go_test candidate as new would lose any
+// `# keep`-marked deps, since those only survive a match against an existing
+// rule at the PostResolve merge, well after this function returns.
+//
+// So instead of deleting, change the existing rule's kind to "go_test" in
+// place: the rule stays put with everything on it, and the ordinary go_test
+// merge path (kind now matches) takes over as if the package had never been
+// converted. "flavors" has no go_test equivalent and is dropped; everything
+// else carries over untouched.
+//
+// A whole-rule `# keep` is left as dd_agent_go_test, so the go_test candidate
+// fails to match it (different kind) and is dropped rather than duplicated.
+func (l *lang) revertDdAgentGoTests(result language.GenerateResult, file *rule.File) language.GenerateResult {
+	if file == nil {
+		return result
+	}
+	for _, r := range file.Rules {
+		if r.Kind() != "dd_agent_go_test" || r.ShouldKeep() {
+			continue
+		}
+		r.DelAttr("flavors")
+		r.SetKind("go_test")
+	}
+	return result
 }
 
 // Resolve delegates to the Go extension's resolver. For dd_agent_go_test rules it
