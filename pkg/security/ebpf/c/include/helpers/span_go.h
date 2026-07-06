@@ -114,6 +114,65 @@ static int __attribute__((always_inline)) read_and_process_label(
     return 0;
 }
 
+// The three helpers below exist so their callers can manually unroll with
+// compile-time-constant indices. A runtime-indexed loop over scratch->pairs[] or
+// scratch->bucket.keys/values[] is rejected by the verifier — "invalid access to
+// map value" on arm64/6.6, "infinite loop detected" on newer kernels — because
+// the map-value offset can't be proven in-bounds. always_inline + a literal index
+// makes every access a fixed, provable offset. Functions (not macros) keep the
+// call sites type-checked.
+
+// Read+process slice pair n (Go >=1.24), when it exists (n < num_pairs). Reads
+// just that pair with a constant size.
+static void __attribute__((always_inline)) process_go_slice_pair(
+    struct span_context_t *span,
+    struct go_labels_scratch_t *s,
+    u64 num_pairs,
+    int n)
+{
+    if (num_pairs <= (u64)n) {
+        return;
+    }
+    const u64 pair_off = (u64)n * 2 * sizeof(struct go_string_t);
+    if (bpf_probe_read_user(&s->pairs[n * 2], 2 * sizeof(struct go_string_t),
+                            (void *)((char *)s->slice.array + pair_off)) < 0) {
+        return;
+    }
+    read_and_process_label(span, s, &s->pairs[n * 2], &s->pairs[n * 2 + 1]);
+}
+
+// Process slot in the bucket already read into scratch (Go <1.24).
+static void __attribute__((always_inline)) process_go_bucket_slot(
+    struct span_context_t *span,
+    struct go_labels_scratch_t *s,
+    int slot)
+{
+    if (s->bucket.tophash[slot] != 0) {
+        read_and_process_label(span, s, &s->bucket.keys[slot], &s->bucket.values[slot]);
+    }
+}
+
+// Read bucket bucket_idx into scratch and process its 8 slots.
+static void __attribute__((always_inline)) process_go_bucket(
+    struct span_context_t *span,
+    struct go_labels_scratch_t *s,
+    void *label_buckets,
+    int bucket_idx)
+{
+    if (bpf_probe_read_user(&s->bucket, sizeof(struct go_map_bucket_t),
+                            (void *)((char *)label_buckets + (u64)bucket_idx * sizeof(struct go_map_bucket_t))) < 0) {
+        return;
+    }
+    process_go_bucket_slot(span, s, 0);
+    process_go_bucket_slot(span, s, 1);
+    process_go_bucket_slot(span, s, 2);
+    process_go_bucket_slot(span, s, 3);
+    process_go_bucket_slot(span, s, 4);
+    process_go_bucket_slot(span, s, 5);
+    process_go_bucket_slot(span, s, 6);
+    process_go_bucket_slot(span, s, 7);
+}
+
 // Try to fill span context from Go pprof labels.
 // Returns 1 on success, 0 otherwise.
 //
@@ -183,17 +242,17 @@ int __attribute__((__noinline__)) fill_span_context_go(struct span_context_t *sp
         u64 num_pairs = scratch->slice.len;
         if (num_pairs > GO_MAX_LABELS) num_pairs = GO_MAX_LABELS;
 
-        if (bpf_probe_read_user(scratch->pairs,
-                                sizeof(struct go_string_t) * 2 * num_pairs,
-                                scratch->slice.array) < 0) {
-            return 0;
-        }
-        for (int i = 0; i < GO_MAX_LABELS; i++) {
-            if (i >= (int)num_pairs) break;
-            read_and_process_label(span, scratch,
-                                   &scratch->pairs[i * 2],
-                                   &scratch->pairs[i * 2 + 1]);
-        }
+        // Manually unrolled over GO_MAX_LABELS with constant indices.
+        process_go_slice_pair(span, scratch, num_pairs, 0);
+        process_go_slice_pair(span, scratch, num_pairs, 1);
+        process_go_slice_pair(span, scratch, num_pairs, 2);
+        process_go_slice_pair(span, scratch, num_pairs, 3);
+        process_go_slice_pair(span, scratch, num_pairs, 4);
+        process_go_slice_pair(span, scratch, num_pairs, 5);
+        process_go_slice_pair(span, scratch, num_pairs, 6);
+        process_go_slice_pair(span, scratch, num_pairs, 7);
+        process_go_slice_pair(span, scratch, num_pairs, 8);
+        process_go_slice_pair(span, scratch, num_pairs, 9);
         return (span->span_id != 0) ? 1 : 0;
     }
 
@@ -222,21 +281,12 @@ int __attribute__((__noinline__)) fill_span_context_go(struct span_context_t *sp
     }
 
     u8 bucket_count = 1 << log_2_bucket_count;
-    if (bucket_count > 4) bucket_count = 4;
 
-    for (int b = 0; b < 4; b++) {
-        if (b >= bucket_count) break;
-        if (bpf_probe_read_user(&scratch->bucket, sizeof(struct go_map_bucket_t),
-                                label_buckets + (b * sizeof(struct go_map_bucket_t))) < 0) {
-            return 0;
-        }
-        for (int i = 0; i < GO_MAP_BUCKET_SIZE; i++) {
-            if (scratch->bucket.tophash[i] == 0) continue;
-            read_and_process_label(span, scratch,
-                                   &scratch->bucket.keys[i],
-                                   &scratch->bucket.values[i]);
-        }
-    }
+    // Manually unrolled over the (capped) 4 buckets with constant indices.
+    if (bucket_count > 0) process_go_bucket(span, scratch, label_buckets, 0);
+    if (bucket_count > 1) process_go_bucket(span, scratch, label_buckets, 1);
+    if (bucket_count > 2) process_go_bucket(span, scratch, label_buckets, 2);
+    if (bucket_count > 3) process_go_bucket(span, scratch, label_buckets, 3);
 
     return (span->span_id != 0) ? 1 : 0;
 }
