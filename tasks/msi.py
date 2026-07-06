@@ -109,7 +109,6 @@ def _msbuild_configuration(debug=False):
 def sign_file(ctx, path, force=False):
     dd_wcs_enabled = os.environ.get('SIGN_WINDOWS_DD_WCS')
     if dd_wcs_enabled or force:
-        ctx.run('C:/devtools/ci-identities-gitlab-job-client.exe assume-role')
         return ctx.run(f'C:/devtools/windows-code-signer.exe sign "{path}"')
 
 
