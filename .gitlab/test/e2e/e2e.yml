@@ -452,6 +452,8 @@ new-e2e-privateactionrunner:
       optional: true
     - qa_agent_linux
   rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.except_mergequeue]
     - !reference [.on_fakeintake_changes_with_image_override]
     - !reference [.on_privateactionrunner_or_e2e_changes]
     - !reference [.manual]
