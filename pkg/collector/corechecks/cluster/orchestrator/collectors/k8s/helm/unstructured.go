@@ -88,9 +88,11 @@ func ReleaseToUnstructured(r *Release) *unstructured.Unstructured {
 				"uid":             releaseUID(r),
 				"resourceVersion": r.ResourceVersion,
 				"labels": map[string]interface{}{
-					"helm_release":  r.Name,
-					"helm_revision": strconv.Itoa(r.Version),
-					"helm_status":   status,
+					"helm_release":     r.Name,
+					"helm_revision":    strconv.Itoa(r.Version),
+					"helm_status":      status,
+					"helm_chart":       chart,
+					"helm_app_version": appVersion,
 				},
 			},
 			"spec": spec,
@@ -181,6 +183,7 @@ func ChartToUnstructured(c *Chart) *unstructured.Unstructured {
 				"labels": map[string]interface{}{
 					"helm_chart":         name,
 					"helm_chart_version": version,
+					"helm_app_version":   c.Metadata.AppVersion,
 				},
 			},
 			"spec": spec,
