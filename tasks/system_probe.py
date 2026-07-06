@@ -24,7 +24,7 @@ from invoke.tasks import task
 
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, bazel_platform_flags
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
@@ -1197,14 +1197,7 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     if is_windows or is_macos:
         return
 
-    platform_map = {
-        "x86_64": "//bazel/platforms:linux_x86_64",
-        "arm64": "//bazel/platforms:linux_arm64",
-    }
-
-    platform_flags = []
-    if arch.kmt_arch in platform_map:
-        platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
+    platform_flags = bazel_platform_flags(arch)
 
     for source_path in RUST_BINARIES:
         if packages and not any(source_path.startswith(package) for package in packages):
