@@ -7,18 +7,33 @@ package profile
 
 import (
 	"regexp"
-	"strings"
 )
 
-func MkCommand(command string, requires ...string) *PlainCommand {
-	vd := Validator{}
-	for _, req := range requires {
-		vd.Require = append(vd.Require, regexp.MustCompile(req))
+type CmdOption func(*PlainCommand)
+
+func Expect(exp string) CmdOption {
+	re := regexp.MustCompile(exp)
+	return func(pc *PlainCommand) {
+		pc.Validator.Require = append(pc.Validator.Require, re)
 	}
-	return &PlainCommand{
+}
+
+func ExpectNot(exp string) CmdOption {
+	re := regexp.MustCompile(exp)
+	return func(pc *PlainCommand) {
+		pc.Validator.Reject = append(pc.Validator.Reject, re)
+	}
+}
+
+func MkCommand(command string, options ...CmdOption) *PlainCommand {
+	cmd := &PlainCommand{
 		Command:   command,
-		Validator: vd,
+		Validator: Validator{},
 	}
+	for _, opt := range options {
+		opt(cmd)
+	}
+	return cmd
 }
 
 // RedactionOption configures a RedactionRule built by MkRedaction.
@@ -49,27 +64,22 @@ func MkRedaction(regex string, opts ...RedactionOption) RedactionRule {
 	return r
 }
 
-func lines(s ...string) string {
-	return strings.Join(s, "\n")
-}
-
 // DefaultProfiles is the built-in set of NCM device profiles, keyed by profile name.
 var DefaultProfiles = Map{
 	"aoscx": {
 		Name: "aoscx",
 		Commands: CommandSet{
-			Verify:     MkCommand("show system", `(AOS|ArubaOS)-CX Version`),
-			GetRunning: MkCommand("show running-config", `!Version (.*)?`),
-			GetStartup: MkCommand("show startup-config", `!Version (.*)?`),
+			Verify:     MkCommand("show system", Expect(`(AOS|ArubaOS)-CX Version`)),
+			GetRunning: MkCommand("show running-config", Expect(`!Version (.*)?`)),
+			GetStartup: MkCommand("show startup-config", Expect(`!Version (.*)?`)),
 			GetVersion: MkCommand("show version"),
 			PushConfig: []Command{
 				&SCPCommand{
 					RemoteCommand: "scp",
 					Filepath:      "usb:/dd-rollback-config",
 				},
-				MkCommand(lines(
-					"copy usb:/dd-rollback-config running-config overwrite",
-					"copy running-config startup-config"), `Success`),
+				MkCommand("copy usb:/dd-rollback-config running-config overwrite"),
+				MkCommand("copy running-config startup-config", Expect(`Success`)),
 			},
 		},
 		Preprocessing: []RedactionRule{
@@ -89,8 +99,8 @@ var DefaultProfiles = Map{
 	"aosw": {
 		Name: "aosw",
 		Commands: CommandSet{
-			Verify:     MkCommand("show version", `(Alcatel-Lucent Operating System-Wireless|AOS-W|AOS-10)`),
-			GetRunning: MkCommand("show running-config", `Building Configuration...`),
+			Verify:     MkCommand("show version", Expect(`(Alcatel-Lucent Operating System-Wireless|AOS-W|AOS-10)`)),
+			GetRunning: MkCommand("show running-config", Expect(`Building Configuration...`)),
 			GetVersion: MkCommand("show version"),
 		},
 		Preprocessing: []RedactionRule{
@@ -122,19 +132,17 @@ var DefaultProfiles = Map{
 	"cisco-asa": {
 		Name: "cisco-asa",
 		Commands: CommandSet{
-			Verify:     MkCommand("show version", "Cisco Adaptive Security Appliance Software Version"),
-			GetRunning: MkCommand("more system:running-config", `ASA Version \d+\.\d+\(\d+\)`),
+			Verify:     MkCommand("show version", Expect("Cisco Adaptive Security Appliance Software Version")),
+			GetRunning: MkCommand("more system:running-config", Expect(`ASA Version \d+\.\d+\(\d+\)`)),
 			GetVersion: MkCommand("show version"),
 			PushConfig: []Command{
 				&SCPCommand{
 					RemoteCommand: "scp",
 					Filepath:      "flash:/dd-rollback-config",
 				},
-				MkCommand(lines(
-					"copy flash:/dd-rollback-config startup-config",
-					"clear configure all",
-					"copy startup-config running-config",
-				), `Success`), // TODO confirm output
+				MkCommand("copy flash:/dd-rollback-config startup-config"),
+				MkCommand("clear configure all"),
+				MkCommand("copy startup-config running-config", Expect(`Success`)), // TODO confirm output
 			},
 		},
 		Redactions: []RedactionRule{
@@ -157,16 +165,17 @@ var DefaultProfiles = Map{
 	"cisco-ios": {
 		Name: "cisco-ios",
 		Commands: CommandSet{
-			Verify:     MkCommand("show version", `(Cisco IOS|Cisco Internetwork Operating System)`),
-			GetRunning: MkCommand("show running-config", `Building configuration...`, `Current configuration :`),
-			GetStartup: MkCommand("show startup-config", `Using (.*?) out of (.*?) bytes`),
+			Verify:     MkCommand("show version", Expect(`(Cisco IOS|Cisco Internetwork Operating System)`)),
+			GetRunning: MkCommand("show running-config", Expect(`Building configuration...`), Expect(`Current configuration :`)),
+			GetStartup: MkCommand("show startup-config", Expect(`Using (.*?) out of (.*?) bytes`)),
 			GetVersion: MkCommand("show version"),
 			PushConfig: []Command{
 				&SCPCommand{
 					RemoteCommand: "scp",
 					Filepath:      "flash:/dd-rollback-config",
 				},
-				MkCommand("configure replace flash:/dd-rollback-config force"),
+				MkCommand("configure replace flash:/dd-rollback-config force", Expect("Rollback Done")),
+				MkCommand("write", Expect("[OK]")),
 			},
 		},
 		Preprocessing: []RedactionRule{
@@ -223,9 +232,9 @@ var DefaultProfiles = Map{
 	"dellos10": {
 		Name: "dellos10",
 		Commands: CommandSet{
-			Verify:     MkCommand("show version", `(Dell EMC Networking|Dell Application Software)`),
-			GetRunning: MkCommand("show running-configuration", `! Version (.*)?`),
-			GetStartup: MkCommand("show startup-configuration", `(?m)^hostname\s+\S+`),
+			Verify:     MkCommand("show version", Expect(`(Dell EMC Networking|Dell Application Software)`)),
+			GetRunning: MkCommand("show running-configuration", Expect(`! Version (.*)?`)),
+			GetStartup: MkCommand("show startup-configuration", Expect(`(?m)^hostname\s+\S+`)),
 		},
 		Preprocessing: []RedactionRule{
 			MkRedaction(`(?m)^! Version .*$\s*(?:^!\s*$\s*)?`, WithReplacement(""), WithMultiline()),
@@ -246,18 +255,16 @@ var DefaultProfiles = Map{
 	"eos": {
 		Name: "eos",
 		Commands: CommandSet{
-			Verify:     MkCommand("show version", `Arista .*`),
-			GetRunning: MkCommand("show running-config | no-more | exclude ! Time:", `! Command: show running-config`),
-			GetStartup: MkCommand("show startup-config | no-more | exclude ! Time:", `! Command: show startup-config`),
+			Verify:     MkCommand("show version", Expect(`Arista .*`)),
+			GetRunning: MkCommand("show running-config | no-more | exclude ! Time:", Expect(`! Command: show running-config`)),
+			GetStartup: MkCommand("show startup-config | no-more | exclude ! Time:", Expect(`! Command: show startup-config`)),
 			PushConfig: []Command{
 				&SCPCommand{
 					RemoteCommand: "scp",
 					Filepath:      "/tmp/dd-rollback-config",
 				},
-				MkCommand(lines(
-					"configure replace file:/tmp/dd-rollback-config",
-					"write",
-				), `Copy completed successfully`),
+				MkCommand("configure replace file:/tmp/dd-rollback-config", ExpectNot("%")),
+				MkCommand("write", Expect(`Copy completed successfully`)),
 				// TODO should we be deleting the file after?
 				// MkCommand("delete file:/tmp/dd-rollback-config"),
 			},
@@ -295,8 +302,8 @@ var DefaultProfiles = Map{
 	"fortios": {
 		Name: "fortios",
 		Commands: CommandSet{
-			Verify:     MkCommand("get system status", `Version: FortiGate`),
-			GetRunning: MkCommand("show full-configuration", `config (system|global|vdom)`),
+			Verify:     MkCommand("get system status", Expect(`Version: FortiGate`)),
+			GetRunning: MkCommand("show full-configuration", Expect(`config (system|global|vdom)`)),
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^(#private-encryption-key=).+`),
@@ -313,15 +320,15 @@ var DefaultProfiles = Map{
 	"junos": {
 		Name: "junos",
 		Commands: CommandSet{
-			Verify:     MkCommand("show version", `Junos:`),
-			GetRunning: MkCommand("show configuration | display omit", `version \d+\.\d+[^;]*;`),
+			Verify:     MkCommand("show version", Expect(`Junos:`)),
+			GetRunning: MkCommand("show configuration | display omit", Expect(`version \d+\.\d+[^;]*;`)),
 			GetVersion: MkCommand("show version"),
 			PushConfig: []Command{
 				&SCPCommand{
 					RemoteCommand: "scp",
 					Filepath:      "/tmp/dd-rollback-config",
 				},
-				MkCommand("configure\nload override /tmp/dd-rollback-config\ncommit\nexit", `commit complete`),
+				MkCommand("configure\nload override /tmp/dd-rollback-config\ncommit\nexit", Expect(`commit complete`)),
 			},
 		},
 		Redactions: []RedactionRule{
@@ -344,9 +351,9 @@ var DefaultProfiles = Map{
 	"nxos": {
 		Name: "nxos",
 		Commands: CommandSet{
-			Verify:     MkCommand("show version", `Cisco Nexus Operating System`),
-			GetRunning: MkCommand("show running-config", `!Command: show running-config`),
-			GetStartup: MkCommand("show startup-config", `!Command: show startup-config`),
+			Verify:     MkCommand("show version", Expect(`Cisco Nexus Operating System`)),
+			GetRunning: MkCommand("show running-config", Expect(`!Command: show running-config`)),
+			GetStartup: MkCommand("show startup-config", Expect(`!Command: show startup-config`)),
 			GetVersion: MkCommand("show version"),
 			PushConfig: []Command{
 				&SCPCommand{
@@ -389,8 +396,8 @@ var DefaultProfiles = Map{
 	"pan-os": {
 		Name: "pan-os",
 		Commands: CommandSet{
-			Verify:     MkCommand("show system info", `model: *PA-`),
-			GetRunning: MkCommand("show config running", `(?s)<config.*</config>`),
+			Verify:     MkCommand("show system info", Expect(`model: *PA-`)),
+			GetRunning: MkCommand("show config running", Expect(`(?s)<config.*</config>`)),
 			GetVersion: MkCommand("show system info"),
 		},
 		Redactions: []RedactionRule{
@@ -401,8 +408,8 @@ var DefaultProfiles = Map{
 	"tmos": {
 		Name: "tmos",
 		Commands: CommandSet{
-			Verify:     MkCommand("cat /config/partitions/*/bigip*.conf", `(^sys global-settings\s*{)|(^ltm (node|pool|virtual) \S+ {)|(^#TMSH-VERSION: \S+)`),
-			GetRunning: MkCommand("cat /config/partitions/*/bigip*.conf", `(^sys global-settings\s*{)|(^ltm (node|pool|virtual) \S+ {)|(^#TMSH-VERSION: \S+)`),
+			Verify:     MkCommand("cat /config/partitions/*/bigip*.conf", Expect(`(^sys global-settings\s*{)|(^ltm (node|pool|virtual) \S+ {)|(^#TMSH-VERSION: \S+)`)),
+			GetRunning: MkCommand("cat /config/partitions/*/bigip*.conf", Expect(`(^sys global-settings\s*{)|(^ltm (node|pool|virtual) \S+ {)|(^#TMSH-VERSION: \S+)`)),
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`^([\s\t]*)secret \S+`, WithReplacement("${1}secret <secret hidden>")),
