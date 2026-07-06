@@ -31,7 +31,7 @@ func TestProviderValidScheduledConfig(t *testing.T) {
 			"type": "scheduled",
 			"test_config_id": "test-config-a",
 			"unknown_root_field": true,
-			"configs": [
+			"tests": [
 				{
 					"hostname": "api.example.com",
 					"port": 443,
@@ -140,7 +140,7 @@ func TestProviderInvalidUpdateKeepsLastValidConfig(t *testing.T) {
 	}, statuses.callback)
 
 	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
-	assert.Contains(t, statuses.values["path/a"].Error, "configs[0]")
+	assert.Contains(t, statuses.values["path/a"].Error, "tests[0]")
 	assertNoChanges(t, changesCh)
 	assert.NotEmpty(t, provider.GetConfigErrors()["path/a"])
 
@@ -219,7 +219,7 @@ func TestProviderMixedSnapshotSchedulesValidAndKeepsInvalidError(t *testing.T) {
 	assert.Equal(t, "db.example.com", instance["hostname"])
 }
 
-func TestProviderEmptyConfigsUnschedulesPath(t *testing.T) {
+func TestProviderEmptyTestsUnschedulesPath(t *testing.T) {
 	provider := NewProvider()
 	changesCh := provider.Stream(context.Background())
 	assert.Empty(t, <-changesCh)
@@ -232,7 +232,7 @@ func TestProviderEmptyConfigsUnschedulesPath(t *testing.T) {
 
 	statuses := applyStatuses()
 	provider.Update(map[string]state.RawConfig{
-		"path/a": {Config: []byte(`{"type":"scheduled","test_config_id":"test-config-a","configs":[]}`)},
+		"path/a": {Config: []byte(`{"type":"scheduled","test_config_id":"test-config-a","tests":[]}`)},
 	}, statuses.callback)
 
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses.values["path/a"].State)
@@ -248,7 +248,7 @@ func TestProviderRejectsUnsupportedType(t *testing.T) {
 
 	statuses := applyStatuses()
 	provider.Update(map[string]state.RawConfig{
-		"path/a": {Config: []byte(`{"type":"dynamic","test_config_id":"test-config-a","configs":[]}`)},
+		"path/a": {Config: []byte(`{"type":"dynamic","test_config_id":"test-config-a","filters":[]}`)},
 	}, statuses.callback)
 
 	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
@@ -264,18 +264,18 @@ func TestParseConfigValidation(t *testing.T) {
 	}{
 		{
 			name:        "missing type",
-			raw:         `{"test_config_id":"test-config-a","configs":[]}`,
+			raw:         `{"test_config_id":"test-config-a","tests":[]}`,
 			expectedErr: "type is required",
 		},
 		{
 			name:        "missing test config id",
-			raw:         `{"type":"scheduled","configs":[]}`,
+			raw:         `{"type":"scheduled","tests":[]}`,
 			expectedErr: "test_config_id is required",
 		},
 		{
-			name:        "missing configs",
+			name:        "missing tests",
 			raw:         `{"type":"scheduled","test_config_id":"test-config-a"}`,
-			expectedErr: "configs must be provided",
+			expectedErr: "tests must be provided",
 		},
 		{
 			name:        "missing hostname",
@@ -350,8 +350,8 @@ func rawScheduledConfig(testConfigID string, endpoints ...string) []byte {
 }
 
 func rawScheduledConfigString(testConfigID string, endpoints ...string) string {
-	configs := strings.Join(endpoints, ",")
-	return `{"type":"scheduled","test_config_id":"` + testConfigID + `","configs":[` + configs + `]}`
+	tests := strings.Join(endpoints, ",")
+	return `{"type":"scheduled","test_config_id":"` + testConfigID + `","tests":[` + tests + `]}`
 }
 
 func unmarshalInstance(t *testing.T, instanceData integration.Data) map[string]interface{} {

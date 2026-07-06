@@ -44,7 +44,7 @@ type Provider struct {
 type scheduledConfig struct {
 	Type         string           `json:"type"`
 	TestConfigID string           `json:"test_config_id"`
-	Configs      []endpointConfig `json:"configs"`
+	Tests        []endpointConfig `json:"tests"`
 }
 
 type endpointConfig struct {
@@ -211,20 +211,20 @@ func parseConfig(raw []byte) ([]integration.Config, error) {
 	if testConfigID == "" {
 		return nil, errors.New("invalid Network Path config: test_config_id is required")
 	}
-	if scheduled.Configs == nil {
-		return nil, errors.New("invalid Network Path config: configs must be provided")
+	if scheduled.Tests == nil {
+		return nil, errors.New("invalid Network Path config: tests must be provided")
 	}
 
-	configs := make([]integration.Config, 0, len(scheduled.Configs))
-	for i, endpoint := range scheduled.Configs {
+	configs := make([]integration.Config, 0, len(scheduled.Tests))
+	for i, endpoint := range scheduled.Tests {
 		instance, err := translateEndpoint(testConfigID, endpoint)
 		if err != nil {
-			return nil, fmt.Errorf("invalid Network Path config at configs[%d]: %w", i, err)
+			return nil, fmt.Errorf("invalid Network Path config at tests[%d]: %w", i, err)
 		}
 
 		instanceYAML, err := yaml.Marshal(instance)
 		if err != nil {
-			return nil, fmt.Errorf("invalid Network Path config at configs[%d]: %w", i, err)
+			return nil, fmt.Errorf("invalid Network Path config at tests[%d]: %w", i, err)
 		}
 
 		configs = append(configs, integration.Config{
