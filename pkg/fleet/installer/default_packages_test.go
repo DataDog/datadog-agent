@@ -51,7 +51,7 @@ func TestDefaultPackagesAPMLibrariesIncludingIIS(t *testing.T) {
 		ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
 			"java":    "1",
 			"python":  "4",
-			"js":      "5",
+			"js":      "6",
 			"php":     "1",
 			"dotnet":  "3",
 			"ruby":    "2",
