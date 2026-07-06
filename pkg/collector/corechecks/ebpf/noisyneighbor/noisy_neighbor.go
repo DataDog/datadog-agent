@@ -29,34 +29,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// NoisyNeighborConfig holds the YAML-parseable configuration for the
-// noisy_neighbor check. The check currently has no tunable knobs, but the
-// type is kept so the standard check Configure flow can call Parse.
 type NoisyNeighborConfig struct{}
 
-// NoisyNeighborCheck is the agent-side core check that consumes per-cgroup
-// scheduling and PMU stats from the system-probe noisyneighbor module and
-// emits Datadog metrics tagged by container.
 type NoisyNeighborCheck struct {
 	core.CheckBase
 	config         *NoisyNeighborConfig
 	tagger         tagger.Component
 	sysProbeClient *sysprobeclient.CheckClient
 	cgroupReader   *cgroups.Reader
-	// pmuMetricsEnabled is captured once during Configure to avoid a config
-	// lookup per metric per Run tick. Keys are the agent-side metric short
-	// names ("cycles", "instructions", ...); a missing or false entry means
-	// the metric is not emitted.
-	pmuMetricsEnabled map[string]bool
 }
 
-var pmuMetricConfigKeys = []string{
-	"cycles", "instructions", "cache_misses", "cache_references",
-	"itlb_misses", "branch_misses", "cpu_migrations",
-}
-
-// Factory returns the check.Check constructor used by the collector to
-// instantiate the noisy_neighbor check.
 func Factory(tagger tagger.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return newCheck(tagger)
@@ -71,50 +53,40 @@ func newCheck(tagger tagger.Component) check.Check {
 	}
 }
 
-// Parse unmarshals the check's YAML configuration into c.
 func (c *NoisyNeighborConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
-// Configure sets up the check by parsing its configuration, building a
-// system-probe client, and initializing the cgroup reader used for tagging.
 func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
 	if err := n.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err
 	}
 	if err := n.config.Parse(config); err != nil {
-		return fmt.Errorf("noisy_neighbor check config: %w", err)
+		return fmt.Errorf("noisy_neighbor check config: %s", err)
 	}
-	sysCfg := pkgconfigsetup.SystemProbe()
-	n.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(sysCfg.GetString("system_probe_config.sysprobe_socket")))
+	n.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
 	reader, err := cgroups.NewReader(cgroups.WithReaderFilter(cgroups.ContainerFilter))
 	if err != nil {
-		return fmt.Errorf("noisy_neighbor: cgroup reader init failed: %w", err)
+		return fmt.Errorf("noisy_neighbor: cgroup reader init failed: %s", err)
 	}
 	n.cgroupReader = reader
-	n.pmuMetricsEnabled = make(map[string]bool, len(pmuMetricConfigKeys))
-	for _, name := range pmuMetricConfigKeys {
-		n.pmuMetricsEnabled[name] = sysCfg.GetBool("noisy_neighbor.pmu_metrics." + name)
-	}
 	return nil
 }
 
-// Run fetches the latest per-cgroup stats from system-probe, refreshes the
-// cgroup reader, and emits Datadog metrics for each tracked container.
 func (n *NoisyNeighborCheck) Run() error {
 	stats, err := sysprobeclient.GetCheck[[]model.NoisyNeighborStats](n.sysProbeClient, sysconfig.NoisyNeighborModule)
 	if err != nil {
-		return fmt.Errorf("get noisy neighbor check: %w", err)
+		return fmt.Errorf("get noisy neighbor check: %s", err)
 	}
 
 	sender, err := n.GetSender()
 	if err != nil {
-		return fmt.Errorf("get metric sender: %w", err)
+		return fmt.Errorf("get metric sender: %s", err)
 	}
 
 	err = n.cgroupReader.RefreshCgroups(0)
 	if err != nil {
-		return fmt.Errorf("unable to refresh cgroups: %w", err)
+		return fmt.Errorf("unable to refresh cgroups: %s", err)
 	}
 
 	var totalCgroups uint64
@@ -162,35 +134,6 @@ func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat mod
 }
 
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
-	// Always-on counters: scheduling and software accounting that don't
-	// consume PMU counter slots.
 	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
 	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
-	sender.Count("noisy_neighbor.softirq_ns", float64(stat.SumSoftirqNs), "", tags)
-	sender.Count("noisy_neighbor.block_io_requests", float64(stat.BlockIORequests), "", tags)
-	sender.Count("noisy_neighbor.wakeups", float64(stat.WakeupCount), "", tags)
-
-	// PMU counters: each is independently gated by noisy_neighbor.pmu_metrics.X.
-	// Disabled events don't emit (no zero-valued noise on dashboards).
-	if n.pmuMetricsEnabled["cycles"] {
-		sender.Count("noisy_neighbor.cycles", float64(stat.SumCycles), "", tags)
-	}
-	if n.pmuMetricsEnabled["instructions"] {
-		sender.Count("noisy_neighbor.instructions", float64(stat.SumInstructions), "", tags)
-	}
-	if n.pmuMetricsEnabled["cache_misses"] {
-		sender.Count("noisy_neighbor.cache_misses", float64(stat.SumCacheMisses), "", tags)
-	}
-	if n.pmuMetricsEnabled["cache_references"] {
-		sender.Count("noisy_neighbor.cache_references", float64(stat.SumCacheReferences), "", tags)
-	}
-	if n.pmuMetricsEnabled["itlb_misses"] {
-		sender.Count("noisy_neighbor.itlb_misses", float64(stat.SumITLBMisses), "", tags)
-	}
-	if n.pmuMetricsEnabled["branch_misses"] {
-		sender.Count("noisy_neighbor.branch_misses", float64(stat.SumBranchMisses), "", tags)
-	}
-	if n.pmuMetricsEnabled["cpu_migrations"] {
-		sender.Count("noisy_neighbor.cpu_migrations", float64(stat.SumCPUMigrations), "", tags)
-	}
 }

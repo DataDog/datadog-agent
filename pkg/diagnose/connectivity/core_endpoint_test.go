@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -52,7 +52,7 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	defer ts1.Close()
 
 	log := logmock.New(t)
-	client := defaultforwarder.NewHTTPClient(mockConfig, 1, log)
+	client := defaultforwarderimpl.NewHTTPClient(mockConfig, 1, log)
 
 	// With the correct API Key, it should be a 200
 	statusCodeWithKey, responseBodyWithKey, _, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey1)
@@ -102,13 +102,13 @@ func TestAcceptRedirection(t *testing.T) {
 func TestGetLogsUseTCP(t *testing.T) {
 	mockConfig := configmock.New(t)
 
-	mockConfig.SetWithoutSource("logs_enabled", true)
+	mockConfig.SetInTest("logs_enabled", true)
 	assert.False(t, getLogsUseTCP())
 
-	mockConfig.SetWithoutSource("logs_config.force_use_tcp", true)
+	mockConfig.SetInTest("logs_config.force_use_tcp", true)
 	assert.True(t, getLogsUseTCP())
 
-	mockConfig.SetWithoutSource("logs_config.force_use_http", true)
+	mockConfig.SetInTest("logs_config.force_use_http", true)
 	assert.False(t, getLogsUseTCP())
 }
 
@@ -130,7 +130,7 @@ func TestSendHTTPRequestToEndpoint_ProtoPayload(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := defaultforwarder.NewHTTPClient(mockConfig, 1, log)
+	client := defaultforwarderimpl.NewHTTPClient(mockConfig, 1, log)
 
 	endpointInfo := endpointInfo{
 		Endpoint:    transaction.Endpoint{Route: "/", Name: "sketch"},
@@ -167,7 +167,7 @@ func TestSendHTTPRequestHeaders(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := defaultforwarder.NewHTTPClient(mockConfig, 1, log)
+	client := defaultforwarderimpl.NewHTTPClient(mockConfig, 1, log)
 
 	endpointInfo := endpointInfo{
 		Endpoint:    transaction.Endpoint{Route: "/", Name: "sketch"},

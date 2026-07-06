@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -106,7 +106,7 @@ type Payload struct {
 func getNetworkMeta(ctx context.Context) *NetworkMeta {
 	nid, err := network.GetNetworkID(ctx)
 	if err != nil {
-		log.Infof("could not get network metadata: %s", err)
+		log.Debugf("could not get network metadata: %s", err)
 		return nil
 	}
 

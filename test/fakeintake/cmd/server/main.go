@@ -26,6 +26,7 @@ func main() {
 	rcStatePath := flag.String("rc-state", "", "Remote Config: YAML file with initial config to preload")
 	rcVersion := flag.Uint64("rc-version", 0, "Remote Config: initial version counter (default 1)")
 	rcKeyPath := flag.String("rc-key-path", "", "Remote Config: ed25519 signing key path (default ~/.fakeintake/signing.key)")
+	rcKeyData := flag.String("rc-key-data", "", "Remote Config: hex-encoded 32-byte ed25519 seed (takes precedence over --rc-key-path; use for ephemeral envs)")
 
 	flag.Parse()
 
@@ -46,7 +47,9 @@ func main() {
 
 	if *remoteConfig {
 		fiOptions = append(fiOptions, fakeintake.WithRemoteConfig(*rcOrgUUID))
-		if *rcKeyPath != "" {
+		if *rcKeyData != "" {
+			fiOptions = append(fiOptions, fakeintake.WithRemoteConfigKeyData(*rcKeyData))
+		} else if *rcKeyPath != "" {
 			fiOptions = append(fiOptions, fakeintake.WithRemoteConfigKeyPath(*rcKeyPath))
 		}
 		if *rcVersion != 0 {

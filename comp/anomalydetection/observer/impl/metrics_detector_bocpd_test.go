@@ -24,7 +24,7 @@ func testBOCPDDetector() *BOCPDDetector {
 
 func TestBOCPDDetector_Name(t *testing.T) {
 	d := NewBOCPDDetector(DefaultBOCPDConfig())
-	assert.Equal(t, "bocpd_detector", d.Name())
+	assert.Equal(t, "bocpd", d.Name())
 }
 
 func TestBOCPDDetector_NotEnoughPoints(t *testing.T) {

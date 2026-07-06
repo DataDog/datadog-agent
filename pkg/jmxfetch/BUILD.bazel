@@ -17,7 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/agent/jmxlogger/def",
-        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/ipc/def",
         "//comp/core/workloadfilter/def",

@@ -17,7 +17,7 @@ import (
 type BaseHandlers struct{}
 
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (BaseHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (BaseHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
@@ -32,6 +32,24 @@ func (BaseHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, reso
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (BaseHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	return ExtractModelManifests(ctx, resourceManifests, groupSize)
+}
+
+// CloneResource returns the resource unchanged. Handlers that mutate resources
+// during ScrubBeforeExtraction, BeforeMarshalling, or ScrubBeforeMarshalling
+// must override this to return a deep copy so the informer cache is not corrupted.
+//
+//nolint:revive
+func (BaseHandlers) CloneResource(resource interface{}) interface{} {
+	return resource
+}
+
+// ResourceVersionFromRaw returns an empty string, indicating that the resource
+// version cannot be determined without model extraction. Override in handlers
+// where the version is directly available from the raw resource.
+//
+//nolint:revive
+func (BaseHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, _ interface{}) string {
+	return ""
 }
 
 //nolint:revive // TODO(CAPP) Fix revive linter

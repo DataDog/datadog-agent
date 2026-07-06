@@ -10,6 +10,8 @@
 // passed to data pipelines without adding significant overhead.
 package observer
 
+import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+
 // team: q-branch
 
 // Component is the central observer that receives data via handles.
@@ -18,6 +20,17 @@ type Component interface {
 	// The source name is used to identify where observations originate.
 	GetHandle(name string) Handle
 
+	// RecordSamplerDropped increments the rate-limiter dropped counter for the
+	// given source ("internal", "kubelet", "containers") and priority ("high",
+	// "medium", "low"). Only rate-limit drops are counted; min_severity drops
+	// are intentional and not tracked here.
+	RecordSamplerDropped(source, priority string)
+
 	// DumpMetrics writes all stored metrics to the specified file (for debugging).
 	DumpMetrics(path string) error
+
+	// SubscribeSeverityEvents registers a scorer listener described by cfg and
+	// returns the created dispatcher plus the first listener's unsubscribe
+	// function.
+	SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error)
 }

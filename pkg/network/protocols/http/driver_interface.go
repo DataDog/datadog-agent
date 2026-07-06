@@ -48,8 +48,9 @@ type WinHttpTransaction struct {
 	SiteName string
 	// HeaderLength  uint32
 	// ContentLength uint32
-	TagsFromJson   iisconfig.APMTags
-	TagsFromConfig iisconfig.APMTags
+	TagsFromJson    iisconfig.APMTags
+	TagsFromConfig  iisconfig.APMTags
+	TagsFromAppHost iisconfig.APMTags
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter

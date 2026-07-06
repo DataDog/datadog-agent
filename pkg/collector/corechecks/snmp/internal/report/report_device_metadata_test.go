@@ -51,7 +51,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -189,7 +189,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_profileDeviceVendorFallback(t
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -282,7 +282,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 			},
 		},
 	}
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
@@ -448,7 +448,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -526,7 +526,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -600,7 +600,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -675,7 +675,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -878,7 +878,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 		},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -1193,27 +1193,27 @@ func Test_getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(t *testing.T) {
 }
 
 func Test_resolveLocalInterface(t *testing.T) {
-	interfaceIndexByIDType := map[string]map[string][]int32{
+	interfaceIndexByIDType := map[string]map[string][]interfaceCandidate{
 		"mac_address": {
-			"00:00:00:00:00:01": []int32{1},
-			"00:00:00:00:00:02": []int32{2},
-			"00:00:00:00:00:03": []int32{3, 4},
+			"00:00:00:00:00:01": {{ifIndex: 1}},
+			"00:00:00:00:00:02": {{ifIndex: 2}},
+			"00:00:00:00:00:03": {{ifIndex: 3}, {ifIndex: 4}},
 		},
 		"interface_name": {
-			"eth1": []int32{1},
-			"eth2": []int32{2},
-			"eth3": []int32{3}, // eth3 is both a name and alias, and reference the same interface
-			"eth4": []int32{4}, // eth4 is both a name and alias, and reference two different interfaces
+			"eth1": {{ifIndex: 1}},
+			"eth2": {{ifIndex: 2}},
+			"eth3": {{ifIndex: 3}}, // eth3 is both a name and alias, and reference the same interface
+			"eth4": {{ifIndex: 4}}, // eth4 is both a name and alias, and reference two different interfaces
 		},
 		"interface_alias": {
-			"alias1": []int32{1},
-			"alias2": []int32{2},
-			"eth3":   []int32{3},
-			"eth4":   []int32{44},
+			"alias1": {{ifIndex: 1}},
+			"alias2": {{ifIndex: 2}},
+			"eth3":   {{ifIndex: 3}},
+			"eth4":   {{ifIndex: 44}},
 		},
 		"interface_index": {
-			"1": []int32{1},
-			"2": []int32{2},
+			"1": {{ifIndex: 1}},
+			"2": {{ifIndex: 2}},
 		},
 	}
 	deviceID := "default:1.2.3.4"
@@ -1306,6 +1306,8 @@ func Test_resolveLocalInterface(t *testing.T) {
 
 func Test_buildInterfaceIndexByIDType(t *testing.T) {
 	// Arrange
+	truePtr := true
+	falsePtr := false
 	interfaces := []metadata.InterfaceMetadata{
 		{
 			DeviceID:   "default:1.2.3.4",
@@ -1313,6 +1315,7 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 			MacAddress: "00:00:00:00:00:01",
 			Name:       "eth1",
 			Alias:      "alias1",
+			IsPhysical: &truePtr,
 		},
 		{
 			DeviceID:   "default:1.2.3.4",
@@ -1320,13 +1323,24 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 			MacAddress: "00:00:00:00:00:02",
 			Name:       "eth2",
 			Alias:      "alias2",
+			IsPhysical: &truePtr,
 		},
 		{
+			// Virtual sub-interface sharing a MAC with ifIndex 2.
 			DeviceID:   "default:1.2.3.4",
 			Index:      3,
 			MacAddress: "00:00:00:00:00:02",
 			Name:       "eth3",
 			Alias:      "alias3",
+			IsPhysical: &falsePtr,
+		},
+		{
+			// IsPhysical nil → treated as non-physical by the tiebreaker.
+			DeviceID:   "default:1.2.3.4",
+			Index:      4,
+			MacAddress: "00:00:00:00:00:04",
+			Name:       "eth4",
+			Alias:      "alias4",
 		},
 	}
 
@@ -1334,28 +1348,150 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
 
 	// Assert
-	expectedInterfaceIndexByIDType := map[string]map[string][]int32{
+	expectedInterfaceIndexByIDType := map[string]map[string][]interfaceCandidate{
 		"mac_address": {
-			"00:00:00:00:00:01": []int32{1},
-			"00:00:00:00:00:02": []int32{2, 3},
+			"00:00:00:00:00:01": {{ifIndex: 1, isPhysical: true, macAddress: "00:00:00:00:00:01"}},
+			"00:00:00:00:00:02": {{ifIndex: 2, isPhysical: true, macAddress: "00:00:00:00:00:02"}, {ifIndex: 3, isPhysical: false, macAddress: "00:00:00:00:00:02"}},
+			"00:00:00:00:00:04": {{ifIndex: 4, isPhysical: false, macAddress: "00:00:00:00:00:04"}},
 		},
 		"interface_name": {
-			"eth1": []int32{1},
-			"eth2": []int32{2},
-			"eth3": []int32{3},
+			"eth1": {{ifIndex: 1, isPhysical: true, macAddress: "00:00:00:00:00:01"}},
+			"eth2": {{ifIndex: 2, isPhysical: true, macAddress: "00:00:00:00:00:02"}},
+			"eth3": {{ifIndex: 3, isPhysical: false, macAddress: "00:00:00:00:00:02"}},
+			"eth4": {{ifIndex: 4, isPhysical: false, macAddress: "00:00:00:00:00:04"}},
 		},
 		"interface_alias": {
-			"alias1": []int32{1},
-			"alias2": []int32{2},
-			"alias3": []int32{3},
+			"alias1": {{ifIndex: 1, isPhysical: true, macAddress: "00:00:00:00:00:01"}},
+			"alias2": {{ifIndex: 2, isPhysical: true, macAddress: "00:00:00:00:00:02"}},
+			"alias3": {{ifIndex: 3, isPhysical: false, macAddress: "00:00:00:00:00:02"}},
+			"alias4": {{ifIndex: 4, isPhysical: false, macAddress: "00:00:00:00:00:04"}},
 		},
 		"interface_index": {
-			"1": []int32{1},
-			"2": []int32{2},
-			"3": []int32{3},
+			"1": {{ifIndex: 1, isPhysical: true, macAddress: "00:00:00:00:00:01"}},
+			"2": {{ifIndex: 2, isPhysical: true, macAddress: "00:00:00:00:00:02"}},
+			"3": {{ifIndex: 3, isPhysical: false, macAddress: "00:00:00:00:00:02"}},
+			"4": {{ifIndex: 4, isPhysical: false, macAddress: "00:00:00:00:00:04"}},
 		},
 	}
 	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
+}
+
+func Test_resolveLocalInterface_physicalPreferenceTiebreaker(t *testing.T) {
+	deviceID := "default:1.2.3.4"
+
+	macPhysicalPlusVirtuals := "aa:bb:cc:00:00:10"
+	macAllVirtual := "aa:bb:cc:00:00:30"
+	macTwoPhysical := "aa:bb:cc:00:00:20"
+	macSingle := "aa:bb:cc:00:00:99"
+
+	macSharedByName := "aa:bb:cc:00:00:50"
+
+	interfaceIndexByIDType := map[string]map[string][]interfaceCandidate{
+		"mac_address": {
+			macPhysicalPlusVirtuals: {
+				{ifIndex: 10, isPhysical: true, macAddress: macPhysicalPlusVirtuals},
+				{ifIndex: 11, isPhysical: false, macAddress: macPhysicalPlusVirtuals},
+				{ifIndex: 12, isPhysical: false, macAddress: macPhysicalPlusVirtuals},
+			},
+			macAllVirtual: {
+				{ifIndex: 30, isPhysical: false, macAddress: macAllVirtual},
+				{ifIndex: 31, isPhysical: false, macAddress: macAllVirtual},
+			},
+			macTwoPhysical: {
+				{ifIndex: 20, isPhysical: true, macAddress: macTwoPhysical},
+				{ifIndex: 21, isPhysical: true, macAddress: macTwoPhysical},
+			},
+			macSingle: {
+				{ifIndex: 99, isPhysical: true, macAddress: macSingle},
+			},
+		},
+		"interface_name": {
+			// Same-name collision with NO shared MAC — must not tiebreak.
+			"GigabitEthernet1/0/1": {
+				{ifIndex: 10, isPhysical: true},
+				{ifIndex: 11, isPhysical: false},
+			},
+			// Same-name collision where candidates share a MAC — must tiebreak.
+			"Ten1/0/1-shared": {
+				{ifIndex: 50, isPhysical: true, macAddress: macSharedByName},
+				{ifIndex: 51, isPhysical: false, macAddress: macSharedByName},
+			},
+			// One candidate carries a MAC, the other does not — must not tiebreak.
+			"Mixed1/0/1": {
+				{ifIndex: 60, isPhysical: true, macAddress: macSharedByName},
+				{ifIndex: 61, isPhysical: false},
+			},
+		},
+		"interface_alias": {},
+		"interface_index": {},
+	}
+
+	tests := []struct {
+		name        string
+		localIDType string
+		localID     string
+		expectedID  string
+	}{
+		{
+			name:        "one physical + virtuals on same MAC resolves to physical",
+			localIDType: "mac_address",
+			localID:     macPhysicalPlusVirtuals,
+			expectedID:  "default:1.2.3.4:10",
+		},
+		{
+			name:        "one physical + virtuals via smart resolution resolves to physical",
+			localIDType: "",
+			localID:     macPhysicalPlusVirtuals,
+			expectedID:  "default:1.2.3.4:10",
+		},
+		{
+			name:        "all-virtual collision stays unresolved",
+			localIDType: "mac_address",
+			localID:     macAllVirtual,
+			expectedID:  "",
+		},
+		{
+			name:        "multi-physical collision stays unresolved",
+			localIDType: "mac_address",
+			localID:     macTwoPhysical,
+			expectedID:  "",
+		},
+		{
+			name:        "multi-physical collision via smart resolution stays unresolved",
+			localIDType: "",
+			localID:     macTwoPhysical,
+			expectedID:  "",
+		},
+		{
+			name:        "single-match happy path unchanged",
+			localIDType: "mac_address",
+			localID:     macSingle,
+			expectedID:  "default:1.2.3.4:99",
+		},
+		{
+			name:        "interface_name multi-match without shared MAC stays unresolved",
+			localIDType: "interface_name",
+			localID:     "GigabitEthernet1/0/1",
+			expectedID:  "",
+		},
+		{
+			name:        "interface_name multi-match with shared MAC resolves to physical",
+			localIDType: "interface_name",
+			localID:     "Ten1/0/1-shared",
+			expectedID:  "default:1.2.3.4:50",
+		},
+		{
+			name:        "interface_name multi-match with one empty MAC stays unresolved",
+			localIDType: "interface_name",
+			localID:     "Mixed1/0/1",
+			expectedID:  "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedID, resolveLocalInterface(deviceID, interfaceIndexByIDType, tt.localIDType, tt.localID))
+		})
+	}
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeAndIsPhysical(t *testing.T) {
@@ -1391,7 +1527,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeAndIsPhysica
 			},
 		},
 	}
-	sender := mocksender.NewMockSender("testID")
+	sender := mocksender.NewMockSender(t, "testID")
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
@@ -1561,7 +1697,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeZero(t *test
 			},
 		},
 	}
-	sender := mocksender.NewMockSender("testID")
+	sender := mocksender.NewMockSender(t, "testID")
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{

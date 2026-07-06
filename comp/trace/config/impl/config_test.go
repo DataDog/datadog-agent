@@ -20,9 +20,9 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
-	"text/template"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -52,6 +52,14 @@ import (
 )
 
 // team: agent-apm
+
+func TestMain(m *testing.M) {
+	// Tests run in containerized CI runners where isOSHostnameUsable returns false.
+	// Default to true so all tests can fall back to os.Hostname() as expected.
+	// TestAcquireHostnameFallbackContainerized overrides this to false explicitly.
+	osHostnameUsableFunc = func(_ context.Context) bool { return true }
+	os.Exit(m.Run())
+}
 
 // MockModule defines the fx options for the mock component for use in tests within this package.
 func MockModule() fxutil.Module {
@@ -158,6 +166,8 @@ func TestSplitTagRegex(t *testing.T) {
 
 		logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 		assert.Nil(t, err)
+		previousLogger := log.Default()
+		t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
 		log.SetupLogger(logger, "debug")
 		assert.Nil(t, splitTagRegex(bad.tag))
 		w.Flush()
@@ -266,14 +276,14 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 }
 
-//go:embed testdata/stringcode.go.tmpl
+//go:embed testdata/stringcode.go
 var stringCodeBody string
 
 func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
-		coreConfig.SetWithoutSource("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetWithoutSource("cmd_port", "-1")
+		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
+		coreConfig.SetInTest("cmd_port", "-1")
 
 		fallbackHostnameFunc = func() (string, error) {
 			return "", errors.New("could not get hostname")
@@ -315,8 +325,8 @@ func TestConfigHostname(t *testing.T) {
 		}
 
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
-		coreConfig.SetWithoutSource("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetWithoutSource("cmd_port", "-1")
+		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
+		coreConfig.SetInTest("cmd_port", "-1")
 		config := buildComponent(t, false, coreConfig)
 
 		cfg := config.Object()
@@ -356,7 +366,7 @@ func TestConfigHostname(t *testing.T) {
 
 	t.Run("serverless", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_default.yaml")
-		coreConfig.SetWithoutSource("serverless.enabled", true)
+		coreConfig.SetInTest("serverless.enabled", true)
 		config := buildComponent(t, false, coreConfig)
 		cfg := config.Object()
 
@@ -368,103 +378,106 @@ func TestConfigHostname(t *testing.T) {
 		if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
 			t.Skip("TestConfigHostname/external is known to fail on the macOS Gitlab runners.")
 		}
-		// makeProgram creates a new binary file which returns the given response and exits to the OS
-		// given the specified code, returning the path of the program.
-		makeProgram := func(t *testing.T, response string, code int) string {
-			f, err := os.CreateTemp("", "trace-test-hostname.*.go")
-			if err != nil {
-				t.Fatal(err)
-			}
-			tmpl, err := template.New("program").Parse(stringCodeBody)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := tmpl.Execute(f, struct {
-				Response string
-				ExitCode int
-			}{response, code}); err != nil {
-				t.Fatal(err)
-			}
-			stat, err := f.Stat()
-			if err != nil {
-				t.Fatal(err)
-			}
-			srcpath := filepath.Join(os.TempDir(), stat.Name())
-			binpath := strings.TrimSuffix(srcpath, ".go")
-			if err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).Run(); err != nil {
-				t.Fatal(err)
-			}
-			os.Remove(srcpath)
-			return binpath
+		// The subtests below all shell out to the same compiled helper binary,
+		// which reads its response and exit code from environment variables
+		// (see testdata/stringcode.go). It is built once here and reused
+		// across subtests via setProgramBehavior: compiling a fresh binary per
+		// subtest with an isolated (cold) GOCACHE made this test flaky under
+		// CI parallelism, occasionally exhausting the package's 180s timeout.
+		srcpath := filepath.Join(t.TempDir(), "trace-test-hostname.go")
+		if err := os.WriteFile(srcpath, []byte(stringCodeBody), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		binpath := strings.TrimSuffix(srcpath, ".go")
+		if err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).Run(); err != nil {
+			t.Fatal(err)
+		}
+
+		setProgramBehavior := func(t *testing.T, response string, code int) {
+			t.Setenv("TRACE_TEST_HOSTNAME_RESPONSE", response)
+			t.Setenv("TRACE_TEST_HOSTNAME_EXIT_CODE", strconv.Itoa(code))
 		}
 
 		defer func(old func() (string, error)) { fallbackHostnameFunc = old }(fallbackHostnameFunc)
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
 
 		t.Run("good", func(t *testing.T) {
-			bin := makeProgram(t, "host.name", 0)
-			defer os.Remove(bin)
+			setProgramBehavior(t, "host.name", 0)
 
 			config := buildConfigComponent(t, false)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
-			cfg.DDAgentBin = bin
+			cfg.DDAgentBin = binpath
 			assert.NoError(t, acquireHostnameFallback(cfg))
 			assert.Equal(t, cfg.Hostname, "host.name")
 
 		})
 
 		t.Run("empty", func(t *testing.T) {
-			bin := makeProgram(t, "", 0)
-			defer os.Remove(bin)
+			setProgramBehavior(t, "", 0)
 
 			config := buildConfigComponent(t, false)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
-			cfg.DDAgentBin = bin
+			cfg.DDAgentBin = binpath
 			assert.NoError(t, acquireHostnameFallback(cfg))
 			assert.Empty(t, cfg.Hostname)
 		})
 
 		t.Run("empty+disallowed", func(t *testing.T) {
-			bin := makeProgram(t, "", 0)
-			defer os.Remove(bin)
+			setProgramBehavior(t, "", 0)
 
 			config := buildConfigComponent(t, false)
 
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
-			cfg.DDAgentBin = bin
+			cfg.DDAgentBin = binpath
 			cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
 			assert.NoError(t, acquireHostnameFallback(cfg))
 			assert.Equal(t, "fallback.host", cfg.Hostname)
 		})
 
+		t.Run("empty+disallowed+containerized", func(t *testing.T) {
+			setProgramBehavior(t, "", 0)
+
+			// Build the config first (uses TestMain's osHostnameUsableFunc=true),
+			// then override to false so only acquireHostnameFallback sees it.
+			cfg := buildConfigComponent(t, false).Object()
+			require.NotNil(t, cfg)
+
+			defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+			osHostnameUsableFunc = func(_ context.Context) bool { return false }
+
+			cfg.DDAgentBin = binpath
+			cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
+			err := acquireHostnameFallback(cfg)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "container UTS namespace")
+		})
+
 		t.Run("fallback1", func(t *testing.T) {
-			bin := makeProgram(t, "", 1)
-			defer os.Remove(bin)
+			setProgramBehavior(t, "", 1)
 
 			config := buildConfigComponent(t, false)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
-			cfg.DDAgentBin = bin
+			cfg.DDAgentBin = binpath
 			assert.NoError(t, acquireHostnameFallback(cfg))
 			assert.Equal(t, cfg.Hostname, "fallback.host")
 		})
 
 		t.Run("fallback2", func(t *testing.T) {
-			bin := makeProgram(t, "some text", 1)
-			defer os.Remove(bin)
+			setProgramBehavior(t, "some text", 1)
 
 			config := buildConfigComponent(t, false)
 			cfg := config.Object()
 			require.NotNil(t, cfg)
 
-			cfg.DDAgentBin = bin
+			cfg.DDAgentBin = binpath
 			assert.NoError(t, acquireHostnameFallback(cfg))
 			assert.Equal(t, cfg.Hostname, "fallback.host")
 		})
@@ -699,6 +712,19 @@ func TestAcquireHostnameFallback(t *testing.T) {
 	assert.Nil(t, err)
 	host, _ := os.Hostname()
 	assert.Equal(t, host, c.Hostname)
+}
+
+func TestAcquireHostnameFallbackContainerized(t *testing.T) {
+	defer func(old func(context.Context) bool) { osHostnameUsableFunc = old }(osHostnameUsableFunc)
+	osHostnameUsableFunc = func(_ context.Context) bool { return false }
+
+	t.Run("binary_fails", func(t *testing.T) {
+		c := traceconfig.New()
+		c.DDAgentBin = "/not/exist"
+		err := acquireHostnameFallback(c)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "Set DD_HOSTNAME")
+	})
 }
 
 func TestNormalizeEnvFromDDEnv(t *testing.T) {
@@ -2283,7 +2309,7 @@ func buildConfigComponentFromOverrides(t *testing.T, setHostnameInConfig bool, s
 
 	coreConfig := configcomp.NewMock(t)
 	for k, v := range settings {
-		coreConfig.SetWithoutSource(k, v)
+		coreConfig.SetInTest(k, v)
 	}
 	return buildComponent(t, setHostnameInConfig, coreConfig)
 }
@@ -2298,7 +2324,7 @@ func buildComponentWithLoggerComponent(t *testing.T, setHostnameInConfig bool, c
 	// set the hostname in the config to avoid trying to create a connection to the core agent
 	// (This can be slow and flaky in tests that don't need to run this logic)
 	if setHostnameInConfig {
-		coreConfig.SetWithoutSource("hostname", "testhostname")
+		coreConfig.SetInTest("hostname", "testhostname")
 	}
 
 	pkgconfigsetup.LoadProxyFromEnv(coreConfig)
@@ -2422,6 +2448,87 @@ func TestMultiRegionFailoverConfig(t *testing.T) {
 		assert.False(t, cfg.Endpoints[0].IsMRF)
 		assert.True(t, cfg.Endpoints[1].IsMRF)
 		assert.Equal(t, "https://custom.mrf.site", cfg.Endpoints[1].Host)
+	})
+}
+
+// TestRemoteConfigPerProductEnable covers the per-product RC enable flags and
+// the agent_config.enabled inheritance rule: agent_config.enabled inherits
+// apm_sampling.enabled when the user has explicitly set apm_sampling.enabled
+// but not agent_config.enabled, preserving the legacy bundled behavior.
+func TestRemoteConfigPerProductEnable(t *testing.T) {
+	t.Run("defaults: apm_sampling on, agent_config inherits true, semantics off", func(t *testing.T) {
+		config := buildConfigComponent(t, true)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.True(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should inherit apm_sampling.enabled (true) when unset")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=false, agent_config inherits false", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": false,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should inherit apm_sampling.enabled (false) when unset")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=false, agent_config explicitly true", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": false,
+			"remote_configuration.agent_config.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.True(t, cfg.RemoteConfigAgentConfigEnabled, "explicit agent_config.enabled=true should override inheritance")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_sampling=true, agent_config explicitly false", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled": true,
+			"remote_configuration.agent_config.enabled": false,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "explicit agent_config.enabled=false should override inheritance")
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("apm_semantics enabled independently", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.apm_sampling.enabled":  false,
+			"remote_configuration.apm_semantics.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled, "agent_config should NOT be pulled in by apm_semantics")
+		assert.True(t, cfg.RemoteConfigAPMSemanticsEnabled)
+	})
+
+	t.Run("remote_configuration.enabled=false zeros everything", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"remote_configuration.enabled":               false,
+			"remote_configuration.apm_sampling.enabled":  true,
+			"remote_configuration.agent_config.enabled":  true,
+			"remote_configuration.apm_semantics.enabled": true,
+		}
+		config := buildConfigComponentFromOverrides(t, true, overrides)
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.RemoteConfigAPMSamplingEnabled)
+		assert.False(t, cfg.RemoteConfigAgentConfigEnabled)
+		assert.False(t, cfg.RemoteConfigAPMSemanticsEnabled)
 	})
 }
 

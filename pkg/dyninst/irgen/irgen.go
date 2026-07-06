@@ -50,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -136,6 +137,18 @@ func generateIR(
 		}
 	}()
 
+	// Splice in the synthetic runtime.recovery probe before sort so it
+	// flows through the standard symbol-resolution + injection-point
+	// pipeline. The probe attaches at runtime.recovery and lets BPF
+	// emit synthetic returns for probed frames being unwound by
+	// panic+recover (otherwise their in_progress_calls slot and the
+	// userspace bufferedEvent leak). The caller can disable this via
+	// WithSkipRuntimeRecoveryProbe — used to honor a circuit-breaker
+	// trip on the recovery probe.
+	if !cfg.skipRuntimeRecoveryProbe {
+		probeDefs = maybeAddRuntimeRecoveryProbe(probeDefs)
+	}
+
 	// Ensure deterministic output.
 	slices.SortFunc(probeDefs, func(a, b ir.ProbeDefinition) int {
 		return cmp.Compare(a.GetID(), b.GetID())
@@ -214,6 +227,8 @@ func generateIR(
 			commonTypes.G, ok = t.(*ir.StructureType)
 		case "runtime.m":
 			commonTypes.M, ok = t.(*ir.StructureType)
+		case "runtime._panic":
+			commonTypes.Panic, ok = t.(*ir.StructureType)
 		}
 		if !ok {
 			return nil, fmt.Errorf("expected structure type for %q, got %T", t.GetName(), t)
@@ -468,7 +483,7 @@ func generateIR(
 	// roots. Must happen before type expansion. Returns one analyzedProbe per
 	// instance.
 	budgets := computeDepthBudgets(processed.pendingSubprograms)
-	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets, typeCatalog)
+	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets, typeCatalog, cfg.redaction)
 	needsGoContextSupport := analyzedProbesContainGoContext(analyzedProbes)
 	// Also enable context support if context.Context appears anywhere in
 	// the binary's go runtime types (via the special-additional-types
@@ -637,9 +652,30 @@ func generateIR(
 	)
 	issues = append(issues, eventIssues...)
 
+	// Synthesise the recovery probe's EventRootType after the standard
+	// pipeline runs (it's skipped above because its captures are not
+	// user-configurable). The synthesis builds a single @exception capture
+	// expression bookended by PanicUnwindPrepareOp / PanicUnwindEvictSlotsOp
+	// that drives the standard PROCESS_GO_EMPTY_INTERFACE + CHASE_POINTERS
+	// pipeline. Drops the probe (filtering it out of the successful set)
+	// if runtime.eface / runtime._panic aren't available in the binary.
+	probes = synthesizeRecoveryProbes(probes, commonTypes, typeCatalog)
+
 	// Detect probe definitions that did not match any symbol in the binary.
 	unused := findUnusedConfigs(probes, issues, probeDefs)
 	for _, probe := range unused {
+		if probe.GetKind() == ir.ProbeKindRuntimeRecovery {
+			// runtime.recovery is missing from this binary (stripped
+			// runtime, exotic toolchain, etc.). Don't surface the
+			// internal probe as a user-visible issue; log instead so
+			// operators see the protection is disabled.
+			log.Warnf(
+				"dyninst: runtime.recovery probe could not be attached " +
+					"(symbol not found); panic-recover leaks will not be " +
+					"cleaned up for this binary",
+			)
+			continue
+		}
 		issues = append(issues, ir.ProbeIssue{
 			ProbeDefinition: probe,
 			Issue: ir.Issue{
@@ -661,6 +697,7 @@ func generateIR(
 		GoMapHashInfo:    processed.goMapHashInfo,
 		CommonTypes:      commonTypes,
 		IsARM64:          arch == "arm64",
+		Redaction:        cfg.redaction,
 	}, nil
 }
 
@@ -688,6 +725,11 @@ type analyzedExpression struct {
 
 	// For capture expressions, the user-specified name.
 	captureExprName string
+
+	// redacted is true when the parsed expression references a redacted
+	// identifier. Computed during analysis (where the AST is available) and
+	// carried onto ir.RootExpression so the decoder drops the value.
+	redacted bool
 }
 
 // analyzedCondition represents a parsed and resolved condition tree. The
@@ -1211,6 +1253,8 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 			expr = e.Base
 		case *exprlang.AllExpr:
 			expr = e.Base
+		case *exprlang.FilterExpr:
+			expr = e.Base
 		case *exprlang.EqExpr:
 			expr = e.Left
 		case *exprlang.NeExpr:
@@ -1239,6 +1283,7 @@ func analyzeAllProbes(
 	probes []*ir.Probe,
 	budgets map[ir.SubprogramID]uint32,
 	tc *typeCatalog,
+	red *redaction.Config,
 ) ([]analyzedProbe, []explorationRoot) {
 	var analyzed []analyzedProbe
 
@@ -1266,6 +1311,20 @@ func analyzeAllProbes(
 		kind := probe.GetKind()
 		isSnapshot := kind == ir.ProbeKindSnapshot
 		isCaptureExpression := kind == ir.ProbeKindCaptureExpression
+
+		// Internal runtime.recovery probe has no template, condition,
+		// or user-configurable capture expressions. Its @exception capture
+		// is built later by synthesizeRecoveryProbeEventRoot, so skip
+		// the rcjson-driven analysis pipeline here.
+		if kind == ir.ProbeKindRuntimeRecovery {
+			for instIdx := range probe.Instances {
+				analyzed = append(analyzed, analyzedProbe{
+					probe:    probe,
+					instance: &probe.Instances[instIdx],
+				})
+			}
+			continue
+		}
 
 		for instIdx := range probe.Instances {
 			inst := &probe.Instances[instIdx]
@@ -1691,6 +1750,16 @@ func analyzeAllProbes(
 					addRoot,
 					budget,
 				)
+				// Reject probes that reference data on the redaction list, to not leak info.
+				if ap.condition != nil {
+					if name, ok := expressionReferencesRedacted(ap.condition.expr, red); ok {
+						ap.condition = nil
+						ap.conditionIssue = ir.Issue{
+							Kind:    ir.IssueKindInvalidProbeDefinition,
+							Message: fmt.Sprintf("condition references redacted identifier %q", name),
+						}
+					}
+				}
 			}
 
 			// Mark unmatched segments as invalid.
@@ -1716,6 +1785,14 @@ func analyzeAllProbes(
 			slices.SortStableFunc(ap.expressions, func(a, b analyzedExpression) int {
 				return cmp.Compare(exprKindToInt(a.exprKind), exprKindToInt(b.exprKind))
 			})
+			// Flag capture/template expressions that read a redacted value so
+			// the decoder drops them. The resolved IR keeps only offsets and a
+			// display name, so this must be decided from the parsed AST here.
+			for i := range ap.expressions {
+				if _, ok := expressionReferencesRedacted(ap.expressions[i].expr, red); ok {
+					ap.expressions[i].redacted = true
+				}
+			}
 			analyzed = append(analyzed, ap)
 		}
 	}
@@ -1764,6 +1841,9 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 				case *exprlang.LeExpr:
 				case *exprlang.GtExpr:
 				case *exprlang.GeExpr:
+				case *exprlang.AnyExpr:
+				case *exprlang.AllExpr:
+				case *exprlang.FilterExpr:
 				case *exprlang.UnsupportedExpr:
 					msg := "unsupported operation: " + expr.Operation
 					addInvalid(segment, msg)
@@ -3035,7 +3115,7 @@ func (v *unitChildVisitor) push(
 		}
 
 		interesting := false
-		if entry.Tag != dwarf.TagTypedef && (name == "runtime.g" || name == "runtime.m") {
+		if entry.Tag != dwarf.TagTypedef && (name == "runtime.g" || name == "runtime.m" || name == "runtime._panic") {
 			interesting = true
 		}
 		if !interesting {
@@ -3589,6 +3669,17 @@ func validateNonOverlappingPCRanges(
 	}
 	return nil
 }
+
+// unsupportedFeatureError is a typed error indicating that a probe uses a
+// feature that we recognise but have not implemented. It propagates from
+// the resolver/emitter up to the Issue-emission sites, where errors.As
+// surfaces it as ir.IssueKindUnsupportedFeature instead of the default
+// ir.IssueKindConditionExpressionUnresolvable.
+type unsupportedFeatureError struct {
+	message string
+}
+
+func (e *unsupportedFeatureError) Error() string { return e.message }
 
 type inlinedInstanceError struct {
 	abstractOrigin dwarf.Offset
@@ -4287,6 +4378,20 @@ func exploreTypesForExpressions(
 						Error: err.Error(),
 						DSL:   expr.dsl,
 					}
+				} else {
+					// Capture (non-segment) expression failure. Surface
+					// typed unsupported-feature errors as a probe-level
+					// IssueKindUnsupportedFeature so test infrastructure
+					// can match them via `issue:UnsupportedFeature` tags.
+					// Other capture-expression errors continue to be
+					// silently skipped (matches pre-existing behavior).
+					var unsup *unsupportedFeatureError
+					if errors.As(err, &unsup) {
+						ap.conditionIssue = ir.Issue{
+							Kind:    ir.IssueKindUnsupportedFeature,
+							Message: unsup.message,
+						}
+					}
 				}
 				// Clear the expression so it won't be processed later.
 				expr.rootVariable = nil
@@ -4319,9 +4424,17 @@ func exploreTypesForExpressions(
 				if _, err := exploreExpressionTypes(
 					sub, rootVar.Type, tc, "",
 				); err != nil {
-					ap.conditionIssue = ir.Issue{
-						Kind:    ir.IssueKindConditionExpressionUnresolvable,
-						Message: fmt.Sprintf("condition type exploration failed: %v", err),
+					var unsup *unsupportedFeatureError
+					if errors.As(err, &unsup) {
+						ap.conditionIssue = ir.Issue{
+							Kind:    ir.IssueKindUnsupportedFeature,
+							Message: unsup.message,
+						}
+					} else {
+						ap.conditionIssue = ir.Issue{
+							Kind:    ir.IssueKindConditionExpressionUnresolvable,
+							Message: fmt.Sprintf("condition type exploration failed: %v", err),
+						}
 					}
 					ap.condition = nil
 					break
@@ -4543,19 +4656,30 @@ func exploreExpressionTypes(
 	case *exprlang.AllExpr:
 		return exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath)
 
+	case *exprlang.FilterExpr:
+		// filter shares the predicate-validation semantics of any/all
+		// (the predicate body must reference only @it / @value, the
+		// base must be a slice or map). exploreAnyAllTypes is reused
+		// for that validation; the static type returned to callers is
+		// a per-call-site synthetic handle that's not known until
+		// resolution time, so we return currentType as a placeholder.
+		// Nested-position use (e.g. len(filter(...))) is rejected later
+		// by resolveExpression's FilterExpr case as an
+		// unsupportedFeatureError.
+		if _, err := exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath); err != nil {
+			return nil, err
+		}
+		return currentType, nil
+
 	case *exprlang.ContainsExpr:
-		// Resolve the map base and validate the literal key. The result
-		// type is always bool regardless of the map's value element type.
+		// Resolve the base. For map bases we keep the existing key-presence
+		// validation. For slice / array bases we delegate to the any/all
+		// type-explore path with a synthesized `@it == key` predicate — the
+		// emit layer will desugar the same way, so we want the same type
+		// check here. The result type is always bool.
 		resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath)
 		if err != nil {
 			return nil, err
-		}
-		mapType, ok := tc.typesByID[resolvedType.GetID()].(*ir.GoMapType)
-		if !ok {
-			return nil, fmt.Errorf(
-				"contains: operand must be a map, got %s",
-				resolvedType.GetName(),
-			)
 		}
 		litExpr, ok := e.Key.(*exprlang.LiteralExpr)
 		if !ok {
@@ -4563,6 +4687,37 @@ func exploreExpressionTypes(
 				"contains: key must be a literal, got %T", e.Key,
 			)
 		}
+		canonicalBase := tc.typesByID[resolvedType.GetID()]
+		switch canonicalBase.(type) {
+		case *ir.GoSliceHeaderType, *ir.ArrayType:
+			eq := &exprlang.EqExpr{
+				Left:  &exprlang.RefExpr{Ref: "@it"},
+				Right: litExpr,
+			}
+			if _, err := exploreAnyAllTypes(e.Base, eq, currentType, tc, exprPath); err != nil {
+				return nil, err
+			}
+			if tc.boolType == 0 {
+				return nil, errors.New("bool type not found")
+			}
+			return tc.typesByID[tc.boolType], nil
+		case *ir.GoStringHeaderType:
+			if err := checkContainsStringBase(litExpr); err != nil {
+				return nil, err
+			}
+			if tc.boolType == 0 {
+				return nil, errors.New("bool type not found")
+			}
+			return tc.typesByID[tc.boolType], nil
+		case *ir.GoMapType:
+			// fall through to map handling below
+		default:
+			return nil, fmt.Errorf(
+				"contains: operand must be a map, slice, or array, got %s",
+				resolvedType.GetName(),
+			)
+		}
+		mapType := canonicalBase.(*ir.GoMapType)
 		headerType := tc.typesByID[mapType.HeaderType.GetID()]
 		swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
 		if !ok {
@@ -4618,6 +4773,11 @@ func exploreAnyAllTypes(
 		headerType := tc.typesByID[t.HeaderType.GetID()]
 		swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
 		if !ok {
+			if _, isHMap := headerType.(*ir.GoHMapHeaderType); isHMap {
+				return nil, &unsupportedFeatureError{
+					message: "any/all/filter over old-style hmap not supported; only swiss maps (Go 1.24+) are supported",
+				}
+			}
 			return nil, fmt.Errorf(
 				"any/all over map: unsupported header type %T", headerType,
 			)
@@ -5185,6 +5345,23 @@ func resolveExpression(
 	case *exprlang.GeExpr:
 		return resolveComparisonExpression(ir.CmpGe, e.Left, e.Right, rootVar, tc)
 
+	case *exprlang.AnyExpr:
+		return resolveAnyAllExpression(e.Base, e.Pred, ir.QuantifierAny, rootVar, tc)
+	case *exprlang.AllExpr:
+		return resolveAnyAllExpression(e.Base, e.Pred, ir.QuantifierAll, rootVar, tc)
+
+	case *exprlang.FilterExpr:
+		// filter() is only legal as the top-level expression of a
+		// capture or template segment; reaching here means a filter()
+		// appeared nested inside another operator (e.g. len(filter(...))
+		// or any(filter(...))). Surface as a typed unsupported-feature
+		// error so the probe fails with IssueKindUnsupportedFeature
+		// rather than being silently dropped by the generic
+		// "skip failed snapshot expressions" path.
+		return ir.Expression{}, &unsupportedFeatureError{
+			message: "filter is not composable: filter(...) is only allowed as the top-level expression of a capture or message template segment, not nested inside another operator",
+		}
+
 	default:
 		return ir.Expression{}, fmt.Errorf(
 			"unsupported expression type: %T", expr,
@@ -5192,9 +5369,97 @@ func resolveExpression(
 	}
 }
 
-// resolveContainsExpression resolves contains(map, literalKey) into IR ops
-// that produce a single bool: 1 if the key is present, 0 otherwise (including
-// for nil maps). See ir.SwissMapLookupOp.ExistenceOnly for runtime semantics.
+// resolveFilterExpression lowers a top-level filter() expression in
+// capture or template-segment position. Dispatches by source-collection
+// type to the slice or map filter resolver, each of which synthesizes
+// the per-call-site filter type pair and builds the inline marker op
+// sequence.
+func resolveFilterExpression(
+	e *exprlang.FilterExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	baseExpr, err := resolveExpression(e.Base, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve filter base: %w", err)
+	}
+	canonical := tc.typesByID[baseExpr.Type.GetID()]
+	switch t := canonical.(type) {
+	case *ir.GoSliceHeaderType:
+		return emitSliceFilterMarker(baseExpr, t, e.Pred, rootVar, tc)
+	case *ir.GoMapType:
+		return emitMapFilterMarker(baseExpr, t, e.Pred, tc)
+	case *ir.ArrayType:
+		return ir.Expression{}, errors.New(
+			"filter over an array is not supported; only slices and maps are supported",
+		)
+	default:
+		return ir.Expression{}, fmt.Errorf(
+			"filter base must be a slice or map; got %s (%T)",
+			canonical.GetName(), canonical,
+		)
+	}
+}
+
+// resolveAnyAllExpression lowers an AnyExpr or AllExpr in expression
+// (template-segment / capture-expression) position. It reuses the same
+// emitAnyAllLoop machinery as the condition path, so the resulting opcode
+// sequence is byte-identical to a condition-position any/all. The result
+// type is always bool: a single byte at sm->offset that ExprSaveOp records
+// as the expression's value.
+func resolveAnyAllExpression(
+	base, pred exprlang.Expr,
+	quantifier ir.Quantifier,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	if tc.boolType == 0 {
+		return ir.Expression{}, errors.New("bool type not found")
+	}
+	var la labelAllocator
+	ops, err := emitAnyAllLoop(base, pred, quantifier, rootVar, tc, &la)
+	if err != nil {
+		return ir.Expression{}, err
+	}
+	return ir.Expression{
+		Type:       tc.typesByID[tc.boolType],
+		Operations: ops,
+	}, nil
+}
+
+// checkContainsStringBase validates the key literal for a `contains` call
+// whose base is a Go string. Substring containment is a recognised feature
+// we have not implemented yet — when the key is a string literal we return
+// an *unsupportedFeatureError so the surrounding probe surfaces an
+// IssueKindUnsupportedFeature. Other literal kinds (null, int, float, bool)
+// are reported as a type mismatch via the default
+// IssueKindConditionExpressionUnresolvable path.
+func checkContainsStringBase(litExpr *exprlang.LiteralExpr) error {
+	if litExpr.Value == nil {
+		return errors.New(
+			"contains: substring search expects a string literal; got null",
+		)
+	}
+	if _, ok := litExpr.Value.(string); ok {
+		return &unsupportedFeatureError{
+			message: "contains: substring containment on a string base is not yet supported",
+		}
+	}
+	return fmt.Errorf(
+		"contains: substring search expects a string literal; got %T (value %v)",
+		litExpr.Value, litExpr.Value,
+	)
+}
+
+// resolveContainsExpression resolves contains(coll, literalKey) into IR ops
+// that produce a single bool. For a map base this uses
+// ir.SwissMapLookupOp.ExistenceOnly. For a slice or array base it desugars
+// to any(coll, {@it == key}) and reuses emitAnyAllLoop — the generated
+// opcodes are byte-identical to a user-written any(...) form. For a string
+// base substring containment is recognised but not yet implemented; it
+// returns an *unsupportedFeatureError so the surrounding probe can surface
+// the right Issue kind in condition position (in template / capture
+// position the failure becomes an InvalidSegment / silent skip).
 func resolveContainsExpression(
 	e *exprlang.ContainsExpr,
 	rootVar *ir.Variable,
@@ -5204,10 +5469,33 @@ func resolveContainsExpression(
 	if err != nil {
 		return ir.Expression{}, fmt.Errorf("failed to resolve contains base: %w", err)
 	}
-	mapType, ok := tc.typesByID[baseExpr.Type.GetID()].(*ir.GoMapType)
+	canonical := tc.typesByID[baseExpr.Type.GetID()]
+	switch canonical.(type) {
+	case *ir.GoSliceHeaderType, *ir.ArrayType:
+		litExpr, ok := e.Key.(*exprlang.LiteralExpr)
+		if !ok {
+			return ir.Expression{}, fmt.Errorf(
+				"contains: key must be a literal, got %T", e.Key,
+			)
+		}
+		pred := &exprlang.EqExpr{
+			Left:  &exprlang.RefExpr{Ref: "@it"},
+			Right: litExpr,
+		}
+		return resolveAnyAllExpression(e.Base, pred, ir.QuantifierAny, rootVar, tc)
+	case *ir.GoStringHeaderType:
+		litExpr, ok := e.Key.(*exprlang.LiteralExpr)
+		if !ok {
+			return ir.Expression{}, fmt.Errorf(
+				"contains: key must be a literal, got %T", e.Key,
+			)
+		}
+		return ir.Expression{}, checkContainsStringBase(litExpr)
+	}
+	mapType, ok := canonical.(*ir.GoMapType)
 	if !ok {
 		return ir.Expression{}, fmt.Errorf(
-			"contains: operand must be a map, got %s",
+			"contains: operand must be a map, slice, or array, got %s",
 			baseExpr.Type.GetName(),
 		)
 	}
@@ -6595,7 +6883,7 @@ func emitCondition(
 	case *exprlang.IsEmptyExpr:
 		return emitIsEmptyLeaf(e, leafRoots[e], tc)
 	case *exprlang.ContainsExpr:
-		return emitContainsLeaf(e, leafRoots[e], tc)
+		return emitContainsLeaf(e, leafRoots[e], tc, la)
 	case *exprlang.AnyExpr:
 		return emitAnyAllLoop(e.Base, e.Pred, ir.QuantifierAny, leafRoots[e], tc, la)
 	case *exprlang.AllExpr:
@@ -6687,17 +6975,47 @@ func emitIsEmptyLeaf(
 	return expr.Operations, nil
 }
 
-// emitContainsLeaf lowers a ContainsExpr leaf (`contains(map, literalKey)`)
-// into ops that leave a single boolean byte at sm->offset: 1 if the key is
-// in the map, 0 otherwise (including for a nil map). See
-// ir.SwissMapLookupOp.ExistenceOnly for the runtime semantics.
+// emitContainsLeaf lowers a ContainsExpr leaf into ops that leave a single
+// boolean byte at sm->offset. For a map base, this is a key-presence check
+// via SwissMapLookupOp.ExistenceOnly. For a slice or array base whose element
+// is a comparable base type (int / uint / float / bool / string), this
+// desugars to `any(coll, {@it == key})` and emits the same opcode sequence
+// as the user-written any/all form.
 func emitContainsLeaf(
 	ce *exprlang.ContainsExpr,
 	rootVar *ir.Variable,
 	tc *typeCatalog,
+	la *labelAllocator,
 ) ([]ir.ExpressionOp, error) {
 	if rootVar == nil {
 		return nil, errors.New("condition leaf has no resolved root variable")
+	}
+	baseExpr, err := resolveExpression(ce.Base, rootVar, tc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve contains base: %w", err)
+	}
+	canonical := tc.typesByID[baseExpr.Type.GetID()]
+	switch canonical.(type) {
+	case *ir.GoSliceHeaderType, *ir.ArrayType:
+		litExpr, ok := ce.Key.(*exprlang.LiteralExpr)
+		if !ok {
+			return nil, fmt.Errorf(
+				"contains: key must be a literal, got %T", ce.Key,
+			)
+		}
+		pred := &exprlang.EqExpr{
+			Left:  &exprlang.RefExpr{Ref: "@it"},
+			Right: litExpr,
+		}
+		return emitAnyAllLoop(ce.Base, pred, ir.QuantifierAny, rootVar, tc, la)
+	case *ir.GoStringHeaderType:
+		litExpr, ok := ce.Key.(*exprlang.LiteralExpr)
+		if !ok {
+			return nil, fmt.Errorf(
+				"contains: key must be a literal, got %T", ce.Key,
+			)
+		}
+		return nil, checkContainsStringBase(litExpr)
 	}
 	expr, err := resolveContainsExpression(ce, rootVar, tc)
 	if err != nil {
@@ -6821,6 +7139,11 @@ func emitSlicePredicateLoop(
 //   - Outer-scope references like `self.x` or function arguments.
 //   - Nested any/all. Each loop reuses fixed scratch slots (accumulator,
 //     @it), so a nested loop would overwrite the outer's state.
+//   - contains() over any collection. The slice/array form desugars to
+//     any(coll, {@it == key}) inside emitContainsLeaf, so allowing it here
+//     would create the same nested-loop hazard as a literal any/all; the
+//     map form is rejected for symmetry — it's never useful in a predicate
+//     body where the only legal RefExprs are @it / @key / @value.
 func checkPredicateBodyScope(pred exprlang.Expr, allowKeyValue bool) error {
 	for e := range exprlang.Children(pred) {
 		switch e := e.(type) {
@@ -6843,6 +7166,10 @@ func checkPredicateBodyScope(pred exprlang.Expr, allowKeyValue bool) error {
 			}
 		case *exprlang.AnyExpr, *exprlang.AllExpr:
 			return errors.New("nested any/all is not supported")
+		case *exprlang.ContainsExpr:
+			return errors.New("contains() is not supported inside an any/all predicate body")
+		case *exprlang.FilterExpr:
+			return errors.New("nested filter inside an any/all/filter predicate is not supported")
 		}
 	}
 	return nil
@@ -7179,6 +7506,386 @@ func emitArrayPredicateLoop(
 	return ops, nil
 }
 
+// predicateBodyScratchBudget computes a conservative upper bound on the
+// number of scratch buffer bytes a single iteration of a filter loop may
+// consume. The bound is the per-iteration storage for @it plus the sum
+// of worst-case writes performed by every op in the predicate body, plus
+// the emit-element overhead (data-item header + element payload + 8-byte
+// padding).
+//
+// The sum is conservative: in practice ExprPushOffsetOp / data-stack
+// usage means consecutive ops can overlap, so this overestimates. For
+// correctness we just need an upper bound; tighter accounting can be
+// added later.
+//
+// Used by InitFilterSliceLoopOp / InitFilterMapLoopOp so the BPF runtime
+// can scratch_buf_bounds_check the per-iteration headroom before
+// reading @it.
+func predicateBodyScratchBudget(bodyOps []ir.ExpressionOp, elemSize, emitPayloadSize uint32) uint32 {
+	// Per-iteration starting budget: room for @it.
+	budget := elemSize
+	for _, op := range bodyOps {
+		switch o := op.(type) {
+		case *ir.ExprPushOffsetOp:
+			budget += o.ByteSize
+		case *ir.ExprLoadLiteralOp:
+			budget += uint32(len(o.Data))
+		case *ir.ExprReadStringOp:
+			budget += 4 + uint32(o.MaxLen)
+		case *ir.ExprCmpBaseOp:
+			budget += uint32(o.ByteSize)
+		case *ir.ExprCmpStringOp:
+			budget++
+		default:
+			// Conservative fallback: assume the op writes up to 32 bytes
+			// past the current offset. Most expression ops write nothing
+			// or just a comparison result byte; this is a slack term that
+			// covers small base-type ops we haven't enumerated.
+			budget += 32
+		}
+	}
+	// Emit overhead: 16-byte data-item header + element/pair payload + up
+	// to 7 bytes of trailing alignment padding.
+	budget += 16 + emitPayloadSize + 7
+	return budget
+}
+
+// emitSliceFilterMarker emits the inline-pass op sequence for a
+// top-level filter() expression whose source is a slice. The base
+// expression's operations leave the 24-byte slice header at sm->offset;
+// EmitFilterSliceMarkerOp then captures (data_ptr, len) from the
+// header, leaves data_ptr at sm->offset as the wire handle, and
+// enqueues a FILTER_DEFERRED chase item under a freshly-synthesized
+// GoFilteredSliceDataType_N. The data type's EnqueueOps is the
+// deferred filter loop body (InitFilterSliceLoopOp + predicate body +
+// FilterSliceLoopStepOp); the compiler lowers it to the type's
+// enqueue_pc.
+func emitSliceFilterMarker(
+	baseExpr ir.Expression,
+	sliceType *ir.GoSliceHeaderType,
+	pred exprlang.Expr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	_ = rootVar // currently unused; signature keeps the rootVar contract
+	elemType := tc.typesByID[sliceType.Data.Element.GetID()]
+	elemSize := elemType.GetByteSize()
+	if elemSize == 0 {
+		return ir.Expression{}, errors.New(
+			"filter over a slice with zero-sized elements is not supported",
+		)
+	}
+	if elemSize > ir.CollectionPredicateMaxElemBytes {
+		return ir.Expression{}, fmt.Errorf(
+			"filter over a slice with element size %d exceeds the %d-byte per-iteration scratch budget",
+			elemSize, ir.CollectionPredicateMaxElemBytes,
+		)
+	}
+
+	// Validate the predicate body only references @it / literals. The
+	// same rule as any/all over slices applies — @key / @value are
+	// map-only.
+	if err := checkPredicateBodyScope(pred, false); err != nil {
+		return ir.Expression{}, err
+	}
+
+	itVar := &ir.Variable{
+		Name: "@it",
+		Type: elemType,
+		Role: ir.VariableRoleLoopIt,
+	}
+	var la labelAllocator
+	bodyOps, err := emitPredicateBody(pred, map[string]*ir.Variable{"@it": itVar}, tc, &la)
+	if err != nil {
+		return ir.Expression{}, err
+	}
+
+	// Synthesize the per-call-site type pair. The user-visible "type"
+	// field on the filter result mirrors the source collection's name
+	// (e.g. `[]int`) so the wire output looks just like a regular slice
+	// capture. The internal data type's name carries a "@filter" prefix
+	// purely for IR-dump readability.
+	sliceName := sliceType.GetName()
+	dataTypeID := tc.idAlloc.next()
+	handleTypeID := tc.idAlloc.next()
+	dataType := &ir.GoFilteredSliceDataType{
+		TypeCommon: ir.TypeCommon{
+			ID:               dataTypeID,
+			Name:             "@filter " + sliceName + ".data",
+			DynamicSizeClass: ir.DynamicSizeFilterDeferred,
+			ByteSize:         elemSize,
+		},
+		Element:      elemType,
+		ElemByteSize: elemSize,
+	}
+	handleType := &ir.GoFilteredSliceType{
+		TypeCommon: ir.TypeCommon{
+			ID:       handleTypeID,
+			Name:     sliceName,
+			ByteSize: 8,
+		},
+		Data: dataType,
+	}
+	tc.typesByID[dataTypeID] = dataType
+	tc.typesByID[handleTypeID] = handleType
+
+	// Build EnqueueOps (the deferred loop body, run from the data type's
+	// enqueue_pc). Labels are local to the enqueue_pc, allocated from a
+	// fresh allocator below; the predicate body's labels were allocated
+	// from `la` above and are already part of bodyOps.
+	endLabel := la.newLabel()
+	bodyLabel := la.newLabel()
+	iterBudget := predicateBodyScratchBudget(bodyOps, elemSize, elemSize)
+	enqueueOps := make([]ir.ExpressionOp, 0, 4+len(bodyOps))
+	enqueueOps = append(enqueueOps, &ir.InitFilterSliceLoopOp{
+		ElemByteSize:      elemSize,
+		IterScratchBudget: iterBudget,
+		EndLabel:          endLabel,
+	})
+	enqueueOps = append(enqueueOps, &ir.CondLabelOp{ID: bodyLabel})
+	enqueueOps = append(enqueueOps, bodyOps...)
+	enqueueOps = append(enqueueOps, &ir.FilterSliceLoopStepOp{
+		ElemByteSize:  elemSize,
+		ElementTypeID: elemType.GetID(),
+		BodyLabel:     bodyLabel,
+	})
+	enqueueOps = append(enqueueOps, &ir.CondLabelOp{ID: endLabel})
+	dataType.EnqueueOps = enqueueOps
+
+	// Build the inline-pass op sequence: base ops (which leave the
+	// slice header at sm->offset) + the marker op. The compiler's
+	// trailing ExprSaveOp will copy the 8-byte handle the marker
+	// leaves at sm->offset into the event-root expression slot.
+	ops := make([]ir.ExpressionOp, 0, len(baseExpr.Operations)+1)
+	ops = append(ops, baseExpr.Operations...)
+	ops = append(ops, &ir.EmitFilterSliceMarkerOp{
+		FilterDataTypeID: dataTypeID,
+		ElemByteSize:     elemSize,
+	})
+	return ir.Expression{
+		Type:       handleType,
+		Operations: ops,
+	}, nil
+}
+
+// emitMapFilterMarker emits the inline-pass op sequence for a top-level
+// filter() expression whose source is a map. Unlike the any/all map
+// path, no DereferenceOp is emitted: the marker op runs on the raw
+// map[K]V pointer at sm->offset and defers the header read to the
+// chase phase's enqueue_pc init. The marker does perform one small
+// inline bpf_probe_read_user of the `used` field to set
+// ExprStatusTruncated upfront when used > MAX_ITERATIONS.
+func emitMapFilterMarker(
+	baseExpr ir.Expression,
+	mapType *ir.GoMapType,
+	pred exprlang.Expr,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	headerType := tc.typesByID[mapType.HeaderType.GetID()]
+	swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
+	if !ok {
+		if _, isHMap := headerType.(*ir.GoHMapHeaderType); isHMap {
+			// Old-style hmap (pre-Go 1.24) — surface as
+			// UnsupportedFeature so the probe is rejected with a
+			// typed issue rather than a generic resolution error.
+			// The user-facing message mirrors the equivalent
+			// any/all and contains rejections elsewhere in irgen.
+			return ir.Expression{}, &unsupportedFeatureError{
+				message: "filter over old-style hmap not supported; only swiss maps (Go 1.24+) are supported",
+			}
+		}
+		return ir.Expression{}, fmt.Errorf(
+			"filter over map: unsupported header type %T", headerType,
+		)
+	}
+
+	if err := checkPredicateBodyScope(pred, true); err != nil {
+		return ir.Expression{}, err
+	}
+	pred = canonicalizeMapPredRefs(pred)
+
+	keyType, valType, err := swissMapKeyValueTypes(swissHeader, tc)
+	if err != nil {
+		return ir.Expression{}, err
+	}
+	keyType = tc.typesByID[keyType.GetID()]
+	valType = tc.typesByID[valType.GetID()]
+	keySize := keyType.GetByteSize()
+	valSize := valType.GetByteSize()
+	if keySize == 0 || valSize == 0 {
+		return ir.Expression{}, errors.New("filter over map: zero-sized key or value not supported")
+	}
+	valOffsetInPair := (keySize + 7) &^ 7
+	itTotal := valOffsetInPair + valSize
+	if itTotal > ir.CollectionPredicateMaxElemBytes {
+		return ir.Expression{}, fmt.Errorf(
+			"filter over map[%s]%s: per-iteration scratch size %d exceeds the %d-byte budget",
+			keyType.GetName(), valType.GetName(),
+			itTotal, ir.CollectionPredicateMaxElemBytes,
+		)
+	}
+
+	// Resolve swiss-map layout offsets — same path emitSwissMapPredicateLoop walks.
+	dirPtrField, err := field(tc, swissHeader.StructureType, "dirPtr")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("map header missing dirPtr field: %w", err)
+	}
+	dirLenField, err := field(tc, swissHeader.StructureType, "dirLen")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("map header missing dirLen field: %w", err)
+	}
+	usedField, err := field(tc, swissHeader.StructureType, "used")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("map header missing used field: %w", err)
+	}
+	ctrlField, err := field(tc, swissHeader.GroupType, "ctrl")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("group type missing ctrl field: %w", err)
+	}
+	slotsField, err := field(tc, swissHeader.GroupType, "slots")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("group type missing slots field: %w", err)
+	}
+	slotsFieldType := tc.typesByID[slotsField.Type.GetID()]
+	entryArray, ok := slotsFieldType.(*ir.ArrayType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("slots field is not an array: %T", slotsFieldType)
+	}
+	slotStruct, ok := entryArray.Element.(*ir.StructureType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("slot element is not a struct: %T", entryArray.Element)
+	}
+	keyField, err := field(tc, slotStruct, "key")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("slot struct missing key field: %w", err)
+	}
+	elemField, err := field(tc, slotStruct, "elem")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("slot struct missing elem field: %w", err)
+	}
+	tablePtrType, ok := swissHeader.TablePtrSliceType.Element.(*ir.PointerType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("table ptr slice element is not a pointer: %T", swissHeader.TablePtrSliceType.Element)
+	}
+	tableType, ok := tc.typesByID[tablePtrType.Pointee.GetID()].(*ir.StructureType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("table pointee is not a struct: %T", tc.typesByID[tablePtrType.Pointee.GetID()])
+	}
+	groupsField, err := field(tc, tableType, "groups")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("table type missing groups field: %w", err)
+	}
+	groupsType, ok := groupsField.Type.(*ir.GoSwissMapGroupsType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("groups field is not GoSwissMapGroupsType: %T", groupsField.Type)
+	}
+	dataField, err := field(tc, groupsType.StructureType, "data")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("groupsReference missing data field: %w", err)
+	}
+	lengthMaskField, err := field(tc, groupsType.StructureType, "lengthMask")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("groupsReference missing lengthMask field: %w", err)
+	}
+
+	itVar := &ir.Variable{
+		Name:           "@it",
+		Type:           keyType,
+		Role:           ir.VariableRoleLoopIt,
+		LoopBaseOffset: 0,
+	}
+	valueVar := &ir.Variable{
+		Name:           "@value",
+		Type:           valType,
+		Role:           ir.VariableRoleLoopIt,
+		LoopBaseOffset: valOffsetInPair,
+	}
+	var la labelAllocator
+	bodyOps, err := emitPredicateBody(pred, map[string]*ir.Variable{
+		"@it":    itVar,
+		"@value": valueVar,
+	}, tc, &la)
+	if err != nil {
+		return ir.Expression{}, err
+	}
+
+	// Synthesize the per-call-site type pair. See the matching comment
+	// in emitSliceFilterMarker — the user-visible "type" field mirrors
+	// the source map's name (e.g. `map[string]int`).
+	mapName := mapType.GetName()
+	dataTypeID := tc.idAlloc.next()
+	handleTypeID := tc.idAlloc.next()
+	dataType := &ir.GoFilteredMapDataType{
+		TypeCommon: ir.TypeCommon{
+			ID:               dataTypeID,
+			Name:             "@filter " + mapName + ".data",
+			DynamicSizeClass: ir.DynamicSizeFilterDeferred,
+			ByteSize:         itTotal,
+		},
+		KeyType:         keyType,
+		ValueType:       valType,
+		ValOffsetInPair: valOffsetInPair,
+	}
+	handleType := &ir.GoFilteredMapType{
+		TypeCommon: ir.TypeCommon{
+			ID:       handleTypeID,
+			Name:     mapName,
+			ByteSize: 8,
+		},
+		Data: dataType,
+	}
+	tc.typesByID[dataTypeID] = dataType
+	tc.typesByID[handleTypeID] = handleType
+
+	endLabel := la.newLabel()
+	bodyLabel := la.newLabel()
+	iterBudget := predicateBodyScratchBudget(bodyOps, itTotal, itTotal)
+	enqueueOps := make([]ir.ExpressionOp, 0, 4+len(bodyOps))
+	enqueueOps = append(enqueueOps, &ir.InitFilterMapLoopOp{
+		KeyByteSize:       keySize,
+		ValByteSize:       valSize,
+		ValOffsetInPair:   valOffsetInPair,
+		IterScratchBudget: iterBudget,
+		EndLabel:          endLabel,
+
+		DirPtrOffset:             uint8(dirPtrField.Offset),
+		DirLenOffset:             uint8(dirLenField.Offset),
+		CtrlOffset:               uint8(ctrlField.Offset),
+		SlotsOffset:              uint8(slotsField.Offset),
+		KeyInSlotOffset:          uint8(keyField.Offset),
+		ValInSlotOffset:          uint16(elemField.Offset),
+		SlotSize:                 uint16(slotStruct.GetByteSize()),
+		GroupByteSize:            uint16(swissHeader.GroupType.GetByteSize()),
+		TableGroupsFieldOffset:   uint8(groupsField.Offset),
+		GroupsDataFieldOffset:    uint8(dataField.Offset),
+		GroupsLenMaskFieldOffset: uint8(lengthMaskField.Offset),
+	})
+	enqueueOps = append(enqueueOps, &ir.CondLabelOp{ID: bodyLabel})
+	enqueueOps = append(enqueueOps, bodyOps...)
+	enqueueOps = append(enqueueOps, &ir.FilterMapLoopStepOp{
+		KeyTypeID:   keyType.GetID(),
+		ValueTypeID: valType.GetID(),
+		BodyLabel:   bodyLabel,
+	})
+	enqueueOps = append(enqueueOps, &ir.CondLabelOp{ID: endLabel})
+	dataType.EnqueueOps = enqueueOps
+
+	// Inline ops: the base expression's resolveExpression chain finished
+	// with the raw map[K]V pointer at sm->offset (no DereferenceOp). The
+	// marker op then captures the pointer and enqueues the chase.
+	ops := make([]ir.ExpressionOp, 0, len(baseExpr.Operations)+1)
+	ops = append(ops, baseExpr.Operations...)
+	ops = append(ops, &ir.EmitFilterMapMarkerOp{
+		FilterDataTypeID: dataType.ID,
+		SwissHeaderSize:  swissHeader.StructureType.GetByteSize(),
+		UsedFieldOffset:  uint32(usedField.Offset),
+	})
+	return ir.Expression{
+		Type:       handleType,
+		Operations: ops,
+	}, nil
+}
+
 // emitPredicateBody lowers an any/all predicate body to ops that leave a
 // bool byte at sm->offset.
 //
@@ -7237,6 +7944,13 @@ func populateProbeEventsExpressions(
 	failedProbes := make(map[*ir.Probe]ir.Issue)
 	for i := range analyzedProbes {
 		ap := &analyzedProbes[i]
+		if ap.probe.GetKind() == ir.ProbeKindRuntimeRecovery {
+			// Recovery probe's Event.Type and capture expression are
+			// built by synthesizeRecoveryProbes (called by the caller
+			// immediately after this function returns). Skip the
+			// rcjson-driven expression resolution.
+			continue
+		}
 		if _, alreadyFailed := failedProbes[ap.probe]; alreadyFailed {
 			continue
 		}
@@ -7283,6 +7997,13 @@ func populateInstanceExpressions(
 						cond.entryLeafSlotIndex, typeCatalog,
 					)
 					if err != nil {
+						var unsup *unsupportedFeatureError
+						if errors.As(err, &unsup) {
+							return ir.Issue{
+								Kind:    ir.IssueKindUnsupportedFeature,
+								Message: unsup.message,
+							}
+						}
 						return ir.Issue{
 							Kind:    ir.IssueKindConditionExpressionUnresolvable,
 							Message: fmt.Sprintf("failed to resolve entry-side condition: %v", err),
@@ -7295,6 +8016,13 @@ func populateInstanceExpressions(
 						cond.entryLeafSlotIndex, typeCatalog,
 					)
 					if err != nil {
+						var unsup *unsupportedFeatureError
+						if errors.As(err, &unsup) {
+							return ir.Issue{
+								Kind:    ir.IssueKindUnsupportedFeature,
+								Message: unsup.message,
+							}
+						}
 						return ir.Issue{
 							Kind:    ir.IssueKindConditionExpressionUnresolvable,
 							Message: fmt.Sprintf("failed to resolve return-side condition: %v", err),
@@ -7305,6 +8033,13 @@ func populateInstanceExpressions(
 			} else if cond.eventKind == event.Kind {
 				resolved, err := resolveCondition(cond.expr, cond.leafRoots, typeCatalog)
 				if err != nil {
+					var unsup *unsupportedFeatureError
+					if errors.As(err, &unsup) {
+						return ir.Issue{
+							Kind:    ir.IssueKindUnsupportedFeature,
+							Message: unsup.message,
+						}
+					}
 					return ir.Issue{
 						Kind:    ir.IssueKindConditionExpressionUnresolvable,
 						Message: fmt.Sprintf("failed to resolve condition: %v", err),
@@ -7343,9 +8078,29 @@ func populateEventExpressions(
 			continue
 		}
 
-		// Resolve expression to IR.
-		resolvedExpr, err := resolveExpression(expr.expr, v, typeCatalog)
+		// Resolve expression to IR. Filter is leaf-only and dispatched
+		// to its own resolver; all other expressions go through the
+		// generic resolveExpression (which itself rejects FilterExpr
+		// when reached via nested recursion).
+		var resolvedExpr ir.Expression
+		var err error
+		if filterExpr, ok := expr.expr.(*exprlang.FilterExpr); ok {
+			resolvedExpr, err = resolveFilterExpression(filterExpr, v, typeCatalog)
+		} else {
+			resolvedExpr, err = resolveExpression(expr.expr, v, typeCatalog)
+		}
 		if err != nil {
+			// Typed unsupported-feature errors fail the whole probe with
+			// IssueKindUnsupportedFeature so test infrastructure can match
+			// them via `issue:UnsupportedFeature` tags rather than the
+			// probe silently loading with empty captures.
+			var unsup *unsupportedFeatureError
+			if errors.As(err, &unsup) {
+				return ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: unsup.message,
+				}
+			}
 			// For template segments, mark as invalid instead of failing probe.
 			if expr.segment != nil && ap.template != nil {
 				ap.template.Segments[expr.segmentIdx] = ir.InvalidSegment{
@@ -7374,6 +8129,7 @@ func populateEventExpressions(
 			Kind:       expr.exprKind,
 			Expression: resolvedExpr,
 			DictIndex:  v.DictIndex,
+			Redacted:   expr.redacted,
 		})
 	}
 	exprStatusArraySize := uint32((ir.ExprStatusBits*len(expressions) + 7) / 8)
@@ -7465,6 +8221,32 @@ func newProbeInstance(
 			Kind:    ir.IssueKindMalformedExecutable,
 			Message: fmt.Sprintf("subprogram %s has no pc ranges", subprogram.Name),
 		}, nil
+	}
+
+	// runtime.recovery probe: skip the normal entry/return resolution
+	// and disassembly. runtime.recovery never returns normally (it
+	// tail-calls into gogo), so a single entry injection point at the
+	// subprogram's start is sufficient.
+	if kind == ir.ProbeKindRuntimeRecovery {
+		if subprogram.OutOfLinePCRanges == nil {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindMalformedExecutable,
+				Message: "runtime.recovery has no out-of-line PC range",
+			}, nil
+		}
+		entryPC := subprogram.OutOfLinePCRanges[0][0]
+		return &ir.ProbeInstance{
+			Subprogram: subprogram,
+			Events: []*ir.Event{{
+				Kind: ir.EventKindEntry,
+				InjectionPoints: []ir.InjectionPoint{{
+					PC:                  entryPC,
+					Frameless:           false,
+					HasAssociatedReturn: false,
+					NoReturnReason:      ir.NoReturnReasonReturnsDisabled,
+				}},
+			}},
+		}, ir.Issue{}, nil
 	}
 	var injectionPoints []ir.InjectionPoint
 	var returnEvent *ir.Event
@@ -8248,6 +9030,7 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 		switch probe.GetKind() {
 		case ir.ProbeKindSnapshot, ir.ProbeKindCaptureExpression:
 		case ir.ProbeKindLog:
+		case ir.ProbeKindRuntimeRecovery:
 		default:
 			issues = append(issues, ir.ProbeIssue{
 				ProbeDefinition: probe,

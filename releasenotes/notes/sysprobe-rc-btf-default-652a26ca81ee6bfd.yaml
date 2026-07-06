@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    System Probe will now download BTF (BPF Type Format) data, if needed, to support eBPF-based features.
+    This behavior will only take effect in environments where the Linux kernel is newer than the Agent release
+    and BTF is not available directly from the kernel.

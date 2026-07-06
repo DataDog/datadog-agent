@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -111,7 +111,7 @@ func getLog(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
 
 	logFile := config.GetString("log_file")
 	if logFile == "" {
-		logFile = defaultpaths.LogFile
+		logFile = defaultpaths.GetDefaultLogFile()
 	}
 
 	logFileContents, e := os.ReadFile(logFile)

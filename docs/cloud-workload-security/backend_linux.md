@@ -413,6 +413,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "code": {
                     "type": "integer",
                     "description": "RCode is the response code present in the response"
+                },
+                "ips": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "IPs is the list of IP addresses resolved by the DNS response"
+                },
+                "cnames": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CNames is the list of CNAME targets returned by the DNS response"
                 }
             },
             "additionalProperties": false,
@@ -3232,6 +3246,20 @@ Workload Protection events for Linux systems have the following JSON schema:
         "code": {
             "type": "integer",
             "description": "RCode is the response code present in the response"
+        },
+        "ips": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "IPs is the list of IP addresses resolved by the DNS response"
+        },
+        "cnames": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CNames is the list of CNAME targets returned by the DNS response"
         }
     },
     "additionalProperties": false,
@@ -3247,6 +3275,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `code` | RCode is the response code present in the response |
+| `ips` | IPs is the list of IP addresses resolved by the DNS response |
+| `cnames` | CNames is the list of CNAME targets returned by the DNS response |
 
 
 ## `EventContext`

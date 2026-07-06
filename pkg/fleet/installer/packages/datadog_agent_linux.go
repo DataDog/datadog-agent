@@ -99,6 +99,18 @@ var (
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
 	}
 
+	// integrationRestorePermissions re-applies dd-agent ownership to embedded/lib after
+	// RestoreCustomIntegrations runs pip as root. pip inherits the installer's root UID so
+	// newly-installed integration files land as root:root; this targeted chown fixes that
+	// without re-walking the entire package tree (which would redundantly re-chown
+	// system-probe binaries back to root).
+	integrationRestorePermissions = file.Permission{
+		Path:      ".",
+		Owner:     "dd-agent",
+		Group:     "dd-agent",
+		Recursive: true,
+	}
+
 	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
 	agentPackageUninstallPaths = file.Paths{
 		"embedded/ssl/fipsmodule.cnf",
@@ -152,6 +164,13 @@ var (
 		"datadog-agent-procmgrd-exp.service",
 	}
 )
+
+// fixRestoredIntegrationOwnership re-applies dd-agent ownership to the embedded/lib subtree
+// after RestoreCustomIntegrations has installed integration files as root. It is a no-op when
+// the path does not exist.
+func fixRestoredIntegrationOwnership(ctx HookContext) error {
+	return integrationRestorePermissions.Ensure(ctx, filepath.Join(ctx.PackagePath, "embedded/lib"))
+}
 
 // installFilesystem sets up the filesystem for the agent installation
 func installFilesystem(ctx HookContext) (err error) {
@@ -306,7 +325,10 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 		return err
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-		log.Warnf("failed to restore custom integrations: %s", err)
+		log.Errorf("failed to restore custom integrations: %s", err)
+	}
+	if err := fixRestoredIntegrationOwnership(ctx); err != nil {
+		log.Warnf("failed to fix restored integration file ownership: %s", err)
 	}
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
@@ -374,11 +396,7 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 			log.Warnf("failed to uninstall filesystem: %s", err)
 		}
 	case true:
-		storagePath := ctx.PackagePath
-		if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
-			storagePath = paths.RootTmpDir
-		}
-		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, storagePath); err != nil {
+		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 			log.Warnf("failed to save custom integrations: %s", err)
 		}
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
@@ -407,7 +425,7 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		return fmt.Errorf("failed to remove experiment units: %s", err)
 	}
-	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, paths.RootTmpDir); err != nil {
+	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to save custom integrations: %s", err)
 	}
 	if err := saveAgentExtensions(ctx, false); err != nil {
@@ -426,7 +444,10 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-		log.Warnf("failed to restore custom integrations: %s", err)
+		log.Errorf("failed to restore custom integrations: %s", err)
+	}
+	if err := fixRestoredIntegrationOwnership(ctx); err != nil {
+		log.Warnf("failed to fix restored integration file ownership: %s", err)
 	}
 	experimentVersion := getCurrentAgentVersion()
 	if err := extensionsPkg.SetPackage(ctx, agentPackage, experimentVersion, true); err != nil {

@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "server",
+    srcs = ["server.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/proto",
+        "//comp/core/workloadmeta/telemetry",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+dd_agent_go_test(
+    name = "server_test",
+    srcs = ["server_test.go"],
+    embed = [":server"],
+    deps = [
+        "//comp/core",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//metadata",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -292,8 +292,9 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 
 	case "loaded":
 		var eventData struct {
-			ProgramID    int                `yaml:"program_id"`
-			RuntimeStats []runtimeStatsYAML `yaml:"runtime_stats,omitempty"`
+			ProgramID            int                `yaml:"program_id"`
+			RuntimeStats         []runtimeStatsYAML `yaml:"runtime_stats,omitempty"`
+			IncludeRecoveryProbe bool               `yaml:"include_recovery_probe,omitempty"`
 		}
 		if err := node.Decode(&eventData); err != nil {
 			return fmt.Errorf("failed to decode loaded event: %w", err)
@@ -306,6 +307,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 					runtimeStats: runtimeStatsFromYAML(
 						eventData.RuntimeStats,
 					),
+					includeRecoveryProbe: eventData.IncludeRecoveryProbe,
 				},
 			},
 		}
@@ -447,7 +449,62 @@ type runtimeStatsYAML struct {
 type fakeLoadedProgram struct {
 	probes       []ir.ProbeDefinition
 	runtimeStats []loader.RuntimeStats
+	// includeRecoveryProbe declares that this loaded program would have
+	// been built with the synthetic runtime.recovery probe appended
+	// (i.e. it has at least one function-targeted user probe and
+	// LoadOptions.SkipRuntimeRecoveryProbe was false). The probes
+	// slice is populated with a recovery-probe stub at the tail in
+	// populateFakeLoadedProgramProbes; the test author is responsible
+	// for keeping runtime_stats in sync (one extra entry).
+	includeRecoveryProbe bool
 }
+
+// recoveryProbeStub satisfies ir.ProbeDefinition for snapshot tests that
+// need to model the synthetic runtime.recovery probe. Production code
+// uses an irgen-internal stub; this one only implements what the
+// actuator reads (GetID, GetVersion, GetKind, GetWhere).
+type recoveryProbeStub struct{}
+
+var _ ir.ProbeDefinition = recoveryProbeStub{}
+
+func (recoveryProbeStub) GetID() string         { return ir.RuntimeRecoveryProbeID }
+func (recoveryProbeStub) GetVersion() int       { return 0 }
+func (recoveryProbeStub) GetKind() ir.ProbeKind { return ir.ProbeKindRuntimeRecovery }
+func (recoveryProbeStub) GetWhere() ir.Where    { return recoveryStubWhere{} }
+func (recoveryProbeStub) GetTags() []string     { return nil }
+func (recoveryProbeStub) GetTemplate() ir.TemplateDefinition {
+	return nil
+}
+func (recoveryProbeStub) GetWhen() json.RawMessage { return nil }
+func (recoveryProbeStub) GetWhenDSL() string       { return "" }
+func (recoveryProbeStub) GetCaptureExpressions() []ir.CaptureExpressionDefinition {
+	return nil
+}
+func (recoveryProbeStub) GetCaptureConfig() ir.CaptureConfig {
+	return recoveryStubCaptureConfig{}
+}
+func (recoveryProbeStub) GetThrottleConfig() ir.ThrottleConfig {
+	return recoveryStubThrottleConfig{}
+}
+
+type recoveryStubWhere struct{}
+
+func (recoveryStubWhere) Where()           {}
+func (recoveryStubWhere) Location() string { return "runtime.recovery" }
+
+var _ ir.FunctionWhere = recoveryStubWhere{}
+
+type recoveryStubCaptureConfig struct{}
+
+func (recoveryStubCaptureConfig) GetMaxReferenceDepth() uint32 { return 0 }
+func (recoveryStubCaptureConfig) GetMaxCollectionSize() uint32 { return 0 }
+func (recoveryStubCaptureConfig) GetMaxFieldCount() uint32     { return 0 }
+func (recoveryStubCaptureConfig) GetMaxLength() uint32         { return 0 }
+
+type recoveryStubThrottleConfig struct{}
+
+func (recoveryStubThrottleConfig) GetThrottlePeriodMs() uint32 { return 0 }
+func (recoveryStubThrottleConfig) GetThrottleBudget() int64    { return 0 }
 
 func (*fakeLoadedProgram) Attach(ProcessID, Executable) (AttachedProgram, error) {
 	return nil, nil

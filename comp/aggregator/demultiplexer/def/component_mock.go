@@ -18,7 +18,7 @@ import (
 // Mock implements mock-specific methods.
 type Mock interface {
 	SetDefaultSender(sender.Sender)
-	Stop(bool)
+	Stop()
 	Component
 }
 
@@ -34,5 +34,5 @@ type FakeSamplerMock interface {
 
 	GetAgentDemultiplexer() *aggregator.AgentDemultiplexer
 
-	Stop(bool)
+	Stop()
 }

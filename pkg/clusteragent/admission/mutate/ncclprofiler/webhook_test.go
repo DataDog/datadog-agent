@@ -29,7 +29,7 @@ func TestWebhook_DisabledByDefault(t *testing.T) {
 
 func TestWebhook_EnabledButNoInjectorImage_DisablesItself(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("admission_controller.nccl_profiler.enabled", true)
+	cfg.SetInTest("admission_controller.nccl_profiler.enabled", true)
 	// admission_controller.nccl_profiler.injector_image deliberately left empty
 
 	w := NewWebhook(cfg)
@@ -40,8 +40,8 @@ func TestWebhook_EnabledButNoInjectorImage_DisablesItself(t *testing.T) {
 
 func TestWebhook_EnabledWithInjectorImage(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("admission_controller.nccl_profiler.enabled", true)
-	cfg.SetWithoutSource("admission_controller.nccl_profiler.injector_image",
+	cfg.SetInTest("admission_controller.nccl_profiler.enabled", true)
+	cfg.SetInTest("admission_controller.nccl_profiler.injector_image",
 		"376334461865.dkr.ecr.us-east-1.amazonaws.com/nccl-profiler-injector:latest")
 
 	w := NewWebhook(cfg)
@@ -76,8 +76,8 @@ func TestWebhook_LabelSelectorTargetsOnlyOptedInPods(t *testing.T) {
 // namespace so no pod gets mutated.
 func TestWebhook_LabelSelector_FallbackFailsClosed(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("admission_controller.nccl_profiler.enabled", true)
-	cfg.SetWithoutSource("admission_controller.nccl_profiler.injector_image", "registry.example/img:tag")
+	cfg.SetInTest("admission_controller.nccl_profiler.enabled", true)
+	cfg.SetInTest("admission_controller.nccl_profiler.injector_image", "registry.example/img:tag")
 
 	nsSel, objSel := NewWebhook(cfg).LabelSelectors(true)
 
@@ -131,9 +131,9 @@ func TestWebhook_InvalidSocketConfigDisablesItself(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("admission_controller.nccl_profiler.enabled", true)
-			cfg.SetWithoutSource("admission_controller.nccl_profiler.injector_image", "registry.example/img:tag")
-			cfg.SetWithoutSource(tc.key, tc.val)
+			cfg.SetInTest("admission_controller.nccl_profiler.enabled", true)
+			cfg.SetInTest("admission_controller.nccl_profiler.injector_image", "registry.example/img:tag")
+			cfg.SetInTest(tc.key, tc.val)
 			assert.False(t, NewWebhook(cfg).IsEnabled())
 		})
 	}
@@ -153,7 +153,7 @@ func TestWebhook_LabelSelector_MutateUnlabelled(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource(tc.key, true)
+			cfg.SetInTest(tc.key, true)
 
 			_, objSel := NewWebhook(cfg).LabelSelectors(false)
 

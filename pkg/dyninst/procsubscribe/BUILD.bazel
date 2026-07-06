@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "procsubscribe",
+    srcs = [
+        "remote_config.go",
+        "remote_config_state.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/remote/data",
+        "//pkg/dyninst/ir",
+        "//pkg/dyninst/process",
+        "//pkg/dyninst/procsubscribe/procscan",
+        "//pkg/dyninst/rcjson",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+go_test(
+    name = "procsubscribe_test",
+    srcs = [
+        "helpers_test.go",
+        "remote_config_test.go",
+    ],
+    embed = [":procsubscribe"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//pkg/config/remote/data",
+        "//pkg/discovery/tracermetadata/model",
+        "//pkg/dyninst/dyninsttest",
+        "//pkg/dyninst/process",
+        "//pkg/dyninst/procsubscribe/procscan",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_grpc//test/bufconn",
+        "@org_uber_go_goleak//:goleak",
+    ],
+)

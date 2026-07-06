@@ -6,6 +6,7 @@ exporters:
             dd-api-key: test-key
             dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 extensions:
     custom:
         config: value
@@ -61,15 +62,13 @@ receivers:
                     - PrometheusText0.0.4
                   static_configs:
                     - targets:
-                        - 127.0.0.1:8889
+                        - localhost:8888
 service:
     extensions:
         - ddprofiling
         - custom
         - other
     pipelines:
-        metrics:
-            processors: []
         metrics/profiler-internal-health:
             exporters:
                 - otlp_http

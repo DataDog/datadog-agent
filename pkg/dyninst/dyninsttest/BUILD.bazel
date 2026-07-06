@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dyninsttest",
+    srcs = [
+        "mock_agent_rc_server.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/compiler",
+        "//pkg/dyninst/ir",
+        "//pkg/dyninst/irgen",
+        "//pkg/dyninst/irprinter",
+        "//pkg/dyninst/loader",
+        "//pkg/dyninst/object",
+        "//pkg/dyninst/testprogs",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//require",
+    ],
+)

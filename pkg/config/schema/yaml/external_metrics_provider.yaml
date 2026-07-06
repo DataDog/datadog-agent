@@ -1,0 +1,130 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/external_metrics_provider.yaml.schema.json
+node_type: section
+type: object
+properties:
+  api_key:
+    node_type: setting
+    type: string
+    default: ''
+    comment: Override the Datadog API Key for external metrics endpoint
+  app_key:
+    node_type: setting
+    type: string
+    default: ''
+    comment: Override the Datadog APP Key for external metrics endpoint
+  autoscaler_autogen_label_selector:
+    node_type: setting
+    type: string
+    default: ''
+    comment: Label selector to filter which HPAs and WPAs the DCA generates DatadogMetrics
+      for (e.g. "app.kubernetes.io/managed-by!=keda-operator")
+  batch_window:
+    node_type: setting
+    type: integer
+    default: 10
+    comment: value in seconds. Batch the events from the Autoscalers informer to push
+      updates to the ConfigMap (GlobalStore)
+  bucket_size:
+    node_type: setting
+    type: integer
+    default: 300
+    comment: Window to query to get the metric from Datadog.
+  chunk_size:
+    node_type: setting
+    type: integer
+    default: 35
+    comment: Maximum number of queries to batch when querying Datadog.
+  config:
+    node_type: setting
+    type: object
+    default: {}
+    additionalProperties:
+      type: string
+    comment: list of options that can be used to configure the external metrics server
+  enable_datadogmetric_autogen:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: Enables autogeneration of DatadogMetrics when the DatadogMetric CRD is
+      in use
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+  endpoint:
+    node_type: setting
+    type: string
+    default: ''
+    comment: Override the Datadog API endpoint to query external metrics from
+  endpoints:
+    node_type: setting
+    type: array
+    default: []
+    tags:
+    - no-env
+    comment: List of redundant endpoints to query external metrics from
+  local_copy_refresh_rate:
+    node_type: setting
+    type: integer
+    default: 30
+    comment: value in seconds
+  max_age:
+    node_type: setting
+    type: integer
+    default: 120
+    comment: value in seconds. 4 cycles from the Autoscaler controller (up to Kubernetes
+      1.11) is enough to consider a metric stale
+  max_parallel_queries:
+    node_type: setting
+    type: integer
+    default: 10
+    comment: Maximum number of parallel queries sent to Datadog simultaneously
+  max_time_window:
+    node_type: setting
+    type: integer
+    default: 86400
+    comment: Maximum window to query to get the metric from Datadog.
+  num_workers:
+    node_type: setting
+    type: integer
+    default: 2
+    comment: Number of workers spawned by controller (only when CRD is used)
+  port:
+    node_type: setting
+    type: integer
+    default: 8443
+  query_validity_period:
+    node_type: setting
+    type: integer
+    default: 30
+    comment: value in seconds. Represents grace period to account for delay between
+      metric is resolved and when autoscaling controllers query for it
+  refresh_period:
+    node_type: setting
+    type: integer
+    default: 30
+    comment: value in seconds. Frequency of calls to Datadog to refresh metric values
+  rollup:
+    node_type: setting
+    type: integer
+    default: 30
+    comment: Bucket size to circumvent time aggregation side effects.
+  split_batches_with_backoff:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Splits batches and runs queries with errors individually with an exponential
+      backoff
+  use_datadogmetric_crd:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Use DatadogMetric CRD with custom Datadog Queries instead of ConfigMap
+  wpa_controller:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Activates the controller for Watermark Pod Autoscalers.
+tags:
+- full-agent-only:true

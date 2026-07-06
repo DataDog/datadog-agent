@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -141,6 +142,10 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
+	if err := ensureADPProcmgrConfig(); err != nil {
+		return fmt.Errorf("failed to write ADP process manager config: %w", err)
+	}
+
 	// No need to explicitly start the Agent here
 	// - MSI: done at the end in StartDDServices custom action
 	// - OCI: done at the end of setup script (setup.go)
@@ -164,6 +169,28 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 		log.Warnf("failed to remove extensions: %s", err)
 	}
 
+	packagePath := ctx.PackagePath
+	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
+		packagePath = resolved
+	}
+	// ADP processes.d YAML is not an MSI component; keep it across upgrade prerm so a rolled-back
+	// install still has supervision config until postinst rewrites it. Full uninstall removes it.
+	if !ctx.Upgrade {
+		installRoot := paths.ResolveDatadogProgramFilesDir()
+		if installRoot == "" {
+			installRoot = packagePath
+		} else if resolved, err := filepath.EvalSymlinks(installRoot); err == nil {
+			installRoot = resolved
+			paths.DatadogProgramFilesDir = installRoot
+		}
+		if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
+			log.Warnf("failed to remove ADP process manager config: %v", err)
+		}
+		if env.FromEnv().ProcessManagerEnabled {
+			processmanager.ReloadOrRestartProcmgr()
+		}
+	}
+
 	if ctx.PackageType == PackageTypeMSI {
 		// MSI custom action calling hook - done.
 		// Note: the save file written above lives in ProtectedDir which intentionally persists
@@ -175,6 +202,25 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	// OCI path: Run MSI to uninstall
 	if !ctx.Upgrade {
 		return removeAgentIfInstalledAndRestartOnFailure(ctx)
+	}
+	return nil
+}
+
+func ensureADPProcmgrConfig() error {
+	installRoot := paths.ResolveDatadogProgramFilesDir()
+	if installRoot == "" {
+		return errors.New("cannot resolve Datadog Agent install path for ADP processes.d")
+	}
+	if resolved, err := filepath.EvalSymlinks(installRoot); err == nil {
+		installRoot = resolved
+	}
+	paths.DatadogProgramFilesDir = installRoot
+
+	if env.FromEnv().ProcessManagerEnabled {
+		return processmanager.WriteADPProcmgrConfig(installRoot)
+	}
+	if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
+		log.Warnf("ADP: could not remove stale process manager config: %v", err)
 	}
 	return nil
 }
@@ -480,6 +526,9 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	}
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
+	}
+	if env.MsiParams.AgentUserKeepRights != "" {
+		opts = append(opts, msi.WithDdAgentUserKeepRights(env.MsiParams.AgentUserKeepRights))
 	}
 	opts = append(opts, msi.WithProperties(props))
 	// append input args last so they can take precedence

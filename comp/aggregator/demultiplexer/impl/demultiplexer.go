@@ -14,14 +14,15 @@ import (
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -32,13 +33,14 @@ import (
 // Module defines the fx options for this component.
 func Module(params Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newDemultiplexer),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Supply(params))
 }
 
-type dependencies struct {
-	fx.In
-	Lc                     fx.Lifecycle
+// Dependencies defines the dependencies required by the demultiplexer component.
+type Dependencies struct {
+	compdef.In
+	Lc                     compdef.Lifecycle
 	Config                 config.Component
 	Log                    log.Component
 	SharedForwarder        defaultforwarder.Component
@@ -58,8 +60,9 @@ type demultiplexer struct {
 	*aggregator.AgentDemultiplexer
 }
 
-type provides struct {
-	fx.Out
+// Provides defines the values provided by the demultiplexer component.
+type Provides struct {
+	compdef.Out
 	Comp demultiplexerComp.Component
 
 	SenderManager           sender.SenderManager
@@ -67,14 +70,15 @@ type provides struct {
 	AggregatorDemultiplexer aggregator.Demultiplexer
 }
 
-func newDemultiplexer(deps dependencies) (provides, error) {
+// NewComponent creates a new demultiplexer component.
+func NewComponent(deps Dependencies) (Provides, error) {
 	hostnameDetected, err := deps.Hostname.Get(context.TODO())
 	if err != nil {
 		if deps.Params.continueOnMissingHostname {
 			deps.Log.Warnf("Error getting hostname: %s", err)
 			hostnameDetected = ""
 		} else {
-			return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
+			return Provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
 	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
@@ -94,12 +98,12 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
 	}
-	deps.Lc.Append(fx.Hook{OnStop: func(_ context.Context) error {
-		agentDemultiplexer.Stop(true)
+	deps.Lc.Append(compdef.Hook{OnStop: func(_ context.Context) error {
+		agentDemultiplexer.Stop()
 		return nil
 	}})
 
-	return provides{
+	return Provides{
 		Comp:          demultiplexer,
 		SenderManager: demultiplexer,
 		StatusProvider: status.NewInformationProvider(demultiplexerStatus{
@@ -112,7 +116,12 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 func createAgentDemultiplexerOptions(config config.Component, params Params) aggregator.AgentDemultiplexerOptions {
 	options := aggregator.DefaultAgentDemultiplexerOptions()
 	if params.useDogstatsdNoAggregationPipelineConfig {
-		options.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+		if config.GetBool("dogstatsd_no_aggregation_pipeline") {
+			options.NoAggregationPipelineWorkersCount = config.GetInt("dogstatsd_no_aggregation_pipeline_workers_count")
+			if options.NoAggregationPipelineWorkersCount <= 0 {
+				options.NoAggregationPipelineWorkersCount = 1
+			}
+		}
 	}
 
 	// Override FlushInterval only if flushInterval is set by the user

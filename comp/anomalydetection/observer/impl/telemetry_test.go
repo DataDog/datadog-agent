@@ -8,52 +8,30 @@ package observerimpl
 import (
 	"testing"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/stretchr/testify/require"
 )
 
-func TestTelemetryHandler_CounterAdd(_t *testing.T) {
-	tel := noopsimpl.GetCompatComponent()
-	h := newTelemetryHandler(tel)
-
-	const counterName = "observer.telemetry.test_counter"
-	h.telemetryCounters[counterName] = tel.NewCounter(
-		"observer",
-		counterName,
-		[]string{"detector"},
-		"test counter",
-	)
-
-	h.handleTelemetry([]observerdef.ObserverTelemetry{
-		newTelemetryCounter([]string{"detector:det-a"}, counterName, 2, 100),
-		newTelemetryCounter([]string{"detector:det-a"}, counterName, 3, 101),
-	})
-	// No-op telemetry: asserts routing does not warn or panic.
+func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
+	tel := newObserverTelemetry(noopsimpl.GetCompatComponent())
+	tel.recordChannelDropped("logs")
+	tel.recordRRCFScore("rrcf", 0.7)
+	tel.recordRRCFThreshold("rrcf", 0.9)
+	tel.recordLogPatternCountDelta("log_pattern_extractor", 1)
+	tel.recordLogIngested("internal", 256)
+	tel.recordDroppedLog("logs", []string{"source:kubelet"})
+	tel.recordFilteredMetric("dogstatsd")
+	tel.incrementLogsInFlight("internal")
+	tel.decrementLogsInFlight("internal")
+	tel.initLogsInFlight()
+	tel.setSeriesCount(42)
+	tel.recordStorageSeriesEvicted("capacity", 3)
+	tel.recordStorageCapacityHit()
+	tel.recordAdvanceSkipped("input")
 }
 
-func TestTelemetryHandler_GaugeSet(_t *testing.T) {
-	tel := noopsimpl.GetCompatComponent()
-	h := newTelemetryHandler(tel)
-
-	h.handleTelemetry([]observerdef.ObserverTelemetry{
-		newTelemetryGauge([]string{"detector:det"}, telemetryRRCFScore, 0.5, 100),
-	})
-}
-
-func TestTelemetryHandler_IsMetricRegistered(t *testing.T) {
-	tel := noopsimpl.GetCompatComponent()
-	h := newTelemetryHandler(tel)
-
-	const counterName = "observer.telemetry.test_counter2"
-	h.telemetryCounters[counterName] = tel.NewCounter(
-		"observer",
-		counterName,
-		[]string{"detector"},
-		"test",
-	)
-
-	require.True(t, h.isMetricRegistered(telemetryRRCFScore))
-	require.True(t, h.isMetricRegistered(counterName))
-	require.False(t, h.isMetricRegistered("observer.unknown.metric"))
+func TestClassifyLogSource(t *testing.T) {
+	require.Equal(t, "internal", classifyLogSource("agent_logs", nil))
+	require.Equal(t, "kubelet", classifyLogSource("logs", []string{"source:kubelet", "service:kubelet"}))
+	require.Equal(t, "containers", classifyLogSource("logs", []string{"source:docker"}))
 }
