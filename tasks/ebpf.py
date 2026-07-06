@@ -42,6 +42,8 @@ VERIFIER_DATA_DIR = Path("ebpf-calculator")
 LOGS_DIR = VERIFIER_DATA_DIR / "logs"
 VERIFIER_STATS = VERIFIER_DATA_DIR / "verifier_stats.json"
 COMPLEXITY_DATA_DIR = VERIFIER_DATA_DIR / "complexity-data"
+GITHUB_COMMENT_MAX_LENGTH = 65536
+GITHUB_COMMENT_SAFETY_MARGIN = 512
 
 headers = [
     "Filename/Program",
@@ -935,7 +937,9 @@ def generate_complexity_summary_for_pr(
     msg += f"* Programs that were below the {threshold_for_max_limit * 100}% limit of instructions and are now above: {programs_now_above_limit}\n"
     msg += "\n\n"
 
+    max_comment_length = GITHUB_COMMENT_MAX_LENGTH - GITHUB_COMMENT_SAFETY_MARGIN
     has_any_changes = False
+    report_sections: list[str] = []
     for group, rows in itertools.groupby(summarized_complexity_changes, key=lambda x: x[0].split("/")[0]):
         rows = list(rows)  # Convert the iterator to a list, so we can iterate over it multiple times
 
@@ -949,19 +953,32 @@ def generate_complexity_summary_for_pr(
             return tabulate(changed_rows, headers=headers, tablefmt="github")
 
         with_changes = [row for row in rows if row[-1]]
-        without_changes = [row for row in rows if not row[-1]]
-
-        msg += f"\n<details><summary>{group} details</summary>\n\n"
-        msg += f"## {group} [programs with changes]\n\n"
-        msg += _build_table(with_changes)
-        msg += f"\n\n## {group} [programs without changes]\n\n"
-        msg += _build_table(without_changes)
-        msg += "\n\n</details>\n"
+        section = f"\n<details><summary>{group} details</summary>\n\n"
+        section += f"## {group} [programs with changes]\n\n"
+        section += _build_table(with_changes)
+        section += "\n\n</details>\n"
+        report_sections.append(section)
         has_any_changes = True
+
+    omitted_sections = 0
+    for section in report_sections:
+        if len(msg) + len(section) <= max_comment_length:
+            msg += section
+        else:
+            omitted_sections += 1
+
+    if omitted_sections > 0:
+        msg += (
+            f"\n\n> ⚠️ Omitted {omitted_sections} section(s) from this comment to stay under GitHub's comment size limit."
+        )
 
     curr_commit = get_commit_sha(ctx, short=False)
     msg += f"\n\nThis report was generated based on the complexity data for the current branch {branch_name} (pipeline [{pipeline_id}](https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}), commit {curr_commit}) and the base branch {base_branch} (commit {common_ancestor}). Objects without changes are not reported. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
     msg += "\n\nTable complexity legend: 🔵 - new; ⚪ - unchanged; 🟢 - reduced; 🔴 - increased"
+
+    if len(msg) > max_comment_length:
+        truncation_notice = "\n\n> ⚠️ This report was truncated to stay under GitHub's comment size limit."
+        msg = msg[: max_comment_length - len(truncation_notice)] + truncation_notice
 
     print(msg)
 
