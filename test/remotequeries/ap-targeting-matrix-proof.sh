@@ -28,6 +28,7 @@ RQ_REMOTE_QUERY=${RQ_REMOTE_QUERY:-SELECT current_database() AS current_db, expe
 RQ_POLL_INTERVAL=${RQ_POLL_INTERVAL:-1}
 RQ_MAX_POLLS=${RQ_MAX_POLLS:-45}
 DD_SITE=${DD_SITE:-datad0g.com}
+RQ_HARNESS_RESOLVER_ORG_UUID=${RQ_HARNESS_RESOLVER_ORG_UUID:-e8a99904-55b4-11f1-87f4-9699bf5698e1}
 KEEP_ALIVE=${KEEP_ALIVE:-0}
 RQ_HARNESS_TMUX_REPLACE=${RQ_HARNESS_TMUX_REPLACE:-0}
 RQ_HARNESS_TMUX_CHILD=${RQ_HARNESS_TMUX_CHILD:-0}
@@ -114,7 +115,8 @@ tmux_env_args() {
   for env_name in \
     AGENT_REPO INTEGRATIONS_CORE TMP_ROOT POSTGRES_COMPOSE_FILE POSTGRES_COMPOSE_PROJECT POSTGRES_IMAGE \
     PIP_PLATFORM AGENT_PYTHON_VERSION AGENT_PYTHON_ABI AGENT_A_CMD_PORT AGENT_B_CMD_PORT \
-    RQ_POSTGRES_USERNAME RQ_POSTGRES_PASSWORD FQN RQ_REMOTE_QUERY RQ_POLL_INTERVAL RQ_MAX_POLLS DD_SITE; do
+    RQ_POSTGRES_USERNAME RQ_POSTGRES_PASSWORD FQN RQ_REMOTE_QUERY RQ_POLL_INTERVAL RQ_MAX_POLLS \
+    DD_SITE RQ_HARNESS_RESOLVER_ORG_UUID; do
     printf '%s\0' -e "${env_name}=${!env_name-}"
   done
   # Use harness-specific names for credentials so an existing tmux session
@@ -619,6 +621,83 @@ api_delete_resource() {
   [[ "$status" == "200" || "$status" == "202" || "$status" == "204" ]] || { echo "delete $path HTTP $status" >&2; cat "$out" >&2; return 1; }
 }
 
+api_get_restriction_policy() {
+  local connection_id=$1 out=$2 status
+  status=$(curl -sS -o "$out" -w '%{http_code}' \
+    -H "DD-API-KEY: $DD_API_KEY" -H "DD-APPLICATION-KEY: $DD_APPLICATION_KEY" \
+    "https://api.$DD_SITE/api/v2/restriction_policy/connection%3A$connection_id")
+  [[ "$status" == "200" ]] || { echo "restriction policy GET for connection $connection_id HTTP $status" >&2; cat "$out" >&2; return 1; }
+}
+
+api_post_restriction_policy() {
+  local connection_id=$1 body=$2 out=$3 status
+  status=$(curl -sS -o "$out" -w '%{http_code}' \
+    -X POST \
+    -H "DD-API-KEY: $DD_API_KEY" -H "DD-APPLICATION-KEY: $DD_APPLICATION_KEY" -H 'Content-Type: application/json' \
+    --data @"$body" \
+    "https://api.$DD_SITE/api/v2/restriction_policy/connection%3A$connection_id")
+  echo "$status" > "$out.status"
+  [[ "$status" == "200" || "$status" == "201" || "$status" == "204" ]] || { echo "restriction policy POST for connection $connection_id HTTP $status" >&2; cat "$out" >&2; return 1; }
+}
+
+grants_only_org_resolver() {
+  local policy_json=$1 principal=$2
+  jq -e --arg principal "$principal" '
+    [.data.attributes.bindings[]? | .relation as $relation | (.principals // [])[] | select(. == $principal) | $relation] as $relations
+    | ($relations | length) == 1 and $relations[0] == "resolver"
+  ' "$policy_json" >/dev/null
+}
+
+grant_org_resolver_on_connection() {
+  local connection_id=$1
+  local principal="org:$RQ_HARNESS_RESOLVER_ORG_UUID"
+  local prefix="$TMP_ROOT/results/restriction-policy-connection-$connection_id"
+  local before="$prefix-before.json" update="$prefix-update.json" update_response="$prefix-update-response.json" after="$prefix-after.json"
+
+  log "granting org resolver on AP connection $connection_id for $principal"
+  api_get_restriction_policy "$connection_id" "$before"
+
+  if grants_only_org_resolver "$before" "$principal"; then
+    jq '.' "$before" > "$update"
+    log "org resolver already present on AP connection $connection_id for $principal"
+  else
+    jq --arg principal "$principal" '
+      def has_principal($p): ((.principals // []) | index($p)) != null;
+      (.data.attributes.bindings // []) as $current
+      | [range(0; $current | length) as $i | select($current[$i] | has_principal($principal)) | $i] as $principal_idxs
+      | .data.attributes.bindings = (
+          if ($principal_idxs | length) == 0 then
+            $current + [{relation:"resolver", principals:[$principal]}]
+          elif ($principal_idxs | length) == 1 and (($current[$principal_idxs[0]].principals // []) | length) == 1 then
+            $current | .[$principal_idxs[0]].relation = "resolver"
+          else
+            [
+              $current[]
+              | if has_principal($principal) then
+                  .principals = ((.principals // []) - [$principal])
+                  | select(((.principals // []) | length) > 0)
+                else
+                  .
+                end
+            ] as $bindings
+            | ($bindings | map(.relation == "resolver") | index(true)) as $resolver_idx
+            | if $resolver_idx == null then
+                $bindings + [{relation:"resolver", principals:[$principal]}]
+              else
+                $bindings
+                | .[$resolver_idx].principals = ((.[$resolver_idx].principals // []) + [$principal])
+              end
+          end
+        )
+    ' "$before" > "$update"
+    api_post_restriction_policy "$connection_id" "$update" "$update_response"
+  fi
+
+  api_get_restriction_policy "$connection_id" "$after"
+  grants_only_org_resolver "$after" "$principal" || { echo "restriction policy for connection $connection_id does not grant only resolver to $principal" >&2; cat "$after" >&2; exit 1; }
+  log "verified org resolver on AP connection $connection_id for $principal"
+}
+
 delete_temp_execution_group_if_present() {
   local out="$TMP_ROOT/results/precleanup-execution-groups.json" ids id
   log "Deleting stale rq-ap-staging-proof-eg execution group if present"
@@ -684,6 +763,8 @@ start_agents_and_pars() {
   CONNECTION_B=$(resolve_connection_for_hostname rq-proof-agent-b)
   log "AP connection for agent a: $CONNECTION_A"
   log "AP connection for agent b: $CONNECTION_B"
+  grant_org_resolver_on_connection "$CONNECTION_A"
+  grant_org_resolver_on_connection "$CONNECTION_B"
   printf 'a\t%s\n' "$CONNECTION_A" > "$TMP_ROOT/results/connections.tsv"
   printf 'b\t%s\n' "$CONNECTION_B" >> "$TMP_ROOT/results/connections.tsv"
 }
