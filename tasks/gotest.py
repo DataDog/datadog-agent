@@ -185,7 +185,7 @@ def _run_bazel(
     Returns:
        subprocess run result
     """
-    resolved_bazel = shutil.which("bazel")
+    resolved_bazel = shutil.which("bazelisk")
     if not resolved_bazel:
         raise Exit("bazelisk not found")
     cmd = [resolved_bazel] + list(args)

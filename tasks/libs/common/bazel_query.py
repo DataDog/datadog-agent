@@ -31,7 +31,7 @@ def bazel_query(
     Raises:
         RuntimeError: If bazel is not found on PATH.
     """
-    resolved_bazel = shutil.which("bazel")
+    resolved_bazel = shutil.which("bazelisk")
     if not resolved_bazel:
         raise RuntimeError("bazel not found in PATH")
 
