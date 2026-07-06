@@ -206,6 +206,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	errortrackingpkg "github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -404,7 +406,7 @@ func run(log log.Component,
 		"Establish if the agent is running",
 	)
 
-	// agentStarted and agentRunning are metrics used for Cross-org Agent Telemetry (COAT)
+	// agentStarted and agentRunning are metrics used for internal agent telemetry
 	// for more details on the scheduling config check comp/core/agenttelemetry/impl/config.go
 	agentStarted.Inc()
 	agentRunning.Set(1)
@@ -580,6 +582,8 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsfx.Module(),
 		agenttelemetryfx.Module(),
+		// errortracking submitter wire — atel owns buffer/flush/recursion.
+		fx.Invoke(installErrortrackingHandler),
 		remotetraceroute.Module(),
 		networkpath.Bundle(),
 		syntheticsTestsfx.Module(),
@@ -598,6 +602,33 @@ func getSharedFxOption() fx.Option {
 		healthplatform.Bundle(),
 		tracetelemetryfx.Module(),
 	)
+}
+
+// installErrortrackingHandler is a no-op when the feature is disabled
+// (agent_telemetry.errortracking.enabled or the parent agent_telemetry
+// gate). The OnStart hook installs the submitter into pkg/util/log/setup;
+// the matching clear runs synchronously inside atel.stop()
+// (deliberately not as a separate OnStop hook here) so it precedes the
+// final flush-goroutine drain.
+func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
+	if !configUtils.IsErrorTrackingEnabled(cfg) {
+		return
+	}
+
+	submitter := func(elog errortrackingpkg.ErrorLog) {
+		at.SubmitErrorLog(elog)
+	}
+
+	bouncerWindow := time.Duration(cfg.GetInt("agent_telemetry.errortracking.bouncer_window_seconds")) * time.Second
+	bouncer := errortrackingpkg.NewBouncer(bouncerWindow, 0)
+
+	lc.Append(fx.Hook{
+		OnStart: func(_ context.Context) error {
+			pkglogsetup.RegisterErrortrackingSubmitter(submitter)
+			pkglogsetup.RegisterErrortrackingBouncer(bouncer)
+			return nil
+		},
+	})
 }
 
 // startAgent Initializes the agent process

@@ -27,12 +27,17 @@ import (
 
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
 	"golang.org/x/sys/windows/registry"
 )
 
-func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
-	err := paths.SetupInstallerDataDir()
+func install(ctx context.Context, env *env.Env, url string, experiment bool) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "bootstrap.install")
+	defer func() { span.Finish(err) }()
+	span.SetTag("url", url)
+	span.SetTag("experiment", experiment)
+	err = paths.SetupInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("failed to create installer data directory: %w", err)
 	}
@@ -62,7 +67,9 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 //   - For non-Agent OCI packages: returns the locally-installed datadog-installer.exe
 //     (other Datadog packages do not ship a per-version installer.exe).
 //   - For the Agent package: extracts a version-matched datadog-installer.exe from the OCI package.
-func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
+func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (_ *iexec.InstallerExec, err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "bootstrap.download_installer")
+	defer func() { span.Finish(err) }()
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
@@ -123,7 +130,7 @@ func extractInstallerFromAgentPackage(ctx context.Context, pkg *oci.DownloadedPa
 
 	// Production flow: try OCI layer, fall back to MSI extraction for older packages
 	installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
-	if err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath); err != nil { // Returns nil if the layer doesn't exist
+	if err := pkg.ExtractLayers(ctx, oci.DatadogPackageInstallerLayerMediaType, installerBinPath); err != nil { // Returns nil if the layer doesn't exist
 		return "", fmt.Errorf("failed to extract layers: %w", err)
 	}
 	if _, err := os.Stat(installerBinPath); err != nil {
@@ -142,7 +149,7 @@ func extractInstallerFromAgentPackageTestMode(ctx context.Context, pkg *oci.Down
 	case "OCI":
 		// Force OCI path - fail if installer layer is missing
 		installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
-		if err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath); err != nil {
+		if err := pkg.ExtractLayers(ctx, oci.DatadogPackageInstallerLayerMediaType, installerBinPath); err != nil {
 			return "", fmt.Errorf("failed to extract installer layer: %w", err)
 		}
 		if _, err := os.Stat(installerBinPath); err != nil {
@@ -183,17 +190,19 @@ func getInstallerBootstrapMode() string {
 //
 // Should only be called for Agent versions earlier than 7.79 (where the
 // dedicated installer.exe OCI layer is absent).
-func extractInstallerFromOldAgentPackage(ctx context.Context, pkg *oci.DownloadedPackage, tmpDir string) (string, error) {
+func extractInstallerFromOldAgentPackage(ctx context.Context, pkg *oci.DownloadedPackage, tmpDir string) (_ string, err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "bootstrap.download_installer_msi_fallback")
+	defer func() { span.Finish(err) }()
 	layoutTmpDir, err := os.MkdirTemp(paths.RootTmpDir, "layout")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(layoutTmpDir)
-	if err := pkg.WriteOCILayout(layoutTmpDir); err != nil {
+	if err := pkg.WriteOCILayout(ctx, layoutTmpDir); err != nil {
 		return "", fmt.Errorf("failed to write OCI layout: %w", err)
 	}
 
-	if err := pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir); err != nil {
+	if err := pkg.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir); err != nil {
 		return "", fmt.Errorf("failed to extract layers: %w", err)
 	}
 
