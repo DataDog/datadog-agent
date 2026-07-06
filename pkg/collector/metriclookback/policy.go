@@ -79,8 +79,10 @@ func SelectShadowCandidates(configs []integration.Config, opts ShadowPolicyOptio
 			if err != nil {
 				continue
 			}
+			sourceConfig := cloneConfig(config)
+			sourceConfig.LogsConfig = nil
 			candidates = append(candidates, ShadowCandidate{
-				SourceConfig:       cloneConfig(config),
+				SourceConfig:       sourceConfig,
 				Instance:           shadowInstance,
 				InstanceIndex:      instanceIndex,
 				SourceConfigDigest: config.Digest(),

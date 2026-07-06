@@ -169,7 +169,9 @@ func TestSelectShadowCandidatesDoesNotMutateSourceConfig(t *testing.T) {
 
 	require.Len(t, candidates, 1)
 	assert.Equal(t, original, source)
-	assert.Equal(t, original, candidates[0].SourceConfig)
+	expectedShadowConfig := original
+	expectedShadowConfig.LogsConfig = nil
+	assert.Equal(t, expectedShadowConfig, candidates[0].SourceConfig)
 	assert.NotEqual(t, source.Instances[0], candidates[0].Instance)
 
 	candidates[0].SourceConfig.Instances[0][0] = 'X'
