@@ -37,30 +37,18 @@ func subscribeAgentConfig(
 
 		var errList []error
 
-		source := cfg.GetSource("log_level")
-		pkglog.Infof("A new log level configuration has been received through remote config, (source: %s, log_level '%s')", source, mergedConfig.LogLevel)
+		pkglog.Infof("A new log level configuration has been received through remote config: '%s'", mergedConfig.LogLevel)
 
-		switch source {
-		case pkgconfigmodel.SourceRC:
-			if len(mergedConfig.LogLevel) == 0 {
-				cfg.UnsetForSource("log_level", pkgconfigmodel.SourceRC)
-				pkglog.Infof("Removing remote-config log level override, falling back to '%s'", cfg.Get("log_level"))
-			} else {
-				pkglog.Infof("Changing log level to '%s' through remote config", mergedConfig.LogLevel)
-				if err := pkgconfigutils.SetLogLevel(mergedConfig.LogLevel, cfg, pkgconfigmodel.SourceRC); err != nil {
-					errList = append(errList, err)
-				}
-			}
-
-		case pkgconfigmodel.SourceCLI:
+		if cfg.GetSource("log_level") == pkgconfigmodel.SourceCLI {
 			pkglog.Warnf("Remote config could not change the log level due to CLI override")
 			return
+		}
 
-		default:
-			if len(mergedConfig.LogLevel) == 0 {
-				return
-			}
-			pkglog.Infof("Changing log level to '%s' through remote config (new source)", mergedConfig.LogLevel)
+		if len(mergedConfig.LogLevel) == 0 {
+			cfg.UnsetForSource("log_level", pkgconfigmodel.SourceRC)
+			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", cfg.Get("log_level"))
+		} else {
+			pkglog.Infof("Changing log level to '%s' through remote config", mergedConfig.LogLevel)
 			if err := pkgconfigutils.SetLogLevel(mergedConfig.LogLevel, cfg, pkgconfigmodel.SourceRC); err != nil {
 				errList = append(errList, err)
 			}

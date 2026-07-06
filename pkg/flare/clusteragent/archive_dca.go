@@ -404,5 +404,8 @@ func dcaPprofGet(pprofURL string) ([]byte, error) {
 		return nil, err
 	}
 	defer r.Body.Close()
+	if r.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("pprof endpoint returned HTTP %d", r.StatusCode)
+	}
 	return io.ReadAll(r.Body)
 }
