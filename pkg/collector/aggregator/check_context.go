@@ -90,23 +90,34 @@ func InitializeCheckContext(senderManager sender.SenderManager, logReceiver opti
 	checkContextMutex.Unlock()
 }
 
-// RegisterCheckSenderManager routes rtloader callbacks for id through senderManager.
-func RegisterCheckSenderManager(id checkid.ID, senderManager sender.SenderManager) {
+// RegisterCheckSenderManager routes rtloader callbacks for id through senderManager
+// and returns an idempotent unregister function for the route.
+func RegisterCheckSenderManager(id checkid.ID, senderManager sender.SenderManager) (func(), bool) {
+	checkContextMutex.Lock()
+	defer checkContextMutex.Unlock()
+
+	if checkCtx == nil {
+		log.Debugf("Unable to register rtloader sender manager override for check %s: check context is not initialized", id)
+		return nil, false
+	}
+	checkCtx.senderManagerOverrides[id] = senderManager
+
+	var unregisterOnce sync.Once
+	return func() {
+		unregisterOnce.Do(func() {
+			unregisterCheckSenderManager(id, senderManager)
+		})
+	}, true
+}
+
+func unregisterCheckSenderManager(id checkid.ID, senderManager sender.SenderManager) {
 	checkContextMutex.Lock()
 	defer checkContextMutex.Unlock()
 
 	if checkCtx == nil {
 		return
 	}
-	checkCtx.senderManagerOverrides[id] = senderManager
-}
-
-// UnregisterCheckSenderManager removes a per-check rtloader callback route.
-func UnregisterCheckSenderManager(id checkid.ID) {
-	checkContextMutex.Lock()
-	defer checkContextMutex.Unlock()
-
-	if checkCtx == nil {
+	if checkCtx.senderManagerOverrides[id] != senderManager {
 		return
 	}
 	delete(checkCtx.senderManagerOverrides, id)

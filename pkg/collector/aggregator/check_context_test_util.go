@@ -8,6 +8,11 @@
 package aggregator
 
 func releaseCheckContext() {
+	ReleaseCheckContextForTest()
+}
+
+// ReleaseCheckContextForTest clears the global check context for tests in other packages.
+func ReleaseCheckContextForTest() {
 	checkContextMutex.Lock()
 	checkCtx = nil
 	checkContextMutex.Unlock()

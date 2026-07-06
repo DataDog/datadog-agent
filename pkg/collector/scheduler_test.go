@@ -16,7 +16,11 @@ import (
 
 	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -144,6 +148,12 @@ func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t
 
 	normalSenderManager := &recordingSchedulerSenderManager{name: "normal"}
 	shadowSenderManager := &recordingSchedulerSenderManager{name: "shadow"}
+	// Production initializes the aggregator check context before checks are loaded.
+	// This lets the scheduler test verify successful rtloader callback registration
+	// without leaking the global check context into later tests.
+	collectoraggregator.InitializeCheckContext(normalSenderManager, option.None[integrations.Component](), nooptagger.NewComponent(), workloadfilterfxmock.SetupMockFilter(t))
+	t.Cleanup(collectoraggregator.ReleaseCheckContextForTest)
+
 	sourceID := checkid.ID("cpu:loaded-source-id")
 	loader := &recordingSchedulerLoader{name: "core", normalCheckID: sourceID}
 	s := CheckScheduler{
