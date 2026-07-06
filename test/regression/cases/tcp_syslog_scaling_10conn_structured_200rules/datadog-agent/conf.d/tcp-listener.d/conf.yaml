@@ -4,8 +4,6 @@ logs:
     format: syslog
     service: "my-service"
     source: "my-client-app"
-    attribute_parsing: true
-    debug_attr_parsing: true
     log_processing_rules:
       - type: remap_source
         name: siem_source_remap_200
