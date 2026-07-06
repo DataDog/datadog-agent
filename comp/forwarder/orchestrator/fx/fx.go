@@ -7,6 +7,8 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	orchestratorimpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -14,5 +16,8 @@ import (
 
 // Module defines the fx options for this component.
 func Module(params orchestrator.Params) fxutil.Module {
-	return orchestratorimpl.Module(params)
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(orchestratorimpl.NewComponent),
+		fx.Supply(params),
+	)
 }

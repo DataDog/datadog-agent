@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "cli_lib",
+    srcs = ["analyze.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/irgen/cli",
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/dyninst/dyninsttest",
+        "//pkg/dyninst/ir",
+        "//pkg/dyninst/irgen",
+        "//pkg/dyninst/irprinter",
+        "//pkg/dyninst/object",
+        "//pkg/dyninst/rcjson",
+        "//pkg/util/safeelf",
+    ],
+)
+
+go_binary(
+    name = "cli",
+    embed = [":cli_lib"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],  # keep
+    target_compatible_with = ["@platforms//os:linux"],  # keep
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "infratags",
+    srcs = ["infratags.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/infratags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+    ],
+)
+
+go_test(
+    name = "infratags_test",
+    srcs = ["infratags_test.go"],
+    embed = [":infratags"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

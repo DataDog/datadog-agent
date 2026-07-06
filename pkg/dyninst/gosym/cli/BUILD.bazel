@@ -4,6 +4,7 @@ go_library(
     name = "cli_lib",
     srcs = ["symbol.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gosym/cli",
+    tags = ["manual"],
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/dyninst/object",

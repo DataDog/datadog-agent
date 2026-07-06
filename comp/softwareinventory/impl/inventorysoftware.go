@@ -138,8 +138,8 @@ type Provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
-// New creates a new inventory software component with the default sysprobeclient
-func New(reqs Requires) (Provides, error) {
+// NewComponent creates a new inventory software component with the default sysprobeclient
+func NewComponent(reqs Requires) (Provides, error) {
 	return newWithClient(reqs, &sysProbeClientWrapper{
 		clientFn: func() *sysprobeclient.CheckClient {
 			return sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(reqs.SysprobeConfig.GetString("system_probe_config.sysprobe_socket")))
