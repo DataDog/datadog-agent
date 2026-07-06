@@ -79,7 +79,7 @@ func (t *NTPDriftIssue) BuildIssue(context map[string]string) (*healthplatform.I
 				"Affected NTP server: %s.",
 			drift, threshold, ntpSrv,
 		),
-		Category:   "configuration",
+		Category:   "integration",
 		Location:   "system",
 		Severity:   healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 		DetectedAt: "", // Filled by the health platform
@@ -89,7 +89,7 @@ func (t *NTPDriftIssue) BuildIssue(context map[string]string) (*healthplatform.I
 			Summary: "Synchronise the system clock with an NTP server",
 			Steps:   remediationSteps(runtime.GOOS),
 		},
-		Tags: []string{"ntp", "clock-drift", "timestamps", "configuration", runtime.GOOS},
+		Tags: []string{"ntp", "clock-drift", "timestamps", runtime.GOOS},
 	}, nil
 }
 

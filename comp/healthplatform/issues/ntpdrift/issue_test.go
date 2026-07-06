@@ -53,7 +53,7 @@ func TestBuildIssue(t *testing.T) {
 			assert.Equal(t, issueName, issue.IssueName)
 			assert.Equal(t, "System Clock Drift Detected", issue.Title)
 			assert.Contains(t, issue.Description, tt.expectedDescSub)
-			assert.Equal(t, "configuration", issue.Category)
+			assert.Equal(t, "integration", issue.Category)
 			assert.Equal(t, "system", issue.Location)
 			assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.Severity)
 			assert.Equal(t, "ntp-drift", issue.Source)
