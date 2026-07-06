@@ -875,10 +875,8 @@ def generate_complexity_summary_for_pr(
     for program, entries in sorted(program_complexity.items(), key=lambda x: max(e[2] for e in x[1])):
         avg_new_complexity, avg_old_complexity = 0, 0
         highest_new_complexity, highest_old_complexity = 0, 0
-        lowest_new_complexity, lowest_old_complexity = (
-            1e9,
-            1e9,
-        )  # instruction limit is always < 1e9
+        # instruction limit is always < 1e9
+        lowest_new_complexity, lowest_old_complexity = 1e9, 1e9
         highest_complexity_platform, lowest_complexity_platform = "", ""
 
         for arch, distro, new_complexity, old_complexity, limit in entries:
