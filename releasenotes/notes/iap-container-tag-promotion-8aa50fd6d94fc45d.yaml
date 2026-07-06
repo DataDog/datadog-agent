@@ -1,7 +1,7 @@
 ---
 enhancements:
   - |
-    Add a new ``container_tag_promotion`` configuration option to the
+    Add a new ``trace_container_tag_promotion`` configuration option to the
     ``infraattributes`` processor in the Datadog Agent's embedded
     OpenTelemetry Collector (DDOT). When set to ``duplicate`` or
     ``rename``, custom tags emitted by the processor (for example tags

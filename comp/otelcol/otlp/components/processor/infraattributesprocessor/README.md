@@ -43,11 +43,11 @@ The cardinality option sets the [TagCardinality](../../../../../../comp/core/tag
 
 Downstream (trace-agent / Datadog exporter) only promotes a resource attribute into `_dd.tags.container` (visible in the Infrastructure tab of a span) if its key matches a known DD or OTel container-tag convention, or if it carries the `datadog.container.tag.` prefix. Custom tags emitted by this processor — for example tags produced by `podLabelsAsTags` — fall into neither category and are therefore silently dropped from container tags.
 
-The `container_tag_promotion` option opts into rewriting these custom tags so the downstream promotion path picks them up:
+The `trace_container_tag_promotion` option opts into rewriting these custom tags so the downstream promotion path picks them up:
 
-* `container_tag_promotion: off` *(default)* — tags are written as-is. Existing behavior.
-* `container_tag_promotion: duplicate` — each non-exempt tag is written twice: under its original key **and** under `datadog.container.tag.<key>`. The original survives for any downstream consumer that reads the raw key; the prefixed copy reaches `_dd.tags.container`.
-* `container_tag_promotion: rename` — each non-exempt tag is written **only** under `datadog.container.tag.<key>`. Smaller resource payload, but consumers that read the raw key lose access to the value.
+* `trace_container_tag_promotion: off` *(default)* — tags are written as-is. Existing behavior.
+* `trace_container_tag_promotion: duplicate` — each non-exempt tag is written twice: under its original key **and** under `datadog.container.tag.<key>`. The original survives for any downstream consumer that reads the raw key; the prefixed copy reaches `_dd.tags.container`.
+* `trace_container_tag_promotion: rename` — each non-exempt tag is written **only** under `datadog.container.tag.<key>`. Smaller resource payload, but consumers that read the raw key lose access to the value.
 
 **Exemptions (never prefixed, regardless of mode):**
 * Keys recognized by trace-agent's container-tag promotion path (`ConsumeContainerTagsFromResource`) — the union of `attributes.ContainerMappings` keys (OTel semantic conventions: `k8s.pod.name`, `container.id`, `container.image.name`, ...) and its values (DD-format names produced by the OTel→DD mapping: `pod_name`, `kube_namespace`, `container_id`, `runtime`, `cloud_provider`, ...). These already reach `_dd.tags.container` under their canonical key.
@@ -63,7 +63,7 @@ Example:
 processors:
   infraattributes:
     cardinality: 2
-    container_tag_promotion: duplicate
+    trace_container_tag_promotion: duplicate
 ```
 
 ## Expected Attributes

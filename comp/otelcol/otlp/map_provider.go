@@ -41,7 +41,7 @@ func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	// An empty value is left unset so the processor falls back to its own default ("off").
 	if cfg.TracesContainerTagPromotion != "" {
 		smap[buildKey("processors", "infraattributes/traces")] = map[string]interface{}{
-			"container_tag_promotion": cfg.TracesContainerTagPromotion,
+			"trace_container_tag_promotion": cfg.TracesContainerTagPromotion,
 		}
 	}
 	{

@@ -302,9 +302,9 @@ func TestContainerTagPromotion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			next := new(consumertest.TracesSink)
 			cfg := &Config{
-				Cardinality:           types.LowCardinality,
-				AllowHostnameOverride: tt.allowHostnameOverride,
-				ContainerTagPromotion: tt.mode,
+				Cardinality:                types.LowCardinality,
+				AllowHostnameOverride:      tt.allowHostnameOverride,
+				TraceContainerTagPromotion: tt.mode,
 			}
 			tc := testutil.NewTestTaggerClient()
 			tc.TagMap["container_id://test"] = tt.taggerTags

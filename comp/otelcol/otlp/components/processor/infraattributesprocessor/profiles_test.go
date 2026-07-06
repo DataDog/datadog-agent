@@ -51,8 +51,8 @@ func TestInfraAttributesProfileProcessorIgnoresContainerTagPromotion(t *testing.
 	for _, mode := range []ContainerTagPromotionMode{ContainerTagPromotionDuplicate, ContainerTagPromotionRename} {
 		t.Run(string(mode), func(t *testing.T) {
 			cfg := &Config{
-				Cardinality:           types.LowCardinality,
-				ContainerTagPromotion: mode,
+				Cardinality:                types.LowCardinality,
+				TraceContainerTagPromotion: mode,
 			}
 			tc := testutil.NewTestTaggerClient()
 			tc.TagMap["container_id://test"] = []string{"test_tag:bar"}

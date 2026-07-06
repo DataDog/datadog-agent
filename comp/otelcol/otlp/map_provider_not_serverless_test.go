@@ -57,7 +57,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -122,7 +122,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        nil,
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -210,7 +210,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        nil,
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -285,7 +285,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -405,7 +405,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -544,7 +544,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        nil,
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -620,7 +620,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -703,7 +703,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -813,7 +813,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -911,7 +911,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -1076,7 +1076,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -1259,7 +1259,7 @@ func TestNewMap(t *testing.T) {
 				},
 				"processors": map[string]any{
 					"infraattributes":        any(nil),
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -1347,7 +1347,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "off"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -1396,7 +1396,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes/traces": map[string]any{"container_tag_promotion": "rename"},
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "rename"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{

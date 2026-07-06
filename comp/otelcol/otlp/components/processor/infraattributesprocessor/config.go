@@ -47,7 +47,7 @@ type Config struct {
 	// (per-pod/task), 2 = high (per-container/request).
 	Cardinality           types.TagCardinality `mapstructure:"cardinality"`
 	AllowHostnameOverride bool                 `mapstructure:"allow_hostname_override"`
-	// ContainerTagPromotion controls how tags emitted by this processor are
+	// TraceContainerTagPromotion controls how tags emitted by this processor are
 	// surfaced for promotion into Datadog container tags. See the
 	// ContainerTagPromotionMode constants for the supported values.
 	// An empty value is treated as "off".
@@ -57,21 +57,21 @@ type Config struct {
 	// (attributes.ConsumeContainerTagsFromResource), so the logs, metrics,
 	// and profiles processors always behave as if this were "off",
 	// regardless of the configured value.
-	ContainerTagPromotion ContainerTagPromotionMode `mapstructure:"container_tag_promotion"`
+	TraceContainerTagPromotion ContainerTagPromotionMode `mapstructure:"trace_container_tag_promotion"`
 }
 
 var _ component.Config = (*Config)(nil)
 
 // Validate configuration
 func (cfg *Config) Validate() error {
-	switch cfg.ContainerTagPromotion {
+	switch cfg.TraceContainerTagPromotion {
 	case "", ContainerTagPromotionOff,
 		ContainerTagPromotionDuplicate, ContainerTagPromotionRename:
 		return nil
 	default:
 		return fmt.Errorf(
-			"invalid container_tag_promotion %q: must be one of %q, %q, %q",
-			cfg.ContainerTagPromotion,
+			"invalid trace_container_tag_promotion %q: must be one of %q, %q, %q",
+			cfg.TraceContainerTagPromotion,
 			ContainerTagPromotionOff,
 			ContainerTagPromotionDuplicate,
 			ContainerTagPromotionRename,

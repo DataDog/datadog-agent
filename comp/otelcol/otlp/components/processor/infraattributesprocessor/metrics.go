@@ -40,7 +40,7 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		resourceAttributes := rms.At(i).Resource().Attributes()
-		// container_tag_promotion only makes sense for traces: it exists to
+		// trace_container_tag_promotion only makes sense for traces: it exists to
 		// feed trace-agent's `_dd.tags.container` promotion
 		// (ConsumeContainerTagsFromResource), which metrics never go through.
 		// The metrics path already recognizes DD-format keys directly via

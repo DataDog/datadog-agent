@@ -239,8 +239,8 @@ func TestInfraAttributesMetricProcessorIgnoresContainerTagPromotion(t *testing.T
 		t.Run(string(mode), func(t *testing.T) {
 			next := new(consumertest.MetricsSink)
 			cfg := &Config{
-				Cardinality:           types.LowCardinality,
-				ContainerTagPromotion: mode,
+				Cardinality:                types.LowCardinality,
+				TraceContainerTagPromotion: mode,
 			}
 			tc := testutil.NewTestTaggerClient()
 			tc.TagMap["container_id://test"] = []string{"test_tag:bar"}

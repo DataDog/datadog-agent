@@ -46,7 +46,7 @@ func (iapp *infraAttributesProfileProcessor) processProfiles(_ context.Context, 
 		// Always add `host.arch` tag to profiles' resource attributes
 		resourceAttributes.PutStr("host.arch", runtime.GOARCH)
 
-		// container_tag_promotion only makes sense for traces: it exists to
+		// trace_container_tag_promotion only makes sense for traces: it exists to
 		// feed trace-agent's `_dd.tags.container` promotion
 		// (ConsumeContainerTagsFromResource), which profiles never go
 		// through. Always pass "off" here regardless of the configured mode.

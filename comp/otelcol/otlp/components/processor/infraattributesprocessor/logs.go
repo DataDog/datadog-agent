@@ -40,7 +40,7 @@ func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.
 	rls := ld.ResourceLogs()
 	for i := 0; i < rls.Len(); i++ {
 		resourceAttributes := rls.At(i).Resource().Attributes()
-		// container_tag_promotion only makes sense for traces: it exists to
+		// trace_container_tag_promotion only makes sense for traces: it exists to
 		// feed trace-agent's `_dd.tags.container` promotion
 		// (ConsumeContainerTagsFromResource), which logs never go through.
 		// Always pass "off" here regardless of the configured mode.

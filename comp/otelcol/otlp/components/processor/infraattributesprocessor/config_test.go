@@ -33,11 +33,11 @@ func TestValidateContainerTagPromotion(t *testing.T) {
 		{name: "off", mode: ContainerTagPromotionOff},
 		{name: "duplicate", mode: ContainerTagPromotionDuplicate},
 		{name: "rename", mode: ContainerTagPromotionRename},
-		{name: "invalid", mode: "foo", wantErr: true, errContains: "invalid container_tag_promotion"},
+		{name: "invalid", mode: "foo", wantErr: true, errContains: "invalid trace_container_tag_promotion"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{ContainerTagPromotion: tt.mode}
+			cfg := &Config{TraceContainerTagPromotion: tt.mode}
 			err := cfg.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
@@ -60,7 +60,7 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 	}{
 		{
 			id:       component.MustNewIDWithName("filter", "empty"),
-			expected: &Config{ContainerTagPromotion: ContainerTagPromotionOff},
+			expected: &Config{TraceContainerTagPromotion: ContainerTagPromotionOff},
 		},
 	}
 
