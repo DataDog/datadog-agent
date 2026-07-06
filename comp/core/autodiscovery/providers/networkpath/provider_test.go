@@ -177,6 +177,31 @@ func TestProviderMissingPathUnschedulesActiveConfigs(t *testing.T) {
 	assert.Equal(t, "api.example.com", instance["hostname"])
 }
 
+func TestProviderTreatsRCPathsAsOpaqueConfigIdentities(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	provider.Update(map[string]state.RawConfig{
+		"datadog/2/NETWORK_PATH/test-config-aaa-bbb-ccc/config":           {Config: rawScheduledConfig("aaa-bbb-ccc", `{"hostname":"plain.example.com"}`)},
+		"datadog/2/NETWORK_PATH/test-config-scheduled-def-ghi-jkl/config": {Config: rawScheduledConfig("def-ghi-jkl", `{"hostname":"typed.example.com"}`)},
+	}, applyStatuses().callback)
+
+	first := <-changesCh
+	assert.Empty(t, first.Unschedule)
+	require.Len(t, first.Schedule, 2)
+	assert.ElementsMatch(t, []string{"plain.example.com", "typed.example.com"}, scheduledHostnames(t, first.Schedule))
+
+	provider.Update(map[string]state.RawConfig{
+		"datadog/2/NETWORK_PATH/test-config-aaa-bbb-ccc/config": {Config: rawScheduledConfig("aaa-bbb-ccc", `{"hostname":"plain.example.com"}`)},
+	}, applyStatuses().callback)
+
+	second := <-changesCh
+	require.Len(t, second.Unschedule, 1)
+	assert.Empty(t, second.Schedule)
+	assert.Equal(t, []string{"typed.example.com"}, scheduledHostnames(t, second.Unschedule))
+}
+
 func TestProviderMissingPathClearsStaleConfigError(t *testing.T) {
 	provider := NewProvider()
 	changesCh := provider.Stream(context.Background())
@@ -374,6 +399,16 @@ func unmarshalInstance(t *testing.T, instanceData integration.Data) map[string]i
 	var instance map[string]interface{}
 	require.NoError(t, yaml.Unmarshal(instanceData, &instance))
 	return instance
+}
+
+func scheduledHostnames(t *testing.T, configs []integration.Config) []string {
+	t.Helper()
+	hostnames := make([]string, 0, len(configs))
+	for _, config := range configs {
+		require.Len(t, config.Instances, 1)
+		hostnames = append(hostnames, unmarshalInstance(t, config.Instances[0])["hostname"].(string))
+	}
+	return hostnames
 }
 
 func assertNoChanges(t *testing.T, changesCh <-chan integration.ConfigChanges) {
