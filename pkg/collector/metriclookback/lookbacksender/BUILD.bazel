@@ -19,6 +19,7 @@ go_library(
         "//pkg/metrics/servicecheck",
         "//pkg/serializer/types",
         "//pkg/util/log",
+        "@//pkg/util/infratags",
     ],
 )
 
@@ -30,9 +31,11 @@ dd_agent_go_test(
         "//comp/core/telemetry/impl",
         "//pkg/collector/check/id",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
+        "@//pkg/util/infratags",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
