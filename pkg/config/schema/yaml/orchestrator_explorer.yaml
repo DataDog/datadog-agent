@@ -90,7 +90,7 @@ properties:
     properties:
       buffer_flush_interval:
         node_type: setting
-        type: number
+        type: string
         default: 20s
         format: duration
         tags:

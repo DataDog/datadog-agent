@@ -44,10 +44,14 @@ type managedBaseEntry struct {
 	remainder *integration.Config // remainder config currently scheduled, or nil if none
 }
 
-// isSupportedIntegration reports whether name is a supported DB integration.
-// Currently only postgres is supported; mysql may be added in the future.
-func isSupportedIntegration(name string) bool {
-	return name == "postgres"
+// instanceHost returns the host/server field for an integration instance,
+// handling the fact that sap_hana uses "server" while postgres uses "host".
+func instanceHost(instance map[string]any) string {
+	if host, ok := instance["host"].(string); ok && host != "" {
+		return host
+	}
+	server, _ := instance["server"].(string)
+	return server
 }
 
 // instanceHasDOEnabled checks whether a parsed instance map has data_observability.enabled: true.
@@ -109,7 +113,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		baseCfg, instance, err := c.findPostgresConfig(&payload.DBIdentifier)
+		baseCfg, instance, err := c.findMatchingConfig(&payload.DBIdentifier)
 		if err != nil {
 			c.log.Warnf("No matching postgres config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
@@ -294,23 +298,23 @@ func sameConfig(a, b *integration.Config) bool {
 	return a.Digest() == b.Digest()
 }
 
-// findPostgresConfig finds a postgres config that matches the given identifier and has
-// data_observability.enabled: true. Returns the matching config and the already-parsed
+// findMatchingConfig finds a supported DB integration config that matches the given identifier
+// and has data_observability.enabled: true. Returns the matching config and the already-parsed
 // instance map to avoid re-parsing YAML in callers.
-func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
+func (c *component) findMatchingConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
 	cfgs := c.ac.GetUnresolvedConfigs()
 
 	var lastParseErr error
 	for cfgIdx := range cfgs {
 		cfg := cfgs[cfgIdx]
-		if !isSupportedIntegration(cfg.Name) {
-			continue
+		if cfg.Name != "postgres" && cfg.Name != "sap_hana" {
+			c.log.Warnf("DO query action: config %s is not a known DO-supported integration", cfg.Name)
 		}
 
 		for _, instanceData := range cfg.Instances {
 			var instance map[string]any
 			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
-				c.log.Warnf("Failed to unmarshal postgres instance data for config %s, skipping: %v", cfg.Name, err)
+				c.log.Warnf("Failed to unmarshal %s instance data for config %s, skipping: %v", cfg.Name, cfg.Name, err)
 				lastParseErr = err
 				continue
 			}
@@ -322,23 +326,45 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 	}
 
 	if lastParseErr != nil {
-		// Surface the parse error so operators debug the postgres config YAML, not the RC identifier.
-		return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s; at least one postgres instance had a YAML parse error: %w",
+		return nil, nil, fmt.Errorf("no supported DB config found for identifier: type=%s, host=%s; at least one instance had a YAML parse error: %w",
 			dbID.Type, dbID.Host, lastParseErr)
 	}
-	return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s",
+	return nil, nil, fmt.Errorf("no supported DB config found for identifier: type=%s, host=%s",
 		dbID.Type, dbID.Host)
 }
 
 // matchesIdentifier checks if an instance matches the given DB identifier.
-// Matching is by host only — per-query dbname fields handle database routing.
+// Matching is by host — per-query dbname fields handle database routing.
+// sap_hana uses "server" as the host key; postgres uses "host".
+// dbID.Host may be "host:port" (as sent by sap_hana backends) or bare "host".
+// We match against both the bare host and the "host:port" form built from the instance.
 func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
-	host, _ := instance["host"].(string)
-	return host == dbID.Host
+	host := instanceHost(instance)
+	if host == dbID.Host {
+		return true
+	}
+	// Try matching "host:port" form — sap_hana backends include the port in the identifier.
+	if port, ok := instancePort(instance); ok {
+		return fmt.Sprintf("%s:%d", host, port) == dbID.Host
+	}
+	return false
 }
 
-// buildCheckConfig creates a postgres check config with data_observability queries injected.
-// It clones the full matched postgres instance and adds the data_observability section.
+// instancePort returns the port number for an integration instance, if present.
+func instancePort(instance map[string]any) (int, bool) {
+	switch v := instance["port"].(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	}
+	return 0, false
+}
+
+// buildCheckConfig creates a check config with data_observability queries injected.
+// It clones the full matched instance and adds the data_observability section.
 // Returns an error if YAML serialization fails; callers must report ApplyStateError to RC.
 func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integration.Config, instance map[string]any, remoteConfigID string) (integration.Config, error) {
 	queries := make([]map[string]any, 0, len(payload.Queries))
@@ -393,7 +419,7 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 	}
 
 	return integration.Config{
-		Name:      "postgres",
+		Name:      baseCfg.Name,
 		Source:    c.String(),
 		Provider:  baseCfg.Provider,
 		NodeName:  baseCfg.NodeName,

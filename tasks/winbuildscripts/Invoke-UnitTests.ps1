@@ -24,12 +24,12 @@ Specifies whether to check the Go version. If not provided, it defaults to the v
 .PARAMETER UploadCoverage
 Specifies whether to upload coverage reports to Codecov. Default is $false.
 
-Requires the CODECOV_TOKEN environment variable to be set.
+Requires the CODECOV environment variable to be set.
 
 .PARAMETER UploadTestResults
 Specifies whether to upload test results to Datadog CI. Default is $false.
 
-Requires the API_KEY_ORG2 environment variable to be set.
+Requires the AGENT_API_KEY_ORG2 environment variable to be set.
 
 Requires JUNIT_TAR environment variable to be set.
 
@@ -64,14 +64,14 @@ Invoke-BuildScript `
             exit 1
         }
         if ($UploadCoverage) {
-            if ([string]::IsNullOrEmpty($Env:CODECOV_TOKEN)) {
-                Write-Host -ForegroundColor Red "CODECOV_TOKEN environment variable is required for uploading coverage reports to Codecov"
+            if ([string]::IsNullOrEmpty($Env:CODECOV)) {
+                Write-Host -ForegroundColor Red "CODECOV environment variable is required for uploading coverage reports to Codecov"
                 exit 1
             }
         }
         if ($UploadTestResults) {
-            if ([string]::IsNullOrEmpty($Env:API_KEY_ORG2)) {
-                Write-Host -ForegroundColor Red "API_KEY_ORG2 environment variable is required for junit upload to Datadog CI"
+            if ([string]::IsNullOrEmpty($Env:AGENT_API_KEY_ORG2)) {
+                Write-Host -ForegroundColor Red "AGENT_API_KEY_ORG2 environment variable is required for junit upload to Datadog CI"
                 exit 1
             }
             if ([string]::IsNullOrEmpty($Env:JUNIT_TAR)) {
@@ -164,7 +164,7 @@ Invoke-BuildScript `
 
     if ($UploadCoverage) {
         try {
-            $Env:CODECOV_TOKEN = Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN" -ErrorAction Stop
+            $Env:CODECOV_TOKEN = Get-VaultSecret -parameterName "$Env:CODECOV" -parameterField token -ErrorAction Stop
             & dda inv -- -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
             if ($LASTEXITCODE -ne 0) {
                 throw "coverage upload failed with exit code $LASTEXITCODE"
@@ -176,7 +176,7 @@ Invoke-BuildScript `
         }
         # Upload coverage to Datadog Code Coverage (side-by-side with Codecov)
         try {
-            $Env:DD_API_KEY = Get-VaultSecret -parameterName "$Env:API_KEY_ORG2" -ErrorAction Stop
+            $Env:DD_API_KEY = Get-VaultSecret -parameterName "$Env:AGENT_API_KEY_ORG2" -parameterField token -ErrorAction Stop
             & datadog-ci.exe coverage upload --format=go-coverprofile coverage.out
             if ($LASTEXITCODE -ne 0) {
                 throw "Datadog coverage upload failed with exit code $LASTEXITCODE"
@@ -192,7 +192,7 @@ Invoke-BuildScript `
             Get-ChildItem -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
                 Copy-Item -Path $_.FullName -Destination C:\mnt
             }
-            $Env:DATADOG_API_KEY = Get-VaultSecret -parameterName "$Env:API_KEY_ORG2" -ErrorAction Stop
+            $Env:DATADOG_API_KEY = Get-VaultSecret -parameterName "$Env:AGENT_API_KEY_ORG2" -parameterField token -ErrorAction Stop
             & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json $internal_result_json
             if($LASTEXITCODE -ne 0){
                 throw "junit upload failed with exit code $LASTEXITCODE"

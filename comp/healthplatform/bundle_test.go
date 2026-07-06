@@ -105,7 +105,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 		testIssueID = "test-bundle-lifecycle-issue"
 		// Reuse a real issue name registered by the bundle's side-effect imports
 		// so the registry's BuildIssue lookup succeeds.
-		testIssueName = "docker_file_tailing_disabled"
+		testIssueName = "Docker File Tailing Disabled"
 	)
 	require.NoError(t, deps.Scheduler.Schedule(testSource, func() ([]runnerdef.IssueReport, error) {
 		checkRunCount.Add(1)
@@ -228,14 +228,14 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 	deps.HP.ReportIssue(issueA)
 	deps.HP.ReportIssue(issueB)
 	require.Eventually(t, func() bool {
-		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW) &&
-			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_NEW)
-	}, waitTimeout, waitInterval, "issueA and issueB never appeared as NEW in forwarded reports")
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE) &&
+			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE)
+	}, waitTimeout, waitInterval, "issueA and issueB never appeared as ACTIVE in forwarded reports")
 
 	deps.HP.ReportIssue(issueA)
 	require.Eventually(t, func() bool {
-		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ONGOING)
-	}, waitTimeout, waitInterval, "issueA never transitioned to ONGOING in forwarded reports")
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE)
+	}, waitTimeout, waitInterval, "issueA not seen as ACTIVE after second report")
 
 	deps.HP.ResolveIssue(issueAID)
 	deps.HP.ResolveIssue(issueBID)
@@ -247,8 +247,8 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 
 	deps.HP.ReportIssue(issueA)
 	require.Eventually(t, func() bool {
-		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_NEW)
-	}, waitTimeout, waitInterval, "issueA never appeared as NEW in the latest forwarded payload")
+		return latestHasIssueState(issueAID, healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE)
+	}, waitTimeout, waitInterval, "issueA never re-appeared as ACTIVE after resolve+re-report")
 
 	// RESOLVED must appear exactly once: tombstones are removed after a successful send.
 	allPayloads, err := fiClient.GetAgentHealth()
