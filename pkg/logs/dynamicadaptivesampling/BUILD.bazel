@@ -12,6 +12,7 @@ go_library(
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/severityevents/def",
         "//comp/core/log/def",
+        "//pkg/config/setup",
         "//pkg/util/option",
         "@org_uber_go_fx//:fx",
     ],
@@ -24,7 +25,6 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/anomalydetection/severityevents/def",
-        "//comp/anomalydetection/severityevents/impl",
         "@com_github_stretchr_testify//assert",
     ],
 )
