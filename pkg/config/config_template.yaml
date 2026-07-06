@@ -2684,6 +2684,12 @@ api_key:
 #
 #   enabled_checks: []
 
+#   # @param collection_interval - duration - optional - default: "1s"
+#   # @env DD_METRIC_LOOKBACK_COLLECTION_INTERVAL - duration - optional - default: "1s"
+#   # Collection interval for selected metric lookback shadow checks.
+#
+#   collection_interval: "1s"
+
 #   # @param capacity - integer - optional - default: 262144
 #   # @env DD_METRIC_LOOKBACK_CAPACITY - integer - optional - default: 262144
 #   # Total number of point records retained across all lookback ring shards.

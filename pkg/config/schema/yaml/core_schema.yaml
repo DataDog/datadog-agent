@@ -2534,6 +2534,7 @@ properties:
       epsilon or until it has proven healthy.
     tags:
     - template_section:Dogstatsd
+    - full-agent-only:true
     properties:
       enabled:
         node_type: setting
@@ -2544,6 +2545,7 @@ properties:
           shadowing for checks allowed by enabled_checks.
         tags:
         - template_section:Dogstatsd
+        - full-agent-only:true
       enabled_checks:
         node_type: setting
         type: array
@@ -2555,6 +2557,7 @@ properties:
           When empty, all supported checks are eligible.
         tags:
         - template_section:Dogstatsd
+        - full-agent-only:true
       collection_interval:
         node_type: setting
         type: string
@@ -2565,6 +2568,7 @@ properties:
         tags:
         - golang_type:duration
         - template_section:Dogstatsd
+        - full-agent-only:true
       capacity:
         node_type: setting
         type: integer
