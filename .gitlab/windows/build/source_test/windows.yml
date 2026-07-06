@@ -36,8 +36,6 @@
       -e CI_COMMIT_REF_NAME
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS_DD_WCS=true
-      -e WINDOWS_SIGNING_CERT
-      -e WINDOWS_SIGNING_CONFIG
       -e GOMODCACHE="c:\modcache"
       -e GOPROXY
       -e GONOSUMDB
@@ -92,8 +90,6 @@ tests_windows-x64:
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
       -e SIGN_WINDOWS_DD_WCS=true
-      -e WINDOWS_SIGNING_CERT
-      -e WINDOWS_SIGNING_CONFIG
       -e GOMODCACHE="c:\modcache"
       -e GOPROXY
       -e GONOSUMDB
@@ -122,8 +118,6 @@ tests_windows-x64:
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
       -e SIGN_WINDOWS_DD_WCS=true
-      -e WINDOWS_SIGNING_CERT
-      -e WINDOWS_SIGNING_CONFIG
       -e GOMODCACHE="c:\modcache"
       -e GOPROXY
       -e GONOSUMDB
