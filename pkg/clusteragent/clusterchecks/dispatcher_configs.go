@@ -23,9 +23,8 @@ func (d *dispatcher) getAllConfigs() ([]integration.Config, error) {
 	return makeConfigArray(d.store.digestToConfig), nil
 }
 
-// nodeConfigsSnapshot holds a node's raw (unscrubbed) configs and their
-// precomputed instance IDs, copied out of the store so scrubbing can happen
-// without holding d.store's lock.
+// nodeConfigsSnapshot holds a node's configs and precomputed instance IDs,
+// copied out of the store so scrubbing can happen without holding d.store's lock.
 type nodeConfigsSnapshot struct {
 	name        string
 	rawConfigs  []integration.Config
@@ -34,11 +33,9 @@ type nodeConfigsSnapshot struct {
 }
 
 func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
-	// Only copy data out of the store while holding the lock. Scrubbing
-	// (ScrubYaml) is a YAML-unmarshal-based, O(instances) operation; running
-	// it while holding d.store's RWMutex starves writers like expireNodes,
-	// rebalance, and updateLeaderIP for as long as it takes to scan every
-	// check instance in the cluster (see CONS-8400).
+	// Copy data out while holding the lock, then scrub after releasing it.
+	// Scrubbing is an O(instances) operation and would otherwise starve
+	// writers like expireNodes and updateLeaderIP.
 	d.store.RLock()
 	danglingConf := makeConfigArrayFromDangling(d.store.danglingConfigs)
 	warmup := !d.store.active
