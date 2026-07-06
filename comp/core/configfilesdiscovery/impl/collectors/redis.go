@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package configfilesdiscoveryimpl
+package collectors
 
 import (
 	"context"
@@ -11,18 +11,19 @@ import (
 	"path"
 	"strings"
 
+	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const redisIntegrationName = "redisdb"
+const RedisIntegrationName = "redisdb"
 
 type redisConfigCollector struct{}
 
-func newRedisConfigCollector() configCollector {
+func NewRedis() configfilesdiscoveryimpl.ConfigCollector {
 	return redisConfigCollector{}
 }
 
-func (c redisConfigCollector) Collect(ctx context.Context, reader ConfigReader) ([]ConfigFile, error) {
+func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) ([]configfilesdiscoveryimpl.ConfigFile, error) {
 	commandline, err := reader.ReadCommandline(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read redis command line: %w", err)
@@ -39,13 +40,13 @@ func (c redisConfigCollector) Collect(ctx context.Context, reader ConfigReader) 
 		return nil, fmt.Errorf("read redis config file %q: %w", configPath, err)
 	}
 
-	return []ConfigFile{file}, nil
+	return []configfilesdiscoveryimpl.ConfigFile{file}, nil
 }
 
 // redisGetConfigPath returns the explicit config file path passed to
 // redis-server. Redis also accepts command-line options as temporary config,
 // but those options do not identify a file this collector can read.
-func redisGetConfigPath(commandline TargetCommandline) (string, bool) {
+func redisGetConfigPath(commandline configfilesdiscoveryimpl.TargetCommandline) (string, bool) {
 	args := commandlineArgs(commandline)
 	redisArgs, ok := redisGetArgs(args)
 	if !ok {
@@ -56,7 +57,7 @@ func redisGetConfigPath(commandline TargetCommandline) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return redisResolveConfigPath(configPath, commandline.WorkingDir)
+	return resolveConfigPath(configPath, commandline.WorkingDir)
 }
 
 func redisGetArgs(args []string) ([]string, bool) {
@@ -76,17 +77,4 @@ func redisGetConfigArg(redisArgs []string) (string, bool) {
 		return "", false
 	}
 	return redisArgs[0], true
-}
-
-func redisResolveConfigPath(configPath string, workingDir string) (string, bool) {
-	if configPath == "" || strings.ContainsRune(configPath, 0) {
-		return "", false
-	}
-	if path.IsAbs(configPath) {
-		return path.Clean(configPath), true
-	}
-	if !path.IsAbs(workingDir) {
-		return "", false
-	}
-	return path.Clean(path.Join(workingDir, configPath)), true
 }
