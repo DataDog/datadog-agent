@@ -77,8 +77,58 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	// provider files rather than relying on a build-time flag, because the daemon
 	// binary that calls us may be a deb-installed binary whose build system did
 	// not set the goexperiment.systemcrypto flag even though the tree is FIPS.
+	//
+	// Additionally: the binary's RPATH contains a $ORIGIN-relative entry. Under
+	// AT_SECURE (triggered when the parent process has CapPrm=all — which the FIPS
+	// agent daemon inherits from its systemd CapabilityBoundingSet — and execs a
+	// binary without file capabilities), $ORIGIN expansion is silently disabled.
+	// The binary's RPATH also contains an absolute fallback for its normal install
+	// location, but that directory does not contain libcrypto on a deb-only install.
+	//
+	// Work around this by creating a symlink at the path that $ORIGIN would have
+	// resolved to (/opt/datadog-packages/embedded/lib, i.e. tmpDir/../../embedded/lib)
+	// pointing to the running installer's embedded lib. This path is a
+	// Datadog-owned directory and does not affect system-wide library loading.
+	// The symlink is created with the running installer's lib so the libcrypto
+	// version matches the FIPS provider config (OPENSSL_CONF/OPENSSL_MODULES) also
+	// derived from the running installer.
 	extraEnv := fipsEnvFromRunningInstaller()
+	if extraEnv != nil {
+		setupFIPSBootstrapLibPath(installerBinPath)
+	}
 	return exec.NewInstallerExecWithExtraEnv(env, installerBinPath, extraEnv), nil
+}
+
+// setupFIPSBootstrapLibPath creates a symlink at /opt/datadog-packages/embedded/lib
+// (= installerBinPath/../../embedded/lib, the path $ORIGIN would resolve to from the
+// bootstrap installer binary's temp location) pointing to the running installer's own
+// embedded lib directory.
+//
+// Under AT_SECURE the dynamic linker silently drops $ORIGIN-based RPATH entries.
+// The bootstrap installer.layer binary falls back to an absolute RPATH entry for its
+// normal install location which — on a deb-only install — does not contain libcrypto.
+// By creating this symlink we ensure the $ORIGIN-equivalent path is populated with
+// the running installer's version-matched libcrypto regardless of the AT_SECURE state.
+//
+// This path is Datadog-owned and does not affect system-wide library loading.
+// If the symlink already points elsewhere (e.g., from a previous run with a different
+// version), we update it so the libcrypto version always matches the current FIPS config.
+func setupFIPSBootstrapLibPath(installerBinPath string) {
+	exePath, err := exec.GetExecutable()
+	if err != nil {
+		return
+	}
+	// <install>/embedded/bin/installer → <install>/embedded/lib
+	embeddedLib := filepath.Join(filepath.Dir(filepath.Dir(exePath)), "lib")
+	// installerBinPath = /opt/datadog-packages/tmp/XXXX/installer
+	// symlink target  = /opt/datadog-packages/embedded/lib
+	tmpDir := filepath.Dir(installerBinPath)
+	linkPath := filepath.Join(tmpDir, "..", "..", "embedded", "lib")
+	linkPath = filepath.Clean(linkPath)
+	_ = os.MkdirAll(filepath.Dir(linkPath), 0755)
+	// Remove stale symlink (may point to old version) and re-create
+	_ = os.Remove(linkPath)
+	_ = os.Symlink(embeddedLib, linkPath)
 }
 
 // fipsEnvFromRunningInstaller returns the OpenSSL FIPS provider environment
