@@ -108,6 +108,7 @@ func (m *SenderManager) GetDefaultSender() (aggregatorsender.Sender, error) {
 type sender struct {
 	ctx             context.Context
 	id              checkid.ID
+	checkName       string
 	defaultHostname string
 	writer          Writer
 	now             func() float64
@@ -125,13 +126,15 @@ type sender struct {
 }
 
 func newSender(ctx context.Context, id checkid.ID, defaultHostname string, writer Writer, now func() float64) *sender {
+	checkName := checkid.IDToCheckName(id)
 	return &sender{
 		ctx:             ctx,
 		id:              id,
+		checkName:       checkName,
 		defaultHostname: defaultHostname,
 		writer:          writer,
 		now:             now,
-		metricSource:    metrics.CheckNameToMetricSource(checkid.IDToCheckName(id)),
+		metricSource:    metrics.CheckNameToMetricSource(checkName),
 		stats:           stats.NewSenderStats(),
 		priorStats:      stats.NewSenderStats(),
 	}
@@ -162,9 +165,8 @@ func (s *sender) Commit() {
 		state = "error"
 		log.Warnf("failed to append %d lookback samples for check %s: %v", len(samples), s.id, err)
 	}
-	checkName := checkid.IDToCheckName(s.id)
-	tlmWriterAppendSamples.Add(float64(len(samples)), checkName, state)
-	tlmWriterAppendDuration.Set(time.Since(start).Seconds(), checkName, state)
+	tlmWriterAppendSamples.Add(float64(len(samples)), s.checkName, state)
+	tlmWriterAppendDuration.Set(time.Since(start).Seconds(), s.checkName, state)
 }
 
 // GetSenderStats returns sender stats from the previous committed run.
