@@ -18,8 +18,6 @@ BINARY_NAME = "secret-generic-connector"
 BIN_DIR = os.path.join(".", "bin", "secret-generic-connector")
 BIN_PATH = os.path.join(BIN_DIR, bin_name(BINARY_NAME))
 
-FIPS_TAGS = ["goexperiment.systemcrypto", "requirefips"]
-
 
 @task
 def build(
