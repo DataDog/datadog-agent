@@ -1,7 +1,0 @@
----
-enhancements:
-  - |
-    The SNMP device scan method and GetBulk batch size are now configurable. The
-    ``agent snmp scan`` command accepts ``--use-getbulk`` and ``--bulk-max-rep``,
-    and the automatic device scan honors
-    ``network_devices.default_scan.bulk_max_repetitions``.
