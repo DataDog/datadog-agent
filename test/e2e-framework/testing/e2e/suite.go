@@ -503,6 +503,15 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 		}
 	}
 
+	// If the suite opted into a Pulumi-free agent install (see WithInstalledAgent), run it now that
+	// the environment is provisioned and initialized. This also runs on every UpdateEnv, so it
+	// doubles as the reconfiguration path.
+	if bs.params.agentInstall != nil {
+		if err := bs.params.agentInstall(bs, any(newEnv)); err != nil {
+			return fmt.Errorf("failed to install agent: %w", err)
+		}
+	}
+
 	// On success we update the current environment
 	// We need top copy provisioners to protect against external modifications
 	bs.currentProvisioners = provisioners.CopyProvisioners(targetProvisioners)

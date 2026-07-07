@@ -6,10 +6,14 @@
 package e2e
 
 import (
+	"fmt"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 // Params implements [BaseSuite] options
@@ -29,6 +33,11 @@ type suiteParams struct {
 	coverageRequired map[string]bool
 
 	provisioners provisioners.ProvisionerMap
+
+	// agentInstall, when set, installs the Agent as a separate Pulumi-free step after the
+	// environment is provisioned and initialized (and after every UpdateEnv). It is populated by
+	// [WithInstalledAgent].
+	agentInstall func(ctx common.Context, env any) error
 }
 
 // SuiteOption is an optional function parameter type for e2e options
@@ -81,6 +90,27 @@ func WithUntypedPulumiProvisioner(runFunc pulumi.RunFunc, configMap runner.Confi
 // WithPulumiProvisioner adds a typed Pulumi provisioner to the suite
 func WithPulumiProvisioner[Env any](runFunc provisioners.PulumiEnvRunFunc[Env], configMap runner.ConfigMap) SuiteOption {
 	return WithProvisioner(provisioners.NewTypedPulumiProvisioner("", runFunc, configMap))
+}
+
+// WithInstalledAgent installs the Datadog Agent as a separate, Pulumi-free step after the
+// environment is provisioned (and after every UpdateEnv), instead of during Pulumi provisioning.
+// Provision the infrastructure without an Agent (e.g. ec2.WithoutAgent()) and declare this option;
+// the suite then calls the environment's InstallAgent with the given options — no per-test wiring.
+//
+// O is the environment's agent-params option type (agentparams.Option for Host,
+// kubernetesagentparams.Option for Kubernetes, ...); it is inferred from opts, or given explicitly
+// (e.g. WithInstalledAgent[agentparams.Option]()) when no options are passed. The environment must
+// implement environments.AgentInstaller[O].
+func WithInstalledAgent[O any](opts ...O) SuiteOption {
+	return func(options *suiteParams) {
+		options.agentInstall = func(ctx common.Context, env any) error {
+			installer, ok := env.(environments.AgentInstaller[O])
+			if !ok {
+				return fmt.Errorf("environment %T does not implement AgentInstaller[%T]", env, *new(O))
+			}
+			return installer.InstallAgent(ctx, opts...)
+		}
+	}
 }
 
 // WithSkipCoverage skips the coverage of the environment.
