@@ -23,47 +23,26 @@ func (d *dispatcher) getAllConfigs() ([]integration.Config, error) {
 	return makeConfigArray(d.store.digestToConfig), nil
 }
 
+// nodeConfigsSnapshot holds a node's configs and precomputed instance IDs,
+// copied out of the store so scrubbing can happen without holding d.store's lock.
+type nodeConfigsSnapshot struct {
+	name        string
+	rawConfigs  []integration.Config
+	instanceIDs [][]string
+	stats       types.CLCRunnersStats
+}
+
 func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
+	// Copy data out while holding the lock, then scrub after releasing it.
+	// Scrubbing is an O(instances) operation and would otherwise starve
+	// writers like expireNodes and updateLeaderIP.
 	d.store.RLock()
-	defer d.store.RUnlock()
-
 	danglingConf := makeConfigArrayFromDangling(d.store.danglingConfigs)
-	if scrub {
-		scrubbedConf := make([]integration.Config, 0, len(danglingConf))
-		for _, config := range danglingConf {
-			scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.NewWrapper(1)))
-		}
-		danglingConf = scrubbedConf
-	}
+	warmup := !d.store.active
 
-	response := types.StateResponse{
-		Warmup:   !d.store.active,
-		Dangling: danglingConf,
-	}
-
+	nodeSnapshots := make([]nodeConfigsSnapshot, 0, len(d.store.nodes))
 	for _, node := range d.store.nodes {
 		rawConfigs := makeConfigArray(node.digestToConfig)
-
-		// Build config responses with instance IDs computed from unscrubbed configs.
-		// IDs must be computed before scrubbing because ScrubYaml re-serializes
-		// YAML bytes which changes the digest used in check ID computation.
-		configsWithIDs := make([]types.ConfigWithInstanceIDs, 0, len(rawConfigs))
-		for _, config := range rawConfigs {
-			digest := config.FastDigest()
-			instanceIDs := make([]string, 0, len(config.Instances))
-			for _, inst := range config.Instances {
-				instanceIDs = append(instanceIDs, string(checkid.BuildID(config.Name, digest, inst, config.InitConfig)))
-			}
-
-			if scrub {
-				config = integration.ScrubCheckConfig(config, log.NewWrapper(1))
-			}
-
-			configsWithIDs = append(configsWithIDs, types.ConfigWithInstanceIDs{
-				InstanceIDs: instanceIDs,
-				Config:      config,
-			})
-		}
 
 		// Copy runner stats for this node. Stats are populated by the periodic
 		// rebalance cycle when advanced dispatching is enabled. Without advanced
@@ -79,12 +58,60 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 		}
 		node.RUnlock()
 
-		n := types.StateNodeResponse{
-			Name:    node.name,
-			Configs: configsWithIDs,
-			Stats:   stats,
+		nodeSnapshots = append(nodeSnapshots, nodeConfigsSnapshot{
+			name:       node.name,
+			rawConfigs: rawConfigs,
+			stats:      stats,
+		})
+	}
+	d.store.RUnlock()
+
+	// IDs must be computed before scrubbing, since scrubbing changes the
+	// digest. BuildID unmarshals YAML, so do this after releasing d.store.
+	for i, snap := range nodeSnapshots {
+		instanceIDs := make([][]string, len(snap.rawConfigs))
+		for j, config := range snap.rawConfigs {
+			digest := config.FastDigest()
+			ids := make([]string, 0, len(config.Instances))
+			for _, inst := range config.Instances {
+				ids = append(ids, string(checkid.BuildID(config.Name, digest, inst, config.InitConfig)))
+			}
+			instanceIDs[j] = ids
 		}
-		response.Nodes = append(response.Nodes, n)
+		nodeSnapshots[i].instanceIDs = instanceIDs
+	}
+
+	if scrub {
+		scrubbedConf := make([]integration.Config, 0, len(danglingConf))
+		for _, config := range danglingConf {
+			scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.NewWrapper(1)))
+		}
+		danglingConf = scrubbedConf
+	}
+
+	response := types.StateResponse{
+		Warmup:   warmup,
+		Dangling: danglingConf,
+	}
+
+	for _, snap := range nodeSnapshots {
+		configsWithIDs := make([]types.ConfigWithInstanceIDs, 0, len(snap.rawConfigs))
+		for i, config := range snap.rawConfigs {
+			if scrub {
+				config = integration.ScrubCheckConfig(config, log.NewWrapper(1))
+			}
+
+			configsWithIDs = append(configsWithIDs, types.ConfigWithInstanceIDs{
+				InstanceIDs: snap.instanceIDs[i],
+				Config:      config,
+			})
+		}
+
+		response.Nodes = append(response.Nodes, types.StateNodeResponse{
+			Name:    snap.name,
+			Configs: configsWithIDs,
+			Stats:   snap.stats,
+		})
 	}
 
 	return response, nil
