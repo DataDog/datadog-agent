@@ -49,13 +49,13 @@ import (
 const (
 	defaultTimeout    = 10 // Timeout better suited to walking
 	defaultRetries    = 3
-	defaultBulkMaxRep = 20 // Starting max-repetitions for GetBulk scans
+	defaultBulkBatchSize = 20 // Starting number of values per GetBulk call
 )
 
 // scanFlags holds the tunable device-scan options set via CLI flags.
 type scanFlags struct {
 	useGetBulk      bool
-	bulkMaxRep      uint32
+	bulkBatchSize      uint32
 	flushEveryNOIDs int
 	flushInterval   time.Duration
 }
@@ -233,7 +233,7 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 
 	// scan tuning options
 	snmpScanCmd.Flags().BoolVar(&scanOpts.useGetBulk, "use-getbulk", true, "Walk the device with GetBulk (set to false to fall back to the legacy GetNext walk)")
-	snmpScanCmd.Flags().Uint32Var(&scanOpts.bulkMaxRep, "bulk-max-rep", defaultBulkMaxRep, "Starting max-repetitions value for GetBulk requests")
+	snmpScanCmd.Flags().Uint32Var(&scanOpts.bulkBatchSize, "bulk-batch-size", defaultBulkBatchSize, "Starting number of values requested per GetBulk call")
 	// Hidden advanced knobs for tuning partial result reporting.
 	snmpScanCmd.Flags().IntVar(&scanOpts.flushEveryNOIDs, "flush-every-n-oids", 0, "Report partial results every N collected OIDs (0 uses the default)")
 	snmpScanCmd.Flags().DurationVar(&scanOpts.flushInterval, "flush-interval", 0, "Report partial results at least this often (0 uses the default)")
@@ -328,7 +328,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, scanOpts *scanF
 		snmpscan.ScanParams{
 			ScanType:           metadata.ManualScan,
 			ScanMethod:         scanMethod,
-			BulkMaxRepetitions: scanOpts.bulkMaxRep,
+			BulkBatchSize: scanOpts.bulkBatchSize,
 			FlushEveryNOIDs:    scanOpts.flushEveryNOIDs,
 			FlushInterval:      scanOpts.flushInterval,
 		})

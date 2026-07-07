@@ -232,7 +232,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", true)
 	config.BindEnvAndSetDefault("network_devices.default_scan.excluded_ips", []string{})
-	config.BindEnvAndSetDefault("network_devices.default_scan.bulk_max_repetitions", 20)
+	config.BindEnvAndSetDefault("network_devices.default_scan.bulk_batch_size", 20)
 	// Internal, undocumented knobs for tuning partial result reporting.
 	config.BindEnvAndSetDefault("network_devices.default_scan.flush_every_n_oids", 0)
 	config.BindEnvAndSetDefault("network_devices.default_scan.flush_interval", "0s")

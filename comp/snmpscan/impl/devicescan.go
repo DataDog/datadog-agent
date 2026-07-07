@@ -79,7 +79,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(ctx context.Context, connParams *
 	if !useBulk && scanParams.ScanMethod != snmpscan.ScanMethodGetNext {
 		s.log.Infof("device %s is SNMPv1, using GetNext for the scan (GetBulk unsupported)", deviceID)
 	}
-	bulkMaxRep := int(scanParams.BulkMaxRepetitions)
+	bulkMaxRep := int(scanParams.BulkBatchSize)
 	if bulkMaxRep <= 0 {
 		bulkMaxRep = defaultBulkMaxRepetitions
 	}

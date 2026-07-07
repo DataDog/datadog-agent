@@ -52,9 +52,10 @@ type ScanParams struct {
 	// devices, which do not support GetBulk.
 	ScanMethod ScanMethod
 
-	// BulkMaxRepetitions sets the starting max-repetitions value for GetBulk
-	// requests. A value of 0 uses the default. No effect when walking with GetNext.
-	BulkMaxRepetitions uint32
+	// BulkBatchSize sets the starting number of values requested per GetBulk
+	// call (the SNMP max-repetitions). A value of 0 uses the default. No effect
+	// when walking with GetNext.
+	BulkBatchSize uint32
 
 	// FlushEveryNOIDs reports partial scan results once this many OIDs have been
 	// collected. A value of 0 uses the default batch size.

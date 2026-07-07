@@ -44,18 +44,18 @@ func TestScanCommand(t *testing.T) {
 			require.True(t, cliParams.UseUnconnectedUDPSocket)
 			// scan tuning flags default to GetBulk with the default max-rep
 			require.True(t, scanOpts.useGetBulk)
-			require.Equal(t, uint32(defaultBulkMaxRep), scanOpts.bulkMaxRep)
+			require.Equal(t, uint32(defaultBulkBatchSize), scanOpts.bulkBatchSize)
 		})
 }
 
 func TestScanCommandTuningFlags(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"snmp", "scan", "1.2.3.4", "--use-getbulk=false", "--bulk-max-rep", "7", "--flush-every-n-oids", "50", "--flush-interval", "30s"},
+		[]string{"snmp", "scan", "1.2.3.4", "--use-getbulk=false", "--bulk-batch-size", "7", "--flush-every-n-oids", "50", "--flush-interval", "30s"},
 		scanDevice,
 		func(_ *snmpparse.SNMPConfig, _ argsType, scanOpts *scanFlags) {
 			require.False(t, scanOpts.useGetBulk)
-			require.Equal(t, uint32(7), scanOpts.bulkMaxRep)
+			require.Equal(t, uint32(7), scanOpts.bulkBatchSize)
 			require.Equal(t, 50, scanOpts.flushEveryNOIDs)
 			require.Equal(t, 30*time.Second, scanOpts.flushInterval)
 		})
