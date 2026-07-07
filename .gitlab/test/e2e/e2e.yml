@@ -437,8 +437,7 @@ new-e2e-agent-health:
 new-e2e-agent-telemetry:
   extends: .new_e2e_template_needs_deb_x64
   rules:
-    # only manual, will enable on changes in follow up pr
-    # - !reference [.on_agenttelemetry_or_e2e_changes]
+    - !reference [.on_agenttelemetry_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-telemetry
@@ -682,6 +681,7 @@ new-e2e-sbom:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
       - EXTRA_PARAMS: --run "TestSBOMKubeadmSuite"
       - EXTRA_PARAMS: --run "TestSBOMKubeadmCrioSuite"
+      - EXTRA_PARAMS: --run "TestSBOMPackageInUseKubeadmSuite"
       - EXTRA_PARAMS: --run "TestSBOMDockerHostSuite"
 
 new-e2e-usm:
@@ -1158,6 +1158,8 @@ new-e2e-ssi-gke:
     E2E_PRE_INITIALIZED: "true"
     # Image volume is not supported on GKE in our current test setup.
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-ssi-gke-autopilot-init:
   extends: .new-e2e_ssi_extra_distribution_init
@@ -1176,6 +1178,9 @@ new-e2e-ssi-gke-autopilot:
     E2E_PRE_INITIALIZED: "true"
     # Image volume is not supported on GKE in our current test setup.
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+  retry: !reference [.retry_only_infra_failure, retry]
+  allow_failure: true
+
 
 new-e2e-ssi-openshift-init:
   extends: .new-e2e_ssi_extra_distribution_init
@@ -1203,6 +1208,7 @@ new-e2e-ssi-openshift:
     E2E_PRE_INITIALIZED: "true"
     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-ssi-aks:
   extends: .new-e2e_ssi_extra_distribution

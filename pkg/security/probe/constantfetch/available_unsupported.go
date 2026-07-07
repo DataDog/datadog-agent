@@ -38,6 +38,11 @@ func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
 	return false, errors.New("unsupported BTF request")
 }
 
+// GetExitItimersTakesTaskStructWithBtf not available
+func GetExitItimersTakesTaskStructWithBtf() (bool, error) {
+	return false, errors.New("unsupported BTF request")
+}
+
 // GetHasVFSRenameStructArgs not available
 func GetHasVFSRenameStructArgs() (bool, error) {
 	return false, errors.New("unsupported BTF request")

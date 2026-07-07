@@ -120,6 +120,47 @@ func TestBuildConfigDDProfilingEnabledWithPeriod(t *testing.T) {
 	assert.Contains(t, svcExtensions, ddprofilingName)
 }
 
+func TestBuildConfigDDProfilingEnabledWithPort(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			DDProfiling: ddProfilingConfig{Enabled: true, Port: 1234},
+		},
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	ddprofiling, ok := extensions[ddprofilingName].(confMap)
+	require.True(t, ok)
+	assert.Equal(t, "1234", ddprofiling["endpoint"])
+}
+
+func TestBuildConfigDDProfilingEnabledDefaultPort(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			DDProfiling: ddProfilingConfig{Enabled: true},
+		},
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	ddprofiling, ok := extensions[ddprofilingName].(confMap)
+	require.True(t, ok)
+	_, ok = ddprofiling["endpoint"]
+	assert.False(t, ok, "endpoint should not be set when port is unset; extension applies its own default")
+}
+
 func TestBuildConfigDDProfilingDisabled(t *testing.T) {
 	agent := configManager{
 		endpoints: []endpoint{{
