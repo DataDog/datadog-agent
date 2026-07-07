@@ -98,10 +98,10 @@ func TestGetInstallMethod(t *testing.T) {
 func TestIsFipsProxyEnabled(t *testing.T) {
 	conf := configmock.New(t)
 
-	conf.SetWithoutSource("fips.enabled", false)
+	conf.SetInTest("fips.enabled", false)
 	assert.False(t, isFipsProxyEnabled(conf))
 
-	conf.SetWithoutSource("fips.enabled", true)
+	conf.SetInTest("fips.enabled", true)
 	assert.Equal(t, !getFipsMode(), isFipsProxyEnabled(conf))
 }
 
