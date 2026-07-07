@@ -17,6 +17,7 @@ import (
 
 	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -303,6 +304,19 @@ func TestStopCancelsShadowSenderContext(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for shadow sender context cancellation")
 	}
+}
+
+func TestInitCheckSchedulerDoesNotCreateShadowSenderContext(t *testing.T) {
+	s := InitCheckScheduler(
+		option.None[collectorcomp.Component](),
+		&recordingSchedulerSenderManager{},
+		option.None[integrations.Component](),
+		nil,
+		nil,
+	)
+
+	assert.Nil(t, s.shadowSenderContext)
+	assert.Nil(t, s.shadowSenderCancel)
 }
 
 // MockCollector is a mock implementation of collectorcomp.Component for testing

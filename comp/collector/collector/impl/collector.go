@@ -229,8 +229,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
-	isShadowCheck := check.IsShadow(ch)
-	if isShadowCheck {
+	if check.IsShadow(ch) {
 		c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
 		c.runner.AddShadowWorker()
 	} else if ch.Interval() == 0 {

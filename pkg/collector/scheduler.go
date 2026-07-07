@@ -80,15 +80,12 @@ type CheckScheduler struct {
 
 // InitCheckScheduler creates and returns a check scheduler
 func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
-	shadowSenderContext, shadowSenderCancel := context.WithCancel(context.Background())
 	checkScheduler = &CheckScheduler{
-		collector:           collector,
-		senderManager:       senderManager,
-		shadowSenderContext: shadowSenderContext,
-		shadowSenderCancel:  shadowSenderCancel,
-		configToChecks:      make(map[string][]checkid.ID),
-		loaders:             make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
-		infraTagger:         infratags.NewTagger(setup.Datadog()),
+		collector:      collector,
+		senderManager:  senderManager,
+		configToChecks: make(map[string][]checkid.ID),
+		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
+		infraTagger:    infratags.NewTagger(setup.Datadog()),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
