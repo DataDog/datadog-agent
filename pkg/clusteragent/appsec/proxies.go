@@ -13,6 +13,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/envoygateway"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/gke"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/istio"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/nginx"
 	"k8s.io/client-go/dynamic"
@@ -28,6 +29,7 @@ type ProxyConstructor func(
 
 var proxyConstructorMap = map[appsecconfig.ProxyType]ProxyConstructor{
 	appsecconfig.ProxyTypeEnvoyGateway: envoygateway.New,
+	appsecconfig.ProxyTypeGKEGateway:   gke.New,
 	appsecconfig.ProxyTypeIstio:        istio.New,
 	appsecconfig.ProxyTypeIstioGateway: istio.NewGateway,
 	appsecconfig.ProxyTypeIngressNginx: nginx.New,
@@ -42,6 +44,7 @@ type ProxyDetector func(
 
 var proxyDetectionMap = map[appsecconfig.ProxyType]ProxyDetector{
 	appsecconfig.ProxyTypeEnvoyGateway: envoygateway.Detect,
+	appsecconfig.ProxyTypeGKEGateway:   gke.Detect,
 	appsecconfig.ProxyTypeIstio:        istio.Detect,
 	appsecconfig.ProxyTypeIstioGateway: istio.Detect,
 	appsecconfig.ProxyTypeIngressNginx: nginx.Detect,
