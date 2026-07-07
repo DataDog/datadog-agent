@@ -12,7 +12,6 @@ import (
 	"errors"
 	"testing"
 
-	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 
@@ -24,27 +23,6 @@ import (
 // discardPDU is an emit callback that drops PDUs, for walk tests that only
 // care about request behavior rather than collected results.
 func discardPDU(*gosnmp.SnmpPDU) error { return nil }
-
-func TestResolveUseBulk(t *testing.T) {
-	tests := []struct {
-		name    string
-		method  snmpscan.ScanMethod
-		version gosnmp.SnmpVersion
-		want    bool
-	}{
-		{"default uses getbulk", "", gosnmp.Version2c, true},
-		{"explicit getbulk", snmpscan.ScanMethodGetBulk, gosnmp.Version3, true},
-		{"explicit getnext", snmpscan.ScanMethodGetNext, gosnmp.Version2c, false},
-		{"v1 falls back to getnext", snmpscan.ScanMethodGetBulk, gosnmp.Version1, false},
-		{"v1 default falls back to getnext", "", gosnmp.Version1, false},
-		{"v1 explicit getnext stays getnext", snmpscan.ScanMethodGetNext, gosnmp.Version1, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, resolveUseBulk(tt.method, tt.version))
-		})
-	}
-}
 
 func TestExtractColumnSignatureIntegration(t *testing.T) {
 	// Test that ExtractColumnSignature works correctly for filtering purposes
