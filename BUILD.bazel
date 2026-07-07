@@ -78,7 +78,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/security-agent/*.go
 # gazelle:exclude cmd/security-agent/api/*.go
 # gazelle:exclude cmd/security-agent/subcommands/*.go
-# gazelle:exclude cmd/security-agent/subcommands/compliance
 # gazelle:exclude cmd/security-agent/subcommands/start
 # gazelle:exclude cmd/serverless-init/*.go
 # gazelle:exclude cmd/serverless-init/log
