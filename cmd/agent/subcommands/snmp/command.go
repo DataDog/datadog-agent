@@ -47,15 +47,15 @@ import (
 )
 
 const (
-	defaultTimeout    = 10 // Timeout better suited to walking
-	defaultRetries    = 3
+	defaultTimeout       = 10 // Timeout better suited to walking
+	defaultRetries       = 3
 	defaultBulkBatchSize = 20 // Starting number of values per GetBulk call
 )
 
 // scanFlags holds the tunable device-scan options set via CLI flags.
 type scanFlags struct {
 	useGetBulk      bool
-	bulkBatchSize      uint32
+	bulkBatchSize   uint32
 	flushEveryNOIDs int
 	flushInterval   time.Duration
 }
@@ -326,11 +326,11 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, scanOpts *scanF
 	fmt.Printf("Launching scan for device: %s\n", deviceID)
 	err := snmpScanner.ScanDeviceAndSendData(context.Background(), connParams, namespace,
 		snmpscan.ScanParams{
-			ScanType:           metadata.ManualScan,
-			ScanMethod:         scanMethod,
-			BulkBatchSize: scanOpts.bulkBatchSize,
-			FlushEveryNOIDs:    scanOpts.flushEveryNOIDs,
-			FlushInterval:      scanOpts.flushInterval,
+			ScanType:        metadata.ManualScan,
+			ScanMethod:      scanMethod,
+			BulkBatchSize:   scanOpts.bulkBatchSize,
+			FlushEveryNOIDs: scanOpts.flushEveryNOIDs,
+			FlushInterval:   scanOpts.flushInterval,
 		})
 	if err != nil {
 		fmt.Printf("Unable to perform device scan for device %s: %v\n", deviceID, err)
