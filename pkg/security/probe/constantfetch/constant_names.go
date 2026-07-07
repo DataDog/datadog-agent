@@ -139,6 +139,8 @@ const (
 	// module constants
 	OffsetNameModuleName = "module_name_offset"
 
+	OffsetNameKernfsOpenFileFile = "kernfs_open_file_file_offset"
+
 	// iouring constants
 	OffsetNameIoKiocbStructCtx    = "iokiocb_ctx_offset"
 	OffsetNameIoKiocbStructOpcode = "iokiocb_opcode_offset"
