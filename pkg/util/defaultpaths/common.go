@@ -7,20 +7,5 @@ package defaultpaths
 
 // commonRoot holds the common root path for the application package model.
 // When set, all path getters will return paths relative to this root.
-// This is set early in agent startup via SetCommonRoot() or automatically
-// from the DD_COMMON_ROOT environment variable during init().
+// This is set automatically from the DD_COMMON_ROOT environment variable during init().
 var commonRoot string
-
-// SetCommonRoot sets the common root path for the application package model.
-// This should be called early in agent startup, before any path getters are used.
-// When set, paths like /etc/datadog-agent become {root}/etc, /var/log/datadog
-// becomes {root}/logs, etc.
-func SetCommonRoot(root string) {
-	commonRoot = root
-}
-
-// GetCommonRoot returns the currently configured common root path.
-// Returns empty string if the application package model is not enabled.
-func GetCommonRoot() string {
-	return commonRoot
-}
