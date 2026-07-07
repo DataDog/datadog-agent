@@ -14,7 +14,8 @@ import (
 // commonRoot holds the common root path for the application package model.
 // When set, all path getters will return paths relative to this root.
 // This is set automatically from the DD_COMMON_ROOT environment variable during init().
-var commonRoot string
+// nolint is needed because this is only implemented for linux right now
+var commonRoot string //nolint:unused
 
 func init() {
 	setCommonRootFromEnv()
