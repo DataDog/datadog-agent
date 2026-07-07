@@ -111,12 +111,17 @@ func (f *fakeSender) OrchestratorManifest([]types.ProcessMessageBody, string)   
 
 func newTestSender() (*Sender, *fakeSender) {
 	fake := &fakeSender{}
-	return newSender(fake, false, "my_check"), fake
+	return newSender(fake, false, "my_check", "", ""), fake
 }
 
 func newTestSenderDryRun() (*Sender, *fakeSender) {
 	fake := &fakeSender{}
-	return newSender(fake, true, "my_check"), fake
+	return newSender(fake, true, "my_check", "", ""), fake
+}
+
+func newTestSenderShadow(shadowHostSuffix, defaultHostname string) (*Sender, *fakeSender) {
+	fake := &fakeSender{}
+	return newSender(fake, false, "my_check", shadowHostSuffix, defaultHostname), fake
 }
 
 func TestGauge_FlatSignalCompressesUntilWindowFlush(t *testing.T) {
@@ -430,7 +435,7 @@ func TestTlmContexts_TracksDistinctContextCountPerSender(t *testing.T) {
 	// so reusing a name other tests already incremented would make this
 	// test's absolute-value assertions flaky.
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_tlm_contexts_test")
+	s := newSender(fake, false, "check_tlm_contexts_test", "", "")
 
 	require.Equal(t, 0.0, s.tlmContexts.Get())
 
@@ -461,7 +466,7 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 	// (check_name, metric_name) pair another test already observed into
 	// would make this test's exact Count/Sum assertions flaky.
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_scale_deviation_test")
+	s := newSender(fake, false, "check_scale_deviation_test", "", "")
 
 	values := []float64{10, 20, 15, 100, 12}
 	var scale float64
@@ -491,9 +496,9 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 
 func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {
 	fakeA := &fakeSender{}
-	sA := newSender(fakeA, false, "check_a")
+	sA := newSender(fakeA, false, "check_a", "", "")
 	fakeB := &fakeSender{}
-	sB := newSender(fakeB, false, "check_b")
+	sB := newSender(fakeB, false, "check_b", "", "")
 
 	sA.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0, false)
 	sA.compressAt(kindGauge, "my.gauge2", 1, "host", nil, 0, false)
@@ -501,4 +506,53 @@ func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {
 
 	require.Equal(t, 2.0, sA.tlmContexts.Get())
 	require.Equal(t, 1.0, sB.tlmContexts.Get())
+}
+
+func TestShadow_ShipsBothRawAndCompressedUnderDifferentHostnames(t *testing.T) {
+	s, fake := newTestSenderShadow("-vbr", "agent-host")
+
+	for i := 0; i < 10; i++ {
+		s.compressAt(kindGauge, "my.gauge", 42, "check-host", []string{"env:prod"}, float64(i), false)
+	}
+
+	require.Len(t, fake.rawGauges, 10, "shadow mode must still ship every raw call unmodified, like dry-run")
+	for _, c := range fake.rawGauges {
+		require.Equal(t, "check-host", c.hostname, "the raw series must ship under the check's real hostname")
+	}
+
+	require.NotEmpty(t, fake.gauges, "shadow mode must also ship the compressed breakpoints, unlike dry-run")
+	for _, c := range fake.gauges {
+		require.Equal(t, "check-host-vbr", c.hostname, "the compressed series must ship under hostname+suffix")
+	}
+}
+
+func TestShadow_FallsBackToDefaultHostnameWhenCheckHostnameEmpty(t *testing.T) {
+	s, fake := newTestSenderShadow("-vbr", "agent-host")
+
+	s.compressAt(kindGauge, "my.gauge", 42, "", nil, 0, false)
+
+	require.Len(t, fake.gauges, 1)
+	require.Equal(t, "agent-host-vbr", fake.gauges[0].hostname,
+		"an empty check hostname must fall back to the agent's resolved default before appending the suffix, matching what the real sender fills in downstream for the raw series")
+}
+
+func TestShadow_ShipsViaCountWithTimestampToo(t *testing.T) {
+	s, fake := newTestSenderShadow("-vbr", "agent-host")
+
+	s.compressAt(kindMonotonicCount, "my.mc", 10, "check-host", nil, 0, true)
+
+	require.Len(t, fake.rawMonotonicCountsWithFlush, 1, "shadow mode ships the raw call through the same path dry-run uses")
+	require.Len(t, fake.counts, 1, "shadow mode ships the compressed breakpoint too")
+	require.Equal(t, "check-host-vbr", fake.counts[0].hostname)
+}
+
+func TestShadow_TakesPrecedenceOverDryRun(t *testing.T) {
+	fake := &fakeSender{}
+	s := newSender(fake, true /* dryRun */, "my_check", "-vbr", "agent-host")
+
+	s.compressAt(kindGauge, "my.gauge", 42, "check-host", nil, 0, false)
+
+	require.Len(t, fake.rawGauges, 1, "the raw call must ship exactly once, not duplicated by both dryRun and shadow forwarding it")
+	require.Len(t, fake.gauges, 1, "shadow mode must ship the compressed breakpoint even though dryRun is also true")
+	require.Equal(t, "check-host-vbr", fake.gauges[0].hostname)
 }

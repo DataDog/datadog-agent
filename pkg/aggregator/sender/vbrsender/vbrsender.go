@@ -11,6 +11,7 @@
 package vbrsender
 
 import (
+	"context"
 	"math"
 	"sort"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -112,6 +114,12 @@ type SenderManager struct {
 	inner  sender.SenderManager
 	dryRun bool
 
+	// shadowHostSuffix and defaultHostname together implement shadow mode;
+	// see Wrap's doc comment. shadowHostSuffix is "" when shadow mode is
+	// off (the common case) or when Wrap couldn't resolve defaultHostname.
+	shadowHostSuffix string
+	defaultHostname  string
+
 	mu      sync.Mutex
 	senders map[checkid.ID]*Sender
 }
@@ -121,8 +129,32 @@ type SenderManager struct {
 // samples_total/breakpoints_total telemetry reflects what compression would
 // do), but the check's original, uncompressed calls are what actually reach
 // the real sender — nothing forwarded by the compressor itself ships.
-func Wrap(inner sender.SenderManager, dryRun bool) *SenderManager {
-	return &SenderManager{inner: inner, dryRun: dryRun, senders: make(map[checkid.ID]*Sender)}
+//
+// With shadowHostSuffix non-empty, the check's original, uncompressed calls
+// ALSO still ship (like dry-run), but every breakpoint the compressor
+// produces ships too, as an ADDITIONAL series under hostname+shadowHostSuffix
+// (falling back to the agent's own resolved default hostname when the check
+// passed ""). This lets the two series be graphed side by side (e.g.
+// `avg:metric{*} by {host}`) to visually compare compression fidelity —
+// at the cost of doubling shipped metric volume for compressed checks, so
+// it's meant for short, deliberate comparison windows, not left on
+// indefinitely. Shadow mode takes precedence over dryRun, since its entire
+// purpose requires both series to exist (see Sender.ship). If the agent's
+// default hostname can't be resolved, shadow mode is disabled entirely
+// (falling back to dryRun's behavior) rather than risk appending the
+// suffix to "" and collapsing every host's shadow series into one.
+func Wrap(inner sender.SenderManager, dryRun bool, shadowHostSuffix string) *SenderManager {
+	m := &SenderManager{inner: inner, dryRun: dryRun, senders: make(map[checkid.ID]*Sender)}
+	if shadowHostSuffix != "" {
+		h, err := hostname.Get(context.Background())
+		if err != nil {
+			log.Warnf("vbrsender: could not resolve the agent's default hostname, disabling shadow mode: %s", err)
+		} else {
+			m.shadowHostSuffix = shadowHostSuffix
+			m.defaultHostname = h
+		}
+	}
+	return m
 }
 
 // vbrCompressedCheckNames returns the set of check names that should get
@@ -164,7 +196,7 @@ func (m *SenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := newSender(real, m.dryRun, checkName)
+	s := newSender(real, m.dryRun, checkName, m.shadowHostSuffix, m.defaultHostname)
 	m.senders[id] = s
 	return s, nil
 }
@@ -263,6 +295,11 @@ type Sender struct {
 	// instead (see compressAt/forwardRaw).
 	dryRun bool
 
+	// shadowHostSuffix/defaultHostname: see Wrap's shadow-mode doc comment.
+	// shadowHostSuffix is "" when shadow mode is off.
+	shadowHostSuffix string
+	defaultHostname  string
+
 	tlmContexts telemetry.SimpleGauge
 
 	mu sync.Mutex
@@ -277,14 +314,30 @@ type Sender struct {
 	lastFlushTs float64
 }
 
-func newSender(real sender.Sender, dryRun bool, checkName string) *Sender {
+func newSender(real sender.Sender, dryRun bool, checkName string, shadowHostSuffix string, defaultHostname string) *Sender {
 	return &Sender{
-		Sender:      real,
-		checkName:   checkName,
-		dryRun:      dryRun,
-		tlmContexts: tlmContexts.WithValues(checkName),
-		contexts:    make(map[string]*contextState),
+		Sender:           real,
+		checkName:        checkName,
+		dryRun:           dryRun,
+		shadowHostSuffix: shadowHostSuffix,
+		defaultHostname:  defaultHostname,
+		tlmContexts:      tlmContexts.WithValues(checkName),
+		contexts:         make(map[string]*contextState),
 	}
+}
+
+// shadowHostnameFor returns the hostname a shadow-mode compressed
+// breakpoint should ship under: hostname with shadowHostSuffix appended,
+// falling back to the agent's own resolved default hostname when hostname
+// is empty. This mirrors what the real sender fills in downstream for the
+// raw series (see checkSender.sendMetricSample's defaultHostname
+// backfill), so appending the suffix directly to "" can't accidentally
+// collapse every host's shadow series into one.
+func (s *Sender) shadowHostnameFor(hostname string) string {
+	if hostname == "" {
+		hostname = s.defaultHostname
+	}
+	return hostname + s.shadowHostSuffix
 }
 
 // Gauge compresses metric instead of forwarding every call.
@@ -339,9 +392,13 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.dryRun {
+	if s.dryRun || s.shadowHostSuffix != "" {
 		// The real, unmodified call is what actually ships in dry-run mode;
-		// the compressor below only measures what compression would do.
+		// in shadow mode it ships too (as the series to compare against),
+		// while ship() below additionally ships the compressed breakpoint
+		// under a different hostname. Either way, the compressor below only
+		// measures (dry-run) or additionally produces (shadow) what
+		// compression would do.
 		s.forwardRaw(kind, metric, rawValue, hostname, tags, flushFirstValue)
 	}
 
@@ -486,7 +543,16 @@ func (s *Sender) ship(ctx *contextState, bp vbr.Point) {
 		ctx.pendingSum = 0
 	}
 
-	if s.dryRun {
+	shipHostname := ctx.hostname
+	switch {
+	case s.shadowHostSuffix != "":
+		// Shadow mode: forwardRaw already shipped the check's original call
+		// under the real hostname (like dry-run); ship this breakpoint too,
+		// as an ADDITIONAL series under a distinct hostname, so the two can
+		// be graphed side by side (e.g. `by {host}`) to compare compression
+		// fidelity. Takes precedence over dryRun (see Wrap's doc comment).
+		shipHostname = s.shadowHostnameFor(ctx.hostname)
+	case s.dryRun:
 		// Telemetry still counts this as a would-be breakpoint; only the
 		// actual forwarding is suppressed, since forwardRaw already shipped
 		// the check's original, uncompressed call for this sample.
@@ -494,11 +560,11 @@ func (s *Sender) ship(ctx *contextState, bp vbr.Point) {
 	}
 	switch ctx.kind {
 	case kindGauge, kindRate:
-		if err := s.Sender.GaugeWithTimestamp(ctx.metric, shipValue, ctx.hostname, ctx.tags, bp.Ts); err != nil {
+		if err := s.Sender.GaugeWithTimestamp(ctx.metric, shipValue, shipHostname, ctx.tags, bp.Ts); err != nil {
 			log.Debugf("vbrsender: GaugeWithTimestamp(%s) failed: %s", ctx.metric, err)
 		}
 	case kindCount, kindMonotonicCount:
-		if err := s.Sender.CountWithTimestamp(ctx.metric, shipValue, ctx.hostname, ctx.tags, bp.Ts); err != nil {
+		if err := s.Sender.CountWithTimestamp(ctx.metric, shipValue, shipHostname, ctx.tags, bp.Ts); err != nil {
 			log.Debugf("vbrsender: CountWithTimestamp(%s) failed: %s", ctx.metric, err)
 		}
 	}
