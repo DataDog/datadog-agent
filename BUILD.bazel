@@ -224,7 +224,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/network/usm/testutil/grpc/grpc_external_server
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privileged-logs/test
-# gazelle:exclude pkg/process/monitor
 # gazelle:exclude pkg/serverless/logs
 # gazelle:exclude pkg/serverless/otlp
 # gazelle:exclude pkg/serverless/trace/span_modifer_test.go
