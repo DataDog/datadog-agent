@@ -93,6 +93,7 @@ const (
 	OffsetNameTaskStructPID     = "task_struct_pid_offset"      // kernels >= 4.19
 	OffsetNameTaskStructPIDLink = "task_struct_pid_link_offset" // kernels < 4.19
 	OffsetNamePIDLinkStructPID  = "pid_link_pid_offset"         // kernels < 4.19
+	OffsetNameTaskStructSignal  = "task_struct_signal_offset"
 
 	// splice event
 	OffsetNamePipeInodeInfoStructBufs     = "pipe_inode_info_bufs_offset"
@@ -135,5 +136,14 @@ const (
 	OffsetNameLinuxBinprmStructInterp   = "linux_binprm_interp_offset"
 
 	// iouring constants
-	OffsetNameIoKiocbStructCtx = "iokiocb_ctx_offset"
+	OffsetNameIoKiocbStructCtx    = "iokiocb_ctx_offset"
+	OffsetNameIoKiocbStructOpcode = "iokiocb_opcode_offset"
+
+	// iouring io_socket (IORING_OP_SOCKET) command field offsets
+	OffsetNameIoSocketStructDomain   = "io_socket_domain_offset"
+	OffsetNameIoSocketStructType     = "io_socket_type_offset"
+	OffsetNameIoSocketStructProtocol = "io_socket_protocol_offset"
+
+	// setsockopt event
+	OffsetNameSocketType = "socket_type_offset"
 )
