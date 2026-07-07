@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "ad-misconfiguration",
@@ -14,14 +15,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "ad-misconfiguration_test",
     srcs = [
         "annotation_issue_test.go",
         "template_issue_test.go",
     ],
     embed = [":ad-misconfiguration"],
-    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

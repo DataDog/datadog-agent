@@ -22,11 +22,6 @@ type TransactionDiskStorage interface {
 	GetDiskSpaceUsed() int64
 }
 
-// TransactionPrioritySorter is an interface to sort transactions.
-type TransactionPrioritySorter interface {
-	Sort([]transaction.Transaction)
-}
-
 // TransactionRetryQueue stores transactions in memory and flush them to disk when the memory
 // limit is exceeded.
 type TransactionRetryQueue struct {
@@ -34,7 +29,6 @@ type TransactionRetryQueue struct {
 	currentMemSizeInBytes int
 	maxMemSizeInBytes     int
 	flushToStorageRatio   float64
-	dropPrioritySorter    TransactionPrioritySorter
 	optionalStorage       TransactionDiskStorage
 	telemetry             TransactionRetryQueueTelemetry
 	pointCountTelemetry   *PointCountTelemetry
@@ -48,7 +42,6 @@ func BuildTransactionRetryQueue(
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
 	optionalDiskUsageLimit *DiskUsageLimit,
-	dropPrioritySorter TransactionPrioritySorter,
 	resolver resolver.DomainResolver,
 	pointCountTelemetry *PointCountTelemetry) *TransactionRetryQueue {
 	var storage TransactionDiskStorage
@@ -67,7 +60,6 @@ func BuildTransactionRetryQueue(
 	}
 
 	return NewTransactionRetryQueue(
-		dropPrioritySorter,
 		storage,
 		maxMemSizeInBytes,
 		flushToStorageRatio,
@@ -77,7 +69,6 @@ func BuildTransactionRetryQueue(
 
 // NewTransactionRetryQueue creates a new instance of NewTransactionRetryQueue
 func NewTransactionRetryQueue(
-	dropPrioritySorter TransactionPrioritySorter,
 	optionalTransactionStorage TransactionDiskStorage,
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
@@ -86,7 +77,6 @@ func NewTransactionRetryQueue(
 	return &TransactionRetryQueue{
 		maxMemSizeInBytes:   maxMemSizeInBytes,
 		flushToStorageRatio: flushToStorageRatio,
-		dropPrioritySorter:  dropPrioritySorter,
 		optionalStorage:     optionalTransactionStorage,
 		telemetry:           telemetry,
 		pointCountTelemetry: pointCountTelemetry,
@@ -247,12 +237,12 @@ func (tc *TransactionRetryQueue) extractTransactionsFromMemory(payloadSizeInByte
 	sizeInBytesExtracted := 0
 	var transactionsExtracted []transaction.Transaction
 
-	// dropPrioritySorter places high-priority/newest transactions at the front
-	// (index 0) and low-priority/oldest at the tail. Extracting from the tail
+	// SortByCreatedTimeAndPriority places high-priority/newest transactions at the
+	// front (index 0) and low-priority/oldest at the tail. Extracting from the tail
 	// evicts the least-valuable transactions first and lets us shrink the slice
 	// with a simple reslice instead of cutting from the front, so this way we
 	// preserve the capacity.
-	tc.dropPrioritySorter.Sort(tc.transactions)
+	transaction.SortByCreatedTimeAndPriority(tc.transactions)
 	for ; i >= 0 && sizeInBytesExtracted < payloadSizeInBytesToExtract; i-- {
 		transaction := tc.transactions[i]
 		sizeInBytesExtracted += transaction.GetPayloadSize()

@@ -157,6 +157,21 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 	agent.setupAgent()
 	suite.T().Cleanup(func() {
 		_ = agent.stop(context.TODO())
+
+		// Guarantee the auditor's background flush goroutine is stopped before
+		// the test's TempDir is removed. Tests that call partialStop() without a
+		// subsequent restart leave the transient components (launchers, pipeline
+		// provider, destinationsCtx) already stopped; the cleanup stop() above
+		// then stops them a second time. A non-idempotent component Stop() (e.g.
+		// the integration launcher's unbuffered stop channel) blocks the
+		// SerialStopper before it reaches the auditor, so stop() force-closes and
+		// returns with the auditor still running. The auditor's 1s flush ticker
+		// then keeps recreating registry.json under run_path (== t.TempDir()),
+		// racing with the testing package's TempDir RemoveAll and producing flaky
+		// "directory not empty" cleanup failures. Stopping the auditor explicitly
+		// is idempotent (Stop guards its channels) and removes the only writer
+		// that races with TempDir removal.
+		agent.auditor.Stop()
 	})
 
 	return agent, sources, services

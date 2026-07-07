@@ -95,15 +95,6 @@ else
 
   # Dogstatsd
   dependency 'datadog-dogstatsd'
-
-  # this dependency puts few files out of the omnibus install dir and move them
-  # in the final destination. This way such files will be listed in the packages
-  # manifest and owned by the package manager. This is the only point in the build
-  # process where we operate outside the omnibus install dir, thus the need of
-  # the `extra_package_file` directive.
-  # This must be the last dependency in the project.
-
-  dependency 'datadog-dogstatsd-finalize'
 end
 
 

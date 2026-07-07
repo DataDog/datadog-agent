@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+// Package watchdog contains CPU time helpers for AIX.
 package watchdog
 
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"time"
 )
@@ -95,13 +97,19 @@ func cpuTimeUser(pid int32) (float64, error) {
 	}
 	defer f.Close()
 	// As explained above, we will skip 120 bytes into the status file to locate the user CPU time.
-	f.Seek(120, os.SEEK_SET)
+	if _, err = f.Seek(120, io.SeekStart); err != nil {
+		return 0, err
+	}
 	var (
 		userSecs  int64
 		userNsecs int32
 	)
-	binary.Read(f, binary.BigEndian, &userSecs)
-	binary.Read(f, binary.BigEndian, &userNsecs)
+	if err = binary.Read(f, binary.BigEndian, &userSecs); err != nil {
+		return 0, err
+	}
+	if err = binary.Read(f, binary.BigEndian, &userNsecs); err != nil {
+		return 0, err
+	}
 	time := float64(userSecs) + (float64(userNsecs) / float64(time.Second))
 	return time, nil
 }

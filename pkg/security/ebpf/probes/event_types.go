@@ -72,8 +72,12 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 		}},
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
 			hookFunc("hook_dev_get_valid_name"),
+			// dev_new_index was replaced by dev_index_reserve in kernel 6.6; both are best-effort
+			// alternatives used to resolve the ifindex of a newly registered device
 			hookFunc("hook_dev_new_index"),
 			hookFunc("rethook_dev_new_index"),
+			hookFunc("hook_dev_index_reserve"),
+			hookFunc("rethook_dev_index_reserve"),
 			hookFunc("hook___dev_get_by_index"),
 		}},
 	}
@@ -498,8 +502,13 @@ func GetSelectorsPerEventType(hasFentry bool) map[eval.EventType][]manager.Probe
 				hookFunc("rethook_vm_mmap_pgoff"),
 				hookFunc("hook_security_mmap_file"),
 			}},
+			// get_unmapped_area is inlined since kernel 6.13; fall back to __get_unmapped_area,
+			// which keeps pgoff in the same argument position, so we can still read the mmap offset
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_get_unmapped_area"),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_get_unmapped_area"),
+					hookFunc("hook___get_unmapped_area"),
+				}},
 			}},
 		},
 
