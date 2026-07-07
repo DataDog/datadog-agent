@@ -30,7 +30,7 @@ const kubeadmContainerdRepoReleasever = "9"
 // provisioning (HTTP 404) when the upstream latest release stopped publishing
 // that asset. Pin an explicit tag so the CNI apply does not depend on whatever
 // the current upstream latest release happens to ship.
-const kubeadmFlannelVersion = "v0.28.6"
+const kubeadmFlannelVersion = "v0.28.5"
 
 // ContainerRuntime selects the CRI installed on the kubeadm node. The Agent
 // produces identical SBOMs across runtimes; only the install steps and the CRI
