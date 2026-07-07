@@ -217,7 +217,7 @@ kubeadm init \
 		cni, err := runner.Command(namer.ResourceName("kubeadm-cni"), &command.Args{
 			Sudo: true,
 			Create: rootScript(`export KUBECONFIG=/etc/kubernetes/admin.conf
-kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml`),
+kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/v0.28.6/Documentation/kube-flannel.yml`),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(initCluster))...)
 		if err != nil {
 			return err
