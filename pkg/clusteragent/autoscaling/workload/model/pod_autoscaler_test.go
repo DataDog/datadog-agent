@@ -936,38 +936,46 @@ func TestContainerResourcesForStatus(t *testing.T) {
 	}
 }
 
-// TestUpdateFromPodAutoscalerResyncsOnWatchedMetadata verifies that, for local-owner DPAs,
-// UpdateFromPodAutoscaler picks up changes to the watched labels/annotations even when
-// .metadata.generation is unchanged (e.g. an annotation-only edit to PreviewAnnotationKey).
-func TestUpdateFromPodAutoscalerResyncsOnWatchedMetadata(t *testing.T) {
-	dpa := &datadoghq.DatadogPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{Name: "dpa", Namespace: "default", Generation: 1},
-		Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
-	}
+func TestUpdateFromPodAutoscaler(t *testing.T) {
+	t.Run("annotation change", func(t *testing.T) {
+		dpa := &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{Name: "dpa", Namespace: "default", Generation: 1},
+			Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
+		}
 
-	pai := NewPodAutoscalerInternal(dpa)
-	assert.False(t, pai.IsBurstable())
+		pai := NewPodAutoscalerInternal(dpa)
+		assert.False(t, pai.IsBurstable())
 
-	// Annotation-only edit: same generation, new preview annotation.
-	dpa.Annotations = map[string]string{PreviewAnnotationKey: `{"burstable":true}`}
-	pai.UpdateFromPodAutoscaler(dpa)
-	assert.True(t, pai.IsBurstable(), "annotation-only edit must be picked up")
+		// Annotation-only edit (no generation bump): must be picked up immediately.
+		dpa.Annotations = map[string]string{PreviewAnnotationKey: `{"burstable":true}`}
+		pai.UpdateFromPodAutoscaler(dpa)
+		assert.True(t, pai.IsBurstable(), "annotation-only edit must be picked up")
 
-	// Calling again with the same object is a no-op (gate kicks in).
-	previousHash := pai.metadataHash
-	pai.UpdateFromPodAutoscaler(dpa)
-	assert.Equal(t, previousHash, pai.metadataHash)
+		// A tags annotation-only edit (no generation bump) must refresh the cached upstream CR.
+		dpa.Annotations["ad.datadoghq.com/tags"] = `{"team":"foo"}`
+		pai.UpdateFromPodAutoscaler(dpa)
+		assert.Equal(t, `{"team":"foo"}`, pai.UpstreamCR().Annotations["ad.datadoghq.com/tags"])
+	})
 
-	// An unrelated annotation change does not retrigger the parse but is harmless.
-	dpa.Annotations["unrelated"] = "x"
-	pai.UpdateFromPodAutoscaler(dpa)
-	assert.True(t, pai.IsBurstable())
+	t.Run("status change", func(t *testing.T) {
+		dpa := &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{Name: "dpa", Namespace: "default", Generation: 1},
+			Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
+			Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+				Horizontal: &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
+					Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{Replicas: 3},
+				},
+			},
+		}
 
-	// A tags annotation-only edit (no generation bump) must refresh the cached upstream CR.
-	dpa.Annotations["ad.datadoghq.com/tags"] = `{"team":"foo"}`
-	pai.UpdateFromPodAutoscaler(dpa)
-	assert.Equal(t, `{"team":"foo"}`, pai.UpstreamCR().Annotations["ad.datadoghq.com/tags"],
-		"ad.datadoghq.com/tags edit must be picked up without a generation bump")
+		pai := NewPodAutoscalerInternal(dpa)
+		assert.Equal(t, int32(3), pai.UpstreamCR().Status.Horizontal.Target.Replicas)
+
+		// Status-only update (generation unchanged): upstreamCR must reflect the new status.
+		dpa.Status.Horizontal.Target.Replicas = 7
+		pai.UpdateFromPodAutoscaler(dpa)
+		assert.Equal(t, int32(7), pai.UpstreamCR().Status.Horizontal.Target.Replicas, "status-only update must be picked up")
+	})
 }
 
 // TestSetActiveScalingValues_NilSource_ClearsVertical verifies that a nil verticalActiveSource
@@ -1002,4 +1010,32 @@ func TestSetActiveScalingValues_NilSource_ClearsVertical(t *testing.T) {
 		"SetActiveScalingValues(nil source) must set scalingValues.Vertical to nil, not "+
 			"self-assign the sentinel-containing constrained value; the sentinel would cause "+
 			"applyVerticalConstraints(burstable=false) to early-return and suppress the rollout")
+}
+
+func BenchmarkUpdateFromPodAutoscaler(b *testing.B) {
+	dpa := &datadoghq.DatadogPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "burner-server",
+			Namespace:  "default",
+			Generation: 1,
+			Labels: map[string]string{
+				ProfileLabelKey: "default-profile",
+			},
+			Annotations: map[string]string{
+				PreviewAnnotationKey:           `{"burstable":true}`,
+				ProfileTemplateHashAnnotation:  "abc123def456",
+				CustomRecommenderAnnotationKey: `{"endpoint":"https://recommender.internal/v1"}`,
+			},
+		},
+		Spec: datadoghq.DatadogPodAutoscalerSpec{
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		},
+	}
+
+	pai := NewPodAutoscalerInternal(dpa)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		pai.UpdateFromPodAutoscaler(dpa)
+	}
 }

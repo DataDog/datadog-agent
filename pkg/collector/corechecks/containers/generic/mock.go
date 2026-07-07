@@ -8,6 +8,7 @@
 package generic
 
 import (
+	"testing"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -28,7 +29,8 @@ func (l *MockContainerAccessor) ListRunning() []*workloadmeta.Container {
 }
 
 // CreateTestProcessor returns a ready-to-use Processor
-func CreateTestProcessor(listerContainers []*workloadmeta.Container,
+func CreateTestProcessor(t testing.TB,
+	listerContainers []*workloadmeta.Container,
 	metricsContainers map[string]mock.ContainerEntry,
 	metricsAdapter MetricsAdapter,
 	containerFilter ContainerFilter,
@@ -48,7 +50,7 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 		containers: listerContainers,
 	}
 
-	mockedSender := mocksender.NewMockSender("generic-container")
+	mockedSender := mocksender.NewMockSender(t, "generic-container")
 	mockedSender.SetupAcceptAll()
 
 	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter, tagger, extendedMetrics)

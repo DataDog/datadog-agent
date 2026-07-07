@@ -41,7 +41,6 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 	ps := []manager.ProbesSelector{
 		// flow classification probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			hookFunc("hook_accept"),
 			hookFunc("hook_security_socket_bind"),
 			hookFunc("hook_security_socket_connect"),
 			hookFunc("hook_security_sk_classify_flow"),
@@ -73,8 +72,12 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 		}},
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
 			hookFunc("hook_dev_get_valid_name"),
+			// dev_new_index was replaced by dev_index_reserve in kernel 6.6; both are best-effort
+			// alternatives used to resolve the ifindex of a newly registered device
 			hookFunc("hook_dev_new_index"),
 			hookFunc("rethook_dev_new_index"),
+			hookFunc("hook_dev_index_reserve"),
+			hookFunc("rethook_dev_index_reserve"),
 			hookFunc("hook___dev_get_by_index"),
 		}},
 	}
@@ -134,8 +137,30 @@ func GetCapabilitiesMonitoringSelectors() []manager.ProbesSelector {
 	}
 }
 
+// GetNetworkSelectors returns the probes that track network interfaces and sockets.
+// These probes must be loaded independently of the current ruleset or network filter actions as
+// these are used to track resources that are needed if we later dynamically load network rules
+// or network filter actions.
+func GetNetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
+	selectors := []manager.ProbesSelector{
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.AllOf{Selectors: NetworkSelectors(hasCgroupSocket)},
+			&manager.AllOf{Selectors: NetworkVethSelectors()},
+		}},
+	}
+
+	// add probes depending on loaded modules
+	if loadedModules, err := utils.FetchLoadedModules(); err == nil {
+		if _, ok := loadedModules["nf_nat"]; ok {
+			selectors = append(selectors, NetworkNFNatSelectors()...)
+		}
+	}
+
+	return selectors
+}
+
 // GetSelectorsPerEventType returns the list of probes that should be activated for each event
-func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.EventType][]manager.ProbesSelector {
+func GetSelectorsPerEventType(hasFentry bool) map[eval.EventType][]manager.ProbesSelector {
 	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
@@ -232,6 +257,8 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("hook_io_openat"),
 				hookFunc("hook_io_openat2"),
 				hookFunc("rethook_io_openat2"),
+				hookFunc("hook_io_ftruncate"),
+				hookFunc("rethook_io_ftruncate"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_terminate_walk"),
@@ -475,8 +502,13 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("rethook_vm_mmap_pgoff"),
 				hookFunc("hook_security_mmap_file"),
 			}},
+			// get_unmapped_area is inlined since kernel 6.13; fall back to __get_unmapped_area,
+			// which keeps pgoff in the same argument position, so we can still read the mmap offset
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_get_unmapped_area"),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_get_unmapped_area"),
+					hookFunc("hook___get_unmapped_area"),
+				}},
 			}},
 		},
 
@@ -535,6 +567,10 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_get_pipe_info"),
 				hookFunc("rethook_get_pipe_info"),
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_io_issue_sqe"),
+				hookFunc("rethook_io_issue_sqe"),
 			}}},
 
 		// List of probes required to capture accept events
@@ -568,6 +604,10 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 		// List of probes required to capture socket events
 		"socket": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "socket", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_io_socket"),
+				hookFunc("rethook_io_socket"),
+			}},
 		},
 
 		// List of probes required to capture chdir events
@@ -623,29 +663,14 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 		},
 	}
 
-	// Add probes required to track network interfaces and map network flows to processes
-	// networkEventTypes: dns, imds, packet, network_monitor
+	// Register the network event types so they are correctly reflected in the enabled_events map when
+	// requested by rules, activity dumps, security profiles or event sampling. The probes that track
+	// network interfaces and sockets are activated in updateProbes whenever the network
+	// feature is enabled (see GetNetworkSelectors), because they are required to track these resources.
 	networkEventTypes := model.GetEventTypePerCategory(model.NetworkCategory)[model.NetworkCategory]
 	for _, networkEventType := range networkEventTypes {
 		if model.EventTypeDependsOnInterfaceTracking(networkEventType) {
-			selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
-				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.AllOf{Selectors: NetworkSelectors(hasCgroupSocket)},
-					&manager.AllOf{Selectors: NetworkVethSelectors()},
-				}},
-			}
-		}
-	}
-
-	// add probes depending on loaded modules
-	loadedModules, err := utils.FetchLoadedModules()
-	if err == nil {
-		if _, ok := loadedModules["nf_nat"]; ok {
-			for _, networkEventType := range networkEventTypes {
-				if model.EventTypeDependsOnInterfaceTracking(networkEventType) {
-					selectorsPerEventTypeStore[networkEventType] = append(selectorsPerEventTypeStore[networkEventType], NetworkNFNatSelectors()...)
-				}
-			}
+			selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{}
 		}
 	}
 

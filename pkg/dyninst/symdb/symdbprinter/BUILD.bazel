@@ -4,6 +4,7 @@ go_library(
     name = "symdbprinter",
     srcs = ["symdbprinter.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbprinter",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = ["//pkg/dyninst/symdb/uploader"],
 )
@@ -12,7 +13,11 @@ go_test(
     name = "symdbprinter_test",
     srcs = ["symdbprinter_test.go"],
     embed = [":symdbprinter"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/symdb",
         "//pkg/dyninst/symdb/uploader",

@@ -18,6 +18,7 @@ def patchelf_file_action(ctx, input_file, output_file, rpath):
       rpath: the rpath string to set.
     """
     toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
+    patchelf = toolchain.label[DefaultInfo].files_to_run
     args = ctx.actions.args()
     args.add("--set-rpath", rpath)
     args.add("--force-rpath")
@@ -27,7 +28,7 @@ def patchelf_file_action(ctx, input_file, output_file, rpath):
         inputs = [input_file],
         outputs = [output_file],
         arguments = [args],
-        executable = toolchain.path,
+        executable = patchelf,
     )
 
 def otool_file_action(ctx, input_file, output_file, rpath):
@@ -39,14 +40,16 @@ def otool_file_action(ctx, input_file, output_file, rpath):
       output_file: the output File to write.
       rpath: the rpath string to set.
     """
-    toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
+    otool = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
     args = ctx.actions.args()
-    args.add(toolchain.path)
+    args.add(ctx.executable._install_name_tool.path)
+    args.add(otool.path)
     args.add(rpath)
     args.add(input_file.path)
     args.add(output_file.path)
     ctx.actions.run(
         inputs = [input_file],
+        tools = [ctx.executable._install_name_tool],
         outputs = [output_file],
         executable = ctx.file._script,
         arguments = [args],
@@ -62,8 +65,10 @@ def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
       rpath: the rpath string to set.
     """
     toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
+    patchelf = toolchain.label[DefaultInfo].files_to_run
     ctx.actions.run_shell(
         inputs = [input_dir],
+        tools = [patchelf],
         outputs = [output_dir],
         # /. copies the contents of input rather than nesting it under output
         # (Bazel pre-creates output via declare_directory). chmod restores
@@ -76,7 +81,7 @@ def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
         ).format(
             input = input_dir.path,
             output = output_dir.path,
-            patchelf = toolchain.path,
+            patchelf = patchelf.executable.path,
             rpath = rpath,
         ),
     )
@@ -90,15 +95,17 @@ def otool_dir_action(ctx, input_dir, output_dir, rpath):
       output_dir: the output directory artifact to write.
       rpath: the rpath string to set.
     """
-    toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
+    otool = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
     args = ctx.actions.args()
     args.add(ctx.file._script.path)
-    args.add(toolchain.path)
+    args.add(ctx.executable._install_name_tool.path)
+    args.add(otool.path)
     args.add(rpath)
     args.add(input_dir.path)
     args.add(output_dir.path)
     ctx.actions.run(
         inputs = [input_dir, ctx.file._script],
+        tools = [ctx.executable._install_name_tool],
         outputs = [output_dir],
         executable = ctx.file._dir_script,
         arguments = [args],
@@ -147,6 +154,11 @@ rewrite_rpath = rule(
         "_script": attr.label(
             default = "@@//bazel/rules/rewrite_rpath:macos.sh",
             allow_single_file = True,
+            cfg = "exec",
+        ),
+        "_install_name_tool": attr.label(
+            default = "@@//bazel/tools:install_name_tool",
+            executable = True,
             cfg = "exec",
         ),
         "_install_dir": attr.label(
