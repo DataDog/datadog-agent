@@ -397,6 +397,20 @@ func TestGoStackTrace_Abandon_FalsePositiveHeader(t *testing.T) {
 	assertAbandoned(t, msgs, 3)
 }
 
+// TestGoStackTrace_Abandon_ErrantRuntimeStartThenGoroutineProse guards the
+// false-combine risk from the header-ends-on-chunk-start change (AGNTLOG-663).
+// An errant "runtime:" line (a benign Go runtime diagnostic that trips IsStart)
+// immediately followed by benign "goroutine " prose — both observed together on
+// production nodes — must abandon as two individual lines, not combine into a
+// bogus multi-line trace. The tightened goroutine-header detection (requires a
+// numeric goid) is what keeps the prose line from being read as the first chunk.
+func TestGoStackTrace_Abandon_ErrantRuntimeStartThenGoroutineProse(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
+	input := "runtime: set GOMAXPROCS to: 2\ngoroutine to watchExperiments has terminated\n"
+	msgs := feedLines(agg, input)
+	assertAbandoned(t, msgs, 2)
+}
+
 func TestGoStackTrace_Abandon_HeaderPlusSignal_NoGoroutines(t *testing.T) {
 	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	input := "panic: runtime error: nil pointer dereference\n[signal SIGSEGV: segmentation violation code=0x2 addr=0x0 pc=0x10436ffd0]\n\nsome unrelated line\n"

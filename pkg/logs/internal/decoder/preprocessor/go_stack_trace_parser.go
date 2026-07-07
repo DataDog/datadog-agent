@@ -183,6 +183,11 @@ func goHasPrefix(line []byte, prefix string) bool {
 	return len(line) >= len(prefix) && string(line[:len(prefix)]) == prefix
 }
 
+// goHasDigitAt reports whether line has an ASCII digit at index i.
+func goHasDigitAt(line []byte, i int) bool {
+	return i < len(line) && line[i] >= '0' && line[i] <= '9'
+}
+
 func goValidHeaderContinuation(line []byte) bool {
 	if len(line) == 0 {
 		return false
@@ -210,7 +215,17 @@ func goDetectChunkStart(line []byte) (goChunkType, bool) {
 	}
 	switch line[0] {
 	case 'g':
-		if goHasPrefix(line, "goroutine ") {
+		// A real goroutine header is always "goroutine <goid> [<status>]:",
+		// where <goid> is numeric — runtime/traceback.go goroutineheader emits
+		// print("goroutine ", gp.goid). Requiring a digit immediately after the
+		// prefix rejects benign prose that merely starts with "goroutine "
+		// (e.g. "goroutine to watchExperiments has terminated", "goroutine
+		// profile: total 5"), which would otherwise be mistaken for the first
+		// chunk of a trace and let an errant start marker combine unrelated
+		// lines. A digit is the only reliable discriminator: the verbose
+		// GOTRACEBACK=system form ("goroutine 1 gp=0x.. m=0 mp=0x.. [running]:")
+		// still leads with the numeric goid, so we must not require " [" here.
+		if goHasPrefix(line, "goroutine ") && goHasDigitAt(line, len("goroutine ")) {
 			return goChunkStack, true
 		}
 	case 'r':

@@ -423,3 +423,67 @@ func TestGoStackTraceParser_ChunkBoundaryWithoutBlankLine(t *testing.T) {
 		assert.True(t, p.ShouldCombine())
 	})
 }
+
+// TestGoDetectChunkStart_GoroutineHeaderShape verifies that only a real
+// goroutine header ("goroutine <goid> ...", where <goid> is numeric) is
+// treated as a chunk start. A real header always leads with the numeric goid
+// (runtime/traceback.go goroutineheader: print("goroutine ", gp.goid)), so a
+// digit is the reliable discriminator against benign prose that merely begins
+// with "goroutine ".
+func TestGoDetectChunkStart_GoroutineHeaderShape(t *testing.T) {
+	accepts := []string{
+		"goroutine 1 [running]:",
+		"goroutine 0 [idle]:",
+		"goroutine 4294967296 [chan receive, 2 minutes]:",
+		// GOTRACEBACK=system/crash verbose form: "gp=" follows the goid, so a
+		// matcher must NOT require " [" immediately after the digits.
+		"goroutine 0 gp=0x1021a3080 m=0 mp=0x1021a3880 [idle]:",
+		"goroutine 1 gp=0x7df94bf261e0 m=nil [sleep]:",
+	}
+	for _, line := range accepts {
+		line := line
+		t.Run("accept/"+line, func(t *testing.T) {
+			ct, ok := goDetectChunkStart([]byte(line))
+			assert.True(t, ok, "expected chunk start: %q", line)
+			assert.Equal(t, goChunkStack, ct)
+		})
+	}
+
+	// Benign lines that start with "goroutine " but are not headers. These were
+	// observed as real log lines (koutris-intake, squire) and must not be
+	// mistaken for the first chunk of a trace.
+	rejects := []string{
+		"goroutine to watchExperiments has terminated",
+		"goroutine profile: total 5",
+		"goroutine leak detected",
+		"goroutine running on other thread; stack unavailable",
+		"goroutine ", // prefix only, no goid
+		"goroutines are cheap",
+	}
+	for _, line := range rejects {
+		line := line
+		t.Run("reject/"+line, func(t *testing.T) {
+			_, ok := goDetectChunkStart([]byte(line))
+			assert.False(t, ok, "did not expect chunk start: %q", line)
+		})
+	}
+}
+
+// TestGoStackTraceParser_ErrantStartFollowedByGoroutineProse is the regression
+// for the false-combine risk opened by the header-ends-on-chunk-start change
+// (AGNTLOG-663). A benign line that trips IsStart ("runtime:") directly
+// followed by benign "goroutine " prose (no blank line) must NOT be accepted
+// as a chunk — otherwise the two unrelated lines would combine into a bogus
+// stack trace instead of being abandoned.
+func TestGoStackTraceParser_ErrantStartFollowedByGoroutineProse(t *testing.T) {
+	// "runtime: set GOMAXPROCS to: 2" trips IsStart today (benign diagnostic).
+	require.True(t, NewGoStackTraceParser().IsStart([]byte("runtime: set GOMAXPROCS to: 2")))
+
+	p := NewGoStackTraceParser()
+	p.Reset()
+	// The next line begins with "goroutine " but is prose, not a header. The
+	// tightened chunk detector rejects it, so the header cannot end here and
+	// the trace is abandoned.
+	assert.False(t, p.AcceptLine([]byte("goroutine to watchExperiments has terminated")))
+	assert.False(t, p.ShouldCombine())
+}
