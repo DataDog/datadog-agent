@@ -19,6 +19,8 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertIn('package_target = "fips-#{package_target}" if fips_mode?', recipe)
         self.assertIn("AGENT_DATA_PLANE_HASH_WINDOWS_AMD64", recipe)
         self.assertIn("AGENT_DATA_PLANE_HASH_FIPS_WINDOWS_AMD64", recipe)
+        self.assertIn('adp_hash_key = "fips-#{package_target}"', recipe)
+        self.assertIn('package_target = "#{package_target}-fips"', recipe)
         self.assertIn('package_extension = "zip"', recipe)
 
     def test_adp_dependency_is_included_on_linux_macos_and_windows(self):
