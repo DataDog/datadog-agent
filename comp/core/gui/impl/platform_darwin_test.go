@@ -15,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 const expectedBody = `<!DOCTYPE html>
@@ -155,8 +157,18 @@ func startUnixServer(t *testing.T, handler http.Handler) string {
 	return socketPath
 }
 
-func TestRestartEnabled(t *testing.T) {
+func TestRestartEnabled_SysprobeEnabled(t *testing.T) {
+	mockSystemProbe := mock.NewSystemProbe(t)
+	mockSystemProbe.SetInTest("system_probe_config.enabled", true)
+
 	assert.True(t, restartEnabled())
+}
+
+func TestRestartEnabled_SysprobeDisabled(t *testing.T) {
+	mockSystemProbe := mock.NewSystemProbe(t)
+	mockSystemProbe.SetInTest("system_probe_config.enabled", false)
+
+	assert.False(t, restartEnabled())
 }
 
 func TestRestart_Success(t *testing.T) {
@@ -199,6 +211,9 @@ func TestRestart_SendsAuthorizationHeader(t *testing.T) {
 }
 
 func TestRenderIndexPage(t *testing.T) {
+	mockSystemProbe := mock.NewSystemProbe(t)
+	mockSystemProbe.SetInTest("system_probe_config.enabled", true)
+
 	req, err := http.NewRequest("GET", "/", nil)
 	if err != nil {
 		t.Fatal(err)

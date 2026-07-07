@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )
@@ -28,7 +29,7 @@ const instructionTemplate = `{{define "loginInstruction" }}
 {{end}}`
 
 func restartEnabled() bool {
-	return true
+	return pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled")
 }
 
 func restart(getToken func() string, sysprobeSocketPath string) error {
