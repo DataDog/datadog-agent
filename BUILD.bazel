@@ -115,7 +115,9 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/process/agent/impl
 # gazelle:exclude comp/process/connectionscheck/fx
 # gazelle:exclude comp/process/connectionscheck/impl
-# gazelle:exclude comp/process/containercheck
+# gazelle:exclude comp/process/containercheck/fx
+# gazelle:exclude comp/process/containercheck/impl
+# gazelle:exclude comp/process/containercheck/mock
 # gazelle:exclude comp/process/expvars/fx
 # gazelle:exclude comp/process/expvars/impl
 # gazelle:exclude comp/process/hostinfo/fx
