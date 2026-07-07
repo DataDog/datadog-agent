@@ -77,6 +77,32 @@ func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
 	return proto.Params[0].Name != "dentry", nil
 }
 
+// GetExitItimersTakesTaskStructWithBtf uses BTF to check whether exit_itimers takes a
+// struct task_struct* as its first argument (kernel >= 5.19 and its stable backports) rather
+// than the legacy struct signal_struct*.
+func GetExitItimersTakesTaskStructWithBtf() (bool, error) {
+	proto, err := getBTFFuncProto("exit_itimers")
+	if err != nil {
+		return false, err
+	}
+
+	if len(proto.Params) == 0 {
+		return false, errors.New("exit_itimers has no parameters")
+	}
+
+	ptr, ok := btf.UnderlyingType(proto.Params[0].Type).(*btf.Pointer)
+	if !ok {
+		return false, errors.New("exit_itimers first parameter is not a pointer")
+	}
+
+	strct, ok := btf.UnderlyingType(ptr.Target).(*btf.Struct)
+	if !ok {
+		return false, errors.New("exit_itimers first parameter is not a pointer to a struct")
+	}
+
+	return strct.Name == "task_struct", nil
+}
+
 // GetHasVFSRenameStructArgs uses BTF to check if the vfs_rename function has a struct renamedata as its only argument
 func GetHasVFSRenameStructArgs() (bool, error) {
 	proto, err := getBTFFuncProto("vfs_rename")
