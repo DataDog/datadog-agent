@@ -143,4 +143,7 @@ const (
 	OffsetNameIoSocketStructDomain   = "io_socket_domain_offset"
 	OffsetNameIoSocketStructType     = "io_socket_type_offset"
 	OffsetNameIoSocketStructProtocol = "io_socket_protocol_offset"
+
+	// setsockopt event
+	OffsetNameSocketType = "socket_type_offset"
 )
