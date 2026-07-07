@@ -16,7 +16,7 @@ import (
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	awsECR "github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	sdkaws "github.com/pulumi/pulumi-aws/sdk/v6/go/aws"
+	sdkaws "github.com/pulumi/pulumi-aws/sdk/v7/go/aws"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	sdkconfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
