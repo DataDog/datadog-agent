@@ -411,7 +411,7 @@ func checkTempDirPermissions(dir string) error {
 		return fmt.Errorf("unable to verify permissions of %s", dir)
 	}
 	if stat.Uid != 0 || stat.Gid != 0 || sfi.Mode().Perm()&os.FileMode(0022) != 0 {
-		return fmt.Errorf("%w: %s has incorrect permissions: user=%d, group=%d, permissions=%s", errInvalidTempDirectory, dir, stat.Uid, stat.Gid, sfi.Mode().Perm())
+		return fmt.Errorf("%w: %s must be owned by user=0, group=0, and no group/world write permissions: found user=%d, group=%d, permissions=%s", errInvalidTempDirectory, dir, stat.Uid, stat.Gid, sfi.Mode().Perm())
 	}
 	return nil
 }
