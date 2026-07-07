@@ -7,6 +7,10 @@ go_library(
         "handler.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/datasecurity/impl",
+    # Depends on sharedlibraryimpl, which requires sharedlibrarycheck gotags.
+    # Mark manual so //... expansion skips this target; invoke agent.build
+    # supplies the tag via go build -tags.
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/def",

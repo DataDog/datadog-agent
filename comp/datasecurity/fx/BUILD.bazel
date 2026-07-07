@@ -4,6 +4,8 @@ go_library(
     name = "fx",
     srcs = ["fx.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/datasecurity/fx",
+    # Pulls in impl, which depends on sharedlibrarycheck-gated libraries.
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//comp/datasecurity/def",
