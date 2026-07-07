@@ -29,6 +29,7 @@ properties:
       darwin: 1
       windows: 2
       linux: 3
+      aix: 4
   public_section:
     node_type: section
     description: A public section.
