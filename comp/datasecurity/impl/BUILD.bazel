@@ -20,11 +20,11 @@ go_library(
         "//comp/logs/integrations/def",
         "//comp/remote-config/rcclient/def",
         "//pkg/aggregator/sender",
-        "//pkg/collector/aggregator",
+        "//pkg/collector/sharedlibrary/sharedlibraryimpl",
         "//pkg/config/remote/data",
         "//pkg/remoteconfig/state",
         "//pkg/util/option",
-        "@//pkg/collector/sharedlibrary/sharedlibraryimpl",
+        "@//pkg/collector/aggregator",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ],
 )
