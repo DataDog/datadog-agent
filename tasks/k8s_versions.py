@@ -37,7 +37,7 @@ except ImportError:
 
 DOCKER_HUB_API_URL = "https://hub.docker.com/v2/repositories/kindest/node/tags"
 VERSIONS_FILE = "k8s_versions.json"
-E2E_YAML_PATH = ".gitlab/test/e2e/e2e.yml"
+E2E_YAML_PATH = ".gitlab/test/e2e/e2e_containers.yml"
 KIND_VERSIONS_JSON_PATH = "test/e2e-framework/components/kubernetes/kind_versions.json"
 
 # Regex pattern for Kubernetes version (release and RC supported)
@@ -305,7 +305,7 @@ def _extract_version_from_latest_job(content: str) -> dict[str, str] | None:
 
 def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool, list[str]]:
     """
-    Update the e2e.yml file with new Kubernetes versions.
+    Update the e2e_containers.yml file with new Kubernetes versions.
 
     1. Reads the desired latest version from new_versions
     2. Reads the current latest version from new-e2e-containers-k8s-latest job
@@ -452,7 +452,7 @@ def fetch_versions(_, output_file=VERSIONS_FILE, disable_dockerhub=False, disabl
 @task
 def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
     """
-    Update the e2e.yml file with new Kubernetes versions.
+    Update the e2e_containers.yml file with new Kubernetes versions.
 
     This task reads Kubernetes versions from a JSON file:
     1. Compares with the current version in new-e2e-containers-k8s-latest job
@@ -477,7 +477,7 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
     with open(versions_file) as f:
         all_versions = json.load(f)
 
-    print("Checking for new versions to add to e2e.yml...")
+    print("Checking for new versions to add to e2e_containers.yml...")
 
     # Update the YAML file
     updated, added_versions = _update_e2e_yaml_file(all_versions)

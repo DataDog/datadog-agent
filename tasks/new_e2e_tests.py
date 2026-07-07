@@ -690,7 +690,7 @@ def run(
                 color_message(
                     "E2E_PIPELINE_ID is not set. The E2E job you are running may require build and packaging "
                     "jobs to have completed in the pipeline (e.g. container images, deb/rpm packages, OCI deploys). "
-                    "Check the `needs:` of your target job in .gitlab/test/e2e/e2e.yml and ensure those jobs "
+                    "Check the `needs:` of your target job in the relevant .gitlab/test/e2e/*.yml file and ensure those jobs "
                     "have run on your branch before triggering the E2E job.",
                     "yellow",
                 )

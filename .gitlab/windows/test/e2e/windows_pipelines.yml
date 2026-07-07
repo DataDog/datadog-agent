@@ -1,0 +1,18 @@
+---
+# Windows e2e agent-log-pipelines owned jobs.
+
+new-e2e-alp-windows:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  rules:
+    - !reference [.on_alp_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-log-pipelines
+    TEAM: agent-log-pipelines
+    EXTRA_PARAMS: --run "Windows"
+  # Temporary for #incident-44744
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]

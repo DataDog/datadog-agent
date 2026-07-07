@@ -183,6 +183,15 @@
 /.gitlab/.pre/deps_build/                                 @DataDog/ebpf-platform @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/windows/test/e2e_install_packages/windows.yml   @DataDog/windows-products
+/.gitlab/windows/test/e2e/windows_templates.yml          @DataDog/agent-devx @DataDog/windows-products
+/.gitlab/windows/test/e2e/windows_agent_configuration.yml @DataDog/agent-configuration @DataDog/windows-products @DataDog/agent-devx
+/.gitlab/windows/test/e2e/windows_agent_runtimes.yml     @DataDog/agent-runtimes @DataDog/windows-products @DataDog/agent-devx
+/.gitlab/windows/test/e2e/windows_products.yml           @DataDog/windows-products @DataDog/agent-devx
+/.gitlab/windows/test/e2e/windows_network.yml            @DataDog/cloud-network-monitoring @DataDog/network-path @DataDog/windows-products @DataDog/agent-devx
+/.gitlab/windows/test/e2e/windows_pipelines.yml          @DataDog/agent-log-pipelines @DataDog/windows-products @DataDog/agent-devx
+/.gitlab/windows/test/e2e/windows_security.yml           @DataDog/agent-security @DataDog/windows-products @DataDog/agent-devx
+/.gitlab/windows/test/e2e/windows_process.yml            @DataDog/container-experiences @DataDog/windows-products @DataDog/agent-devx
+/.gitlab/windows/test/e2e/windows_ebpf.yml               @DataDog/universal-service-monitoring @DataDog/windows-products @DataDog/agent-devx
 
 /.gitlab/.pre/common/                                     @DataDog/agent-devx
 
