@@ -40,10 +40,11 @@ network_path:
 `)
 
 const (
-	networkPathRCProduct    = "NETWORK_PATH"
-	networkPathRCConfigID   = "test-config-aaa-bbb-ccc"
-	networkPathRCConfigName = "config"
-	networkPathTestConfigID = "aaa-bbb-ccc"
+	networkPathRCProduct         = "NETWORK_PATH"
+	networkPathRCConfigID        = "test-config-aaa-bbb-ccc"
+	networkPathRCDynamicConfigID = "test-config-dynamic-sentinel"
+	networkPathRCConfigName      = "config"
+	networkPathTestConfigID      = "aaa-bbb-ccc"
 )
 
 var scheduledNetworkPathRCConfig = []byte(`{
@@ -68,6 +69,12 @@ var scheduledNetworkPathRCConfig = []byte(`{
       "e2e_queries": 1
     }
   ]
+}`)
+
+var dynamicNetworkPathRCConfig = []byte(`{
+  "type": "dynamic",
+  "test_config_id": "dynamic-sentinel",
+  "filters": []
 }`)
 
 type remoteConfigTestSuite struct {
@@ -120,6 +127,10 @@ func (s *remoteConfigTestSuite) TestScheduledNetworkPathRemoteConfig() {
 		assert.NoError(c, err)
 		assert.NotZero(c, stats.Polls, "agent did not poll fakeintake Remote Config")
 	}, 2*time.Minute, 5*time.Second)
+
+	// Keep one ignored NETWORK_PATH config so fakeintake returns a non-empty
+	// snapshot after the scheduled config is deleted.
+	require.NoError(t, fakeIntakeClient.RCAddConfig("", networkPathRCProduct, networkPathRCDynamicConfigID, networkPathRCConfigName, dynamicNetworkPathRCConfig))
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		entries := s.networkPathConfigCheckEntries(c)
