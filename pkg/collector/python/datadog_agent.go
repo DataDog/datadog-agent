@@ -676,9 +676,8 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 //
 //export ParsePrometheusMetrics
 func ParsePrometheusMetrics(rawText *C.char, contentType *C.char, errResult **C.char) *C.char {
-	_ = contentType // reserved for future OpenMetrics vs Prometheus format selection
 	data := []byte(C.GoString(rawText))
-	jsonResult, err := promutil.ParseMetricsToJSON(data)
+	jsonResult, err := promutil.ParseMetricsToJSON(data, C.GoString(contentType))
 	if err != nil {
 		*errResult = TrackedCString(err.Error())
 		return nil
