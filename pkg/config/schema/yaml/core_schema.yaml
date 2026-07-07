@@ -5873,6 +5873,23 @@ properties:
                   traces pipeline in the OTLP ingest endpoint.
                 tags:
                 - template_section:CoreAgent
+              container_tag_promotion:
+                node_type: setting
+                type: string
+                default: 'off'
+                visibility: public
+                description: |-
+                  Controls how the Infra-Attribute-Processor promotes custom container tags into
+                  `_dd.tags.container` (visible in the Infrastructure tab) for the traces pipeline.
+                  This setting only affects traces. Accepted values:
+                    off:       tags are written as-is; only keys recognized by the trace-agent reach `_dd.tags.container` (default).
+                    duplicate: write both the original tag and a `datadog.container.tag.<key>` copy.
+                    rename:    write only the `datadog.container.tag.<key>` form (smaller payload).
+                tags:
+                - template_section:CoreAgent
+                comment: |-
+                  container_tag_promotion controls how the infraattributes processor promotes custom
+                  container tags into `_dd.tags.container` for traces. Valid values: off, duplicate, rename.
           internal_port:
             node_type: setting
             type: integer
