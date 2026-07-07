@@ -73,14 +73,6 @@ var DefaultProfiles = Map{
 			GetRunning: MkCommand("show running-config", Expect(`!Version (.*)?`)),
 			GetStartup: MkCommand("show startup-config", Expect(`!Version (.*)?`)),
 			GetVersion: MkCommand("show version"),
-			PushConfig: []Command{
-				&SCPCommand{
-					RemoteCommand: "scp",
-					Filepath:      "usb:/dd-rollback-config",
-				},
-				MkCommand("copy usb:/dd-rollback-config running-config overwrite"),
-				MkCommand("copy running-config startup-config", Expect(`Success`)),
-			},
 		},
 		Preprocessing: []RedactionRule{
 			MkRedaction(`.*configuration:\s*!\s*!Version.*\s*(?:!export-password:.*\s)?`, WithReplacement(""), WithMultiline()),
@@ -135,15 +127,6 @@ var DefaultProfiles = Map{
 			Verify:     MkCommand("show version", Expect("Cisco Adaptive Security Appliance Software Version")),
 			GetRunning: MkCommand("more system:running-config", Expect(`ASA Version \d+\.\d+\(\d+\)`)),
 			GetVersion: MkCommand("show version"),
-			PushConfig: []Command{
-				&SCPCommand{
-					RemoteCommand: "scp",
-					Filepath:      "flash:/dd-rollback-config",
-				},
-				MkCommand("copy flash:/dd-rollback-config startup-config"),
-				MkCommand("clear configure all"),
-				MkCommand("copy startup-config running-config", Expect(`Success`)), // TODO confirm output
-			},
 		},
 		Redactions: []RedactionRule{
 			MkRedaction(`(?m)^(snmp-server community).*`),
@@ -355,13 +338,6 @@ var DefaultProfiles = Map{
 			GetRunning: MkCommand("show running-config", Expect(`!Command: show running-config`)),
 			GetStartup: MkCommand("show startup-config", Expect(`!Command: show startup-config`)),
 			GetVersion: MkCommand("show version"),
-			PushConfig: []Command{
-				&SCPCommand{
-					RemoteCommand: "scp",
-					Filepath:      "bootflash:dd-rollback-config",
-				},
-				MkCommand("configure replace bootflash:dd-rollback-config"),
-			},
 		},
 		Preprocessing: []RedactionRule{
 			MkRedaction(`!Command: show running-config\s*`, WithReplacement(""), WithMultiline()),
