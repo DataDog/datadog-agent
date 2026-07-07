@@ -406,24 +406,18 @@ func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
 	}
 }
 
-// TestFlushErrortracking_DrainIsBoundedToSnapshot: a hot producer that
-// keeps refilling the channel throughout the drain must not inflate the
-// batch or stall the flush. The race is made deterministic instead of
-// timing-dependent: with nothing draining it yet, a saturated bounded
-// channel can only sit at cap(errLogsCh) — so once the producer has
-// filled it, flushErrortracking's own len() snapshot is guaranteed to
-// read exactly bufSize, no matter when it runs. A regression from a fixed
-// n-item snapshot to a "drain while non-empty" loop would either capture
-// more than bufSize (chasing the producer's concurrent refills) or never
-// return (the timeout below), so this test exercises exactly the
-// production risk flushErrortracking's doc comment calls out: "a hot
-// error stream holding the flush job indefinitely."
+// TestFlushErrortracking_DrainIsBoundedToSnapshot: a flush must dispatch
+// only what was queued at start, ignoring items added while it drains.
+// The channel is filled to capacity so the snapshot is deterministically
+// bufSize; the refill-count check guards against a false pass if the
+// producer never actually raced the drain.
 func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
 	sm := &senderMock{}
 	const bufSize = 10
 	a := newTestAtelMinimal(t, sm, bufSize)
 	defer a.cancel()
 
+	var refills atomic.Int64
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Go(func() {
@@ -433,6 +427,7 @@ func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
 				return
 			default:
 				a.SubmitErrorLog(errorLog("hot"))
+				refills.Add(1)
 			}
 		}
 	})
@@ -445,6 +440,7 @@ func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
 		runtime.Gosched()
 	}
 
+	before := refills.Load()
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -456,7 +452,10 @@ func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("flush did not return while a producer kept refilling the channel; the drain is not bounded to a fixed snapshot")
 	}
+	after := refills.Load()
 
+	require.Greater(t, after, before,
+		"producer must land at least one refill while the flush is draining, otherwise this test cannot tell a correct snapshot-bounded drain from a buggy drain-until-empty loop")
 	require.Len(t, sm.capturedLogs(), bufSize,
 		"flush must dispatch exactly the snapshot count (channel capacity, %d), not chase concurrent refills", bufSize)
 	assert.Equal(t, 1, sm.sendLogsCalls(),
