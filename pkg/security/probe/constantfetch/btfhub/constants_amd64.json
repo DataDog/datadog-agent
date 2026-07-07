@@ -25753,6 +25753,13 @@
 			"distrib": "rhel",
 			"version": "7",
 			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.154.1.el7.x86_64",
+			"cindex": 71
+		},
+		{
+			"distrib": "rhel",
+			"version": "7",
+			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.2.1.el7.x86_64",
 			"cindex": 71
 		},
