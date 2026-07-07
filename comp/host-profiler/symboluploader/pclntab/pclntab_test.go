@@ -29,6 +29,11 @@ func getGoToolChain(goMinorVersion int) string {
 	if goMinorVersion >= 21 {
 		suffix = ".0"
 	}
+
+	if goMinorVersion == 27 {
+		suffix = "rc1"
+	}
+
 	return fmt.Sprintf("GOTOOLCHAIN=go1.%v%v", goMinorVersion, suffix)
 }
 
@@ -143,7 +148,7 @@ func TestGoPCLnTabExtraction(t *testing.T) {
 	srcFile := "helloworld.go"
 
 	tmpDir := t.TempDir()
-	goMinorVersions := []int{3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}
+	goMinorVersions := []int{3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}
 	for _, goMinorVersion := range goMinorVersions {
 		for _, pie := range []bool{false, true} {
 			for _, linkexternal := range []bool{false, true} {
