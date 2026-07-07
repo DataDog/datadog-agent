@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from tasks.libs.code_review.prompt import (
+    PROMPT_FILE_PATTERN,
     CodeReviewError,
     Guideline,
     build_review_prompt,
-    get_prompt_files,
     load_guidelines,
     render_prompt,
-    select_guideline_paths,
 )
 from tasks.libs.code_review.providers import (
     ProviderInvocation,
@@ -36,36 +36,52 @@ class FakeContext:
         return type("Result", (), {"exited": 0, "stdout": "review output\n", "stderr": "review warning\n"})()
 
 
+class FakeGuidelineContext:
+    def __init__(self, *, exited=0, stdout=None, stderr=""):
+        self.commands = []
+        self.stdin = None
+        self.exited = exited
+        self.stdout = stdout or json.dumps(
+            {
+                "error": None,
+                "guidelines": [
+                    {"path": "codereview_guideline.md", "content": "root rules"},
+                    {"path": "bazel/codereview_guideline.md", "content": "bazel rules"},
+                ],
+            }
+        )
+        self.stderr = stderr
+
+    def run(self, command, **kwargs):
+        self.commands.append((command, kwargs))
+        self.stdin = kwargs["in_stream"].read()
+        return type("Result", (), {"exited": self.exited, "stdout": self.stdout, "stderr": self.stderr})()
+
+
+def write_code_review_workflow(repo_root: Path, ref: str = "test-action-ref") -> None:
+    workflow_dir = repo_root / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "code-review.yml").write_text(
+        f"""
+jobs:
+  review:
+    uses: DataDog/code-review-action/.github/workflows/code-review.yml@{ref} # v1.1.0
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+
 class TestCodeReviewPrompt(unittest.TestCase):
-    def test_select_guideline_paths_includes_root_for_any_change(self):
-        self.assertEqual(
-            select_guideline_paths(("pkg/foo.go",)),
-            ("codereview_guideline.md",),
-        )
+    def test_load_guidelines_uses_code_review_action_helper(self):
+        ctx = FakeGuidelineContext()
 
-    def test_select_guideline_paths_includes_matching_scoped_guidelines(self):
-        self.assertEqual(
-            select_guideline_paths(("bazel/rules/foo.bzl", ".claude/skills/my-skill/SKILL.md")),
-            (
-                "codereview_guideline.md",
-                "bazel/codereview_guideline.md",
-                ".claude/skills/codereview_guideline.md",
-            ),
-        )
-
-    def test_load_guidelines_reads_selected_files(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("tasks.libs.code_review.prompt.is_installed", return_value=True),
+        ):
             repo_root = Path(tmp)
-            (repo_root / "codereview_guideline.md").write_text("root rules\n", encoding="utf-8")
-            (repo_root / "bazel").mkdir()
-            (repo_root / "bazel" / "codereview_guideline.md").write_text("bazel rules\n", encoding="utf-8")
-            (repo_root / ".claude" / "skills").mkdir(parents=True)
-            (repo_root / ".claude" / "skills" / "codereview_guideline.md").write_text(
-                "skill rules\n",
-                encoding="utf-8",
-            )
-
-            guidelines = load_guidelines(repo_root, ("bazel/BUILD.bazel",))
+            write_code_review_workflow(repo_root)
+            guidelines = load_guidelines(ctx, repo_root, ("bazel/BUILD.bazel", "pkg/foo.go"))
 
         self.assertEqual(
             guidelines,
@@ -74,28 +90,50 @@ class TestCodeReviewPrompt(unittest.TestCase):
                 Guideline(path="bazel/codereview_guideline.md", content="bazel rules"),
             ),
         )
+        self.assertIn("npm exec --yes --package", ctx.commands[0][0])
+        self.assertIn("github:DataDog/code-review-action#test-action-ref", ctx.commands[0][0])
+        self.assertIn("-- find-guidelines ", ctx.commands[0][0])
+        self.assertIn(f"--pattern '{PROMPT_FILE_PATTERN}'", ctx.commands[0][0])
+        self.assertIn("--changed-files -", ctx.commands[0][0])
+        self.assertEqual(ctx.stdin, "bazel/BUILD.bazel\npkg/foo.go")
 
-    def test_get_prompt_files_reads_workflow_prompt_file_block(self):
-        with tempfile.TemporaryDirectory() as tmp:
+    def test_load_guidelines_reports_missing_npm(self):
+        with (
+            patch("tasks.libs.code_review.prompt.is_installed", return_value=False),
+            self.assertRaisesRegex(CodeReviewError, "`npm` is not installed or is not on PATH"),
+        ):
+            load_guidelines(NoopContext(), Path("."), ("pkg/foo.go",))
+
+    def test_load_guidelines_reports_action_error(self):
+        ctx = FakeGuidelineContext(
+            exited=1,
+            stdout=json.dumps({"error": "prompt_file and prompt_file_pattern are mutually exclusive"}),
+        )
+
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("tasks.libs.code_review.prompt.is_installed", return_value=True),
+            self.assertRaisesRegex(CodeReviewError, "mutually exclusive"),
+        ):
             repo_root = Path(tmp)
-            (repo_root / ".github" / "workflows").mkdir(parents=True)
-            (repo_root / ".github" / "workflows" / "code-review.yml").write_text(
-                """
-name: Code review
-jobs:
-  review:
-    with:
-      prompt_file: |
-        codereview_guideline.md
-        bazel/codereview_guideline.md
-""".lstrip(),
-                encoding="utf-8",
-            )
+            write_code_review_workflow(repo_root)
+            load_guidelines(ctx, repo_root, ("pkg/foo.go",))
 
-            self.assertEqual(
-                get_prompt_files(repo_root),
-                ("codereview_guideline.md", "bazel/codereview_guideline.md"),
-            )
+    def test_load_guidelines_reports_unstructured_action_failure(self):
+        ctx = FakeGuidelineContext(
+            exited=1,
+            stdout=json.dumps({"guidelines": []}),
+            stderr="find-guidelines failed",
+        )
+
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("tasks.libs.code_review.prompt.is_installed", return_value=True),
+            self.assertRaisesRegex(CodeReviewError, "find-guidelines failed"),
+        ):
+            repo_root = Path(tmp)
+            write_code_review_workflow(repo_root)
+            load_guidelines(ctx, repo_root, ("pkg/foo.go",))
 
     def test_render_prompt_appends_extra_prompt(self):
         prompt = render_prompt(
