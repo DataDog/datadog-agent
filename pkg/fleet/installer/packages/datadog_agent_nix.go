@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package packages
 
 import (
@@ -12,7 +14,8 @@ import (
 )
 
 // getExtensionStoragePath returns the path where extension lists should be stored.
-// On Darwin (macOS), this follows the same pattern as Linux.
+// For OCI packages use RootTmpDir (temporary storage under installer data),
+// otherwise use the package path itself.
 //
 //nolint:unused // Used in shared extension functions
 func getExtensionStoragePath(packagePath string) string {

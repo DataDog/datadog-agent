@@ -10,6 +10,10 @@ package process
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -34,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -50,9 +54,10 @@ const (
 	cacheValidityNoRT = 2 * time.Second
 
 	// Service discovery constants
-	maxPortCheckTries                       = 10
-	serviceCollectionBatchSizeConfigKey     = "discovery.service_collection_batch_size"
-	serviceCollectionMinProcessAgeConfigKey = "discovery.service_collection_min_process_age"
+	maxPortCheckTries                                = 10
+	serviceCollectionBatchSizeConfigKey              = "discovery.service_collection_batch_size"
+	serviceCollectionMaxConsecutiveTimeoutsConfigKey = "discovery.service_collection_max_consecutive_timeouts"
+	serviceCollectionMinProcessAgeConfigKey          = "discovery.service_collection_min_process_age"
 )
 
 type collector struct {
@@ -69,14 +74,16 @@ type collector struct {
 	containerProvider      proccontainers.ContainerProvider
 
 	// Service discovery fields
-	sysProbeClient                 *sysprobeclient.CheckClient
-	serviceCollectionBatchSize     int
-	serviceCollectionMinProcessAge time.Duration
-	serviceRetries                 map[int32]uint
-	ignoredPids                    core.PidSet
-	pidHeartbeats                  map[int32]time.Time
-	knownInjectionStatusPids       core.PidSet // Track PIDs whose injection status we've already reported (but have no service data yet)
-	metricDiscoveredServices       telemetry.Gauge
+	sysProbeClient                          *sysprobeclient.CheckClient
+	serviceCollectionBatchSize              int
+	serviceCollectionMaxConsecutiveTimeouts int
+	consecutiveServiceDiscoveryTimeouts     int
+	serviceCollectionMinProcessAge          time.Duration
+	serviceRetries                          map[int32]uint
+	ignoredPids                             core.PidSet
+	pidHeartbeats                           map[int32]time.Time
+	knownInjectionStatusPids                core.PidSet // Track PIDs whose injection status we've already reported (but have no service data yet)
+	metricDiscoveredServices                telemetry.Gauge
 }
 
 // EventType represents the type of collector event
@@ -118,14 +125,15 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
 
 		// Initialize service discovery fields
-		sysProbeClient:                 sysprobeclient.GetCheckClient(),
-		serviceCollectionBatchSize:     systemProbeConfig.GetInt(serviceCollectionBatchSizeConfigKey),
-		serviceCollectionMinProcessAge: systemProbeConfig.GetDuration(serviceCollectionMinProcessAgeConfigKey),
-		serviceRetries:                 make(map[int32]uint),
-		ignoredPids:                    make(core.PidSet),
-		pidHeartbeats:                  make(map[int32]time.Time),
-		knownInjectionStatusPids:       make(core.PidSet),
-		metricDiscoveredServices:       discoveredServicesGauge,
+		sysProbeClient:                          sysprobeclient.GetCheckClient(),
+		serviceCollectionBatchSize:              systemProbeConfig.GetInt(serviceCollectionBatchSizeConfigKey),
+		serviceCollectionMaxConsecutiveTimeouts: systemProbeConfig.GetInt(serviceCollectionMaxConsecutiveTimeoutsConfigKey),
+		serviceCollectionMinProcessAge:          systemProbeConfig.GetDuration(serviceCollectionMinProcessAgeConfigKey),
+		serviceRetries:                          make(map[int32]uint),
+		ignoredPids:                             make(core.PidSet),
+		pidHeartbeats:                           make(map[int32]time.Time),
+		knownInjectionStatusPids:                make(core.PidSet),
+		metricDiscoveredServices:                discoveredServicesGauge,
 	}
 }
 
@@ -217,7 +225,7 @@ func (c *collector) processCollectionIntervalConfig() time.Duration {
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() && !c.isLanguageCollectionEnabled() && !c.isGPUMonitoringEnabled() {
-		return errors.NewDisabled(componentName, "process collection, service discovery, language collection, and GPU monitoring are disabled")
+		return dderrors.NewDisabled(componentName, "process collection, service discovery, language collection, and GPU monitoring are disabled")
 	}
 
 	if c.containerProvider == nil {
@@ -388,6 +396,13 @@ func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32)
 	return &response, nil
 }
 
+var (
+	errServiceDiscoveryRequestStartup = errors.New("system-probe not started")
+	errServiceDiscoveryRequestTimeout = errors.New("service discovery request timeout")
+)
+
+const systemProbeStartupCheckURL = "http://sysprobe/debug/stats"
+
 type serviceDiscoveryPIDBatch struct {
 	newPids       []int32
 	heartbeatPids []int32
@@ -453,7 +468,7 @@ func mergeServiceDiscoveryResponses(dst *model.ServicesResponse, src *model.Serv
 	dst.GPUPIDs = append(dst.GPUPIDs, src.GPUPIDs...)
 }
 
-func (c *collector) getDiscoveryServicesBatched(ctx context.Context, newPids []int32, heartbeatPids []int32) (*model.ServicesResponse, []int32, []int32) {
+func (c *collector) getDiscoveryServicesBatched(ctx context.Context, newPids []int32, heartbeatPids []int32) (*model.ServicesResponse, []int32, []int32, error) {
 	batches := buildServiceDiscoveryPIDBatches(newPids, heartbeatPids, c.serviceCollectionBatchSize)
 	mergedResponse := &model.ServicesResponse{}
 	successfulNewPids := make([]int32, 0, len(newPids))
@@ -463,7 +478,7 @@ func (c *collector) getDiscoveryServicesBatched(ctx context.Context, newPids []i
 		select {
 		case <-ctx.Done():
 			log.Debugf("stopping service discovery batching after %d/%d batches: %s", batchIndex, len(batches), ctx.Err())
-			return mergedResponse, successfulNewPids, successfulHeartbeatPids
+			return mergedResponse, successfulNewPids, successfulHeartbeatPids, nil
 		default:
 		}
 
@@ -474,10 +489,12 @@ func (c *collector) getDiscoveryServicesBatched(ctx context.Context, newPids []i
 		if err != nil {
 			// CheckClient handles startup warnings internally, but we still need to suppress
 			// the error if system-probe hasn't started yet.
-			if sysprobeclient.IgnoreStartupError(err) != nil {
-				log.Errorf("failed to get services: %s", err)
+			if sysprobeclient.IgnoreStartupError(err) == nil {
+				err = fmt.Errorf("%w: %w", errServiceDiscoveryRequestStartup, err)
+			} else if isServiceDiscoveryRequestTimeout(err) {
+				err = fmt.Errorf("%w: %w", errServiceDiscoveryRequestTimeout, err)
 			}
-			return mergedResponse, successfulNewPids, successfulHeartbeatPids
+			return mergedResponse, successfulNewPids, successfulHeartbeatPids, fmt.Errorf("failed to get services: %w", err)
 		}
 
 		mergeServiceDiscoveryResponses(mergedResponse, resp)
@@ -485,7 +502,60 @@ func (c *collector) getDiscoveryServicesBatched(ctx context.Context, newPids []i
 		successfulHeartbeatPids = append(successfulHeartbeatPids, batch.heartbeatPids...)
 	}
 
-	return mergedResponse, successfulNewPids, successfulHeartbeatPids
+	return mergedResponse, successfulNewPids, successfulHeartbeatPids, nil
+}
+
+func isServiceDiscoveryRequestTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) && urlErr.URL == systemProbeStartupCheckURL {
+		return false
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
+func (c *collector) serviceDiscoveryDisabledByTimeouts() bool {
+	return c.serviceCollectionMaxConsecutiveTimeouts > 0 &&
+		c.consecutiveServiceDiscoveryTimeouts >= c.serviceCollectionMaxConsecutiveTimeouts
+}
+
+func (c *collector) handleServiceDiscoveryRequestError(err error) {
+	if err == nil {
+		return
+	}
+
+	switch {
+	case errors.Is(err, errServiceDiscoveryRequestStartup):
+		return
+	case errors.Is(err, errServiceDiscoveryRequestTimeout):
+		log.Errorf("%s", err)
+		if c.serviceCollectionMaxConsecutiveTimeouts <= 0 {
+			return
+		}
+		if c.serviceDiscoveryDisabledByTimeouts() {
+			return
+		}
+
+		c.consecutiveServiceDiscoveryTimeouts++
+		if c.serviceDiscoveryDisabledByTimeouts() {
+			log.Warnf(
+				"disabling service discovery after %d consecutive system-probe request timeouts; restart the Agent to re-enable it",
+				c.consecutiveServiceDiscoveryTimeouts,
+			)
+		}
+	default:
+		log.Errorf("%s", err)
+		c.consecutiveServiceDiscoveryTimeouts = 0
+	}
 }
 
 func (c *collector) handleServiceRetries(pid int32) {
@@ -596,12 +666,23 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 
 // updateServices retrieves service discovery data for alive processes and returns workloadmeta entities
 func (c *collector) updateServices(ctx context.Context, alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, core.PidSet) {
+	if c.serviceDiscoveryDisabledByTimeouts() {
+		return nil, nil
+	}
+
 	newPids, heartbeatPids := c.filterPidsToRequest(alivePids, procs)
 	if len(newPids) == 0 && len(heartbeatPids) == 0 {
 		return nil, nil
 	}
 
-	resp, successfulNewPids, successfulHeartbeatPids := c.getDiscoveryServicesBatched(ctx, newPids, heartbeatPids)
+	resp, successfulNewPids, successfulHeartbeatPids, err := c.getDiscoveryServicesBatched(ctx, newPids, heartbeatPids)
+	if err == nil || len(successfulNewPids) > 0 || len(successfulHeartbeatPids) > 0 {
+		c.consecutiveServiceDiscoveryTimeouts = 0
+	}
+	if err != nil {
+		c.handleServiceDiscoveryRequestError(err)
+	}
+
 	if len(successfulNewPids) == 0 && len(successfulHeartbeatPids) == 0 {
 		return nil, nil
 	}

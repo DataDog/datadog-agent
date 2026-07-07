@@ -5,6 +5,11 @@ Prompts for the setting name (dot-separated), type, default value, visibility,
 and description, then inserts the setting into the correct YAML schema file
 under ``pkg/config/schema/yaml/``.
 
+For ``array`` settings it also prompts for the (mandatory) element type. When
+the setting is public it ensures every ancestor section is public and
+described — prompting for any missing section description, as this is mandatory
+— then runs ``dda inv schema.lint`` so any remaining problems are visible.
+
 Run with::
 
     dda inv schema.add-setting
@@ -167,16 +172,25 @@ def _insert(schema, path_parts, setting_node):
     """Insert *setting_node* at *path_parts* within *schema*.
 
     Intermediate path components that do not yet exist are created as new
-    sections.  Properties at each level are kept sorted alphabetically, which
-    matches the convention used throughout the existing schema files.
+    sections.  The new setting is appended after the existing properties at its
+    level; the existing ordering is preserved because the schema files are not
+    sorted alphabetically — they follow a hand-curated order that mirrors the
+    logical grouping of settings, and re-sorting would scramble it.
+
+    Returns the list of ``(dotted_path, section_node)`` ancestor sections that
+    were traversed or created on the way to the leaf, ordered root-first. The
+    caller uses this to enforce that a public setting's ancestor sections are
+    themselves public.
 
     Raises ``Exit`` if:
     - An intermediate component exists but is not a section.
     - The leaf setting already exists.
     """
     current = schema
+    ancestors = []
 
     # Walk to the parent node, creating intermediate sections on demand.
+    walked = []
     for part in path_parts[:-1]:
         props = current.setdefault("properties", {})
         if part not in props:
@@ -199,6 +213,8 @@ def _insert(schema, path_parts, setting_node):
                 f"Path component '{part}' is already a leaf setting, not a section.",
                 code=1,
             )
+        walked.append(part)
+        ancestors.append((".".join(walked), child))
         current = child
 
     leaf = path_parts[-1]
@@ -208,9 +224,63 @@ def _insert(schema, path_parts, setting_node):
             f"Setting '{leaf}' already exists at this path. " "Use `dda inv schema.locate` to inspect it.",
             code=1,
         )
+    # Append the new setting, preserving the existing (hand-curated) order.
     props[leaf] = setting_node
-    # Sort properties alphabetically — matches the schema file convention.
-    current["properties"] = dict(sorted(props.items()))
+    return ancestors
+
+
+# ---------------------------------------------------------------------------
+# Public-visibility propagation to ancestor sections
+# ---------------------------------------------------------------------------
+
+# Canonical key order for a section node — keeps diffs clean when we add
+# visibility/description to an existing or freshly created section.
+_SECTION_KEY_ORDER = ["node_type", "title", "type", "visibility", "description", "tags", "env_vars", "properties"]
+
+
+def _reorder_section(node):
+    """Reorder *node*'s keys in place to the canonical section key order."""
+    ordered = {k: node[k] for k in _SECTION_KEY_ORDER if k in node}
+    for k, v in node.items():
+        if k not in ordered:
+            ordered[k] = v
+    node.clear()
+    node.update(ordered)
+
+
+def _ensure_public_ancestors(ancestors):
+    """Make every ancestor section of a public setting public and described.
+
+    A public setting requires that *all* its ancestor sections are public and
+    carry a non-empty description — this is mandatory and enforced by
+    ``dda inv schema.lint``. For each ancestor that is not yet public or lacks a
+    description, this flips it to public and interactively prompts the user for
+    the (mandatory) description.
+
+    *ancestors* is a list of ``(dotted_path, section_node)`` pairs, root-first.
+    """
+    for anc_path, anc_node in ancestors:
+        needs_public = anc_node.get("visibility") != "public"
+        desc = anc_node.get("description", "")
+        needs_desc = not desc or not str(desc).strip()
+        if not needs_public and not needs_desc:
+            continue
+
+        print(
+            f"\nParent section '{anc_path}' contains a public setting, so it must "
+            f"also be public. This is MANDATORY."
+        )
+        if needs_public:
+            anc_node["visibility"] = "public"
+        if needs_desc:
+            print(f"A non-empty description for section '{anc_path}' is MANDATORY.")
+            while True:
+                section_desc = _ask_multiline(f"Description for section '{anc_path}'")
+                if section_desc:
+                    anc_node["description"] = section_desc
+                    break
+                print("  A non-empty description is required.")
+        _reorder_section(anc_node)
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +293,7 @@ def _insert(schema, path_parts, setting_node):
         "schema": "Which schema to target: 'core' (default) or 'system-probe'.",
     }
 )
-def add_setting(_ctx, schema="core"):
+def add_setting(ctx, schema="core"):
     """
     Interactively add a new setting to the agent configuration schema.
 
@@ -249,9 +319,14 @@ def add_setting(_ctx, schema="core"):
     setting_type = _ask("Type", valid=VALID_TYPES)
 
     # --- Default value ---
+    item_type = None
     if setting_type == "array":
         print("  Default for array type is [] (empty list).")
         default_value = []
+        # An array must declare the type of its elements (mandatory — the schema
+        # linter rejects an array setting without an 'items' field).
+        print("  An array must declare the type of its elements. This is mandatory.")
+        item_type = _ask("Array item type", valid=VALID_TYPES)
     elif setting_type == "object":
         print("  Default for object type is {} (empty mapping).")
         default_value = {}
@@ -285,6 +360,8 @@ def add_setting(_ctx, schema="core"):
         "type": setting_type,
         "default": default_value,
     }
+    if item_type is not None:
+        setting_node["items"] = {"type": item_type}
     if visibility == "public":
         setting_node["visibility"] = "public"
     if description:
@@ -298,16 +375,36 @@ def add_setting(_ctx, schema="core"):
 
     # --- Load, modify, write ---
     loaded = _load(file_path)
-    _insert(loaded, path_within_file, setting_node)
+    ancestors = _insert(loaded, path_within_file, setting_node)
+
+    # A public setting requires all of its ancestor sections to be public and
+    # described. For a split sub-file, the file root itself is the enclosing
+    # section (e.g. 'apm_config') and counts as an ancestor.
+    if visibility == "public":
+        if loaded.get("node_type") == "section":
+            ancestors = [(parts[0], loaded), *ancestors]
+        _ensure_public_ancestors(ancestors)
+
     _dump(loaded, file_path)
 
     # --- Summary ---
     print(f"\nAdded '{setting_name}' to {file_path}")
     print(f"  type:       {setting_type}")
+    if item_type is not None:
+        print(f"  items.type: {item_type}")
     print(f"  default:    {default_value!r}")
     print(f"  visibility: {visibility}")
     if description:
         preview = description[:80].replace("\n", " ")
         ellipsis = "…" if len(description) > 80 else ""
         print(f"  description: {preview}{ellipsis}")
-    print("\nRun `dda inv schema.lint` to validate the updated schema.")
+
+    # --- Lint the updated schema so any problems are visible immediately ---
+    print("\nRunning `dda inv schema.lint` to validate the updated schema...\n")
+    result = ctx.run("dda inv schema.lint", warn=True)
+    if result is None or result.exited != 0:
+        raise Exit(
+            f"\nSchema linting failed for {file_path}. Fix the reported errors "
+            "(see `dda inv schema.lint`) before committing.",
+            code=result.exited if result is not None else 1,
+        )

@@ -82,21 +82,19 @@ func (m *mockSidecarInjectionPattern) MatchCondition() admissionregistrationv1.M
 	return admissionregistrationv1.MatchCondition{Expression: "object.metadata.labels['app'] == 'gateway'"}
 }
 
-func (m *mockSidecarInjectionPattern) ShouldMutatePod(*corev1.Pod) bool {
+func (m *mockSidecarInjectionPattern) IsPodEligible(*corev1.Pod, string) bool {
 	return true
 }
 
-func (m *mockSidecarInjectionPattern) IsNamespaceEligible(string) bool {
-	return true
+func (m *mockSidecarInjectionPattern) MutatePod(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	return appsecconfig.MutationMutated, nil
 }
 
-func (m *mockSidecarInjectionPattern) MutatePod(*corev1.Pod, string, dynamic.Interface) (bool, error) {
-	return true, nil
+func (m *mockSidecarInjectionPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	return appsecconfig.MutationMutated, nil
 }
 
-func (m *mockSidecarInjectionPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (bool, error) {
-	return true, nil
-}
+var _ appsecconfig.SidecarInjectionPattern = (*mockSidecarInjectionPattern)(nil)
 
 func newMockSecurityInjector(_ context.Context, mockClient dynamic.Interface, mockLogger log.Component, mockConfig appsecconfig.Config) *securityInjector {
 	recorder := record.NewFakeRecorder(100)
@@ -422,6 +420,8 @@ func TestGetSidecarPatterns(t *testing.T) {
 			patterns := GetSidecarPatterns()
 			if tt.expectPatterns {
 				require.Len(t, patterns, 1)
+				assert.Contains(t, patterns, proxyType)
+				assert.Equal(t, appsecconfig.InjectionModeSidecar, patterns[proxyType].Mode())
 				return
 			}
 			assert.Empty(t, patterns)
@@ -498,7 +498,8 @@ func TestGetSidecarPatterns_EnvoyGatewayRealSidecarMode(t *testing.T) {
 	sidecarPatterns := GetSidecarPatterns()
 
 	require.Len(t, sidecarPatterns, 1, "Exactly one sidecar pattern expected for EG-only config in sidecar mode")
-	egPattern := sidecarPatterns[0]
+	egPattern := sidecarPatterns[appsecconfig.ProxyTypeEnvoyGateway]
+	require.NotNil(t, egPattern)
 	assert.Equal(t, appsecconfig.InjectionModeSidecar, egPattern.Mode())
 	assert.Equal(t, egOwningGatewayNameCEL, egPattern.MatchCondition().Expression,
 		"EG sidecar MatchCondition must be the owning-gateway-name label check")

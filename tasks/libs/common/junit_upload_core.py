@@ -167,6 +167,14 @@ def split_junitxml(root_dir: Path, xml_path: Path, codeowners, flaky_failures, m
     for suite in tree.iter("testsuite"):
         path = suite.attrib["name"].replace(REPO_NAME_PREFIX, "", 1)
 
+        bazel_cached = None
+        suite_props = suite.find("properties")
+        if suite_props is not None:
+            for prop in suite_props.findall("property"):
+                if prop.get("name") == "bazel.cached":
+                    bazel_cached = prop.get("value")
+                    break
+
         # Dirs in CODEOWNERS might end with "/", but testsuite names in JUnit XML
         # don't, so for determining ownership we append "/" temporarily.
         owners = codeowners.of(path + "/")
@@ -202,6 +210,8 @@ def split_junitxml(root_dir: Path, xml_path: Path, codeowners, flaky_failures, m
                 test_case.attrib["agent_is_marked_flaky"] = "true"
             else:
                 test_case.attrib["agent_is_marked_flaky"] = "false"
+            if bazel_cached:
+                test_case.attrib["bazel_cached"] = bazel_cached
 
         xml.getroot().append(suite)
 
@@ -311,6 +321,8 @@ def set_tags(owner, flavor, flag: str, additional_tags, file_name):
         "test.agent_is_flaky_failure=/testcase/@agent_is_flaky_failure",
         "--xpath-tag",
         "test.agent_is_marked_flaky=/testcase/@agent_is_marked_flaky",
+        "--xpath-tag",
+        "bazel.cached=/testcase/@bazel_cached",
     ]
     if 'e2e' in flag:
         tags.extend(["--tags", "e2e_internal_error:true"])

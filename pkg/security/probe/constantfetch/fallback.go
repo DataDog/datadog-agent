@@ -77,10 +77,13 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSuperblockSType:                 40,
 		OffsetNameVfsmountMntRoot:                 0,
 		OffsetNameDentryDName:                     32,
+		OffsetNameQstrName:                        8,
 		OffsetNameVfsmountMntSb:                   8,
 		OffsetNameSockCommonStructSKCNum:          14,
 		SizeOfPipeBuffer:                          40,
 		OffsetNamePipeBufferStructFlags:           24,
+		OffsetNameModuleName:                      24,
+		OffsetNameKernfsOpenFileFile:              8,
 		OffsetNameRtnlLinkOpsKind:                 16,
 		OffsetNameMntNamespaceNs:                  8,
 		OffsetNameNsCommonInum:                    16,
@@ -89,6 +92,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameIoSocketStructDomain:            8,
 		OffsetNameIoSocketStructType:              12,
 		OffsetNameIoSocketStructProtocol:          16,
+		OffsetNameSocketType:                      4,
 	}
 }
 

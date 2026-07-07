@@ -32,12 +32,12 @@ import (
 // a namespace different from the pod's own. We must not act on this because
 // the DCA service account holds cluster-wide ConfigMap permissions and the pod
 // creator may be a low-privileged tenant.
-var errCrossNamespaceConfigMap = errors.New("--configmap references a namespace different from the pod's namespace; refusing to mutate to avoid confused-deputy ConfigMap writes")
+var errCrossNamespaceConfigMap = &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonCrossNamespaceConfigMap}
 
 // errEmptyConfigMapName signals that the pod's --configmap arg has an empty
 // name after the slash (e.g. "--configmap=foo/"). This is a malformed arg
 // and we refuse to act on it.
-var errEmptyConfigMapName = errors.New("--configmap has empty name after namespace separator")
+var errEmptyConfigMapName = &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonInvalidConfigMapArg}
 
 const (
 	// mutateTimeout bounds ConfigMap operations during pod mutation to prevent
@@ -65,9 +65,7 @@ type nginxSidecarPattern struct {
 	*nginxInjectionPattern
 }
 
-// ShouldMutatePod returns true if the pod is an ingress-nginx controller pod
-// that hasn't already been injected
-func (n *nginxSidecarPattern) ShouldMutatePod(pod *corev1.Pod) bool {
+func (n *nginxSidecarPattern) IsPodEligible(pod *corev1.Pod, _ string) bool {
 	labelsMatch := pod.Labels[labelNameKey] == labelNameValue && pod.Labels[labelComponentKey] == labelComponentValue
 	if !labelsMatch {
 		if !hasIngressNginxControllerClassArg(pod) {
@@ -76,16 +74,6 @@ func (n *nginxSidecarPattern) ShouldMutatePod(pod *corev1.Pod) bool {
 		n.logger.Warnf("Pod %s matched by --controller-class arg but missing standard labels; consider adding %s=%s and %s=%s labels",
 			mutatecommon.PodString(pod), labelNameKey, labelNameValue, labelComponentKey, labelComponentValue)
 	}
-	if hasInitContainer(pod) {
-		n.logger.Debugf("Pod %s already has nginx appsec init container", mutatecommon.PodString(pod))
-		return false
-	}
-	return true
-}
-
-// IsNamespaceEligible returns true for all namespaces since ingress-nginx
-// controller pods can run in any namespace
-func (n *nginxSidecarPattern) IsNamespaceEligible(string) bool {
 	return true
 }
 
@@ -93,21 +81,22 @@ func (n *nginxSidecarPattern) IsNamespaceEligible(string) bool {
 // 1. Adding an init container that copies the .so module
 // 2. Adding an emptyDir volume for module sharing
 // 3. Redirecting the --configmap arg to a DD-owned ConfigMap
-func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynamic.Interface) (bool, error) {
+func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	if hasInitContainer(pod) {
+		return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonAlreadyInitSidecar}
+	}
 	if len(pod.Spec.Containers) == 0 {
-		return false, fmt.Errorf("pod %s has no containers", mutatecommon.PodString(pod))
+		return appsecconfig.MutationError, fmt.Errorf("pod %s has no containers", mutatecommon.PodString(pod))
 	}
 
 	containerIdx, argIdx, cmNamespace, cmName, found, err := findControllerConfigMapArg(pod, ns)
 	if err != nil {
-		// Refusing to mutate on cross-namespace or malformed --configmap args is
-		// a security policy decision, not a failure. Return (false, nil) so the
-		// pod is admitted unmodified (fail-open) without polluting the error
-		// path used by genuine mutation failures. The warning event lands on
-		// the pod itself so the owning namespace operator can see the diagnostic.
-		n.eventRecorder.recordCrossNamespaceConfigMapRefused(pod, err)
-		n.logger.Warnf("nginx AppSec mutation skipped for pod %s: %v", mutatecommon.PodString(pod), err)
-		return false, nil
+		var skipped *appsecconfig.MutationSkippedReason
+		if errors.As(err, &skipped) {
+			n.eventRecorder.recordCrossNamespaceConfigMapRefused(pod, err)
+			return appsecconfig.MutationSkipped, skipped
+		}
+		return appsecconfig.MutationError, fmt.Errorf("nginx appsec: failed to resolve controller configmap arg for pod %s: %w", mutatecommon.PodString(pod), err)
 	}
 	if !found {
 		cmName = "ingress-nginx-controller"
@@ -121,7 +110,7 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 		version, err := parseControllerVersion(container.Image)
 		if err != nil {
 			n.eventRecorder.recordVersionParseFailed(pod.Name, container.Image)
-			return false, fmt.Errorf("failed to parse ingress-nginx version from image %q: %w. Follow the manual extraModules process to enable AppSec", container.Image, err)
+			return appsecconfig.MutationError, fmt.Errorf("failed to parse ingress-nginx version from image %q: %w. Follow the manual extraModules process to enable AppSec", container.Image, err)
 		}
 		initImageRef = initImageRef + ":" + version
 	}
@@ -141,7 +130,7 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 		// IngressClass name is not available during pod mutation; empty name is
 		// acceptable because the event message contains the ConfigMap name.
 		n.eventRecorder.recordConfigMapCreateFailed("", err)
-		return false, fmt.Errorf("failed to create/update DD ConfigMap: %w", err)
+		return appsecconfig.MutationError, fmt.Errorf("failed to create/update DD ConfigMap: %w", err)
 	}
 	// IngressClass name is not available during pod mutation; empty name is
 	// acceptable because the event message contains the ConfigMap name.
@@ -174,12 +163,12 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 
 	n.logger.Infof("Injected nginx-datadog module into pod %s (image %s)", mutatecommon.PodString(pod), initImageRef)
 
-	return true, nil
+	return appsecconfig.MutationMutated, nil
 }
 
-// PodDeleted is a no-op for nginx. Cleanup is handled by Deleted() on IngressClass.
-func (n *nginxSidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (bool, error) {
-	return false, nil
+func (n *nginxSidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	// PodDeleted is a no-op; the returned outcome is only consulted for the DELETE admission error path (the metric is not emitted on delete).
+	return appsecconfig.MutationMutated, nil
 }
 
 // MatchCondition returns a CEL expression for server-side pod filtering.

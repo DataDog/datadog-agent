@@ -12,6 +12,28 @@ locally.
 
 ## How the commands fit together
 
+## `schema.add-setting`
+
+Interactive wizard to add a new setting to the schema. It prompts for the
+setting name (dotted path), type, default, visibility, and description, then
+inserts the node into the correct schema file under `pkg/config/schema/yaml/`
+(routing split sections such as `apm_config` to their sub-file automatically).
+
+```bash
+dda inv schema.add-setting
+```
+
+| Argument | Required | Default | Description |
+| --- | --- | --- | --- |
+| `--schema` | no | `core` | Which schema to target: `core` or `system-probe`. |
+
+The wizard preserves the file's existing ordering, asks for the element type of
+`array` settings, and — for `public` settings — makes every parent section
+public with a description. It runs `schema.lint` at the end so any remaining
+problems are visible.
+
+---
+
 ## `schema.generate`
 
 Generate the enriched schema files for the core Agent and system-probe.

@@ -18,8 +18,6 @@ properties:
     visibility: public
     description: Set to true to enable the Private Action Runner.
     example: 'true'
-    tags:
-    - template_section:PrivateActionRunner
   self_enroll:
     node_type: setting
     type: boolean
@@ -30,16 +28,12 @@ properties:
       Requires an app_key with Actions API Enable and the following permissions:
         - Connection Write
         - Private Action Write
-    tags:
-    - template_section:PrivateActionRunner
   task_concurrency:
     node_type: setting
     type: integer
     default: 5
     visibility: public
     description: Maximum number of actions that can be executed concurrently.
-    tags:
-    - template_section:PrivateActionRunner
   task_timeout_seconds:
     node_type: setting
     type: integer
@@ -47,8 +41,6 @@ properties:
     visibility: public
     description: Maximum time in seconds an action is allowed to run before being
       terminated. Must be > 1.
-    tags:
-    - template_section:PrivateActionRunner
   actions_allowlist:
     node_type: setting
     type: array
@@ -65,8 +57,6 @@ properties:
 
         - com.datadoghq.script.runPredefinedPowershellScript   # on Windows
         - com.datadoghq.script.runPredefinedScript             # on Linux and Darwin
-    tags:
-    - template_section:PrivateActionRunner
   default_actions_enabled:
     node_type: setting
     type: boolean
@@ -76,8 +66,6 @@ properties:
       When true, a set of default actions are automatically
       allowed without needing to be listed in actions_allowlist.
       Set to false to disable these default actions.
-    tags:
-    - template_section:PrivateActionRunner
   http_timeout_seconds:
     node_type: setting
     type: integer
@@ -85,8 +73,6 @@ properties:
     visibility: public
     description: Maximum time in seconds for HTTP actions before timing out. Must
       be > 1.
-    tags:
-    - template_section:PrivateActionRunner
   http_allowlist:
     node_type: setting
     type: array
@@ -97,8 +83,6 @@ properties:
     visibility: public
     description: 'List of allowed domains for HTTP actions. Supports glob pattern.
       Example : ["datadoghq.com", "*.datadoghq.com"]'
-    tags:
-    - template_section:PrivateActionRunner
   http_allow_imds_endpoint:
     node_type: setting
     type: boolean
@@ -106,8 +90,6 @@ properties:
     visibility: public
     description: Allow HTTP actions to reach cloud instance metadata service (IMDS)
       endpoints.
-    tags:
-    - template_section:PrivateActionRunner
   api_key_only_enrollment:
     node_type: setting
     type: boolean

@@ -33,6 +33,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
 	config.BindEnvAndSetDefault("check_sampler_allow_sketch_bucket_reset", true)
+
+	config.BindEnvAndSetDefault("metric_lookback.enabled", false)
+	config.BindEnvAndSetDefault("metric_lookback.enabled_checks", []string{})
+
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
 
@@ -639,9 +643,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
 	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
 	config.BindEnvAndSetDefault("cluster_checks.crd_collection", false)
-	config.BindEnvAndSetDefault("cluster_checks.experimental_stickiness_enabled", false) // Experimental. Subject to change. Biases check placement toward the runner where a check previously ran.
-	config.BindEnvAndSetDefault("cluster_checks.experimental_stickiness_factor", 4.0)    // Experimental. Subject to change. Multiplier applied to workersNeeded when computing the stickiness bias.
-	config.BindEnvAndSetDefault("cluster_checks.experimental_stickiness_limit", 1.0)     // Experimental. Subject to change. Maximum stickiness bias applied regardless of workersNeeded.
+	config.BindEnvAndSetDefault("cluster_checks.stickiness_enabled", true)     // Biases check placement toward the runner where a check previously ran.
+	config.BindEnvAndSetDefault("cluster_checks.stickiness_factor", 4.0)       // Multiplier applied to workersNeeded when computing the stickiness bias.
+	config.BindEnvAndSetDefault("cluster_checks.stickiness_upper_limit", 1.0)  // Maximum stickiness bias applied regardless of workersNeeded.
+	config.BindEnvAndSetDefault("cluster_checks.stickiness_lower_limit", 0.05) // Minimum stickiness bias applied when stickiness is enabled.
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)

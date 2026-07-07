@@ -89,7 +89,7 @@ func newControllerPod(name, namespace, image string) *corev1.Pod {
 	}
 }
 
-func TestShouldMutatePod(t *testing.T) {
+func TestIsPodEligible(t *testing.T) {
 	pattern, _ := newTestNginxSidecarPattern(t)
 
 	tests := []struct {
@@ -98,8 +98,20 @@ func TestShouldMutatePod(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "matching controller pod",
+			name:     "labeled controller pod is eligible",
 			pod:      newControllerPod("test", "ingress-nginx", "registry.k8s.io/ingress-nginx/controller:v1.15.1"),
+			expected: true,
+		},
+		{
+			name: "controller-class arg is eligible without standard labels",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Args: []string{"--controller-class=k8s.io/ingress-nginx"},
+					}},
+				},
+			},
 			expected: true,
 		},
 		{
@@ -126,7 +138,7 @@ func TestShouldMutatePod(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "already injected",
+			name: "already injected controller pod is still eligible",
 			pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -140,12 +152,17 @@ func TestShouldMutatePod(t *testing.T) {
 					},
 				},
 			},
-			expected: false,
+			expected: true,
 		},
 		{
-			name: "no labels",
+			name: "neither labels nor controller-class arg is ineligible",
 			pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Args: []string{"--controller-class=example.com/not-ingress-nginx"},
+					}},
+				},
 			},
 			expected: false,
 		},
@@ -153,7 +170,7 @@ func TestShouldMutatePod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, pattern.ShouldMutatePod(tt.pod))
+			assert.Equal(t, tt.expected, pattern.IsPodEligible(tt.pod, tt.pod.Namespace))
 		})
 	}
 }
@@ -178,9 +195,9 @@ func TestMutatePod(t *testing.T) {
 
 	pod := newControllerPod("test-pod", "ingress-nginx", "registry.k8s.io/ingress-nginx/controller:v1.15.1@sha256:abc123")
 
-	mutated, err := pattern.MutatePod(pod, "ingress-nginx", client)
+	outcome, err := pattern.MutatePod(pod, "ingress-nginx", client)
 	require.NoError(t, err)
-	assert.True(t, mutated)
+	assert.Equal(t, appsecconfig.MutationMutated, outcome)
 
 	// Verify init container was added
 	require.Len(t, pod.Spec.InitContainers, 1)
@@ -598,17 +615,17 @@ func TestMutatePodInitImageResolution(t *testing.T) {
 			require.NoError(t, err)
 
 			pod := newControllerPod("test-pod", "ingress-nginx", tt.controllerImage)
-			mutated, err := pattern.MutatePod(pod, "ingress-nginx", client)
+			outcome, err := pattern.MutatePod(pod, "ingress-nginx", client)
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.ErrorContains(t, err, tt.wantErr)
-				assert.False(t, mutated)
+				assert.Equal(t, appsecconfig.MutationError, outcome)
 				return
 			}
 
 			require.NoError(t, err)
-			assert.True(t, mutated)
+			assert.Equal(t, appsecconfig.MutationMutated, outcome)
 			require.Len(t, pod.Spec.InitContainers, 1)
 			assert.Equal(t, tt.wantInitImage, pod.Spec.InitContainers[0].Image)
 		})
@@ -658,9 +675,11 @@ func TestMutatePod_CrossNamespaceConfigMapRefused(t *testing.T) {
 		"--election-id=ingress-nginx-leader",
 	}
 
-	mutated, err := pattern.MutatePod(pod, "attacker-ns", client)
-	require.NoError(t, err, "MutatePod must not fail admission on cross-ns refs (fail-open)")
-	assert.False(t, mutated, "MutatePod must skip mutation on cross-ns refs")
+	outcome, err := pattern.MutatePod(pod, "attacker-ns", client)
+	assert.Equal(t, appsecconfig.MutationSkipped, outcome, "MutatePod must skip mutation on cross-ns refs")
+	var skip *appsecconfig.MutationSkippedReason
+	require.ErrorAs(t, err, &skip)
+	assert.Equal(t, appsecconfig.SkipReasonCrossNamespaceConfigMap, skip.Reason)
 
 	assert.Empty(t, client.Actions(), "no API operations may occur on rejection")
 
@@ -680,11 +699,37 @@ func TestMutatePod_EmptyConfigMapNameRefused(t *testing.T) {
 		"--configmap=ingress-nginx/",
 	}
 
-	mutated, err := pattern.MutatePod(pod, "ingress-nginx", client)
-	require.NoError(t, err)
-	assert.False(t, mutated)
+	outcome, err := pattern.MutatePod(pod, "ingress-nginx", client)
+	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
+	var skip *appsecconfig.MutationSkippedReason
+	require.ErrorAs(t, err, &skip)
+	assert.Equal(t, appsecconfig.SkipReasonInvalidConfigMapArg, skip.Reason)
 	assert.Empty(t, pod.Spec.InitContainers)
 	assert.Empty(t, pod.Spec.Volumes)
+}
+
+func TestMutatePod_returns_init_container_present_skip_when_already_injected(t *testing.T) {
+	pattern, client := newTestNginxSidecarPattern(t)
+	pod := newControllerPod("test", "ingress-nginx", "registry.k8s.io/ingress-nginx/controller:v1.15.1")
+	pod.Spec.InitContainers = []corev1.Container{{Name: initContainerName}}
+
+	outcome, err := pattern.MutatePod(pod, "ingress-nginx", client)
+
+	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
+	var skip *appsecconfig.MutationSkippedReason
+	require.ErrorAs(t, err, &skip)
+	assert.Equal(t, appsecconfig.SkipReasonAlreadyInitSidecar, skip.Reason)
+	assert.Empty(t, client.Actions(), "no API operations may occur when init container is already present")
+}
+
+func TestPodDeleted_returns_noop_when_nginx_pod_deleted(t *testing.T) {
+	pattern, client := newTestNginxSidecarPattern(t)
+	pod := newControllerPod("test", "ingress-nginx", "registry.k8s.io/ingress-nginx/controller:v1.15.1")
+
+	outcome, err := pattern.PodDeleted(pod, "ingress-nginx", client)
+
+	require.NoError(t, err)
+	assert.Equal(t, appsecconfig.MutationMutated, outcome)
 }
 
 func TestBuildInitContainerRunAsConfig(t *testing.T) {

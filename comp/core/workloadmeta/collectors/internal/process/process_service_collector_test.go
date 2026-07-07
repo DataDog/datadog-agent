@@ -10,9 +10,11 @@ package process
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"sync"
 	"testing"
@@ -280,8 +282,9 @@ func TestServiceDiscoveryBatchingSuccessfulRequestsMergeResponses(t *testing.T) 
 	})
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
-	resp, successfulNewPids, successfulHeartbeatPids := c.collector.getDiscoveryServicesBatched(context.Background(), []int32{101, 102}, nil)
+	resp, successfulNewPids, successfulHeartbeatPids, err := c.collector.getDiscoveryServicesBatched(context.Background(), []int32{101, 102}, nil)
 
+	require.NoError(t, err)
 	require.Equal(t, []int32{101, 102}, successfulNewPids)
 	require.Empty(t, successfulHeartbeatPids)
 	require.NotNil(t, resp)
@@ -315,14 +318,37 @@ func TestServiceDiscoveryBatchingStopsWhenContextCanceled(t *testing.T) {
 	})
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
-	resp, successfulNewPids, successfulHeartbeatPids := c.collector.getDiscoveryServicesBatched(ctx, []int32{101, 102, 103}, nil)
+	resp, successfulNewPids, successfulHeartbeatPids, err := c.collector.getDiscoveryServicesBatched(ctx, []int32{101, 102, 103}, nil)
 
+	require.NoError(t, err)
 	require.Equal(t, []int32{101}, successfulNewPids)
 	require.Empty(t, successfulHeartbeatPids)
 	require.NotNil(t, resp)
 	require.Len(t, resp.Services, 1)
 	assert.Equal(t, 101, resp.Services[0].PID)
 	assert.Equal(t, 1, requests())
+}
+
+func TestServiceDiscoveryBatchingFailureReturnsOperationError(t *testing.T) {
+	sysConfigOverrides := map[string]interface{}{
+		serviceCollectionBatchSizeConfigKey: 0,
+	}
+	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
+
+	socketPath, _ := startScriptedServiceDiscoveryServer(t, func(_ int, _ core.Params) serviceDiscoveryTestResponse {
+		return serviceDiscoveryTestResponse{
+			response: &model.ServicesResponse{},
+			status:   http.StatusInternalServerError,
+		}
+	})
+	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
+
+	_, successfulNewPids, successfulHeartbeatPids, err := c.collector.getDiscoveryServicesBatched(context.Background(), []int32{101}, nil)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to get services")
+	assert.Empty(t, successfulNewPids)
+	assert.Empty(t, successfulHeartbeatPids)
 }
 
 func TestServiceDiscoveryPartialBatchFailurePreservesRetries(t *testing.T) {
@@ -390,6 +416,176 @@ func TestServiceDiscoveryPartialBatchFailurePreservesRetries(t *testing.T) {
 	c.mockClock.Add(3 * time.Minute)
 	nextNewPids, _ := c.collector.filterPidsToRequest(alivePids, procs)
 	assert.Subset(t, nextNewPids, unsuccessfulPids)
+}
+
+func TestServiceDiscoveryConsecutiveTimeoutsDisableRequests(t *testing.T) {
+	const maxConsecutiveTimeouts = 5
+	sysConfigOverrides := map[string]interface{}{
+		serviceCollectionBatchSizeConfigKey:              0,
+		serviceCollectionMaxConsecutiveTimeoutsConfigKey: maxConsecutiveTimeouts,
+	}
+	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
+	c.mockClock.Set(baseTime)
+
+	socketPath, requests := startScriptedServiceDiscoveryServer(t, func(_ int, _ core.Params) serviceDiscoveryTestResponse {
+		time.Sleep(50 * time.Millisecond)
+		return serviceDiscoveryTestResponse{response: &model.ServicesResponse{}}
+	})
+	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(
+		sysprobeclient.WithSocketPath(socketPath),
+		sysprobeclient.WithCheckTimeout(5*time.Millisecond),
+	)
+
+	alivePids, procs := makeAlivePidsAndProcesses([]int32{101})
+	for i := 0; i < maxConsecutiveTimeouts; i++ {
+		entities, injectedPids := c.collector.updateServices(context.Background(), alivePids, procs)
+		require.Empty(t, entities)
+		require.Empty(t, injectedPids)
+	}
+
+	assert.True(t, c.collector.serviceDiscoveryDisabledByTimeouts())
+	assert.Equal(t, maxConsecutiveTimeouts, c.collector.consecutiveServiceDiscoveryTimeouts)
+	assert.Equal(t, maxConsecutiveTimeouts, requests())
+
+	entities, injectedPids := c.collector.updateServices(context.Background(), alivePids, procs)
+	require.Empty(t, entities)
+	require.Empty(t, injectedPids)
+	assert.Equal(t, maxConsecutiveTimeouts, requests(), "disabled service discovery should not send more requests")
+}
+
+func TestServiceDiscoverySuccessfulRequestResetsConsecutiveTimeouts(t *testing.T) {
+	sysConfigOverrides := map[string]interface{}{
+		serviceCollectionMaxConsecutiveTimeoutsConfigKey: 5,
+	}
+	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
+	c.mockClock.Set(baseTime)
+	c.collector.consecutiveServiceDiscoveryTimeouts = 2
+	require.Equal(t, 2, c.collector.consecutiveServiceDiscoveryTimeouts)
+
+	socketPath, _ := startScriptedServiceDiscoveryServer(t, func(_ int, _ core.Params) serviceDiscoveryTestResponse {
+		return serviceDiscoveryTestResponse{response: &model.ServicesResponse{
+			Services: []model.Service{makeModelService(101, "reset-service")},
+		}}
+	})
+	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
+
+	alivePids, procs := makeAlivePidsAndProcesses([]int32{101})
+	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+
+	require.Len(t, entities, 1)
+	assert.Equal(t, int32(101), entities[0].Pid)
+	assert.False(t, c.collector.serviceDiscoveryDisabledByTimeouts())
+	assert.Zero(t, c.collector.consecutiveServiceDiscoveryTimeouts)
+}
+
+func TestServiceDiscoveryNonTimeoutErrorsResetConsecutiveTimeouts(t *testing.T) {
+	sysConfigOverrides := map[string]interface{}{
+		serviceCollectionMaxConsecutiveTimeoutsConfigKey: 5,
+	}
+	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
+	c.collector.consecutiveServiceDiscoveryTimeouts = 2
+	require.Equal(t, 2, c.collector.consecutiveServiceDiscoveryTimeouts)
+
+	c.collector.handleServiceDiscoveryRequestError(assert.AnError)
+
+	assert.False(t, c.collector.serviceDiscoveryDisabledByTimeouts())
+	assert.Zero(t, c.collector.consecutiveServiceDiscoveryTimeouts)
+}
+
+func TestServiceDiscoveryStartupErrorsDoNotCountTowardTimeoutDisable(t *testing.T) {
+	sysConfigOverrides := map[string]interface{}{
+		serviceCollectionMaxConsecutiveTimeoutsConfigKey: 1,
+	}
+	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
+
+	c.collector.handleServiceDiscoveryRequestError(fmt.Errorf("%w: %w", errServiceDiscoveryRequestStartup, sysprobeclient.ErrNotStartedYet))
+
+	assert.False(t, c.collector.serviceDiscoveryDisabledByTimeouts())
+	assert.Zero(t, c.collector.consecutiveServiceDiscoveryTimeouts)
+}
+
+func TestServiceDiscoveryStartupCheckTimeoutIsNotRequestTimeout(t *testing.T) {
+	startupCheckErr := &url.Error{
+		Op:  "Get",
+		URL: systemProbeStartupCheckURL,
+		Err: context.DeadlineExceeded,
+	}
+	serviceDiscoveryErr := &url.Error{
+		Op:  "Post",
+		URL: "http://sysprobe/discovery/services",
+		Err: context.DeadlineExceeded,
+	}
+
+	assert.False(t, isServiceDiscoveryRequestTimeout(startupCheckErr))
+	assert.True(t, isServiceDiscoveryRequestTimeout(serviceDiscoveryErr))
+}
+
+func TestServiceDiscoveryTimeoutGuardDisabledWhenThresholdIsZero(t *testing.T) {
+	sysConfigOverrides := map[string]interface{}{
+		serviceCollectionMaxConsecutiveTimeoutsConfigKey: 0,
+	}
+	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
+
+	for i := 0; i < 10; i++ {
+		c.collector.handleServiceDiscoveryRequestError(fmt.Errorf("%w: %w", errServiceDiscoveryRequestTimeout, context.DeadlineExceeded))
+	}
+
+	assert.False(t, c.collector.serviceDiscoveryDisabledByTimeouts())
+	assert.Zero(t, c.collector.consecutiveServiceDiscoveryTimeouts)
+}
+
+func TestServiceDiscoveryPartialBatchTimeoutPreservesSuccessfulPIDsAndResetsPreviousTimeouts(t *testing.T) {
+	sysConfigOverrides := map[string]interface{}{
+		serviceCollectionBatchSizeConfigKey:              2,
+		serviceCollectionMaxConsecutiveTimeoutsConfigKey: 5,
+	}
+	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
+	c.mockClock.Set(baseTime)
+	c.collector.store = c.mockStore
+	c.collector.consecutiveServiceDiscoveryTimeouts = 4
+
+	var requestMux sync.Mutex
+	var successfulRequestPIDs []int32
+	socketPath, requests := startScriptedServiceDiscoveryServer(t, func(call int, params core.Params) serviceDiscoveryTestResponse {
+		if call == 1 {
+			time.Sleep(50 * time.Millisecond)
+			return serviceDiscoveryTestResponse{response: &model.ServicesResponse{}}
+		}
+
+		requestMux.Lock()
+		successfulRequestPIDs = append([]int32(nil), params.NewPids...)
+		requestMux.Unlock()
+
+		services := make([]model.Service, 0, len(params.NewPids))
+		for _, pid := range params.NewPids {
+			services = append(services, makeModelService(pid, "timeout-batch-"+strconv.Itoa(int(pid))))
+		}
+		return serviceDiscoveryTestResponse{response: &model.ServicesResponse{
+			Services: services,
+		}}
+	})
+	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(
+		sysprobeclient.WithSocketPath(socketPath),
+		sysprobeclient.WithCheckTimeout(5*time.Millisecond),
+	)
+
+	alivePids, procs := makeAlivePidsAndProcesses([]int32{101, 102, 103, 104, 105})
+	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+
+	assert.Equal(t, 2, requests())
+	requestMux.Lock()
+	successfulPidsSlice := append([]int32(nil), successfulRequestPIDs...)
+	requestMux.Unlock()
+	require.Len(t, successfulPidsSlice, 2)
+
+	require.Len(t, entities, len(successfulPidsSlice))
+	entityPids := make([]int32, 0, len(entities))
+	for _, entity := range entities {
+		entityPids = append(entityPids, entity.Pid)
+	}
+	assert.ElementsMatch(t, successfulPidsSlice, entityPids)
+	assert.Equal(t, 1, c.collector.consecutiveServiceDiscoveryTimeouts)
+	assert.False(t, c.collector.serviceDiscoveryDisabledByTimeouts())
 }
 
 func TestServiceDiscoverySuccessfulNoServiceIncrementsRetries(t *testing.T) {

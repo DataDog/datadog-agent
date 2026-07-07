@@ -30,6 +30,7 @@ go_library(
         "//comp/core/telemetry/fx",
         "//comp/core/telemetry/fx-noop",
         "//pkg/config/setup",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/option",
@@ -62,6 +63,7 @@ dd_agent_go_test(
         "logs_test.go",
         "metrics_test.go",
         "profiles_test.go",
+        "promotion_test.go",
         "traces_test.go",
     ],
     data = glob(["testdata/**"]),
@@ -69,6 +71,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/tagger/types",
         "//comp/otelcol/otlp/testutil",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_component//:component",

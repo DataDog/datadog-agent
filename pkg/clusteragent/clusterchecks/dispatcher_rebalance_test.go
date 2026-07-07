@@ -19,6 +19,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -1570,6 +1571,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	//   other tests specific for the configsDistribution struct that test more
 	//   complex scenarios.
 
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -1666,6 +1668,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 // configs are stacked on node1 alongside a lightweight config on node2, the
 // utilization rebalancer moves one heavy config to node2, spreading the load.
 func TestRebalanceUsingUtilization_GroupsAndSpreadsMultiInstanceConfigs(t *testing.T) {
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -1866,6 +1869,7 @@ func TestRebalanceUsingUtilization_PinsChecksWithoutExecutionTime(t *testing.T) 
 // first while both runners still look empty, which anchors it to its current
 // (overloaded) runner.
 func TestRebalanceUsingUtilization_PinnedLoadAccountedBeforeGreedyPlacement(t *testing.T) {
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -2029,23 +2033,23 @@ func TestRebalanceIsWorthIt(t *testing.T) {
 
 	// The proposed solution is worth it if it leaves less unused runners
 
-	currentDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	currentDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	currentDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	currentDistribution.addConfig("check2", "check2", 1, "runner1", false)
 
-	proposedDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	proposedDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	proposedDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	proposedDistribution.addConfig("check2", "check2", 1, "runner2", false)
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 
 	// The proposed	solution is worth it if it has fewer runners with a high utilization
-	currentDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	currentDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	currentDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	currentDistribution.addConfig("check2", "check2", 1, "runner1", false)
 	currentDistribution.addConfig("check3", "check3", 1, "runner1", false)
 
-	proposedDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	proposedDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	proposedDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	proposedDistribution.addConfig("check2", "check2", 1, "runner2", false)
 	proposedDistribution.addConfig("check3", "check3", 1, "runner3", false)

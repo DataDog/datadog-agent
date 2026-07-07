@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    Cluster check stickiness is now enabled by default. The dispatcher biases
+    check placement toward the runner where a check previously ran, reducing
+    unnecessary check migrations. The behavior can be tuned or disabled via the
+    following configuration options:
+
+    - ``cluster_checks.stickiness_enabled`` — enable or disable stickiness (default: ``true``)
+    - ``cluster_checks.stickiness_factor`` — multiplier applied to check cost when computing the bias (default: ``4.0``)
+    - ``cluster_checks.stickiness_upper_limit`` — maximum bias applied regardless of check cost (default: ``1.0``)
+    - ``cluster_checks.stickiness_lower_limit`` — minimum bias applied when stickiness is enabled (default: ``0.05``)
