@@ -3,9 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build netbsd || openbsd || solaris || dragonfly || linux || aix || darwin || freebsd
+
 package defaultpaths
 
 // commonRoot holds the common root path for the application package model.
 // When set, all path getters will return paths relative to this root.
 // This is set automatically from the DD_COMMON_ROOT environment variable during init().
 var commonRoot string
+
+func init() {
+	// Check DD_COMMON_ROOT environment variable early so that config defaults
+	// are correct when BindEnvAndSetDefault is called during config/setup init().
+	if envVal, found := os.LookupEnv("DD_COMMON_ROOT"); found {
+		if envVal == "" {
+			commonRoot = defaultCommonRoot
+		} else {
+			commonRoot = envVal
+		}
+	}
+}

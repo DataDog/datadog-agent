@@ -85,18 +85,6 @@ var (
 	distPath = filepath.Join(_here, "dist")
 )
 
-func init() {
-	// Check DD_COMMON_ROOT environment variable early so that config defaults
-	// are correct when BindEnvAndSetDefault is called during config/setup init().
-	if envVal, found := os.LookupEnv("DD_COMMON_ROOT"); found {
-		if envVal == "" {
-			commonRoot = defaultCommonRoot
-		} else {
-			commonRoot = envVal
-		}
-	}
-}
-
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {
 	return distPath
