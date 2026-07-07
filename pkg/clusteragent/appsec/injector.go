@@ -356,9 +356,9 @@ func instantiatePatterns(config appsecconfig.Config, logger logComp.Component, k
 	return patterns
 }
 
-// GetSidecarPatterns returns all patterns that are in SIDECAR mode
+// GetSidecarPatterns returns all enabled patterns that are in SIDECAR mode, keyed by proxy type.
 // This is used by the admission controller to register the appsec sidecar webhook
-func GetSidecarPatterns() []appsecconfig.SidecarInjectionPattern {
+func GetSidecarPatterns() map[appsecconfig.ProxyType]appsecconfig.SidecarInjectionPattern {
 	if injector == nil {
 		log.Debug("Appsec Injector not initialized, cannot setup sidecar patterns")
 		return nil
@@ -367,14 +367,14 @@ func GetSidecarPatterns() []appsecconfig.SidecarInjectionPattern {
 		return nil
 	}
 
-	var sidecarPatterns []appsecconfig.SidecarInjectionPattern
+	sidecarPatterns := make(map[appsecconfig.ProxyType]appsecconfig.SidecarInjectionPattern)
 
 	// Only return patterns for enabled proxies
 	for proxyType, pattern := range injector.patterns {
 		// Check if pattern is in SIDECAR mode and implements SidecarInjectionPattern
 		if _, enabled := injector.config.Proxies[proxyType]; enabled && pattern.Mode() == appsecconfig.InjectionModeSidecar {
 			if sidecarPattern, ok := pattern.(appsecconfig.SidecarInjectionPattern); ok {
-				sidecarPatterns = append(sidecarPatterns, sidecarPattern)
+				sidecarPatterns[proxyType] = sidecarPattern
 				injector.logger.Debugf("Gathering sidecar pattern for proxy type: %s", proxyType)
 			}
 		}
