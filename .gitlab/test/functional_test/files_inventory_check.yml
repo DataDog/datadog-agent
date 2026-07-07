@@ -10,7 +10,7 @@ files_inventory_check:
   tags: ["arch:amd64", "specific:true"]
   variables:
     GIT_DEPTH: 0
-    OVERRIDE_GIT_STRATEGY: clone
+    GIT_STRATEGY: clone
   needs:
     - agent_deb-x64-a7
   before_script:

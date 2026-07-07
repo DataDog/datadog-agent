@@ -264,7 +264,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		go reflector.Run(ctx.Done())
 	}
 
-	if shouldHaveKueueQueueStores(c.config) {
+	if shouldHaveKueueMetadata(c.config) {
 		gvrs, err := getGVRsForRequestedResources(client.Discovery(), kueueQueueGVRStrings())
 		if err != nil {
 			log.Errorf("failed to discover Kueue queue resources: %v", err)
@@ -278,6 +278,21 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 				reflector, store, err := newKueueQueueStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
 				if err != nil {
 					log.Errorf("failed to create Kueue queue store for %s: %v", gvr.Resource, err)
+					continue
+				}
+				objectStores = append(objectStores, store)
+				go reflector.Run(ctx.Done())
+			}
+		}
+
+		gvrs, err = getGVRsForRequestedResources(client.Discovery(), kueueResourceFlavorGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover Kueue ResourceFlavor resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				reflector, store, err := newKueueResourceFlavorStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				if err != nil {
+					log.Errorf("failed to create Kueue ResourceFlavor store for %s: %v", gvr.Resource, err)
 					continue
 				}
 				objectStores = append(objectStores, store)
