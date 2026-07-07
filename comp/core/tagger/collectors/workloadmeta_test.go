@@ -2387,6 +2387,258 @@ func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
 	})
 }
 
+// TestKueueWorkloadUpdatePropagatesTagsToPod verifies that when a
+// KubernetesKueueWorkload entity changes, handleKubeKueueWorkload pushes fresh
+// kueueWorkloadSource tags to every pod registered in the reverse index —
+// without stream.go needing to manufacture synthetic pod events.
+func TestKueueWorkloadUpdatePropagatesTagsToPod(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "pod",
+			Namespace: "default",
+			Annotations: map[string]string{
+				kubernetes.KueueWorkloadAnnotationKey: "job-sample",
+			},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "app"}},
+	}
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+	})
+	store.Set(&workloadmeta.KubernetesKueueWorkload{
+		EntityID:         workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "default/job-sample"},
+		EntityMeta:       workloadmeta.EntityMeta{Name: "job-sample", Namespace: "default"},
+		QueueName:        "local-queue",
+		ClusterQueueName: "cluster-queue-v1",
+	})
+	store.Set(pod)
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	// Process the pod first — this registers it in the reverse index.
+	collector.handleKubePod(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod, IsComplete: true})
+
+	// Now the workload is updated (cluster queue renamed). Update the store and
+	// call the workload handler to simulate a workloadmeta entity event.
+	updatedWorkload := &workloadmeta.KubernetesKueueWorkload{
+		EntityID:         workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "default/job-sample"},
+		EntityMeta:       workloadmeta.EntityMeta{Name: "job-sample", Namespace: "default"},
+		QueueName:        "local-queue",
+		ClusterQueueName: "cluster-queue-v2",
+	}
+	store.Set(updatedWorkload)
+
+	propagated := collector.handleKubeKueueWorkload(workloadmeta.Event{
+		Type:       workloadmeta.EventTypeSet,
+		Entity:     updatedWorkload,
+		IsComplete: true,
+	})
+
+	podTaggerID := types.NewEntityID(types.KubernetesPodUID, podUID)
+	containerTaggerID := types.NewEntityID(types.ContainerID, containerID)
+
+	// Expect: workload entity tags + pod kueueWorkloadSource + container kueueWorkloadSource.
+	require.Len(t, propagated, 3)
+
+	var podTagInfo, containerTagInfo *types.TagInfo
+	for _, ti := range propagated {
+		switch ti.EntityID {
+		case podTaggerID:
+			podTagInfo = ti
+		case containerTaggerID:
+			containerTagInfo = ti
+		}
+	}
+
+	require.NotNil(t, podTagInfo, "pod kueueWorkloadSource tag info not found")
+	assert.Equal(t, kueueWorkloadSource, podTagInfo.Source)
+	assert.Contains(t, podTagInfo.LowCardTags, "kueue_cluster_queue:cluster-queue-v2")
+	assert.NotContains(t, podTagInfo.LowCardTags, "kueue_cluster_queue:cluster-queue-v1")
+
+	require.NotNil(t, containerTagInfo, "container kueueWorkloadSource tag info not found")
+	assert.Equal(t, kueueWorkloadSource, containerTagInfo.Source)
+	assert.Contains(t, containerTagInfo.LowCardTags, "kueue_cluster_queue:cluster-queue-v2")
+	assert.NotContains(t, containerTagInfo.LowCardTags, "kueue_cluster_queue:cluster-queue-v1")
+}
+
+// TestKueueWorkloadArrivalPushesTagsToPodRegisteredEarlier verifies the race
+// where a pod is processed before its Kueue Workload entity is available. The
+// pod should be registered in the reverse index during handleKubePod (with
+// label-based fallback tags), and then receive full tags the moment
+// handleKubeKueueWorkload fires for the arriving workload entity.
+func TestKueueWorkloadArrivalPushesTagsToPodRegisteredEarlier(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "pod",
+			Namespace: "default",
+			Labels: map[string]string{
+				kubernetes.KueueLocalQueueNameLabelKey: "local-queue",
+			},
+			Annotations: map[string]string{
+				kubernetes.KueueWorkloadAnnotationKey: "job-sample",
+			},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "app"}},
+	}
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+	})
+	// Workload entity is NOT in the store yet when the pod is processed.
+	store.Set(pod)
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	podResult := collector.handleKubePod(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod, IsComplete: true})
+
+	// Pod should have fallback kueueWorkloadSource tags (queue name from labels only).
+	podKueueTagInfo := findTagInfo(podResult, types.NewEntityID(types.KubernetesPodUID, podUID), kueueWorkloadSource)
+	require.NotNil(t, podKueueTagInfo, "pod kueueWorkloadSource tag info not found after handleKubePod")
+	assert.Contains(t, podKueueTagInfo.LowCardTags, "kueue_local_queue:local-queue")
+	assert.NotContains(t, podKueueTagInfo.OrchestratorCardTags, "kueue_workload:job-sample")
+
+	// Now the workload entity arrives. Add it to the store and fire the handler.
+	workload := &workloadmeta.KubernetesKueueWorkload{
+		EntityID:         workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "default/job-sample"},
+		EntityMeta:       workloadmeta.EntityMeta{Name: "job-sample", Namespace: "default", UID: "workload-uid"},
+		QueueName:        "local-queue",
+		ClusterQueueName: "cluster-queue",
+	}
+	store.Set(workload)
+
+	propagated := collector.handleKubeKueueWorkload(workloadmeta.Event{
+		Type:       workloadmeta.EventTypeSet,
+		Entity:     workload,
+		IsComplete: true,
+	})
+
+	podTaggerID := types.NewEntityID(types.KubernetesPodUID, podUID)
+	containerTaggerID := types.NewEntityID(types.ContainerID, containerID)
+
+	// Workload handler should push full tags to the pod and its container.
+	propagatedPod := findTagInfo(propagated, podTaggerID, kueueWorkloadSource)
+	require.NotNil(t, propagatedPod, "pod kueueWorkloadSource tag info not found after workload arrival")
+	assert.Contains(t, propagatedPod.LowCardTags, "kueue_cluster_queue:cluster-queue")
+	assert.Contains(t, propagatedPod.OrchestratorCardTags, "kueue_workload:job-sample")
+
+	propagatedContainer := findTagInfo(propagated, containerTaggerID, kueueWorkloadSource)
+	require.NotNil(t, propagatedContainer, "container kueueWorkloadSource tag info not found after workload arrival")
+	assert.Contains(t, propagatedContainer.LowCardTags, "kueue_cluster_queue:cluster-queue")
+	assert.Contains(t, propagatedContainer.OrchestratorCardTags, "kueue_workload:job-sample")
+}
+
+// TestKueueWorkloadDeletionClearsPodKueueSource verifies that deleting a Kueue
+// Workload entity immediately clears kueueWorkloadSource tags from all
+// registered pods and their containers. This is symmetric with the registration
+// path: the reverse index is cleaned up and DeleteEntity TagInfos are emitted.
+func TestKueueWorkloadDeletionClearsPodKueueSource(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	workload := &workloadmeta.KubernetesKueueWorkload{
+		EntityID:         workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "default/job-sample"},
+		EntityMeta:       workloadmeta.EntityMeta{Name: "job-sample", Namespace: "default"},
+		QueueName:        "local-queue",
+		ClusterQueueName: "cluster-queue",
+	}
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: podUID},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "pod",
+			Namespace: "default",
+			Annotations: map[string]string{
+				kubernetes.KueueWorkloadAnnotationKey: "job-sample",
+			},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "app"}},
+	}
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+	})
+	store.Set(workload)
+	store.Set(pod)
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	// Register the pod under the workload.
+	collector.handleKubePod(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod, IsComplete: true})
+
+	// Delete the workload entity.
+	deleted := collector.handleDelete(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeUnset,
+		Entity: workload,
+	})
+
+	podTaggerID := types.NewEntityID(types.KubernetesPodUID, podUID)
+	containerTaggerID := types.NewEntityID(types.ContainerID, containerID)
+
+	// Must include DeleteEntity for the workload itself, the pod, and the container —
+	// all under kueueWorkloadSource.
+	workloadDeleteTagInfo := findTagInfo(deleted, types.NewEntityID(types.KueueWorkload, "default/job-sample"), kueueWorkloadSource)
+	require.NotNil(t, workloadDeleteTagInfo)
+	assert.True(t, workloadDeleteTagInfo.DeleteEntity)
+
+	podDeleteTagInfo := findTagInfo(deleted, podTaggerID, kueueWorkloadSource)
+	require.NotNil(t, podDeleteTagInfo, "pod kueueWorkloadSource DeleteEntity not found")
+	assert.True(t, podDeleteTagInfo.DeleteEntity)
+
+	containerDeleteTagInfo := findTagInfo(deleted, containerTaggerID, kueueWorkloadSource)
+	require.NotNil(t, containerDeleteTagInfo, "container kueueWorkloadSource DeleteEntity not found")
+	assert.True(t, containerDeleteTagInfo.DeleteEntity)
+
+	// Reverse index must be cleaned up.
+	assert.Empty(t, collector.workloadPods)
+	assert.Empty(t, collector.podWorkload)
+}
+
+// findTagInfo returns the first TagInfo in infos whose EntityID and Source both
+// match, or nil if none is found.
+func findTagInfo(infos []*types.TagInfo, entityID types.EntityID, source string) *types.TagInfo {
+	for _, ti := range infos {
+		if ti.EntityID == entityID && ti.Source == source {
+			return ti
+		}
+	}
+	return nil
+}
+
 func TestHandleKubeCRD(t *testing.T) {
 	const (
 		crdNamespace = "datadog"
