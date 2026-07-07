@@ -156,6 +156,7 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 
 		current := p.activeByPath[path]
+		// RC sends snapshots; keep no-op updates from emitting unschedule/schedule churn before downstream dedupe.
 		if sameConfigs(current, configs) {
 			continue
 		}
