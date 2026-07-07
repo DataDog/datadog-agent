@@ -20,7 +20,10 @@ go_library(
 
 go_test(
     name = "observability_test",
-    srcs = ["tagged_client_test.go"],
+    srcs = [
+        "metrics_test.go",
+        "tagged_client_test.go",
+    ],
     embed = [":observability"],
     gotags = ["test"],
     deps = [
