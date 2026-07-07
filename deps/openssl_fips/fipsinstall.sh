@@ -21,8 +21,9 @@ OPENSSL_CONF_PATH="${INSTALL_DIR}/ssl/openssl.cnf"
 FIPS_SO_PATH="${INSTALL_DIR}/lib/ossl-modules/fips.so"
 OPENSSL_BIN="${INSTALL_DIR}/bin/openssl"
 
-# Regenerate fipsmodule.cnf (remove stale copy if present).
-rm -f "${FIPS_MODULE_PATH}"
+if [ -f "${FIPS_MODULE_PATH}" ]; then
+    rm "${FIPS_MODULE_PATH}"
+fi
 "${OPENSSL_BIN}" fipsinstall -module "${FIPS_SO_PATH}" -out "${FIPS_MODULE_PATH}"
 
 # Activate openssl.cnf and fix its .include to the physical fipsmodule.cnf path.
