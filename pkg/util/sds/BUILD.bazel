@@ -18,7 +18,9 @@ go_library(
 go_test(
     name = "sds_test",
     srcs = ["sds_test.go"],  # keep
+    embed = [":sds"],
     gotags = ["sds"],  # keep
+    deps = ["@com_github_stretchr_testify//require"],
 )
 
 # Built without the `sds` tag: no-op scanner path.
