@@ -7,6 +7,10 @@
 
 package defaultpaths
 
+import (
+	"os"
+)
+
 // commonRoot holds the common root path for the application package model.
 // When set, all path getters will return paths relative to this root.
 // This is set automatically from the DD_COMMON_ROOT environment variable during init().
