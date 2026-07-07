@@ -220,8 +220,6 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 			CallInterval:       snmpCallInterval,
 			MaxCallCount:       maxSnmpCallCount,
 			BulkMaxRepetitions: uint32(m.agentConfig.GetInt("network_devices.default_scan.bulk_max_repetitions")),
-			FlushEveryNOIDs:    m.agentConfig.GetInt("network_devices.default_scan.flush_every_n_oids"),
-			FlushInterval:      m.agentConfig.GetDuration("network_devices.default_scan.flush_interval"),
 		})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
