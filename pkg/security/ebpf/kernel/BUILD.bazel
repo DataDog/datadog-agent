@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# gazelle:dd_linux_bpf off
+
 go_library(
     name = "kernel",
     srcs = [
