@@ -45,11 +45,75 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 	}
 }
 
-// ConvertFlowWithAdditionalFields convert goflow flow structure and additional fields to internal flow structure
-func ConvertFlowWithAdditionalFields(srcFlow *common.FlowMessageWithAdditionalFields, namespace string) *common.Flow {
+// Used to map biflow byte/packet counts through additionalFields
+const (
+	biflowInitiatorOctets  = "datadog.initiator_octets"
+	biflowResponderOctets  = "datadog.responder_octets"
+	biflowInitiatorPackets = "datadog.initiator_packets"
+	biflowResponderPackets = "datadog.responder_packets"
+)
+
+// ConvertFlowWithAdditionalFields converts a flow with additional fields to internal flow structure(s).
+// When enableBiflowParsing is true and biflow sentinels are present, a reverse flow is also returned.
+func ConvertFlowWithAdditionalFields(srcFlow *common.FlowMessageWithAdditionalFields, namespace string, enableBiflowParsing bool) (*common.Flow, *common.Flow) {
 	flow := ConvertFlow(srcFlow.FlowMessage, namespace)
 	applyAdditionalFields(flow, srcFlow.AdditionalFields)
-	return flow
+	if enableBiflowParsing {
+		return splitBiflow(flow)
+	}
+	return flow, nil
+}
+
+// splitBiflow detects bidirectional flow records and splits them into two unidirectional flows.
+func splitBiflow(flow *common.Flow) (*common.Flow, *common.Flow) {
+	if flow.AdditionalFields == nil {
+		return flow, nil
+	}
+	initOctets, hasInitOctets := flow.AdditionalFields[biflowInitiatorOctets].(uint64)
+	initPkts, _ := flow.AdditionalFields[biflowInitiatorPackets].(uint64)
+	respOctets, hasRespOctets := flow.AdditionalFields[biflowResponderOctets].(uint64)
+	respPkts, _ := flow.AdditionalFields[biflowResponderPackets].(uint64)
+
+	delete(flow.AdditionalFields, biflowInitiatorOctets)
+	delete(flow.AdditionalFields, biflowInitiatorPackets)
+	delete(flow.AdditionalFields, biflowResponderOctets)
+	delete(flow.AdditionalFields, biflowResponderPackets)
+
+	var revBytes, revPkts uint64
+	hasRev := false
+
+	if hasInitOctets {
+		flow.Bytes = initOctets
+		flow.Packets = initPkts
+		if hasRespOctets && (respOctets > 0 || respPkts > 0) {
+			revBytes, revPkts, hasRev = respOctets, respPkts, true
+		}
+	}
+
+	if !hasRev {
+		return flow, nil
+	}
+
+	// copy flow and swap src/dst for reverse direction
+	rev := *flow
+	rev.SrcAddr = append([]byte(nil), flow.DstAddr...)
+	rev.DstAddr = append([]byte(nil), flow.SrcAddr...)
+	rev.SrcPort, rev.DstPort = flow.DstPort, flow.SrcPort
+	rev.SrcMac, rev.DstMac = flow.DstMac, flow.SrcMac
+	rev.SrcMask, rev.DstMask = flow.DstMask, flow.SrcMask
+	rev.SrcReverseDNSHostname = flow.DstReverseDNSHostname
+	rev.DstReverseDNSHostname = flow.SrcReverseDNSHostname
+	rev.InputInterface, rev.OutputInterface = flow.OutputInterface, flow.InputInterface
+	rev.Bytes, rev.Packets = revBytes, revPkts
+	rev.Direction = 1 // egress
+
+	if flow.AdditionalFields != nil {
+		rev.AdditionalFields = make(common.AdditionalFields, len(flow.AdditionalFields))
+		for k, v := range flow.AdditionalFields {
+			rev.AdditionalFields[k] = v
+		}
+	}
+	return flow, &rev
 }
 
 func convertFlowType(flowType flowpb.FlowMessage_FlowType) common.FlowType {

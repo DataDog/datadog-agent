@@ -53,7 +53,7 @@ properties:
             default: 5
           ttl_seconds:
             node_type: setting
-            type: number
+            type: string
             default: 30s
             format: duration
             tags:
@@ -72,30 +72,32 @@ properties:
         default: ''
       max_backoff_interval:
         node_type: setting
-        type: number
+        type: string
         default: 5m0s
         format: duration
         tags:
         - golang_type:duration
       max_backoff_time:
         node_type: setting
-        type: number
+        type: string
         default: 0s
         format: duration
         tags:
         - golang_type:duration
       org_status_refresh_interval:
         node_type: setting
-        type: number
+        type: string
         default: 1m0s
         format: duration
         tags:
         - golang_type:duration
       refresh_interval:
         node_type: setting
+        type: string
+        default: 0s
+        format: duration
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        - golang_type:duration
   site:
     node_type: setting
     type: string

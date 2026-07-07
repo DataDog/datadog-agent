@@ -67,6 +67,14 @@ properties:
           Must be under host_socket_path.
         tags:
         - template_section:Common
+  collection_interval_override:
+    node_type: setting
+    type: integer
+    default: 0
+    comment: |-
+      gpu.collection_interval_override (seconds) overrides the gpu check scheduling
+      cadence when > 0, taking precedence over the instance's min_collection_interval.
+      Binds DD_GPU_COLLECTION_INTERVAL_OVERRIDE.
   disabled_collectors:
     node_type: setting
     type: array
@@ -77,13 +85,25 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  nvlink:
+    node_type: section
+    type: object
+    properties:
+      fec_light_error_threshold:
+        node_type: setting
+        type: integer
+        default: 3
   nvml_lib_path:
     node_type: setting
     type: string
     default: ''
+  parallel_collectors:
+    node_type: setting
+    type: boolean
+    default: true
   sp_process_metrics_request_timeout:
     node_type: setting
-    type: number
+    type: string
     default: 3s
     format: duration
     tags:

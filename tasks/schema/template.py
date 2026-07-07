@@ -65,12 +65,6 @@ def _env_type_for_json(node):
     return "JSON object"
 
 
-# Settings declared with BindEnv() don't have a type or a default but some are still listed in the config example.
-# Until the team migrates to BindEnvAndSetDefault we use the following list pulled from the config template.
-type_exception = {
-    "logs_config.processing_rules": ("list of custom objects", "list of custom objects", []),
-}
-
 build_type_to_section = {
     "agent-py3": [
         "Common",
@@ -147,7 +141,7 @@ def _is_node_section(node):
 
 
 def _should_render(build_type, node):
-    for t in node["tags"]:
+    for t in node.get("tags", []):
         if t.startswith("template_section:"):
             section = t.split(":")[1]
             return section in build_type_to_section[build_type]
@@ -213,9 +207,6 @@ def _get_node_types_and_default(full_name, node, os_target):
     default = _get_default_from_node(node, os_target)
 
     node_type = node.get("type")
-    if node_type is None:
-        return type_exception[full_name]
-
     for tag in node.get("tags", []):
         if tag.startswith("golang_type:"):
             node_type = tag.split(":")[1]

@@ -159,7 +159,7 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}
 				}),
-				fxutil.ProvideComponentConstructor(NewCheck),
+				fxutil.ProvideComponentConstructor(NewComponent),
 			))
 
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
