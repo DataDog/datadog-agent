@@ -48,7 +48,6 @@ jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "fleet-remediation"
 github_labels = ["team/fleet-remediation"]
-exclude_members = ["iglendd", "kunalkxxxxxxxxr", "mwdd146980"]
 
 [teams."Agent Developer Experience"]
 jira_project = "ACIX"
