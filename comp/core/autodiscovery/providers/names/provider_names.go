@@ -69,6 +69,12 @@ const (
 	InstrumentationChecks = "instrumentation-checks"
 	// NetworkPathRemoteConfig schedules Network Path checks from Remote Configuration.
 	NetworkPathRemoteConfig = "network-path-remote-config"
+	// ADContainerDiscovery is the source prefix for configuration discovery file templates resolved
+	// against non-process services (containers, k8s pods, etc.).
+	ADContainerDiscovery = "ad-container-discovery+file"
+	// ADProcessDiscovery is the source prefix for configuration discovery file templates resolved
+	// against process services.
+	ADProcessDiscovery = "ad-process-discovery+file"
 )
 
 // Internal Autodiscovery names for the config providers
