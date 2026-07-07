@@ -40,14 +40,8 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  # Build the FIPS flavor of the installer when AGENT_FLAVOR=fips, mirroring
-  # datadog-agent.rb. Without this the standalone datadog-installer package ships
-  # a non-FIPS binary, so its BuiltForFIPS() is false and it would download the
-  # non-FIPS package variant even in a FIPS deployment.
   fips_args = fips_mode? ? "--fips-mode" : ""
   if fips_mode?
-    # FIPS requires the Microsoft Go toolchain; the build tags are silently
-    # ignored by the default compiler.
     add_msgo_to_env(env)
   end
 
@@ -59,12 +53,10 @@ build do
     copy 'bin/installer', "#{install_dir}/bin/"
 
     if fips_mode?
-      # Prove the FIPS build tags took effect (OpenSSL is linked), as the build
-      # succeeding is not a sufficient guarantee. See lib/fips.rb.
+      # Verify FIPS build tags took effect (build succeeding is not sufficient). See lib/fips.rb.
       block do
         fips_check_binary_for_expected_symbol(File.join(install_dir, "bin", "installer", "installer"))
       end
-
     end
 
     # Build both packages and dump them where gitlab will upload them.

@@ -24,4 +24,3 @@ func Status() string {
 func Enabled() (bool, error) {
 	return fips140.Enabled(), nil
 }
-
