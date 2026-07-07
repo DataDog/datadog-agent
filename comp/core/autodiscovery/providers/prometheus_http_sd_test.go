@@ -22,8 +22,9 @@ import (
 )
 
 type entrySpec struct {
-	url      string
-	template string
+	url           string
+	template      string
+	excludeFilter string
 }
 
 func makeTestProvider(t *testing.T, serverURL string, checkTemplate string) *PrometheusHTTPSDConfigProvider {
@@ -38,10 +39,13 @@ func makeTestProviderWithEntries(t *testing.T, specs []entrySpec) *PrometheusHTT
 	for i, s := range specs {
 		var tmpl httpSDCheckTemplate
 		require.NoError(t, json.Unmarshal([]byte(s.template), &tmpl))
+		filterProg, err := compileExcludeFilter(s.excludeFilter)
+		require.NoError(t, err)
 		entries[i] = &httpSDEntry{
 			url:           s.url,
 			client:        http.DefaultClient,
 			checkTemplate: tmpl,
+			filterProgram: filterProg,
 		}
 	}
 
@@ -474,4 +478,165 @@ func TestCollectCustomCheckTemplate(t *testing.T) {
 	var initConfig map[string]interface{}
 	require.NoError(t, yaml.Unmarshal(configs[0].InitConfig, &initConfig))
 	assert.Equal(t, true, initConfig["dbm"])
+}
+
+func TestExcludeFilterByLabel(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]httpSDTargetGroup{
+			{
+				Targets: []string{"host1:9100"},
+				Labels:  map[string]string{"__meta_service_type": "ray_worker"},
+			},
+			{
+				Targets: []string{"host2:9100"},
+				Labels:  map[string]string{"__meta_service_type": "api"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	provider := makeTestProviderWithEntries(t, []entrySpec{{
+		url:           server.URL,
+		template:      defaultCheckTemplate(),
+		excludeFilter: `target.labels["__meta_service_type"].startsWith("ray")`,
+	}})
+
+	configs, err := provider.Collect(context.Background())
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	var instance map[string]interface{}
+	require.NoError(t, yaml.Unmarshal(configs[0].Instances[0], &instance))
+	assert.Equal(t, "http://host2:9100/metrics", instance["openmetrics_endpoint"])
+}
+
+func TestExcludeFilterCompoundExpression(t *testing.T) {
+	// Exclude targets that match ALL of: specific host, specific port, AND a label value.
+	// Only "10.0.0.2:9100" with service_type "worker" should be excluded; the
+	// other targets fail at least one condition so they are kept.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]httpSDTargetGroup{
+			{
+				Targets: []string{"10.0.0.1:9100", "10.0.0.2:9100", "10.0.0.3:9200"},
+				Labels:  map[string]string{"__meta_service_type": "worker"},
+			},
+			{
+				Targets: []string{"10.0.0.4:9100"},
+				Labels:  map[string]string{"__meta_service_type": "api"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	provider := makeTestProviderWithEntries(t, []entrySpec{{
+		url:      server.URL,
+		template: defaultCheckTemplate(),
+		excludeFilter: `target.host == "10.0.0.2" &&
+			target.port == "9100" &&
+			target.labels["__meta_service_type"] == "worker"`,
+	}})
+
+	configs, err := provider.Collect(context.Background())
+	require.NoError(t, err)
+	require.Len(t, configs, 3)
+
+	endpoints := make([]string, 0, 3)
+	for _, cfg := range configs {
+		var inst map[string]interface{}
+		require.NoError(t, yaml.Unmarshal(cfg.Instances[0], &inst))
+		endpoints = append(endpoints, inst["openmetrics_endpoint"].(string))
+	}
+	assert.Contains(t, endpoints, "http://10.0.0.1:9100/metrics")    // same port, wrong host
+	assert.Contains(t, endpoints, "http://10.0.0.3:9200/metrics")    // right host, wrong port
+	assert.Contains(t, endpoints, "http://10.0.0.4:9100/metrics")    // right host+port, wrong label
+	assert.NotContains(t, endpoints, "http://10.0.0.2:9100/metrics") // all three match → excluded
+}
+
+func TestExcludeFilterNoMatch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]httpSDTargetGroup{
+			{
+				Targets: []string{"host1:9090", "host2:9090"},
+				Labels:  map[string]string{"__meta_service_type": "api"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	provider := makeTestProviderWithEntries(t, []entrySpec{{
+		url:           server.URL,
+		template:      defaultCheckTemplate(),
+		excludeFilter: `target.labels["__meta_service_type"].startsWith("ray")`,
+	}})
+
+	configs, err := provider.Collect(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, configs, 2)
+}
+
+func TestExcludeFilterEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]httpSDTargetGroup{
+			{Targets: []string{"host1:9090", "host2:9090"}},
+		})
+	}))
+	defer server.Close()
+
+	provider := makeTestProviderWithEntries(t, []entrySpec{{
+		url:      server.URL,
+		template: defaultCheckTemplate(),
+		// no excludeFilter — all targets collected
+	}})
+
+	configs, err := provider.Collect(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, configs, 2)
+}
+
+func TestExcludeFilterInvalidExpression(t *testing.T) {
+	_, err := compileExcludeFilter(`target.labels["__meta_service_type" + + +`)
+	assert.Error(t, err)
+}
+
+func TestExcludeFilterNonBoolExpression(t *testing.T) {
+	prog, err := compileExcludeFilter(`target.host`)
+	require.NoError(t, err)
+
+	entry := &httpSDEntry{filterProgram: prog}
+	_, filterErr := entry.isExcluded("myhost", "9090", nil)
+	assert.Error(t, filterErr)
+	assert.Contains(t, filterErr.Error(), "bool")
+}
+
+func TestCompileExcludeFilterEmpty(t *testing.T) {
+	prog, err := compileExcludeFilter("")
+	require.NoError(t, err)
+	assert.Nil(t, prog)
+}
+
+func TestIsExcludedNilProgram(t *testing.T) {
+	entry := &httpSDEntry{filterProgram: nil}
+	excluded, err := entry.isExcluded("host", "9090", map[string]string{"k": "v"})
+	require.NoError(t, err)
+	assert.False(t, excluded)
+}
+
+func TestExcludeFilterUnknownFieldCompilesError(t *testing.T) {
+	// With NativeTypes, referencing a non-existent field is caught at compile time.
+	_, err := compileExcludeFilter(`target.nonexistent == "value"`)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "nonexistent")
+}
+
+func TestBuildEntriesInvalidExcludeFilter(t *testing.T) {
+	_, err := buildEntries(
+		[]httpSDConfigEntry{{
+			URL:           "http://x/sd",
+			CheckTemplate: defaultCheckTemplate(),
+			ExcludeFilter: `!!!invalid cel`,
+		}},
+		http.DefaultClient,
+	)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "exclude_filter")
 }
