@@ -44,6 +44,8 @@ bazel:test:linux-arm64:
 
 bazel:test:macos-amd64:
   extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:macos-amd64 ]
+  rules:
+    - !reference [.on_mergequeue_mandatory_manual_on_dev_branches]
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
@@ -54,6 +56,8 @@ bazel:test:macos-amd64:
 
 bazel:test:macos-arm64:
   extends: [ .bazel:test, .bazel:test:reporting, .bazel:runner:macos-arm64 ]
+  rules:
+    - !reference [.on_mergequeue_mandatory_manual_on_dev_branches]
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
@@ -134,21 +138,29 @@ bazel:test:linux-arm64:iot:
 
 bazel:test:macos-amd64:base:
   extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-amd64 ]
+  rules:
+    - !reference [.on_mergequeue_mandatory_manual_on_dev_branches]
   variables:
     FLAVOR: base
 
 bazel:test:macos-amd64:dogstatsd:
   extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-amd64 ]
+  rules:
+    - !reference [.on_mergequeue_mandatory_manual_on_dev_branches]
   variables:
     FLAVOR: dogstatsd
 
 bazel:test:macos-arm64:base:
   extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-arm64 ]
+  rules:
+    - !reference [.on_mergequeue_mandatory_manual_on_dev_branches]
   variables:
     FLAVOR: base
 
 bazel:test:macos-arm64:dogstatsd:
   extends: [ .bazel:test:flavor:macos, .bazel:runner:macos-arm64 ]
+  rules:
+    - !reference [.on_mergequeue_mandatory_manual_on_dev_branches]
   variables:
     FLAVOR: dogstatsd
 
