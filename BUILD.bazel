@@ -83,7 +83,6 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/serverless-init/log
 # gazelle:exclude cmd/serverless-init/mode
 # gazelle:exclude cmd/system-probe/modules
-# gazelle:exclude cmd/system-probe/subcommands/compliance
 # gazelle:exclude cmd/system-probe/subcommands/run
 # gazelle:exclude cmd/system-probe/subcommands/usm
 # gazelle:exclude cmd/system-probe/windows
