@@ -7,10 +7,11 @@ package setup
 
 // OTLP configuration paths.
 const (
-	OTLPSection                = "otlp_config"
-	OTLPTracePort              = OTLPSection + ".traces.internal_port"
-	OTLPTracesEnabled          = OTLPSection + ".traces.enabled"
-	OTLPTracesInfraAttrEnabled = OTLPSection + ".traces.infra_attributes.enabled"
+	OTLPSection                              = "otlp_config"
+	OTLPTracePort                            = OTLPSection + ".traces.internal_port"
+	OTLPTracesEnabled                        = OTLPSection + ".traces.enabled"
+	OTLPTracesInfraAttrEnabled               = OTLPSection + ".traces.infra_attributes.enabled"
+	OTLPTracesInfraAttrContainerTagPromotion = OTLPSection + ".traces.infra_attributes.container_tag_promotion"
 
 	OTLPLogs        = OTLPSection + ".logs"
 	OTLPLogsEnabled = OTLPLogs + ".enabled"
