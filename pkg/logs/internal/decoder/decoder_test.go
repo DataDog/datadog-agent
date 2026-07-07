@@ -769,3 +769,60 @@ func TestDecoderWithDockerJSONPartialLineDetectionOnlyMarksOversizedLogicalLineT
 	assert.Contains(t, output.ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
 	assert.Equal(t, len(line1)+len(line2), output.RawDataLen)
 }
+
+// TestDecoderKubernetesGoStackTraceAggregatesBlankLine is a regression test for
+// blank lines being silently dropped on the partial-line parser path used by
+// container/CRI log sources (Kubernetes, Docker JSON file). The Go stack trace
+// aggregator relies on the blank line that separates a panic header from its
+// goroutine block; when the MultiLineParser dropped that blank line the parser
+// state machine could not transition and abandoned aggregation, emitting the
+// crash as many individual lines instead of one combined message.
+func TestDecoderKubernetesGoStackTraceAggregatesBlankLine(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set("logs_config.auto_multi_line_detection", true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_multi_line.stack_trace_parsers", []string{"go"}, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.tag_multi_line_logs", true, pkgconfigmodel.SourceAgentRuntime)
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	d := InitializeDecoderForTest(source, kubernetes.New())
+	d.Start()
+
+	// A Go panic exactly as a container runtime would emit it in CRI format:
+	// '<timestamp> <stream> <flag> <content>'. Note the blank line (empty
+	// content) between the panic header and the goroutine block.
+	criLine := func(content string) string {
+		return "2024-01-01T00:00:00.000000000Z stderr F " + content + "\n"
+	}
+	panicLines := []string{
+		"panic: something went wrong",
+		"",
+		"goroutine 1 [running]:",
+		"main.plainPanic(...)",
+		"\t/path/main.go:81",
+		"main.main()",
+		"\t/path/main.go:46 +0x5b4",
+	}
+	var input []byte
+	for _, l := range panicLines {
+		input = append(input, []byte(criLine(l))...)
+	}
+	d.InputChan() <- NewInput(input)
+
+	// Closing the input flushes the stack trace aggregator, emitting the
+	// combined crash as a single message.
+	d.Stop()
+
+	var outputs []*message.Message
+	for output := range d.OutputChan() {
+		outputs = append(outputs, output)
+	}
+
+	require.Len(t, outputs, 1, "expected the whole Go panic to aggregate into a single message")
+	combined := outputs[0]
+	assert.True(t, combined.ParsingExtra.IsMultiLine, "expected the combined crash to be tagged multi-line")
+	assert.Contains(t, combined.ParsingExtra.Tags, message.MultiLineSourceTag("go_stack"))
+	content := string(combined.GetContent())
+	assert.Contains(t, content, "panic: something went wrong")
+	assert.Contains(t, content, "goroutine 1 [running]:")
+	assert.Contains(t, content, "main.main()")
+}
