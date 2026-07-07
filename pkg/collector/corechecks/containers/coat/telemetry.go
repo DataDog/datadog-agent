@@ -26,8 +26,9 @@ const (
 	// AgentMemoryLimit is the COAT metric name for container runtime memory limits.
 	AgentMemoryLimit = "memory_limits"
 
-	clusterAgentComponent       = "cluster-agent"
-	clusterChecksAgentComponent = "clusterchecks-agent"
+	clusterAgentComponent               = "cluster-agent"
+	clusterChecksAgentComponentHelm     = "clusterchecks-agent"
+	clusterChecksAgentComponentOperator = "cluster-checks-runner"
 )
 
 var agentTelemetry = newAgentPodTelemetry(telemetryimpl.GetCompatComponent())
@@ -104,7 +105,7 @@ func RecordAgentMetric(metricName string, value *float64, pod *workloadmeta.Kube
 }
 
 func (t *agentPodTelemetry) resetRuntimeMetrics() {
-	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponent} {
+	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponentOperator} {
 		match := map[string]string{tags.KubeAppComponent: component}
 		t.cpuUsage.DeletePartialMatch(match)
 		t.memoryUsage.DeletePartialMatch(match)
@@ -113,7 +114,7 @@ func (t *agentPodTelemetry) resetRuntimeMetrics() {
 }
 
 func (t *agentPodTelemetry) resetKubeletMetrics() {
-	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponent} {
+	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponentOperator} {
 		match := map[string]string{tags.KubeAppComponent: component}
 		t.containersRestarts.DeletePartialMatch(match)
 		t.containersTerminated.DeletePartialMatch(match)
@@ -143,8 +144,11 @@ func agentPodComponent(pod *workloadmeta.KubernetesPod) (string, bool) {
 		return "", false
 	}
 	switch component := pod.Labels[kubernetes.KubeAppComponentLabelKey]; component {
-	case clusterAgentComponent, clusterChecksAgentComponent:
+	case clusterAgentComponent:
 		return component, true
+	case clusterChecksAgentComponentHelm, clusterChecksAgentComponentOperator:
+		// consolidate component name difference between helm and operator
+		return clusterChecksAgentComponentOperator, true
 	}
 
 	return "", false
