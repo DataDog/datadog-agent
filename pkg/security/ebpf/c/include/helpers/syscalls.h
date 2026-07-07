@@ -245,6 +245,17 @@ static struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 ty
 // because the task performing the exec syscall may change its pid in the flush_old_exec() kernel function
 
 static struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_impersonated_exec_syscall() {
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        // task storage is keyed on the task_struct, which is stable across flush_old_exec()'s
+        // thread-leader impersonation (de_thread only swaps the pid numbers, not the task), so
+        // a plain lookup on the current task always finds the cached syscall. The exec_pid_transfer
+        // fallback below is only needed to recover the changed pid_tgid key of the syscalls map.
+        return peek_syscall(EVENT_EXEC);
+    }
+#endif
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
         u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -267,6 +278,15 @@ static struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_im
 }
 
 static struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_impersonated_exec_syscall() {
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        // see peek_current_or_impersonated_exec_syscall: task storage keys on the task_struct,
+        // which survives thread-leader impersonation, so the exec_pid_transfer fallback is redundant.
+        return pop_syscall(EVENT_EXEC);
+    }
+#endif
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     struct syscall_cache_t *syscall = pop_syscall(EVENT_EXEC);
