@@ -1975,15 +1975,11 @@
       "properties": {
         "socket_type": {
           "type": "string",
-          "description": "Socket file descriptor"
+          "description": "Socket type"
         },
         "socket_family": {
           "type": "string",
           "description": "Socket family"
-        },
-        "filter_len": {
-          "type": "integer",
-          "description": "Length of the filter"
         },
         "socket_protocol": {
           "type": "string",
@@ -1997,17 +1993,21 @@
           "type": "string",
           "description": "Name of the option being set"
         },
+        "filter_len": {
+          "type": "integer",
+          "description": "Length of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
+        },
         "is_filter_truncated": {
           "type": "boolean",
-          "description": "Filter truncated"
+          "description": "Filter truncation flag (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter": {
           "type": "string",
-          "description": "Filter instructions"
+          "description": "Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter_hash": {
           "type": "string",
-          "description": "Filter hash"
+          "description": "Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         }
       },
       "additionalProperties": false,
