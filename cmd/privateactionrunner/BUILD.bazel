@@ -1,4 +1,6 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 go_library(
     name = "privateactionrunner_lib",
@@ -128,4 +130,15 @@ go_test(
         "@com_github_spf13_cobra//:cobra",
         "@com_github_stretchr_testify//require",
     ],
+)
+
+pkg_files(
+    name = "par_bin",
+    srcs = [":privateactionrunner"],
+    prefix = "bin/",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":par_bin"],
 )

@@ -179,14 +179,7 @@ build do
 
   # Private action runner
   if not heroku_target? and not fips_mode?
-    command "dda inv -- -e privateactionrunner.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-
-    if windows_target?
-      copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
-      copy 'bin/privateactionrunner/privateactionrunner.exe.pdb', "#{install_dir}/bin/agent"
-    elsif not heroku_target?
-      copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
-    end
+    command "bazel run #{bazel_flags} -- //cmd/privateactionrunner:install --destdir='#{install_dir}'"
   end
 
   # System-probe
