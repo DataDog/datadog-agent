@@ -93,6 +93,7 @@ const (
 	OffsetNameTaskStructPID     = "task_struct_pid_offset"      // kernels >= 4.19
 	OffsetNameTaskStructPIDLink = "task_struct_pid_link_offset" // kernels < 4.19
 	OffsetNamePIDLinkStructPID  = "pid_link_pid_offset"         // kernels < 4.19
+	OffsetNameTaskStructSignal  = "task_struct_signal_offset"
 
 	// splice event
 	OffsetNamePipeInodeInfoStructBufs     = "pipe_inode_info_bufs_offset"
