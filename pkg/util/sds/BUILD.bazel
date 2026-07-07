@@ -1,7 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 # Hand-maintained: the cgo dep and srcs are behind the `sds` build tag, which
-# Gazelle can't see, so they're marked # keep.
+# gazelle:ignore
 go_library(
     name = "sds",
     srcs = [
@@ -20,7 +20,7 @@ go_test(
     srcs = ["sds_test.go"],  # keep
     embed = [":sds"],
     gotags = ["sds"],  # keep
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = ["@com_github_stretchr_testify//require"],  # keep
 )
 
 # Built without the `sds` tag: no-op scanner path.
@@ -28,5 +28,5 @@ go_test(
     name = "sds_nosds_test",
     srcs = ["sds_nosds_test.go"],  # keep
     embed = [":sds"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = ["@com_github_stretchr_testify//require"],  # keep
 )
