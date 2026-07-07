@@ -4154,6 +4154,17 @@ properties:
               Devices with these IP addresses will be skipped during default scan.
             tags:
             - template_section:CoreAgent
+          bulk_max_repetitions:
+            node_type: setting
+            type: integer
+            default: 20
+            visibility: public
+            description: |-
+              Starting max-repetitions value for the GetBulk requests used by the
+              automatic device scan. The scan adjusts this value down on failures and
+              back up on successes, so this is the ceiling it walks toward.
+            tags:
+            - template_section:CoreAgent
       autodiscovery:
         node_type: section
         type: object
