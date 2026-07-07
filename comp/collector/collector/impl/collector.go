@@ -214,13 +214,13 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
+	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry, option.New[healthplatform.Component](c.healthPlatform))
+
 	var emptyID checkid.ID
 
 	if c.state.Load() != started {
 		return emptyID, errors.New("the collector is not running")
 	}
-
-	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry, option.New[healthplatform.Component](c.healthPlatform))
 
 	if _, found := c.checks[ch.ID()]; found {
 		return emptyID, fmt.Errorf("a check with ID %s is already running", ch.ID())
@@ -230,24 +230,23 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
-	// Track the total number of checks running in order to have an appropriate number of workers
-	checkInstances := &c.checkInstances
 	isShadowCheck := check.IsShadow(ch)
 	if isShadowCheck {
-		checkInstances = &c.shadowCheckInstances
-	}
-	*checkInstances = *checkInstances + 1
-	if isShadowCheck {
+		c.shadowCheckInstances++
 		c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
 		c.runner.AddShadowWorker()
 	} else if ch.Interval() == 0 {
+		// Track the total number of checks running in order to have an appropriate number of workers
+		c.checkInstances++
 		// Adding a temporary runner for long running check in case the
 		// number of runners is lower than the number of long running
 		// checks.
 		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
 		c.runner.AddWorker()
 	} else {
-		c.runner.UpdateNumWorkers(*checkInstances)
+		// Track the total number of checks running in order to have an appropriate number of workers
+		c.checkInstances++
+		c.runner.UpdateNumWorkers(c.checkInstances)
 	}
 
 	c.checks[ch.ID()] = ch
