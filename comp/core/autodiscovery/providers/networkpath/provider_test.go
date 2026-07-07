@@ -322,12 +322,46 @@ func TestProviderRejectsUnsupportedType(t *testing.T) {
 	assertNoChanges(t, changesCh)
 }
 
+func TestParseConfigValidBoundariesAndNormalization(t *testing.T) {
+	configs, err := parseConfig(rawScheduledConfig(
+		" test-config-a ",
+		`{"hostname":" api.example.com ","port":1,"protocol":" udp ","max_ttl":1,"timeout_ms":1,"interval_sec":1}`,
+		`{"hostname":"edge.example.com","port":65535,"protocol":" tCp ","max_ttl":255,"tcp_method":" SYN_SOCKET "}`,
+		`{"hostname":"router.example.com","protocol":" iCmP "}`,
+	))
+	require.NoError(t, err)
+	require.Len(t, configs, 3)
+
+	first := unmarshalInstance(t, configs[0].Instances[0])
+	assert.Equal(t, "test-config-a", first["test_config_id"])
+	assert.Equal(t, "api.example.com", first["hostname"])
+	assert.Equal(t, 1, first["port"])
+	assert.Equal(t, "UDP", first["protocol"])
+	assert.Equal(t, 1, first["max_ttl"])
+	assert.Equal(t, 1, first["timeout"])
+	assert.Equal(t, 1, first["min_collection_interval"])
+
+	second := unmarshalInstance(t, configs[1].Instances[0])
+	assert.Equal(t, 65535, second["port"])
+	assert.Equal(t, "TCP", second["protocol"])
+	assert.Equal(t, 255, second["max_ttl"])
+	assert.Equal(t, "syn_socket", second["tcp_method"])
+
+	third := unmarshalInstance(t, configs[2].Instances[0])
+	assert.Equal(t, "ICMP", third["protocol"])
+}
+
 func TestParseConfigValidation(t *testing.T) {
 	tests := []struct {
 		name        string
 		raw         string
 		expectedErr string
 	}{
+		{
+			name:        "malformed json",
+			raw:         `{"type":"scheduled",`,
+			expectedErr: "invalid Network Path config",
+		},
 		{
 			name:        "missing type",
 			raw:         `{"test_config_id":"test-config-a","tests":[]}`,
