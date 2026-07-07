@@ -9,7 +9,7 @@ package gke
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,7 +58,7 @@ func TestDetect(t *testing.T) {
 			name: "API error (Internal 500)",
 			setupMock: func(client *dynamicfake.FakeDynamicClient) {
 				client.PrependReactor("get", "customresourcedefinitions", func(_ k8stesting.Action) (bool, runtime.Object, error) {
-					return true, nil, apierrors.NewInternalError(fmt.Errorf("internal server error"))
+					return true, nil, apierrors.NewInternalError(errors.New("internal server error"))
 				})
 			},
 			expected: false,
