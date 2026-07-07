@@ -10,8 +10,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -299,25 +301,25 @@ func (i *testInstaller) Stop() {
 func TestResolveFIPSMode(t *testing.T) {
 	// BuiltForFIPS is a compile-time fact and is false in the non-FIPS test
 	// binary, so these cases exercise the explicit DD_FIPS_MODE request path.
-	// The build-flavor path is covered by env.resolveFIPSMode's tests and the
+	// The build-flavor path is covered by env.ResolveFIPSMode's tests and the
 	// goexperiment.systemcrypto build tag.
 	require.False(t, pkgfips.BuiltForFIPS(), "test binary is expected to be non-FIPS")
 
 	t.Run("DD_FIPS_MODE=true", func(t *testing.T) {
 		t.Setenv("DD_FIPS_MODE", "true")
-		assert.True(t, resolveFIPSMode())
+		assert.True(t, env.ResolveFIPSMode(strings.ToLower(os.Getenv("DD_FIPS_MODE")) == "true", pkgfips.BuiltForFIPS()))
 	})
 	t.Run("DD_FIPS_MODE is case-insensitive", func(t *testing.T) {
 		t.Setenv("DD_FIPS_MODE", "TRUE")
-		assert.True(t, resolveFIPSMode())
+		assert.True(t, env.ResolveFIPSMode(strings.ToLower(os.Getenv("DD_FIPS_MODE")) == "true", pkgfips.BuiltForFIPS()))
 	})
 	t.Run("DD_FIPS_MODE=false", func(t *testing.T) {
 		t.Setenv("DD_FIPS_MODE", "false")
-		assert.False(t, resolveFIPSMode())
+		assert.False(t, env.ResolveFIPSMode(strings.ToLower(os.Getenv("DD_FIPS_MODE")) == "true", pkgfips.BuiltForFIPS()))
 	})
 	t.Run("DD_FIPS_MODE unset", func(t *testing.T) {
 		t.Setenv("DD_FIPS_MODE", "")
-		assert.False(t, resolveFIPSMode())
+		assert.False(t, env.ResolveFIPSMode(strings.ToLower(os.Getenv("DD_FIPS_MODE")) == "true", pkgfips.BuiltForFIPS()))
 	})
 }
 

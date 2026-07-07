@@ -148,24 +148,24 @@
         # bootstraps the installer in FIPS mode. See downloadIndex() in
         # pkg/fleet/installer/oci/download.go.
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
-          FIPS_INPUT_FILE=$(resolve_artifact "FIPS installer" "${OMNIBUS_PACKAGE_DIR}datadog-fips-installer-*${ARCH}.tar.xz") || exit 1
-          FIPS_OUTPUT_FILE="$(basename -a -s .xz ${FIPS_INPUT_FILE})"
-          FIPS_INPUT_DIR="/tmp/input_fips_${ARCH}"
-          mkdir -p ${FIPS_INPUT_DIR}
-          echo "Extracting FIPS installer ${FIPS_INPUT_FILE} -> ${FIPS_INPUT_DIR}"
-          tar xJf ${FIPS_INPUT_FILE} -C ${FIPS_INPUT_DIR}
-          FIPS_EXTRA_FLAGS="--installer ${FIPS_INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
-          echo "Creating FIPS OCI layer -> ${OUTPUT_DIR}/${FIPS_OUTPUT_FILE}"
+          FIPS_INSTALLER_INPUT_FILE=$(resolve_artifact "FIPS installer" "${OMNIBUS_PACKAGE_DIR}datadog-fips-installer-*${ARCH}.tar.xz") || exit 1
+          FIPS_INSTALLER_OUTPUT_FILE="$(basename -a -s .xz ${FIPS_INSTALLER_INPUT_FILE})"
+          FIPS_INSTALLER_INPUT_DIR="/tmp/input_fips_installer_${ARCH}"
+          mkdir -p ${FIPS_INSTALLER_INPUT_DIR}
+          echo "Extracting FIPS installer ${FIPS_INSTALLER_INPUT_FILE} -> ${FIPS_INSTALLER_INPUT_DIR}"
+          tar xJf ${FIPS_INSTALLER_INPUT_FILE} -C ${FIPS_INSTALLER_INPUT_DIR}
+          FIPS_EXTRA_FLAGS="--installer ${FIPS_INSTALLER_INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
+          echo "Creating FIPS OCI layer -> ${OUTPUT_DIR}/${FIPS_INSTALLER_OUTPUT_FILE}"
           datadog-package create \
             --version ${PACKAGE_VERSION} \
             --package ${OCI_PRODUCT} \
             --os linux \
             --arch ${ARCH} \
             --variant fips \
-            --archive --archive-path "${OUTPUT_DIR}/${FIPS_OUTPUT_FILE}" \
+            --archive --archive-path "${OUTPUT_DIR}/${FIPS_INSTALLER_OUTPUT_FILE}" \
             ${FIPS_EXTRA_FLAGS} \
-            ${FIPS_INPUT_DIR}/${INSTALL_DIR}/
-          rm -f ${FIPS_INPUT_FILE}
+            ${FIPS_INSTALLER_INPUT_DIR}/${INSTALL_DIR}/
+          rm -f ${FIPS_INSTALLER_INPUT_FILE}
         fi
 
         rm -f ${INPUT_FILE}

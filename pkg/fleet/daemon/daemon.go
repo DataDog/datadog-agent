@@ -110,14 +110,6 @@ func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
 	}
 }
 
-// resolveFIPSMode reports whether the daemon should operate on FIPS packages:
-// when the daemon was built as the FIPS flavor, or when FIPS mode is explicitly
-// requested via DD_FIPS_MODE. This mirrors env.FromEnv's resolution, which the
-// daemon does not go through since it builds its env by hand.
-func resolveFIPSMode() bool {
-	return pkgfips.BuiltForFIPS() || strings.ToLower(os.Getenv("DD_FIPS_MODE")) == "true"
-}
-
 // NewDaemon returns a new daemon.
 func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconfig.Reader) (Daemon, error) {
 	installerBin, err := exec.GetExecutable()
@@ -165,7 +157,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		// FIPS-flavor detection there is not applied. A FIPS-flavor daemon must
 		// operate on FIPS packages, otherwise its in-process bootstrap download
 		// (bootstrap.InstallExperiment) would pull the non-FIPS package variant.
-		FIPSMode: resolveFIPSMode(),
+		FIPSMode: env.ResolveFIPSMode(strings.ToLower(os.Getenv("DD_FIPS_MODE")) == "true", pkgfips.BuiltForFIPS()),
 	}
 	installer := newInstaller(installerBin)
 	refreshInterval := config.GetDuration("installer.refresh_interval")

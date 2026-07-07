@@ -177,21 +177,28 @@ build do
               # The healthcheck will fail as the rpath doesn't contain install_dir
               command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
 
-              # After rpath-edit converts all RPATHs to $ORIGIN-relative, re-add an
-              # absolute RPATH entry to the embedded installer binary. This is needed
-              # because the installer.layer is extracted to a temp directory by the
-              # FIPS agent daemon and exec'd from there. The daemon process has
-              # CapabilityBoundingSet=all from its systemd unit, which causes the
-              # Linux kernel to set AT_SECURE on the exec'd child. Under AT_SECURE
-              # the dynamic linker silently drops $ORIGIN-based RPATH entries, so
-              # the binary falls through to the system libcrypto (wrong version).
-              # The absolute entry /opt/datadog-agent/embedded/lib is always honored
-              # regardless of AT_SECURE and points at the FIPS agent's embedded
-              # libcrypto, which is the correct version-matched library.
+              # AT_SECURE and $ORIGIN RPATH: the FIPS agent daemon has CapabilityBoundingSet=all
+              # in its systemd unit (see comp/core/flare/flare.go or the service unit). When the
+              # daemon (CapPrm=all, CapEff=0) exec's the installer.layer binary (which has no file
+              # capabilities), the Linux kernel sets AT_SECURE on the child process. Under AT_SECURE
+              # the dynamic linker silently drops $ORIGIN-based RPATH entries. rpath-edit above
+              # converts all RPATHs to $ORIGIN-relative, so the installer.layer would fall through
+              # to the ldconfig cache and load the host's system libcrypto (wrong version) → panic.
+              # Adding an absolute RPATH entry after rpath-edit ensures libcrypto is always found
+              # from the embedded tree regardless of AT_SECURE state. Absolute RPATH entries are
+              # always honoured even under AT_SECURE.
+              # Cross-ref: if CapabilityBoundingSet is ever tightened, this patchelf becomes
+              # redundant (but harmless).
               if fips_mode?
                 installer_bin = "#{install_dir}/embedded/bin/installer"
                 if File.exist?(installer_bin)
-                  command "patchelf --add-rpath /opt/datadog-agent/embedded/lib #{installer_bin}"
+                  # Derive the deb install path from install_dir's stable-path convention.
+                  # The deb always installs datadog-fips-agent to /opt/datadog-agent, regardless
+                  # of the OCI install_dir. Using install_dir directly would embed an OCI-specific
+                  # versioned path which would not exist on deb-only systems.
+                  deb_embedded_lib = "/opt/datadog-agent/embedded/lib"
+                  command "patchelf --add-rpath #{deb_embedded_lib} #{installer_bin}"
+                  command "patchelf --print-rpath #{installer_bin} | grep -q '/opt/datadog-agent/embedded/lib' || (echo 'ERROR: patchelf --add-rpath did not add /opt/datadog-agent/embedded/lib to #{installer_bin}' && exit 1)"
                 end
               end
             end

@@ -46,7 +46,12 @@ mv "${OPENSSL_CONF_PATH}.tmp" "${OPENSSL_CONF_PATH}"
 # neither the baked path nor a relative include is safe. Rewrite it here, where
 # we know the real on-disk location.
 sed -i "s#^\.include .*/fipsmodule\.cnf#.include ${FIPS_MODULE_PATH}#" "${OPENSSL_CONF_PATH}"
+if ! grep -qF ".include ${FIPS_MODULE_PATH}" "${OPENSSL_CONF_PATH}"; then
+    echo "openssl fipsinstall: failed to update .include path in ${OPENSSL_CONF_PATH}"
+    exit 1
+fi
 
 if ! "${OPENSSL_BIN}" fipsinstall -module "${FIPS_SO_PATH}" -in "${FIPS_MODULE_PATH}" -verify; then
     echo "openssl fipsinstall: verification of FIPS compliance failed. $INSTALL_DIR/fipsmodule.cnf was corrupted or the installation failed."
+    exit 1
 fi

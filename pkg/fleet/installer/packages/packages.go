@@ -255,12 +255,26 @@ func ensureAgentFIPSProvider(ctx context.Context, pkgPath string) (err error) {
 		return nil // not a FIPS package, or the script is not executable
 	}
 	if _, statErr := os.Stat(filepath.Join(pkgPath, "embedded", "ssl", "openssl.cnf.tmp")); statErr != nil {
-		return nil // openssl.cnf.tmp already consumed: FIPS provider already configured for this tree
+		// .tmp already consumed; verify fipsmodule.cnf also exists
+		if _, modErr := os.Stat(filepath.Join(pkgPath, "embedded", "ssl", "fipsmodule.cnf")); modErr == nil {
+			return nil // fully configured
+		}
+		return fmt.Errorf("fipsinstall incomplete: openssl.cnf.tmp consumed but fipsmodule.cnf missing at %s; re-installation required", pkgPath)
 	}
 
 	cmd := telemetry.CommandContext(ctx, scriptPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// Clear inherited OPENSSL env so fipsinstall uses the target tree's binaries
+	// without contamination from the running process's embedded FIPS provider.
+	cleanEnv := make([]string, 0, len(os.Environ()))
+	for _, e := range os.Environ() {
+		k, _, _ := strings.Cut(e, "=")
+		if k != "OPENSSL_CONF" && k != "OPENSSL_MODULES" && k != "LD_LIBRARY_PATH" {
+			cleanEnv = append(cleanEnv, e)
+		}
+	}
+	cmd.Env = cleanEnv
 	if err = cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run fipsinstall.sh: %w", err)
 	}
@@ -279,19 +293,7 @@ func ensureAgentFIPSProvider(ctx context.Context, pkgPath string) (err error) {
 // in place. ensureAgentFIPSProvider must have run against the same pkgPath first
 // so fipsmodule.cnf exists.
 func agentFIPSProviderEnv(pkgPath string) []string {
-	embedded := filepath.Join(pkgPath, "embedded")
-	opensslConf := filepath.Join(embedded, "ssl", "openssl.cnf")
-	opensslModules := filepath.Join(embedded, "lib", "ossl-modules")
-	for _, p := range []string{opensslConf, opensslModules} {
-		if _, err := os.Stat(p); err != nil {
-			return nil
-		}
-	}
-	return []string{
-		"OPENSSL_CONF=" + opensslConf,
-		"OPENSSL_MODULES=" + opensslModules,
-		"LD_LIBRARY_PATH=" + filepath.Join(embedded, "lib"),
-	}
+	return env.FIPSProviderEnv(filepath.Join(pkgPath, "embedded"))
 }
 
 func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string, extension string) error {

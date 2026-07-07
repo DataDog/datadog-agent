@@ -93,23 +93,35 @@ func (i *InstallerExec) setupInstallerCmd(ctx context.Context, span *telemetry.S
 	// plain append is not enough: with duplicate keys the C runtime's getenv and
 	// the dynamic linker read the first occurrence, so drop earlier entries for
 	// any key we override (e.g. OPENSSL_CONF / LD_LIBRARY_PATH for FIPS re-exec).
+	// LD_LIBRARY_PATH is prepended rather than replaced: the new value takes
+	// precedence (searched first) while the existing paths are preserved as fallback.
 	if len(i.extraEnv) > 0 {
-		override := make(map[string]struct{}, len(i.extraEnv))
+		override := make(map[string]string, len(i.extraEnv))
 		for _, kv := range i.extraEnv {
-			if k, _, ok := strings.Cut(kv, "="); ok {
-				override[k] = struct{}{}
+			if k, v, ok := strings.Cut(kv, "="); ok {
+				override[k] = v
 			}
 		}
 		filtered := env[:0:0]
 		for _, kv := range env {
-			if k, _, ok := strings.Cut(kv, "="); ok {
-				if _, dup := override[k]; dup {
-					continue
+			if k, existingVal, ok := strings.Cut(kv, "="); ok {
+				if newVal, overriding := override[k]; overriding {
+					if k == "LD_LIBRARY_PATH" && existingVal != "" {
+						// Prepend: new value takes precedence but existing is preserved
+						filtered = append(filtered, k+"="+newVal+":"+existingVal)
+						delete(override, k) // mark as handled
+						continue
+					}
+					continue // will be added from override below
 				}
 			}
 			filtered = append(filtered, kv)
 		}
-		env = append(filtered, i.extraEnv...)
+		// Append remaining override entries (those not already handled by prepend)
+		for k, v := range override {
+			filtered = append(filtered, k+"="+v)
+		}
+		env = filtered
 	}
 	cmd.Env = env
 	cmd = i.newInstallerCmdPlatform(cmd)

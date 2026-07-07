@@ -77,6 +77,22 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	// provider files rather than relying on a build-time flag, because the daemon
 	// binary that calls us may be a deb-installed binary whose build system did
 	// not set the goexperiment.systemcrypto flag even though the tree is FIPS.
+	//
+	// NOTE: Version-skew assumption. The bootstrap installer.layer is pointed at the
+	// *running daemon's* embedded FIPS tree (OPENSSL_CONF, OPENSSL_MODULES, LD_LIBRARY_PATH)
+	// rather than the experiment tree being downloaded. This means the installer.layer starts
+	// with the stable tree's libcrypto + fips.so + fipsmodule.cnf.
+	//
+	// This is intentional: under AT_SECURE (see datadog-agent-finalize.rb) LD_LIBRARY_PATH
+	// is ignored, so the bootstrap installer must find libcrypto via its hardcoded RPATH
+	// (/opt/datadog-agent/embedded/lib). Pointing OPENSSL_CONF/MODULES at the same stable
+	// tree ensures consistency (libcrypto and fips.so are the same build).
+	//
+	// Version-skew risk: if the experiment ships a libcrypto that is ABI-incompatible with
+	// the stable fips.so, the bootstrap installer's requirefips init would fail. OpenSSL 3.x
+	// maintains ABI compatibility within the major soname (libcrypto.so.3), so this is
+	// acceptable for now. If a future release bumps the soname or breaks ABI, this code must
+	// be updated to point the bootstrap installer at its own embedded tree.
 	extraEnv := fipsEnvFromRunningInstaller()
 	return exec.NewInstallerExecWithExtraEnv(env, installerBinPath, extraEnv), nil
 }
@@ -97,18 +113,7 @@ func fipsEnvFromRunningInstaller() []string {
 	}
 	// <install>/embedded/bin/installer → <install>/embedded
 	embedded := filepath.Dir(filepath.Dir(exePath))
-	opensslConf := filepath.Join(embedded, "ssl", "openssl.cnf")
-	opensslModules := filepath.Join(embedded, "lib", "ossl-modules")
-	for _, p := range []string{opensslConf, opensslModules} {
-		if _, statErr := os.Stat(p); statErr != nil {
-			return nil
-		}
-	}
-	return []string{
-		"OPENSSL_CONF=" + opensslConf,
-		"OPENSSL_MODULES=" + opensslModules,
-		"LD_LIBRARY_PATH=" + filepath.Join(embedded, "lib"),
-	}
+	return env.FIPSProviderEnv(embedded)
 }
 
 func getInstallerOCI(_ context.Context, env *env.Env) (string, error) {

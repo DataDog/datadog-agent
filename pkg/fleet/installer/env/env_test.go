@@ -380,7 +380,26 @@ func TestResolveFIPSMode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, resolveFIPSMode(tt.fipsRequested, tt.builtForFIPS))
+			assert.Equal(t, tt.expected, ResolveFIPSMode(tt.fipsRequested, tt.builtForFIPS))
+		})
+	}
+}
+
+func TestResolveFIPSModeExported(t *testing.T) {
+	tests := []struct {
+		name          string
+		fipsRequested bool
+		builtForFIPS  bool
+		want          bool
+	}{
+		{"neither", false, false, false},
+		{"env only", true, false, true},
+		{"build only", false, true, true},
+		{"both", true, true, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, ResolveFIPSMode(tc.fipsRequested, tc.builtForFIPS))
 		})
 	}
 }

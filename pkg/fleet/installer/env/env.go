@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -280,11 +281,28 @@ func (e *Env) HTTPClient() *http.Client {
 	return client
 }
 
-// resolveFIPSMode reports whether the installer should operate on FIPS packages.
+// ResolveFIPSMode reports whether the installer should operate on FIPS packages.
 // FIPS mode is on when the caller explicitly requested it (DD_FIPS_MODE=true) or
 // when the installer was built as the FIPS flavor.
-func resolveFIPSMode(fipsRequested, builtForFIPS bool) bool {
+func ResolveFIPSMode(fipsRequested, builtForFIPS bool) bool {
 	return fipsRequested || builtForFIPS
+}
+
+// FIPSProviderEnv returns the OPENSSL env vars for a given embedded directory path, or nil
+// if the directory does not contain a FIPS provider (non-FIPS tree).
+func FIPSProviderEnv(embeddedDir string) []string {
+	opensslConf := filepath.Join(embeddedDir, "ssl", "openssl.cnf")
+	opensslModules := filepath.Join(embeddedDir, "lib", "ossl-modules")
+	for _, p := range []string{opensslConf, opensslModules} {
+		if _, err := os.Stat(p); err != nil {
+			return nil
+		}
+	}
+	return []string{
+		"OPENSSL_CONF=" + opensslConf,
+		"OPENSSL_MODULES=" + opensslModules,
+		"LD_LIBRARY_PATH=" + filepath.Join(embeddedDir, "lib"),
+	}
 }
 
 // FromEnv returns an Env struct with values from the environment.
@@ -372,7 +390,7 @@ func FromEnv() *Env {
 
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
-		FIPSMode:     resolveFIPSMode(fipsRequested, builtForFIPS),
+		FIPSMode:     ResolveFIPSMode(fipsRequested, builtForFIPS),
 	}
 }
 

@@ -262,7 +262,7 @@ installer-fips-arm64:
 installer-fips-amd64-oci:
   extends: installer-fips-amd64
   variables:
-    DESTINATION_FILE: "datadog-fips-updater_7-amd64-oci.tar.xz"
+    DESTINATION_FILE: "datadog-fips-installer_7-amd64-oci.tar.xz"
   before_script:
     - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
@@ -271,7 +271,7 @@ installer-fips-amd64-oci:
 installer-fips-arm64-oci:
   extends: installer-fips-arm64
   variables:
-    DESTINATION_FILE: "datadog-fips-updater_7-arm64-oci.tar.xz"
+    DESTINATION_FILE: "datadog-fips-installer_7-arm64-oci.tar.xz"
   before_script:
     - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
