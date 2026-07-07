@@ -141,7 +141,7 @@ def _is_node_section(node):
 
 
 def _should_render(build_type, node):
-    for t in node["tags"]:
+    for t in node.get("tags", []):
         if t.startswith("template_section:"):
             section = t.split(":")[1]
             return section in build_type_to_section[build_type]

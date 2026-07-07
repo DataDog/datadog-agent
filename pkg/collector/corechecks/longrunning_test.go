@@ -157,7 +157,7 @@ func TestLongRunningCheckWrapperRun(t *testing.T) {
 	})
 
 	t.Run("Committing the sender if the check is already running", func(t *testing.T) {
-		mockSender := mocksender.NewMockSender("ok")
+		mockSender := mocksender.NewMockSender(t, "ok")
 		mockSender.On("Commit").Return()
 
 		mockCheck := newMockLongRunningCheck()

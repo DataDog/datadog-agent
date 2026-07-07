@@ -4,6 +4,7 @@ go_library(
     name = "gotypecli_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gotype/gotypecli",
+    tags = ["manual"],
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/dyninst/gotype",
