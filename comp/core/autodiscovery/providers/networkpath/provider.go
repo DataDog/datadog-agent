@@ -34,7 +34,7 @@ const (
 
 // Provider receives scheduled Network Path tests from Remote Configuration.
 type Provider struct {
-	mu            sync.RWMutex
+	stateMutex    sync.RWMutex
 	configChanges chan integration.ConfigChanges
 	closed        bool
 
@@ -103,8 +103,8 @@ func (p *Provider) String() string {
 func (p *Provider) Stream(ctx context.Context) <-chan integration.ConfigChanges {
 	go func() {
 		<-ctx.Done()
-		p.mu.Lock()
-		defer p.mu.Unlock()
+		p.stateMutex.Lock()
+		defer p.stateMutex.Unlock()
 		if p.closed {
 			return
 		}
@@ -116,8 +116,8 @@ func (p *Provider) Stream(ctx context.Context) <-chan integration.ConfigChanges 
 
 // GetConfigErrors returns configuration errors indexed by RC config path.
 func (p *Provider) GetConfigErrors() map[string]types.ErrorMsgSet {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.stateMutex.RLock()
+	defer p.stateMutex.RUnlock()
 
 	errorsByPath := make(map[string]types.ErrorMsgSet, len(p.configErrors))
 	maps.Copy(errorsByPath, p.configErrors)
@@ -126,7 +126,7 @@ func (p *Provider) GetConfigErrors() map[string]types.ErrorMsgSet {
 
 // Update handles NETWORK_PATH Remote Configuration snapshots.
 func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	p.mu.Lock()
+	p.stateMutex.Lock()
 
 	changes := integration.ConfigChanges{}
 	seenPaths := make(map[string]struct{}, len(updates))
@@ -185,7 +185,7 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 		delete(p.configErrors, path)
 	}
 
-	p.mu.Unlock()
+	p.stateMutex.Unlock()
 	p.sendChanges(changes)
 }
 
@@ -194,8 +194,8 @@ func (p *Provider) sendChanges(changes integration.ConfigChanges) {
 		return
 	}
 
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.stateMutex.RLock()
+	defer p.stateMutex.RUnlock()
 	if p.closed {
 		return
 	}
