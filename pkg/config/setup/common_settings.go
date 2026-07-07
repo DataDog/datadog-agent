@@ -1323,6 +1323,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", GetPlatformDefault(map[string]interface{}{
 		"linux": -1,
+		"aix":   -1,
 		"other": 5002,
 	}))
 	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
@@ -1686,6 +1687,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", GetPlatformDefault(map[string]interface{}{
 		"linux": defaultpaths.GetDefaultStatsdSocket(),
+		"aix":   defaultpaths.GetDefaultStatsdSocket(),
 		"other": "",
 	}))
 
