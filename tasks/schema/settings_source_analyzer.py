@@ -49,12 +49,12 @@ SETTINGS_DIR = os.path.join("pkg", "config", "setup")
 # initCoreAgentFull + commonConfigComponents
 COMMON_SETTINGS = os.path.join(SETTINGS_DIR, "common_settings.go")
 # declared in commonConfigComponents
-APM_SETTINGS = os.path.join(SETTINGS_DIR, "apm.go")
-OTLP_SETTINGS = os.path.join(SETTINGS_DIR, "otlp.go")
-MRF_SETTINGS = os.path.join(SETTINGS_DIR, "multi_region_failover.go")
+APM_SETTINGS = os.path.join(SETTINGS_DIR, "apm_settings.go")
+OTLP_SETTINGS = os.path.join(SETTINGS_DIR, "otlp_settings.go")
+MRF_SETTINGS = os.path.join(SETTINGS_DIR, "multi_region_failover_settings.go")
 # called from functions in initCoreAgentFull
-PAR_SETTINGS = os.path.join(SETTINGS_DIR, "privateactionrunner.go")
-PROCESS_SETTINGS = os.path.join(SETTINGS_DIR, "process.go")
+PAR_SETTINGS = os.path.join(SETTINGS_DIR, "privateactionrunner_settings.go")
+PROCESS_SETTINGS = os.path.join(SETTINGS_DIR, "process_settings.go")
 # system probe
 SYSPROBE_SETTINGS = os.path.join(SETTINGS_DIR, "system_probe.go")
 
