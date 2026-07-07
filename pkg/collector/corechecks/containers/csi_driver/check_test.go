@@ -247,7 +247,7 @@ datadog_csi_driver_node_publish_volume_attempts{path="/var/run/datadog",status="
 	defer ts.Close()
 
 	chk := newTestCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
@@ -338,7 +338,7 @@ datadog_csi_driver_node_unpublish_volume_attempts{status="success"} %d
 		metrics:   buildMetricDefs(tm),
 		state:     newTestState(),
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
 	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
 
@@ -384,7 +384,7 @@ datadog_csi_driver_node_publish_volume_attempts{path="/var/run/datadog",status="
 	}))
 	defer ts.Close()
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
 
 	first := factory().(*Check)
@@ -431,7 +431,7 @@ datadog_csi_driver_library_download_duration_seconds_count{library="dd-lib-java-
 		metrics:   buildMetricDefs(tm),
 		state:     newTestState(),
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
@@ -479,7 +479,7 @@ datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} %d
 		metrics:   buildMetricDefs(tm),
 		state:     newTestState(),
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
 	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
 
@@ -527,7 +527,7 @@ func TestCOATGaugesDeleteMissingSeries(t *testing.T) {
 		metrics:   buildMetricDefs(tm),
 		state:     newTestState(),
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
 	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
 
@@ -573,7 +573,7 @@ datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 3
 	}))
 	defer secondServer.Close()
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
 	mockSender.SetupAcceptAll()
 
@@ -620,7 +620,7 @@ datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 7
 		metrics:   buildMetricDefs(tm),
 		state:     newTestState(),
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
 	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
 
@@ -654,7 +654,7 @@ datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 7
 		metrics:   buildMetricDefs(tm),
 		state:     newTestState(),
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	instanceCfg := []byte(`openmetrics_endpoint: ` + ts.URL)
 	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, instanceCfg, []byte(``), "test", "provider"))
 
@@ -699,7 +699,7 @@ datadog_csi_driver_node_publish_volume_attempts{status="success",type="DSDSocket
 		metrics:   buildMetricDefs(tm),
 		state:     newTestState(),
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
@@ -746,7 +746,7 @@ func TestCOATCountersAggregateAcrossPathsBoundedCache(t *testing.T) {
 		metrics:   buildMetricDefs(tm),
 		state:     newTestState(),
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
@@ -796,7 +796,7 @@ datadog_csi_driver_library_volume_links{library="dd-lib-java-init"} 5
 		metrics:   buildMetricDefs(tm),
 		state:     newTestState(),
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
@@ -838,7 +838,7 @@ datadog_csi_driver_libraries_cached{library="dd-lib-java-init"} 3
 		metrics:   buildMetricDefs(tm),
 		state:     newTestState(),
 	}
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	require.NoError(t, chk.Configure(senderManager, integration.FakeConfigHash, []byte(`openmetrics_endpoint: `+ts.URL), []byte(``), "test", "provider"))
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(CheckName, senderManager)
