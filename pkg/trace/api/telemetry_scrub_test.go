@@ -16,6 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// newTestForwarder returns a TelemetryForwarder with just enough state
+// (cmdLineScrubber, logger) to exercise stripCommandLineSecrets in isolation.
+func newTestForwarder(t *testing.T) *TelemetryForwarder {
+	t.Helper()
+	return newTestReceiverFromConfig(newTestReceiverConfig()).telemetryForwarder
+}
+
 // makeInjectionMetadataBody returns a complete telemetryRequest envelope
 // wrapping an injectionMetadata payload with the given command line.
 func makeInjectionMetadataBody(t *testing.T, cmdLine string) []byte {
@@ -96,7 +103,7 @@ func TestStripCommandLineSecrets_DoesNotApply(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			req, body := newInjectionMetadataReq(t, "/usr/bin/python --password=hunter2 app.py", c.opt)
-			out := stripCommandLineSecrets(req, body)
+			out := newTestForwarder(t).stripCommandLineSecrets(req, body)
 			assert.Equal(t, body, out, "body must be returned untouched when the gate does not match")
 			assert.Contains(t, decodeCommandLine(t, out), "hunter2", "untouched body still contains the secret — that is the point of this test")
 		})
@@ -172,7 +179,7 @@ func TestStripCommandLineSecrets_RedactsSecret(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			req, body := newInjectionMetadataReq(t, c.cmdLine)
-			out := stripCommandLineSecrets(req, body)
+			out := newTestForwarder(t).stripCommandLineSecrets(req, body)
 			assert.NotEqual(t, body, out, "body should be modified")
 
 			scrubbed := decodeCommandLine(t, out)
@@ -188,20 +195,20 @@ func TestStripCommandLineSecrets_RedactsSecret(t *testing.T) {
 
 func TestStripCommandLineSecrets_NoChangeWhenClean(t *testing.T) {
 	req, body := newInjectionMetadataReq(t, "/usr/bin/python app.py --port 8080 --host 0.0.0.0")
-	out := stripCommandLineSecrets(req, body)
+	out := newTestForwarder(t).stripCommandLineSecrets(req, body)
 	assert.Equal(t, body, out, "command line without secrets should round-trip identically")
 }
 
 func TestStripCommandLineSecrets_EmptyCommandLine(t *testing.T) {
 	req, body := newInjectionMetadataReq(t, "")
-	out := stripCommandLineSecrets(req, body)
+	out := newTestForwarder(t).stripCommandLineSecrets(req, body)
 	assert.Equal(t, body, out)
 }
 
 func TestStripCommandLineSecrets_MalformedEnvelope(t *testing.T) {
 	req, _ := newInjectionMetadataReq(t, "/usr/bin/python --password=hunter2")
 	bad := []byte("not json at all")
-	out := stripCommandLineSecrets(req, bad)
+	out := newTestForwarder(t).stripCommandLineSecrets(req, bad)
 	assert.Equal(t, bad, out, "malformed bodies must be forwarded unchanged so the intake can observe them")
 }
 
@@ -215,7 +222,7 @@ func TestStripCommandLineSecrets_MalformedPayload(t *testing.T) {
 	req, err := http.NewRequest("POST", apmTelemetryProxyPath, bytes.NewReader(envBytes))
 	assert.NoError(t, err)
 	req.Header.Set(telemetryRequestTypeHeader, apmTelemetryRequestType)
-	out := stripCommandLineSecrets(req, envBytes)
+	out := newTestForwarder(t).stripCommandLineSecrets(req, envBytes)
 	assert.Equal(t, envBytes, out)
 }
 
@@ -228,13 +235,13 @@ func TestStripCommandLineSecrets_MissingPayload(t *testing.T) {
 	req, err := http.NewRequest("POST", apmTelemetryProxyPath, bytes.NewReader(envBytes))
 	assert.NoError(t, err)
 	req.Header.Set(telemetryRequestTypeHeader, apmTelemetryRequestType)
-	out := stripCommandLineSecrets(req, envBytes)
+	out := newTestForwarder(t).stripCommandLineSecrets(req, envBytes)
 	assert.Equal(t, envBytes, out)
 }
 
 func TestStripCommandLineSecrets_PreservesOtherFields(t *testing.T) {
 	req, body := newInjectionMetadataReq(t, "/usr/bin/python --password=hunter2 app.py")
-	out := stripCommandLineSecrets(req, body)
+	out := newTestForwarder(t).stripCommandLineSecrets(req, body)
 
 	var orig, scrubbed telemetryRequest
 	assert.NoError(t, json.Unmarshal(body, &orig))
@@ -288,7 +295,7 @@ func TestStripCommandLineSecrets_PreservesUnknownFields(t *testing.T) {
 	assert.NoError(t, err)
 	req.Header.Set(telemetryRequestTypeHeader, apmTelemetryRequestType)
 
-	out := stripCommandLineSecrets(req, envBytes)
+	out := newTestForwarder(t).stripCommandLineSecrets(req, envBytes)
 	assert.NotEqual(t, envBytes, out)
 
 	var outer map[string]json.RawMessage
