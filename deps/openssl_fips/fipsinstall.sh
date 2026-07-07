@@ -1,57 +1,40 @@
 #!/bin/bash
 
-# The OpenSSL security policy states:
-# "The Module shall have the self-tests run, and the Module config file output generated on each
-# platform where it is intended to be used. The Module config file output data shall not be copied from
-# one machine to another."
-# This script aims to run self-tests and generate `fipsmodule.cnf.`
-# Because the provided `openssl.cnf` references to `fipsmodule.cnf` which is not yet created, we first create it
-# as `openssl.cnf.tmp` and then move it to its final name `openssl.cnf` when `fipsmodule.cnf` has been created
+# Run the OpenSSL FIPS self-tests and generate fipsmodule.cnf for this machine.
+# The OpenSSL security policy requires the self-tests to be run and the config
+# file to be generated locally — it cannot be copied between machines.
+#
+# openssl.cnf is shipped as openssl.cnf.tmp because it references fipsmodule.cnf
+# which doesn't exist yet. This script generates fipsmodule.cnf, then moves
+# openssl.cnf.tmp → openssl.cnf and rewrites its .include line to the physical
+# path of fipsmodule.cnf so it remains valid if the tree is relocated (OCI
+# installs use a per-version directory; the build-time path would be wrong).
 
 set -euo pipefail
 
-# INSTALL_DIR is the `embedded` directory of the package tree. Derive it from
-# the script's own location (embedded/bin/fipsinstall.sh) rather than baking an
-# absolute path at build time: the OCI installer flow extracts/moves the tree to
-# a per-version path (and to temporary staging paths) that does not match the
-# build-time location, so a hardcoded path would run fipsinstall against the
-# wrong tree or fail outright. Resolving relative to the script keeps the
-# self-test and the generated fipsmodule.cnf pinned to the tree it belongs to.
-# Use realpath to resolve the physical path of the script, not the logical one.
-# When invoked through a symlink (e.g. experiment/ → stable/ → version-dir/), bash's
-# `pwd` returns the logical path. If we wrote ${BASH_SOURCE[0]}-relative paths into
-# openssl.cnf they would point at the symlink name rather than the physical directory,
-# so they break as soon as the symlink is removed or retargeted (e.g. after an
-# experiment is stopped). The physical path is stable for the lifetime of the package.
+# Resolve the physical path so .include in openssl.cnf points at the actual
+# directory, not a symlink that may be retargeted later (e.g. experiment/ → stable/).
 INSTALL_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")/..")"
 
 FIPS_MODULE_PATH="${INSTALL_DIR}/ssl/fipsmodule.cnf"
 OPENSSL_CONF_PATH="${INSTALL_DIR}/ssl/openssl.cnf"
-
 FIPS_SO_PATH="${INSTALL_DIR}/lib/ossl-modules/fips.so"
 OPENSSL_BIN="${INSTALL_DIR}/bin/openssl"
 
-
-if [ -f "${FIPS_MODULE_PATH}" ]; then
-    rm "${FIPS_MODULE_PATH}"
-fi
-
+# Regenerate fipsmodule.cnf (remove stale copy if present).
+rm -f "${FIPS_MODULE_PATH}"
 "${OPENSSL_BIN}" fipsinstall -module "${FIPS_SO_PATH}" -out "${FIPS_MODULE_PATH}"
-mv "${OPENSSL_CONF_PATH}.tmp" "${OPENSSL_CONF_PATH}"
 
-# Point the config's fipsmodule.cnf include at this tree's actual location. The
-# build bakes an absolute path (via {{embedded_ssl_dir}}) that is wrong once the
-# tree is relocated to a per-version OCI path, and OpenSSL resolves a relative
-# .include against the current working directory (not the config file), so
-# neither the baked path nor a relative include is safe. Rewrite it here, where
-# we know the real on-disk location.
+# Activate openssl.cnf and fix its .include to the physical fipsmodule.cnf path.
+mv "${OPENSSL_CONF_PATH}.tmp" "${OPENSSL_CONF_PATH}"
 sed -i "s#^\.include .*/fipsmodule\.cnf#.include ${FIPS_MODULE_PATH}#" "${OPENSSL_CONF_PATH}"
 if ! grep -qF ".include ${FIPS_MODULE_PATH}" "${OPENSSL_CONF_PATH}"; then
-    echo "openssl fipsinstall: failed to update .include path in ${OPENSSL_CONF_PATH}"
+    echo "fipsinstall: failed to update .include path in ${OPENSSL_CONF_PATH}"
     exit 1
 fi
 
+# Verify the module is correctly installed.
 if ! "${OPENSSL_BIN}" fipsinstall -module "${FIPS_SO_PATH}" -in "${FIPS_MODULE_PATH}" -verify; then
-    echo "openssl fipsinstall: verification of FIPS compliance failed. $INSTALL_DIR/fipsmodule.cnf was corrupted or the installation failed."
+    echo "fipsinstall: verification failed — ${FIPS_MODULE_PATH} may be corrupted"
     exit 1
 fi
