@@ -20,6 +20,7 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config/impl"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
@@ -140,38 +141,13 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 // Component-specific keys are read via the AgentConfigurable interface —
 // config structs that implement it will have their fields populated
 // automatically.
-const (
-	anomalyDetectionEnabledConfigKey      = "anomaly_detection.enabled"
-	anomalyScorerEnabledConfigKey         = "anomaly_detection.anomaly_scorer.enabled"
-	smartSeverityProfilesEnabledConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
-)
-
-func smartSeverityProfilesEnabled(cfg config.Component) bool {
-	return cfg != nil && cfg.GetBool(smartSeverityProfilesEnabledConfigKey)
-}
-
-// effectiveAnalysisEnabled returns whether anomaly detection pipeline is enabled.
-// We enable anomaly detection if any feature using it are enabled
-func effectiveAnalysisEnabled(cfg config.Component) bool {
-	return cfg != nil && (cfg.GetBool(anomalyDetectionEnabledConfigKey) || smartSeverityProfilesEnabled(cfg))
-}
-
-func effectiveAnomalyScorerEnabled(cfg config.Component) bool {
-	if cfg == nil {
-		return false
-	}
-	if smartSeverityProfilesEnabled(cfg) {
-		return true
-	}
-	return cfg.IsConfigured(anomalyScorerEnabledConfigKey) && cfg.GetBool(anomalyScorerEnabledConfigKey)
-}
-
 func warnSmartSeverityOverrides(cfg config.Component, log log.Component) {
-	if cfg == nil || log == nil || !smartSeverityProfilesEnabled(cfg) {
+	if cfg == nil || log == nil || !anomalydetectionconfig.SmartSeverityProfilesEnabled(cfg) {
 		return
 	}
-	if effectiveAnalysisEnabled(cfg) &&
-		cfg.IsConfigured(anomalyDetectionEnabledConfigKey) && !cfg.GetBool(anomalyDetectionEnabledConfigKey) {
+	if anomalydetectionconfig.EffectiveAnalysisEnabled(cfg) &&
+		cfg.IsConfigured(anomalydetectionconfig.AnomalyDetectionEnabledConfigKey) &&
+		!cfg.GetBool(anomalydetectionconfig.AnomalyDetectionEnabledConfigKey) {
 		log.Infof("[observer] Auto-enabling anomaly detection since smart adaptive log sampling enabled")
 	}
 }
@@ -201,7 +177,7 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 
 	// Dedicated scorer read path under anomaly_detection.anomaly_scorer.*
 	const scorerPrefix = "anomaly_detection.anomaly_scorer."
-	if effectiveAnomalyScorerEnabled(cfg) {
+	if anomalydetectionconfig.EffectiveAnomalyScorerEnabled(cfg) {
 		settings.Enabled["anomaly_scorer"] = true
 		if settings.configs == nil {
 			settings.configs = make(map[string]any)
@@ -259,7 +235,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	// tap, so skip building the catalog, engine, storage, 1000-cap channel, and
 	// dispatch goroutine — return the zero-allocation stub instead. The predicate
 	// mirrors the analysisEnabled/recorderEnabled gates used further down.
-	if !effectiveAnalysisEnabled(cfg) {
+	if !anomalydetectionconfig.EffectiveAnalysisEnabled(cfg) {
 		if _, recorderEnabled := deps.Recorder.Get(); !recorderEnabled {
 			return Provides{Comp: &disabledObserver{}}, nil
 		}
@@ -365,7 +341,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	// Set up handle function based on recording and analysis configuration.
 	// Recording (anomaly_detection.recording.enabled) enables parquet writers.
 	// Analysis (anomaly_detection.enabled) enables the anomaly detection pipeline.
-	analysisEnabled := effectiveAnalysisEnabled(cfg)
+	analysisEnabled := anomalydetectionconfig.EffectiveAnalysisEnabled(cfg)
 	if analysisEnabled {
 		obsTelemetry.initLogsInFlight()
 		obsTelemetry.setSeriesCount(0)

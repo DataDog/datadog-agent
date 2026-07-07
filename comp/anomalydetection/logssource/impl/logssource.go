@@ -10,6 +10,7 @@ import (
 	"context"
 	"time"
 
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config/impl"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	logssource "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/def"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -94,7 +95,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	obs, obsOk := deps.Observer.Get()
 	wmeta, wmetaOk := deps.WMeta.Get()
 
-	analysisEnabled := deps.Config.GetBool("anomaly_detection.enabled")
+	analysisEnabled := anomalydetectionconfig.EffectiveAnalysisEnabled(deps.Config)
 	logSourceSettings := newLogSourceSettings(deps.Config)
 	recordingEnabled := deps.Config.GetBool("anomaly_detection.recording.enabled")
 

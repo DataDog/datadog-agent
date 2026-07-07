@@ -150,37 +150,33 @@ func (s *metricsOffLogsOnSuite) TestLogTapActiveMetricsWarningPresent() {
 	}, 2*time.Minute, 3*time.Second)
 }
 
-// --- Case 4: all gates on ------------------------------------------------
+// --- Case 4: master gate only (default sub-gates on) ---------------------
 
-type allGatesOnSuite struct {
+type masterOnlyDefaultsOnSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-// TestObserverConfigMatrixAllGatesOn verifies both the metrics and log paths
-// are active simultaneously with no disabled warnings.
-func TestObserverConfigMatrixAllGatesOn(t *testing.T) {
+// TestObserverConfigMatrixMasterOnlyDefaultsOn verifies that enabling the
+// master anomaly-detection gate implicitly keeps the metrics and internal log
+// paths active through their default=true sub-gates.
+func TestObserverConfigMatrixMasterOnlyDefaultsOn(t *testing.T) {
 	t.Parallel()
 	// language=yaml
 	agentConfig := `
 log_level: debug
 anomaly_detection:
   enabled: true
-  metrics:
-    enabled: true
-  logs:
-    internal:
-      enabled: true
 `
-	e2e.Run(t, &allGatesOnSuite{}, e2e.WithProvisioner(
+	e2e.Run(t, &masterOnlyDefaultsOnSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 		),
-	), e2e.WithStackName("anomalydetection-matrix-all-on"))
+	), e2e.WithStackName("anomalydetection-matrix-master-defaults-on"))
 }
 
-// TestBothPathsActive is the full-active baseline: metrics telemetry and
-// internal log ingestion telemetry must both be present.
-func (s *allGatesOnSuite) TestBothPathsActive() {
+// TestBothPathsActive verifies that the metrics and internal log paths both
+// start when only the master gate is enabled.
+func (s *masterOnlyDefaultsOnSuite) TestBothPathsActive() {
 	waitForObserverReady(s)
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		tel := observerTelemetryOutput(s)

@@ -18,6 +18,7 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -150,6 +151,50 @@ func TestSetObserverConfigOff(t *testing.T) {
 	demux.aggregator.mu.Unlock()
 	require.NotNil(t, cs)
 	assert.Nil(t, cs.observerHandle, "CheckSampler handle should not be wired when config is off")
+}
+
+func TestSetObserverSmartSeverityProfilesEnableMetricCapture(t *testing.T) {
+	configmock.NewFromYAML(t, `
+anomaly_detection:
+  enabled: false
+  metrics:
+    enabled: true
+logs_config:
+  experimental_adaptive_sampling:
+    smart_severity_profiles:
+      enabled: true
+`)
+
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	comp := &recordingComponent{handle: &recordingHandle{}}
+	demux.SetObserver(comp)
+
+	for _, w := range demux.statsd.workers {
+		assert.Equal(t, comp.handle, w.sampler.observerHandle, "DogStatsD worker handle should be wired when smart severity force-enables analysis")
+	}
+	assert.Equal(t, comp.handle, demux.aggregator.observerHandle, "BufferedAggregator handle should be wired when smart severity force-enables analysis")
+}
+
+func TestSetObserverMasterGateUsesDefaultMetricsCapture(t *testing.T) {
+	configmock.NewFromYAML(t, `
+anomaly_detection:
+  enabled: true
+`)
+
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	comp := &recordingComponent{handle: &recordingHandle{}}
+	demux.SetObserver(comp)
+
+	for _, w := range demux.statsd.workers {
+		assert.Equal(t, comp.handle, w.sampler.observerHandle, "DogStatsD worker handle should be wired when anomaly detection is enabled and metrics.enabled uses its default true value")
+	}
+	assert.Equal(t, comp.handle, demux.aggregator.observerHandle, "BufferedAggregator handle should be wired when anomaly detection is enabled and metrics.enabled uses its default true value")
 }
 
 // TestCheckSamplerObserverHandle verifies that ObserveMetric is called for each
