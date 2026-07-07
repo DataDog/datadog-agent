@@ -35,7 +35,7 @@ func TestWatcherEmitsHealthyWhenWindowRangeEqualsRangeEpsilon(t *testing.T) {
 	start := time.Unix(100, 0)
 	reader := &inMemoryReader{}
 	decisions := make(chan Decision, 1)
-	watcher := New(Config{
+	watcher := requireWatcher(t, Config{
 		MetricName:         "target",
 		RangeEpsilon:       0.25,
 		EvaluationInterval: 30 * time.Second,
@@ -63,7 +63,7 @@ func TestWatcherEmitsBreachWhenWindowRangeExceedsRangeEpsilon(t *testing.T) {
 	start := time.Unix(100, 0)
 	reader := &inMemoryReader{}
 	decisions := make(chan Decision, 1)
-	watcher := New(Config{
+	watcher := requireWatcher(t, Config{
 		MetricName:         "target",
 		RangeEpsilon:       0.05,
 		EvaluationInterval: 30 * time.Second,
@@ -90,7 +90,7 @@ func TestWatcherEmitsHealthyForStableLowAbsoluteValue(t *testing.T) {
 	start := time.Unix(100, 0)
 	reader := &inMemoryReader{}
 	decisions := make(chan Decision, 1)
-	watcher := New(Config{
+	watcher := requireWatcher(t, Config{
 		MetricName:         "target",
 		RangeEpsilon:       0.05,
 		EvaluationInterval: 30 * time.Second,
@@ -113,7 +113,7 @@ func TestWatcherEmitsUnknownForSparseWindow(t *testing.T) {
 	start := time.Unix(100, 0)
 	reader := &inMemoryReader{points: []Point{{Ts: start, Value: 2}}}
 	decisions := make(chan Decision, 1)
-	watcher := New(Config{
+	watcher := requireWatcher(t, Config{
 		MetricName:         "target",
 		RangeEpsilon:       0.05,
 		EvaluationInterval: 30 * time.Second,
@@ -141,7 +141,7 @@ func TestWatcherIgnoresNaNAndInfinityInWindowRange(t *testing.T) {
 		{Ts: start.Add(3 * time.Second), Value: 10.04},
 	}}
 	decisions := make(chan Decision, 1)
-	watcher := New(Config{
+	watcher := requireWatcher(t, Config{
 		MetricName:         "target",
 		RangeEpsilon:       0.05,
 		EvaluationInterval: 30 * time.Second,
@@ -161,33 +161,22 @@ func TestWatcherIgnoresNaNAndInfinityInWindowRange(t *testing.T) {
 	require.InDelta(t, 0.04, decision.Range, 1e-12)
 }
 
-func TestWatcherNormalizesNegativeRangeEpsilonToZero(t *testing.T) {
-	start := time.Unix(100, 0)
-	reader := &inMemoryReader{}
-	decisions := make(chan Decision, 1)
-	watcher := New(Config{
+func TestWatcherRejectsNegativeRangeEpsilon(t *testing.T) {
+	watcher, err := New(Config{
 		MetricName:         "target",
 		RangeEpsilon:       -1,
 		EvaluationInterval: 30 * time.Second,
 		MinPoints:          2,
-	}, reader, DecisionSinkFunc(func(decision Decision) {
-		decisions <- decision
+	}, &inMemoryReader{}, DecisionSinkFunc(func(Decision) {
+		require.FailNow(t, "decision should not be emitted")
 	}))
 
-	reader.points = append(reader.points,
-		Point{Ts: start, Value: 1},
-		Point{Ts: start.Add(30 * time.Second), Value: 1.01},
-	)
-	require.False(t, watcher.Observe("target", start))
-	require.True(t, watcher.Observe("target", start.Add(30*time.Second)))
-
-	decision := requireDecision(t, decisions)
-	require.Equal(t, Breach, decision.State)
-	require.Equal(t, float64(0), decision.RangeEpsilon)
+	require.Nil(t, watcher)
+	require.ErrorContains(t, err, "range epsilon")
 }
 
 func TestWatcherIgnoresNonMatchingMetric(t *testing.T) {
-	watcher := New(Config{MetricName: "target"}, PointReaderFunc(func(_ string, _, _ time.Time) []Point {
+	watcher := requireWatcher(t, Config{MetricName: "target"}, PointReaderFunc(func(_ string, _, _ time.Time) []Point {
 		require.FailNow(t, "reader should not be called")
 		return nil
 	}), DecisionSinkFunc(func(Decision) {
@@ -201,13 +190,21 @@ func TestWatcherIgnoresNonMatchingMetric(t *testing.T) {
 func TestWatcherIgnoresOutOfOrderObservedTime(t *testing.T) {
 	start := time.Unix(100, 0)
 	reader := &inMemoryReader{}
-	watcher := New(Config{MetricName: "target"}, reader, DecisionSinkFunc(func(Decision) {
+	watcher := requireWatcher(t, Config{MetricName: "target"}, reader, DecisionSinkFunc(func(Decision) {
 		require.FailNow(t, "decision should not be emitted")
 	}))
 
 	require.False(t, watcher.Observe("target", start))
 	require.False(t, watcher.Observe("target", start.Add(-time.Second)))
 	require.Equal(t, uint64(0), watcher.Decisions())
+}
+
+func requireWatcher(t *testing.T, cfg Config, reader PointReader, sink DecisionSink) *Watcher {
+	t.Helper()
+	watcher, err := New(cfg, reader, sink)
+	require.NoError(t, err)
+	require.NotNil(t, watcher)
+	return watcher
 }
 
 func appendWindow(reader *inMemoryReader, start time.Time, fromSecond, toSecond int, value float64) {

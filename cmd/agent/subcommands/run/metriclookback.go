@@ -6,6 +6,7 @@
 package run
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -28,7 +29,12 @@ func newMetricLookbackRetention(cfg config.Component) *metriclookback.Retention 
 	})
 }
 
-func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Component, retention *metriclookback.Retention) aggregator.DogStatsDLookbackFactory {
+func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Component, retention *metriclookback.Retention) (aggregator.DogStatsDLookbackFactory, error) {
+	if err := validateMetricLookbackMonitorConfig(cfg); err != nil {
+		return nil, err
+	}
+
+
 	return func(metricSerializer serializer.MetricSerializer) aggregator.DogStatsDLookback {
 		if retention == nil || !cfg.GetBool("metric_lookback.enabled") {
 			return nil
@@ -44,7 +50,11 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 		if monitorEnabled {
 			egressController = metriclookback.NewEgressController(retention, metricSerializer, metriclookback.EgressControllerOptions{})
 		}
-		watcher := newMetricLookbackMonitor(cfg, logger, retention, egressController)
+		watcher, err := newMetricLookbackMonitor(cfg, logger, retention, egressController)
+		if err != nil {
+			logger.Errorf("invalid metric_lookback monitor configuration: %v", err)
+			return nil
+		}
 		retention.SetMonitor(watcher)
 		materializer := metriclookback.NewDogStatsDBucketMaterializer(retention, metriclookback.DogStatsDBucketMaterializerOptions{
 			Monitor: watcher,
@@ -67,16 +77,26 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 			egressController.Start()
 		}
 		return adapter
-	}
+	}, nil
 }
 
-func newMetricLookbackMonitor(cfg config.Component, logger log.Component, retention *metriclookback.Retention, sink monitor.DecisionSink) *monitor.Watcher {
-	if !cfg.GetBool("metric_lookback.monitor.enabled") {
+func validateMetricLookbackMonitorConfig(cfg config.Component) error {
+	if cfg == nil || !cfg.GetBool("metric_lookback.enabled") || !cfg.GetBool("metric_lookback.monitor.enabled") {
 		return nil
+	}
+	if rangeEpsilon := cfg.GetFloat64("metric_lookback.monitor.range_epsilon"); rangeEpsilon < 0 {
+		return fmt.Errorf("metric_lookback.monitor.range_epsilon must be non-negative, got %v", rangeEpsilon)
+	}
+	return nil
+}
+
+func newMetricLookbackMonitor(cfg config.Component, logger log.Component, retention *metriclookback.Retention, sink monitor.DecisionSink) (*monitor.Watcher, error) {
+	if !cfg.GetBool("metric_lookback.monitor.enabled") {
+		return nil, nil
 	}
 	if sink == nil {
 		logger.Warn("metric_lookback.monitor.enabled is set but egress controller is not available; monitor inactive")
-		return nil
+		return nil, nil
 	}
 
 	metricName := cfg.GetString("metric_lookback.monitor.metric_name")
@@ -106,12 +126,15 @@ func newMetricLookbackMonitor(cfg config.Component, logger log.Component, retent
 		})
 		return out
 	})
-	watcher := monitor.New(monitor.Config{
+	watcher, err := monitor.New(monitor.Config{
 		MetricName:   metricName,
 		RangeEpsilon: cfg.GetFloat64("metric_lookback.monitor.range_epsilon"),
 	}, reader, sink)
+	if err != nil {
+		return nil, err
+	}
 	if watcher == nil {
 		logger.Warn("metric_lookback.monitor.enabled is set but metric_lookback.monitor.metric_name is empty; monitor inactive")
 	}
-	return watcher
+	return watcher, nil
 }

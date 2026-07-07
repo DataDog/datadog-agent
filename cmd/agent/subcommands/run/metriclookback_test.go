@@ -30,7 +30,7 @@ func TestMetricLookbackDogStatsDFactoryDisabled(t *testing.T) {
 	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
 		"metric_lookback.enabled": false,
 	})
-	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
+	factory := requireMetricLookbackDogStatsDFactory(t, cfg, newMetricLookbackRetention(cfg))
 
 	lookback := factory(serializermocks.NewMetricSerializer(t))
 
@@ -55,7 +55,7 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromNoAggSeries
 		forwarded <- struct{}{}
 	}).Return(nil).Maybe()
 
-	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
+	factory := requireMetricLookbackDogStatsDFactory(t, cfg, newMetricLookbackRetention(cfg))
 	lookback := factory(serializer)
 	require.NotNil(t, lookback)
 
@@ -87,7 +87,7 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromBucketedSam
 		forwarded <- struct{}{}
 	}).Return(nil).Maybe()
 
-	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
+	factory := requireMetricLookbackDogStatsDFactory(t, cfg, newMetricLookbackRetention(cfg))
 	lookback := factory(serializer)
 	require.NotNil(t, lookback)
 
@@ -119,7 +119,7 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromDistributio
 		forwarded <- struct{}{}
 	}).Return(nil).Maybe()
 
-	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
+	factory := requireMetricLookbackDogStatsDFactory(t, cfg, newMetricLookbackRetention(cfg))
 	lookback := factory(serializer)
 	require.NotNil(t, lookback)
 
@@ -152,7 +152,7 @@ func TestMetricLookbackMonitorEgressAdapterFromShadowSenderSamples(t *testing.T)
 		forwarded <- struct{}{}
 	}).Return(nil).Maybe()
 
-	factory := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), retention)
+	factory := requireMetricLookbackDogStatsDFactory(t, cfg, retention)
 	lookback := factory(serializer)
 	// The DogStatsD adapter is still created because the monitor metric is auto-admitted,
 	// but this test only writes through the shadow-check sender manager.
@@ -163,7 +163,11 @@ func TestMetricLookbackMonitorEgressAdapterFromShadowSenderSamples(t *testing.T)
 	require.NoError(t, err)
 	for second := 0; second <= 30; second++ {
 		ts := float64(start.Add(time.Duration(second) * time.Second).Unix())
-		require.NoError(t, sender.GaugeWithTimestamp("target.metric", 2, "", nil, ts))
+		value := float64(2)
+		if second == 30 {
+			value = 3
+		}
+		require.NoError(t, sender.GaugeWithTimestamp("target.metric", value, "", nil, ts))
 		sender.Commit()
 	}
 
@@ -172,6 +176,28 @@ func TestMetricLookbackMonitorEgressAdapterFromShadowSenderSamples(t *testing.T)
 	case <-time.After(time.Second):
 		require.FailNow(t, "timed out waiting for shadow sender monitor egress")
 	}
+}
+
+func TestMetricLookbackDogStatsDFactoryRejectsNegativeRangeEpsilon(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		"metric_lookback.enabled":               true,
+		"metric_lookback.monitor.enabled":       true,
+		"metric_lookback.monitor.metric_name":   "target.metric",
+		"metric_lookback.monitor.range_epsilon": -0.01,
+	})
+
+	factory, err := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), newMetricLookbackRetention(cfg))
+
+	require.Nil(t, factory)
+	require.ErrorContains(t, err, "metric_lookback.monitor.range_epsilon")
+}
+
+func requireMetricLookbackDogStatsDFactory(t testing.TB, cfg configmock.Component, retention *metriclookback.Retention) aggregator.DogStatsDLookbackFactory {
+	t.Helper()
+	factory, err := newMetricLookbackDogStatsDFactory(cfg, logmock.New(t), retention)
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+	return factory
 }
 
 func metricLookbackMonitorFactoryConfig(t testing.TB) configmock.Component {
@@ -191,9 +217,13 @@ func appendFactoryNoAggTestWindow(lookback interface {
 	AppendDogStatsDNoAggSerie(*metrics.Serie)
 }, start time.Time, fromSecond, toSecond int, value float64) {
 	for second := fromSecond; second <= toSecond; second++ {
+		sampleValue := value
+		if second == toSecond {
+			sampleValue = value + 1
+		}
 		lookback.AppendDogStatsDNoAggSerie(&metrics.Serie{
 			Name:     "target.metric",
-			Points:   []metrics.Point{{Ts: float64(start.Add(time.Duration(second) * time.Second).Unix()), Value: value}},
+			Points:   []metrics.Point{{Ts: float64(start.Add(time.Duration(second) * time.Second).Unix()), Value: sampleValue}},
 			Tags:     tagset.CompositeTagsFromSlice(nil),
 			MType:    metrics.APIGaugeType,
 			Interval: 10,
@@ -209,9 +239,13 @@ func appendFactoryBucketedTestWindow(lookback aggregator.DogStatsDLookback, star
 	}
 	for second := fromSecond; second <= toSecond; second++ {
 		ts := float64(start.Add(time.Duration(second) * time.Second).Unix())
+		sampleValue := value
+		if second == toSecond {
+			sampleValue = value + 1
+		}
 		lookback.ObserveDogStatsDSample(&metrics.MetricSample{
 			Name:       "target.metric",
-			Value:      value,
+			Value:      sampleValue,
 			Mtype:      metrics.GaugeType,
 			SampleRate: 1,
 		}, ts, ctx)
@@ -227,9 +261,13 @@ func appendFactoryDistributionTestWindow(lookback aggregator.DogStatsDLookback, 
 	}
 	for second := fromSecond; second <= toSecond; second++ {
 		ts := float64(start.Add(time.Duration(second) * time.Second).Unix())
+		sampleValue := value
+		if second == toSecond {
+			sampleValue = value + 1
+		}
 		lookback.ObserveDogStatsDSample(&metrics.MetricSample{
 			Name:       "target.metric",
-			Value:      value,
+			Value:      sampleValue,
 			Mtype:      metrics.DistributionType,
 			SampleRate: 1,
 		}, ts, ctx)

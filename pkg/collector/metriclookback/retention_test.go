@@ -156,11 +156,11 @@ func TestRetentionNewSenderManagerWritesShadowCheckSamples(t *testing.T) {
 func TestRetentionShadowSenderSamplesNotifyMonitor(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	decisions := make(chan monitor.Decision, 1)
-	watcher := monitor.New(monitor.Config{
+	watcher, err := monitor.New(monitor.Config{
 		MetricName:         "shadow.metric",
 		RangeEpsilon:       0.05,
 		EvaluationInterval: 2 * time.Second,
-		MinPoints:          1,
+		MinPoints:          2,
 	}, monitor.PointReaderFunc(func(metricName string, from, to time.Time) []monitor.Point {
 		points := retention.PointsBetweenSources([]ringbuffer.Source{{Kind: ringbuffer.SourceCheckShadow}}, metricName, from, to)
 		out := make([]monitor.Point, 0, len(points))
@@ -171,6 +171,7 @@ func TestRetentionShadowSenderSamplesNotifyMonitor(t *testing.T) {
 	}), monitor.DecisionSinkFunc(func(decision monitor.Decision) {
 		decisions <- decision
 	}))
+	require.NoError(t, err)
 	retention.SetMonitor(watcher)
 
 	manager := retention.NewSenderManager(context.Background(), "default-host")
@@ -323,11 +324,13 @@ func TestDogStatsDAdapterRoutesSelectedNormalSamplesToBucketMaterializer(t *test
 
 func newNoopWatcher(t *testing.T, metricName string) *monitor.Watcher {
 	t.Helper()
-	return monitor.New(monitor.Config{MetricName: metricName}, monitor.PointReaderFunc(func(_ string, _, _ time.Time) []monitor.Point {
+	watcher, err := monitor.New(monitor.Config{MetricName: metricName}, monitor.PointReaderFunc(func(_ string, _, _ time.Time) []monitor.Point {
 		return nil
 	}), monitor.DecisionSinkFunc(func(monitor.Decision) {
 		require.FailNow(t, "decision should not be emitted")
 	}))
+	require.NoError(t, err)
+	return watcher
 }
 
 func noAggSerie(name string, value float64, ts float64, tags []string) *metrics.Serie {

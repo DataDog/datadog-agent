@@ -9,6 +9,7 @@
 package monitor
 
 import (
+	"errors"
 	"math"
 	"sync"
 	"time"
@@ -20,10 +21,10 @@ const (
 	// DefaultEvaluationInterval is the approximate retained-point window size used
 	// by the monitor.
 	DefaultEvaluationInterval = 30 * time.Second
-	// DefaultMinPoints is the minimum number of retained points required before a
-	// window can be treated as healthy or breaching. Sparse windows are reported as
-	// unknown so egress can remain conservative.
-	DefaultMinPoints = 6
+	// DefaultMinPoints is the minimum number of retained points required to compute
+	// a range. A single valid point cannot show whether the window moved by more
+	// than epsilon.
+	DefaultMinPoints = 2
 )
 
 var (
@@ -128,7 +129,8 @@ type Config struct {
 	// to DefaultEvaluationInterval.
 	EvaluationInterval time.Duration
 	// MinPoints is the minimum number of valid points required in a window.
-	// Defaults to DefaultMinPoints.
+	// Defaults to DefaultMinPoints. Values below 2 are raised to 2 because a
+	// single point cannot establish a range.
 	MinPoints int
 }
 
@@ -151,11 +153,14 @@ type Watcher struct {
 
 // New creates a Watcher. It returns nil when the configuration is inert or when
 // reader/sink is nil, so callers can treat a nil Watcher as disabled.
-func New(cfg Config, reader PointReader, sink DecisionSink) *Watcher {
+func New(cfg Config, reader PointReader, sink DecisionSink) (*Watcher, error) {
 	if cfg.MetricName == "" || reader == nil || sink == nil {
-		return nil
+		return nil, nil
 	}
-	cfg = normalizeConfig(cfg)
+	cfg, err := normalizeConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &Watcher{
 		metricName:         cfg.MetricName,
 		rangeEpsilon:       cfg.RangeEpsilon,
@@ -163,12 +168,12 @@ func New(cfg Config, reader PointReader, sink DecisionSink) *Watcher {
 		minPoints:          cfg.MinPoints,
 		reader:             reader,
 		sink:               sink,
-	}
+	}, nil
 }
 
-func normalizeConfig(cfg Config) Config {
+func normalizeConfig(cfg Config) (Config, error) {
 	if cfg.RangeEpsilon < 0 {
-		cfg.RangeEpsilon = 0
+		return Config{}, errors.New("range epsilon must be non-negative")
 	}
 	if cfg.EvaluationInterval <= 0 {
 		cfg.EvaluationInterval = DefaultEvaluationInterval
@@ -176,7 +181,10 @@ func normalizeConfig(cfg Config) Config {
 	if cfg.MinPoints <= 0 {
 		cfg.MinPoints = DefaultMinPoints
 	}
-	return cfg
+	if cfg.MinPoints < 2 {
+		cfg.MinPoints = 2
+	}
+	return cfg, nil
 }
 
 // MetricName returns the metric this watcher evaluates.
