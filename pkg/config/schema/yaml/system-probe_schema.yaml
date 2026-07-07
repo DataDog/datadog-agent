@@ -2706,6 +2706,10 @@ properties:
         node_type: setting
         type: string
         default: 60s
+      service_collection_max_consecutive_timeouts:
+        node_type: setting
+        type: integer
+        default: 5
       service_collection_min_process_age:
         node_type: setting
         type: string
