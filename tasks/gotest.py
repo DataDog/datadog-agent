@@ -792,10 +792,8 @@ def test(
             exclude_packages = set(bazel_targets.values())
             print(f"Skipping {len(exclude_packages)} Bazel-covered packages from go test")
 
-    go_tests_duration_s: float = 0.0
     with gitlab_section("Running unit tests", collapsed=True):
         result_junit = f"junit-out-{flavor.name}.xml" if junit_tar else ""
-        _t0 = time.monotonic()
         test_result = test_flavor(
             ctx,
             flavor=flavor,
@@ -812,7 +810,6 @@ def test(
             exclude_packages=exclude_packages or None,
             skip_tests_covered_by_bazel=skip_tests_covered_by_bazel,
         )
-        go_tests_duration_s = time.monotonic() - _t0
 
     # Go test output (only if tests ran)
     go_success = True
@@ -852,7 +849,7 @@ def test(
         bazel_status = (
             color_message('All tests passed', 'green') if bazel_success else color_message('Tests FAILED', 'red')
         )
-        print(f"DONE {bazel_stats.total} tests in {bazel_stats.duration_s:.3f}s")
+        print(f"DONE {bazel_stats.total} tests in {bazel_tests_duration_s:.3f}s")
         print(bazel_status)
 
     # Combined summary in the same style as the go Test Report block.
