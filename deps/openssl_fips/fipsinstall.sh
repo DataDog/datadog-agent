@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Run the OpenSSL FIPS self-tests and generate fipsmodule.cnf for this machine.
-# The OpenSSL security policy requires the self-tests to be run and the config
-# file to be generated locally — it cannot be copied between machines.
-#
-# openssl.cnf is shipped as openssl.cnf.tmp because it references fipsmodule.cnf
-# which doesn't exist yet. This script generates fipsmodule.cnf, then moves
-# openssl.cnf.tmp → openssl.cnf and rewrites its .include line to the physical
-# path of fipsmodule.cnf so it remains valid if the tree is relocated (OCI
-# installs use a per-version directory; the build-time path would be wrong).
+# The OpenSSL security policy states:
+# "The Module shall have the self-tests run, and the Module config file output generated on each
+# platform where it is intended to be used. The Module config file output data shall not be copied from
+# one machine to another."
+# This script aims to run self-tests and generate `fipsmodule.cnf`.
+# Because the provided `openssl.cnf` references `fipsmodule.cnf` which is not yet created, we first create it
+# then move `openssl.cnf.tmp` to its final name `openssl.cnf`. The .include path is also rewritten to the
+# physical on-disk location so it remains valid if the tree is relocated (OCI installs place the tree at a
+# per-version path that differs from the build-time path).
 
 set -euo pipefail
 
