@@ -478,6 +478,11 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 	// Arrange
 	agentVersion := s.StableAgentVersion().Version()
 
+	// xperf covers the full experiment window: from daemon restart through installer
+	// service startup, capturing the SCM service start sequence on failure.
+	s.startxperf()
+	defer s.collectxperf()
+
 	// Act
 	s.WaitForDaemonToStop(func() {
 		_, err := s.startExperimentPreviousVersion()
@@ -689,6 +694,11 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	// Arrange
 	agentVersion := s.CurrentAgentVersion().Version()
 
+	// xperf covers the full experiment window: from daemon restart through installer
+	// service startup, capturing the SCM service start sequence on failure.
+	s.startxperf()
+	defer s.collectxperf()
+
 	// Act
 	s.WaitForDaemonToStop(func() {
 		_, err := s.StartExperimentCurrentVersion()
@@ -824,9 +834,6 @@ func (s *BaseSuite) WaitForDaemonToStop(f func(), opts ...backoff.RetryOption) {
 
 	originalStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, originalPID)
 	s.Require().NoError(err)
-
-	s.startxperf()
-	defer s.collectxperf()
 
 	f()
 

@@ -33,6 +33,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
 	config.BindEnvAndSetDefault("check_sampler_allow_sketch_bucket_reset", true)
+
+	config.BindEnvAndSetDefault("metric_lookback.enabled", false)
+	config.BindEnvAndSetDefault("metric_lookback.enabled_checks", []string{})
+
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
 
