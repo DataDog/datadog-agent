@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.80.4:
+
+7.80.4
+======
+
+.. _Release Notes_7.80.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-01
+
+- Please refer to the `7.80.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7804>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.80.4_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Add more traces during SSI installation on Linux host
+
+
 .. _Release Notes_7.80.3:
 
 7.80.3
@@ -193,14 +216,10 @@ Upgrade Notes
 New Features
 ------------
 
-- The Windows MSI installer now ships the AI usage Chrome native messaging
-  host (``ai-usage-agent-native-host.exe``) under ``bin\agent``. The
-  installer generates a Chrome Native Messaging Host
-  manifest under ``bin\agent\dist`` and registers it machine-wide under
-  ``HKLM\SOFTWARE\Google\Chrome\NativeMessagingHosts`` (including the
-  ``WOW6432Node`` view for 32-bit Chrome). The host's runtime configuration is
-  generated as ``C:\ProgramData\Datadog\ai_usage_native_host.yaml`` and uses
-  the Agent's configured APM receiver port.
+- The Windows MSI installer now includes the AI Usage Chrome Native Messaging
+  Host, which is intended to work with a companion Chrome extension to power
+  EUDM AI usage features. The host is currently dormant because the Chrome
+  extension is not yet enabled, so no AI usage host process runs on the system.
 
 - Adds a new ``discovery.service_map.enabled`` system-probe configuration
   option that boots the universal service monitoring (USM) eBPF monitor in

@@ -41,6 +41,7 @@ const (
 
 	metricPayloadType = "agent-metrics"
 	batchPayloadType  = "message-batch"
+	logsPayloadType   = "agent-logs"
 
 	httpClientResetInterval = 5 * time.Minute
 	httpClientTimeout       = 10 * time.Second
@@ -54,6 +55,12 @@ type sender interface {
 
 	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric)
 	sendEventPayload(ss *senderSession, eventInfo *Event, eventPayload map[string]interface{})
+
+	// sendLogsBatch is the entry point used by atel's
+	// errortracking flush goroutine. It takes already-converted wire
+	// Log structs and POSTs them as a single LogsPayload via the
+	// shared sendPayloadBody helper.
+	sendLogsBatch(ctx context.Context, logs []Log) error
 }
 
 type client interface {

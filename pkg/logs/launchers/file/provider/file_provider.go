@@ -270,9 +270,12 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 // with ordering defined by 'wildcardOrder'
 func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, error) {
 	path := source.Config.Path
-	_, err := opener.StatLogFile(path)
+	fi, err := opener.StatLogFile(path)
 	switch {
 	case err == nil:
+		if fi.IsDir() {
+			return nil, fmt.Errorf("path %s is a directory, not a file; specify a file path or a glob (e.g. %s) to tail files inside it", path, filepath.Join(path, "*"))
+		}
 		return []*tailer.File{
 			tailer.NewFile(path, source, false),
 		}, nil
@@ -304,6 +307,25 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 	if err != nil {
 		return nil, fmt.Errorf("malformed pattern, could not find any file: %s", pattern)
 	}
+	// Filter out directories that the glob matched. Opening a directory as a file
+	// produces misleading errors (e.g. "Access is denied" on Windows). Mixing
+	// files and subdirectories in the same parent is normal, so this is silent
+	// at the info level; trace level is available for debugging.
+	filteredPaths := paths[:0]
+	for _, path := range paths {
+		fi, statErr := opener.StatLogFile(path)
+		if statErr != nil {
+			// can't stat; let downstream logic surface a clear error
+			filteredPaths = append(filteredPaths, path)
+			continue
+		}
+		if fi.IsDir() {
+			log.Tracef("Skipping directory %q matched by pattern %q", path, pattern)
+			continue
+		}
+		filteredPaths = append(filteredPaths, path)
+	}
+	paths = filteredPaths
 	if len(paths) == 0 {
 		// no file was found, its parent directories might have wrong permissions or it just does not exist
 		return nil, fmt.Errorf("could not find any file matching pattern %s, check that all its subdirectories are executable", pattern)

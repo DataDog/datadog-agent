@@ -1574,12 +1574,6 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 			} else {
 				out.SocketFamily = string(in.String())
 			}
-		case "filter_len":
-			if in.IsNull() {
-				in.Skip()
-			} else {
-				out.FilterLen = uint16(in.Uint16())
-			}
 		case "socket_protocol":
 			if in.IsNull() {
 				in.Skip()
@@ -1597,6 +1591,12 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 				in.Skip()
 			} else {
 				out.OptName = string(in.String())
+			}
+		case "filter_len":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.FilterLen = uint16(in.Uint16())
 			}
 		case "is_filter_truncated":
 			if in.IsNull() {
@@ -1640,11 +1640,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 		out.RawString(prefix)
 		out.String(string(in.SocketFamily))
 	}
-	if in.FilterLen != 0 {
-		const prefix string = ",\"filter_len\":"
-		out.RawString(prefix)
-		out.Uint16(uint16(in.FilterLen))
-	}
 	{
 		const prefix string = ",\"socket_protocol\":"
 		out.RawString(prefix)
@@ -1659,6 +1654,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 		const prefix string = ",\"optname\":"
 		out.RawString(prefix)
 		out.String(string(in.OptName))
+	}
+	if in.FilterLen != 0 {
+		const prefix string = ",\"filter_len\":"
+		out.RawString(prefix)
+		out.Uint16(uint16(in.FilterLen))
 	}
 	if in.IsFilterTruncated {
 		const prefix string = ",\"is_filter_truncated\":"
