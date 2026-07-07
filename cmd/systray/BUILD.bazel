@@ -38,16 +38,14 @@ go_library(
 # It is possible to build this for SUBSYSTEM=console, but it is not done in CI.
 # We can add it if we need it.
 SUBSYSTEM = "windows"
-# TODO: get the flags in
-# ldflags += f"-linkmode external '-extldflags=-Wl,--subsystem,{subsystem}' "
 
 dd_agent_go_binary(
     name = "systray",
     cgo = True,
+    embed = [":systray_lib"],
     # Subtle: This should be passed to the C linker, so the -Wl is redundant,
     # but it is handled by the mingw driver instead of ld, so we still need
     # -Wl to pass it on a second layer deep.
-    embed = [":systray_lib"],
     # TODO: Move selection of strip flags (-s -w) into dd_agent_go_binary. But that
     # requires refactoring to merge fixed and variable parts.
     gc_linkopts = [
