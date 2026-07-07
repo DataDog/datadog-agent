@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build linux || darwin || windows
+
 package com_datadoghq_remoteaction_rshell
 
 import (
@@ -21,6 +23,10 @@ func NewRshellBundle(cfg *config.Config) types.Bundle {
 	return &RshellBundle{
 		actions: map[string]types.Action{
 			"runCommand": NewRunCommandHandler(
+				cfg.RShellAllowedPaths,
+				cfg.RShellAllowedCommands,
+			),
+			"runRemediationCommand": NewRunRemediationCommandHandler(
 				cfg.RShellAllowedPaths,
 				cfg.RShellAllowedCommands,
 			),

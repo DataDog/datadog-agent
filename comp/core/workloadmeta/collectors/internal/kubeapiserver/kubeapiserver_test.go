@@ -126,6 +126,50 @@ func TestShouldHavePodStore(t *testing.T) {
 	}
 }
 
+func TestShouldHaveKueueMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      map[string]interface{}
+		expected bool
+	}{
+		{
+			name:     "kueue disabled",
+			cfg:      map[string]interface{}{},
+			expected: false,
+		},
+		{
+			name: "kueue enabled",
+			cfg: map[string]interface{}{
+				"cluster_agent.kueue.enabled": true,
+			},
+			expected: true,
+		},
+		{
+			name: "kubernetes tags collection does not enable kueue collection",
+			cfg: map[string]interface{}{
+				"cluster_agent.collect_kubernetes_tags": true,
+				"cluster_agent.kueue.enabled":           false,
+			},
+			expected: false,
+		},
+		{
+			name: "metadata collection disabled does not disable kueue collection",
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled": false,
+				"cluster_agent.kueue.enabled":                    true,
+			},
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, test.cfg)
+			assert.Equal(t, test.expected, shouldHaveKueueMetadata(cfg))
+		})
+	}
+}
+
 func TestPodsRequiredAtStartup(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -488,6 +532,71 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets apps/statefulsetsy",
+			},
+		},
+		{
+			name: "resource served only on a non-preferred group version is discovered",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "datadoghq.com/v2alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "datadoghq.com/v1alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogslos",
+							Kind:       "DatadogSLO",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "datadogagents", Group: "datadoghq.com", Version: "v2alpha1"},
+				{Resource: "datadogslos", Group: "datadoghq.com", Version: "v1alpha1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "datadoghq.com/datadogagents datadoghq.com/datadogslos",
+			},
+		},
+		{
+			name: "resource served on both preferred and non-preferred versions resolves to preferred",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "datadoghq.com/v2alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "datadoghq.com/v1alpha1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "datadogagents",
+							Kind:       "DatadogAgent",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "datadogagents", Group: "datadoghq.com", Version: "v2alpha1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "datadoghq.com/datadogagents",
 			},
 		},
 	}

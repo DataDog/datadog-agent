@@ -95,7 +95,8 @@ properties:
     items:
       type: string
     visibility: public
-    description: List of allowed URL patterns for HTTP actions.
+    description: 'List of allowed domains for HTTP actions. Supports glob pattern.
+      Example : ["datadoghq.com", "*.datadoghq.com"]'
     tags:
     - template_section:PrivateActionRunner
   http_allow_imds_endpoint:

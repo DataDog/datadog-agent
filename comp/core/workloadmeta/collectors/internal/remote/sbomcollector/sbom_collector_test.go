@@ -245,11 +245,14 @@ func TestMergeRuntimeProperties_DefaultsLastSeenRunningToZero(t *testing.T) {
 	assert.True(t, ok, "LastAccessProperty must be defaulted to 0 when neither side supplies it")
 	assert.Equal(t, "0", v)
 
-	// HasSetSuidBit / RunningAsRoot are not defaulted.
-	_, ok = findProp(c, HasSetSuidBitProperty)
-	assert.False(t, ok)
-	_, ok = findProp(c, RunningAsRootProperty)
-	assert.False(t, ok)
+	// HasSetSuidBit / RunningAsRoot are defaulted to "false" too, so consumers can
+	// distinguish "not in use" from "unknown".
+	v, ok = findProp(c, HasSetSuidBitProperty)
+	assert.True(t, ok)
+	assert.Equal(t, "false", v)
+	v, ok = findProp(c, RunningAsRootProperty)
+	assert.True(t, ok)
+	assert.Equal(t, "false", v)
 }
 
 func TestMergeRuntimeProperties_DeduplicatesAcrossRounds(t *testing.T) {
@@ -693,8 +696,13 @@ func TestWorkloadmetaEventFromSBOMEventSet_FallsBackToRepoDigest(t *testing.T) {
 
 	got, ok := event.Entity.(*workloadmeta.ContainerImageMetadata)
 	require.True(t, ok)
-	// The event ID is the original (kubelet) image ID, not the config digest.
-	assert.Equal(t, repoDigest, got.ID)
+	// The enriched SBOM must be keyed by the resolved image entity's own
+	// (config-digest) ID, not the kubelet repo digest. Keying it by the repo
+	// digest would create a separate, metadata-less image entity that the SBOM
+	// check cannot ship; using the config digest lands it on the same entity the
+	// runtime collector populates so the two sources merge and the enriched SBOM
+	// is published.
+	assert.Equal(t, configDigest, got.ID)
 }
 
 func TestWorkloadmetaEventFromSBOMEventSet_PendingSBOMSkipped(t *testing.T) {

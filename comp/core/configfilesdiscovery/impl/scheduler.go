@@ -22,7 +22,7 @@ const (
 type adScheduler struct {
 	resolver   targetResolver
 	readers    map[RuntimeType]configReaderFactory
-	collectors map[string]configCollector
+	collectors map[string]ConfigCollector
 	reporter   configFileReporter
 
 	ctx             context.Context
@@ -37,7 +37,7 @@ var _ scheduler.Scheduler = (*adScheduler)(nil)
 type configCollectionWork struct {
 	config        integration.Config
 	target        target
-	collector     configCollector
+	collector     ConfigCollector
 	readerFactory configReaderFactory
 }
 
@@ -55,7 +55,7 @@ func (noopConfigFileReporter) ReportConfigFile(context.Context, string, ConfigFi
 // Autodiscovery calls this scheduler when integration configs appear or
 // disappear; this component only uses the scheduled configs as triggers for
 // one-shot config collection.
-func newADScheduler(resolver targetResolver, readers map[RuntimeType]configReaderFactory, collectors map[string]configCollector, reporter configFileReporter) *adScheduler {
+func newADScheduler(resolver targetResolver, readers map[RuntimeType]configReaderFactory, collectors map[string]ConfigCollector, reporter configFileReporter) *adScheduler {
 	if reporter == nil {
 		reporter = noopConfigFileReporter{}
 	}
@@ -134,6 +134,7 @@ func (s *adScheduler) runCollection(work configCollectionWork) {
 		log.Warnf("failed to build config reader for integration %q service %q runtime %q: %v", work.config.Name, work.config.ServiceID, work.target.runtime, err)
 		return
 	}
+	defer reader.Close()
 
 	files, err := work.collector.Collect(s.ctx, reader)
 	if err != nil {

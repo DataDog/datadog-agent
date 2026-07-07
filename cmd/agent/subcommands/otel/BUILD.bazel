@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "otel",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/otel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/exec",
+        "//pkg/fleet/installer/oci",
+        "//pkg/util/defaultpaths",
+        "//pkg/version",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)
+
+dd_agent_go_test(
+    name = "otel_test",
+    srcs = ["command_test.go"],
+    embed = [":otel"],
+    deps = [
+        "//pkg/util/defaultpaths",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

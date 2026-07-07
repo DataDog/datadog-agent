@@ -92,7 +92,8 @@ func run(logger log.Component, cfg config.Component, hostnameComp hostname.Compo
 		return fmt.Errorf("failed to persist new identity: %w", err)
 	}
 
-	parCfg, err := parconfig.FromDDConfig(cfg)
+	// nil metrics client: identity rotation emits no metrics.
+	parCfg, err := parconfig.FromDDConfig(cfg, nil)
 	if err != nil {
 		logger.Warnf("Identity rotated, but failed to load runner config for auto-connection: %v", err)
 	} else if urnParts, err := parutil.ParseRunnerURN(result.URN); err != nil {
