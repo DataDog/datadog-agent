@@ -4585,6 +4585,8 @@ github.com/prashantv/gostub v1.1.0 h1:BTyx3RfQjRHnUWaGF9oQos79AlQ5k8WNktv7VGvVH4
 github.com/prashantv/gostub v1.1.0/go.mod h1:A5zLQHz7ieHGG7is6LLXLz7I8+3LZzsrV0P1IAHhP5U=
 github.com/prometheus-community/pro-bing v0.9.0 h1:M/zt1lL7cmbK+wm40RPS4waaiAN2EcYEeD4Xt0Lv4x0=
 github.com/prometheus-community/pro-bing v0.9.0/go.mod h1:IBeW2ScY7sAWv4mYjH0xDDigqfe7kXeVxNdbNKdBHWY=
+github.com/prometheus-community/pro-bing v0.9.1 h1:kpuAr6AU2oRtzGihJSUcetHtjc7ku7h6PxeuW9RVrQw=
+github.com/prometheus-community/pro-bing v0.9.1/go.mod h1:z79wYTxAOf6FpTng0QdIhZ3j/Nd5l3+gnFSCIT+SiSQ=
 github.com/prometheus/alertmanager v0.32.1 h1:BQ3jHXNq2A7VSD9Kh0Qx+kXbifNbHSDuKVbMmdRHHJ0=
 github.com/prometheus/alertmanager v0.32.1/go.mod h1:0Dy9faTtMgpVYxJVxV0o65elTxHnSRCF/7gy5BKGZiE=
 github.com/prometheus/client_golang v0.9.1/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=
