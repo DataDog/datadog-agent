@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
@@ -164,12 +165,12 @@ type AnomalyScorerConfig struct {
 // Per-detector thresholds are set based on empirical score distributions across
 // kafka-partition-saturation, postmark, and dns-upstream-outage scenarios.
 func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
-	const windowSecs = 15
+	const window = 15
 	return AnomalyScorerConfig{
 		AnomalyScorerConfig: observerdef.AnomalyScorerConfig{
 			Alpha:         0.014,
 			SaturationK:   5.0,
-			WindowSecs:    windowSecs,
+			WindowSecs:    window,
 			LowThreshold:  0.15,
 			HighThreshold: 0.40,
 			MarginPct:     0.20,
@@ -216,13 +217,13 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 		}
 		ewma.SaturationK = v
 	}
-	if key := prefix + "window_secs"; r.IsConfigured(key) {
-		v := r.GetInt(key)
-		if v < 1 {
-			pkglog.Warnf("anomaly_scorer: %s must be >= 1, got %d — using default %d", key, v, defaults.WindowSecs)
-			v = int(defaults.WindowSecs)
+	if key := prefix + "window"; r.IsConfigured(key) {
+		d := r.GetDuration(key)
+		if d < time.Second {
+			pkglog.Warnf("anomaly_scorer: %s must be >= 1s, got %s — using default %ds", key, d, defaults.WindowSecs)
+			d = time.Duration(defaults.WindowSecs) * time.Second
 		}
-		ewma.WindowSecs = int64(v)
+		ewma.WindowSecs = int64(d.Seconds())
 	}
 	if key := prefix + "low_threshold"; r.IsConfigured(key) {
 		ewma.LowThreshold = r.GetFloat64(key)
@@ -241,8 +242,13 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	if key := outPrefix + "correlation_events"; r.IsConfigured(key) {
 		cfg.CorrelationEvents = r.GetBool(key)
 	}
-	if key := outPrefix + "cooldown_secs"; r.IsConfigured(key) {
-		cfg.CooldownSecs = int64(r.GetInt(key))
+	if key := outPrefix + "cooldown"; r.IsConfigured(key) {
+		d := r.GetDuration(key)
+		if d < 0 {
+			pkglog.Warnf("anomaly_scorer: %s must be >= 0, got %s — using default %ds", key, d, defaults.CooldownSecs)
+			d = time.Duration(defaults.CooldownSecs) * time.Second
+		}
+		cfg.CooldownSecs = int64(d.Seconds())
 	}
 	if key := outPrefix + "max_anomalies"; r.IsConfigured(key) {
 		cfg.MaxEpisodeAnomalies = r.GetInt(key)
