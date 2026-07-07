@@ -77,6 +77,14 @@ type WorkloadMetaCollector struct {
 	// events. This is the completeness of the entity itself, without
 	// considering cross-entity dependencies (for example, a container's pod).
 	entityCompleteness map[workloadmeta.EntityID]bool
+
+	// workloadPods and podWorkload form a bidirectional index between Kueue
+	// Workload entities and the pods that join them. Kueue tags for pods and
+	// their containers are emitted under kueueWorkloadSource (not podSource),
+	// so updates to a Workload entity can be pushed directly to registered
+	// pods without requiring stream.go to manufacture synthetic pod events.
+	workloadPods map[workloadmeta.EntityID]map[workloadmeta.EntityID]struct{}
+	podWorkload  map[workloadmeta.EntityID]workloadmeta.EntityID
 }
 
 func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
@@ -192,6 +200,8 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
 		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),
 		entityCompleteness:                make(map[workloadmeta.EntityID]bool),
+		workloadPods:                      make(map[workloadmeta.EntityID]map[workloadmeta.EntityID]struct{}),
+		podWorkload:                       make(map[workloadmeta.EntityID]workloadmeta.EntityID),
 	}
 
 	containerLabelsAsTags := mergeMaps(

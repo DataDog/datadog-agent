@@ -257,7 +257,6 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_priority_class:high-priority",
 						"kube_service:service1",
 						"kube_service:service2",
-						"kueue_local_queue:batch",
 						"kube_qos:guaranteed",
 						"kube_runtime_class:myclass",
 						"ns_team:containers",
@@ -272,6 +271,16 @@ func TestHandleKubePod(t *testing.T) {
 						"custom_generic_annotation:gee",
 					}, standardTags...),
 					StandardTags: standardTags,
+				},
+				// Kueue tags are now emitted under kueueWorkloadSource, not podSource.
+				{
+					Source:               kueueWorkloadSource,
+					EntityID:             podTaggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{"kueue_local_queue:batch"},
+					StandardTags:         []string{},
+					IsComplete:           false,
 				},
 			},
 		},
@@ -1969,30 +1978,34 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 				IsComplete: true,
 			})
 
-			assert.Len(t, actual, 2)
+			// handleKubePod now returns podSource + kueueWorkloadSource TagInfos
+			// for both the pod and the container.
+			assert.Len(t, actual, 4)
+			containerKueueID := types.NewEntityID(types.ContainerID, containerID)
+			var containerKueueTagInfo *types.TagInfo
 			for _, tagInfo := range actual {
-				if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
-					continue
+				if tagInfo.EntityID == containerKueueID && tagInfo.Source == kueueWorkloadSource {
+					containerKueueTagInfo = tagInfo
+					break
 				}
-				assert.Subset(t, tagInfo.LowCardTags, []string{
-					"gpu_architecture:ampere",
-					"gpu_device:nvidia_a100-sxm4-40gb",
-					"gpu_type:a100",
-					"gpu_vendor:nvidia",
-					"kueue_cluster_queue:cluster-batch",
-					"kueue_local_queue:batch",
-					"kueue_resource_flavor:a100",
-				})
-				assert.Subset(t, tagInfo.OrchestratorCardTags, []string{
-					"kueue_workload:job-sample",
-				})
-				assert.NotContains(t, tagInfo.LowCardTags, "gpu_architecture:hopper")
-				assert.NotContains(t, tagInfo.LowCardTags, "gpu_device:nvidia_h100-80gb-hbm3")
-				assert.NotContains(t, tagInfo.LowCardTags, "gpu_type:h100")
-				assert.NotContains(t, tagInfo.LowCardTags, "kueue_resource_flavor:h100")
-				return
 			}
-			t.Fatal("container tag info not found")
+			require.NotNil(t, containerKueueTagInfo, "container kueueWorkloadSource tag info not found")
+			assert.Subset(t, containerKueueTagInfo.LowCardTags, []string{
+				"gpu_architecture:ampere",
+				"gpu_device:nvidia_a100-sxm4-40gb",
+				"gpu_type:a100",
+				"gpu_vendor:nvidia",
+				"kueue_cluster_queue:cluster-batch",
+				"kueue_local_queue:batch",
+				"kueue_resource_flavor:a100",
+			})
+			assert.Subset(t, containerKueueTagInfo.OrchestratorCardTags, []string{
+				"kueue_workload:job-sample",
+			})
+			assert.NotContains(t, containerKueueTagInfo.LowCardTags, "gpu_architecture:hopper")
+			assert.NotContains(t, containerKueueTagInfo.LowCardTags, "gpu_device:nvidia_h100-80gb-hbm3")
+			assert.NotContains(t, containerKueueTagInfo.LowCardTags, "gpu_type:h100")
+			assert.NotContains(t, containerKueueTagInfo.LowCardTags, "kueue_resource_flavor:h100")
 		})
 	}
 }
@@ -2059,23 +2072,25 @@ func TestKueueWorkloadResourceFlavorTagsWithoutPodSetPropagateAllFlavors(t *test
 		IsComplete: true,
 	})
 
-	assert.Len(t, actual, 2)
+	assert.Len(t, actual, 4)
+	containerKueueID := types.NewEntityID(types.ContainerID, containerID)
+	var containerKueueTagInfo *types.TagInfo
 	for _, tagInfo := range actual {
-		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
-			continue
+		if tagInfo.EntityID == containerKueueID && tagInfo.Source == kueueWorkloadSource {
+			containerKueueTagInfo = tagInfo
+			break
 		}
-		assert.Subset(t, tagInfo.LowCardTags, []string{
-			"kueue_cluster_queue:cluster-batch",
-			"kueue_local_queue:batch",
-			"kueue_resource_flavor:a100",
-			"kueue_resource_flavor:h100",
-		})
-		assert.Subset(t, tagInfo.OrchestratorCardTags, []string{
-			"kueue_workload:job-sample",
-		})
-		return
 	}
-	t.Fatal("container tag info not found")
+	require.NotNil(t, containerKueueTagInfo, "container kueueWorkloadSource tag info not found")
+	assert.Subset(t, containerKueueTagInfo.LowCardTags, []string{
+		"kueue_cluster_queue:cluster-batch",
+		"kueue_local_queue:batch",
+		"kueue_resource_flavor:a100",
+		"kueue_resource_flavor:h100",
+	})
+	assert.Subset(t, containerKueueTagInfo.OrchestratorCardTags, []string{
+		"kueue_workload:job-sample",
+	})
 }
 
 func TestKueueWorkloadFallbackToPodQueueLabels(t *testing.T) {
@@ -2129,19 +2144,23 @@ func TestKueueWorkloadFallbackToPodQueueLabels(t *testing.T) {
 		IsComplete: true,
 	})
 
-	assert.Len(t, actual, 2)
+	// The workload entity is missing so we fall back to label-based queue tags,
+	// still emitted under kueueWorkloadSource for the pod and container.
+	assert.Len(t, actual, 4)
+	containerKueueID := types.NewEntityID(types.ContainerID, containerID)
+	var containerKueueTagInfo *types.TagInfo
 	for _, tagInfo := range actual {
-		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
-			continue
+		if tagInfo.EntityID == containerKueueID && tagInfo.Source == kueueWorkloadSource {
+			containerKueueTagInfo = tagInfo
+			break
 		}
-		assert.Subset(t, tagInfo.LowCardTags, []string{
-			"kueue_cluster_queue:cluster-batch",
-			"kueue_local_queue:batch",
-		})
-		assert.NotContains(t, tagInfo.LowCardTags, "kueue_workload:missing-workload")
-		return
 	}
-	t.Fatal("container tag info not found")
+	require.NotNil(t, containerKueueTagInfo, "container kueueWorkloadSource tag info not found")
+	assert.Subset(t, containerKueueTagInfo.LowCardTags, []string{
+		"kueue_cluster_queue:cluster-batch",
+		"kueue_local_queue:batch",
+	})
+	assert.NotContains(t, containerKueueTagInfo.LowCardTags, "kueue_workload:missing-workload")
 }
 
 func TestKueueWorkloadMissingPodSetAssignmentSkipsResourceFlavorTags(t *testing.T) {
@@ -2210,22 +2229,24 @@ func TestKueueWorkloadMissingPodSetAssignmentSkipsResourceFlavorTags(t *testing.
 		IsComplete: true,
 	})
 
-	assert.Len(t, actual, 2)
+	assert.Len(t, actual, 4)
+	containerKueueID := types.NewEntityID(types.ContainerID, containerID)
+	var containerKueueTagInfo *types.TagInfo
 	for _, tagInfo := range actual {
-		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
-			continue
+		if tagInfo.EntityID == containerKueueID && tagInfo.Source == kueueWorkloadSource {
+			containerKueueTagInfo = tagInfo
+			break
 		}
-		assert.Subset(t, tagInfo.LowCardTags, []string{
-			"kueue_cluster_queue:cluster-batch",
-			"kueue_local_queue:batch",
-		})
-		assert.Subset(t, tagInfo.OrchestratorCardTags, []string{
-			"kueue_workload:job-sample",
-		})
-		assert.NotContains(t, tagInfo.LowCardTags, "kueue_resource_flavor:a100")
-		return
 	}
-	t.Fatal("container tag info not found")
+	require.NotNil(t, containerKueueTagInfo, "container kueueWorkloadSource tag info not found")
+	assert.Subset(t, containerKueueTagInfo.LowCardTags, []string{
+		"kueue_cluster_queue:cluster-batch",
+		"kueue_local_queue:batch",
+	})
+	assert.Subset(t, containerKueueTagInfo.OrchestratorCardTags, []string{
+		"kueue_workload:job-sample",
+	})
+	assert.NotContains(t, containerKueueTagInfo.LowCardTags, "kueue_resource_flavor:a100")
 }
 
 func TestKueueQueueEntityTagsPropagateToPodContainers(t *testing.T) {
@@ -2286,19 +2307,21 @@ func TestKueueQueueEntityTagsPropagateToPodContainers(t *testing.T) {
 		IsComplete: true,
 	})
 
-	assert.Len(t, actual, 2)
+	// Queue tags come through the fallback path and are emitted under kueueWorkloadSource.
+	assert.Len(t, actual, 4)
+	containerKueueID := types.NewEntityID(types.ContainerID, containerID)
+	var containerKueueTagInfo *types.TagInfo
 	for _, tagInfo := range actual {
-		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
-			continue
+		if tagInfo.EntityID == containerKueueID && tagInfo.Source == kueueWorkloadSource {
+			containerKueueTagInfo = tagInfo
+			break
 		}
-		assert.Subset(t, tagInfo.LowCardTags, []string{
-			"kube_namespace:default",
-			"kueue_cluster_queue:cluster-batch",
-			"kueue_local_queue:batch",
-		})
-		return
 	}
-	t.Fatal("container tag info not found")
+	require.NotNil(t, containerKueueTagInfo, "container kueueWorkloadSource tag info not found")
+	assert.Subset(t, containerKueueTagInfo.LowCardTags, []string{
+		"kueue_cluster_queue:cluster-batch",
+		"kueue_local_queue:batch",
+	})
 }
 
 func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
@@ -2348,18 +2371,20 @@ func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
 		IsComplete: true,
 	})
 
-	assert.Len(t, actual, 2)
+	assert.Len(t, actual, 4)
+	containerKueueID := types.NewEntityID(types.ContainerID, containerID)
+	var containerKueueTagInfo *types.TagInfo
 	for _, tagInfo := range actual {
-		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
-			continue
+		if tagInfo.EntityID == containerKueueID && tagInfo.Source == kueueWorkloadSource {
+			containerKueueTagInfo = tagInfo
+			break
 		}
-		assert.Subset(t, tagInfo.LowCardTags, []string{
-			"kueue_cluster_queue:cluster-batch",
-			"kueue_local_queue:batch",
-		})
-		return
 	}
-	t.Fatal("container tag info not found")
+	require.NotNil(t, containerKueueTagInfo, "container kueueWorkloadSource tag info not found")
+	assert.Subset(t, containerKueueTagInfo.LowCardTags, []string{
+		"kueue_cluster_queue:cluster-batch",
+		"kueue_local_queue:batch",
+	})
 }
 
 func TestHandleKubeCRD(t *testing.T) {

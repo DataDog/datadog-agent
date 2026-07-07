@@ -525,7 +525,6 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 
 	tagList := taglist.NewTagList()
 	c.extractTagsFromPodLabels(pod, tagList)
-	c.extractTagsFromPodKueueInfo(pod, tagList)
 
 	tagInfos := []*types.TagInfo{c.extractTagsFromPodEntity(pod, tagList, ev.IsComplete)}
 
@@ -538,6 +537,10 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 
 		tagInfos = append(tagInfos, cTagInfo)
 	}
+
+	// Kueue tags for the pod and its containers are emitted under
+	// kueueWorkloadSource, separate from podSource.
+	tagInfos = append(tagInfos, c.buildAndRegisterKueueTagInfosForPod(pod, ev.IsComplete)...)
 
 	return tagInfos
 }
@@ -824,12 +827,9 @@ func (c *WorkloadMetaCollector) handleKubeKueueWorkload(ev workloadmeta.Event) [
 	c.extractKueueWorkloadAndRelatedTags(workload, "", tagList)
 	low, orch, high, standard := tagList.Compute()
 
-	if len(low)+len(orch)+len(high)+len(standard) == 0 {
-		return nil
-	}
-
-	return []*types.TagInfo{
-		{
+	var tagInfos []*types.TagInfo
+	if len(low)+len(orch)+len(high)+len(standard) > 0 {
+		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               kueueWorkloadSource,
 			EntityID:             common.BuildTaggerEntityID(workload.EntityID),
 			HighCardTags:         high,
@@ -837,8 +837,19 @@ func (c *WorkloadMetaCollector) handleKubeKueueWorkload(ev workloadmeta.Event) [
 			LowCardTags:          low,
 			StandardTags:         standard,
 			IsComplete:           ev.IsComplete,
-		},
+		})
 	}
+
+	// Push updated Kueue tags to all pods registered under this workload
+	for podEntityID := range c.workloadPods[workload.EntityID] {
+		pod, err := c.store.GetKubernetesPod(podEntityID.ID)
+		if err != nil {
+			continue
+		}
+		tagInfos = append(tagInfos, c.buildKueueTagInfosForPodAndContainers(pod, workload, ev.IsComplete)...)
+	}
+
+	return tagInfos
 }
 
 func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInfo {
@@ -1129,15 +1140,52 @@ func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
-	// The associated workload object is the main source of information for Kueue. If it is available, we use it to extract the tags
-	// If not, we fall back to the pod labels and annotations to get the queue names and their tags
-	workload := c.getKueueWorkloadForPod(pod)
-	if workload != nil {
-		c.extractKueueWorkloadAndRelatedTags(workload, pod.Labels[kubernetes.KueuePodSetLabelKey], tagList)
-		return
+func kueueWorkloadEntityIDForPod(pod *workloadmeta.KubernetesPod) (workloadmeta.EntityID, bool) {
+	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
+	if workloadName == "" {
+		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
+	}
+	if workloadName == "" {
+		return workloadmeta.EntityID{}, false
+	}
+	return workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesKueueWorkload,
+		ID:   workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName),
+	}, true
+}
+
+func (c *WorkloadMetaCollector) buildAndRegisterKueueTagInfosForPod(pod *workloadmeta.KubernetesPod, isComplete bool) []*types.TagInfo {
+	workloadEntityID, ok := kueueWorkloadEntityIDForPod(pod)
+	if ok {
+		c.registerPodUnderWorkload(pod.EntityID, workloadEntityID)
+		workload, err := c.store.GetKubernetesKueueWorkload(workloadEntityID.ID)
+		if err == nil && workload != nil {
+			return c.buildKueueTagInfosForPodAndContainers(pod, workload, isComplete)
+		}
 	}
 
+	// Fallback: workload entity absent or pod has no workload identifier.
+	// Extract queue tags from pod labels so containers still get basic queue
+	// tags while the workload entity is pending or unavailable.
+	tagList := taglist.NewTagList()
+	c.extractPodKueueFallbackTags(pod, tagList)
+	return c.buildKueueTagInfosFromTagListForPodAndContainers(pod, tagList, isComplete)
+}
+
+func (c *WorkloadMetaCollector) registerPodUnderWorkload(podID, workloadID workloadmeta.EntityID) {
+	if prev, ok := c.podWorkload[podID]; ok && prev != workloadID {
+		delete(c.workloadPods[prev], podID)
+	}
+	if c.workloadPods[workloadID] == nil {
+		c.workloadPods[workloadID] = make(map[workloadmeta.EntityID]struct{})
+	}
+	c.workloadPods[workloadID][podID] = struct{}{}
+	c.podWorkload[podID] = workloadID
+}
+
+// extractPodKueueFallbackTags extracts Kueue tags from pod labels and associated
+// queue entities. Used when no Kueue Workload entity is available.
+func (c *WorkloadMetaCollector) extractPodKueueFallbackTags(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
 	clusterQueueName := pod.Labels[kubernetes.KueueClusterQueueNameLabelKey]
 	localQueueName := pod.Labels[kubernetes.KueueLocalQueueNameLabelKey]
 	if localQueueName == "" {
@@ -1149,34 +1197,50 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 	localQueue := c.extractKueueQueueTagsFromQueueName(pod.Namespace, tagList, workloadmeta.KueueLocalQueue, localQueueName)
 
 	if clusterQueueName == "" && localQueue != nil {
-		// Local queues are always associated to a cluster queue, so if we don't have a cluster queue name in the pod,
-		// use the one associated to the local queue
 		clusterQueueName = localQueue.ClusterQueueName
 	}
 	_ = c.extractKueueQueueTagsFromQueueName(pod.Namespace, tagList, workloadmeta.KueueClusterQueue, clusterQueueName)
 }
 
-func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKueueWorkload {
-	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
-	if workloadName == "" {
-		// Known limitation: for plain-Pod groups the Kueue Workload object name
-		// is not guaranteed to equal the pod-group-name label value. When they
-		// diverge, the lookup below fails and we fall back to pod-label queue
-		// tags (fail-closed, no incorrect tags).
-		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
-	}
-	if workloadName == "" {
+// buildKueueTagInfosForPodAndContainers emits kueueWorkloadSource TagInfos for
+// the pod and all its containers using tags derived from the given workload.
+func (c *WorkloadMetaCollector) buildKueueTagInfosForPodAndContainers(pod *workloadmeta.KubernetesPod, workload *workloadmeta.KubernetesKueueWorkload, isComplete bool) []*types.TagInfo {
+	tagList := taglist.NewTagList()
+	c.extractKueueWorkloadAndRelatedTags(workload, pod.Labels[kubernetes.KueuePodSetLabelKey], tagList)
+	return c.buildKueueTagInfosFromTagListForPodAndContainers(pod, tagList, isComplete)
+}
+
+// buildKueueTagInfosFromTagListForPodAndContainers emits kueueWorkloadSource
+// TagInfos for the pod and all its containers using the given pre-computed tag list.
+func (c *WorkloadMetaCollector) buildKueueTagInfosFromTagListForPodAndContainers(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList, isComplete bool) []*types.TagInfo {
+	low, orch, high, standard := tagList.Compute()
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
 		return nil
 	}
 
-	workloadID := workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
-	workload, err := c.store.GetKubernetesKueueWorkload(workloadID)
-	if err != nil || workload == nil {
-		log.Debugf("Could not get Kueue workload entity for namespace %s and name %s: %v", pod.Namespace, workloadName, err)
-		return nil
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               kueueWorkloadSource,
+			EntityID:             common.BuildTaggerEntityID(pod.EntityID),
+			LowCardTags:          low,
+			OrchestratorCardTags: orch,
+			HighCardTags:         high,
+			StandardTags:         standard,
+			IsComplete:           isComplete,
+		},
 	}
-
-	return workload
+	for _, podContainer := range pod.GetAllContainers() {
+		tagInfos = append(tagInfos, &types.TagInfo{
+			Source:               kueueWorkloadSource,
+			EntityID:             common.BuildTaggerEntityID(workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: podContainer.ID}),
+			LowCardTags:          low,
+			OrchestratorCardTags: orch,
+			HighCardTags:         high,
+			StandardTags:         standard,
+			IsComplete:           isComplete,
+		})
+	}
+	return tagInfos
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {
@@ -1309,9 +1373,79 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*types.Tag
 	})
 	tagInfos = append(tagInfos, c.handleDeleteChildren(source, children)...)
 
+	// Clear kueueWorkloadSource tags from pods (and their containers) when a
+	// workload entity is deleted, and clean up the reverse index.
+	if entityID.Kind == workloadmeta.KindKubernetesKueueWorkload {
+		tagInfos = append(tagInfos, c.handleKueueWorkloadDelete(entityID)...)
+	}
+
+	// When a pod is deleted, prune it from the workload→pod reverse index and
+	// clear its kueueWorkloadSource tags (including those on its containers).
+	if entityID.Kind == workloadmeta.KindKubernetesPod {
+		tagInfos = append(tagInfos, c.cleanupPodFromKueueIndex(entityID, taggerEntityID, children)...)
+	}
+
 	delete(c.children, taggerEntityID)
 	delete(c.entityCompleteness, entityID)
 
+	return tagInfos
+}
+
+// handleKueueWorkloadDelete emits kueueWorkloadSource DeleteEntity TagInfos for
+// all pods (and their containers) that were registered under the deleted workload.
+func (c *WorkloadMetaCollector) handleKueueWorkloadDelete(workloadID workloadmeta.EntityID) []*types.TagInfo {
+	pods := c.workloadPods[workloadID]
+	tagInfos := make([]*types.TagInfo, 0, len(pods)*2)
+	for podEntityID := range pods {
+		podTaggerID := common.BuildTaggerEntityID(podEntityID)
+		tagInfos = append(tagInfos, &types.TagInfo{
+			Source:       kueueWorkloadSource,
+			EntityID:     podTaggerID,
+			DeleteEntity: true,
+		})
+		// Also clear kueueWorkloadSource from the pod's containers. The
+		// children map was populated by registerChild in extractTagsFromPodContainer.
+		for containerTaggerID := range c.children[podTaggerID] {
+			tagInfos = append(tagInfos, &types.TagInfo{
+				Source:       kueueWorkloadSource,
+				EntityID:     containerTaggerID,
+				DeleteEntity: true,
+			})
+		}
+		delete(c.podWorkload, podEntityID)
+	}
+	delete(c.workloadPods, workloadID)
+	return tagInfos
+}
+
+// cleanupPodFromKueueIndex removes a deleted pod from the workload→pod reverse
+// index and emits kueueWorkloadSource DeleteEntity TagInfos for the pod and its
+// containers. children is the pod's container set from c.children, captured
+// before the caller deletes the map entry.
+func (c *WorkloadMetaCollector) cleanupPodFromKueueIndex(podID workloadmeta.EntityID, podTaggerID types.EntityID, children map[types.EntityID]struct{}) []*types.TagInfo {
+	workloadID, ok := c.podWorkload[podID]
+	if !ok {
+		return nil
+	}
+	tagInfos := []*types.TagInfo{
+		{
+			Source:       kueueWorkloadSource,
+			EntityID:     podTaggerID,
+			DeleteEntity: true,
+		},
+	}
+	for containerTaggerID := range children {
+		tagInfos = append(tagInfos, &types.TagInfo{
+			Source:       kueueWorkloadSource,
+			EntityID:     containerTaggerID,
+			DeleteEntity: true,
+		})
+	}
+	delete(c.workloadPods[workloadID], podID)
+	if len(c.workloadPods[workloadID]) == 0 {
+		delete(c.workloadPods, workloadID)
+	}
+	delete(c.podWorkload, podID)
 	return tagInfos
 }
 

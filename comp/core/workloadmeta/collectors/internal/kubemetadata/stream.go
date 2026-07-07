@@ -30,7 +30,6 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -231,41 +230,19 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 
 		// Re-enrich pods in updated namespaces so they pick up the new
 		// namespace labels/annotations.
-		reenrichedPods := make(map[string]struct{})
 		for ns := range update.updatedNamespaces {
 			for namespacedName, uid := range seenPods {
 				if strings.HasPrefix(namespacedName, ns+"/") {
 					if podEvent, ok := p.buildPodEventFromUID(uid); ok {
 						events = append(events, podEvent)
-						reenrichedPods[uid] = struct{}{}
 					}
 				}
 			}
 		}
-
-		// Kueue Workload and ResourceFlavor updates can change tags for any
-		// seen pod that joins to those entities. Only re-enrich pods that
-		// actually join to an updated Workload (directly, or transitively
-		// through a ResourceFlavor referenced by their Workload). Pods that
-		// don't join to any Kueue Workload (the common case when Kueue is not
-		// in use) are skipped, so this loop is a no-op then.
-		if len(update.updatedKueueWorkloads) > 0 || len(update.updatedKueueResourceFlavors) > 0 {
-			for _, uid := range seenPods {
-				// this pod is already being re-enriched for a previous reason, so skip
-				if _, seen := reenrichedPods[uid]; seen {
-					continue
-				}
-				pod, err := p.wmeta.GetKubernetesPod(uid)
-				if err != nil {
-					continue
-				}
-				if !p.podAffectedByKueueUpdate(pod, update) {
-					continue
-				}
-				events = append(events, p.buildPodEvent(pod))
-				reenrichedPods[uid] = struct{}{}
-			}
-		}
+		// Kueue Workload and ResourceFlavor updates no longer require synthetic
+		// pod re-enrichment here. The tagger's WorkloadMetaCollector maintains a
+		// workload→pod reverse index and pushes kueueWorkloadSource tag updates
+		// directly to registered pods and containers when a workload entity changes.
 	}
 
 	if len(events) > 0 {
@@ -308,55 +285,6 @@ func (p *streamingProvider) buildPodEventFromUID(uid string) (workloadmeta.Colle
 	}
 
 	return p.buildPodEvent(pod), true
-}
-
-// podAffectedByKueueUpdate reports whether the given pod joins to a Kueue
-// Workload that was updated in this stream update, either directly or
-// transitively through a ResourceFlavor referenced by that Workload's pod set
-// assignments. Pods that don't join to any Kueue Workload are never affected.
-func (p *streamingProvider) podAffectedByKueueUpdate(pod *workloadmeta.KubernetesPod, update streamUpdate) bool {
-	workloadID := podKueueWorkloadID(pod)
-	if workloadID == "" {
-		return false
-	}
-
-	if _, ok := update.updatedKueueWorkloads[workloadID]; ok {
-		return true
-	}
-
-	if len(update.updatedKueueResourceFlavors) == 0 {
-		return false
-	}
-
-	workload, found := p.dcaStream.getKueueWorkload(workloadID)
-	if !found {
-		return false
-	}
-
-	for _, assignment := range workload.PodSetAssignments {
-		for _, flavorName := range assignment.Flavors {
-			if _, ok := update.updatedKueueResourceFlavors[flavorName]; ok {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// podKueueWorkloadID returns the workloadmeta entity ID of the Kueue Workload a
-// pod joins to, or "" if the pod is not managed by Kueue. This mirrors the join
-// logic used by the tagger to attach Kueue Workload tags to pods.
-func podKueueWorkloadID(pod *workloadmeta.KubernetesPod) string {
-	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
-	if workloadName == "" {
-		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
-	}
-	if workloadName == "" {
-		return ""
-	}
-
-	return workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
 }
 
 func (p *streamingProvider) getNamespaceMetadata(ns string) (labels, annotations map[string]string) {
