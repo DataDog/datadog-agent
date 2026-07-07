@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package ntpdrift provides the health-platform issue template for NTP clock drift.
+// Package ntp provides the health-platform issue templates for the ntp check:
+// clock drift (DriftIssue) and unreachable NTP servers (UnreachableIssue).
 // Detection lives in the existing pkg/collector/corechecks/net/ntp check, which
 // already queries NTP servers and computes the clock offset on every run; that
-// check reports/resolves this issue directly via store.ReportIssue (Path B), so
-// this package has no init()/module registration and is not blank-imported in
-// bundle.go.
-package ntpdrift
+// check reports/resolves these issues directly via store.ReportIssue (Path B),
+// so this package has no init()/module registration and is not blank-imported
+// in bundle.go.
+package ntp
 
 import (
 	"fmt"
@@ -20,31 +21,31 @@ import (
 )
 
 const (
-	// IssueName is the identifier for NTP clock drift issues,
+	// DriftIssueName is the identifier for NTP clock drift issues,
 	// used as the template registry key and the proto IssueName field.
-	IssueName = "NTP Clock Drift"
+	DriftIssueName = "NTP Clock Drift"
 
-	// IssueID is the unique instance id used when reporting this issue.
-	IssueID = "ntp-clock-drift"
+	// DriftIssueID is the unique instance id used when reporting this issue.
+	DriftIssueID = "ntp-clock-drift"
 )
 
-// Context keys read by BuildIssue.
+// Context keys read by DriftIssue.BuildIssue.
 const (
 	contextKeyDrift     = "drift"
 	contextKeyNTPServer = "ntpServer"
 	contextKeyThreshold = "threshold"
 )
 
-// NTPDriftIssue provides the complete issue template (metadata + remediation) for NTP clock drift.
-type NTPDriftIssue struct{}
+// DriftIssue provides the complete issue template (metadata + remediation) for NTP clock drift.
+type DriftIssue struct{}
 
-// NewNTPDriftIssue creates a new NTP drift issue template.
-func NewNTPDriftIssue() *NTPDriftIssue {
-	return &NTPDriftIssue{}
+// NewDriftIssue creates a new NTP drift issue template.
+func NewDriftIssue() *DriftIssue {
+	return &DriftIssue{}
 }
 
 // BuildIssue creates a complete issue with metadata and platform-appropriate remediation.
-func (t *NTPDriftIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+func (t *DriftIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	drift := context[contextKeyDrift]
 	if drift == "" {
 		drift = "unknown"
@@ -68,7 +69,7 @@ func (t *NTPDriftIssue) BuildIssue(context map[string]string) (*healthplatform.I
 	}
 
 	return &healthplatform.Issue{
-		IssueName: IssueName,
+		IssueName: DriftIssueName,
 		Title:     "System Clock Drift Detected",
 		Description: fmt.Sprintf(
 			"The system clock is drifting from NTP reference time by %s, which exceeds the %s threshold. "+
@@ -85,14 +86,14 @@ func (t *NTPDriftIssue) BuildIssue(context map[string]string) (*healthplatform.I
 		Extra:      extra,
 		Remediation: &healthplatform.Remediation{
 			Summary: "Synchronise the system clock with an NTP server",
-			Steps:   remediationSteps(runtime.GOOS),
+			Steps:   driftRemediationSteps(runtime.GOOS),
 		},
 		Tags: []string{"ntp", "clock-drift", "timestamps", runtime.GOOS},
 	}, nil
 }
 
-// remediationSteps returns platform-appropriate fix steps for osName (a runtime.GOOS value).
-func remediationSteps(osName string) []*healthplatform.RemediationStep {
+// driftRemediationSteps returns platform-appropriate fix steps for osName (a runtime.GOOS value).
+func driftRemediationSteps(osName string) []*healthplatform.RemediationStep {
 	switch osName {
 	case "windows":
 		return []*healthplatform.RemediationStep{

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package ntpdrift
+package ntp
 
 import (
 	"strings"
@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildIssue(t *testing.T) {
+func TestDriftBuildIssue(t *testing.T) {
 	tests := []struct {
 		name            string
 		context         map[string]string
@@ -43,14 +43,14 @@ func TestBuildIssue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			template := NewNTPDriftIssue()
+			template := NewDriftIssue()
 			issue, err := template.BuildIssue(tt.context)
 
 			require.NoError(t, err)
 			require.NotNil(t, issue)
 
 			assert.Empty(t, issue.Id, "Id is set by the caller (ReportIssue), not by the template")
-			assert.Equal(t, IssueName, issue.IssueName)
+			assert.Equal(t, DriftIssueName, issue.IssueName)
 			assert.Equal(t, "System Clock Drift Detected", issue.Title)
 			assert.Contains(t, issue.Description, tt.expectedDescSub)
 			assert.Equal(t, "integration", issue.Category)
@@ -74,22 +74,22 @@ func TestBuildIssue(t *testing.T) {
 	}
 }
 
-func TestRemediationSteps(t *testing.T) {
+func TestDriftRemediationSteps(t *testing.T) {
 	t.Run("windows", func(t *testing.T) {
-		steps := remediationSteps("windows")
+		steps := driftRemediationSteps("windows")
 		require.NotEmpty(t, steps)
 		assert.True(t, containsSubstring(steps, "w32tm"), "expected a Windows-specific remediation step")
 	})
 
 	t.Run("linux", func(t *testing.T) {
-		steps := remediationSteps("linux")
+		steps := driftRemediationSteps("linux")
 		require.NotEmpty(t, steps)
 		assert.True(t, containsSubstring(steps, "chronyc"), "expected a chrony remediation step")
 	})
 
 	t.Run("darwin falls back to the default branch", func(t *testing.T) {
-		steps := remediationSteps("darwin")
-		assert.Equal(t, remediationSteps("linux"), steps)
+		steps := driftRemediationSteps("darwin")
+		assert.Equal(t, driftRemediationSteps("linux"), steps)
 	})
 }
 

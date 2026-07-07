@@ -1,9 +1,12 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "ntpdrift",
-    srcs = ["issue.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/ntpdrift",
+    name = "ntp",
+    srcs = [
+        "drift.go",
+        "unreachable.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/ntp",
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_datadog_agent_payload_v5//healthplatform",
@@ -12,9 +15,12 @@ go_library(
 )
 
 go_test(
-    name = "ntpdrift_test",
-    srcs = ["issue_test.go"],
-    embed = [":ntpdrift"],
+    name = "ntp_test",
+    srcs = [
+        "drift_test.go",
+        "unreachable_test.go",
+    ],
+    embed = [":ntp"],
     gotags = ["test"],
     deps = [
         "@com_github_datadog_agent_payload_v5//healthplatform",

@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/ntpdrift"
+	healthplatformntp "github.com/DataDog/datadog-agent/comp/healthplatform/issues/ntp"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -245,6 +245,7 @@ func (c *NTPCheck) Run() error {
 	clockOffset, ts, err := c.queryOffset()
 	if err != nil {
 		log.Error(err)
+		c.reportUnreachableIssue(err)
 
 		sender.ServiceCheck("ntp.in_sync", servicecheck.ServiceCheckUnknown, "", nil, serviceCheckMessage)
 		c.lastCollection = time.Now()
@@ -252,6 +253,7 @@ func (c *NTPCheck) Run() error {
 
 		return err
 	}
+	c.resolveUnreachableIssue()
 	if int(math.Abs(clockOffset)) > offsetThreshold {
 		serviceCheckStatus = servicecheck.ServiceCheckCritical
 		serviceCheckMessage = fmt.Sprintf("Offset %v is higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
@@ -289,7 +291,7 @@ func (c *NTPCheck) reportDriftIssue(clockOffset float64, offsetThreshold int) {
 		ntpSrv = fmt.Sprintf("%s:%d", c.cfg.instance.Hosts[0], c.cfg.instance.Port)
 	}
 
-	issue, err := ntpdrift.NewNTPDriftIssue().BuildIssue(map[string]string{
+	issue, err := healthplatformntp.NewDriftIssue().BuildIssue(map[string]string{
 		"drift":     formatDrift(drift),
 		"ntpServer": ntpSrv,
 		"threshold": threshold.String(),
@@ -317,7 +319,43 @@ func (c *NTPCheck) resolveDriftIssue() {
 // and resolve paths must use the same id, so both call this helper rather
 // than inlining the string.
 func (c *NTPCheck) driftIssueID() string {
-	return ntpdrift.IssueID + ":" + string(c.ID())
+	return healthplatformntp.DriftIssueID + ":" + string(c.ID())
+}
+
+// reportUnreachableIssue reports the NTP unreachable issue to the health
+// platform. It is only called from the failure path of queryOffset(); a
+// successful query (with or without drift) resolves it instead.
+func (c *NTPCheck) reportUnreachableIssue(queryErr error) {
+	if c.healthPlatform == nil {
+		return
+	}
+
+	issue, err := healthplatformntp.NewUnreachableIssue().BuildIssue(map[string]string{
+		"servers": strings.Join(c.cfg.instance.Hosts, ", "),
+		"error":   queryErr.Error(),
+	})
+	if err != nil {
+		log.Warnf("Failed to build NTP unreachable issue: %v", err)
+		return
+	}
+	issue.Id = c.unreachableIssueID()
+	if err := c.healthPlatform.ReportIssue(issue); err != nil {
+		log.Warnf("Failed to report NTP unreachable issue: %v", err)
+	}
+}
+
+// resolveUnreachableIssue resolves the NTP unreachable issue, if active.
+func (c *NTPCheck) resolveUnreachableIssue() {
+	if c.healthPlatform == nil {
+		return
+	}
+	c.healthPlatform.ResolveIssue(c.unreachableIssueID())
+}
+
+// unreachableIssueID returns the per-instance issue id, so multiple configured
+// NTP instances don't resolve or overwrite each other's unreachable issue.
+func (c *NTPCheck) unreachableIssueID() string {
+	return healthplatformntp.UnreachableIssueID + ":" + string(c.ID())
 }
 
 // formatDrift formats a duration as a signed human-readable string, e.g. "+2m30s" or "-45s".
