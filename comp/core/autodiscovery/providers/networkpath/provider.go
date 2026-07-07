@@ -64,6 +64,7 @@ type endpointConfig struct {
 }
 
 type networkPathInstanceConfig struct {
+	// TestConfigID identifies the scheduled Network Path test config that produced this instance.
 	TestConfigID string `yaml:"test_config_id"`
 
 	Hostname string  `yaml:"hostname"`
