@@ -43,8 +43,6 @@ func intersectAllowedCommands(backendAllowed []string, operatorAllowed []string)
 		switch {
 		case c == setup.RShellCommandAllowAllWildcard:
 			return slices.Clone(backendAllowed)
-		case c == setup.RShellCommandNamespacePrefix || c == "":
-			continue
 		case strings.HasPrefix(c, setup.RShellCommandNamespacePrefix):
 			operatorAllowedSet[c] = struct{}{}
 		}
