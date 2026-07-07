@@ -148,6 +148,8 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 	}
 
 	if containerStats.CPU != nil {
+		containercoat.RecordAgentMetric(containercoat.AgentCPUUsage, containerStats.CPU.Total, tags)
+
 		p.sendMetric(sender.Rate, "container.cpu.usage", containerStats.CPU.Total, tags)
 		p.sendMetric(sender.Rate, "container.cpu.user", containerStats.CPU.User, tags)
 		p.sendMetric(sender.Rate, "container.cpu.system", containerStats.CPU.System, tags)

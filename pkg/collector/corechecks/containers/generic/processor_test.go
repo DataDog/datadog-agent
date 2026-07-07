@@ -209,6 +209,7 @@ func TestProcessorRecordsAgentPodCOATMetricsFromRuntimeStats(t *testing.T) {
 	assert.NoError(t, err)
 
 	mockSender.AssertMetricMissing(t, "Gauge", "container.memory.usage")
+	assertGaugeValue(t, tel, containercoat.AgentCPUUsage, "cluster-agent", 100)
 	assertGaugeValue(t, tel, containercoat.AgentMemoryUsage, "cluster-agent", 42000)
 	assertGaugeValue(t, tel, containercoat.AgentMemoryLimit, "cluster-agent", 42000)
 }

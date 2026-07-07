@@ -4,8 +4,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "coat",
     srcs = [
-        "coat_telemetry.go",
-        "coat_telemetry_test_helpers.go",
+        "telemetry.go",
+        "telemetry_test_helpers.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/coat",
     visibility = ["//visibility:public"],
@@ -18,7 +18,7 @@ go_library(
 
 dd_agent_go_test(
     name = "coat_test",
-    srcs = ["coat_telemetry_test.go"],
+    srcs = ["telemetry_test.go"],
     embed = [":coat"],
     deps = [
         "//comp/core/tagger/tags",

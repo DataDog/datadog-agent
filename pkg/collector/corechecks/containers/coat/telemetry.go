@@ -19,6 +19,8 @@ const (
 	AgentContainerRestarts = "containers_restarts"
 	// AgentContainerTerminated is the COAT metric name for Kubernetes container terminated states.
 	AgentContainerTerminated = "containers_terminated"
+	// AgentCPUUsage is the COAT metric name for container runtime CPU usage.
+	AgentCPUUsage = "cpu_usage"
 	// AgentMemoryUsage is the COAT metric name for container runtime memory usage.
 	AgentMemoryUsage = "memory_usage"
 	// AgentMemoryLimit is the COAT metric name for container runtime memory limits.
@@ -35,6 +37,7 @@ var agentPodCOAT = newAgentPodCOATTelemetry(telemetryimpl.GetCompatComponent())
 type agentPodTelemetry struct {
 	containersRestarts   telemetry.Gauge
 	containersTerminated telemetry.Gauge
+	cpuUsage             telemetry.Gauge
 	memoryUsage          telemetry.Gauge
 	memoryLimits         telemetry.Gauge
 }
@@ -52,6 +55,12 @@ func newAgentPodCOATTelemetry(tm telemetry.Component) *agentPodTelemetry {
 			AgentContainerTerminated,
 			[]string{tags.KubeAppComponent, "reason"},
 			"Sum of kubernetes.containers.*.terminated for Datadog Cluster Agent pods",
+		),
+		cpuUsage: tm.NewGauge(
+			agentSubsystem,
+			AgentCPUUsage,
+			[]string{tags.KubeAppComponent},
+			"Sum of container runtime CPU usage for Datadog Cluster Agent pods",
 		),
 		memoryUsage: tm.NewGauge(
 			agentSubsystem,
@@ -78,8 +87,8 @@ func ResetAgentKubeletMetrics() {
 	agentPodCOAT.resetKubeletMetrics()
 }
 
-// RecordAgentMetric adds a container-level metric to the COAT aggregate
-// when it belongs to a Datadog Cluster Agent pod.
+// RecordAgentMetric adds a metric to the COAT aggregate when it belongs to
+// a Datadog Cluster Agent or Cluster Check Runner pod.
 func RecordAgentMetric(metricName string, value *float64, tagList []string) {
 	if value == nil {
 		return
@@ -89,6 +98,7 @@ func RecordAgentMetric(metricName string, value *float64, tagList []string) {
 
 func (t *agentPodTelemetry) resetRuntimeMetrics() {
 	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponent} {
+		t.cpuUsage.Set(0, component)
 		t.memoryUsage.Set(0, component)
 		t.memoryLimits.Set(0, component)
 	}
@@ -118,6 +128,8 @@ func (t *agentPodTelemetry) record(metricName string, value float64, tagList []s
 			return
 		}
 		t.containersTerminated.Add(value, component, reason)
+	case AgentCPUUsage:
+		t.cpuUsage.Add(value, component)
 	case AgentMemoryUsage:
 		t.memoryUsage.Add(value, component)
 	case AgentMemoryLimit:

@@ -61,6 +61,9 @@ func TestAgentPodCOATTelemetryAggregatesSelectedComponents(t *testing.T) {
 	coat.resetKubeletMetrics()
 	coat.resetRuntimeMetrics()
 
+	coat.record(AgentCPUUsage, 100, []string{"kube_app_component:cluster-agent", "pod_name:first"})
+	coat.record(AgentCPUUsage, 50, []string{"kube_app_component:cluster-agent", "pod_name:second"})
+	coat.record(AgentCPUUsage, 99, []string{"kube_app_component:agent"})
 	coat.record(AgentMemoryUsage, 10, []string{"kube_app_component:cluster-agent", "pod_name:first"})
 	coat.record(AgentMemoryUsage, 5, []string{"kube_app_component:cluster-agent", "pod_name:second"})
 	coat.record(AgentMemoryUsage, 99, []string{"kube_app_component:agent"})
@@ -69,6 +72,8 @@ func TestAgentPodCOATTelemetryAggregatesSelectedComponents(t *testing.T) {
 	coat.record(AgentContainerTerminated, 1, []string{"kube_app_component:cluster-agent", "reason:oomkilled"})
 	coat.record(AgentContainerTerminated, 99, []string{"kube_app_component:cluster-agent"})
 
+	assertGaugeValue(t, tel, AgentCPUUsage, clusterAgentComponent, 150)
+	assertGaugeValue(t, tel, AgentCPUUsage, clusterChecksAgentComponent, 0)
 	assertGaugeValue(t, tel, AgentMemoryUsage, clusterAgentComponent, 15)
 	assertGaugeValue(t, tel, AgentMemoryUsage, clusterChecksAgentComponent, 0)
 	assertGaugeValue(t, tel, AgentMemoryLimit, clusterChecksAgentComponent, 20)
@@ -80,6 +85,7 @@ func TestAgentPodCOATTelemetryResetClearsStaleValues(t *testing.T) {
 	tel := telemetrymock.New(t)
 	coat := newAgentPodCOATTelemetry(tel)
 
+	coat.record(AgentCPUUsage, 100, []string{"kube_app_component:cluster-agent"})
 	coat.record(AgentMemoryUsage, 10, []string{"kube_app_component:cluster-agent"})
 	coat.record(AgentMemoryLimit, 20, []string{"kube_app_component:clusterchecks-agent"})
 	coat.record(AgentContainerRestarts, 2, []string{"kube_app_component:clusterchecks-agent"})
@@ -87,6 +93,7 @@ func TestAgentPodCOATTelemetryResetClearsStaleValues(t *testing.T) {
 	coat.resetKubeletMetrics()
 	coat.resetRuntimeMetrics()
 
+	assertGaugeValue(t, tel, AgentCPUUsage, clusterAgentComponent, 0)
 	assertGaugeValue(t, tel, AgentMemoryUsage, clusterAgentComponent, 0)
 	assertGaugeValue(t, tel, AgentMemoryLimit, clusterChecksAgentComponent, 0)
 	assertGaugeValue(t, tel, AgentContainerRestarts, clusterChecksAgentComponent, 0)
@@ -97,6 +104,7 @@ func TestAgentPodCOATTelemetrySplitResets(t *testing.T) {
 	tel := telemetrymock.New(t)
 	coat := newAgentPodCOATTelemetry(tel)
 
+	coat.record(AgentCPUUsage, 100, []string{"kube_app_component:cluster-agent"})
 	coat.record(AgentMemoryUsage, 10, []string{"kube_app_component:cluster-agent"})
 	coat.record(AgentMemoryLimit, 20, []string{"kube_app_component:cluster-agent"})
 	coat.record(AgentContainerRestarts, 2, []string{"kube_app_component:cluster-agent"})
@@ -104,15 +112,18 @@ func TestAgentPodCOATTelemetrySplitResets(t *testing.T) {
 
 	coat.resetRuntimeMetrics()
 
+	assertGaugeValue(t, tel, AgentCPUUsage, clusterAgentComponent, 0)
 	assertGaugeValue(t, tel, AgentMemoryUsage, clusterAgentComponent, 0)
 	assertGaugeValue(t, tel, AgentMemoryLimit, clusterAgentComponent, 0)
 	assertGaugeValue(t, tel, AgentContainerRestarts, clusterAgentComponent, 2)
 	assertTerminatedGaugeValue(t, tel, clusterAgentComponent, "containercannotrun", 1)
 
+	coat.record(AgentCPUUsage, 100, []string{"kube_app_component:cluster-agent"})
 	coat.record(AgentMemoryUsage, 10, []string{"kube_app_component:cluster-agent"})
 	coat.record(AgentMemoryLimit, 20, []string{"kube_app_component:cluster-agent"})
 	coat.resetKubeletMetrics()
 
+	assertGaugeValue(t, tel, AgentCPUUsage, clusterAgentComponent, 100)
 	assertGaugeValue(t, tel, AgentMemoryUsage, clusterAgentComponent, 10)
 	assertGaugeValue(t, tel, AgentMemoryLimit, clusterAgentComponent, 20)
 	assertGaugeValue(t, tel, AgentContainerRestarts, clusterAgentComponent, 0)
