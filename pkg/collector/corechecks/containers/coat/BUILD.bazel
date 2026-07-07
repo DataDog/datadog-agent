@@ -21,6 +21,7 @@ dd_agent_go_test(
     embed = [":coat"],
     deps = [
         "//comp/core/tagger/tags",
+        "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
         "//comp/core/workloadmeta/def",
         "//pkg/util/kubernetes",
