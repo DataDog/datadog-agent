@@ -1,0 +1,18 @@
+---
+# Windows e2e universal-service-monitoring owned jobs.
+
+new-e2e-windows-usm:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - windows_msi_and_bosh_zip_x64-a7
+  variables:
+    TARGETS: ./tests/usm
+    TEAM: universal-service-monitoring
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestWindowsUSMSuite
