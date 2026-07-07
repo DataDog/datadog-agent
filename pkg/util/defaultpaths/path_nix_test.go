@@ -84,6 +84,10 @@ func TestCommonRootOrPath(t *testing.T) {
 }
 
 func TestGettersWithCommonRoot(t *testing.T) {
+	// Save original and restore after test
+	originalRoot := commonRoot
+	defer func() { commonRoot = originalRoot }()
+
 	// Test without common root set
 	t.Run("without common root", func(t *testing.T) {
 		assert.Equal(t, "/etc/datadog-agent", GetDefaultConfPath())
@@ -94,8 +98,9 @@ func TestGettersWithCommonRoot(t *testing.T) {
 	})
 
 	// Test with empty common root, will default to defaultCommonRoot
-	t.Run("without common root", func(t *testing.T) {
+	t.Run("with default common root", func(t *testing.T) {
 		t.Setenv("DD_COMMON_ROOT", "")
+		setCommonRootFromEnv()
 		assert.Equal(t, "/opt/datadog-agent/etc", GetDefaultConfPath())
 		assert.Equal(t, "/opt/datadog-agent/logs/agent.log", GetDefaultLogFile())
 		assert.Equal(t, "/opt/datadog-agent/logs/cluster-agent.log", GetDefaultDCALogFile())
@@ -114,6 +119,7 @@ func TestGettersWithCommonRoot(t *testing.T) {
 	// Test with common root set
 	t.Run("with common root", func(t *testing.T) {
 		t.Setenv("DD_COMMON_ROOT", "/opt/datadog-agent")
+		setCommonRootFromEnv()
 		assert.Equal(t, "/opt/datadog-agent/etc", GetDefaultConfPath())
 		assert.Equal(t, "/opt/datadog-agent/logs/agent.log", GetDefaultLogFile())
 		assert.Equal(t, "/opt/datadog-agent/logs/cluster-agent.log", GetDefaultDCALogFile())
@@ -132,6 +138,7 @@ func TestGettersWithCommonRoot(t *testing.T) {
 	// Test with custom common root
 	t.Run("with custom common root", func(t *testing.T) {
 		t.Setenv("DD_COMMON_ROOT", "/custom/path")
+		setCommonRootFromEnv()
 		assert.Equal(t, "/custom/path/etc", GetDefaultConfPath())
 		assert.Equal(t, "/custom/path/logs/agent.log", GetDefaultLogFile())
 		// pyChecksPath /opt/datadog-agent/checks.d transforms to {root}/checks.d
