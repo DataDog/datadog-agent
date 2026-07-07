@@ -20,8 +20,9 @@ CLI_PACKAGE = "./cmd/configdoc"
 )
 def configdoc(ctx, check=False):
     """
-    Regenerate test/e2e-framework/docs/CONFIG.md from the Pulumi config key
-    constants declared in common/config/ and resources/*/environment.go.
+    Regenerate test/e2e-framework/docs/CONFIG.md from the Pulumi config keys
+    declared in common/config/, resources/*/environment.go, and other files
+    that open a config namespace (e.g. run/main.go, scenarios/aws/gensim-eks).
 
     Example:
         dda inv e2e.configdoc            # regenerate and write the file

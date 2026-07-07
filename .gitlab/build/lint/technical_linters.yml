@@ -56,9 +56,8 @@ lint_e2e_framework_configdoc:
   rules:
     - changes:
         paths:
-          - test/e2e-framework/common/config/**/*
-          - test/e2e-framework/resources/**/*
-          - test/e2e-framework/cmd/configdoc/**/*
+          - test/e2e-framework/**/*.go
+          - test/e2e-framework/docs/CONFIG.md
         compare_to: $COMPARE_TO_BRANCH
   script:
     - dda inv -- -e e2e.configdoc --check
