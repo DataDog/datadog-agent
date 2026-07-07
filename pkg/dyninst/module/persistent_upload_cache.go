@@ -141,7 +141,7 @@ func withProcessExistsCheck(fn func(pid int) bool) cacheOption {
 func newPersistentUploadCache(dir string, opts ...cacheOption) (*persistentUploadCache, error) {
 	// Ensure the cache directory exists and is safe to write into as root.
 	if err := statedir.EnsureSecure(dir); err != nil {
-		return nil, fmt.Errorf("failed to create cache directory: %w", err)
+		return nil, err
 	}
 
 	cfg := cacheTestingKnobs{}
@@ -272,7 +272,7 @@ func (c *persistentUploadCache) saveEntry(pid int32, entry uploadEntry) error {
 		return fmt.Errorf("failed to marshal cache entry: %w", err)
 	}
 	entryPath := c.entryPath(pid)
-	if err := statedir.WriteFile(entryPath, data, 0o600); err != nil {
+	if err := statedir.WriteFile(entryPath, data); err != nil {
 		return fmt.Errorf("failed to write cache entry file: %w", err)
 	}
 	return nil

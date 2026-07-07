@@ -55,7 +55,7 @@ func WriteTombstoneFile(filePath string, errorNumber int) error {
 	if err := statedir.EnsureSecure(filepath.Dir(filePath)); err != nil {
 		return err
 	}
-	return statedir.WriteFile(filePath, data, 0o600)
+	return statedir.WriteFile(filePath, data)
 }
 
 // ReadTombstoneFile reads and unmarshals the tombstone file at the specified path.
