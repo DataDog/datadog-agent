@@ -12,7 +12,7 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// team: fleet-remediation
+// team: agent-health fleet-remediation
 
 // Component is the stateless forwarder component. It POSTs a pre-built
 // HealthReport to the Datadog intake. The periodic tick is owned by the
