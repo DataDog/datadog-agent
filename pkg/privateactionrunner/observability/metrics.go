@@ -52,6 +52,9 @@ func ReportExecutionCompleted(metricsClient statsd.ClientInterface, client actio
 }
 
 func ReportHealthCheck(metricsClient statsd.ClientInterface) {
+	if metricsClient == nil {
+		return
+	}
 	_ = metricsClient.Gauge(RunnerRunningMetric, 1, []string{}, 1.0)
 }
 
