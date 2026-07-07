@@ -48,7 +48,7 @@ pub struct PostgresScanData {
 }
 
 /// JSON representation of the scan result used to build
-/// `proto/datadog/sds/sds_result_payload.proto` (see `proto.rs`).
+/// `proto/datadog/sds/sds_result.proto` (see `proto.rs`).
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct SdsResultPayload {

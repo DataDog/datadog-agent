@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Compiles the vendored copy of sds_result_payload.proto for `cargo build` / IDE
+// Compiles the vendored copy of sds_result.proto for `cargo build` / IDE
 // workflows (same pattern as pkg/procmgr/rust/build.rs). Canonical source:
-// pkg/proto/datadog/sds/sds_result_payload.proto
+// pkg/proto/datadog/sds/sds_result.proto
 //
 // Requires `protoc` on PATH (e.g. `brew install protobuf`).
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let proto_root = "proto";
-    let proto_file = "proto/datadog/sds/sds_result_payload.proto";
+    let proto_file = "proto/datadog/sds/sds_result.proto";
 
     println!("cargo:rerun-if-changed={proto_file}");
 

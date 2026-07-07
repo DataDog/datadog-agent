@@ -20,7 +20,7 @@ use datadog::sds::{
 };
 
 /// Convert the in-memory scan result into the protobuf message defined in
-/// `proto/datadog/sds/sds_result_payload.proto` (copy of `pkg/proto/datadog/sds/`).
+/// `proto/datadog/sds/sds_result.proto` (copy of `pkg/proto/datadog/sds/`).
 pub fn to_proto(payload: &Payload) -> SdsResultPayload {
     SdsResultPayload {
         scan_source: ScanSource::Agentless as i32,
