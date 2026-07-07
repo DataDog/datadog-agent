@@ -17,4 +17,3 @@ func Status() string {
 func Enabled() (bool, error) {
 	return false, nil
 }
-
