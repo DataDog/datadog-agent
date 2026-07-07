@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "common.go",
+        "filter.go",
+        "mutator.go",
+        "pod_spec_normalizer.go",
+        "test_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/workloadfilter/legacy",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/metrics",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/util/fxutil",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//require",
+        "@com_github_wi2l_jsondiff//:jsondiff",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//batch/v1:batch",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//dynamic",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "common_test",
+    srcs = [
+        "common_test.go",
+        "filter_test.go",
+        "mutator_test.go",
+        "pod_spec_normalizer_test.go",
+    ],
+    embed = [":common"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+    ],
+)

@@ -100,6 +100,7 @@ common:cache --noremote_upload_local_results
 common:ci --config=adms
 common:ci --config=lint
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
+common:ci --remote_download_regex=.*/test\.xml$ # force-download test.xml even under --remote_download_outputs=toplevel, so junit collection can read it locally
 
 # Project/Language configs --------------------------------------------------------------------------------------
 import %workspace%/bazel/configs/flavors.bazelrc
