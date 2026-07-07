@@ -20,6 +20,7 @@ import (
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
@@ -113,7 +114,7 @@ func newCheck(t *testing.T, id string, doErr bool, runFunc func(checkid.ID)) *te
 }
 
 func newScheduler() *scheduler.Scheduler {
-	return scheduler.NewScheduler(nil)
+	return scheduler.NewScheduler(nil, nil)
 }
 
 func assertAsyncWorkerCount(t *testing.T, count int) {
@@ -257,6 +258,83 @@ func TestRunner(t *testing.T) {
 	for idx := 0; idx < numChecks; idx++ {
 		require.Equal(t, 1, checks[idx].RunCount())
 	}
+}
+
+func TestRunnerShadowWorkerUsesShadowChannel(t *testing.T) {
+	mockConfig := testSetUp(t)
+	mockConfig.SetInTest("check_runners", "1")
+
+	inner := newCheck(t, "mycheck:123", false, nil)
+	shadow := check.NewShadowCheck(inner, time.Second)
+
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	assertAsyncWorkerCount(t, 1)
+	require.Len(t, r.workers, 1)
+	require.Empty(t, r.shadowWorkers)
+
+	r.AddShadowWorker()
+	assertAsyncWorkerCount(t, 2)
+	require.Len(t, r.workers, 1)
+	require.Len(t, r.shadowWorkers, 1)
+
+	r.GetShadowChan() <- shadow
+	require.Eventually(t, func() bool {
+		return inner.RunCount() == 1
+	}, 750*time.Millisecond, 10*time.Millisecond)
+}
+
+func TestRunnerStopStopsShadowWorkers(t *testing.T) {
+	mockConfig := testSetUp(t)
+	mockConfig.SetInTest("check_runners", "0")
+
+	inner := newCheck(t, "mycheck:123", false, nil)
+	inner.RunLock.Lock()
+	shadow := check.NewShadowCheck(inner, time.Second)
+
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
+	require.NotNil(t, r)
+
+	r.AddShadowWorker()
+	assertAsyncWorkerCount(t, 5)
+	require.Len(t, r.workers, 4)
+	require.Len(t, r.shadowWorkers, 1)
+
+	r.GetShadowChan() <- shadow
+	<-inner.StartedChan()
+
+	stopDone := make(chan struct{})
+	go func() {
+		r.Stop()
+		close(stopDone)
+	}()
+
+	assertAsyncBool(t, inner.IsStopped, true)
+	inner.RunLock.Unlock()
+
+	select {
+	case <-stopDone:
+	case <-time.After(750 * time.Millisecond):
+		t.Fatal("timed out waiting for runner stop")
+	}
+
+	require.Eventually(t, func() bool {
+		r.workersLock.Lock()
+		defer r.workersLock.Unlock()
+		return len(r.workers) == 0 && len(r.shadowWorkers) == 0
+	}, 750*time.Millisecond, 10*time.Millisecond)
+	assertAsyncWorkerCount(t, 0)
+
+	// Calling Stop on a stopped runner should be a noop.
+	r.Stop()
+
+	// Ensure that the shadow channel can't be written to anymore.
+	defer func() {
+		require.NotNil(t, recover())
+	}()
+	r.GetShadowChan() <- shadow
 }
 
 func TestRunnerStop(t *testing.T) {
