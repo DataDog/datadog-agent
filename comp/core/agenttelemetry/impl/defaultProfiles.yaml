@@ -106,19 +106,24 @@ profiles:
       - name: kubernetes_agent.containers_restarts
         preserve_tags:
           - kube_app_component
+          - pod_name
       - name: kubernetes_agent.containers_terminated
         preserve_tags:
           - kube_app_component
+          - pod_name
           - reason
       - name: kubernetes_agent.cpu_usage
         preserve_tags:
           - kube_app_component
+          - pod_name
       - name: kubernetes_agent.memory_usage
         preserve_tags:
           - kube_app_component
+          - pod_name
       - name: kubernetes_agent.memory_limits
         preserve_tags:
           - kube_app_component
+          - pod_name
   schedule:
     start_after: 30
     iterations: 0
