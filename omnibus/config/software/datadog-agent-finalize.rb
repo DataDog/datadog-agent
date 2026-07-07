@@ -192,12 +192,13 @@ build do
               if fips_mode?
                 installer_bin = "#{install_dir}/embedded/bin/installer"
                 if File.exist?(installer_bin)
-                  # Use install_dir/embedded/lib as the absolute RPATH fallback so the path
-                  # stays within /opt/datadog-packages for OCI builds and is version-matched
-                  # to this exact agent build. For deb builds install_dir is /opt/datadog-agent,
-                  # which also works. Hardcoding /opt/datadog-agent would silently break for
-                  # any non-default install prefix or pure-OCI deployments without the deb.
-                  embedded_lib = "#{install_dir}/embedded/lib"
+                  # /opt/datadog-agent/embedded/lib is the stable, version-independent path:
+                  # on deb installs it is the fixed deb install location; on OCI installs
+                  # /opt/datadog-agent is a symlink to the current stable tree, so it always
+                  # resolves correctly without embedding a version string. Using install_dir
+                  # directly would bake a versioned OCI path into the binary's RPATH, which
+                  # breaks once the old version is GC'd.
+                  embedded_lib = "/opt/datadog-agent/embedded/lib"
                   command "patchelf --add-rpath #{embedded_lib} #{installer_bin}"
                   command "patchelf --print-rpath #{installer_bin} | grep -qF '#{embedded_lib}' || (echo 'ERROR: patchelf --add-rpath did not add #{embedded_lib} to #{installer_bin}' && exit 1)"
                 end
