@@ -72,42 +72,40 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	}
 
 	return &Config{
-		MaxBackoff:                      maxBackoff,
-		MinBackoff:                      minBackoff,
-		MaxAttempts:                     maxAttempts,
-		WaitBeforeRetry:                 waitBeforeRetry,
-		LoopInterval:                    loopInterval,
-		OpmsRequestTimeout:              opmsRequestTimeout,
-		RunnerPoolSize:                  config.GetInt32(setup.PARTaskConcurrency),
-		HealthCheckInterval:             healthCheckInterval,
-		HttpServerReadTimeout:           defaultHTTPServerReadTimeout,
-		HttpServerWriteTimeout:          defaultHTTPServerWriteTimeout,
-		HTTPTimeout:                     httpTimeout,
-		TaskTimeoutSeconds:              taskTimeoutSeconds,
-		RunnerAccessTokenHeader:         runnerAccessTokenHeader,
-		RunnerAccessTokenIdHeader:       runnerAccessTokenIDHeader,
-		Port:                            defaultPort,
-		JWTRefreshInterval:              defaultJwtRefreshInterval,
-		HealthCheckEndpoint:             defaultHealthCheckEndpoint,
-		HeartbeatInterval:               heartbeatInterval,
-		Version:                         version.AgentVersion,
-		MetricsClient:                   metricsClient,
-		ActionsAllowlist:                makeActionsAllowlist(config),
-		Allowlist:                       config.GetStringSlice(setup.PARHttpAllowlist),
-		AllowIMDSEndpoint:               config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		RShellAllowedPaths:              rshellAllowedPaths(config),
-		RShellAllowedPathsConfigured:    config.IsConfigured(setup.PARRestrictedShellAllowedPaths),
-		RShellAllowedCommands:           rshellAllowedCommands(config),
-		RShellAllowedCommandsConfigured: config.IsConfigured(setup.PARRestrictedShellAllowedCommands),
-		OpmsExtraHeaders:                config.GetStringMapString(setup.PAROpmsExtraHeaders),
-		DDHost:                          ddHost,
-		DDApiHost:                       "api." + ddSite,
-		Modes:                           []modes.Mode{modes.ModePull},
-		OrgId:                           orgID,
-		PrivateKey:                      privateKey,
-		RunnerId:                        runnerID,
-		Urn:                             urn,
-		DatadogSite:                     ddSite,
+		MaxBackoff:                maxBackoff,
+		MinBackoff:                minBackoff,
+		MaxAttempts:               maxAttempts,
+		WaitBeforeRetry:           waitBeforeRetry,
+		LoopInterval:              loopInterval,
+		OpmsRequestTimeout:        opmsRequestTimeout,
+		RunnerPoolSize:            config.GetInt32(setup.PARTaskConcurrency),
+		HealthCheckInterval:       healthCheckInterval,
+		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
+		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,
+		HTTPTimeout:               httpTimeout,
+		TaskTimeoutSeconds:        taskTimeoutSeconds,
+		RunnerAccessTokenHeader:   runnerAccessTokenHeader,
+		RunnerAccessTokenIdHeader: runnerAccessTokenIDHeader,
+		Port:                      defaultPort,
+		JWTRefreshInterval:        defaultJwtRefreshInterval,
+		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
+		HeartbeatInterval:         heartbeatInterval,
+		Version:                   version.AgentVersion,
+		MetricsClient:             metricsClient,
+		ActionsAllowlist:          makeActionsAllowlist(config),
+		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
+		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		RShellAllowedPaths:        rshellAllowedPaths(config),
+		RShellAllowedCommands:     rshellAllowedCommands(config),
+		OpmsExtraHeaders:          config.GetStringMapString(setup.PAROpmsExtraHeaders),
+		DDHost:                    ddHost,
+		DDApiHost:                 "api." + ddSite,
+		Modes:                     []modes.Mode{modes.ModePull},
+		OrgId:                     orgID,
+		PrivateKey:                privateKey,
+		RunnerId:                  runnerID,
+		Urn:                       urn,
+		DatadogSite:               ddSite,
 	}, nil
 }
 
@@ -151,14 +149,9 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 // If the wildcard "rshell:*" is not present, the operator-configured list is used to filter the commands.
 // For a command to be executed by rshell, it needs to be present in both the operator-configured list
 // AND the backend's allowed commands list. (intersection operation)
-//
-// This list is used only when the user explicitly configured the key; the
-// registered default is preserved as a non-restrictive compatibility value.
 func rshellAllowedCommands(config config.Component) []string {
 	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
-	if config.IsConfigured(setup.PARRestrictedShellAllowedCommands) {
-		warnUnnamespacedCommands(commands)
-	}
+	warnUnnamespacedCommands(commands)
 	return commands
 }
 
@@ -186,10 +179,8 @@ func warnUnnamespacedCommands(commands []string) {
 // AND the backend's allowed paths list. (intersection operation)
 func rshellAllowedPaths(config config.Component) []string {
 	paths := config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
-	if config.IsConfigured(setup.PARRestrictedShellAllowedPaths) {
-		warnBackslashPaths(paths)
-		warnNonDirectoryPaths(paths)
-	}
+	warnBackslashPaths(paths)
+	warnNonDirectoryPaths(paths)
 	return paths
 }
 

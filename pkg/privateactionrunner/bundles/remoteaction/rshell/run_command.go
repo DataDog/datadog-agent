@@ -41,10 +41,8 @@ var statFn = os.Stat
 
 // RunCommandHandlerConfig carries agent-side rshell policy settings.
 type RunCommandHandlerConfig struct {
-	OperatorAllowedPaths              []string
-	OperatorAllowedPathsConfigured    bool
-	OperatorAllowedCommands           []string
-	OperatorAllowedCommandsConfigured bool
+	OperatorAllowedPaths    []string
+	OperatorAllowedCommands []string
 }
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
@@ -68,11 +66,9 @@ type RunCommandHandlerConfig struct {
 //
 // On either axis, an explicit empty operator list is the kill-switch.
 type RunCommandHandler struct {
-	operatorAllowedPaths              []string
-	operatorAllowedPathsConfigured    bool
-	operatorAllowedCommands           []string
-	operatorAllowedCommandsConfigured bool
-	mode                              interp.Mode
+	operatorAllowedPaths    []string
+	operatorAllowedCommands []string
+	mode                    interp.Mode
 }
 
 // newRunCommandHandler builds a run-command handler and precomputes the
@@ -81,56 +77,47 @@ type RunCommandHandler struct {
 //  1. Paths are normalized, reduced to the broadest entries per access group,
 //     and deduplicated so same-path read-write entries replace read-only ones.
 //  2. Commands are deduplicated.
-func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode, pathsConfigured, commandsConfigured bool) *RunCommandHandler {
+func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode) *RunCommandHandler {
 	// remove duplicates
 	commands := slices.Clone(operatorAllowedCommands)
 	slices.Sort(commands)
 	commands = slices.Compact(commands)
 	return &RunCommandHandler{
-		operatorAllowedPaths:              reducePathListToBroadest(cleanPathList(operatorAllowedPaths)),
-		operatorAllowedPathsConfigured:    pathsConfigured,
-		operatorAllowedCommands:           commands,
-		operatorAllowedCommandsConfigured: commandsConfigured,
-		mode:                              mode,
+		operatorAllowedPaths:    reducePathListToBroadest(cleanPathList(operatorAllowedPaths)),
+		operatorAllowedCommands: commands,
+		mode:                    mode,
 	}
 }
 
 func NewRunCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeReadOnly, cfg.OperatorAllowedPathsConfigured, cfg.OperatorAllowedCommandsConfigured)
+	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeReadOnly)
 }
 
 // NewRunRemediationCommandHandler builds the write-capable runRemediationCommand
 // handler. It shares all sandboxing with runCommand and only switches rshell into
 // remediation mode.
 func NewRunRemediationCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeRemediation, cfg.OperatorAllowedPathsConfigured, cfg.OperatorAllowedCommandsConfigured)
+	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeRemediation)
 }
 
 // filterAllowedCommands returns the effective command allowlist, passed to rshell:
-// the signed task list limited to the rshell command namespace, optionally
-// narrowed by explicitly configured agent-side commands.
+// the signed task list limited to the rshell command namespace, narrowed by
+// agent-side commands.
 func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []string {
 	backendAllowed = onlyRshellPrefixedCommands(backendAllowed)
-	if !h.operatorAllowedCommandsConfigured {
-		return backendAllowed
-	}
 	return intersectAllowedCommands(backendAllowed, h.operatorAllowedCommands)
 }
 
 // filterAllowedPaths returns the effective path allowlist passed to rshell:
 //
 //  1. Normalize the signed backend paths.
-//  2. If no operator allowlist is configured, reduce the backend paths to
-//     remove duplicates and redundant descendants, then use that reduced list.
-//  3. If an operator allowlist is configured, intersect operator and backend
-//     paths by access group and containment, keeping the narrower matching path.
+//  2. Intersect operator and backend paths by access group and containment,
+//     keeping the narrower matching path.
+//  3. Reduce the result to remove duplicates and redundant descendants.
 //  4. Remove same-path read-only entries when a read-write entry exists. For example,
 //     if `/var/log:ro` and `/var/log:rw` both exist, only `/var/log:rw` is kept.
 func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 	backendPaths := cleanPathList(backend)
-	if !h.operatorAllowedPathsConfigured {
-		return reducePathListToBroadest(backendPaths)
-	}
 	return intersectAllowedPathsByAccess(h.operatorAllowedPaths, backendPaths)
 }
 

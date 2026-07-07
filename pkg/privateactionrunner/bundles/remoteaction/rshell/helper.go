@@ -77,7 +77,8 @@ func cleanPathList(paths []string) []string {
 	return cleaned
 }
 
-// intersectAllowedPathsByAccess keeps narrower paths shared by the operator and backend allowlists.
+// intersectAllowedPathsByAccess keeps narrower paths shared by the operator and backend allowlists,
+// then reduces the result to the broadest non-redundant paths.
 // Paths only match within the same access group, except unsuffixed operator root
 // which admits backend paths with their original access suffix.
 func intersectAllowedPathsByAccess(operatorAllowed []string, backendAllowed []string) []string {
@@ -97,7 +98,7 @@ func intersectAllowedPathsByAccess(operatorAllowed []string, backendAllowed []st
 			seen[pathToKeep] = struct{}{}
 		}
 	}
-	return dedupeSamePathPreferReadWrite(filtered)
+	return reducePathListToBroadest(filtered)
 }
 
 func splitPathAccessSuffix(pathSpec string) (pathPart string, accessSuffix string) {

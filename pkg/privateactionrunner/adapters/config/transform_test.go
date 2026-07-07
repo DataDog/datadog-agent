@@ -362,7 +362,6 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
-	assert.False(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
@@ -374,7 +373,6 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/var/log", "/tmp"}, cfg.RShellAllowedPaths)
-	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
@@ -388,7 +386,6 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
 	// Explicit empty list remains distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedPaths)
 	assert.Empty(t, cfg.RShellAllowedPaths)
-	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
@@ -402,7 +399,6 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
-	assert.False(t, cfg.RShellAllowedCommandsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
@@ -414,7 +410,6 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cat", "ls"}, cfg.RShellAllowedCommands)
-	assert.True(t, cfg.RShellAllowedCommandsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
@@ -428,7 +423,6 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	// Explicit empty list remains distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedCommands)
 	assert.Empty(t, cfg.RShellAllowedCommands)
-	assert.True(t, cfg.RShellAllowedCommandsConfigured)
 }
 
 // TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML pins the
@@ -447,7 +441,6 @@ private_action_runner:
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice")
-	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmptyYAML(t *testing.T) {
@@ -461,7 +454,6 @@ private_action_runner:
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice")
-	assert.True(t, cfg.RShellAllowedCommandsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *testing.T) {
@@ -479,7 +471,6 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *t
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{tmpDir, fp}, cfg.RShellAllowedPaths)
-	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *testing.T) {
@@ -492,7 +483,6 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *tes
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{`C:\Data`, "/var/log"}, cfg.RShellAllowedPaths)
-	assert.True(t, cfg.RShellAllowedPathsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsWarnsForBackslash(t *testing.T) {
@@ -545,10 +535,9 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cat", "rshell:ls"}, cfg.RShellAllowedCommands)
-	assert.True(t, cfg.RShellAllowedCommandsConfigured)
 }
 
-func TestFromDDConfigPARRestrictedShellAllowedCommandsWarnsForConfiguredUnnamespaced(t *testing.T) {
+func TestFromDDConfigPARRestrictedShellAllowedCommandsWarnsForUnnamespaced(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
 	mockConfig.SetInTest(setup.PARUrn, "")
@@ -581,7 +570,7 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsDefaultDoesNotWarn(t *test
 
 func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
 	// No restricted_shell block at all: both axes fall back to their registered
-	// defaults and remain marked as unconfigured.
+	// defaults.
 	yaml := `
 private_action_runner:
   enabled: true
@@ -592,8 +581,6 @@ private_action_runner:
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
-	assert.False(t, cfg.RShellAllowedPathsConfigured)
-	assert.False(t, cfg.RShellAllowedCommandsConfigured)
 }
 
 func TestNewMetricsClient(t *testing.T) {
