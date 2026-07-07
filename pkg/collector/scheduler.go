@@ -27,6 +27,7 @@ import (
 	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
@@ -237,7 +238,12 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 			if includeShadowChecks {
 				if candidate, found := shadowCandidates[instanceIndex]; found {
 					sourceCheckID := result.check.ID()
-					if shadowCheck, err := s.loadShadowCheck(candidate, result.loader, sourceCheckID); err != nil {
+					shadowLoader, ok := shadowLoaderFor(result.loader)
+					if !ok {
+						log.Debugf("Skipping metric lookback shadow check %s: loader %s does not support shadow execution", check.ShadowID(sourceCheckID), result.loader.Name())
+						continue
+					}
+					if shadowCheck, err := s.loadShadowCheck(candidate, shadowLoader, sourceCheckID); err != nil {
 						log.Warnf("Unable to load metric lookback shadow check %s: %v", check.ShadowID(sourceCheckID), err)
 					} else {
 						checks = append(checks, shadowCheck)
@@ -264,6 +270,22 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 	}
 
 	return checks, nil
+}
+
+func shadowLoaderFor(loader check.Loader) (check.Loader, bool) {
+	switch loader.Name() {
+	case corecheckLoader.GoCheckLoaderName:
+		shadowLoader, err := corecheckLoader.NewGoCheckLoader(corecheckLoader.WithLoadMode(corecheckLoader.ShadowLoadMode))
+		if err != nil {
+			log.Debugf("Unable to create metric lookback shadow loader for %s: %v", loader.Name(), err)
+			return nil, false
+		}
+		return shadowLoader, true
+	case "python":
+		return loader, true
+	default:
+		return nil, false
+	}
 }
 
 func shadowCandidatesByInstance(config integration.Config) map[int]metriclookback.ShadowCandidate {
