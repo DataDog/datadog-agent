@@ -51,6 +51,9 @@ const (
 
 	// ProxyTypeIngressNginx represents the ingress-nginx proxy type for appsec injection mode
 	ProxyTypeIngressNginx ProxyType = "ingress-nginx"
+
+	// ProxyTypeGKEGateway represents the GKE Gateway proxy type for appsec injection mode (EXTERNAL only)
+	ProxyTypeGKEGateway ProxyType = "gke-gateway"
 )
 
 // AllProxyTypes is the list of all supported proxy types for appsec injection mode
@@ -59,6 +62,7 @@ var AllProxyTypes = []ProxyType{
 	ProxyTypeIstio,
 	ProxyTypeIstioGateway,
 	ProxyTypeIngressNginx,
+	ProxyTypeGKEGateway,
 }
 
 // Processor represents the configuration of the AppSec processor service that was deployed in the cluster
@@ -104,6 +108,13 @@ type Sidecar struct {
 	UDSPath string
 	// RunAsUser is the UID/GID for the injected sidecar so it can share the UDS volume with the proxy container (default 65532, the Envoy Gateway proxy UID).
 	RunAsUser int64
+}
+
+// GKE contains configuration specific to GKE Gateway (gke-gateway) proxy type
+type GKE struct {
+	// GatewayClasses is the list of GatewayClass names eligible for AppSec
+	// traffic extension injection. When empty the built-in allowlist is used.
+	GatewayClasses []string
 }
 
 // Nginx contains configuration specific to ingress-nginx injection
@@ -153,6 +164,9 @@ type Product struct {
 
 	// Processor contains configuration for the EXTERNAL mode
 	Processor Processor
+
+	// GKE contains configuration specific to GKE Gateway injection
+	GKE GKE
 }
 
 // Injection represents Kubernetes-specific configuration available for users to customize
@@ -340,6 +354,7 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 			Mode:       mode,
 			Sidecar:    sidecarConfig,
 			Nginx:      nginxConfig,
+			GKE:        GKE{GatewayClasses: cfg.GetStringSlice("appsec.proxy.gke.gateway_classes")},
 		},
 		Injection: Injection{
 			Enabled:           cfg.GetBool("cluster_agent.appsec.injector.enabled"),

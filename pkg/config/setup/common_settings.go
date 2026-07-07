@@ -1025,6 +1025,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("appsec.proxy.processor.address", "")
 	config.BindEnvAndSetDefault("appsec.proxy.auto_detect", true)
 	config.BindEnvAndSetDefault("appsec.proxy.proxies", []string{})
+	config.BindEnvAndSetDefault("appsec.proxy.gke.gateway_classes", []string{})
 
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", true)
