@@ -30,6 +30,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
         "//comp/core/diagnose/def",
         "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
