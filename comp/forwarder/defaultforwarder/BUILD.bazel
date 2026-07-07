@@ -80,6 +80,5 @@ go_test(
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_atomic//:atomic",
->>>>>>> cab359afb51 (Use task-storage map)
     ],
 )
