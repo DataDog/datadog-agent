@@ -185,6 +185,38 @@ site: datadoghq.com
 	assert.Equal(t, 0, mgr.hostProfilerConfig.DDProfiling.Port)
 }
 
+func TestNewConfigManagerExperimentalProfilerControlsFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  heap_profiling: true
+  live_heap_profiling: true
+  tracers: native,python
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.True(t, mgr.hostProfilerConfig.HeapProfiling)
+	assert.True(t, mgr.hostProfilerConfig.LiveHeapProfiling)
+	assert.Equal(t, "native,python", mgr.hostProfilerConfig.Tracers)
+}
+
+func TestNewConfigManagerExperimentalProfilerControlsFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_HEAP_PROFILING", "true")
+	t.Setenv("DD_HOSTPROFILER_LIVE_HEAP_PROFILING", "true")
+	t.Setenv("DD_HOSTPROFILER_TRACERS", "native,python")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.True(t, mgr.hostProfilerConfig.HeapProfiling)
+	assert.True(t, mgr.hostProfilerConfig.LiveHeapProfiling)
+	assert.Equal(t, "native,python", mgr.hostProfilerConfig.Tracers)
+}
+
 func TestNewConfigManagerHPFlarePortFromYAML(t *testing.T) {
 	cfg := config.NewMockFromYAML(t, `
 api_key: test-key

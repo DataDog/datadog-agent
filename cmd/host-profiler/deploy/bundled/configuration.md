@@ -41,6 +41,16 @@ The following settings can be overridden in the Datadog Agent configuration for 
 |:---------------------------------------|:------------------|:----------|:-----------------------------------------------------------------------------------------------------------|
 | `hostprofiler.additional_http_headers` | map[string]string | _(empty)_ | Adds custom headers to profile export requests, for example when required by an outbound proxy or gateway. |
 
+### Experimental profiler controls
+
+These options expose experimental OpenTelemetry eBPF Profiler features. Use them only when testing a Host Profiler image built with matching profiler support.
+
+| Name                                 | Values | Default      | Description                                                                                                         |
+|:-------------------------------------|:-------|:-------------|:--------------------------------------------------------------------------------------------------------------------|
+| `hostprofiler.heap_profiling`        | bool   | `false`      | Enables heap allocation profiling in the eBPF profiler receiver.                                                     |
+| `hostprofiler.live_heap_profiling`   | bool   | `false`      | Enables live heap tracking in addition to allocation profiling. Requires `hostprofiler.heap_profiling` to be `true`. |
+| `hostprofiler.tracers`               | string | profiler default | Comma-separated interpreter tracer list passed to the eBPF profiler receiver.                                    |
+
 ### Host Profiler self-profiling
 
 These options are for Datadog Support diagnostics only. Leave self-profiling disabled unless Datadog Support asks you to enable it.
