@@ -2425,6 +2425,8 @@ code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5 h1:qzFDi35GOoKwh
 code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5/go.mod h1:ap2gRuUzfTHIqW0xmGZjjUoljsyEiTEAnk/1s3ftm/w=
 code.cloudfoundry.org/lager/v3 v3.75.0 h1:Q9L1/hvs6ZF+5CWVDU9Aom+x3AAYxSweFsRLWM/XvUo=
 code.cloudfoundry.org/lager/v3 v3.75.0/go.mod h1:sPIue4zrU2aGOxIGhEgcWkAgjIjeOH+QkInOpQnfYgE=
+code.cloudfoundry.org/lager/v3 v3.76.0 h1:GwXyviDrEdpljKv8nJHTDeFTeDX5pWqToX57DeRWIxg=
+code.cloudfoundry.org/lager/v3 v3.76.0/go.mod h1:UbGWNmeqshoJ5QNFGERhmvkWdkOiGFjOP2KhYNCLVts=
 code.cloudfoundry.org/locket v1.1.0 h1:UW1NmuPzDHNNOuYnZ0tyLanL7aQHXnto1Ej3BCp7uS4=
 code.cloudfoundry.org/locket v1.1.0/go.mod h1:uHOC1u/FKBvYHW0wTzFjI3WT85O2jGxz1I4+2nrjWLk=
 code.cloudfoundry.org/tlsconfig v0.60.0 h1:bB+VlWZ1Y3RTHJBNMnUx0pnkSN0DrzmJI3A0g1YSnVw=
@@ -5837,6 +5839,8 @@ golang.org/x/telemetry v0.0.0-20240228155512-f48c80bd79b2/go.mod h1:TeRTkGYfJXct
 golang.org/x/telemetry v0.0.0-20240521205824-bda55230c457/go.mod h1:pRgIJT+bRLFKnoM1ldnzKoxTIn14Yxz928LQRYYgIN0=
 golang.org/x/telemetry v0.0.0-20260610154732-fb80ec83bdd9 h1:FjUup8XrRy7lv+XHONi6KKUSizeF2NnVrTnz/HhbohQ=
 golang.org/x/telemetry v0.0.0-20260610154732-fb80ec83bdd9/go.mod h1:3AWMyWHS+caVoiEXpiq6+tzKA40J4vQT3MYr80ZtQpc=
+golang.org/x/telemetry v0.0.0-20260625142307-59b4966ccb57 h1:nwGZBCt+FnXUrGsj5vjzAsEmkcaFvd82BbOjECiFYZc=
+golang.org/x/telemetry v0.0.0-20260625142307-59b4966ccb57/go.mod h1:3AWMyWHS+caVoiEXpiq6+tzKA40J4vQT3MYr80ZtQpc=
 golang.org/x/term v0.0.0-20201117132131-f5c789dd3221/go.mod h1:Nr5EML6q2oocZ2LXRh80K7BxOlk5/8JxuGnuhpl+muw=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/term v0.0.0-20210927222741-03fcf44c2211/go.mod h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=
@@ -5997,6 +6001,8 @@ golang.org/x/tools v0.22.0/go.mod h1:aCwcsjqvq7Yqt6TNyX7QMU2enbQ/Gt0bo6krSeEri+c
 golang.org/x/tools v0.24.0/go.mod h1:YhNqVBIfWHdzvTLs0d8LCuMhkKUgSUKldakyV7W/WDQ=
 golang.org/x/tools v0.46.0 h1:7jTurBkPZu4moS/Uy4OQT1M+QBlsj3wejyZwsT8Z7rk=
 golang.org/x/tools v0.46.0/go.mod h1:FrD85F8l+NWL+9XWBSyVSHO6Ne4jutsfIFba7AWQ5Ys=
+golang.org/x/tools v0.47.0 h1:7Kn5x/d1svx/PzryTsqeoZN4TZwqeH5pGWjefhLi/1Q=
+golang.org/x/tools v0.47.0/go.mod h1:dFHnyTvFWY212G+h7ZY4Vsp/K3U4/7W9TyVaAul8uCA=
 golang.org/x/tools/go/expect v0.1.1-deprecated h1:jpBZDwmgPhXsKZC6WhL20P4b/wmnpsEAGHaNy0n/rJM=
 golang.org/x/tools/go/expect v0.1.1-deprecated/go.mod h1:eihoPOH+FgIqa3FpoTwguz/bVUSGBlGQU67vpBeOrBY=
 golang.org/x/tools/godoc v0.1.0-deprecated h1:o+aZ1BOj6Hsx/GBdJO/s815sqftjSnrZZwyYTHODvtk=
