@@ -9401,6 +9401,20 @@ properties:
     default: false
     tags:
     - full-agent-only:true
+  metric_lookback:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      enabled_checks:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
   metric_tag_filterlist:
     node_type: setting
     type: array
