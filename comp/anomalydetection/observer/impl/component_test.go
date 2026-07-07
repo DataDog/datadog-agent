@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -42,6 +43,19 @@ func (noopLogComponent) Criticalf(string, ...interface{}) error { return nil }
 func (noopLogComponent) Flush()                                 {}
 
 var _ log.Component = noopLogComponent{}
+
+// recordingLogComponent captures Warnf messages for assertions.
+type recordingLogComponent struct {
+	noopLogComponent
+	warns []string
+}
+
+func (r *recordingLogComponent) Warnf(format string, args ...interface{}) error {
+	r.warns = append(r.warns, fmt.Sprintf(format, args...))
+	return nil
+}
+
+var _ log.Component = &recordingLogComponent{}
 
 func requireNoObserverMetricFamilies(t *testing.T, telemetryComp telemetry.Component) {
 	t.Helper()
