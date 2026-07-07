@@ -31,8 +31,8 @@ var Opts = fx.Options(
 	demultiplexerimpl.MockModule(),
 	hostnameimpl.MockModule(),
 	fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-	fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
-		mockSender := mocksender.NewMockSender("mock-sender")
+	fx.Provide(func(t testing.TB) (*mocksender.MockSender, sender.Sender) {
+		mockSender := mocksender.NewMockSender(t, "mock-sender")
 		mockSender.SetupAcceptAll()
 		return mockSender, mockSender
 	}),
