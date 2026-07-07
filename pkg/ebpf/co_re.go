@@ -56,6 +56,7 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 			Programs: bpflib.ProgramOptions{
 				KernelTypes: ret.vmlinux,
 			},
+			Cache: kernelCache.Load(),
 		},
 	}
 

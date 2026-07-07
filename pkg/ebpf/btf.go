@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/cilium/ebpf/btf"
@@ -87,7 +88,7 @@ func FlushBTF() {
 	if loader != nil {
 		loader.btfLoader.Flush()
 	} else {
-		loadKernelSpec.Flush()
+		newBTFCache()
 	}
 }
 
@@ -184,7 +185,7 @@ func initBTFLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telem
 			rcErrors:  telemetrycomp.NewCounter("ebpf", "core_remoteconfig_error", []string{"platform", "platform_version", "kernel", "arch", "error_type"}, "count of CO-RE remote config BTF errors"),
 		},
 	}
-	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
+	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, newBTFCache)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
 	return btfLoader, nil
 }
@@ -513,12 +514,19 @@ func loadBTFFrom(path string) (*btf.Spec, error) {
 	return btf.LoadSpecFromReader(data)
 }
 
-var loadKernelSpec = funcs.CacheWithCallback[btf.Spec](btf.LoadKernelSpec, btf.FlushKernelSpec)
+var kernelCache atomic.Pointer[btf.Cache]
+
+func newBTFCache() {
+	kernelCache.Store(btf.NewCache())
+}
+func init() {
+	newBTFCache()
+}
 
 // GetKernelSpec returns a possibly cached version of the running kernel BTF spec
 // it's very important that the caller of this function does not modify the returned value
 func GetKernelSpec() (*btf.Spec, error) {
-	return loadKernelSpec.Do()
+	return kernelCache.Load().Kernel()
 }
 
 // copyFileMkdir copies file path `src` to file path `dst`.
