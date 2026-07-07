@@ -34,8 +34,7 @@ if ! grep -qF ".include ${FIPS_MODULE_PATH}" "${OPENSSL_CONF_PATH}"; then
     exit 1
 fi
 
-# Verify the module is correctly installed.
 if ! "${OPENSSL_BIN}" fipsinstall -module "${FIPS_SO_PATH}" -in "${FIPS_MODULE_PATH}" -verify; then
-    echo "fipsinstall: verification failed — ${FIPS_MODULE_PATH} may be corrupted"
+    echo "openssl fipsinstall: verification of FIPS compliance failed. $INSTALL_DIR/fipsmodule.cnf was corrupted or the installation failed."
     exit 1
 fi
