@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add a new ``dogstatsd_require_listener`` configuration option (disabled by
+    default). When enabled, DogStatsD exits with a non-zero status if it cannot
+    create any listener (UDP port, Unix socket, or named pipe) at startup,
+    instead of continuing to run without any way to receive metrics. Enable it
+    so a process supervisor can detect and restart a non-functional DogStatsD.

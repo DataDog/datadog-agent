@@ -2480,6 +2480,15 @@ api_key:
 #
 # dogstatsd_port: 8125
 
+## @param dogstatsd_require_listener - boolean - optional - default: false
+## @env DD_DOGSTATSD_REQUIRE_LISTENER - boolean - optional - default: false
+## When enabled, DogStatsD fails to start (the process exits with a non-zero status) if it
+## cannot create any listener (UDP port, Unix socket, or named pipe). When disabled, such a
+## failure is only logged and the process keeps running with no way to receive metrics.
+## Enable this so a process supervisor can detect and restart a non-functional DogStatsD.
+#
+# dogstatsd_require_listener: false
+
 ## @param bind_host - string - optional - default: ""
 ## @env DD_BIND_HOST - string - optional - default: ""
 ## The host to listen on for Dogstatsd and traces. This is ignored by APM when

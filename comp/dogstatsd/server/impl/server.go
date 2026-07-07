@@ -368,11 +368,14 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 
 func (s *dsdServer) startHook(context context.Context) error {
 	err := s.start(context)
-	if err != nil {
-		s.log.Errorf("Could not start dogstatsd: %s", err)
-	} else {
+	if err == nil {
 		s.log.Debug("dogstatsd started")
+		return nil
 	}
+	if s.config.GetBool("dogstatsd_require_listener") {
+		return err
+	}
+	s.log.Errorf("Could not start dogstatsd: %s", err)
 	return nil
 }
 
