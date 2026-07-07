@@ -140,4 +140,4 @@ func configstreamFxOptions() fx.Option {
 - **Producer**: `../configstream/README.md` — core agent config streaming service and gRPC contract.
 - **Test client**: `cmd/config-stream-client/README.md` — standalone client for end-to-end testing.
 
-**Team**: agent-configuration
+**Team**: fleet-automation

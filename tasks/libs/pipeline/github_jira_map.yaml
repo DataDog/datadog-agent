@@ -20,7 +20,6 @@
 '@datadog/agent-data-plane': DADP
 '@datadog/agent-log-pipelines': AGNTLOG
 '@datadog/agent-runtimes': AGENTRUN
-'@datadog/agent-configuration': AGENTCFG
 '@datadog/agent-supply-chain': SPPL
 '@datadog/kubernetes-experiences': CAP
 '@datadog/metrics-aggregation': AGGR
@@ -28,6 +27,8 @@
 '@datadog/serverless-azure-gcp': SVLS
 '@datadog/remote-config': RC
 '@datadog/fleet': FA
+'@datadog/fleet-automation': FA
+'@datadog/fleet-remediation': FA # to be updated
 '@datadog/agent-community-eng': DEFAULT_JIRA_PROJECT
 '@datadog/ebpf-platform': EBPF
 '@datadog/cloud-network-monitoring': CNM

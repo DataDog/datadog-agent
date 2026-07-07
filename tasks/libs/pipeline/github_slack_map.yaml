@@ -32,15 +32,6 @@
   review:
     name: '#agent-build-reviews'
     id: 'C08SK57TL1M'
-'@datadog/agent-configuration':
-  notification:
-    name: '#agent-configuration-ops'
-    id: 'C08A85VGC8P'
-  review:
-    # DO NOT FILL IN - team opted out of PR review notifications, see:
-    # https://github.com/DataDog/datadog-agent/pull/51716#issuecomment-4610991841
-    name: ''
-    id: ''
 '@datadog/agent-cspm':
   notification:
     name: '#security-and-compliance-agent-ops'
@@ -287,6 +278,20 @@
     name: '#ecs-experiences'
     id: 'C09FX078WH2'
 '@datadog/fleet':
+  notification:
+    name: '#fleet-automation-monitoring'
+    id: 'C06TZ0APY6Q'
+  review:
+    name: '#fleet-automation'
+    id: 'C05PUSNU4H5'
+'@datadog/fleet-automation':
+  notification:
+    name: '#fleet-automation-monitoring'
+    id: 'C06TZ0APY6Q'
+  review:
+    name: '#fleet-automation'
+    id: 'C05PUSNU4H5'
+'@datadog/fleet-remediation': # to be updated
   notification:
     name: '#fleet-automation-monitoring'
     id: 'C06TZ0APY6Q'

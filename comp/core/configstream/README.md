@@ -289,6 +289,6 @@ log_level: debug
 
 ## Contact
 
-- **Team:** agent-configuration
+- **Team:** fleet-automation
 - **Component:** `comp/core/configstream`
 - **Test Client:** `cmd/config-stream-client`

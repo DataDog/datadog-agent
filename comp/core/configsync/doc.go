@@ -5,5 +5,5 @@
 
 // Package configsync implements synchronizing the configuration using the core agent config API.
 //
-// # team: agent-configuration
+// # team: fleet-automation
 package configsync

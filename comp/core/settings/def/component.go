@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// team: agent-configuration
+// team: fleet-automation
 
 // SettingNotFoundError is used to warn about non existing/not registered runtime setting
 type SettingNotFoundError struct {
