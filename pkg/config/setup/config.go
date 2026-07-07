@@ -311,6 +311,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	initCoreAgentFull(config)
 	// Settings associated with a feature / product that only appear in the full agent, not in serverless
 	initFullAgentOnlyComponents(config)
+
+	additionalAgentSetup(config)
 }
 
 // settings shared by full agent and serverless
@@ -331,6 +333,12 @@ func initFullAgentOnlyComponents(config pkgconfigmodel.Setup) {
 	for _, f := range comps {
 		f(config)
 	}
+}
+
+func additionalAgentSetup(_ pkgconfigmodel.Setup) {
+	processesAddOverrideOnce.Do(func() {
+		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
+	})
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
