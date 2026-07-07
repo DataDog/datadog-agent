@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	containercoat "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/coat"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/cadvisor"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/health"
@@ -154,6 +155,7 @@ func (k *KubeletCheck) Run() error {
 	}
 	defer sender.Commit()
 	defer k.podUtils.Reset()
+	containercoat.ResetAgentPodCOATKubeletMetrics()
 
 	// Get client
 	kc, err := kubelet.GetKubeUtil()

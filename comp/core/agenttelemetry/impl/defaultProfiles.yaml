@@ -98,6 +98,28 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+- name: kubernetes-agent
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: kubernetes_agent.containers_restarts
+        preserve_tags:
+          - kube_app_component
+      - name: kubernetes_agent.containers_terminated
+        preserve_tags:
+          - kube_app_component
+          - reason
+      - name: kubernetes_agent.memory_usage
+        preserve_tags:
+          - kube_app_component
+      - name: kubernetes_agent.memory_limits
+        preserve_tags:
+          - kube_app_component
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: database
   metric:
     exclude:

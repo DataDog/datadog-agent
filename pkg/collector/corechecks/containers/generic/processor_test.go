@@ -12,11 +12,26 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	containercoat "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/coat"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 )
+
+type suppressMemoryUsageAdapter struct {
+	GenericMetricsAdapter
+}
+
+func (a suppressMemoryUsageAdapter) AdaptMetrics(metricName string, value float64) (string, float64) {
+	if metricName == "container.memory.usage" {
+		return "", value
+	}
+	return metricName, value
+}
 
 func TestProcessorRunFullStatsLinux(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -166,6 +181,54 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 			mockSender.AssertMetric(t, "Rate", "container.net.rcvd.packets", 421, "", expectedEth42Tags)
 		})
 	}
+}
+
+func TestProcessorRecordsAgentPodCOATMetricsFromRuntimeStats(t *testing.T) {
+	tel := telemetrymock.New(t)
+	t.Cleanup(containercoat.SetAgentPodCOATTelemetryForTest(tel))
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	containersMeta := []*workloadmeta.Container{
+		CreateContainerMeta("docker", "cID100"),
+	}
+	containersStats := map[string]mock.ContainerEntry{
+		"cID100": mock.GetFullSampleContainerEntry(),
+	}
+
+	fakeTagger.SetTags(
+		taggertypes.NewEntityID("container_id", "cID100"),
+		"foo",
+		[]string{"container_id:cID100", "kube_app_component:cluster-agent"},
+		nil,
+		nil,
+		nil,
+	)
+
+	mockSender, processor, _ := CreateTestProcessor(t, containersMeta, containersStats, suppressMemoryUsageAdapter{}, nil, fakeTagger, false)
+	err := processor.Run(mockSender, 0)
+	assert.NoError(t, err)
+
+	mockSender.AssertMetricMissing(t, "Gauge", "container.memory.usage")
+	assertGaugeValue(t, tel, containercoat.AgentMemoryUsage, "cluster-agent", 42000)
+	assertGaugeValue(t, tel, containercoat.AgentMemoryLimit, "cluster-agent", 42000)
+}
+
+func assertGaugeValue(t *testing.T, tel telemetry.Mock, metricName string, component string, expected float64) {
+	t.Helper()
+
+	metrics, err := tel.GetGaugeMetric("kubernetes_agent", metricName)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	for _, metric := range metrics {
+		if metric.Tags()[tags.KubeAppComponent] == component {
+			assert.Equal(t, expected, metric.Value())
+			return
+		}
+	}
+
+	assert.Failf(t, "missing metric", "metric %s for %s not found", metricName, component)
 }
 
 func TestProcessorRunPartialStats(t *testing.T) {

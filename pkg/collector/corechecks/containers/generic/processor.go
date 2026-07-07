@@ -13,6 +13,7 @@ import (
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	containercoat "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/coat"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -60,6 +61,8 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 
 // Run executes the check
 func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error {
+	containercoat.ResetAgentPodCOATRuntimeMetrics()
+
 	allContainers := p.ctrLister.ListRunning()
 
 	if len(allContainers) == 0 {
@@ -158,6 +161,9 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 	}
 
 	if containerStats.Memory != nil {
+		containercoat.RecordAgentPodCOATMetric(containercoat.AgentMemoryUsage, containerStats.Memory.UsageTotal, tags)
+		containercoat.RecordAgentPodCOATMetric(containercoat.AgentMemoryLimit, containerStats.Memory.Limit, tags)
+
 		p.sendMetric(sender.Gauge, "container.memory.usage", containerStats.Memory.UsageTotal, tags)
 		p.sendMetric(sender.Gauge, "container.memory.kernel", containerStats.Memory.KernelMemory, tags)
 		p.sendMetric(sender.Gauge, "container.memory.limit", containerStats.Memory.Limit, tags)
