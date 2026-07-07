@@ -19,9 +19,9 @@ const (
 	// DefaultHealthyWindowsToSuppressEgress is the number of consecutive healthy
 	// monitor windows required before egress stops forwarding retained ranges.
 	DefaultHealthyWindowsToSuppressEgress = 2
-	// DefaultMonitorStaleTimeout is how long suppressed egress trusts the last
-	// monitor decision before returning to forwarding as a conservative fallback.
-	DefaultMonitorStaleTimeout = 2 * monitor.DefaultEvaluationInterval
+	// DefaultMonitorStaleTimeout keeps stale-monitor reopening disabled by default.
+	// Empty periods without the trigger metric should not enable egress.
+	DefaultMonitorStaleTimeout = 0
 )
 
 // TimeRange is a half-open timestamp range: [From, To). A zero From is an
@@ -39,7 +39,8 @@ const (
 	// are eligible under the send-delay policy.
 	EgressForwarding EgressMode = iota
 	// EgressSuppressed means retention continues but ranges are not forwarded until
-	// the monitor breaches or becomes uncertain/stale.
+	// the monitor breaches, returns unknown, or becomes stale when stale reopening
+	// is explicitly configured.
 	EgressSuppressed
 )
 
@@ -67,7 +68,7 @@ type EgressPolicyOptions struct {
 	// required before egress transitions from forwarding to suppressed.
 	HealthyWindowsToSuppress int
 	// MonitorStaleTimeout controls when suppressed egress returns to forwarding if
-	// no fresh monitor decision is observed.
+	// no fresh monitor decision is observed. Zero disables stale reopening.
 	MonitorStaleTimeout time.Duration
 }
 
@@ -91,8 +92,9 @@ type EgressPolicy struct {
 	lastDecisionAt time.Time
 }
 
-// NewEgressPolicy creates a conservative egress policy. It starts in forwarding
-// mode with an open forwarding range so startup data is not missed.
+// NewEgressPolicy creates an egress policy that starts suppressed. Retention is
+// active immediately, but forwarding only opens after the watched metric breaches
+// or produces an unknown monitor decision.
 func NewEgressPolicy(opts EgressPolicyOptions) *EgressPolicy {
 	if opts.SendDelay < 0 {
 		opts.SendDelay = 0
@@ -103,8 +105,8 @@ func NewEgressPolicy(opts EgressPolicyOptions) *EgressPolicy {
 	if opts.HealthyWindowsToSuppress <= 0 {
 		opts.HealthyWindowsToSuppress = DefaultHealthyWindowsToSuppressEgress
 	}
-	if opts.MonitorStaleTimeout <= 0 {
-		opts.MonitorStaleTimeout = DefaultMonitorStaleTimeout
+	if opts.MonitorStaleTimeout < 0 {
+		opts.MonitorStaleTimeout = 0
 	}
 	return &EgressPolicy{
 		preWindow:                nonNegativeDuration(opts.PreWindow),
@@ -112,8 +114,7 @@ func NewEgressPolicy(opts EgressPolicyOptions) *EgressPolicy {
 		sendDelay:                opts.SendDelay,
 		healthyWindowsToSuppress: opts.HealthyWindowsToSuppress,
 		monitorStaleTimeout:      opts.MonitorStaleTimeout,
-		mode:                     EgressForwarding,
-		forwardingRanges:         []TimeRange{{}},
+		mode:                     EgressSuppressed,
 	}
 }
 
@@ -195,7 +196,7 @@ func (p *EgressPolicy) onUnknown(decision monitor.Decision) {
 // MarkStaleIfNeeded returns suppressed egress to forwarding when no fresh
 // monitor decision has arrived within the stale timeout.
 func (p *EgressPolicy) MarkStaleIfNeeded(now time.Time) bool {
-	if p == nil || p.mode == EgressForwarding || now.IsZero() || p.lastDecisionAt.IsZero() || p.lastMonitorAt.IsZero() {
+	if p == nil || p.mode == EgressForwarding || p.monitorStaleTimeout <= 0 || now.IsZero() || p.lastDecisionAt.IsZero() || p.lastMonitorAt.IsZero() {
 		return false
 	}
 	if now.Sub(p.lastDecisionAt) <= p.monitorStaleTimeout {

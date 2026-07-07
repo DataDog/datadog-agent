@@ -40,6 +40,7 @@ func TestEgressControllerForwardsEligibleRetainedRange(t *testing.T) {
 		SendDelay: time.Nanosecond,
 		Now:       func() time.Time { return from.Add(time.Minute) },
 	})
+	controller.policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: from, WindowTo: from.Add(time.Second)})
 
 	controller.RunOnce()
 	require.Len(t, controller.policy.ForwardedRanges(), 1)
@@ -63,6 +64,7 @@ func TestEgressControllerRespectsSendDelay(t *testing.T) {
 		SendDelay: 30 * time.Second,
 		Now:       func() time.Time { return now },
 	})
+	controller.policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: pointTime, WindowTo: pointTime.Add(time.Second)})
 
 	controller.RunOnce()
 	require.Empty(t, controller.policy.ForwardedRanges())
@@ -90,6 +92,7 @@ func TestEgressControllerRetriesFailedRange(t *testing.T) {
 		SendDelay: time.Nanosecond,
 		Now:       func() time.Time { return from.Add(time.Minute) },
 	})
+	controller.policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: from, WindowTo: from.Add(time.Second)})
 
 	controller.RunOnce()
 	require.Empty(t, controller.policy.ForwardedRanges())
@@ -106,11 +109,22 @@ func TestEgressControllerAppliesMonitorDecisions(t *testing.T) {
 		Now:                      func() time.Time { return time.Unix(100, 0) },
 	})
 
-	controller.OnDecision(monitor.Decision{
-		State:    monitor.Healthy,
-		WindowTo: time.Unix(90, 0),
-	})
+	require.Equal(t, EgressSuppressed, controller.Mode())
 
+	controller.OnDecision(monitor.Decision{
+		State:      monitor.Breach,
+		WindowFrom: time.Unix(60, 0),
+		WindowTo:   time.Unix(90, 0),
+	})
+	require.Eventually(t, func() bool {
+		return controller.Mode() == EgressForwarding
+	}, time.Second, time.Millisecond)
+
+	controller.OnDecision(monitor.Decision{
+		State:      monitor.Healthy,
+		WindowFrom: time.Unix(90, 0),
+		WindowTo:   time.Unix(120, 0),
+	})
 	require.Eventually(t, func() bool {
 		return controller.Mode() == EgressSuppressed
 	}, time.Second, time.Millisecond)

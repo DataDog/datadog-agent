@@ -14,17 +14,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/monitor"
 )
 
-func TestEgressPolicyStartsForwardingAndAppliesSendDelay(t *testing.T) {
+func TestEgressPolicyStartsSuppressed(t *testing.T) {
 	start := time.Unix(100, 0)
 	policy := NewEgressPolicy(EgressPolicyOptions{SendDelay: 10 * time.Second})
 
+	require.Equal(t, EgressSuppressed, policy.Mode())
+	require.Empty(t, policy.RangesToForward(start.Add(10*time.Second)))
+	require.Empty(t, policy.ForwardingRanges())
+}
+
+func TestEgressPolicyBreachOpensForwardingAndAppliesSendDelay(t *testing.T) {
+	start := time.Unix(100, 0)
+	policy := NewEgressPolicy(EgressPolicyOptions{
+		SendDelay: 10 * time.Second,
+		PreWindow: 5 * time.Second,
+	})
+
+	policy.OnDecision(monitor.Decision{
+		State:      monitor.Breach,
+		WindowFrom: start.Add(20 * time.Second),
+		WindowTo:   start.Add(30 * time.Second),
+	})
+
 	require.Equal(t, EgressForwarding, policy.Mode())
-	require.Equal(t, []TimeRange{{To: start}}, policy.RangesToForward(start.Add(10*time.Second)))
+	require.Equal(t, []TimeRange{{From: start.Add(15 * time.Second), To: start.Add(25 * time.Second)}}, policy.RangesToForward(start.Add(35*time.Second)))
 }
 
 func TestEgressPolicyMarksForwardedRangesWithoutDuplicates(t *testing.T) {
 	start := time.Unix(100, 0)
 	policy := NewEgressPolicy(EgressPolicyOptions{SendDelay: time.Nanosecond})
+	policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: start, WindowTo: start.Add(10 * time.Second)})
 
 	first := TimeRange{From: start, To: start.Add(10 * time.Second)}
 	policy.MarkForwarded(first)
@@ -43,13 +62,14 @@ func TestEgressPolicySuppressesAfterConsecutiveHealthyWindows(t *testing.T) {
 		HealthyWindowsToSuppress: 2,
 		PostWindow:               5 * time.Second,
 	})
-
-	policy.OnDecision(monitor.Decision{State: monitor.Healthy, WindowFrom: start, WindowTo: start.Add(15 * time.Second)})
-	require.Equal(t, EgressForwarding, policy.Mode())
+	policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: start, WindowTo: start.Add(15 * time.Second)})
 
 	policy.OnDecision(monitor.Decision{State: monitor.Healthy, WindowFrom: start.Add(15 * time.Second), WindowTo: start.Add(30 * time.Second)})
+	require.Equal(t, EgressForwarding, policy.Mode())
+
+	policy.OnDecision(monitor.Decision{State: monitor.Healthy, WindowFrom: start.Add(30 * time.Second), WindowTo: start.Add(45 * time.Second)})
 	require.Equal(t, EgressSuppressed, policy.Mode())
-	require.Equal(t, []TimeRange{{To: start.Add(35 * time.Second)}}, policy.ForwardingRanges())
+	require.Equal(t, []TimeRange{{From: start, To: start.Add(50 * time.Second)}}, policy.ForwardingRanges())
 }
 
 func TestEgressPolicyBreachReopensSuppressedEgressWithPreWindow(t *testing.T) {
@@ -64,7 +84,7 @@ func TestEgressPolicyBreachReopensSuppressedEgressWithPreWindow(t *testing.T) {
 
 	require.Equal(t, EgressForwarding, policy.Mode())
 	require.Equal(t, []TimeRange{
-		{To: start.Add(30 * time.Second)},
+		{From: start.Add(-5 * time.Second), To: start.Add(30 * time.Second)},
 		{From: start.Add(55 * time.Second)},
 	}, policy.ForwardingRanges())
 }
@@ -81,12 +101,12 @@ func TestEgressPolicyUnknownReopensSuppressedEgress(t *testing.T) {
 
 	require.Equal(t, EgressForwarding, policy.Mode())
 	require.Equal(t, []TimeRange{
-		{To: start.Add(30 * time.Second)},
+		{From: start.Add(-5 * time.Second), To: start.Add(30 * time.Second)},
 		{From: start.Add(55 * time.Second)},
 	}, policy.ForwardingRanges())
 }
 
-func TestEgressPolicyStaleMonitorReopensSuppressedEgress(t *testing.T) {
+func TestEgressPolicyStaleMonitorReopensSuppressedEgressWhenConfigured(t *testing.T) {
 	start := time.Unix(100, 0)
 	policy := suppressedPolicy(start)
 
@@ -95,7 +115,18 @@ func TestEgressPolicyStaleMonitorReopensSuppressedEgress(t *testing.T) {
 
 	require.True(t, policy.MarkStaleIfNeeded(start.Add(61*time.Second)))
 	require.Equal(t, EgressForwarding, policy.Mode())
-	require.Equal(t, []TimeRange{{}}, policy.ForwardingRanges())
+	require.Equal(t, []TimeRange{{From: start.Add(-5 * time.Second)}}, policy.ForwardingRanges())
+}
+
+func TestEgressPolicyStaleMonitorReopenDisabledByDefault(t *testing.T) {
+	start := time.Unix(100, 0)
+	policy := NewEgressPolicy(EgressPolicyOptions{HealthyWindowsToSuppress: 1})
+	policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: start, WindowTo: start.Add(10 * time.Second)})
+	policy.OnDecision(monitor.Decision{State: monitor.Healthy, WindowFrom: start.Add(10 * time.Second), WindowTo: start.Add(30 * time.Second)})
+
+	require.Equal(t, EgressSuppressed, policy.Mode())
+	require.False(t, policy.MarkStaleIfNeeded(start.Add(time.Hour)))
+	require.Equal(t, EgressSuppressed, policy.Mode())
 }
 
 func TestEgressPolicyMergesOverlappingForwardingRanges(t *testing.T) {
@@ -108,12 +139,13 @@ func TestEgressPolicyMergesOverlappingForwardingRanges(t *testing.T) {
 		WindowTo:   start.Add(40 * time.Second),
 	})
 
-	require.Equal(t, []TimeRange{{}}, policy.ForwardingRanges())
+	require.Equal(t, []TimeRange{{From: start.Add(-5 * time.Second)}}, policy.ForwardingRanges())
 }
 
 func TestEgressPolicyHalfOpenBoundariesDoNotOverlapForwardedRanges(t *testing.T) {
 	start := time.Unix(100, 0)
 	policy := NewEgressPolicy(EgressPolicyOptions{SendDelay: time.Nanosecond})
+	policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: start, WindowTo: start.Add(10 * time.Second)})
 	policy.MarkForwarded(TimeRange{From: start, To: start.Add(10 * time.Second)})
 
 	ranges := policy.RangesToForward(start.Add(20 * time.Second))
@@ -129,6 +161,7 @@ func suppressedPolicy(start time.Time) *EgressPolicy {
 		PreWindow:                5 * time.Second,
 		MonitorStaleTimeout:      30 * time.Second,
 	})
-	policy.OnDecision(monitor.Decision{State: monitor.Healthy, WindowFrom: start, WindowTo: start.Add(30 * time.Second)})
+	policy.OnDecision(monitor.Decision{State: monitor.Breach, WindowFrom: start, WindowTo: start.Add(10 * time.Second)})
+	policy.OnDecision(monitor.Decision{State: monitor.Healthy, WindowFrom: start.Add(10 * time.Second), WindowTo: start.Add(30 * time.Second)})
 	return policy
 }

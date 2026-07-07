@@ -47,7 +47,7 @@ type EgressControllerOptions struct {
 	// required before egress transitions to suppressed.
 	HealthyWindowsToSuppress int
 	// MonitorStaleTimeout controls when suppressed egress returns to forwarding if
-	// no fresh monitor decision is observed.
+	// no fresh monitor decision is observed. Zero disables stale reopening.
 	MonitorStaleTimeout time.Duration
 
 	// Now and Sleep are injectable for deterministic tests. They default to
