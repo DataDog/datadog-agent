@@ -293,3 +293,25 @@ func TestReplaceFilterTestSpan(t *testing.T) {
 		assert.Equal(t, tt.want, got)
 	}
 }
+
+// TestReplaceAttributeAnyValue_NilArrayAndElement ensures the replacer tolerates
+// an ARRAY_VALUE attribute with a nil array and with a nil element (both valid
+// msgpack decode results) without panicking.
+func TestReplaceAttributeAnyValue_NilArrayAndElement(t *testing.T) {
+	f := Replacer{}
+	re := regexp.MustCompile("secret")
+
+	assert.NotPanics(t, func() {
+		val := &pb.AttributeAnyValue{Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: nil}
+		assert.Same(t, val, f.replaceAttributeAnyValue(re, val, "?"))
+	})
+
+	assert.NotPanics(t, func() {
+		val := &pb.AttributeAnyValue{
+			Type:       pb.AttributeAnyValue_ARRAY_VALUE,
+			ArrayValue: &pb.AttributeArray{Values: []*pb.AttributeArrayValue{nil}},
+		}
+		got := f.replaceAttributeAnyValue(re, val, "?")
+		assert.Nil(t, got.ArrayValue.Values[0])
+	})
+}

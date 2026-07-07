@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    APM: Fix a trace-agent crash when a trace chunk carries a trace ID shorter
+    than 16 bytes; short trace IDs are now zero-padded instead of panicking.
+  - |
+    APM: Fix a trace-agent crash from unbounded recursion when decoding deeply
+    nested attribute values; nesting depth is now bounded.
+  - |
+    APM: Fix a trace-agent crash when a span event attribute declares an array
+    type but carries a missing array or array element.

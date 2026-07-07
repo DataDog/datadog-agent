@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tinylib/msgp/msgp"
 )
 
 // TestReconcileSamplingPriorityAfterChunkSpan_preservesChildWhenRootHasNoSamplingMetric documents a
@@ -250,4 +251,43 @@ func TestSafeReadHeaderBytesLimitsSize(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "too long payload")
 	})
+}
+
+// buildNestedArrayAnyValue builds a msgpack AnyValue that is an array nested
+// `depth` levels deep, terminating in a bool. Each level is a type tag (6 =
+// array) + a 1-element-shaped array header (encoded as 2, since the decoder
+// reads 2 wire slots per logical element).
+func buildNestedArrayAnyValue(depth int) []byte {
+	var b []byte
+	for i := 0; i < depth; i++ {
+		b = msgp.AppendUint32(b, 6)      // arrayValue type
+		b = msgp.AppendArrayHeader(b, 2) // numElements=2 -> one nested AnyValue
+	}
+	// Innermost terminal value: a bool.
+	b = msgp.AppendUint32(b, 2)
+	b = msgp.AppendBool(b, true)
+	return b
+}
+
+// TestUnmarshalAnyValueShallowNestingDecodes is a control: a payload nested
+// below the depth limit still decodes without error.
+func TestUnmarshalAnyValueShallowNestingDecodes(t *testing.T) {
+	payload := buildNestedArrayAnyValue(maxAnyValueDepth - 1)
+	_, _, err := UnmarshalAnyValue(payload, NewStringTable())
+	assert.NoError(t, err)
+}
+
+// TestUnmarshalAnyValueDeepNestingReturnsError verifies that a deeply nested
+// array payload is rejected with an error at the depth limit instead of
+// recursing unboundedly and crashing the process with a stack overflow.
+func TestUnmarshalAnyValueDeepNestingReturnsError(t *testing.T) {
+	// Far exceeds the depth limit; without the guard this overflowed the stack.
+	payload := buildNestedArrayAnyValue(2_000_000) // ~4 MB on the wire
+
+	var err error
+	assert.NotPanics(t, func() {
+		_, _, err = UnmarshalAnyValue(payload, NewStringTable())
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "depth")
 }

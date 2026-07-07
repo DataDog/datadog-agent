@@ -651,3 +651,59 @@ func assertSpanEqual(t *testing.T, expected *pb.Span, actual *pb.Span) {
 	assert.Equal(t, expected.SpanLinks, actual.SpanLinks)
 	assert.Equal(t, expected.SpanEvents, actual.SpanEvents)
 }
+
+// TestObfuscateSpanEventNilArrayValueDoesNotPanic verifies that obfuscating a
+// span whose event attribute declares Type=ARRAY_VALUE but has a nil ArrayValue
+// does not panic; the credit-card obfuscator skips the nil array.
+func TestObfuscateSpanEventNilArrayValueDoesNotPanic(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation = &config.ObfuscationConfig{
+		CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
+	}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	span := &pb.Span{
+		Resource: "rrr",
+		Type:     "aaa",
+		Meta:     map[string]string{},
+		SpanEvents: []*pb.SpanEvent{
+			{
+				Name: "evt",
+				Attributes: map[string]*pb.AttributeAnyValue{
+					// "cc" is not on the CC key denylist and does not start with
+					// "_", so ShouldObfuscateCCKey returns true and the obfuscator
+					// descends into the array branch.
+					"cc": {
+						Type:       pb.AttributeAnyValue_ARRAY_VALUE,
+						ArrayValue: nil, // type says array, value is absent
+					},
+					// The msgpack decoder can store a nil element inside a
+					// non-nil array (a nil wire element), which the obfuscator
+					// must also tolerate.
+					"cc2": {
+						Type: pb.AttributeAnyValue_ARRAY_VALUE,
+						ArrayValue: &pb.AttributeArray{
+							Values: []*pb.AttributeArrayValue{nil},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	assert.NotPanics(t, func() {
+		agnt.ObfuscateSpan(span)
+	})
+
+	// The attributes are left untouched.
+	got := span.SpanEvents[0].Attributes["cc"]
+	assert.Equal(t, pb.AttributeAnyValue_ARRAY_VALUE, got.Type)
+	assert.Nil(t, got.ArrayValue)
+
+	got2 := span.SpanEvents[0].Attributes["cc2"]
+	assert.Equal(t, pb.AttributeAnyValue_ARRAY_VALUE, got2.Type)
+	assert.Equal(t, []*pb.AttributeArrayValue{nil}, got2.ArrayValue.Values)
+}

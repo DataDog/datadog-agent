@@ -258,6 +258,11 @@ func convertSpanEventAttributes(attrs map[string]*pb.AttributeAnyValue, stringTa
 }
 
 func convertArrayValue(arrayValue *pb.AttributeArray, stringTable *idx.StringTable) *idx.ArrayValue {
+	// An attribute may declare ARRAY_VALUE while carrying a nil ArrayValue, since
+	// Type and ArrayValue are independent fields rather than a real oneof.
+	if arrayValue == nil {
+		return &idx.ArrayValue{}
+	}
 	values := make([]*idx.AnyValue, len(arrayValue.Values))
 	for i, value := range arrayValue.Values {
 		values[i] = convertAttributeArrayValue(value, stringTable)
@@ -268,6 +273,11 @@ func convertArrayValue(arrayValue *pb.AttributeArray, stringTable *idx.StringTab
 }
 
 func convertAttributeArrayValue(arrayValue *pb.AttributeArrayValue, stringTable *idx.StringTable) *idx.AnyValue {
+	// A nil element is a valid decode result (the msgpack decoder stores nil for
+	// a nil array element); represent it as a nil AnyValue rather than panicking.
+	if arrayValue == nil {
+		return nil
+	}
 	switch arrayValue.Type {
 	case pb.AttributeArrayValue_STRING_VALUE:
 		return &idx.AnyValue{

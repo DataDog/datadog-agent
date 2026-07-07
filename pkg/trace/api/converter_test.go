@@ -1724,3 +1724,22 @@ func compareEventAttributes(t *testing.T, event1, event2 *idx.InternalSpanEvent,
 
 	assert.Equal(t, keys1, keys2, "chunk %d span %d event %d: attributes should match", chunkIdx, spanIdx, eventIdx)
 }
+
+// TestConvertArrayValue_NilAndNilElement ensures converting an array attribute
+// tolerates both a nil array and a nil element inside the array (both are valid
+// msgpack decode results) without panicking.
+func TestConvertArrayValue_NilAndNilElement(t *testing.T) {
+	st := idx.NewStringTable()
+
+	assert.NotPanics(t, func() {
+		got := convertArrayValue(nil, st)
+		assert.NotNil(t, got)
+		assert.Empty(t, got.Values)
+	})
+
+	assert.NotPanics(t, func() {
+		got := convertArrayValue(&pb.AttributeArray{Values: []*pb.AttributeArrayValue{nil}}, st)
+		require.Len(t, got.Values, 1)
+		assert.Nil(t, got.Values[0])
+	})
+}
