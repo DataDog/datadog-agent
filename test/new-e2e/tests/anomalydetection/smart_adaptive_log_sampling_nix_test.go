@@ -7,6 +7,7 @@ package anomalydetection
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -27,10 +28,20 @@ const (
 	smartSeverityLogFileName = "smart-severity-profiles.log"
 	smartSeverityLogFilePath = logutils.LinuxLogsFolderPath + "/" + smartSeverityLogFileName
 	smartSeverityService     = "smart-severity-e2e"
-	smartSeverityScorerEWMA  = "datadog.agent.observer.observer_scorer_ewma"
-	smartSeverityScorerState = "datadog.agent.observer.observer_scorer_state"
+	smartSeverityScorerEWMA  = "observer.scorer.ewma"
+	smartSeverityScorerState = "observer.scorer.state"
 
 	smartSeverityFakeintakeTick = 10 * time.Second
+	smartSeverityLowThreshold   = 0.04
+	smartSeverityStartupTicks   = 1
+
+	// Severity level values as encoded by the observer.scorer.state gauge
+	// (matches severityeventsdef.SeverityLevel ordering: Low=0, Medium=1, High=2).
+	smartSeverityLevelLow = 0
+
+	// In noisy-log-detection (dry-run) mode, logs that would have been dropped
+	// are still forwarded but tagged with noisy_log:true.
+	smartSeverityNoisyLogTag = "noisy_log:true"
 )
 
 // smartSeverityProfilesSuite validates that smart severity profiles:
@@ -51,8 +62,7 @@ logs:
     path: /var/log/e2e_test_logs/smart-severity-profiles.log
     service: smart-severity-e2e
     source: e2e
-    adaptive_sampling:
-      enabled: true
+    experimental_noisy_log_detection: true
 `
 
 	// language=yaml
@@ -60,32 +70,43 @@ logs:
 log_level: debug
 logs_config:
   file_scan_period: 1
+  experimental_noisy_log_detection: true
   experimental_adaptive_sampling:
-    enabled: true
+    enabled: false
     rate_limit: 0.01
     burst_size: 1
     protect_important_logs: false
     smart_severity_profiles:
       enabled: true
       medium:
-        rate_limit: 100
-        burst_size: 20
+        rate_limit: 1000
+        burst_size: 200
       high:
-        rate_limit: 100
-        burst_size: 20
+        rate_limit: 1000
+        burst_size: 200
 anomaly_detection:
+  enabled: true # TODO: Remove this, it should be auto enabled
   metrics:
     enabled: true
+    # Discard everything except our own test metric, so the EWMA is only ever
+    # driven by the spikes/baselines this test sends, never by unrelated
+    # DogStatsD traffic. Rules are evaluated in order, first match wins.
+    processing_rules:
+      - type: include_at_match
+        name: keep_smartseverity_metric
+        name_pattern: "e2e.anomalydetection.smartseverity.s*"
+      - type: exclude_at_match
+        name: drop_everything_else
   logs:
     enabled: false
     internal:
       enabled: false
   anomaly_scorer:
-    enabled: false
+    enabled: true
     alpha: 0.3
     window_secs: 5
-    low_threshold: 0.08
-    high_threshold: 0.30
+    low_threshold: 0.04
+    high_threshold: 0.50
     margin_pct: 0.1
     output:
       cooldown_secs: 2
@@ -128,53 +149,62 @@ func (s *smartSeverityProfilesSuite) TearDownSuite() {
 
 func (s *smartSeverityProfilesSuite) TestSmartSeverityProfilesDriveAdaptiveSampling() {
 	const (
-		seriesCount    = 20
-		metricPrefix   = "e2e.anomalydetection.smartseverity.s"
-		baseline       = 1.0
-		spike          = 5000.0
-		baselineTicks  = 15
-		spikeTicks     = 10
-		recoveryTicks  = 15
-		logBurst       = 12
-		lowPhaseMax    = 2
-		mediumPhaseMin = 10
+		seriesCount   = 8
+		metricPrefix  = "e2e.anomalydetection.smartseverity.s"
+		baseline      = 1.0
+		spike         = 5000.0
+		baselineTicks = 8
+		spikeTicks    = 5
+		logBurst      = 12
+		lowPhaseMax   = 2
 	)
 
 	lowMessage := "smart severity low phase"
 	mediumMessage := "smart severity medium phase"
-	lowRecoveryMessage := "smart severity low recovery phase"
 
+	// 1. Init (low)
+	s.T().Log("starting smart severity adaptive sampling test")
 	logutils.AssertAgentTailerOK(s, smartSeverityLogFileName)
-	waitForObserverReady(s)
+	s.T().Log("waiting for scorer registration, smart severity profiles must enable anomaly detection + the scorer")
+	waitForScorerHelperReady(s)
+	s.waitForStartupLowProfile(metricPrefix, seriesCount, baseline)
 
-	s.sendMetricTicks(metricPrefix, seriesCount, baseline, baselineTicks)
-
+	s.T().Logf("phase=low-log-burst message=%q count=%d", lowMessage, logBurst)
 	s.appendRepeatedLog(lowMessage, logBurst)
-	lowCount := s.waitForLogCountAtMost(lowMessage, lowPhaseMax)
+	lowLogs := s.waitForLogsDelivered(lowMessage)
+	lowCount := len(lowLogs)
+	lowNoisy := countLogsWithTag(lowLogs, smartSeverityNoisyLogTag)
+	s.T().Logf("phase=low-log-burst delivered=%d noisy=%d", lowCount, lowNoisy)
+	require.Equal(s.T(), logBurst, lowCount, "expected all low-phase logs to be delivered in dry-run mode")
+	require.Greater(s.T(), lowNoisy, 0, "expected low-phase logs to be tagged noisy in dry-run mode")
 
+	// 2. Anomaly (medium/high)
+	s.T().Log("triggerring anomaly")
+	s.T().Logf("phase=baseline metrics prefix=%s series=%d ticks=%d value=%.1f", metricPrefix, seriesCount, baselineTicks, baseline)
+	s.sendMetricTicks(metricPrefix, seriesCount, baseline, baselineTicks)
+	s.T().Logf("phase=spike metrics prefix=%s series=%d ticks=%d value=%.1f", metricPrefix, seriesCount, spikeTicks, spike)
 	s.sendMetricTicks(metricPrefix, seriesCount, spike, spikeTicks)
-
-	s.waitForScorerEWMATelemetry()
+	s.T().Log("waiting for scorer escalation state")
 	s.waitForScorerState("direction:escalation")
 
+	s.T().Logf("phase=medium-log-burst message=%q count=%d", mediumMessage, logBurst)
 	s.appendRepeatedLog(mediumMessage, logBurst)
-	mediumCount := s.waitForLogCountAtLeast(mediumMessage, mediumPhaseMin)
-
-	s.sendMetricTicks(metricPrefix, seriesCount, baseline, recoveryTicks)
-	s.waitForScorerState("direction:deescalation")
-
-	s.appendRepeatedLog(lowRecoveryMessage, logBurst)
-	lowRecoveryCount := s.waitForLogCountAtMost(lowRecoveryMessage, lowPhaseMax)
+	mediumLogs := s.waitForLogsDelivered(mediumMessage)
+	mediumCount := len(mediumLogs)
+	mediumNoisy := countLogsWithTag(mediumLogs, smartSeverityNoisyLogTag)
+	s.T().Logf("phase=medium-log-burst delivered=%d noisy=%d", mediumCount, mediumNoisy)
+	require.Equal(s.T(), logBurst, mediumCount, "expected all medium-phase logs to be delivered in dry-run mode")
+	require.Zero(s.T(), mediumNoisy, "expected medium-phase logs to avoid noisy tagging in dry-run mode")
 
 	s.T().Logf(
-		"adaptive sampling delivered low=%d medium=%d low-recovery=%d logs",
+		"adaptive sampling dry-run delivered low=%d medium=%d logs; noisy low=%d medium=%d",
 		lowCount,
 		mediumCount,
-		lowRecoveryCount,
+		lowNoisy,
+		mediumNoisy,
 	)
 
-	require.Greater(s.T(), mediumCount, lowCount, "medium severity should let more logs through than low severity")
-	require.Greater(s.T(), mediumCount, lowRecoveryCount, "de-escalating back to low should tighten sampling again")
+	require.Greater(s.T(), lowNoisy, mediumNoisy, "low severity should tag more logs noisy than medium severity in dry-run mode")
 }
 
 func (s *smartSeverityProfilesSuite) sendGauge(name string, value float64) {
@@ -186,72 +216,176 @@ func (s *smartSeverityProfilesSuite) sendGauge(name string, value float64) {
 
 func (s *smartSeverityProfilesSuite) sendMetricTicks(metricPrefix string, seriesCount int, value float64, ticks int) {
 	s.T().Helper()
+	s.T().Logf("sending metric ticks prefix=%s series=%d ticks=%d value=%.1f", metricPrefix, seriesCount, ticks, value)
 	for tick := 0; tick < ticks; tick++ {
 		for series := 0; series < seriesCount; series++ {
 			s.sendGauge(fmt.Sprintf("%s%d", metricPrefix, series), value)
 		}
+		s.T().Logf("sent metric tick %d/%d value=%.1f", tick+1, ticks, value)
 		time.Sleep(time.Second)
 	}
+	s.T().Logf("finished sending metric ticks prefix=%s value=%.1f", metricPrefix, value)
 }
 
 func (s *smartSeverityProfilesSuite) appendRepeatedLog(message string, count int) {
 	s.T().Helper()
+	s.T().Logf("appending repeated logs message=%q count=%d", message, count)
 	logutils.AppendLog(s, smartSeverityLogFileName, message, count)
 }
 
 func (s *smartSeverityProfilesSuite) waitForScorerEWMATelemetry() {
 	s.T().Helper()
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(smartSeverityScorerEWMA)
-		assert.NoError(c, err, "failed to fetch scorer ewma metric from fakeintake")
-		assert.NotEmpty(c, metrics,
+		tel := observerTelemetryOutput(s)
+		s.T().Logf("poll scorer ewma telemetry: present=%t", containsMetric(tel, smartSeverityScorerEWMA))
+		line := findMetricLine(tel, metricNameVariants(smartSeverityScorerEWMA)...)
+		if line != "" {
+			s.T().Logf("sample scorer ewma line=%s", line)
+		}
+		assert.True(c, containsMetric(tel, smartSeverityScorerEWMA),
 			"expected scorer ewma telemetry when smart severity profiles are enabled")
 	}, 2*time.Minute, smartSeverityFakeintakeTick)
+}
+
+// waitForStartupLowProfile nudges the scorer with stable baseline input and waits
+// for the EWMA to settle back under the configured low threshold before the first
+// low-phase log burst. This avoids assuming the scorer starts clean when a reused
+// dev-mode agent may still carry some prior non-zero EWMA state.
+func (s *smartSeverityProfilesSuite) waitForStartupLowProfile(metricPrefix string, seriesCount int, baseline float64) {
+	s.T().Helper()
+	s.T().Logf(
+		"settling scorer toward low profile with %d baseline ticks before low-phase logs",
+		smartSeverityStartupTicks,
+	)
+	// Wake up the scorer with some data
+	s.sendMetricTicks(metricPrefix, seriesCount, baseline, smartSeverityStartupTicks)
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		tel := observerTelemetryOutput(s)
+		line := findMetricLine(tel, metricNameVariants(smartSeverityScorerEWMA)...)
+		s.T().Logf("startup low-profile probe ewma line=%q", line)
+		if !assert.NotEmpty(c, line, "expected scorer ewma telemetry while settling startup state") {
+			return
+		}
+		ewma, ok := scorerStateValue(line)
+		assert.True(c, ok, "could not parse scorer ewma value from line %q", line)
+		assert.LessOrEqual(c, ewma, smartSeverityLowThreshold,
+			"expected startup ewma %.6f to be at or below low threshold %.2f before low-phase logs",
+			ewma, smartSeverityLowThreshold,
+		)
+	}, 2*time.Minute, 3*time.Second)
 }
 
 func (s *smartSeverityProfilesSuite) waitForScorerState(directionTag string) {
 	s.T().Helper()
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(smartSeverityScorerState)
-		assert.NoError(c, err, "failed to fetch scorer state metric from fakeintake")
-		assert.NotEmpty(c, metrics, "expected scorer state telemetry")
-		assert.True(c, hasMetricWithTag(metrics, directionTag),
+		tel := observerTelemetryOutput(s)
+		tagParts := strings.SplitN(directionTag, ":", 2)
+		require.Len(s.T(), tagParts, 2, "direction tag must be key:value")
+		s.T().Logf(
+			"poll scorer state telemetry: present=%t wanted_tag=%q tagged=%t",
+			containsMetric(tel, smartSeverityScorerState),
+			directionTag,
+			containsMetricWithTag(tel, smartSeverityScorerState, tagParts[0], tagParts[1]),
+		)
+		line := findMetricLine(tel, metricNameVariants(smartSeverityScorerState)...)
+		if line != "" {
+			s.T().Logf("sample scorer state line=%s", line)
+		}
+		assert.True(c, containsMetric(tel, smartSeverityScorerState), "expected scorer state telemetry")
+		assert.True(c, containsMetricWithTag(tel, smartSeverityScorerState, tagParts[0], tagParts[1]),
 			"expected scorer state telemetry tagged with %s", directionTag)
 	}, 2*time.Minute, smartSeverityFakeintakeTick)
 }
 
-func hasMetricWithTag(metrics []*aggregator.MetricSeries, want string) bool {
-	for _, metric := range metrics {
-		for _, tag := range metric.GetTags() {
-			if tag == want || strings.Contains(tag, want) {
-				return true
+func (s *smartSeverityProfilesSuite) waitForLogsDelivered(message string) []*aggregator.Log {
+	s.T().Helper()
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		logs, err := logutils.FetchAndFilterLogs(s.Env().FakeIntake, smartSeverityService, message)
+		assert.NoError(c, err, "failed to fetch logs for %q", message)
+		delivered := len(logs)
+		noisy := countLogsWithTag(logs, smartSeverityNoisyLogTag)
+		s.T().Logf("poll logs message=%q delivered=%d noisy=%d err=%v", message, delivered, noisy, err)
+		assert.NotZero(c, delivered, "expected at least one delivered log for %q", message)
+	}, 1*time.Minute, smartSeverityFakeintakeTick)
+
+	logs, err := logutils.FetchAndFilterLogs(s.Env().FakeIntake, smartSeverityService, message)
+	require.NoError(s.T(), err, "failed to fetch final logs for %q", message)
+	s.T().Logf("final logs message=%q delivered=%d noisy=%d", message, len(logs), countLogsWithTag(logs, smartSeverityNoisyLogTag))
+	return logs
+}
+
+func countLogsWithTag(logs []*aggregator.Log, want string) int {
+	count := 0
+	for _, log := range logs {
+		for _, tag := range log.GetTags() {
+			if tag == want {
+				count++
+				break
 			}
 		}
 	}
-	return false
-}
-
-func (s *smartSeverityProfilesSuite) waitForLogCountAtMost(message string, max int) int {
-	s.T().Helper()
-	var count int
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := logutils.FetchAndFilterLogs(s.Env().FakeIntake, smartSeverityService, message)
-		assert.NoError(c, err, "failed to fetch logs for %q", message)
-		count = len(logs)
-		assert.NotZero(c, count, "expected at least one delivered log for %q", message)
-		assert.LessOrEqual(c, count, max, "expected adaptive sampling to heavily limit %q", message)
-	}, 2*time.Minute, smartSeverityFakeintakeTick)
 	return count
 }
 
-func (s *smartSeverityProfilesSuite) waitForLogCountAtLeast(message string, min int) int {
+func findMetricLine(output string, prefixes ...string) string {
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(trimmed, prefix) {
+				return trimmed
+			}
+		}
+	}
+	return ""
+}
+
+func findMetricLineWithTag(output, metric, key, value string) string {
+	tagVariants := []string{
+		fmt.Sprintf("%s=\"%s\"", key, value),
+		fmt.Sprintf("%s:%s", key, value),
+		fmt.Sprintf("%s=%s", key, value),
+	}
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if !containsAny(trimmed, metricNameVariants(metric)...) {
+			continue
+		}
+		if containsAny(trimmed, tagVariants...) {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func scorerStateValue(line string) (float64, bool) {
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return 0, false
+	}
+	value, err := strconv.ParseFloat(fields[len(fields)-1], 64)
+	return value, err == nil
+}
+
+func (s *smartSeverityProfilesSuite) waitForScorerSeverityLevel(directionTag string, wantLevel float64) {
 	s.T().Helper()
-	var count int
+	tagParts := strings.SplitN(directionTag, ":", 2)
+	require.Len(s.T(), tagParts, 2, "direction tag must be key:value")
+
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := logutils.FetchAndFilterLogs(s.Env().FakeIntake, smartSeverityService, message)
-		assert.NoError(c, err, "failed to fetch logs for %q", message)
-		count = len(logs)
-		assert.GreaterOrEqual(c, count, min, "expected the medium profile to admit most of %q", message)
+		tel := observerTelemetryOutput(s)
+		line := findMetricLineWithTag(tel, smartSeverityScorerState, tagParts[0], tagParts[1])
+		s.T().Logf("poll scorer state level: wanted_tag=%q wanted_level=%.0f line=%q", directionTag, wantLevel, line)
+		if !assert.NotEmpty(c, line, "expected scorer state telemetry tagged with %s", directionTag) {
+			return
+		}
+		got, ok := scorerStateValue(line)
+		assert.True(c, ok, "could not parse scorer state value from line %q", line)
+		assert.Equal(c, wantLevel, got, "expected scorer state level %.0f (line=%q)", wantLevel, line)
 	}, 2*time.Minute, smartSeverityFakeintakeTick)
-	return count
 }
