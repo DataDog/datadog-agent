@@ -492,7 +492,7 @@ func TestIsRootSpan(t *testing.T) {
 
 func TestGetStatusCodeUsesLiveRegistry(t *testing.T) {
 	// A registry where http.status_code only maps to "x.custom.status", not the standard key.
-	customJSON := `{"version":"test","concepts":{"http.status_code":{"canonical":"http.status_code","fallbacks":[{"name":"x.custom.status","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test","metadata":{"content_hash":"hash-a"},"concepts":{"http.status_code":{"canonical":"http.status_code","fallbacks":[{"name":"x.custom.status","provider":"datadog","type":"string"}]}}}`
 	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 	original, err := semantics.NewEmbeddedRegistry()

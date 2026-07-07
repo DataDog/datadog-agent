@@ -49,3 +49,4 @@ These options are for Datadog Support diagnostics only. Leave self-profiling dis
 |:-----------------------------------|:-------|:--------------------------|:-------------------------------------------------------------------------------------------------------------------|
 | `hostprofiler.ddprofiling.enabled` | bool   | `false`                   | Enables Datadog profiling for the Host Profiler process itself. This does not control profiling of your workloads. |
 | `hostprofiler.ddprofiling.period`  | int    | `60` seconds when enabled | Self-profiling collection interval. Used only when `hostprofiler.ddprofiling.enabled` is `true`.                   |
+| `hostprofiler.ddprofiling.port`    | int    | `7501`                    | Local port used by the self-profiling HTTP server. Used only when `hostprofiler.ddprofiling.enabled` is `true`. Change this only if the default port conflicts with another service. |
