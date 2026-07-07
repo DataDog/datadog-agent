@@ -8,6 +8,12 @@
   extends:
     - .new_e2e_template
   before_script:
+    # inv agent.version/release.get-release-json-value below shell out to `aws
+    # s3 cp` to fetch a cached version file, and must run before new_e2e_template
+    # changes the aws profile (see next comment) — so the aws CLI has to be
+    # installed here too, ahead of new_e2e_template's own copy of this same
+    # conditional install.
+    - command -v aws >/dev/null 2>&1 || (apt-get update && apt-get install -y unzip && curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip && unzip -q /tmp/awscliv2.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/awscliv2.zip /tmp/aws)
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
     # NOTE: `export VAR=$(cmd)` masks cmd's exit code (export's own status wins),
@@ -31,6 +37,12 @@
   extends:
     - .new_e2e_template
   before_script:
+    # inv agent.version/release.get-release-json-value below shell out to `aws
+    # s3 cp` to fetch a cached version file, and must run before new_e2e_template
+    # changes the aws profile (see next comment) — so the aws CLI has to be
+    # installed here too, ahead of new_e2e_template's own copy of this same
+    # conditional install.
+    - command -v aws >/dev/null 2>&1 || (apt-get update && apt-get install -y unzip && curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip && unzip -q /tmp/awscliv2.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/awscliv2.zip /tmp/aws)
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
     # NOTE: `export VAR=$(cmd)` masks cmd's exit code (export's own status wins),
