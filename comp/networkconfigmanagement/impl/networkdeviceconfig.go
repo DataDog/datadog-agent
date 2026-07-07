@@ -246,7 +246,11 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 
 	// TODO if this fails we should still return success so that the user knows
 	// the rollback itself happened.
-	return n.reportConfig(ctx, dc, n.sender)
+	reportErr := n.reportConfig(ctx, dc, n.sender)
+	if reportErr != nil {
+		log.Errorf("Rollback succeeded, but reportConfig failed: %v", reportErr)
+	}
+	return nil
 }
 
 // connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
