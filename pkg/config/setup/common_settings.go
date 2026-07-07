@@ -49,6 +49,15 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// vbrsender_breakpoints_total telemetry), but ship their original,
 	// uncompressed data — nothing the compressor produces is actually sent.
 	config.BindEnvAndSetDefault("checks.vbr_compression_dry_run", false)
+	// When non-empty, VBR-compressed checks ship BOTH their original,
+	// uncompressed data (like dry-run) AND the compressor's breakpoints —
+	// the latter under hostname+this suffix, so the two series can be
+	// graphed side by side (e.g. `by {host}`) to visually compare
+	// compression fidelity. Doubles shipped metric volume for compressed
+	// checks; intended for short, deliberate comparison windows, not left
+	// on indefinitely. Takes precedence over checks.vbr_compression_dry_run
+	// when non-empty.
+	config.BindEnvAndSetDefault("checks.vbr_compression_shadow_host_suffix", "")
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
 

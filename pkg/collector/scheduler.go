@@ -90,7 +90,9 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 	// GetSender) — a check loaded via a captured sender-resolution path
 	// (e.g. Python's) still gets the right decision, since there's no
 	// second, uncompressed manager instance to accidentally bypass it with.
-	senderManager = vbrsender.Wrap(senderManager, setup.Datadog().GetBool("checks.vbr_compression_dry_run"))
+	senderManager = vbrsender.Wrap(senderManager,
+		setup.Datadog().GetBool("checks.vbr_compression_dry_run"),
+		setup.Datadog().GetString("checks.vbr_compression_shadow_host_suffix"))
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
