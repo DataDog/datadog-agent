@@ -135,6 +135,9 @@ const (
 	OffsetNameLinuxBinprmStructFilename = "linux_binprm_filename_offset"
 	OffsetNameLinuxBinprmStructInterp   = "linux_binprm_interp_offset"
 
+	// module constants
+	OffsetNameModuleName = "module_name_offset"
+
 	// iouring constants
 	OffsetNameIoKiocbStructCtx    = "iokiocb_ctx_offset"
 	OffsetNameIoKiocbStructOpcode = "iokiocb_opcode_offset"
