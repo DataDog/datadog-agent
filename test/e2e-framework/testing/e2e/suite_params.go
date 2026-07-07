@@ -22,6 +22,13 @@ type suiteParams struct {
 
 	skipDeleteOnFailure bool
 
+	// failFast, when true, skips subsequent tests in the suite after the first
+	// test failure. This avoids re-provisioning and running remaining tests when
+	// a prior failure makes them unlikely to produce useful results. Opt in with
+	// WithFailFast() for suites that want this behavior; the default is false
+	// (all tests run regardless of prior failures, matching the historical behavior).
+	failFast bool
+
 	disableCoverage bool
 
 	// coverageRequired holds per-agent overrides for the Required field of coverage targets.
@@ -55,6 +62,16 @@ func WithDevMode() SuiteOption {
 func WithSkipDeleteOnFailure() SuiteOption {
 	return func(options *suiteParams) {
 		options.skipDeleteOnFailure = true
+	}
+}
+
+// WithFailFast enables fail-fast behavior: once a test fails, subsequent tests
+// in the suite are skipped to avoid re-provisioning when a prior failure makes
+// them unlikely to produce useful results. By default fail-fast is disabled
+// (all tests run regardless of prior failures, matching the historical behavior).
+func WithFailFast() SuiteOption {
+	return func(options *suiteParams) {
+		options.failFast = true
 	}
 }
 

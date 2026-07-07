@@ -14,7 +14,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -73,8 +72,9 @@ func (agg *Aggregator[P]) MarshalJSON() ([]byte, error) {
 	return json.Marshal(agg.payloadsByName)
 }
 
-// UnmarshallPayloads parses a list of payloads and stores them in the aggregator
-// It replaces the current payloads with the new ones
+// UnmarshallPayloads parses a list of payloads and merges them into the aggregator's
+// existing state. Previously parsed payloads are retained; only the new payloads
+// passed in are added. Use Reset() to clear all state.
 func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	if *generateFixture {
 		_, filename, _, ok := runtime.Caller(0)
@@ -97,7 +97,6 @@ func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 
 		return os.WriteFile(filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)), payloads[0].Data, 0644)
 	}
-	fmt.Print(reflect.TypeOf(agg).Name())
 	// build new map
 	payloadsByName := map[string][]P{}
 	for _, p := range payloads {
@@ -113,7 +112,7 @@ func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 			payloadsByName[item.name()] = append(payloadsByName[item.name()], item)
 		}
 	}
-	agg.replace(payloadsByName)
+	agg.merge(payloadsByName)
 
 	return nil
 }
@@ -199,11 +198,14 @@ func (agg *Aggregator[P]) unsafeReset() {
 	agg.payloadsByName = map[string][]P{}
 }
 
-func (agg *Aggregator[P]) replace(payloadsByName map[string][]P) {
+// merge adds the given payloads to the existing aggregator state, appending to
+// existing slices rather than replacing them.
+func (agg *Aggregator[P]) merge(payloadsByName map[string][]P) {
 	agg.mutex.Lock()
 	defer agg.mutex.Unlock()
-	agg.unsafeReset()
-	maps.Copy(agg.payloadsByName, payloadsByName)
+	for name, items := range payloadsByName {
+		agg.payloadsByName[name] = append(agg.payloadsByName[name], items...)
+	}
 }
 
 // FilterByTags return the payloads that match all the tags

@@ -20,8 +20,9 @@ import (
 type inMemoryStore struct {
 	mutex sync.RWMutex
 
-	rawPayloads map[string][]api.Payload
-	lastAPIKey  string
+	rawPayloads   map[string][]api.Payload
+	totalAppended map[string]int // total payloads ever appended per route (never decreases on cleanup)
+	lastAPIKey    string
 
 	// NbPayloads is a prometheus metric to track the number of payloads collected by route
 	NbPayloads *prometheus.GaugeVec
@@ -30,8 +31,9 @@ type inMemoryStore struct {
 // newInMemoryStore initialise a new payloads store
 func newInMemoryStore() *inMemoryStore {
 	return &inMemoryStore{
-		mutex:       sync.RWMutex{},
-		rawPayloads: map[string][]api.Payload{},
+		mutex:         sync.RWMutex{},
+		rawPayloads:   map[string][]api.Payload{},
+		totalAppended: map[string]int{},
 		NbPayloads: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "payloads",
 			Help: "Number of payloads collected by route",
@@ -68,6 +70,7 @@ func (s *inMemoryStore) AppendPayload(route string, apiKey string, data []byte, 
 		ContentType: contentType,
 	}
 	s.rawPayloads[route] = append(s.rawPayloads[route], rawPayload)
+	s.totalAppended[route]++
 	s.NbPayloads.WithLabelValues(route).Set(float64(len(s.rawPayloads[route])))
 	return nil
 }
@@ -99,6 +102,37 @@ func (s *inMemoryStore) GetRawPayloads(route string) (payloads []api.Payload) {
 	return payloads
 }
 
+// GetRawPayloadsAfter returns payloads collected for route `route` that were
+// appended after the given cursor. The cursor is the total number of payloads
+// ever appended to the route. Because cleanup removes old payloads from the
+// front of the slice, the effective start index is adjusted by the number of
+// cleaned-up payloads so the client receives only payloads it has not yet seen.
+// The returned newCursor is the current total-appended count.
+func (s *inMemoryStore) GetRawPayloadsAfter(route string, cursor int) (payloads []api.Payload, newCursor int) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	total := s.totalAppended[route]
+	current := s.rawPayloads[route]
+
+	// Number of payloads removed by cleanup = total ever appended - current length.
+	cleanedUp := total - len(current)
+
+	// The client has seen `cursor` payloads. Adjust for cleanup so we start
+	// at the right offset in the current (compacted) slice.
+	start := cursor - cleanedUp
+	if start < 0 {
+		start = 0
+	}
+	if start > len(current) {
+		start = len(current)
+	}
+
+	payloads = make([]api.Payload, len(current)-start)
+	copy(payloads, current[start:])
+	return payloads, total
+}
+
 // GetRouteStats returns stats on collectedraw payloads by route
 func (s *inMemoryStore) GetRouteStats() map[string]int {
 	statsByRoute := map[string]int{}
@@ -115,6 +149,7 @@ func (s *inMemoryStore) Flush() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.rawPayloads = map[string][]api.Payload{}
+	s.totalAppended = map[string]int{}
 	s.NbPayloads.Reset()
 }
 

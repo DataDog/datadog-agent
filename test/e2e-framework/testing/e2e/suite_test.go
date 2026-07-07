@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -235,4 +236,89 @@ func TestTCleanupHookIsNoOpAfterNormalTeardown(t *testing.T) {
 	// The t.Cleanup hook fired after the sub-test completed. If it had erroneously
 	// re-run cleanup, Destroy would have been called twice.
 	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
+// --- fail-fast (firstFailTest) tests ---
+
+// TestFailFastGuardSkipsBeforeTest verifies that BeforeTest skips (does not call
+// reconcileEnv) when firstFailTest is set and failFast is enabled via WithFailFast().
+// It simulates a prior test failure by directly setting firstFailTest, avoiding an
+// intentionally failing sub-test that would propagate as a real CI failure.
+func TestFailFastGuardSkipsBeforeTest(t *testing.T) {
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &testNoOpSuite{}
+	Run(t, s, WithProvisioner(p), WithFailFast())
+
+	// Simulate a prior test failure by setting firstFailTest directly.
+	s.firstFailTest = "testNoOpSuite.TestSimulatedFailure"
+
+	// BeforeTest should skip, not call reconcileEnv.
+	// Run it in a sub-test so Skipf's runtime.Goexit doesn't exit the parent.
+	subTestPassed := t.Run("subsequent_test", func(subT *testing.T) {
+		s.SetT(subT)
+		s.BeforeTest("testNoOpSuite", "TestSubsequent")
+		// If we reach here, the guard didn't work.
+		subT.Error("BeforeTest should have skipped due to earlier failure")
+	})
+
+	assert.True(t, subTestPassed, "sub-test should have been skipped (not failed)")
+
+	// Provision should not have been called again by BeforeTest (only by SetupSuite).
+	p.AssertNumberOfCalls(t, "Provision", 1)
+}
+
+// TestFailFastGuardDoesNotSkipByDefault verifies that BeforeTest does NOT skip
+// by default (failFast is false), even if firstFailTest is set.
+func TestFailFastGuardDoesNotSkipByDefault(t *testing.T) {
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &testNoOpSuite{}
+	Run(t, s, WithProvisioner(p))
+
+	// Simulate a prior test failure.
+	s.firstFailTest = "testNoOpSuite.TestSimulatedFailure"
+
+	// BeforeTest should NOT skip — it should call reconcileEnv (which will
+	// short-circuit via DeepEqual since provisioners haven't changed).
+	t.Run("subsequent_test", func(subT *testing.T) {
+		s.SetT(subT)
+		s.BeforeTest("testNoOpSuite", "TestSubsequent")
+		// If we reach here, the guard correctly did not skip.
+	})
+
+	// firstFailTest should still be set.
+	require.NotEmpty(t, s.firstFailTest)
+}
+
+// TestFailFastGuardSkipsUpdateEnv verifies that UpdateEnv skips re-provisioning
+// when firstFailTest is set and failFast is enabled via WithFailFast().
+func TestFailFastGuardSkipsUpdateEnv(t *testing.T) {
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &testNoOpSuite{}
+	Run(t, s, WithProvisioner(p), WithFailFast())
+
+	// Simulate a prior test failure.
+	s.firstFailTest = "testNoOpSuite.TestSimulatedFailure"
+
+	// UpdateEnv should skip, not call reconcileEnv.
+	t.Run("update_env_after_failure", func(subT *testing.T) {
+		s.SetT(subT)
+		s.UpdateEnv(p)
+		// If we reach here, the guard didn't work.
+		subT.Error("UpdateEnv should have skipped due to earlier failure")
+	})
+
+	// Provision should not have been called again by UpdateEnv.
+	p.AssertNumberOfCalls(t, "Provision", 1)
 }
