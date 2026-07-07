@@ -118,14 +118,13 @@ type ActionStore struct {
 var _ ActionStoreInterface = (*ActionStore)(nil)
 
 // NewActionStore creates a new ActionStore and starts the background cleanup goroutine.
-func NewActionStore(ctx context.Context) *ActionStore {
+func NewActionStore() *ActionStore {
 	s := &ActionStore{
 		executed: make(map[string]ActionRecord),
 		jobs:     make(map[types.UID]JobRecord),
 		pods:     make(map[types.UID]PodRecord),
-		stopCh:   make(chan struct{}),
 	}
-	go s.cleanupLoop(ctx)
+
 	log.Debugf("[HelmActions] Action store initialized (TTL=%v, retention=%v, cleanup=%v)",
 		ActionTTL, RecordRetentionTTL, CleanupInterval)
 	return s
@@ -511,7 +510,13 @@ func (s *ActionStore) cleanup() {
 	}
 }
 
+func (s *ActionStore) RunCleanup(ctx context.Context) {
+	s.stopCh = make(chan struct{})
+	go s.cleanupLoop(ctx)
+}
+
 // Stop shuts down the cleanup goroutine.
-func (s *ActionStore) Stop() {
+func (s *ActionStore) StopCleanup() {
 	close(s.stopCh)
+	s.stopCh = nil
 }
