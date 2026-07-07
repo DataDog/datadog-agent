@@ -7,7 +7,7 @@
 package collector
 
 import (
-	"errors"
+	"context"
 	"expvar"
 	"fmt"
 	"slices"
@@ -28,6 +28,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback"
+	"github.com/DataDog/datadog-agent/pkg/collector/metriclookback/lookbacksender"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -71,18 +72,23 @@ type CheckScheduler struct {
 	collector           option.Option[collectorcomp.Component]
 	senderManager       sender.SenderManager
 	shadowSenderManager sender.SenderManager
+	shadowSenderContext context.Context
+	shadowSenderCancel  context.CancelFunc
 	infraTagger         *infratags.Tagger // nil = no infra mode tagging
 	m                   sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
 func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
+	shadowSenderContext, shadowSenderCancel := context.WithCancel(context.Background())
 	checkScheduler = &CheckScheduler{
-		collector:      collector,
-		senderManager:  senderManager,
-		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
-		infraTagger:    infratags.NewTagger(setup.Datadog()),
+		collector:           collector,
+		senderManager:       senderManager,
+		shadowSenderContext: shadowSenderContext,
+		shadowSenderCancel:  shadowSenderCancel,
+		configToChecks:      make(map[string][]checkid.ID),
+		loaders:             make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
+		infraTagger:         infratags.NewTagger(setup.Datadog()),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
@@ -162,8 +168,17 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	}
 }
 
-// Stop is a stub to satisfy the scheduler interface
-func (s *CheckScheduler) Stop() {}
+// Stop releases scheduler-owned resources.
+func (s *CheckScheduler) Stop() {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	if s.shadowSenderCancel != nil {
+		s.shadowSenderCancel()
+		s.shadowSenderCancel = nil
+		s.shadowSenderContext = nil
+	}
+}
 
 // addLoader adds a new Loader that AutoConfig can use to load a check.
 func (s *CheckScheduler) addLoader(loader check.Loader) {
@@ -296,10 +311,18 @@ func (s *CheckScheduler) applyInfraTagger(senderManager sender.SenderManager, ch
 	chkSender.SetInfraTagger(s.infraTagger)
 }
 
+func (s *CheckScheduler) ensureShadowSenderContext() context.Context {
+	if s.shadowSenderContext == nil {
+		s.shadowSenderContext, s.shadowSenderCancel = context.WithCancel(context.Background())
+	}
+	return s.shadowSenderContext
+}
+
 func (s *CheckScheduler) loadShadowCheck(candidate metriclookback.ShadowCandidate, loader check.Loader, sourceCheckID checkid.ID) (check.Check, error) {
 	shadowSenderManager := s.shadowSenderManager
 	if shadowSenderManager == nil {
-		return nil, errors.New("metric lookback shadow sender manager is not configured")
+		shadowSenderManager = lookbacksender.NewSenderManager(s.ensureShadowSenderContext(), "", nil, nil)
+		s.shadowSenderManager = shadowSenderManager
 	}
 	shadowCheckID := check.ShadowID(sourceCheckID)
 	checkSenderManager := shadowCheckSenderManager{
