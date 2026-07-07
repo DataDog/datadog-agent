@@ -153,10 +153,6 @@ func getTextStatusOutput(pid int, goVersion string, arch string, flavor string, 
 	res += "  Log File: " + conf.GetString("log_file") + "\n"
 	res += "  Log Level: info\n"
 
-	if conf.GetLibType() != "viper" {
-		res += "  Configuration lib used: " + conf.GetLibType() + "\n"
-	}
-
 	res += fmt.Sprintf(`
   Paths
   =====

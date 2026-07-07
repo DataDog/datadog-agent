@@ -89,6 +89,7 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
 
 	// Extension DDOT (ext/ddot on the agent package) must run under dd-procmgrd, not datadog-agent-ddot.service.
+	ddot.AssertDDOTSystemdUnitsNotActive(s.T(), s.Env().RemoteHost)
 	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
 }
 
@@ -192,6 +193,7 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	state.AssertUnitsDead(ddotUnit)
 
 	// Extension DDOT (ext/ddot on the agent package) must run under dd-procmgrd, not datadog-agent-ddot.service.
+	ddot.AssertDDOTSystemdUnitsNotActive(s.T(), s.Env().RemoteHost)
 	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
 }
 
@@ -207,6 +209,7 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	s.host.Run("sudo datadog-agent otel install --url " + agentPackageURL)
 
 	// Extension DDOT (ext/ddot on the agent package) must run under dd-procmgrd, not datadog-agent-ddot.service.
+	ddot.AssertDDOTSystemdUnitsNotActive(s.T(), s.Env().RemoteHost)
 	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
 	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,7 @@ func TestInstallAgentLogTap(t *testing.T) {
 
 	h := &captureHandle{}
 	// -1 = unlimited for all priorities, no min_severity → forward everything including trace
-	installAgentLogTap(h, "", -1, -1, -1, nil)
+	installAgentLogTap(h, "", -1, -1, -1, nil, nil)
 
 	simulateLogEmit(pkglog.InfoLvl, "test info message")
 	simulateLogEmit(pkglog.WarnLvl, "test warn message")
@@ -68,7 +69,7 @@ func TestInstallAgentLogTapTraceTreatedLikeDebug(t *testing.T) {
 
 	h := &captureHandle{}
 	// min_severity="" → no filtering; trace falls into the low-priority bucket (same as debug).
-	installAgentLogTap(h, "", -1, -1, -1, nil)
+	installAgentLogTap(h, "", -1, -1, -1, nil, nil)
 
 	simulateLogEmit(pkglog.TraceLvl, "trace message")
 	simulateLogEmit(pkglog.DebugLvl, "debug message")
@@ -88,7 +89,7 @@ func TestInstallAgentLogTapTraceFilteredByMinSeverity(t *testing.T) {
 	// min_severity="warn" (default) → trace and debug are filtered before rate-limiting.
 	installAgentLogTap(h, "warn", -1, -1, -1, func(priority string) {
 		droppedPriorities = append(droppedPriorities, priority)
-	})
+	}, nil)
 
 	simulateLogEmit(pkglog.TraceLvl, "trace message")
 	simulateLogEmit(pkglog.DebugLvl, "debug message")
@@ -104,7 +105,7 @@ func TestInstallAgentLogTapDebugMinSeverity(t *testing.T) {
 
 	h := &captureHandle{}
 	// min_severity="debug" → trace is filtered out, debug and above pass.
-	installAgentLogTap(h, "debug", -1, -1, -1, nil)
+	installAgentLogTap(h, "debug", -1, -1, -1, nil, nil)
 
 	simulateLogEmit(pkglog.TraceLvl, "trace message")
 	simulateLogEmit(pkglog.DebugLvl, "debug message")
@@ -122,7 +123,7 @@ func TestInstallAgentLogTapSeverityFilterDoesNotTriggerOnDropped(t *testing.T) {
 	h := &captureHandle{}
 	installAgentLogTap(h, "error", -1, -1, -1, func(priority string) {
 		dropped = append(dropped, priority)
-	})
+	}, nil)
 
 	simulateLogEmit(pkglog.TraceLvl, "trace")
 	simulateLogEmit(pkglog.DebugLvl, "debug")
@@ -138,7 +139,7 @@ func TestInstallAgentLogTapErrorMinSeverity(t *testing.T) {
 
 	h := &captureHandle{}
 	// min_severity="error" → only error/critical pass; warn is filtered out.
-	installAgentLogTap(h, "error", -1, -1, -1, nil)
+	installAgentLogTap(h, "error", -1, -1, -1, nil, nil)
 
 	simulateLogEmit(pkglog.WarnLvl, "warn message")
 	simulateLogEmit(pkglog.ErrorLvl, "error message")
@@ -157,7 +158,7 @@ func TestInstallAgentLogTapRateLimit(t *testing.T) {
 	// maxRateHigh=-1 (unlimited), maxRateMedium=10 (→100 per 10s window), maxRateLow=0.1 (→1 per 10s window)
 	installAgentLogTap(h, "", -1, 10, 0.1, func(priority string) {
 		droppedPriorities = append(droppedPriorities, priority)
-	})
+	}, nil)
 
 	// Emit 200 INFO — should be capped at 100 (10 logs/s × 10s window)
 	for i := 0; i < 200; i++ {
@@ -201,6 +202,55 @@ func TestInstallAgentLogTapRateLimit(t *testing.T) {
 	}
 	assert.Equal(t, 100, mediumDropped, "100 info logs should have fired onDropped(medium)")
 	assert.Equal(t, 9, lowDropped, "9 debug logs should have fired onDropped(low)")
+}
+
+func TestInstallAgentLogTapProcessingRulesExcludeByTag(t *testing.T) {
+	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
+
+	rules, err := logsfilter.NewRules([]logsfilter.ProcessingRule{
+		{Name: "drop_debug", Type: "exclude_at_match", Tags: []string{"level:debug"}},
+	})
+	require.NoError(t, err)
+
+	h := &captureHandle{}
+	installAgentLogTap(h, "", -1, -1, -1, nil, rules)
+
+	simulateLogEmit(pkglog.DebugLvl, "debug message")
+	simulateLogEmit(pkglog.InfoLvl, "info message")
+	simulateLogEmit(pkglog.WarnLvl, "warn message")
+
+	require.Len(t, h.logs, 2, "debug should be excluded by processing rule; info and warn should pass")
+	assert.Equal(t, "info", h.logs[0].GetStatus())
+	assert.Equal(t, "warn", h.logs[1].GetStatus())
+}
+
+func TestInstallAgentLogTapProcessingRulesExcludeBySource(t *testing.T) {
+	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
+
+	rules, err := logsfilter.NewRules([]logsfilter.ProcessingRule{
+		{Name: "drop_agent", Type: "exclude_at_match", Source: agentLogSource},
+	})
+	require.NoError(t, err)
+
+	h := &captureHandle{}
+	installAgentLogTap(h, "", -1, -1, -1, nil, rules)
+
+	simulateLogEmit(pkglog.InfoLvl, "should be dropped")
+	simulateLogEmit(pkglog.WarnLvl, "should also be dropped")
+
+	assert.Empty(t, h.logs, "all agent logs should be excluded by source rule")
+}
+
+func TestInstallAgentLogTapNilRulesAllowsAll(t *testing.T) {
+	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
+
+	h := &captureHandle{}
+	installAgentLogTap(h, "", -1, -1, -1, nil, nil)
+
+	simulateLogEmit(pkglog.InfoLvl, "info")
+	simulateLogEmit(pkglog.WarnLvl, "warn")
+
+	require.Len(t, h.logs, 2, "nil rules should allow all logs")
 }
 
 // RateWindow unit tests live in comp/anomalydetection/internal/logsfilter/logsfilter_test.go.

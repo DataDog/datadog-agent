@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tombstone",
+    srcs = ["tombstone.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/backoff",
+        "//pkg/util/log",
+        "//pkg/version",
+    ],
+)

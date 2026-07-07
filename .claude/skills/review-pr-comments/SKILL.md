@@ -1,6 +1,7 @@
 ---
 name: review-pr-comments
 description: Review and triage PR review comments on the current branch — groups threads by file, separates bots from humans, walks through unresolved comments interactively
+model: sonnet
 ---
 
 # Review PR Comments

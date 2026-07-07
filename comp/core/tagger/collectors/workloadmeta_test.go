@@ -253,12 +253,11 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_app_component:agent",
 						"kube_app_managed_by:helm",
 						"kube_app_part_of:datadog",
-						"kueue_local_queue:batch",
-						"kueue_cluster_queue:batch",
 						"kube_ownerref_kind:deployment",
 						"kube_priority_class:high-priority",
 						"kube_service:service1",
 						"kube_service:service2",
+						"kueue_local_queue:batch",
 						"kube_qos:guaranteed",
 						"kube_runtime_class:myclass",
 						"ns_team:containers",
@@ -1459,6 +1458,372 @@ func TestHandleKubeMetadata(t *testing.T) {
 	}
 }
 
+func TestHandleKubeKueueQueue(t *testing.T) {
+	queueID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesKueueQueue,
+		ID:   "localqueue/default/batch",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("kubernetes_resources_labels_as_tags", `{"localqueues.kueue.x-k8s.io": {"team": "team"}}`)
+	cfg.SetInTest("kubernetes_resources_annotations_as_tags", `{"localqueues.kueue.x-k8s.io": {"owner": "+owner"}}`)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubeKueueQueue(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesKueueQueue{
+			EntityID: queueID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:        "batch",
+				Namespace:   "default",
+				Labels:      map[string]string{"team": "eng"},
+				Annotations: map[string]string{"owner": "alice"},
+			},
+			QueueType:        workloadmeta.KueueLocalQueue,
+			ClusterQueueName: "cluster-batch",
+		},
+		IsComplete: true,
+	})
+
+	expected := []*types.TagInfo{
+		{
+			Source:               kueueQueueSource,
+			EntityID:             types.NewEntityID(types.KubernetesKueueQueue, queueID.ID),
+			IsComplete:           true,
+			HighCardTags:         []string{"owner:alice"},
+			OrchestratorCardTags: []string{},
+			LowCardTags: []string{
+				"kube_namespace:default",
+				"kueue_cluster_queue:cluster-batch",
+				"kueue_local_queue:batch",
+				"team:eng",
+			},
+			StandardTags: []string{},
+		},
+	}
+	assertTagInfoListEqual(t, expected, actual)
+}
+
+func TestHandleKubeKueueQueueMetadataAsTags(t *testing.T) {
+	queueID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesKueueQueue,
+		ID:   "localqueue/default/batch",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("kubernetes_resources_labels_as_tags", `{"localqueues.kueue.x-k8s.io": {"team": "team"}}`)
+	cfg.SetInTest("kubernetes_resources_annotations_as_tags", `{"localqueues.kueue.x-k8s.io": {"owner": "+owner"}}`)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubeKueueQueue(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesKueueQueue{
+			EntityID: queueID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:        "batch",
+				Namespace:   "default",
+				Labels:      map[string]string{"team": "batch"},
+				Annotations: map[string]string{"owner": "team-a"},
+			},
+			QueueType:        workloadmeta.KueueLocalQueue,
+			ClusterQueueName: "cluster-batch",
+		},
+		IsComplete: true,
+	})
+
+	expected := []*types.TagInfo{
+		{
+			Source:               kueueQueueSource,
+			EntityID:             types.NewEntityID(types.KubernetesKueueQueue, queueID.ID),
+			IsComplete:           true,
+			HighCardTags:         []string{"owner:team-a"},
+			OrchestratorCardTags: []string{},
+			LowCardTags: []string{
+				"kube_namespace:default",
+				"kueue_cluster_queue:cluster-batch",
+				"kueue_local_queue:batch",
+				"team:batch",
+			},
+			StandardTags: []string{},
+		},
+	}
+	assertTagInfoListEqual(t, expected, actual)
+}
+
+func TestHandleKubeKueueResourceFlavor(t *testing.T) {
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	tests := []struct {
+		name               string
+		nodeAffinityLabels map[string]string
+		expectedLowCard    []string
+		expectedFlavorID   string
+	}{
+		{
+			name:             "a100 sxm4",
+			expectedFlavorID: "a100",
+			nodeAffinityLabels: map[string]string{
+				"nvidia.com/gpu.product":              "NVIDIA-A100-SXM4-40GB",
+				"nvidia.com/gpu.family":               "Ampere",
+				"nvidia.com/gpu.compute.major":        "8",
+				"nvidia.com/cuda.driver-version.full": "535.104.12",
+				"feature.node.kubernetes.io/gpu":      "true",
+			},
+			expectedLowCard: []string{
+				"gpu_architecture:ampere",
+				"gpu_compute_major:8",
+				"gpu_device:nvidia_a100-sxm4-40gb",
+				"gpu_driver_version:535.104.12",
+				"gpu_type:a100",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:a100",
+			},
+		},
+		{
+			name:             "a100 pcie mig shared",
+			expectedFlavorID: "a100-pcie-mig",
+			nodeAffinityLabels: map[string]string{
+				"nvidia.com/gpu.product": "NVIDIA-A100-80GB-PCIe-MIG-3g.40gb-SHARED",
+			},
+			expectedLowCard: []string{
+				"gpu_device:nvidia_a100_80gb_pcie_mig_3g.40gb_shared",
+				"gpu_type:a100",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:a100-pcie-mig",
+			},
+		},
+		{
+			name:             "tesla t4",
+			expectedFlavorID: "t4",
+			nodeAffinityLabels: map[string]string{
+				"nvidia.com/gpu.product": "Tesla-T4",
+			},
+			expectedLowCard: []string{
+				"gpu_device:tesla_t4",
+				"gpu_type:t4",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:t4",
+			},
+		},
+		{
+			name:             "h100 nvl",
+			expectedFlavorID: "h100-nvl",
+			nodeAffinityLabels: map[string]string{
+				"nvidia.com/gpu.product": "NVIDIA-H100-NVL-MIG-3g.47gb",
+			},
+			expectedLowCard: []string{
+				"gpu_device:nvidia_h100_nvl_mig_3g.47gb",
+				"gpu_type:h100",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:h100-nvl",
+			},
+		},
+		{
+			name:             "rtx ada",
+			expectedFlavorID: "rtx-6000",
+			nodeAffinityLabels: map[string]string{
+				"nvidia.com/gpu.product": "NVIDIA-RTX-6000-Ada-Generation",
+			},
+			expectedLowCard: []string{
+				"gpu_device:nvidia_rtx_6000_ada_generation",
+				"gpu_type:rtx_6000",
+				"gpu_vendor:nvidia",
+				"kueue_resource_flavor:rtx-6000",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flavorID := workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+				ID:   tt.expectedFlavorID,
+			}
+
+			actual := collector.handleKubeKueueResourceFlavor(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesKueueResourceFlavor{
+					EntityID: flavorID,
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: tt.expectedFlavorID,
+					},
+					NodeAffinityLabels: tt.nodeAffinityLabels,
+				},
+				IsComplete: true,
+			})
+
+			expected := []*types.TagInfo{
+				{
+					Source:               kueueResourceFlavorSource,
+					EntityID:             types.NewEntityID(types.KueueResourceFlavor, flavorID.ID),
+					IsComplete:           true,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          tt.expectedLowCard,
+					StandardTags:         []string{},
+				},
+			}
+			assertTagInfoListEqual(t, expected, actual)
+		})
+	}
+}
+
+func TestKueueQueueEntityTagsPropagateToPodContainers(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	store.Set(&workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   "localqueue/default/batch",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "batch",
+			Namespace: "default",
+		},
+		QueueType:        workloadmeta.KueueLocalQueue,
+		ClusterQueueName: "cluster-batch",
+	})
+
+	actual := collector.handleKubePod(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   podUID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "pod",
+				Namespace: "default",
+				Labels: map[string]string{
+					kubernetes.KueueLocalQueueNameLabelKey: "batch",
+				},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{
+					ID:   containerID,
+					Name: "app",
+				},
+			},
+		},
+		IsComplete: true,
+	})
+
+	assert.Len(t, actual, 2)
+	for _, tagInfo := range actual {
+		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
+			continue
+		}
+		assert.Subset(t, tagInfo.LowCardTags, []string{
+			"kube_namespace:default",
+			"kueue_cluster_queue:cluster-batch",
+			"kueue_local_queue:batch",
+		})
+		return
+	}
+	t.Fatal("container tag info not found")
+}
+
+func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
+	const (
+		podUID      = "pod-uid"
+		containerID = "container-id"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleKubePod(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   podUID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "pod",
+				Namespace: "default",
+				Labels: map[string]string{
+					kubernetes.KueueLocalQueueNameLabelKey:   "batch",
+					kubernetes.KueueClusterQueueNameLabelKey: "cluster-batch",
+				},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{
+					ID:   containerID,
+					Name: "app",
+				},
+			},
+		},
+		IsComplete: true,
+	})
+
+	assert.Len(t, actual, 2)
+	for _, tagInfo := range actual {
+		if tagInfo.EntityID != types.NewEntityID(types.ContainerID, containerID) {
+			continue
+		}
+		assert.Subset(t, tagInfo.LowCardTags, []string{
+			"kueue_cluster_queue:cluster-batch",
+			"kueue_local_queue:batch",
+		})
+		return
+	}
+	t.Fatal("container tag info not found")
+}
+
 func TestHandleKubeCRD(t *testing.T) {
 	const (
 		crdNamespace = "datadog"
@@ -1901,7 +2266,7 @@ func TestHandleECSTask(t *testing.T) {
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						"task_arn:foobar",
-						"task_definition_arn:arn:aws:ecs:us-east-1:1234567891234:daemon-task-definition/datadog-agent-daemon:1",
+						"daemon_task_definition_arn:arn:aws:ecs:us-east-1:1234567891234:daemon-task-definition/datadog-agent-daemon:1",
 					},
 					LowCardTags: []string{
 						"cluster_name:ecs-cluster",
