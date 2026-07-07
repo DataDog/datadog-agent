@@ -7,7 +7,6 @@ from __future__ import annotations
 import dataclasses
 import fnmatch
 import glob
-import json
 import operator
 import os
 import re
@@ -32,7 +31,7 @@ from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import color_message
-from tasks.libs.common.datadog_api import create_count, create_gauge, send_metrics
+from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
@@ -74,7 +73,6 @@ WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/build/source_test/*", ".gitlab-ci.yml"]
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
-UNIT_TESTS_TIMING_FILE = "test_timing.json"
 OTEL_UPSTREAM_GO_MOD_PATH = (
     f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
 )
@@ -783,7 +781,7 @@ def test(
         _t0 = time.monotonic()
         bazel_targets = get_bazel_test_targets(ctx, flavor=flavor, modules=list(modules), bazel_flags=bazel_flags)
         bazel_query_duration_s = time.monotonic() - _t0
-        print(f"Found {len(bazel_targets)} Bazel-covered go_test targets, in {bazel_query_duration_s}s")
+        print(f"Found {len(bazel_targets)} Bazel-covered go_test targets, in {bazel_query_duration_s:.3f}s")
 
         if write_bazel_test_list:
             with open(write_bazel_test_list, 'w') as f:
@@ -874,16 +872,6 @@ def test(
         print(sep)
         print()
         print("  ".join(parts))
-
-    with open(UNIT_TESTS_TIMING_FILE, 'w') as _f:
-        json.dump(
-            {
-                'bazel_query_s': bazel_query_duration_s,
-                'go_tests_s': go_tests_duration_s,
-                'bazel_tests_s': bazel_tests_duration_s,
-            },
-            _f,
-        )
 
     if not go_success or not bazel_success:
         raise Exit(code=1)
@@ -1100,22 +1088,6 @@ def send_unit_tests_stats(_, job_name, extra_tag=None):
             + extra_tag,
         )
     )
-
-    if os.path.isfile(UNIT_TESTS_TIMING_FILE):
-        with open(UNIT_TESTS_TIMING_FILE) as _f:
-            timings = json.load(_f)
-        timing_tags = [
-            "repository:datadog-agent",
-            f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
-            f"job_name:{job_name}",
-        ] + extra_tag
-        for metric_key, metric_name in (
-            ('bazel_query_s', 'datadog.ci.unit_tests.bazel_query_duration_s'),
-            ('go_tests_s', 'datadog.ci.unit_tests.go_tests_duration_s'),
-            ('bazel_tests_s', 'datadog.ci.unit_tests.bazel_tests_duration_s'),
-        ):
-            if metric_key in timings:
-                series.append(create_gauge(metric_name, timestamp, timings[metric_key], timing_tags))
 
     send_metrics(series)
 
