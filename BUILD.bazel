@@ -48,10 +48,7 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/agent/subcommands/*.go
 # gazelle:exclude cmd/agent/subcommands/analyzelogs
 # gazelle:exclude cmd/agent/subcommands/check
-# gazelle:exclude cmd/agent/subcommands/controlsvc
-# gazelle:exclude cmd/agent/subcommands/diagnose
 # gazelle:exclude cmd/agent/subcommands/flare
-# gazelle:exclude cmd/agent/subcommands/jmx
 # gazelle:exclude cmd/agent/subcommands/processchecks
 # gazelle:exclude cmd/agent/subcommands/run/*.go
 # gazelle:exclude cmd/agent/windows/service
@@ -64,14 +61,13 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/cluster-agent/subcommands/*.go
 # gazelle:exclude cmd/cluster-agent/subcommands/autoscalerlist
 # gazelle:exclude cmd/cluster-agent/subcommands/check
-# gazelle:exclude cmd/cluster-agent/subcommands/compliance
 # gazelle:exclude cmd/cluster-agent/subcommands/start
 # gazelle:exclude cmd/cluster-agent-cloudfoundry/*go
-# gazelle:exclude cmd/cluster-agent-cloudfoundry/subcommands
+# gazelle:exclude cmd/cluster-agent-cloudfoundry/subcommands/*.go
+# gazelle:exclude cmd/cluster-agent-cloudfoundry/subcommands/run
 # gazelle:exclude cmd/dogstatsd
 # gazelle:exclude cmd/host-profiler/*.go
 # gazelle:exclude cmd/host-profiler/command
-# gazelle:exclude cmd/host-profiler/subcommands
 # gazelle:exclude cmd/iot-agent
 # gazelle:exclude cmd/otel-agent/command
 # gazelle:exclude cmd/otel-agent/subcommands/run
@@ -82,13 +78,11 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/security-agent/*.go
 # gazelle:exclude cmd/security-agent/api/*.go
 # gazelle:exclude cmd/security-agent/subcommands/*.go
-# gazelle:exclude cmd/security-agent/subcommands/compliance
 # gazelle:exclude cmd/security-agent/subcommands/start
 # gazelle:exclude cmd/serverless-init/*.go
 # gazelle:exclude cmd/serverless-init/log
 # gazelle:exclude cmd/serverless-init/mode
 # gazelle:exclude cmd/system-probe/modules
-# gazelle:exclude cmd/system-probe/subcommands/compliance
 # gazelle:exclude cmd/system-probe/subcommands/run
 # gazelle:exclude cmd/system-probe/subcommands/usm
 # gazelle:exclude cmd/system-probe/windows
@@ -103,26 +97,18 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/core/gui/impl
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs/adscheduler/fx
-# gazelle:exclude comp/logs/adscheduler/impl
 # gazelle:exclude comp/logs/agent/fx
 # gazelle:exclude comp/logs/agent/impl
-# gazelle:exclude comp/logs/streamlogs/fx
 # gazelle:exclude comp/metadata/clusteragent/fx
 # gazelle:exclude comp/metadata/clusteragent/impl
 # gazelle:exclude comp/metadata/clusterchecks/fx
-# gazelle:exclude comp/metadata/host/fx
 # gazelle:exclude comp/metadata/host/impl/utils
 # gazelle:exclude comp/metadata/inventorychecks/fx
 # gazelle:exclude comp/metadata/inventorychecks/impl
 # gazelle:exclude comp/netflow/server/fx
-# gazelle:exclude comp/netflow/server/impl
-# gazelle:exclude comp/otelcol/collector/fx-pipeline
-# gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/process/agent/*.go
 # gazelle:exclude comp/process/agent/fx
 # gazelle:exclude comp/process/agent/impl
-# gazelle:exclude comp/process/expvars/fx
-# gazelle:exclude comp/process/expvars/impl
 # gazelle:exclude comp/process/runner/fx
 # gazelle:exclude comp/process/runner/impl
 # gazelle:exclude comp/process/submitter
@@ -139,7 +125,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/clusteragent/admission/mutate/appsec
 # gazelle:exclude pkg/clusteragent/admission/mutate/autoinstrumentation
 # gazelle:exclude pkg/clusteragent/admission/mutate/autoscaling
-# gazelle:exclude pkg/clusteragent/admission/mutate/common
 # gazelle:exclude pkg/clusteragent/admission/mutate/config
 # gazelle:exclude pkg/clusteragent/admission/mutate/cwsinstrumentation
 # gazelle:exclude pkg/clusteragent/admission/mutate/ncclprofiler
@@ -158,9 +143,7 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/aggregator
 # gazelle:exclude pkg/util/infratags
 # gazelle:exclude pkg/collector/corechecks/agentprofiling
-# gazelle:exclude pkg/collector/corechecks/cluster/helm
 # gazelle:exclude pkg/collector/corechecks/cluster/ksm/*.go
-# gazelle:exclude pkg/collector/corechecks/cluster/kubernetesapiserver
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/collectors
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/discovery
@@ -170,13 +153,9 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/processors/k8s/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/transformers/k8s
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet/*.go
-# gazelle:exclude pkg/collector/corechecks/containers/kubelet/common/testing
 # gazelle:exclude pkg/collector/corechecks/containers/kubelet/provider
 # gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
-# gazelle:exclude pkg/collector/corechecks/gpu/nvidia
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa/*.go
-# gazelle:exclude pkg/collector/corechecks/network-devices/versa/payload
-# gazelle:exclude pkg/collector/corechecks/network-devices/versa/report
 # gazelle:exclude pkg/collector/corechecks/oracle/*.go
 # gazelle:exclude pkg/collector/corechecks/orchestrator/ecs
 # gazelle:exclude pkg/collector/corechecks/orchestrator/pod
@@ -186,7 +165,13 @@ exports_files(["go.mod"])
 # Bazel go_deps graph (progs is a separate module outside go.work). Keep this
 # binary out of Bazel, consistent with testprogs binaries relying on the
 # ninja-built Go toolchain matrix (see PR #50629).
-# gazelle:exclude pkg/dyninst/testprogs/progs
+# gazelle:exclude pkg/dyninst/testprogs/progs/busyloop
+# gazelle:exclude pkg/dyninst/testprogs/progs/drop_tester
+# gazelle:exclude pkg/dyninst/testprogs/progs/fault
+# gazelle:exclude pkg/dyninst/testprogs/progs/panic_recover
+# gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester
+# gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester_v1
+# gazelle:exclude pkg/dyninst/testprogs/progs/simple
 # gazelle:exclude pkg/ebpf/_obj
 # It is a generated via genrule src that shouldn't be added to the runtime
 # library.
@@ -199,10 +184,8 @@ exports_files(["go.mod"])
 # Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/integrationtests
-# gazelle:exclude pkg/logs/launchers/container/tailerfactory
+# gazelle:exclude pkg/logs/launchers/container/tailerfactory/*.go
 # gazelle:exclude pkg/logs/launchers/file/*.go
-# gazelle:exclude pkg/logs/launchers/integration
-# gazelle:exclude pkg/logs/launchers/journald
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/luts.go
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup/main.go
 # gazelle:exclude pkg/network/tracer/connection/*.go
@@ -216,8 +199,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/network/usm/testutil/grpc/grpc_external_server
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privileged-logs/test
-# gazelle:exclude pkg/process/monitor
-# gazelle:exclude pkg/process/runner/mocks
 # gazelle:exclude pkg/serverless/logs
 # gazelle:exclude pkg/serverless/otlp
 # gazelle:exclude pkg/serverless/trace/span_modifer_test.go
