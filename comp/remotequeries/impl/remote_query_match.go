@@ -10,12 +10,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.uber.org/fx"
@@ -479,7 +479,7 @@ func postgresDatabaseIdentifierTemplateValues(fields map[string]any, host string
 		}
 	}
 	values["host"] = host
-	values["port"] = fmt.Sprintf("%d", port)
+	values["port"] = strconv.Itoa(port)
 	if reportedHostname, ok := fields["reported_hostname"].(string); ok && strings.TrimSpace(reportedHostname) != "" {
 		values["resolved_hostname"] = strings.TrimSpace(reportedHostname)
 	}
