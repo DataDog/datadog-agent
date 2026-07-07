@@ -127,7 +127,7 @@ func narrowerPathWithSameAccess(a, b string) (pathToKeep string, ok bool) {
 	aPath := pathSpecPath(a)
 	bPath := pathSpecPath(b)
 	if isUnsuffixedRootPath(a) {
-		if aPath == bPath || strings.HasPrefix(bPath, aPath) {
+		if isAbsolutePathSpecPath(bPath) {
 			return b, true
 		}
 		return "", false
@@ -149,6 +149,27 @@ func narrowerPathWithSameAccess(a, b string) (pathToKeep string, ok bool) {
 func isUnsuffixedRootPath(pathSpec string) bool {
 	pathPart, accessSuffix := splitPathAccessSuffix(pathSpec)
 	return pathPart == setup.RShellPathAllowAll && accessSuffix == ""
+}
+
+func isAbsolutePathSpecPath(pathPart string) bool {
+	return isPOSIXAbsolutePathSpecPath(pathPart) || isWindowsAbsolutePathSpecPath(pathPart)
+}
+
+func isPOSIXAbsolutePathSpecPath(pathPart string) bool {
+	return strings.HasPrefix(pathPart, "/")
+}
+
+func isWindowsAbsolutePathSpecPath(pathPart string) bool {
+	// Windows absolute paths are always in the format `C:/` where the drive letter
+	// can be any valid uppercase or lowercase letter. We check if the path follows
+	// this format.
+	if len(pathPart) < 3 {
+		return false
+	}
+	driveLetter := pathPart[0]
+	return ((driveLetter >= 'A' && driveLetter <= 'Z') || (driveLetter >= 'a' && driveLetter <= 'z')) &&
+		pathPart[1] == ':' &&
+		pathPart[2] == '/'
 }
 
 // reducePathListToBroadest reduces the list of paths by removing duplicates and

@@ -62,7 +62,7 @@ type RunCommandHandlerConfig struct {
 //     namespace. Other operator entries must be in the backend's namespaced
 //     form to match.
 //   - paths compare by containment with the narrower side winning; the
-//     sentinel "/" admits every absolute path through containment.
+//     sentinel "/" admits every POSIX or Windows drive-rooted absolute path.
 //
 // On either axis, an explicit empty operator list is the kill-switch.
 type RunCommandHandler struct {

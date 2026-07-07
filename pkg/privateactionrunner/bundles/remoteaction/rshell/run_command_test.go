@@ -230,6 +230,11 @@ func TestFilterAllowedPathsUsesBackendPayload(t *testing.T) {
 			backend: []string{"/var/./log/../log:ro", "/var/logger:rw"},
 			want:    []string{"/var/log/:ro", "/var/logger/:rw"},
 		},
+		{
+			name:    "operator root sentinel admits windows drive-rooted backend paths",
+			backend: []string{"C:/Users/ContainerAdministrator/AppData/Local/Temp/par:rw"},
+			want:    []string{"C:/Users/ContainerAdministrator/AppData/Local/Temp/par/:rw"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -256,6 +261,7 @@ func TestFilterAllowedPathsDefaultOperatorPolicyEqualsReducedBackendPolicy(t *te
 		"/host/var/log/datadog:ro",
 		"/tmp/cache:rw",
 		"/tmp:rw",
+		"C:/Users/ContainerAdministrator/AppData/Local/Temp/par:rw",
 	}
 	handler := newDefaultRunCommandHandler()
 
@@ -553,7 +559,7 @@ func TestRunCommandSandboxWarningsKeepStderrClean(t *testing.T) {
 	// Stderr — so callers inspecting Stderr to detect command failure
 	// don't see false positives. ExitCode and Stdout are independent of
 	// the sandbox configuration noise.
-	dir := t.TempDir()
+	dir := filepath.ToSlash(t.TempDir())
 	missing := "/__rshell_sandbox_warnings_test_missing__"
 	handler := newDefaultRunCommandHandler()
 
@@ -577,7 +583,7 @@ func TestRunCommandSandboxWarningsKeepStderrClean(t *testing.T) {
 func TestRunCommandSandboxWarningsNilWhenCleanConfig(t *testing.T) {
 	// All configured paths exist — SandboxWarnings must be nil so the
 	// JSON wire output omits the field entirely (omitempty).
-	dir := t.TempDir()
+	dir := filepath.ToSlash(t.TempDir())
 	handler := newDefaultRunCommandHandler()
 
 	task := makeTaskWithPaths("echo hi",
@@ -594,7 +600,7 @@ func TestRunCommandSandboxWarningsNilWhenCleanConfig(t *testing.T) {
 }
 
 func TestRunCommandPreservesAllowedPathAccessSuffixes(t *testing.T) {
-	dir := t.TempDir()
+	dir := filepath.ToSlash(t.TempDir())
 	handler := newDefaultRunCommandHandler()
 
 	task := makeTaskWithPaths("echo ok",
@@ -615,9 +621,10 @@ func TestRunCommandOutputLimitsReturnActionErrors(t *testing.T) {
 	// RunCommandOutputs has no truncation marker. Treat output caps as
 	// action errors instead of returning partial stdout/stderr as normal
 	// command results.
-	dir := t.TempDir()
+	dir := filepath.ToSlash(t.TempDir())
+	payload := dir + "/payload.txt"
 	require.NoError(t, os.WriteFile(
-		filepath.Join(dir, "payload.txt"),
+		filepath.FromSlash(payload),
 		bytes.Repeat([]byte("x"), 10*1024*1024+1),
 		0o600,
 	))
@@ -629,12 +636,12 @@ func TestRunCommandOutputLimitsReturnActionErrors(t *testing.T) {
 	}{
 		{
 			name:    "stdout limit",
-			command: "cat payload.txt",
+			command: "cat " + payload,
 			wantErr: interp.ErrOutputLimitExceeded,
 		},
 		{
 			name:    "stderr limit",
-			command: "cat payload.txt >&2",
+			command: "cat " + payload + " >&2",
 			wantErr: interp.ErrStderrLimitExceeded,
 		},
 	}
@@ -716,8 +723,8 @@ func TestNewRshellBundleRegistersBothModes(t *testing.T) {
 // mode, a file-target output redirection into a path inside the AllowedPaths
 // sandbox succeeds and writes the file.
 func TestRunRemediationCommandAllowsFileRedirect(t *testing.T) {
-	dir := t.TempDir()
-	target := filepath.Join(dir, "out.txt")
+	dir := filepath.ToSlash(t.TempDir())
+	target := dir + "/out.txt"
 
 	handler := newDefaultRunRemediationCommandHandler()
 	task := makeTaskWithPaths("echo hello > "+target,
@@ -729,7 +736,7 @@ func TestRunRemediationCommandAllowsFileRedirect(t *testing.T) {
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
 	assert.Equal(t, 0, result.ExitCode)
-	content, readErr := os.ReadFile(target)
+	content, readErr := os.ReadFile(filepath.FromSlash(target))
 	require.NoError(t, readErr)
 	assert.Equal(t, "hello\n", string(content))
 }
@@ -737,8 +744,8 @@ func TestRunRemediationCommandAllowsFileRedirect(t *testing.T) {
 // TestRunRemediationCommandReadOnlyPathBlocksFileRedirect verifies that
 // remediation mode does not upgrade read-only path entries to read-write.
 func TestRunRemediationCommandReadOnlyPathBlocksFileRedirect(t *testing.T) {
-	dir := t.TempDir()
-	target := filepath.Join(dir, "out.txt")
+	dir := filepath.ToSlash(t.TempDir())
+	target := dir + "/out.txt"
 
 	handler := newDefaultRunRemediationCommandHandler()
 	task := makeTaskWithPaths("echo hello > "+target,
@@ -751,7 +758,7 @@ func TestRunRemediationCommandReadOnlyPathBlocksFileRedirect(t *testing.T) {
 	result := out.(*RunCommandOutputs)
 	assert.NotEqual(t, 0, result.ExitCode,
 		"remediation mode must reject writes to read-only allowed paths")
-	_, statErr := os.Stat(target)
+	_, statErr := os.Stat(filepath.FromSlash(target))
 	assert.True(t, os.IsNotExist(statErr),
 		"remediation mode must not create the redirect target for read-only paths")
 }
@@ -761,8 +768,8 @@ func TestRunRemediationCommandReadOnlyPathBlocksFileRedirect(t *testing.T) {
 // file behind. This is the security guarantee that distinguishes the two
 // actions.
 func TestRunCommandReadOnlyBlocksFileRedirect(t *testing.T) {
-	dir := t.TempDir()
-	target := filepath.Join(dir, "out.txt")
+	dir := filepath.ToSlash(t.TempDir())
+	target := dir + "/out.txt"
 
 	handler := newDefaultRunCommandHandler()
 	task := makeTaskWithPaths("echo hello > "+target,
@@ -775,7 +782,7 @@ func TestRunCommandReadOnlyBlocksFileRedirect(t *testing.T) {
 	result := out.(*RunCommandOutputs)
 	assert.NotEqual(t, 0, result.ExitCode,
 		"read-only mode must reject file-target redirections")
-	_, statErr := os.Stat(target)
+	_, statErr := os.Stat(filepath.FromSlash(target))
 	assert.True(t, os.IsNotExist(statErr),
 		"read-only mode must not create the redirect target")
 }
@@ -784,8 +791,8 @@ func TestRunCommandReadOnlyBlocksFileRedirect(t *testing.T) {
 // in remediation mode, a redirection target outside the effective AllowedPaths
 // is rejected.
 func TestRunRemediationCommandRedirectOutsideSandboxBlocked(t *testing.T) {
-	allowedDir := t.TempDir()
-	outsideTarget := filepath.Join(t.TempDir(), "out.txt")
+	allowedDir := filepath.ToSlash(t.TempDir())
+	outsideTarget := filepath.ToSlash(filepath.Join(t.TempDir(), "out.txt"))
 
 	handler := newDefaultRunRemediationCommandHandler()
 	// Only allowedDir is in the sandbox; the write targets a sibling temp dir.
@@ -799,6 +806,6 @@ func TestRunRemediationCommandRedirectOutsideSandboxBlocked(t *testing.T) {
 	result := out.(*RunCommandOutputs)
 	assert.NotEqual(t, 0, result.ExitCode,
 		"redirection outside the sandbox must be rejected even in remediation mode")
-	_, statErr := os.Stat(outsideTarget)
+	_, statErr := os.Stat(filepath.FromSlash(outsideTarget))
 	assert.True(t, os.IsNotExist(statErr))
 }

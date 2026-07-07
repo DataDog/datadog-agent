@@ -182,6 +182,84 @@ func TestPathSpecPathStripsAccessSuffixForLocalStat(t *testing.T) {
 	assert.Equal(t, "/etc/", pathSpecPath("/etc/"))
 }
 
+func TestNarrowerPathWithSameAccessRootAllowsAbsolutePaths(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "posix absolute",
+			path: "/var/log/:ro",
+			want: true,
+		},
+		{
+			name: "windows drive-rooted absolute",
+			path: "C:/Users/ContainerAdministrator/AppData/Local/Temp/:rw",
+			want: true,
+		},
+		{
+			name: "windows drive-relative",
+			path: "C:Users/ContainerAdministrator/AppData/Local/Temp/:rw",
+			want: false,
+		},
+		{
+			name: "relative",
+			path: "var/log/:ro",
+			want: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pathToKeep, ok := narrowerPathWithSameAccess("/", tc.path)
+
+			assert.Equal(t, tc.want, ok)
+			if tc.want {
+				assert.Equal(t, tc.path, pathToKeep)
+			}
+		})
+	}
+}
+
+func TestIsWindowsAbsolutePathSpecPath(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "uppercase drive letter with slash separator",
+			path: "C:/Windows/",
+			want: true,
+		},
+		{
+			name: "lowercase drive letter with slash separator",
+			path: "z:/tmp/",
+			want: true,
+		},
+		{
+			name: "non-letter drive",
+			path: "1:/tmp/",
+			want: false,
+		},
+		{
+			name: "drive-relative path",
+			path: "C:Windows/",
+			want: false,
+		},
+		{
+			name: "backslash separators are not rshell path specs",
+			path: `C:\Windows\`,
+			want: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isWindowsAbsolutePathSpecPath(tc.path))
+		})
+	}
+}
+
 func TestReducePathListToBroadest(t *testing.T) {
 	cases := []struct {
 		name string
