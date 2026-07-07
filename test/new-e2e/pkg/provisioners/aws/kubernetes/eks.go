@@ -9,6 +9,7 @@ package awskubernetes
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
@@ -28,17 +29,33 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	awsecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 func eksDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
-	dumpResult, err := dumpEKSClusterState(ctx, stackName)
+	var out strings.Builder
+
+	k8sDump, err := dumpEKSClusterState(ctx, stackName)
 	if err != nil {
-		return "", err
+		fmt.Fprintf(&out, "failed to dump EKS cluster state: %v\n", err)
+	} else {
+		fmt.Fprintf(&out, "Dumping EKS cluster state:\n%s\n", k8sDump)
 	}
-	return fmt.Sprintf("Dumping EKS cluster state:\n%s", dumpResult), nil
+
+	// EKS deploys a fakeintake ECS Fargate service alongside the cluster; dump
+	// its state too since a stuck fakeintake service is indistinguishable from
+	// a cluster issue until you look at it.
+	ecsDump, err := awsecs.DumpECSFakeintakeState(ctx, stackName)
+	if err != nil {
+		fmt.Fprintf(&out, "failed to dump fakeintake ECS service state: %v\n", err)
+	} else {
+		fmt.Fprintf(&out, "Dumping fakeintake ECS service state:\n%s\n", ecsDump)
+	}
+
+	return out.String(), nil
 }
 
 // EKSProvisioner creates a new provisioner

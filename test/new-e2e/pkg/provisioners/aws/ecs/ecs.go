@@ -306,5 +306,7 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 		return Run(ctx, env, params)
 	}, params.extraConfigParams)
 
+	provisioner.SetDiagnoseFunc(ecsFakeintakeDiagnoseFunc)
+
 	return provisioner
 }
