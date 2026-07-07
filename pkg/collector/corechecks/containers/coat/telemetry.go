@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package coat is used to collect container/kubernetes metrics of agents running in a kubernetes cluster.
 package coat
 
 import (

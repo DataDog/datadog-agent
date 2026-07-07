@@ -18,17 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 )
 
-type suppressMemoryUsageAdapter struct {
-	GenericMetricsAdapter
-}
-
-func (a suppressMemoryUsageAdapter) AdaptMetrics(metricName string, value float64) (string, float64) {
-	if metricName == "container.memory.usage" {
-		return "", value
-	}
-	return metricName, value
-}
-
 func TestProcessorRunFullStatsLinux(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
