@@ -40,6 +40,22 @@ func TestParams(t *testing.T) {
 			PipelineID: "16362517",
 		})
 	})
+	t.Run("ResolveParams defaults to the latest nightly Agent 7 with the base flavor", func(t *testing.T) {
+		p, err := ResolveParams()
+		assert.NoError(t, err)
+		assert.Equal(t, "7", p.Version.Major)
+		assert.Equal(t, NightlyChannel, p.Version.Channel)
+		assert.Equal(t, DefaultFlavor, p.Version.Flavor)
+		assert.NotNil(t, p.Integrations)
+		assert.NotNil(t, p.Files)
+	})
+	t.Run("ResolveParams lets caller options override the defaults", func(t *testing.T) {
+		p, err := ResolveParams(WithPipeline("16362517"), WithFlavor(FIPSFlavor), WithAgentConfig("log_level: debug"))
+		assert.NoError(t, err)
+		assert.Equal(t, "16362517", p.Version.PipelineID)
+		assert.Equal(t, FIPSFlavor, p.Version.Flavor)
+		assert.Equal(t, "log_level: debug", p.AgentConfig)
+	})
 	t.Run("WithIntegration should correctly add conf.d/integration/conf.yaml to the path", func(t *testing.T) {
 		p := &Params{
 			Integrations: make(map[string]*FileDefinition),

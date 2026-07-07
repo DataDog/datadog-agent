@@ -94,6 +94,22 @@ func NewParams(env config.Env, options ...Option) (*Params, error) {
 	return common.ApplyOption(p, options)
 }
 
+// ResolveParams builds Params from options WITHOUT a Pulumi config.Env, for the non-Pulumi
+// (SSH/Helm) install path. It applies the same defaults NewParams would in the absence of
+// environment overrides (latest nightly Agent 7, base flavor) and then the caller-supplied
+// options. Environment-derived defaults (pipeline id, FIPS, version, major version) are NOT
+// read here — the caller (which owns the runner profile) passes them as leading options so
+// this package stays free of any testing/runner dependency. Later options override earlier
+// ones, exactly like NewParams.
+func ResolveParams(options ...Option) (*Params, error) {
+	p := &Params{
+		Integrations: make(map[string]*FileDefinition),
+		Files:        make(map[string]*FileDefinition),
+	}
+	options = append([]Option{WithLatestNightly(), WithFlavor(DefaultFlavor)}, options...)
+	return common.ApplyOption(p, options)
+}
+
 // WithLatest uses the latest Agent 7 version in the stable channel.
 func WithLatest() func(*Params) error {
 	return func(p *Params) error {
