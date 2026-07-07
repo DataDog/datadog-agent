@@ -32,15 +32,15 @@ var agentContainerTerminatedReasons = []string{"oomkilled", "containercannotrun"
 
 var agentPodCOAT = newAgentPodCOATTelemetry(telemetryimpl.GetCompatComponent())
 
-type agentPodCOATTelemetry struct {
+type agentPodTelemetry struct {
 	containersRestarts   telemetry.Gauge
 	containersTerminated telemetry.Gauge
 	memoryUsage          telemetry.Gauge
 	memoryLimits         telemetry.Gauge
 }
 
-func newAgentPodCOATTelemetry(tm telemetry.Component) *agentPodCOATTelemetry {
-	return &agentPodCOATTelemetry{
+func newAgentPodCOATTelemetry(tm telemetry.Component) *agentPodTelemetry {
+	return &agentPodTelemetry{
 		containersRestarts: tm.NewGauge(
 			agentSubsystem,
 			AgentContainerRestarts,
@@ -68,33 +68,33 @@ func newAgentPodCOATTelemetry(tm telemetry.Component) *agentPodCOATTelemetry {
 	}
 }
 
-// ResetAgentPodCOATRuntimeMetrics clears runtime-sourced memory aggregates.
-func ResetAgentPodCOATRuntimeMetrics() {
+// ResetAgentRuntimeMetrics clears runtime-sourced memory aggregates.
+func ResetAgentRuntimeMetrics() {
 	agentPodCOAT.resetRuntimeMetrics()
 }
 
-// ResetAgentPodCOATKubeletMetrics clears kubelet-sourced state aggregates.
-func ResetAgentPodCOATKubeletMetrics() {
+// ResetAgentKubeletMetrics clears kubelet-sourced state aggregates.
+func ResetAgentKubeletMetrics() {
 	agentPodCOAT.resetKubeletMetrics()
 }
 
-// RecordAgentPodCOATMetric adds a container-level metric to the COAT aggregate
+// RecordAgentMetric adds a container-level metric to the COAT aggregate
 // when it belongs to a Datadog Cluster Agent pod.
-func RecordAgentPodCOATMetric(metricName string, value *float64, tagList []string) {
+func RecordAgentMetric(metricName string, value *float64, tagList []string) {
 	if value == nil {
 		return
 	}
 	agentPodCOAT.record(metricName, *value, tagList)
 }
 
-func (t *agentPodCOATTelemetry) resetRuntimeMetrics() {
+func (t *agentPodTelemetry) resetRuntimeMetrics() {
 	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponent} {
 		t.memoryUsage.Set(0, component)
 		t.memoryLimits.Set(0, component)
 	}
 }
 
-func (t *agentPodCOATTelemetry) resetKubeletMetrics() {
+func (t *agentPodTelemetry) resetKubeletMetrics() {
 	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponent} {
 		t.containersRestarts.Set(0, component)
 		for _, reason := range agentContainerTerminatedReasons {
@@ -103,7 +103,7 @@ func (t *agentPodCOATTelemetry) resetKubeletMetrics() {
 	}
 }
 
-func (t *agentPodCOATTelemetry) record(metricName string, value float64, tagList []string) {
+func (t *agentPodTelemetry) record(metricName string, value float64, tagList []string) {
 	component, ok := agentPodCOATComponent(tagList)
 	if !ok {
 		return

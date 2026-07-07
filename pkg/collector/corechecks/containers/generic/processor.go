@@ -61,7 +61,7 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 
 // Run executes the check
 func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error {
-	containercoat.ResetAgentPodCOATRuntimeMetrics()
+	containercoat.ResetAgentRuntimeMetrics()
 
 	allContainers := p.ctrLister.ListRunning()
 
@@ -161,8 +161,8 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 	}
 
 	if containerStats.Memory != nil {
-		containercoat.RecordAgentPodCOATMetric(containercoat.AgentMemoryUsage, containerStats.Memory.UsageTotal, tags)
-		containercoat.RecordAgentPodCOATMetric(containercoat.AgentMemoryLimit, containerStats.Memory.Limit, tags)
+		containercoat.RecordAgentMetric(containercoat.AgentMemoryUsage, containerStats.Memory.UsageTotal, tags)
+		containercoat.RecordAgentMetric(containercoat.AgentMemoryLimit, containerStats.Memory.Limit, tags)
 
 		p.sendMetric(sender.Gauge, "container.memory.usage", containerStats.Memory.UsageTotal, tags)
 		p.sendMetric(sender.Gauge, "container.memory.kernel", containerStats.Memory.KernelMemory, tags)

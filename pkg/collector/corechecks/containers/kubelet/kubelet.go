@@ -155,7 +155,7 @@ func (k *KubeletCheck) Run() error {
 	}
 	defer sender.Commit()
 	defer k.podUtils.Reset()
-	containercoat.ResetAgentPodCOATKubeletMetrics()
+	containercoat.ResetAgentKubeletMetrics()
 
 	// Get client
 	kc, err := kubelet.GetKubeUtil()
