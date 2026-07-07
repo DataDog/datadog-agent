@@ -27,7 +27,39 @@ import (
 // MultiLineHandler is a deliberate non-fulfiller of the Truncatable
 // contract — it conforms to most invariants but DEVIATES on
 // UpstreamFlagPropagation. The UpstreamFlagIgnored test below is
-// load-bearing for the refactor safety net.
+// a load-bearing behavioural pin capturing this divergence.
+//
+// # Input distributions of interest
+//
+// The generators in this file are shaped to hit the following
+// scenarios so that random rapid generation cannot under-cover
+// the divergence cases.
+//
+//	(a) sequences where all inputs match newContentRe (every line
+//	    starts a new group, behaves like single-line emission).
+//	    Verifies PatternMatchTriggersEmission.
+//	(b) sequences with non-matching inputs accumulated between
+//	    matches. Verifies line accumulation and emission on the
+//	    next match.
+//	(c) misconfigured pattern (never matches) with multiple
+//	    inputs. Verifies PatternMatchedOnceSafety — each input
+//	    emitted individually.
+//	(d) sequences whose accumulated buffer crosses line_limit
+//	    mid-cycle. Verifies TailMarkerOnBufferOverflow and the
+//	    should_truncate carry-set.
+//	(e) sequences where one emission's overflow is followed by a
+//	    next emission with the head marker prepended. Verifies
+//	    HeadMarkerOnCarryover and CarryoverConsumed.
+//	(f) sequences with upstream-IsTruncated=true inputs (e.g.
+//	    from framer) but no buffer overflow. Verifies
+//	    UpstreamFlagIgnored — the emission has IsTruncated=false.
+//	(g) sequences combining multiple lines (lines_combined > 1)
+//	    without overflow. Verifies MultiLineSourceTag without
+//	    TagOnTruncation.
+//	(h) sequences combining overflow + multiple lines. Verifies
+//	    both MultiLineSourceTag and TagOnTruncation orthogonally.
+//	(i) flush() on a non-empty buffer. Verifies FlushDrainsBuffer
+//	    with correct truncation flag handling.
 
 // multiLineEmission captures one emitted message's observable
 // state, deep-copied at the callback boundary. The handler mutates

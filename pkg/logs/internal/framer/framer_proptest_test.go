@@ -24,6 +24,28 @@ import (
 // flush). docker_stream and syslog_framing have format-specific
 // input requirements (Docker stream headers, RFC 6587 octet
 // counting / non-transparent framing) tested elsewhere.
+//
+// # Input distributions of interest
+//
+// The generators in this file are shaped to hit the following
+// scenarios so that random rapid generation cannot under-cover
+// the divergence cases across framings.
+//
+//	(a) inputs under content_len_limit with valid frames
+//	    (PassThroughUnderLimit for all framings).
+//	(b) inputs with frames over content_len_limit where the
+//	    matcher would normally find them (enforcing framings cut,
+//	    non-enforcing framings passthrough).
+//	(c) inputs without parseable frames where the buffer fills
+//	    past content_len_limit (force-cut uniformly across
+//	    framings).
+//	(d) datagram-mode inputs combining the above (verify
+//	    end-of-Process flush emits remainder with
+//	    IsTruncated=false).
+//	(e) end-of-stream Flush inputs that exercise the syslog
+//	    flush-time truncation path (only syslog_framing has
+//	    meaningful FlushFrame content; verify others emit
+//	    nothing).
 
 // framerEmission captures one emission's observable state.
 type framerEmission struct {
