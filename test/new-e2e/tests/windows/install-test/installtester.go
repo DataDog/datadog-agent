@@ -344,6 +344,17 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		assert.NoError(tt, err, "install should create %s", parProcmgrConfigPath)
 	})
 
+	tt.Run("creates process-agent process manager config", func(tt *testing.T) {
+		processBin := filepath.Join(t.expectedInstallPath, "bin", "agent", "process-agent.exe")
+		exists, err := t.host.FileExists(processBin)
+		if !assert.NoError(tt, err) || !exists {
+			tt.Skip("process-agent.exe not installed; skipping process-agent procmgr config assertion")
+		}
+		processProcmgrConfigPath := filepath.Join(t.expectedInstallPath, "processes.d", "datadog-agent-process.yaml")
+		_, err = t.host.Lstat(processProcmgrConfigPath)
+		assert.NoError(tt, err, "install should create %s", processProcmgrConfigPath)
+	})
+
 	tt.Run("removes embedded extraction artifacts", func(tt *testing.T) {
 		paths := []string{
 			filepath.Join(t.expectedInstallPath, "embedded3.COMPRESSED"),
