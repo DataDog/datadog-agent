@@ -8,6 +8,7 @@ package com_datadoghq_remoteaction_queries
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -172,7 +173,7 @@ func (a *ExecuteAction) Run(
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC failed")
 	}
 	rpcCreatedAt := time.Now()
-	output, err := remoteQueryExecuteOutputFromStream(stream)
+	output, err := remoteQueryExecuteOutputFromStream(stream, inputs.Format)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC response was invalid")
 	}
@@ -216,7 +217,7 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 	return req
 }
 
-func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk]) (map[string]interface{}, error) {
+func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], requestedFormat string) (map[string]interface{}, error) {
 	if stream == nil {
 		return nil, errors.New("remote query response stream missing")
 	}
@@ -227,6 +228,7 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	var firstDataAt time.Time
 	var finalChunkAt time.Time
 	payloadBytes := 0
+	dataChunksReceived := 0
 	expectedChunkIndex := int32(0)
 	seenFinal := false
 	for {
@@ -261,6 +263,7 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 				if payload, ok := streamEvent["payload"].([]byte); ok {
 					payloadBytes += len(payload)
 				}
+				dataChunksReceived++
 			}
 			typedStreamEvents = append(typedStreamEvents, streamEvent)
 		} else if !chunk.GetFinal() {
@@ -278,12 +281,18 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	if len(typedStreamEvents) == 0 {
 		return nil, errors.New("remote query response stream missing typed events")
 	}
-	output, err := remoteQueryExecuteOutputFromTypedEvents(typedStreamEvents)
+	output, err := remoteQueryExecuteOutputFromTypedEvents(typedStreamEvents, requestedFormat)
 	if err != nil {
 		return nil, err
 	}
-	if payloadBytes > 0 {
-		output["stream_timing"] = remoteQueryStreamTiming(streamStart, firstChunkAt, firstDataAt, finalChunkAt, payloadBytes, int(expectedChunkIndex))
+	if _, isError := output["error"]; !isError {
+		output["stream_summary"] = map[string]interface{}{
+			"payload_bytes":   payloadBytes,
+			"chunks_received": dataChunksReceived,
+		}
+		if payloadBytes > 0 {
+			output["stream_timing"] = remoteQueryStreamTiming(streamStart, firstChunkAt, firstDataAt, finalChunkAt, payloadBytes, dataChunksReceived)
+		}
 	}
 	return output, nil
 }
@@ -337,9 +346,6 @@ func remoteQueryStreamEventFromProto(event *pb.RemoteQueryExecuteStreamEvent) (m
 		out["payload"] = payload
 		out["offset"] = e.Data.GetOffset()
 		out["bytes"] = e.Data.GetBytes()
-		if utf8.Valid(payload) {
-			out["data"] = string(payload)
-		}
 	case *pb.RemoteQueryExecuteStreamEvent_Final:
 		out["type"] = "final"
 		out["status"] = e.Final.GetStatus()
@@ -362,20 +368,24 @@ func remoteQueryStreamEventFromProto(event *pb.RemoteQueryExecuteStreamEvent) (m
 	return out, nil
 }
 
-func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}) (map[string]interface{}, error) {
+func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}, requestedFormat string) (map[string]interface{}, error) {
 	var finalEvent map[string]interface{}
 	var errorEvent map[string]interface{}
 	var data bytes.Buffer
+	resultFormat := strings.TrimSpace(requestedFormat)
 	for _, event := range events {
-		if event["type"] == "data" {
+		switch event["type"] {
+		case "metadata":
+			if format, ok := event["format"].(string); ok && strings.TrimSpace(format) != "" {
+				resultFormat = format
+			}
+		case "data":
 			if payload, ok := event["payload"].([]byte); ok {
 				_, _ = data.Write(payload)
 			}
-		}
-		if event["type"] == "final" {
+		case "final":
 			finalEvent = event
-		}
-		if event["type"] == "error" {
+		case "error":
 			errorEvent = event
 		}
 	}
@@ -396,36 +406,21 @@ func remoteQueryExecuteOutputFromTypedEvents(events []map[string]interface{}) (m
 	}
 	dataBytes := data.Bytes()
 	output := map[string]interface{}{
-		"status":     status,
-		"events":     normalizeRemoteQueryOutput(events),
-		"data_bytes": append([]byte(nil), dataBytes...),
+		"status": status,
+		"bytes":  len(dataBytes),
 	}
-	if utf8.Valid(dataBytes) {
-		output["data"] = string(dataBytes)
+	if resultFormat != "" {
+		output["format"] = resultFormat
 	}
+	if strings.EqualFold(resultFormat, "binary") || !utf8.Valid(dataBytes) {
+		if resultFormat == "" {
+			output["format"] = "binary"
+		}
+		output["encoding"] = "base64"
+		output["data_base64"] = base64.StdEncoding.EncodeToString(dataBytes)
+		return output, nil
+	}
+	output["encoding"] = "utf8"
+	output["data"] = string(dataBytes)
 	return output, nil
-}
-
-func normalizeRemoteQueryOutput(value interface{}) interface{} {
-	switch v := value.(type) {
-	case map[string]interface{}:
-		out := make(map[string]interface{}, len(v))
-		for key, item := range v {
-			out[key] = normalizeRemoteQueryOutput(item)
-		}
-		return out
-	case []interface{}:
-		out := make([]interface{}, len(v))
-		for i, item := range v {
-			out[i] = normalizeRemoteQueryOutput(item)
-		}
-		return out
-	case json.Number:
-		if f, err := v.Float64(); err == nil {
-			return f
-		}
-		return v.String()
-	default:
-		return v
-	}
 }

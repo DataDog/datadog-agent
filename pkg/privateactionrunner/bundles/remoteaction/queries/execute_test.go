@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -64,8 +65,14 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	assert.NotContains(t, string(requestEvidence), "secret-value")
 	out, ok := output.(map[string]interface{})
 	require.True(t, ok)
+	expectedData := "Beautiful city of lights,France\nNew York,USA\n"
 	assert.Equal(t, "SUCCEEDED", out["status"])
-	assert.Equal(t, "Beautiful city of lights,France\nNew York,USA\n", out["data"])
+	assert.Equal(t, "csv", out["format"])
+	assert.Equal(t, "utf8", out["encoding"])
+	assert.Equal(t, len(expectedData), out["bytes"])
+	assert.Equal(t, expectedData, out["data"])
+	assertNoPayloadDuplicateFields(t, out)
+	assert.NotContains(t, out, "data_base64")
 }
 
 func TestExecuteActionAcceptsDatabaseInstanceTarget(t *testing.T) {
@@ -129,7 +136,7 @@ func TestExecuteActionRejectsMixedAndPartialTargetSelectorsBeforeRPC(t *testing.
 	}
 }
 
-func TestExecuteActionPreservesCopyStreamEvents(t *testing.T) {
+func TestExecuteActionReturnsCompactCSVOutputWithoutPayloadEvents(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
 		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{Operation: "copy_stream", Format: "csv"}}}, ChunkIndex: 0},
 		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: []byte("Beautiful city of lights,France\n"), Offset: 0, Bytes: 32}}}, ChunkIndex: 1},
@@ -152,12 +159,20 @@ func TestExecuteActionPreservesCopyStreamEvents(t *testing.T) {
 	assert.Equal(t, "copy_stream", client.request.GetOperation())
 	assert.Equal(t, "csv", client.request.GetFormat())
 	assert.Equal(t, int32(32), client.request.GetCopyLimits().GetChunkBytes())
-	assert.Equal(t, "Beautiful city of lights,France\nNew York,USA\n", output.(map[string]interface{})["data"])
-	assert.Equal(t, []byte("Beautiful city of lights,France\nNew York,USA\n"), output.(map[string]interface{})["data_bytes"])
-	assert.Equal(t, "SUCCEEDED", output.(map[string]interface{})["status"])
+
+	expectedData := "Beautiful city of lights,France\nNew York,USA\n"
+	out := output.(map[string]interface{})
+	assert.Equal(t, "SUCCEEDED", out["status"])
+	assert.Equal(t, "csv", out["format"])
+	assert.Equal(t, "utf8", out["encoding"])
+	assert.Equal(t, len(expectedData), out["bytes"])
+	assert.Equal(t, expectedData, out["data"])
+	assert.Equal(t, map[string]interface{}{"payload_bytes": len(expectedData), "chunks_received": 2}, out["stream_summary"])
+	assertNoPayloadDuplicateFields(t, out)
+	assert.NotContains(t, out, "data_base64")
 }
 
-func TestExecuteActionPreservesBinaryCopyStreamPayload(t *testing.T) {
+func TestExecuteActionReturnsCompactBase64ForBinaryCopyStreamPayload(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
 		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: []byte{0x00, 0xff, 0x80}, Offset: 0, Bytes: 3}}}, ChunkIndex: 0},
 		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED", BytesEmitted: 3, ChunksEmitted: 1}}}, ChunkIndex: 1},
@@ -176,9 +191,44 @@ func TestExecuteActionPreservesBinaryCopyStreamPayload(t *testing.T) {
 
 	require.NoError(t, err)
 	out := output.(map[string]interface{})
-	assert.Equal(t, []byte{0x00, 0xff, 0x80}, out["data_bytes"])
-	assert.NotContains(t, out, "data")
 	assert.Equal(t, "SUCCEEDED", out["status"])
+	assert.Equal(t, "binary", out["format"])
+	assert.Equal(t, "base64", out["encoding"])
+	assert.Equal(t, 3, out["bytes"])
+	assert.Equal(t, "AP+A", out["data_base64"])
+	assert.Equal(t, map[string]interface{}{"payload_bytes": 3, "chunks_received": 1}, out["stream_summary"])
+	assertNoPayloadDuplicateFields(t, out)
+	assert.NotContains(t, out, "data")
+}
+
+func TestRemoteQueryExecuteOutputForFiveMiBCSVStaysUnderActionPlatformLimit(t *testing.T) {
+	const actionPlatformOutputLimitBytes = 15 * 1024 * 1024
+	payload := strings.Repeat("x", 5*1024*1024+1)
+	payloadBytes := []byte(payload)
+	stream := &captureRemoteQueryExecuteStream{chunks: []*pb.RemoteQueryExecuteChunk{
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 0, Event: &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{Operation: "copy_stream", Format: "csv"}}}, ChunkIndex: 0},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 1, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: payloadBytes[:2*1024*1024], Offset: 0, Bytes: 2 * 1024 * 1024}}}, ChunkIndex: 1},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 2, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: payloadBytes[2*1024*1024 : 4*1024*1024], Offset: 2 * 1024 * 1024, Bytes: 2 * 1024 * 1024}}}, ChunkIndex: 2},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 3, Event: &pb.RemoteQueryExecuteStreamEvent_Data{Data: &pb.RemoteQueryStreamData{Payload: payloadBytes[4*1024*1024:], Offset: 4 * 1024 * 1024, Bytes: uint64(len(payloadBytes) - 4*1024*1024)}}}, ChunkIndex: 3},
+		{Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: 4, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: "SUCCEEDED", BytesEmitted: uint64(len(payloadBytes)), ChunksEmitted: 3}}}, ChunkIndex: 4},
+		{ChunkIndex: 5, Final: true},
+	}}
+
+	output, err := remoteQueryExecuteOutputFromStream(stream, "csv")
+	require.NoError(t, err)
+	assert.Equal(t, "SUCCEEDED", output["status"])
+	assert.Equal(t, "csv", output["format"])
+	assert.Equal(t, "utf8", output["encoding"])
+	assert.Equal(t, len(payloadBytes), output["bytes"])
+	data, ok := output["data"].(string)
+	require.True(t, ok)
+	assert.Len(t, data, len(payloadBytes))
+	assertNoPayloadDuplicateFields(t, output)
+	assert.NotContains(t, output, "data_base64")
+
+	encodedOutput, err := json.Marshal(output)
+	require.NoError(t, err)
+	assert.Less(t, len(encodedOutput), actionPlatformOutputLimitBytes)
 }
 
 func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
@@ -226,6 +276,16 @@ func TestExecuteActionSanitizesInputExtractionErrors(t *testing.T) {
 	assert.Equal(t, "invalid remote query action inputs", parErr.ExternalMessage)
 	assert.NotContains(t, err.Error(), "secret-db")
 	assert.NotContains(t, err.Error(), "SELECT secret")
+}
+
+func assertNoPayloadDuplicateFields(t *testing.T, out map[string]interface{}) {
+	t.Helper()
+	assert.NotContains(t, out, "events")
+	assert.NotContains(t, out, "payload")
+	assert.NotContains(t, out, "data_bytes")
+	_, hasData := out["data"]
+	_, hasBase64Data := out["data_base64"]
+	assert.False(t, hasData && hasBase64Data, "output must not contain both data and data_base64")
 }
 
 func taskWithInputs(inputs map[string]interface{}) *types.Task {
