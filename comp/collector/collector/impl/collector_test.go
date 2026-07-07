@@ -175,7 +175,6 @@ func (suite *CollectorTestSuite) TestRunShadowCheckDoesNotIncrementNormalCheckIn
 	assert.NotNil(suite.T(), id)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(1), suite.c.checkInstances)
-	assert.Equal(suite.T(), int64(1), suite.c.shadowCheckInstances)
 }
 
 func (suite *CollectorTestSuite) TestRunShadowCheckUsesSchedulerShadowRoute() {
@@ -190,7 +189,6 @@ func (suite *CollectorTestSuite) TestRunShadowCheckUsesSchedulerShadowRoute() {
 	assert.True(suite.T(), check.IsShadow(suite.c.checks[id]))
 	assert.True(suite.T(), suite.c.scheduler.IsCheckScheduled(id))
 	assert.Equal(suite.T(), int64(0), suite.c.checkInstances)
-	assert.Equal(suite.T(), int64(1), suite.c.shadowCheckInstances)
 }
 
 func (suite *CollectorTestSuite) TestRunOneTimeShadowCheckStartsShadowWorker() {
@@ -222,7 +220,6 @@ func (suite *CollectorTestSuite) TestStopShadowCheckUsesShadowRoute() {
 	assert.Zero(suite.T(), len(suite.c.checks))
 	assert.False(suite.T(), suite.c.scheduler.IsCheckScheduled(id))
 	ch.AssertNumberOfCalls(suite.T(), "Cancel", 1)
-	assert.Equal(suite.T(), int64(0), suite.c.shadowCheckInstances)
 }
 
 func (suite *CollectorTestSuite) TestStopCheck() {

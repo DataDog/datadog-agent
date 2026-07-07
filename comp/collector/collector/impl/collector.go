@@ -68,11 +68,10 @@ type collectorImpl struct {
 	healthPlatform healthplatform.Component
 	hostname       hostnameinterface.Component
 
-	senderManager        sender.SenderManager
-	metricSerializer     option.Option[serializer.MetricSerializer]
-	agentTelemetry       option.Option[agenttelemetry.Component]
-	checkInstances       int64
-	shadowCheckInstances int64
+	senderManager    sender.SenderManager
+	metricSerializer option.Option[serializer.MetricSerializer]
+	agentTelemetry   option.Option[agenttelemetry.Component]
+	checkInstances   int64
 
 	// state is 'started' or 'stopped'
 	state *atomic.Uint32
@@ -232,7 +231,6 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 
 	isShadowCheck := check.IsShadow(ch)
 	if isShadowCheck {
-		c.shadowCheckInstances++
 		c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
 		c.runner.AddShadowWorker()
 	} else if ch.Interval() == 0 {
@@ -303,22 +301,7 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 		return fmt.Errorf("an error occurred while calling check.Cancel(): %s", err)
 	}
 
-	c.decrementShadowCheckInstances(ch)
-
 	return nil
-}
-
-func (c *collectorImpl) decrementShadowCheckInstances(ch check.Check) {
-	if !check.IsShadow(ch) {
-		return
-	}
-
-	c.m.Lock()
-	defer c.m.Unlock()
-
-	if c.shadowCheckInstances > 0 {
-		c.shadowCheckInstances--
-	}
 }
 
 // cancelCheck calls Cancel on the passed check, with a timeout
