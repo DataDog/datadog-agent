@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
@@ -30,8 +31,8 @@ type invalidConfigModule struct {
 }
 
 // NewModule captures the config so the once-only startup check can read it.
-func NewModule(cfg config.Component) issues.Module {
-	return &invalidConfigModule{cfg: cfg, checker: newChecker(cfg)}
+func NewModule(cfg config.Component, hostname hostnameinterface.Component) issues.Module {
+	return &invalidConfigModule{cfg: cfg, checker: newChecker(cfg, hostname)}
 }
 
 func (m *invalidConfigModule) IssueName() string {

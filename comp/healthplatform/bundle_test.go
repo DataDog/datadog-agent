@@ -277,7 +277,8 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 // match or restart-based issue resolution silently breaks.
 func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 	cfg := config.NewMock(t)
-	mods := issues.GetAllModules(cfg)
+	hn, _ := hostnameinterface.NewMock("test-host")
+	mods := issues.GetAllModules(cfg, hn)
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
 		issue, err := mod.BuildIssue(map[string]string{})

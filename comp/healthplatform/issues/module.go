@@ -12,6 +12,12 @@
 // 1. Create a new sub-package (e.g., issues/myissue/)
 // 2. Implement the Module interface
 // 3. Call RegisterModuleFactory in your package's init() function
+//
+// Health-check IssueIDs must be unique per host, since a downstream aggregator
+// keys recommendations on (org, IssueID) alone. A module whose check can run
+// with different results/config on multiple hosts (or multiple binaries on the
+// same host) must scope its IssueID accordingly — see invalidconfig's
+// instanceIssueID for the pattern.
 package issues
 
 import (
@@ -19,11 +25,12 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 // ModuleFactory is a function that creates a new Module instance
-type ModuleFactory func(config config.Component) Module
+type ModuleFactory func(config config.Component, hostname hostnameinterface.Component) Module
 
 var (
 	moduleFactories   []ModuleFactory
@@ -40,13 +47,13 @@ func RegisterModuleFactory(factory ModuleFactory) {
 
 // GetAllModules creates and returns all registered modules.
 // Each call creates new module instances.
-func GetAllModules(config config.Component) []Module {
+func GetAllModules(config config.Component, hostname hostnameinterface.Component) []Module {
 	moduleFactoriesMu.Lock()
 	defer moduleFactoriesMu.Unlock()
 
 	modules := make([]Module, 0, len(moduleFactories))
 	for _, factory := range moduleFactories {
-		modules = append(modules, factory(config))
+		modules = append(modules, factory(config, hostname))
 	}
 	return modules
 }

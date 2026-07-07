@@ -75,7 +75,7 @@ func TestBuildIssue_Extra(t *testing.T) {
 }
 
 func TestNewModule(t *testing.T) {
-	m := NewModule(nil)
+	m := NewModule(nil, nil)
 	assert.Equal(t, IssueName, m.IssueName())
 	issue, err := m.BuildIssue(map[string]string{})
 	require.NoError(t, err)
