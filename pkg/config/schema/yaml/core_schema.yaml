@@ -2461,8 +2461,8 @@ properties:
       Configure the local metric lookback ring. The first supported DogStatsD use
       case captures selected normal DogStatsD bucketed points and final
       no-aggregation points by exact name. An optional monitor can forward retained
-      high-resolution ranges while a watched metric's window range is above a configured
-      epsilon or until it has proven healthy.
+      high-resolution ranges after a watched metric breaches its configured
+      short-window range threshold.
     tags:
     - template_section:Dogstatsd
     properties:
@@ -2516,7 +2516,9 @@ properties:
             type: boolean
             default: false
             visibility: public
-            description: Enable retaining selected DogStatsD metrics.
+            description: |-
+              Enable retaining additional selected DogStatsD metrics. The monitor metric is auto-admitted from
+              DogStatsD when monitor.enabled is true and does not need to be repeated here.
             tags:
             - template_section:Dogstatsd
           metric_names:
@@ -2526,7 +2528,8 @@ properties:
             items:
               type: string
             visibility: public
-            description: Exact DogStatsD metric names to retain in the lookback ring.
+            description: Additional exact DogStatsD metric names to retain in the lookback
+              ring.
             tags:
             - template_section:Dogstatsd
       monitor:
@@ -2559,8 +2562,8 @@ properties:
             default: 0
             visibility: public
             description: |-
-              Monitor range threshold. Egress forwards retained ranges while the watched metric's window range is
-              greater than this epsilon or has not proven healthy.
+              Monitor range threshold. The Agent fails to start when this value is negative. Egress forwards
+              retained ranges after the watched metric's window range is greater than this epsilon.
             tags:
             - golang_type:float64
             - template_section:Dogstatsd
