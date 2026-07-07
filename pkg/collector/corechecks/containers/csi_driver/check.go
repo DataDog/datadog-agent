@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -475,13 +476,9 @@ const pathLabel = "path"
 // per context before submitting, which stays monotonic because the driver never
 // removes its Prometheus series.
 func clientTags(m prometheus.Metric) []string {
-	tags := make([]string, 0, len(m))
-	for k, v := range m {
-		if k == "__name__" || k == pathLabel {
-			continue
-		}
-		tags = append(tags, k+":"+v)
-	}
+	tags := slices.DeleteFunc(labelsToTags(m), func(t string) bool {
+		return strings.HasPrefix(t, pathLabel+":")
+	})
 	sort.Strings(tags)
 	return tags
 }
