@@ -108,7 +108,9 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 			continue
 		}
 
-		if err := p.processContainer(sender, tags, container, containerStats); err != nil {
+		ownerPod, _ := p.ctrLister.GetKubernetesPodForContainer(container.ID)
+
+		if err := p.processContainer(sender, tags, container, containerStats, ownerPod); err != nil {
 			log.Debugf("Generating metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 			continue
 		}
@@ -137,7 +139,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 	return nil
 }
 
-func (p *Processor) processContainer(sender sender.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats) error {
+func (p *Processor) processContainer(sender sender.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats, ownerPod *workloadmeta.KubernetesPod) error {
 	if uptime := time.Since(container.State.StartedAt); uptime >= 0 {
 		p.sendMetric(sender.Gauge, "container.uptime", pointer.Ptr(uptime.Seconds()), tags)
 	}
@@ -148,7 +150,7 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 	}
 
 	if containerStats.CPU != nil {
-		containercoat.RecordAgentMetric(containercoat.AgentCPUUsage, containerStats.CPU.Total, tags)
+		containercoat.RecordAgentMetric(containercoat.AgentCPUUsage, containerStats.CPU.Total, ownerPod, "")
 
 		p.sendMetric(sender.Rate, "container.cpu.usage", containerStats.CPU.Total, tags)
 		p.sendMetric(sender.Rate, "container.cpu.user", containerStats.CPU.User, tags)
@@ -163,8 +165,8 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 	}
 
 	if containerStats.Memory != nil {
-		containercoat.RecordAgentMetric(containercoat.AgentMemoryUsage, containerStats.Memory.UsageTotal, tags)
-		containercoat.RecordAgentMetric(containercoat.AgentMemoryLimit, containerStats.Memory.Limit, tags)
+		containercoat.RecordAgentMetric(containercoat.AgentMemoryUsage, containerStats.Memory.UsageTotal, ownerPod, "")
+		containercoat.RecordAgentMetric(containercoat.AgentMemoryLimit, containerStats.Memory.Limit, ownerPod, "")
 
 		p.sendMetric(sender.Gauge, "container.memory.usage", containerStats.Memory.UsageTotal, tags)
 		p.sendMetric(sender.Gauge, "container.memory.kernel", containerStats.Memory.KernelMemory, tags)

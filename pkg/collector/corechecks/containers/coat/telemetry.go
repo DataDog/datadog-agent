@@ -6,11 +6,11 @@
 package coat
 
 import (
-	"strings"
-
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 const (
@@ -32,7 +32,7 @@ const (
 
 var agentContainerTerminatedReasons = []string{"oomkilled", "containercannotrun", "error"}
 
-var agentPodCOAT = newAgentPodCOATTelemetry(telemetryimpl.GetCompatComponent())
+var agentTelemetry = newAgentPodTelemetry(telemetryimpl.GetCompatComponent())
 
 type agentPodTelemetry struct {
 	containersRestarts   telemetry.Gauge
@@ -42,7 +42,7 @@ type agentPodTelemetry struct {
 	memoryLimits         telemetry.Gauge
 }
 
-func newAgentPodCOATTelemetry(tm telemetry.Component) *agentPodTelemetry {
+func newAgentPodTelemetry(tm telemetry.Component) *agentPodTelemetry {
 	return &agentPodTelemetry{
 		containersRestarts: tm.NewGauge(
 			agentSubsystem,
@@ -79,21 +79,25 @@ func newAgentPodCOATTelemetry(tm telemetry.Component) *agentPodTelemetry {
 
 // ResetAgentRuntimeMetrics clears runtime-sourced memory aggregates.
 func ResetAgentRuntimeMetrics() {
-	agentPodCOAT.resetRuntimeMetrics()
+	agentTelemetry.resetRuntimeMetrics()
 }
 
 // ResetAgentKubeletMetrics clears kubelet-sourced state aggregates.
 func ResetAgentKubeletMetrics() {
-	agentPodCOAT.resetKubeletMetrics()
+	agentTelemetry.resetKubeletMetrics()
 }
 
 // RecordAgentMetric adds a metric to the COAT aggregate when it belongs to
 // a Datadog Cluster Agent or Cluster Check Runner pod.
-func RecordAgentMetric(metricName string, value *float64, tagList []string) {
+func RecordAgentMetric(metricName string, value *float64, pod *workloadmeta.KubernetesPod, reason string) {
 	if value == nil {
 		return
 	}
-	agentPodCOAT.record(metricName, *value, tagList)
+	component, ok := agentPodComponent(pod)
+	if !ok {
+		return
+	}
+	agentTelemetry.record(metricName, *value, component, reason)
 }
 
 func (t *agentPodTelemetry) resetRuntimeMetrics() {
@@ -113,18 +117,12 @@ func (t *agentPodTelemetry) resetKubeletMetrics() {
 	}
 }
 
-func (t *agentPodTelemetry) record(metricName string, value float64, tagList []string) {
-	component, ok := agentPodCOATComponent(tagList)
-	if !ok {
-		return
-	}
-
+func (t *agentPodTelemetry) record(metricName string, value float64, component string, reason string) {
 	switch metricName {
 	case AgentContainerRestarts:
 		t.containersRestarts.Add(value, component)
 	case AgentContainerTerminated:
-		reason, ok := agentPodCOATReason(tagList)
-		if !ok {
+		if reason == "" {
 			return
 		}
 		t.containersTerminated.Add(value, component, reason)
@@ -137,27 +135,13 @@ func (t *agentPodTelemetry) record(metricName string, value float64, tagList []s
 	}
 }
 
-func agentPodCOATComponent(tagList []string) (string, bool) {
-	for _, tag := range tagList {
-		value, ok := strings.CutPrefix(tag, tags.KubeAppComponent+":")
-		if !ok {
-			continue
-		}
-		switch value {
-		case clusterAgentComponent, clusterChecksAgentComponent:
-			return value, true
-		}
+func agentPodComponent(pod *workloadmeta.KubernetesPod) (string, bool) {
+	if pod == nil {
+		return "", false
 	}
-
-	return "", false
-}
-
-func agentPodCOATReason(tagList []string) (string, bool) {
-	for _, tag := range tagList {
-		value, ok := strings.CutPrefix(tag, "reason:")
-		if ok {
-			return value, true
-		}
+	switch component := pod.Labels[kubernetes.KubeAppComponentLabelKey]; component {
+	case clusterAgentComponent, clusterChecksAgentComponent:
+		return component, true
 	}
 
 	return "", false
