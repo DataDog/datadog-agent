@@ -121,6 +121,18 @@ func TestAgentFinish(t *testing.T) {
 	})
 }
 
+// TestAgentNaNSampleRate guards against a NaN sample rate corrupting the sketch
+// count. See SMPTNG-761.
+func TestAgentNaNSampleRate(t *testing.T) {
+	a := &Agent{}
+	a.Insert(1, math.NaN())
+	a.Insert(1, math.NaN())
+
+	s := a.Finish()
+	require.NotNil(t, s, "an even count of NaN-sample-rate inserts must not yield a nil sketch")
+	require.EqualValues(t, 2, s.Basic.Cnt, "two samples must count as two observations")
+}
+
 func TestAgentInterpolation(t *testing.T) {
 	a := &Agent{}
 

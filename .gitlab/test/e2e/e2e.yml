@@ -686,6 +686,7 @@ new-e2e-sbom:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
       - EXTRA_PARAMS: --run "TestSBOMKubeadmSuite"
       - EXTRA_PARAMS: --run "TestSBOMKubeadmCrioSuite"
+      - EXTRA_PARAMS: --run "TestSBOMPackageInUseKubeadmSuite"
       - EXTRA_PARAMS: --run "TestSBOMDockerHostSuite"
 
 new-e2e-usm:

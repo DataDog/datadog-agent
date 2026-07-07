@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build linux || darwin || windows
+
 package com_datadoghq_remoteaction_rshell
 
 import (

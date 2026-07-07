@@ -9,6 +9,7 @@ package envoygateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"strings"
@@ -18,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/sidecar"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
@@ -43,10 +44,6 @@ func (e *envoyGatewaySidecarPattern) MatchCondition() admissionregistrationv1.Ma
 	}
 }
 
-func (e *envoyGatewaySidecarPattern) IsNamespaceEligible(ns string) bool {
-	return ns == e.envoyGatewayNamespace()
-}
-
 // envoyGatewayNamespace returns the configured Envoy Gateway data-plane namespace, falling back to
 // the envoy-gateway-system default when unset (e.g. in tests that build Config directly).
 func (e *envoyGatewayInjectionPattern) envoyGatewayNamespace() string {
@@ -67,37 +64,28 @@ func (e *envoyGatewayInjectionPattern) envoyGatewayControllerNamespace() string 
 	return envoyGatewaySystemNamespace
 }
 
-func (e *envoyGatewaySidecarPattern) ShouldMutatePod(pod *corev1.Pod) bool {
+func (e *envoyGatewaySidecarPattern) IsPodEligible(pod *corev1.Pod, ns string) bool {
+	if ns != e.envoyGatewayNamespace() {
+		return false
+	}
 	if pod.Labels[owningGatewayNameLabel] == "" {
 		return false
 	}
-
-	hasEnvoyContainer := false
-	for _, container := range pod.Spec.Containers {
-		switch container.Name {
-		case envoyProxyContainerName:
-			hasEnvoyContainer = true
-		case sidecar.SidecarContainerName:
-			e.logger.Debugf("Pod %s already has appsec UDS ext_proc sidecar", mutatecommon.PodString(pod))
-			return false
-		}
-	}
-	if !hasEnvoyContainer {
+	if pod.Labels[owningGatewayNamespaceLabel] == "" {
 		return false
 	}
 
-	for _, volume := range pod.Spec.Volumes {
-		if volume.Name == sidecar.SharedSocketVolumeName {
-			e.logger.Debugf("Pod %s already has appsec UDS socket volume", mutatecommon.PodString(pod))
-			return false
+	for _, container := range pod.Spec.Containers {
+		if container.Name == envoyProxyContainerName {
+			return true
 		}
 	}
-
-	return true
+	return false
 }
 
-func (e *envoyGatewaySidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (bool, error) {
-	return false, nil
+func (e *envoyGatewaySidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error) {
+	// PodDeleted is a no-op; the returned outcome is only consulted for the DELETE admission error path (the metric is not emitted on delete).
+	return appsecconfig.MutationMutated, nil
 }
 
 // Added is a no-op in sidecar mode: the Backend + EnvoyExtensionPolicy are created lazily on the
@@ -108,36 +96,33 @@ func (e *envoyGatewaySidecarPattern) Added(context.Context, *unstructured.Unstru
 	return nil
 }
 
-func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (appsecconfig.MutationOutcome, error) {
 	for _, container := range pod.Spec.Containers {
 		if container.Name == sidecar.SidecarContainerName {
-			e.logger.Debugf("Pod %s already has appsec UDS ext_proc sidecar", mutatecommon.PodString(pod))
-			return false, nil
+			return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonAlreadySidecar}
 		}
 	}
 	for _, volume := range pod.Spec.Volumes {
 		if volume.Name == sidecar.SharedSocketVolumeName {
-			e.logger.Debugf("Pod %s already has appsec UDS socket volume", mutatecommon.PodString(pod))
-			return false, nil
+			return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonAlreadySocketVolume}
 		}
 	}
 
 	if strings.TrimSpace(e.config.Sidecar.UDSPath) == "" {
-		e.logger.Warnf("Cannot inject appsec UDS sidecar into pod %s: sidecar.uds_path is empty; skipping injection", mutatecommon.PodString(pod))
-		return false, nil
+		return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonMissingUDSPath}
 	}
 
 	e.warnIfBackendDisabled(context.TODO(), e.envoyGatewayControllerNamespace())
 
 	gwName := pod.Labels[owningGatewayNameLabel]
 	if gwName == "" {
-		e.logger.Warnf("Cannot resolve Envoy Gateway for pod %s: missing %q label; skipping appsec sidecar injection", mutatecommon.PodString(pod), owningGatewayNameLabel)
-		return false, nil
+		e.logger.Warnf("Cannot resolve Envoy Gateway for pod %s: missing %q label; failed to inject appsec sidecar", mutatecommon.PodString(pod), owningGatewayNameLabel)
+		return appsecconfig.MutationError, errors.New("owning gateway name label missing after eligibility check")
 	}
 	gwNamespace := pod.Labels[owningGatewayNamespaceLabel]
 	if gwNamespace == "" {
-		e.logger.Warnf("Cannot resolve Envoy Gateway for pod %s: missing %q label; skipping appsec sidecar injection", mutatecommon.PodString(pod), owningGatewayNamespaceLabel)
-		return false, nil
+		e.logger.Warnf("Cannot resolve Envoy Gateway for pod %s: missing %q label; failed to inject appsec sidecar", mutatecommon.PodString(pod), owningGatewayNamespaceLabel)
+		return appsecconfig.MutationError, errors.New("owning gateway namespace label missing after eligibility check")
 	}
 
 	// The Gateway informer honors the appsec.datadoghq.com/enabled=false opt-out, but in sidecar
@@ -145,10 +130,9 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 	// label before mutating. Fail open: if the Gateway cannot be read, proceed with injection.
 	if gw, err := e.client.Resource(gatewayGVR).Namespace(gwNamespace).Get(context.TODO(), gwName, metav1.GetOptions{}); err == nil {
 		if gw.GetLabels()[appsecEnabledLabel] == "false" {
-			e.logger.Debugf("Envoy Gateway %s/%s opted out of appsec (%s=false); skipping sidecar injection for pod %s", gwNamespace, gwName, appsecEnabledLabel, mutatecommon.PodString(pod))
-			return false, nil
+			return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonGatewayOptOut}
 		}
-	} else if !errors.IsNotFound(err) {
+	} else if !k8serrors.IsNotFound(err) {
 		e.logger.Warnf("Could not read Envoy Gateway %s/%s to check appsec opt-out, proceeding with injection: %v", gwNamespace, gwName, err)
 	}
 
@@ -156,7 +140,7 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 	gw.SetName(gwName)
 	gw.SetNamespace(gwNamespace)
 	if err := e.envoyGatewayInjectionPattern.Added(context.TODO(), gw); err != nil {
-		return false, fmt.Errorf("could not ensure envoy gateway appsec resources: %w", err)
+		return appsecconfig.MutationError, fmt.Errorf("could not ensure envoy gateway appsec resources: %w", err)
 	}
 
 	volumeName := sidecar.EnsureSharedSocketVolume(pod)
@@ -171,15 +155,15 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 			&corev1.ObjectReference{Kind: "Pod", Namespace: pod.Namespace, Name: pod.Name, APIVersion: "v1"},
 			corev1.EventTypeWarning,
 			EventReasonSidecarInjectionSkipped,
-			"envoy container not found, skipping appsec sidecar injection: %v",
+			"envoy container not found, failed to inject appsec sidecar: %v",
 			err,
 		)
-		e.logger.Warnf("Pod %s does not have envoy container, skipping appsec sidecar injection: %v", mutatecommon.PodString(pod), err)
-		return false, nil
+		e.logger.Warnf("Pod %s does not have envoy container, failed to inject appsec sidecar: %v", mutatecommon.PodString(pod), err)
+		return appsecconfig.MutationError, fmt.Errorf("failed to mount appsec socket into envoy container for pod %s: %w", mutatecommon.PodString(pod), err)
 	}
 
 	pod.Spec.Containers = append(pod.Spec.Containers, sidecar.BuildExtProcProcessorContainerUDS(e.config.Sidecar))
 	e.logger.Infof("Injected appsec UDS ext_proc sidecar into pod %s", mutatecommon.PodString(pod))
 
-	return true, nil
+	return appsecconfig.MutationMutated, nil
 }

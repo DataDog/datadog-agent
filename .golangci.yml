@@ -191,6 +191,7 @@ linters:
             - "!**/comp/otelcol/otlp/configcheck/configcheck_test.go"
             - "!**/comp/otelcol/otlp/integrationtest/integration_test.go"
             - "!**/comp/otelcol/otlp/testutil/testutil.go"
+            - "!**/comp/process/agent/agent_aix.go"
             - "!**/comp/process/agent/agent_linux.go"
             - "!**/comp/process/agent/impl/agent_linux.go"
             - "!**/comp/process/agent/impl/status.go"
