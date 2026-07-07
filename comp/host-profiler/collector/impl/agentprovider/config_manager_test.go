@@ -150,6 +150,41 @@ site: datadoghq.com
 	assert.Equal(t, 0, mgr.hostProfilerConfig.DDProfiling.Period)
 }
 
+func TestNewConfigManagerDDProfilingPortFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  ddprofiling:
+    port: 1234
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 1234, mgr.hostProfilerConfig.DDProfiling.Port)
+}
+
+func TestNewConfigManagerDDProfilingPortFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_DDPROFILING_PORT", "1234")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 1234, mgr.hostProfilerConfig.DDProfiling.Port)
+}
+
+func TestNewConfigManagerDDProfilingPortDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 0, mgr.hostProfilerConfig.DDProfiling.Port)
+}
+
 func TestNewConfigManagerHPFlarePortFromYAML(t *testing.T) {
 	cfg := config.NewMockFromYAML(t, `
 api_key: test-key

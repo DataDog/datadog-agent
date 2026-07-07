@@ -29,7 +29,7 @@ func TestReportExitCodes(t *testing.T) {
 	}
 
 	dockerCheck.setOkExitCodes()
-	mockSender := mocksender.NewMockSender(dockerCheck.ID())
+	mockSender := mocksender.NewMockSender(t, dockerCheck.ID())
 
 	var events []*docker.ContainerEvent
 
