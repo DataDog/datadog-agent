@@ -72,8 +72,12 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 		}},
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
 			hookFunc("hook_dev_get_valid_name"),
+			// dev_new_index was replaced by dev_index_reserve in kernel 6.6; both are best-effort
+			// alternatives used to resolve the ifindex of a newly registered device
 			hookFunc("hook_dev_new_index"),
 			hookFunc("rethook_dev_new_index"),
+			hookFunc("hook_dev_index_reserve"),
+			hookFunc("rethook_dev_index_reserve"),
 			hookFunc("hook___dev_get_by_index"),
 		}},
 	}
@@ -156,7 +160,23 @@ func GetNetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 }
 
 // GetSelectorsPerEventType returns the list of probes that should be activated for each event
-func GetSelectorsPerEventType(hasFentry bool) map[eval.EventType][]manager.ProbesSelector {
+func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]manager.ProbesSelector {
+	linkIOUringProbes := []manager.ProbesSelector{}
+	if haveIOURing {
+		linkIOUringProbes = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_do_linkat"),
+				hookFunc("rethook_do_linkat"),
+			}},
+			// Since 7.0, do_linkat was removed from the kernel so we need to hook the filename_linkat function instead
+			// It is also used by the io_uring code path
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_filename_linkat"),
+				hookFunc("rethook_filename_linkat"),
+			}},
+		}
+	}
+
 	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
@@ -366,6 +386,7 @@ func GetSelectorsPerEventType(hasFentry bool) map[eval.EventType][]manager.Probe
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", hasFentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "linkat", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: linkIOUringProbes},
 
 			// selinux
 			// This needs to be best effort, as sel_write_disable is in the process of being removed
@@ -498,8 +519,13 @@ func GetSelectorsPerEventType(hasFentry bool) map[eval.EventType][]manager.Probe
 				hookFunc("rethook_vm_mmap_pgoff"),
 				hookFunc("hook_security_mmap_file"),
 			}},
+			// get_unmapped_area is inlined since kernel 6.13; fall back to __get_unmapped_area,
+			// which keeps pgoff in the same argument position, so we can still read the mmap offset
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_get_unmapped_area"),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_get_unmapped_area"),
+					hookFunc("hook___get_unmapped_area"),
+				}},
 			}},
 		},
 
