@@ -132,9 +132,13 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 	seenPaths := make(map[string]struct{}, len(updates))
 
 	for path, rawConfig := range updates {
+		// Update receives the full NETWORK_PATH snapshot. Paths not marked as seen here
+		// are treated as deleted after the snapshot has been processed.
 		seenPaths[path] = struct{}{}
 
 		if isDynamicConfig(rawConfig.Config) {
+			// Dynamic Network Path configs are acknowledged but do not emit AD changes
+			// until dynamic config handling is implemented.
 			log.Debugf("Ignoring dynamic NETWORK_PATH update %s: dynamic Network Path config handling is not implemented yet", path)
 			delete(p.configErrors, path)
 			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
@@ -143,6 +147,7 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 
 		configs, err := parseConfig(rawConfig.Config)
 		if err != nil {
+			// Keep the last valid configs active when a replacement payload is invalid.
 			log.Warnf("Skipping invalid NETWORK_PATH update %s: %v", path, err)
 			p.configErrors[path] = errorSet(err)
 			applyStateCallback(path, state.ApplyStatus{
@@ -156,13 +161,15 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 
 		current := p.activeByPath[path]
-		// RC sends snapshots; keep no-op updates from emitting unschedule/schedule churn before downstream dedupe.
+		// Keep no-op snapshots from emitting unschedule/schedule churn before downstream dedupe.
 		if sameConfigs(current, configs) {
 			continue
 		}
 
+		// A valid snapshot replaces the whole config set for this RC path.
 		changes.Unschedule = append(changes.Unschedule, current...)
 		if len(configs) == 0 {
+			// Empty tests are valid and mean this path no longer contributes configs.
 			delete(p.activeByPath, path)
 			continue
 		}
@@ -175,6 +182,7 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 		if _, found := seenPaths[path]; found {
 			continue
 		}
+		// Active paths missing from the snapshot were deleted from RC.
 		changes.Unschedule = append(changes.Unschedule, current...)
 		delete(p.activeByPath, path)
 		delete(p.configErrors, path)
@@ -183,6 +191,7 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 		if _, found := seenPaths[path]; found {
 			continue
 		}
+		// Drop stale errors for deleted paths that never had active configs.
 		delete(p.configErrors, path)
 	}
 
