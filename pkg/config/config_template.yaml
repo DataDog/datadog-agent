@@ -912,15 +912,15 @@ api_key:
 #
 # cmd_port: 5001
 
-## @param GUI_port - integer - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}-1{{else}}5002{{end}}
-## @env DD_GUI_PORT - integer - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}-1{{else}}5002{{end}}
+## @param GUI_port - integer - optional - default: {{ if (or (eq .OS "darwin") (eq .OS "windows")) }}5002{{else}}-1{{end}}
+## @env DD_GUI_PORT - integer - optional - default: {{ if (or (eq .OS "darwin") (eq .OS "windows")) }}5002{{else}}-1{{end}}
 ## The port for the browser GUI to be served.
 ## Setting 'GUI_port: -1' turns off the GUI completely
 ## Default is:
 ##  * Windows & macOS : `5002`
 ##  * Linux: `-1`
 #
-# GUI_port: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}-1{{else}}5002{{end}}
+# GUI_port: {{ if (or (eq .OS "darwin") (eq .OS "windows")) }}5002{{else}}-1{{end}}
 
 ## @param GUI_session_expiration - integer - optional - default: 0
 ## @env DD_GUI_SESSION_EXPIRATION - integer - optional - default: 0

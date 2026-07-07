@@ -1301,9 +1301,9 @@ properties:
     tags:
     - template_section:Agent
     platform_default:
-      linux: -1
-      aix: -1
-      other: 5002
+      darwin: 5002
+      windows: 5002
+      other: -1
     comment: Agent GUI access port
   GUI_session_expiration:
     node_type: setting

@@ -1322,9 +1322,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("GUI_host", "localhost")
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", GetPlatformDefault(map[string]interface{}{
-		"linux": -1,
-		"aix":   -1,
-		"other": 5002,
+		"darwin":  5002,
+		"windows": 5002,
+		"other":   -1,
 	}))
 	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
 
