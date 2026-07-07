@@ -13,14 +13,12 @@ import "go.opentelemetry.io/collector/featuregate"
 // ConsumeMetrics so OTel's exporterhelper queue/retry layer can observe and
 // retry — fixing the silent-drop behavior described in OTAGENT-1024.
 //
-// Enabled by default. Disable via
+// Disabled by default (Alpha). Enable via
 //
-//	--feature-gates=-datadog.serializerexporter.UseSyncForwarder
-//
-// to fall back to the legacy async DefaultForwarder path.
+//	--feature-gates=+datadog.serializerexporter.UseSyncForwarder
 var useSyncForwarderGate = featuregate.GlobalRegistry().MustRegister(
 	"datadog.serializerexporter.UseSyncForwarder",
-	featuregate.StageBeta,
+	featuregate.StageAlpha,
 	featuregate.WithRegisterDescription("Send metrics synchronously inside the serializer exporter so failures propagate to OTel exporterhelper."),
 	featuregate.WithRegisterReferenceURL("https://datadoghq.atlassian.net/browse/OTAGENT-1024"),
 )
