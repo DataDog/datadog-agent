@@ -46,6 +46,7 @@ dd_agent_go_test(
         "//comp/forwarder/eventplatform/mock",
         "//comp/serializer/logscompression/fx-mock",
         "//comp/snmpscan/def",
+        "//pkg/networkdevice/metadata",
         "//pkg/snmp/gosnmplib",
         "//pkg/util/fxutil",
         "@com_github_gosnmp_gosnmp//:gosnmp",
