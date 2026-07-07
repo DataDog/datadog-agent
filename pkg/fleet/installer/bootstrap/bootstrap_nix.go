@@ -67,45 +67,19 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if _, err := os.Stat(installerBinPath); err != nil {
 		return nil, err
 	}
-	// The installer extracted from the agent package's installer layer may be a
-	// FIPS-flavor build (compiled with requirefips). Such binaries panic at init
-	// unless the embedded OpenSSL FIPS provider has been self-tested and a
-	// matching libcrypto is loaded. Point the child at the running process's own
-	// embedded FIPS tree so it finds a compatible, configured provider.
-	//
-	// We detect this by checking whether the running binary's tree has the FIPS
-	// provider files rather than relying on a build-time flag, because the daemon
-	// binary that calls us may be a deb-installed binary whose build system did
-	// not set the goexperiment.systemcrypto flag even though the tree is FIPS.
-	//
-	// NOTE: Version-skew assumption. The bootstrap installer.layer is pointed at the
-	// *running daemon's* embedded FIPS tree (OPENSSL_CONF, OPENSSL_MODULES, LD_LIBRARY_PATH)
-	// rather than the experiment tree being downloaded. This means the installer.layer starts
-	// with the stable tree's libcrypto + fips.so + fipsmodule.cnf.
-	//
-	// This is intentional: under AT_SECURE (see datadog-agent-finalize.rb) LD_LIBRARY_PATH
-	// is ignored, so the bootstrap installer must find libcrypto via its hardcoded RPATH
-	// (/opt/datadog-agent/embedded/lib). Pointing OPENSSL_CONF/MODULES at the same stable
-	// tree ensures consistency (libcrypto and fips.so are the same build).
-	//
-	// Version-skew risk: if the experiment ships a libcrypto that is ABI-incompatible with
-	// the stable fips.so, the bootstrap installer's requirefips init would fail. OpenSSL 3.x
-	// maintains ABI compatibility within the major soname (libcrypto.so.3), so this is
-	// acceptable for now. If a future release bumps the soname or breaks ABI, this code must
-	// be updated to point the bootstrap installer at its own embedded tree.
+	// The installer.layer may be a requirefips binary that needs the OpenSSL FIPS
+	// provider configured before it can start. Pass the running daemon's embedded
+	// FIPS tree so the bootstrap installer finds a compatible provider.
+	// Note: this points at the stable tree rather than the experiment being downloaded.
+	// OpenSSL 3.x ABI stability makes this safe; see datadog-agent-finalize.rb for
+	// the AT_SECURE context that requires the absolute RPATH on the binary side.
 	extraEnv := fipsEnvFromRunningInstaller()
 	return exec.NewInstallerExecWithExtraEnv(env, installerBinPath, extraEnv), nil
 }
 
-// fipsEnvFromRunningInstaller returns the OpenSSL FIPS provider environment
-// that a requirefips bootstrap installer binary needs to start on this machine.
-// It derives the provider paths from the running binary's own embedded tree
-// (OPENSSL_CONF, OPENSSL_MODULES, LD_LIBRARY_PATH) so the child loads the
-// version-matched libcrypto and fips.so from the same tree rather than the
-// host's system OpenSSL (which may be a different version and fail the FIPS
-// self-test). Returns nil when the running binary's tree does not have a FIPS
-// provider (non-FIPS install), leaving library resolution to the child's
-// defaults — a no-op for non-requirefips binaries.
+// fipsEnvFromRunningInstaller returns OPENSSL_CONF, OPENSSL_MODULES and
+// LD_LIBRARY_PATH pointing at the running binary's embedded FIPS tree, or nil
+// if the tree has no FIPS provider (non-FIPS install).
 func fipsEnvFromRunningInstaller() []string {
 	exePath, err := exec.GetExecutable()
 	if err != nil {
