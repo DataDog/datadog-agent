@@ -30,8 +30,8 @@ func (l *MockContainerAccessor) ListRunning() []*workloadmeta.Container {
 	return l.containers
 }
 
-// GetKubernetesPodForContainer returns the mocked pod owning a container.
-func (l *MockContainerAccessor) GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error) {
+// GetPodOfContainer returns the mocked pod owning a container.
+func (l *MockContainerAccessor) GetPodOfContainer(containerID string) (*workloadmeta.KubernetesPod, error) {
 	pod, ok := l.pods[containerID]
 	if !ok {
 		return nil, fmt.Errorf("pod for container %s not found", containerID)

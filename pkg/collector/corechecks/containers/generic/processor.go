@@ -108,7 +108,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 			continue
 		}
 
-		ownerPod, _ := p.ctrLister.GetKubernetesPodForContainer(container.ID)
+		ownerPod, _ := p.ctrLister.GetPodOfContainer(container.ID)
 
 		if err := p.processContainer(sender, tags, container, containerStats, ownerPod); err != nil {
 			log.Debugf("Generating metrics for container: %v failed, metrics may be missing, err: %v", container, err)

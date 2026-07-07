@@ -18,7 +18,7 @@ type MetricsAdapter interface {
 // ContainerAccessor abstracts away how to list all running containers
 type ContainerAccessor interface {
 	ListRunning() []*workloadmeta.Container
-	GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error)
+	GetPodOfContainer(containerID string) (*workloadmeta.KubernetesPod, error)
 }
 
 // MetadataContainerAccessor implements ContainerLister interface using Workload meta service
@@ -38,8 +38,8 @@ func (l MetadataContainerAccessor) ListRunning() []*workloadmeta.Container {
 	return l.store.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 }
 
-// GetKubernetesPodForContainer retrieves the pod owning the container.
-func (l MetadataContainerAccessor) GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error) {
+// GetPodOfContainer retrieves the pod owning the container.
+func (l MetadataContainerAccessor) GetPodOfContainer(containerID string) (*workloadmeta.KubernetesPod, error) {
 	return l.store.GetKubernetesPodForContainer(containerID)
 }
 
