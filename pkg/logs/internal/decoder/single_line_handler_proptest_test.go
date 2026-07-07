@@ -24,6 +24,29 @@ import (
 //
 // Anchoring unit tests for the same surface live in
 // single_line_handler_test.go.
+//
+// # Input distributions of interest
+//
+// The generators in this file are shaped to hit the following
+// scenarios so that random rapid generation cannot under-cover
+// the divergence cases.
+//
+//	(a) under-threshold inputs with carry=false → no markers,
+//	    flag false (PassThrough).
+//	(b) over-threshold inputs with carry=false → tail marker,
+//	    flag true, next carry=true.
+//	(c) under-threshold inputs with carry=true → head marker,
+//	    flag true, next carry=false (HeadMarkerOnCarryover +
+//	    CarryoverConsumed).
+//	(d) over-threshold inputs with carry=true → both markers,
+//	    flag true, next carry=true.
+//	(e) upstream-truncated inputs (input flag true) under
+//	    threshold with carry=false → tail marker, flag true,
+//	    next carry=true (UpstreamFlagPropagation).
+//	(f) sequences alternating truncated and untruncated inputs
+//	    — verifies carry transition logic across calls.
+//	(g) inputs with leading/trailing whitespace — verifies
+//	    WhitespaceTrimmedBeforeMarkers.
 
 // singleLineInput bundles a single randomly-generated process call.
 type singleLineInput struct {

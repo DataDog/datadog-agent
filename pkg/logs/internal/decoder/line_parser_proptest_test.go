@@ -21,12 +21,43 @@ import (
 // anchors so drift in either direction is easy to spot during
 // review.
 //
-// MultiLineParser is a flag-only accumulator — it propagates the
-// IsTruncated flag but never adds the `...TRUNCATED...` marker
-// bytes. The EarlierContributorFlagsLostWithinCycle test below is
-// load-bearing for the refactor safety net: it locks the current
-// behaviour that within a partial-accumulation cycle, only the
-// LAST input's upstream flag survives to the emission.
+// MultiLineParser is not a Truncatable: it adds no marker bytes and
+// does no byte-level trimming within an emission. Its truncation
+// behaviour is (1) propagating the IsTruncated flag, (2) signalling
+// buffer overflow via its own flag, and (3) cutting the logical
+// multi-line stream at line_limit by forcing emission. The
+// EarlierContributorFlagsLostWithinCycle test below is a
+// load-bearing behavioural pin: within a partial-accumulation
+// cycle, only the LAST input's upstream flag survives to the
+// emission.
+//
+// # Input distributions of interest
+//
+// Random rapid generation alone would under-cover the divergence
+// cases below; the generators in this file are shaped to hit each
+// scenario deliberately.
+//
+//	(a) sequences where no input is over-limit and no input is
+//	    flagged — emission has IsTruncated=false.
+//	(b) sequences where the total accumulated buffer crosses
+//	    line_limit during one accumulation cycle — emission has
+//	    IsTruncated=true via is_buffer_truncated.
+//	(c) sequences where the final input of an accumulation cycle
+//	    carries ParsingExtra.IsTruncated=true upstream but the
+//	    total buffer is under line_limit — emission has
+//	    IsTruncated=true via the last-input flag.
+//	(d) sequences where an EARLIER input (non-final) of an
+//	    accumulation cycle carries upstream IsTruncated=true but
+//	    the final input does not and the buffer does not overflow
+//	    — emission has IsTruncated=false (verifies
+//	    EarlierContributorFlagsLostWithinCycle).
+//	(e) consecutive emissions where the first is truncated and
+//	    the second is not — verifies NoCarryOverBetweenEmissions.
+//	(f) buffer-overflow-mid-partial-cycle: input stream is
+//	    partial-flagged throughout, the accumulated buffer
+//	    crosses line_limit, emission is forced on the line that
+//	    crosses the limit (verifies BufferOverflowForcesEmission
+//	    with IsPartial=true).
 
 // lineParserEmission captures one emission's observable state,
 // deep-copied at the callback boundary.
