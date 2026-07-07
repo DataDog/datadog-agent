@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fixed automatic multi-line stack trace aggregation for container-based log
+    formats (Kubernetes/CRI and the Docker JSON file format). Blank lines within
+    a log stream were previously dropped before reaching the aggregator, which
+    could cause a single stack trace (such as a Go panic) to be ingested as many
+    separate log lines. Stack traces from container log sources are now combined
+    into a single log, matching the behavior of file-based log tailing.
