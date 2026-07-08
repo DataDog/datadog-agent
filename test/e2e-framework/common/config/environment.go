@@ -381,7 +381,16 @@ func (e *CommonEnvironment) AgentUseDualShipping() bool {
 }
 
 func (e *CommonEnvironment) AgentFakeintakeStoreType() string {
-	return e.GetStringWithDefault(e.AgentConfig, DDAgentFakeintakeStoreType, "memory")
+	// NOTE: default used to be "memory", which sounds like a no-op but isn't:
+	// callers (test/e2e-framework/scenarios/aws/{ecs,eks,kindvm,ec2}/*.go) treat
+	// any non-empty value as "pass -store=<value> to the fakeintake container",
+	// and test/fakeintake/cmd/server/main.go has never defined a -store flag
+	// (there's no pluggable store backend in test/fakeintake/server either).
+	// That made every ECS/EKS/Kind/Docker container-test fakeintake service
+	// unconditionally get an unrecognized flag, so the binary called
+	// flag.Parse() -> os.Exit(2) immediately on every launch attempt, and the
+	// ECS service could never reach a stable task count within its timeout.
+	return e.GetStringWithDefault(e.AgentConfig, DDAgentFakeintakeStoreType, "")
 }
 
 func (e *CommonEnvironment) AgentFakeintakeRetentionPeriod() string {

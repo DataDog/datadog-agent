@@ -7,10 +7,12 @@
 package awsdocker
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	awsecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
@@ -221,6 +223,14 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 	return nil
 }
 
+func dockerFakeintakeDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
+	dumpResult, err := awsecs.DumpECSFakeintakeState(ctx, stackName)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Dumping fakeintake ECS service state:\n%s", dumpResult), nil
+}
+
 // Provisioner creates a VM environment with an EC2 VM with Docker, an ECS Fargate FakeIntake and a Docker Agent configured to talk to each other.
 // FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.DockerHost] {
@@ -229,6 +239,8 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.DockerHost) error {
 		return Run(ctx, env, RunParams{ProvisionerParams: params})
 	}, params.extraConfigParams)
+
+	provisioner.SetDiagnoseFunc(dockerFakeintakeDiagnoseFunc)
 
 	return provisioner
 }

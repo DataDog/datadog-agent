@@ -138,7 +138,6 @@ docker_integration_tests      @DataDog/container-integrations
 trace_agent_integration_tests @DataDog/agent-apm
 
 # Functional test
-serverless_cold_start_performance-deb_x64      @DataDog/serverless
 oracle*                                        @DataDog/database-monitoring
 
 # E2E

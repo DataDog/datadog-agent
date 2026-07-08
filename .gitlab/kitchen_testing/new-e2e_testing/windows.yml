@@ -8,27 +8,55 @@
   extends:
     - .new_e2e_template
   before_script:
+    # inv agent.version/release.get-release-json-value below shell out to `aws
+    # s3 cp` to fetch a cached version file, and must run before new_e2e_template
+    # changes the aws profile (see next comment) — so the aws CLI has to be
+    # installed here too, ahead of new_e2e_template's own copy of this same
+    # conditional install.
+    - command -v aws >/dev/null 2>&1 || (apt-get update && apt-get install -y unzip && curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip && unzip -q /tmp/awscliv2.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/awscliv2.zip /tmp/aws)
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
-    - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
+    # NOTE: `export VAR=$(cmd)` masks cmd's exit code (export's own status wins),
+    # so a failing invoke here used to fail silently, leaving WINDOWS_AGENT_VERSION
+    # empty and causing test failures deep inside the test run ("expected '0.0.0'")
+    # instead of a clear failure here. Assign first, check, then export.
+    # `inv`, not `invoke`, is the entry point on PATH in this image.
+    - WINDOWS_AGENT_VERSION=$(inv agent.version --major-version $AGENT_MAJOR_VERSION) || exit $?
+    - export WINDOWS_AGENT_VERSION
+    # LAST_STABLE_VERSION must be set before tests run (upgrade/rollback tests read it at startup)
+    - LAST_STABLE_VERSION=$(inv release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION") || exit $?
+    - export LAST_STABLE_VERSION
     - !reference [.new_e2e_template, before_script]
   script:
-    # LAST_STABLE_VERSION is used for upgrade test
-    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - !reference [.new_e2e_template, script]
 
 .new-e2e_windows_domain_test:
   variables:
     TARGETS: ./tests/windows/domain-test
     TEAM: windows-agent
+  extends:
+    - .new_e2e_template
   before_script:
+    # inv agent.version/release.get-release-json-value below shell out to `aws
+    # s3 cp` to fetch a cached version file, and must run before new_e2e_template
+    # changes the aws profile (see next comment) — so the aws CLI has to be
+    # installed here too, ahead of new_e2e_template's own copy of this same
+    # conditional install.
+    - command -v aws >/dev/null 2>&1 || (apt-get update && apt-get install -y unzip && curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip && unzip -q /tmp/awscliv2.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/awscliv2.zip /tmp/aws)
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
-    - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
+    # NOTE: `export VAR=$(cmd)` masks cmd's exit code (export's own status wins),
+    # so a failing invoke here used to fail silently, leaving WINDOWS_AGENT_VERSION
+    # empty and causing test failures deep inside the test run ("expected '0.0.0'")
+    # instead of a clear failure here. Assign first, check, then export.
+    # `inv`, not `invoke`, is the entry point on PATH in this image.
+    - WINDOWS_AGENT_VERSION=$(inv agent.version --major-version $AGENT_MAJOR_VERSION) || exit $?
+    - export WINDOWS_AGENT_VERSION
+    # LAST_STABLE_VERSION must be set before tests run (upgrade/rollback tests read it at startup)
+    - LAST_STABLE_VERSION=$(inv release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION") || exit $?
+    - export LAST_STABLE_VERSION
     - !reference [.new_e2e_template, before_script]
   script:
-    # LAST_STABLE_VERSION is used for upgrade test
-    - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - !reference [.new_e2e_template, script]
 
 .new-e2e_windows_installer_tests:
@@ -64,7 +92,12 @@ new-e2e-windows-agent-domain-tests-a6-x86_64:
   variables:
     WINDOWS_AGENT_ARCH: "x86_64"
   extends:
-    - .new_e2e_template
+    # .new_e2e_template used to be listed here directly too, as a workaround for
+    # .new-e2e_windows_domain_test not having its own `extends: [.new_e2e_template]`
+    # (unlike .new-e2e_windows_msi). That made it a sibling of equal precedence in
+    # extends resolution and could clobber .new-e2e_windows_domain_test's before_script
+    # (dropping the LAST_STABLE_VERSION/WINDOWS_AGENT_VERSION exports). Fixed at the
+    # source by adding the missing extends to .new-e2e_windows_domain_test above.
     - .new-e2e_windows_domain_test
     - .new-e2e_agent_a6
   needs: ["deploy_windows_testing-a6"]

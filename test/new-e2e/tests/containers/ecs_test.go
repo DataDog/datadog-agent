@@ -70,7 +70,12 @@ func (suite *ecsSuite) SetupSuite() {
 		ecs.Run,
 		infra.WithConfigMap(stackConfig),
 	)
-	suite.Require().NoError(err)
+	if !suite.Assert().NoError(err) {
+		stackName, err := infra.GetStackManager().GetPulumiStackName("ecs-cluster")
+		suite.Require().NoError(err)
+		suite.T().Log(dumpFakeintakeECSState(ctx, stackName))
+		suite.T().FailNow()
+	}
 
 	fakeintake := &components.FakeIntake{}
 	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-ecs"].Value)
@@ -515,7 +520,7 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 				`^docker_image:ghcr.io/datadog/apps-dogstatsd:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:dogstatsd$`,
-				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
+				`^git.commit.sha:`,                                                                 // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
@@ -562,7 +567,7 @@ func (suite *ecsSuite) testTrace(taskName string) {
 				regexp.MustCompile(`^docker_image:ghcr.io/datadog/apps-tracegen:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
 				regexp.MustCompile(`^ecs_container_name:tracegen`),
-				regexp.MustCompile(`^git.commit.sha:`),                                                       // org.opencontainers.image.revision docker image label
+				regexp.MustCompile(`^git.commit.sha:`),                                                                 // org.opencontainers.image.revision docker image label
 				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`), // org.opencontainers.image.source   docker image label
 				regexp.MustCompile(`^image_id:sha256:`),
 				regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-tracegen`),

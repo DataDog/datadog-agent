@@ -9,11 +9,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
 	"os"
@@ -37,8 +37,23 @@ func (suite *DockerSuite) SetupSuite() {
 		"ddagent:fakeintake": auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "dockerstack", stackConfig, ec2.VMRunWithDocker, false)
-	suite.Require().NoError(err)
+	// NOTE: GetStack (unlike GetStackNoDeleteOnFailure) destroys the stack
+	// synchronously on error before returning, which would destroy the
+	// fakeintake ECS service before dumpFakeintakeECSState below could
+	// inspect it. Use GetStackNoDeleteOnFailure so the stack survives long
+	// enough to diagnose.
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
+		ctx,
+		"dockerstack",
+		ec2.VMRunWithDocker,
+		infra.WithConfigMap(stackConfig),
+	)
+	if !suite.Assert().NoError(err) {
+		stackName, err := infra.GetStackManager().GetPulumiStackName("dockerstack")
+		suite.Require().NoError(err)
+		suite.T().Log(dumpFakeintakeECSState(ctx, stackName))
+		suite.T().FailNow()
+	}
 
 	var fakeintake components.FakeIntake
 	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-aws-vm"].Value)

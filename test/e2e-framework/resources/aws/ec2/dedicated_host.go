@@ -12,10 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// DedicatedHostArgs defines the parameters for creating a dedicated host.
 type DedicatedHostArgs struct {
 	// Mandatory
 	InstanceType string // e.g., "mac1.metal", "mac2.metal"

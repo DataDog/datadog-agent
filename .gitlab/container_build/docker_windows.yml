@@ -8,8 +8,14 @@
       Set-PSDebug -Trace 1
       `$ErrorActionPreference = "Stop"
       # DockerHub login
-      `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name $DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text
-      `$DOCKER_REGISTRY_PWD = aws ssm get-parameter --region us-east-1 --name ${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
+      `$tmpLogin = [System.IO.Path]::GetTempFileName()
+      `$tmpPwd = [System.IO.Path]::GetTempFileName()
+      & "C:\mnt\tools\ci\fetch_secret.ps1" -parameterName "$env:DOCKER_REGISTRY_RO" -parameterField user -tempFile "`$tmpLogin"
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      & "C:\mnt\tools\ci\fetch_secret.ps1" -parameterName "$env:DOCKER_REGISTRY_RO" -parameterField token -tempFile "`$tmpPwd"
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      `$DOCKER_REGISTRY_LOGIN = Get-Content "`$tmpLogin"
+      `$DOCKER_REGISTRY_PWD = Get-Content "`$tmpPwd"
       docker login --username "`${DOCKER_REGISTRY_LOGIN}" --password "`${DOCKER_REGISTRY_PWD}" "${DOCKER_REGISTRY_URL}"
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | out-file ci-scripts/docker-login.ps1
@@ -23,6 +29,8 @@
   id_tokens:
     CI_IDENTITY_GITLAB_JWT:
       aud: https://vault.us1.ddbuild.io
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -52,6 +60,8 @@
       -e SIGN_WINDOWS_DD_WCS=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e DOCKER_REGISTRY_RO=${Env:DOCKER_REGISTRY_RO}
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN=${Env:CI_IDENTITIES_GITLAB_ID_TOKEN}
       -v "$(Get-Location):C:\mnt"
       -v \\.\pipe\docker_engine:\\.\pipe\docker_engine registry.ddbuild.io/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       powershell

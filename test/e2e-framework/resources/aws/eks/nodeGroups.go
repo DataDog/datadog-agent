@@ -13,10 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 
-	awsEc2 "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
-	awsEks "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/eks"
-	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
-	"github.com/pulumi/pulumi-eks/sdk/v3/go/eks"
+	awsEc2 "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ec2"
+	awsEks "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/eks"
+	awsIam "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/iam"
+	"github.com/pulumi/pulumi-eks/sdk/v4/go/eks"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
