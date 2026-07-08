@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"reflect"
 	"slices"
 	"strconv"
@@ -2254,7 +2255,92 @@ func (i *goInterfaceType) encodeValueFields(
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
+	if i.Name == "context.Context" {
+		return encodeContextTraceMap(c, enc, data)
+	}
 	return encodeInterface(c, enc, data)
+}
+
+// encodeContextTraceMap renders a context.Context interface value as a map of
+// the trace-correlation ids carried by the context. Each entry is a [key, value]
+// pair of typed values:
+//
+//	"entries": [
+//	  [{"type": "string", "value": "trace_id"},  {"type": "big.Int", "value": "<128-bit decimal>"}],
+//	  [{"type": "string", "value": "span_id"},   {"type": "uint64", "value": "<id>"}],
+//	  [{"type": "string", "value": "parent_id"}, {"type": "uint64", "value": "<id>"}],
+//	]
+//
+// trace_id is a 128-bit id rendered as a decimal big.Int (a uint64 cannot hold
+// it); span_id and parent_id are 64-bit unsigned integers. The ids come from the
+// synthetic trace-context data item the BPF chain walk publishes for the context
+// (keyed by the concrete context pointer address). parent_id is omitted when
+// zero; a context with no active span renders as an empty entries list.
+func encodeContextTraceMap(
+	c *encodingContext,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	if len(data) != 16 {
+		return fmt.Errorf("go interface data must be 16 bytes, got %d", len(data))
+	}
+	runtimeType := binary.NativeEndian.Uint64(data[goRuntimeTypeOffset : goRuntimeTypeOffset+8])
+	if runtimeType == 0 {
+		return writeTokens(enc, jsontext.String("isNull"), jsontext.Bool(true))
+	}
+	if err := writeTokens(enc, jsontext.String("entries"), jsontext.BeginArray); err != nil {
+		return err
+	}
+	addr := binary.NativeEndian.Uint64(data[goInterfaceDataOffset : goInterfaceDataOffset+8])
+	if c.traceContextTypeID != 0 && addr != 0 {
+		if item, ok := c.dataItems[typeAndAddr{
+			irType: uint32(c.traceContextTypeID),
+			addr:   addr,
+		}]; ok {
+			if tc, ok := parseTraceContextDataItem(item); ok {
+				var traceIDBytes [16]byte
+				binary.BigEndian.PutUint64(traceIDBytes[0:8], tc.traceIDUpper)
+				binary.BigEndian.PutUint64(traceIDBytes[8:16], tc.traceIDLower)
+				if err := writeContextTraceEntry(enc,
+					"trace_id", "big.Int", new(big.Int).SetBytes(traceIDBytes[:]).String(),
+				); err != nil {
+					return err
+				}
+				if err := writeContextTraceEntry(enc,
+					"span_id", "uint64", strconv.FormatUint(tc.spanID, 10),
+				); err != nil {
+					return err
+				}
+				if tc.parentID != 0 {
+					if err := writeContextTraceEntry(enc,
+						"parent_id", "uint64", strconv.FormatUint(tc.parentID, 10),
+					); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return writeTokens(enc, jsontext.EndArray)
+}
+
+// writeContextTraceEntry writes a single [key, value] map entry. The key is
+// always a string; valueType is the type label for the value ("uint64" for the
+// 64-bit span and parent ids, "big.Int" for the 128-bit trace id), matching how
+// the decoder renders map entries elsewhere.
+func writeContextTraceEntry(enc *jsontext.Encoder, key, valueType, value string) error {
+	return writeTokens(enc,
+		jsontext.BeginArray,
+		jsontext.BeginObject,
+		jsontext.String("type"), jsontext.String("string"),
+		jsontext.String("value"), jsontext.String(key),
+		jsontext.EndObject,
+		jsontext.BeginObject,
+		jsontext.String("type"), jsontext.String(valueType),
+		jsontext.String("value"), jsontext.String(value),
+		jsontext.EndObject,
+		jsontext.EndArray,
+	)
 }
 
 func (i *goInterfaceType) formatValueFields(

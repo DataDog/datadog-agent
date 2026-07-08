@@ -29,7 +29,7 @@ var (
 	defaultLibraryVersions = map[string]string{
 		common.DatadogAPMLibraryJavaPackage:   "1",
 		common.DatadogAPMLibraryRubyPackage:   "2",
-		common.DatadogAPMLibraryJSPackage:     "5",
+		common.DatadogAPMLibraryJSPackage:     "6",
 		common.DatadogAPMLibraryDotNetPackage: "3",
 		common.DatadogAPMLibraryPythonPackage: "3",
 		common.DatadogAPMLibraryPHPPackage:    "1",
