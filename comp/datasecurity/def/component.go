@@ -9,8 +9,9 @@
 // payload carries scanning rules and a per-integration scan query. For each
 // payload the component looks up the related postgres instance credentials,
 // builds an in-memory runtime configuration (rules, query, host, password, …)
-// and runs the datasecurity shared-library check once. Scanning, querying and
-// event submission are handled by that check.
+// and schedules the datasecurity shared-library check once via autodiscovery
+// with min_collection_interval: 0. Scanning, querying and event submission are handled by
+// that check.
 package datasecurity
 
 // team: sensitive-data-scanner

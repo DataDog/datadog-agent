@@ -9,8 +9,13 @@ package datasecurityimpl
 import (
 	"context"
 	"runtime"
+	"sync"
+	"time"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -43,14 +48,17 @@ type Provides struct {
 	Comp datasecurity.Component
 }
 
-// component implements the data security component.
+// component implements the data security component and acts as an autodiscovery
+// config provider that schedules one-shot datasecurity shared-library checks.
 type component struct {
 	log           log.Component
 	enabled       bool
 	cfg           config.Component
 	rcclient      rcclient.Component
 	ac            autodiscovery.Component
-	senderManager sender.SenderManager
+	configChanges chan integration.ConfigChanges
+	closeMutex    sync.RWMutex
+	closed        bool
 }
 
 // NewComponent creates a new data security component.
@@ -61,7 +69,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		cfg:           reqs.Config,
 		rcclient:      reqs.RcClient,
 		ac:            reqs.Ac,
-		senderManager: reqs.SenderManager,
+		configChanges: make(chan integration.ConfigChanges, 10),
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -79,20 +87,92 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: c}, nil
 }
 
-// start subscribes to the DEBUG remote-config product, unless the component is
-// disabled via data_security.enabled (the default).
+// String returns the name of the autodiscovery config provider.
+func (c *component) String() string {
+	return names.DataSecurity
+}
+
+// GetConfigErrors returns a map of errors from the last Collect call.
+func (c *component) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return map[string]types.ErrorMsgSet{}
+}
+
+// Stream starts sending configuration updates for the datasecurity integration.
+func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges {
+	// Unblock autodiscovery's LoadAndRun — it blocks on <-ch until the first message arrives.
+	c.configChanges <- integration.ConfigChanges{}
+
+	go func() {
+		defer func() {
+			c.closeMutex.Lock()
+			defer c.closeMutex.Unlock()
+			if c.closed {
+				return
+			}
+			c.closed = true
+			close(c.configChanges)
+		}()
+
+		if !c.enabled || runtime.GOOS == "windows" {
+			<-ctx.Done()
+			return
+		}
+
+		if c.hasEligiblePostgres() {
+			c.subscribeAndWait(ctx)
+			return
+		}
+
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if c.hasEligiblePostgres() {
+					c.subscribeAndWait(ctx)
+					return
+				}
+			}
+		}
+	}()
+
+	return c.configChanges
+}
+
+func (c *component) subscribeAndWait(ctx context.Context) {
+	c.rcclient.Subscribe(data.ProductDebug, c.onUpdate)
+	c.log.Infof("datasecurity: subscribed to RC product %q", data.ProductDebug)
+	<-ctx.Done()
+}
+
+func (c *component) hasEligiblePostgres() bool {
+	_, _, ok := c.findPostgresInstance()
+	return ok
+}
+
+func (c *component) sendChanges(changes integration.ConfigChanges) {
+	c.closeMutex.RLock()
+	defer c.closeMutex.RUnlock()
+	if c.closed {
+		return
+	}
+	c.configChanges <- changes
+}
+
+// start registers this component as an autodiscovery config provider.
 func (c *component) start(_ context.Context) error {
 	if runtime.GOOS == "windows" {
 		// Shared-library checks used by datasecurity are not shipped on Windows.
-		// Avoid starting subscriptions/runs that would inevitably fail at runtime.
 		c.log.Warn("datasecurity is not supported on Windows; disabling")
 		return nil
 	}
 	if !c.enabled {
-		c.log.Info("datasecurity: data_security.enabled is false, not subscribing to remote-config")
+		c.log.Info("datasecurity: data_security.enabled is false, not registering config provider")
 		return nil
 	}
-	c.rcclient.Subscribe(data.ProductDebug, c.onUpdate)
-	c.log.Infof("datasecurity: subscribed to RC product %q", data.ProductDebug)
+	c.ac.AddConfigProvider(c, false, 0)
+	c.log.Info("datasecurity: registered autodiscovery config provider")
 	return nil
 }

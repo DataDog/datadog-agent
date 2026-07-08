@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	sharedlibrarycheck "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -69,9 +68,10 @@ type rcPostgresScanData struct {
 // runtimeInstanceConfig is forwarded in-memory to the datasecurity shared-library
 // check. It is never written to disk.
 type runtimeInstanceConfig struct {
-	TaskID     string         `yaml:"task_id"`
-	ScanConfig rcPayload      `yaml:"scan_config"`
-	Postgres   postgresConfig `yaml:"postgres"`
+	MinCollectionInterval int            `yaml:"min_collection_interval"`
+	TaskID                string         `yaml:"task_id"`
+	ScanConfig            rcPayload      `yaml:"scan_config"`
+	Postgres              postgresConfig `yaml:"postgres"`
 }
 
 type postgresConfig struct {
@@ -83,7 +83,8 @@ type postgresConfig struct {
 }
 
 // onUpdate is invoked by the RC client with the full set of active configs for
-// the DEBUG product.
+// the DEBUG product. Each eligible payload is scheduled as a one-shot
+// datasecurity shared-library check via autodiscovery.
 func (c *component) onUpdate(updates map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
 	if len(updates) == 0 {
 		c.log.Debugf("datasecurity: RC DEBUG update with 0 active config(s)")
@@ -96,6 +97,7 @@ func (c *component) onUpdate(updates map[string]state.RawConfig, applyStatus fun
 	}
 	c.log.Infof("datasecurity: RC DEBUG update with %d config(s): %v", len(updates), paths)
 
+	changes := integration.ConfigChanges{}
 	for path, rawConfig := range updates {
 		var payload rcPayload
 		if err := json.Unmarshal(rawConfig.Config, &payload); err != nil {
@@ -107,23 +109,38 @@ func (c *component) onUpdate(updates map[string]state.RawConfig, applyStatus fun
 		c.log.Infof("datasecurity: parsed DEBUG config %s (tasks=%d type=%q)",
 			configShortName(path), len(payload.Tasks), payload.Type)
 
-		if err := c.applyConfig(path, payload); err != nil {
+		checkCfg, err := c.buildCheckConfig(path, payload)
+		if err != nil {
 			if errors.Is(err, errNotDataSecurityPayload) {
 				c.log.Debugf("datasecurity: skipping DEBUG config %s: %v", configShortName(path), err)
 				applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 				continue
 			}
-			c.log.Warnf("datasecurity: cannot apply DEBUG config from %s: %v", path, err)
+			if errors.Is(err, errNoPostgresQuery) {
+				c.log.Infof("datasecurity: no postgres query in payload for %s, nothing to schedule", configShortName(path))
+				applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+				continue
+			}
+			c.log.Warnf("datasecurity: cannot schedule DEBUG config from %s: %v", path, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
 
-		c.log.Infof("datasecurity: successfully applied DEBUG config %s", configShortName(path))
+		changes.Schedule = append(changes.Schedule, checkCfg)
+		c.log.Infof("datasecurity: scheduled one-shot %q check for task %s",
+			datasecurityCheckName, configShortName(path))
 		applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	}
+
+	if !changes.IsEmpty() {
+		c.sendChanges(changes)
 	}
 }
 
-var errNotDataSecurityPayload = errors.New("not a data security scan payload")
+var (
+	errNotDataSecurityPayload = errors.New("not a data security scan payload")
+	errNoPostgresQuery        = errors.New("no postgres query in payload")
+)
 
 // configShortName returns the RC config name segment (e.g. test-aimene-data-security).
 func configShortName(path string) string {
@@ -138,12 +155,11 @@ func configShortName(path string) string {
 	return path
 }
 
-// applyConfig builds a runtime check configuration from the RC payload and the
-// postgres instance credentials, then runs the datasecurity shared-library check
-// once. Scanning, querying and event submission are handled by the Rust check.
-func (c *component) applyConfig(path string, payload rcPayload) error {
+// buildCheckConfig builds an autodiscovery config for a one-shot datasecurity
+// shared-library check from the RC payload and the postgres instance credentials.
+func (c *component) buildCheckConfig(path string, payload rcPayload) (integration.Config, error) {
 	if len(payload.Tasks) == 0 {
-		return fmt.Errorf("%w: no tasks", errNotDataSecurityPayload)
+		return integration.Config{}, fmt.Errorf("%w: no tasks", errNotDataSecurityPayload)
 	}
 
 	hasRules := false
@@ -167,20 +183,19 @@ func (c *component) applyConfig(path string, payload rcPayload) error {
 	}
 
 	if !hasRules {
-		return errors.New("no scanning rules in payload")
+		return integration.Config{}, errors.New("no scanning rules in payload")
 	}
 	if !hasQuery {
-		c.log.Infof("datasecurity: no postgres query in payload for %s, nothing to run", configShortName(path))
-		return nil
+		return integration.Config{}, errNoPostgresQuery
 	}
 
 	if !c.cfg.GetBool("shared_library_check.enabled") {
-		return errors.New("shared_library_check.enabled must be true to run datasecurity scans")
+		return integration.Config{}, errors.New("shared_library_check.enabled must be true to run datasecurity scans")
 	}
 
-	instance, ok := c.findPostgresInstance()
+	instance, baseCfg, ok := c.findPostgresInstance()
 	if !ok {
-		return errors.New("no postgres instance with data_security.enabled: true found")
+		return integration.Config{}, errors.New("no postgres instance with data_security.enabled: true found")
 	}
 
 	host := stringField(instance, "host")
@@ -192,8 +207,9 @@ func (c *component) applyConfig(path string, payload rcPayload) error {
 	password := stringField(instance, "password")
 
 	runtimeCfg := runtimeInstanceConfig{
-		TaskID:     path,
-		ScanConfig: payload,
+		MinCollectionInterval: 0,
+		TaskID:                path,
+		ScanConfig:            payload,
 		Postgres: postgresConfig{
 			Host:     host,
 			Port:     portInt(instance),
@@ -205,31 +221,24 @@ func (c *component) applyConfig(path string, payload rcPayload) error {
 
 	instanceYAML, err := yaml.Marshal(runtimeCfg)
 	if err != nil {
-		return fmt.Errorf("marshaling runtime instance config: %w", err)
+		return integration.Config{}, fmt.Errorf("marshaling runtime instance config: %w", err)
 	}
 
-	libFolder := c.cfg.GetString("shared_library_check.library_folder_path")
-	c.log.Infof("datasecurity: [1/3] invoking RunOnce for %q task %s (lib=%s host=%s dbname=%s user=%q)",
-		datasecurityCheckName, configShortName(path), libFolder, host, dbname, user)
-
-	if err := sharedlibrarycheck.RunOnce(
-		c.senderManager,
-		libFolder,
-		datasecurityCheckName,
-		integration.Data("{}"),
-		integration.Data(instanceYAML),
-	); err != nil {
-		return fmt.Errorf("running datasecurity check: %w", err)
-	}
-
-	c.log.Infof("datasecurity: [3/3] completed RunOnce for task %s", configShortName(path))
-	return nil
+	return integration.Config{
+		Name:       datasecurityCheckName,
+		Source:     fmt.Sprintf("%s:%s", c.String(), configShortName(path)),
+		Instances:  []integration.Data{instanceYAML},
+		InitConfig: integration.Data("{}"),
+		Provider:   baseCfg.Provider,
+		NodeName:   baseCfg.NodeName,
+	}, nil
 }
 
-// findPostgresInstance returns the first postgres instance with data_security.enabled: true.
+// findPostgresInstance returns the first postgres instance with data_security.enabled: true
+// and the integration config it belongs to.
 // TODO: match against the database reported_hostname from the RC payload instead of
 // taking the first eligible instance.
-func (c *component) findPostgresInstance() (map[string]any, bool) {
+func (c *component) findPostgresInstance() (map[string]any, integration.Config, bool) {
 	for _, cfg := range c.ac.GetUnresolvedConfigs() {
 		if cfg.Name != postgresIntegrationName {
 			continue
@@ -245,11 +254,11 @@ func (c *component) findPostgresInstance() (map[string]any, bool) {
 
 			c.log.Infof("datasecurity: using postgres instance (connect_host=%q reported_hostname=%q)",
 				stringField(instance, "host"), stringField(instance, "reported_hostname"))
-			return instance, true
+			return instance, cfg, true
 		}
 	}
 
-	return nil, false
+	return nil, integration.Config{}, false
 }
 
 // instanceDataSecurityEnabled reports whether a parsed instance has opted into
