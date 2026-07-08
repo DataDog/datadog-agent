@@ -1578,6 +1578,7 @@ workflow:
   - changes:
       paths:
         - rtloader/**
+        - tasks/rtloader.py
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
