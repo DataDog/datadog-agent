@@ -26,12 +26,15 @@ static __attribute__((always_inline)) struct inode* get_dentry_inode(struct dent
     return inode;
 }
 
-static struct dentry *__attribute__((always_inline)) get_dentry_parent(struct dentry *dentry) {
-    u64 offset;
-    LOAD_CONSTANT("dentry_d_parent_offset", offset);
+static void __attribute__((always_inline)) read_dentry_parent(struct dentry *dentry, struct dentry **parent) {
+    u64 dentry_d_parent_offset;
+    LOAD_CONSTANT("dentry_d_parent_offset", dentry_d_parent_offset);
+    bpf_probe_read(parent, sizeof(*parent), (void *)dentry + dentry_d_parent_offset);
+}
 
+static struct dentry *__attribute__((always_inline)) get_dentry_parent(struct dentry *dentry) {
     struct dentry *parent;
-    bpf_probe_read(&parent, sizeof(parent), (void *)dentry + offset);
+    read_dentry_parent(dentry, &parent);
     return parent;
 }
 

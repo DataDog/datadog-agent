@@ -68,7 +68,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 #pragma unroll
 #endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
-        d_parent = get_dentry_parent(dentry);
+        read_dentry_parent(dentry, &d_parent);
 
         key = next_key;
         ino_parent = get_dentry_ino_at(d_parent, dentry_d_inode_offset, inode_ino_offset);
@@ -112,7 +112,8 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         if (key.ino == ino_parent && dentry != d_parent) {
             // It's not expected to have 2 different dentries with the same inode in the same mount
             // In case of btrfs, it might be the root of the subvolume
-            struct dentry *d_parent_parent = get_dentry_parent(d_parent);
+            struct dentry *d_parent_parent = NULL;
+            read_dentry_parent(d_parent, &d_parent_parent);
             if (d_parent == d_parent_parent) {
                 update = 0;
             }
