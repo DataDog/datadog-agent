@@ -107,6 +107,7 @@
 
   # Cross-cutting: these affect all platforms including Windows
   - release.json
+  - release.d/**/*
   - .gitlab-ci.yml
   - .gitlab/**/*
 
@@ -492,6 +493,7 @@ variables:
     - tasks/**/*.py
     - omnibus/**/*
     - release.json
+    - release.d/**/*
     # SMP regression detector experiments
     - test/regression/**/*
     # Containers
@@ -879,6 +881,7 @@ workflow:
       - omnibus/config/software/**/*
       - omnibus/config/templates/**/*
       - release.json
+      - release.d/**/*
     compare_to: $COMPARE_TO_BRANCH
 
 .except_windows_installer_changes:
@@ -939,6 +942,7 @@ workflow:
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
+        - release.d/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .except_e2e_main_release_or_rc: # This rule is to not trigger dynamic test evaluation when we force all e2e tests to run
@@ -960,6 +964,7 @@ workflow:
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
+        - release.d/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: never
 
@@ -1457,6 +1462,7 @@ workflow:
         - omnibus/**/*
         - .gitlab-ci.yml
         - release.json
+        - release.d/**/*
         - .gitlab/build/package_build/**/*
       compare_to: $COMPARE_TO_BRANCH
   - changes:

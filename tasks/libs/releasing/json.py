@@ -2,6 +2,7 @@
 # release.json manipulation invoke tasks section
 #
 import json
+import os
 from collections import OrderedDict
 
 from invoke.exceptions import Exit
@@ -46,17 +47,94 @@ DEFAULT_BRANCHES_AGENT6 = {
     "datadog-agent": "6.53.x",
 }
 
+# The dependencies block of release.json is split across per-project shard files
+# under release.d/, each with its own CODEOWNERS entry. This avoids cross-team
+# merge conflicts and over-broad review requests when a single project bumps its
+# version. Each dependency key is routed to a shard by its prefix; the first
+# matching prefix wins. Adding a dependency whose key matches no prefix is a hard
+# error at save time, forcing an explicit owner assignment.
+RELEASE_JSON = "release.json"
+DEPENDENCY_SHARD_DIR = "release.d"
+DEPENDENCY_SHARD_PREFIXES = [
+    ("AGENT_DATA_PLANE_", "agent-data-plane.json"),
+    ("INTEGRATIONS_", "integrations-core.json"),
+    ("JMXFETCH_", "jmxfetch.json"),
+    ("SECURITY_AGENT_POLICIES_", "security-agent-policies.json"),
+    ("WINDOWS_DDNPM_", "windows-drivers.json"),
+    ("WINDOWS_DDPROCMON_", "windows-drivers.json"),
+    ("OMNIBUS_RUBY_", "omnibus-ruby.json"),
+]
+
+
+def _dependency_shard_files():
+    """Unique shard filenames, preserving DEPENDENCY_SHARD_PREFIXES order."""
+    seen = []
+    for _, filename in DEPENDENCY_SHARD_PREFIXES:
+        if filename not in seen:
+            seen.append(filename)
+    return seen
+
+
+def _shard_path(filename):
+    return os.path.join(DEPENDENCY_SHARD_DIR, filename)
+
+
+def _shard_for_key(key):
+    for prefix, filename in DEPENDENCY_SHARD_PREFIXES:
+        if key.startswith(prefix):
+            return filename
+    raise Exit(
+        code=1,
+        message=(
+            f"release.json dependency key '{key}' does not map to any shard file under "
+            f"{DEPENDENCY_SHARD_DIR}/. Add a prefix rule to DEPENDENCY_SHARD_PREFIXES in "
+            "tasks/libs/releasing/json.py."
+        ),
+    )
+
+
+def _dump_json(path, data):
+    with open(path, "w") as stream:
+        # Note, no space after the comma
+        json.dump(data, stream, indent=4, sort_keys=False, separators=(',', ': '))
+        stream.write('\n')
+
 
 def load_release_json():
-    with open("release.json") as release_json_stream:
-        return json.load(release_json_stream, object_pairs_hook=OrderedDict)
+    """
+    Loads release.json and merges the per-project dependency shards under release/
+    into a single dependencies block, reproducing the historical single-file shape.
+    """
+    with open(RELEASE_JSON) as release_json_stream:
+        release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
+
+    dependencies = OrderedDict()
+    for filename in _dependency_shard_files():
+        with open(_shard_path(filename)) as shard_stream:
+            shard = json.load(shard_stream, object_pairs_hook=OrderedDict)
+        for key, value in shard.items():
+            dependencies[key] = value
+
+    release_json[RELEASE_JSON_DEPENDENCIES] = OrderedDict(sorted(dependencies.items()))
+    return release_json
 
 
 def _save_release_json(release_json):
-    with open("release.json", "w") as release_json_stream:
-        # Note, no space after the comma
-        json.dump(release_json, release_json_stream, indent=4, sort_keys=False, separators=(',', ': '))
-        release_json_stream.write('\n')
+    """
+    Saves the top-level metadata to release.json and routes each dependency key
+    back to its owning shard file under release/.
+    """
+    release_json = OrderedDict(release_json)
+    dependencies = release_json.pop(RELEASE_JSON_DEPENDENCIES, OrderedDict())
+
+    _dump_json(RELEASE_JSON, release_json)
+
+    shards = {filename: OrderedDict() for filename in _dependency_shard_files()}
+    for key, value in dependencies.items():
+        shards[_shard_for_key(key)][key] = value
+
+    for filename in _dependency_shard_files():
+        _dump_json(_shard_path(filename), OrderedDict(sorted(shards[filename].items())))
 
 
 def _get_jmxfetch_release_json_info(release_json):
@@ -219,7 +297,7 @@ def _update_release_json(release_json, new_version: Version, max_version: Versio
 
     # Part 2: repositories which have their own version scheme
 
-    # jmxfetch version is updated directly by the AML team
+    # jmxfetch version is updated directly by the AMP team
     jmxfetch_version, jmxfetch_shasum = _get_jmxfetch_release_json_info(release_json)
 
     # security agent policies are updated directly by the CWS team

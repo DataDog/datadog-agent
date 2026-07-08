@@ -59,9 +59,9 @@ fi
 log "Agent source found at $AGENT_SRC"
 log "  go.mod: $(head -1 "$AGENT_SRC"/go.mod)"
 
-# ─── Step 2: Read INTEGRATIONS_CORE_VERSION from release.json ─────────────────
+# ─── Step 2: Read INTEGRATIONS_CORE_VERSION from release.d/integrations-core.json ─
 
-RELEASE_JSON="$AGENT_SRC/release.json"
+RELEASE_JSON="$AGENT_SRC/release.d/integrations-core.json"
 if [ ! -f "$RELEASE_JSON" ]; then
     log "ERROR: $RELEASE_JSON not found — is the source tree complete?"
     exit 1
@@ -69,7 +69,7 @@ fi
 
 log "Reading INTEGRATIONS_CORE_VERSION from $RELEASE_JSON"
 INTEGRATIONS_CORE_VERSION=$(python3.12 -c \
-    "import json; print(json.load(open('$RELEASE_JSON'))['dependencies']['INTEGRATIONS_CORE_VERSION'])")
+    "import json; print(json.load(open('$RELEASE_JSON'))['INTEGRATIONS_CORE_VERSION'])")
 
 if [ -z "$INTEGRATIONS_CORE_VERSION" ]; then
     log "ERROR: Could not read INTEGRATIONS_CORE_VERSION from $RELEASE_JSON"

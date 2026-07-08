@@ -18,9 +18,11 @@ from tasks.libs.releasing.json import (
     COMPATIBLE_MAJOR_VERSIONS,
     _get_jmxfetch_release_json_info,
     _get_windows_release_json_info,
+    _save_release_json,
     _update_release_json_entry,
     find_previous_tags,
     generate_repo_data,
+    load_release_json,
 )
 from tasks.libs.releasing.version import (
     _get_highest_repo_version,
@@ -1109,3 +1111,86 @@ class TestIsQualification(unittest.TestCase):
         self.assertFalse(release.is_qualification(self.c, "6.53.x", output=True))
         print_mock.assert_called_with("false")
         assert print_mock.call_count == 1
+
+
+class TestReleaseJsonShards(unittest.TestCase):
+    """load_release_json merges the per-project shards under release/ into a single
+    dependencies block, and _save_release_json routes each key back to its shard."""
+
+    def setUp(self):
+        import json
+        import tempfile
+
+        from tasks.libs.releasing.json import DEPENDENCY_SHARD_DIR
+
+        self.shard_dir = DEPENDENCY_SHARD_DIR
+        self.tmpdir = tempfile.mkdtemp()
+        self.prev_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
+        os.mkdir(self.shard_dir)
+
+        with open("release.json", "w") as f:
+            json.dump(
+                {"base_branch": "main", "current_milestone": "7.82.0", "last_stable": {"7": "7.81.0"}},
+                f,
+                indent=4,
+            )
+            f.write("\n")
+        self._write_shard("agent-data-plane.json", {"AGENT_DATA_PLANE_VERSION": "1.2.3"})
+        self._write_shard("integrations-core.json", {"INTEGRATIONS_CORE_VERSION": "abc123"})
+        self._write_shard("jmxfetch.json", {"JMXFETCH_VERSION": "0.52.0"})
+        self._write_shard("security-agent-policies.json", {"SECURITY_AGENT_POLICIES_VERSION": "v0.81.0"})
+        self._write_shard(
+            "windows-drivers.json",
+            {"WINDOWS_DDNPM_VERSION": "2.14.0", "WINDOWS_DDPROCMON_VERSION": "1.5.0"},
+        )
+        self._write_shard("omnibus-ruby.json", {"OMNIBUS_RUBY_VERSION": "deadbeef"})
+
+    def tearDown(self):
+        import shutil
+
+        os.chdir(self.prev_cwd)
+        shutil.rmtree(self.tmpdir)
+
+    def _write_shard(self, name, data):
+        import json
+
+        with open(os.path.join(self.shard_dir, name), "w") as f:
+            json.dump(data, f, indent=4)
+            f.write("\n")
+
+    def _read(self, path):
+        with open(path) as f:
+            return f.read()
+
+    def test_load_merges_shards(self):
+        rj = load_release_json()
+        self.assertEqual(rj["base_branch"], "main")
+        deps = rj["dependencies"]
+        self.assertEqual(deps["AGENT_DATA_PLANE_VERSION"], "1.2.3")
+        self.assertEqual(deps["INTEGRATIONS_CORE_VERSION"], "abc123")
+        self.assertEqual(deps["WINDOWS_DDPROCMON_VERSION"], "1.5.0")
+        self.assertEqual(deps["OMNIBUS_RUBY_VERSION"], "deadbeef")
+
+    def test_save_routes_keys_to_shards(self):
+        rj = load_release_json()
+        rj["dependencies"]["INTEGRATIONS_CORE_VERSION"] = "newsha"
+        _save_release_json(rj)
+
+        # release.json holds only metadata, no dependencies block.
+        self.assertNotIn("dependencies", self._read("release.json"))
+        # The bumped value landed in the integrations shard only.
+        self.assertIn("newsha", self._read(os.path.join(self.shard_dir, "integrations-core.json")))
+        self.assertNotIn("newsha", self._read(os.path.join(self.shard_dir, "agent-data-plane.json")))
+
+    def test_save_is_idempotent(self):
+        before = {name: self._read(os.path.join(self.shard_dir, name)) for name in os.listdir(self.shard_dir)}
+        _save_release_json(load_release_json())
+        after = {name: self._read(os.path.join(self.shard_dir, name)) for name in os.listdir(self.shard_dir)}
+        self.assertEqual(before, after)
+
+    def test_unmapped_key_raises(self):
+        rj = load_release_json()
+        rj["dependencies"]["MYSTERY_COMPONENT_VERSION"] = "1.0.0"
+        with self.assertRaises(Exit):
+            _save_release_json(rj)

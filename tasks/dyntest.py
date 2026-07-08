@@ -33,6 +33,7 @@ def compute_and_upload_job_index(ctx: Context, bucket_uri: str, coverage_folder:
         "pkg/config/schema/*",  # DataDog/datadog-agent#52358
         "flakes.yaml",
         "release.json",
+        "release.d/**/*",
         ".gitlab/test/e2e/e2e.yml",
     ]
     for target in os.getenv("TARGETS").split(","):
