@@ -121,7 +121,7 @@ func TestAllFlattenedSettingsWithSequenceIDUnknownParentChild(t *testing.T) {
 func TestGetEnvVarsBindings(t *testing.T) {
 	dataYaml := `unknown_setting: 123`
 
-	t.Run("With BindEnv", func(t *testing.T) {
+	t.Run("With BindEnvAndSetDefault", func(t *testing.T) {
 		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
 			cfg.BindEnvAndSetDefault("port", "", "TEST_PORT")
 			cfg.BindEnvAndSetDefault("host", "", "TEST_HOST")
@@ -134,9 +134,9 @@ func TestGetEnvVarsBindings(t *testing.T) {
 		assert.Equal(t, []string{"TEST_HOST", "TEST_LOG_LEVEL", "TEST_PORT"}, envVars)
 	})
 
-	t.Run("Without BindEnv", func(t *testing.T) {
+	t.Run("Without BindEnvAndSetDefault", func(t *testing.T) {
 		conf := constructNtmConfig(dataYaml, false, nil)
-		assert.Empty(t, conf.GetEnvVars(), "should return no env vars without BindEnv")
+		assert.Empty(t, conf.GetEnvVars(), "should return no env vars without BindEnvAndSetDefault")
 	})
 
 	t.Run("With EnvPrefix", func(t *testing.T) {
@@ -170,7 +170,6 @@ func TestGetEnvVarsBindings(t *testing.T) {
 
 	t.Run("Adding an unknown setting in the yaml", func(t *testing.T) {
 		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
-			cfg.SetKnown("PORT") //nolint:forbidigo // testing behavior
 			cfg.SetDefault("HOST", "localhost")
 			cfg.BindEnvAndSetDefault("log_level", "")
 		})
@@ -209,7 +208,7 @@ runtime_security_config:
 unknown_section:
   info:
 `
-	// apm_config.telemetry        - declared "known" (silences warnings, not added to schema, not very useful to do)
+	// apm_config.telemetry        - empty section declared only in the yaml (neither default nor env var)
 	// database_monitoring.samples - defines a default
 	// logs_config.auto_multi_line - bind an env var and assign a value to that env var
 	// runtime_security_config.endpoints - bind an env var but leave that env var undefined
@@ -219,7 +218,6 @@ unknown_section:
 	t.Setenv("DD_LOGS_CONFIG_AUTO_MULTI_LINE_TOKENIZER_MAX_INPUT_BYTES", "100")
 
 	conf := constructNtmConfig(dataYaml, true, func(cfg model.Setup) {
-		cfg.SetKnown("apm_config.telemetry.dd_url") //nolint:forbidigo // test behavior
 		cfg.SetDefault("database_monitoring.samples.dd_url", "")
 		cfg.BindEnvAndSetDefault("runtime_security_config.endpoints.dd_url", "", "DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL")
 		cfg.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", "", "DD_LOGS_CONFIG_AUTO_MULTI_LINE_TOKENIZER_MAX_INPUT_BYTES")
@@ -229,7 +227,6 @@ unknown_section:
 	expectedKeys := []string{
 		"additional_endpoints",
 		"apm_config.telemetry",
-		"apm_config.telemetry.dd_url",
 		"database_monitoring.samples.dd_url",
 		//"logs_config.auto_multi_line",
 		"logs_config.auto_multi_line.tokenizer_max_input_bytes",
@@ -268,7 +265,7 @@ unknown_section:
 	////////////
 	// tests for IsConfigured
 
-	// not configured because known does not define a setting
+	// not configured because the empty yaml section does not define a value
 	assert.False(t, conf.IsConfigured("apm_config.telemetry"))
 
 	// not configured by the file nor env var
@@ -371,8 +368,8 @@ func TestReadConfigReset(t *testing.T) {
 	overrideYAML := `host: localhost`
 
 	conf := constructNtmConfig(initialYAML, true, func(cfg model.Setup) {
-		cfg.SetKnown("port") //nolint:forbidigo // testing behavior
-		cfg.SetKnown("host") //nolint:forbidigo // testing behavior
+		cfg.BindEnvAndSetDefault("port", 0)
+		cfg.BindEnvAndSetDefault("host", "")
 	})
 
 	assert.Equal(t, 1234, conf.GetInt("port"))
@@ -475,8 +472,8 @@ fruit:
 		// default wins over invalid file
 		cfg.BindEnvAndSetDefault("fruit.apple.core.seeds", 2)
 
-		// file only (missing default)
-		cfg.SetKnown("fruit.banana.peel.color") //nolint:forbidigo // testing behavior
+		// fruit.banana.peel.color is intentionally left undeclared: it only appears
+		// in the file (as an empty section) and has no default
 
 		// env wins over file
 		cfg.BindEnvAndSetDefault("fruit.cherry.seed.num", 0)
