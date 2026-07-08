@@ -96,7 +96,7 @@ var _ source.Provider = (*noSourceProvider)(nil)
 type noSourceProvider struct{}
 
 func (*noSourceProvider) Source(context.Context) (source.Source, error) {
-	return source.Source{Kind: source.HostnameKind, Identifier: ""}, nil
+	return source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: ""}}, nil
 }
 
 // defaultTranslator is the default metrics translator implementation.
@@ -516,7 +516,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 
 		var host string
 		if src.Kind == source.HostnameKind {
-			host = src.Identifier
+			host = src.Identifier.Primary
 			// Don't consume the host yet, first check if we have any nonAPM metrics.
 		}
 

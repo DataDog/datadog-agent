@@ -162,15 +162,15 @@ type HostFromAttributesHandler interface {
 func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttributesHandler) (source.Source, bool) {
 	if launchType, ok := attrs.Get(string(conventions.AWSECSLaunchtypeKey)); ok && launchType.Str() == conventions.AWSECSLaunchtypeFargate.Value.AsString() {
 		if taskARN, ok := attrs.Get(string(conventions.AWSECSTaskARNKey)); ok {
-			return source.Source{Kind: source.AWSECSFargateKind, Identifier: taskARN.Str()}, true
+			return source.Source{Kind: source.AWSECSFargateKind, Identifier: source.Identifier{Primary: taskARN.Str()}}, true
 		}
 	}
 
 	if cloudPlatform, ok := attrs.Get(string(conventions.CloudPlatformKey)); ok {
 		p := cloudPlatform.Str()
 		if p == conventionsv140.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
-			if replicaName, ok := attrs.Get(string(conventions.FaaSInstanceKey)); ok {
-				return source.Source{Kind: source.AzureContainerAppsKind, Identifier: replicaName.Str()}, true
+			if replicaName, ok := attrs.Get("azure.container_app.instance.id"); ok {
+				return source.Source{Kind: source.AzureContainerAppsKind, Identifier: source.Identifier{Primary: replicaName.Str()}}, true
 			}
 		}
 	}
@@ -179,7 +179,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 		if hostFromAttributesHandler != nil {
 			hostFromAttributesHandler.OnHost(host)
 		}
-		return source.Source{Kind: source.HostnameKind, Identifier: host}, true
+		return source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: host}}, true
 	}
 
 	return source.Source{}, false

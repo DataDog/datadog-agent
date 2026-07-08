@@ -34,17 +34,25 @@ const (
 	AzureContainerAppsKind Kind = "azure_container_apps"
 )
 
+// Identifier holds the identity of a telemetry source.
+// For sources that can be identified by a single value, only Primary is set.
+// For sources that needs to be identified by multiple values (e.g. Azure Container Apps), Dimensions is set.
+type Identifier struct {
+	Primary    string
+	Dimensions map[string]string
+}
+
 // Source represents a telemetry source.
 type Source struct {
 	// Kind of source (serverless v. host).
 	Kind Kind
 	// Identifier that uniquely determines the source.
-	Identifier string
+	Identifier Identifier
 }
 
 // Tag associated to a source.
-func (s *Source) Tag() string {
-	return fmt.Sprintf("%s:%s", s.Kind, s.Identifier)
+func (s Source) Tag() string {
+	return fmt.Sprintf("%s:%s", s.Kind, s.Identifier.Primary)
 }
 
 // Provider identifies a source.
