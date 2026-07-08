@@ -34,22 +34,15 @@ var (
 	globalScanner *Scanner
 )
 
-type scannerConfig struct {
-	cacheCleanInterval time.Duration
-}
-
 // Scanner defines the scanner
 type Scanner struct {
-	cfg scannerConfig
-
 	startOnce sync.Once
-	running   bool
 	disk      filesystem.Disk
 	// scanQueue is the workqueue used to process scan requests
 	scanQueue workqueue.TypedRateLimitingInterface[sbom.ScanRequest]
-	// cacheMutex is used to protect the cache from concurrent access
-	// It cannot be cleaned when a scan is running
-	cacheMutex sync.Mutex
+	// scanMutex serializes scans: trivy's scanner components are shared, and
+	// the flare provider calls PerformScan alongside the scan queue.
+	scanMutex sync.Mutex
 
 	wmeta      option.Option[workloadmeta.Component]
 	collectors map[string]collectors.Collector
@@ -69,11 +62,8 @@ func NewScanner(cfg config.Component, collectors map[string]collectors.Collector
 				MetricsProvider: telemetry.QueueMetricsProvider,
 			},
 		),
-		disk:  filesystem.NewDisk(),
-		wmeta: wmeta,
-		cfg: scannerConfig{
-			cfg.GetDuration("sbom.cache.clean_interval"),
-		},
+		disk:       filesystem.NewDisk(),
+		wmeta:      wmeta,
 		collectors: collectors,
 	}
 }
@@ -112,7 +102,7 @@ func GetGlobalScanner() *Scanner {
 // Start starts the scanner
 func (s *Scanner) Start(ctx context.Context) {
 	s.startOnce.Do(func() {
-		s.start(ctx)
+		s.startScanRequestHandler(ctx)
 	})
 }
 
@@ -194,41 +184,6 @@ func sendResult(ctx context.Context, requestID string, result *sbom.ScanResult, 
 		result.Error = fmt.Errorf("timeout while sending scan result for '%s'", requestID)
 		log.Errorf("%s", result.Error)
 	}
-}
-
-// startCacheCleaner periodically cleans the SBOM cache of all collectors
-func (s *Scanner) startCacheCleaner(ctx context.Context) {
-	cleanTicker := time.NewTicker(s.cfg.cacheCleanInterval)
-	defer func() {
-		cleanTicker.Stop()
-		s.running = false
-	}()
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-cleanTicker.C:
-				s.cacheMutex.Lock()
-				log.Debug("cleaning SBOM cache")
-				for _, collector := range s.collectors {
-					if err := collector.CleanCache(); err != nil {
-						log.Warnf("could not clean SBOM cache: %v", err)
-					}
-				}
-				s.cacheMutex.Unlock()
-			}
-		}
-	}()
-}
-
-func (s *Scanner) start(ctx context.Context) {
-	if s.running {
-		return
-	}
-	s.running = true
-	s.startCacheCleaner(ctx)
-	s.startScanRequestHandler(ctx)
 }
 
 func (s *Scanner) startScanRequestHandler(ctx context.Context) {
@@ -329,9 +284,9 @@ func (s *Scanner) checkDiskSpace(collectorName string, imgMeta *workloadmeta.Con
 func (s *Scanner) PerformScan(ctx context.Context, request sbom.ScanRequest, collector collectors.Collector) *sbom.ScanResult {
 	createdAt := time.Now()
 
-	s.cacheMutex.Lock()
+	s.scanMutex.Lock()
 	scanResult := collector.Scan(ctx, request)
-	s.cacheMutex.Unlock()
+	s.scanMutex.Unlock()
 
 	generationDuration := time.Since(createdAt)
 
