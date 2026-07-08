@@ -50,6 +50,7 @@ func (suite *kindSuite) SetupSuite() {
 		stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
 		suite.Require().NoError(err)
 		suite.T().Log(dumpKindClusterState(ctx, stackName))
+		suite.T().Log(dumpFakeintakeECSState(ctx, stackName))
 		if !runner.GetProfile().AllowDevMode() || !*keepStacks {
 			infra.GetStackManager().DeleteStack(ctx, "kind-cluster", nil)
 		}

@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	ecsdiag "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	awsec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -35,6 +36,23 @@ import (
 	kubectlget "k8s.io/kubectl/pkg/cmd/get"
 	kubectlutil "k8s.io/kubectl/pkg/cmd/util"
 )
+
+// dumpFakeintakeECSState dumps ECS service/task diagnostics (status, recent
+// events, task stoppedReason/exitCode/ENI attachment info) for the shared
+// fakeintake Fargate service belonging to stackName. These container test
+// suites call infra.GetStackManager().GetStack*(...) directly rather than
+// going through the PulumiProvisioner/Diagnosable framework, so unlike
+// dumpEKSClusterState/dumpKindClusterState -- which only ever cover the
+// suite's own cluster, never the separate fakeintake ECS service that also
+// lives in the failing stack -- this has to be called explicitly at each
+// call site on a GetStack error.
+func dumpFakeintakeECSState(ctx context.Context, stackName string) string {
+	dump, err := ecsdiag.DumpECSFakeintakeState(ctx, stackName)
+	if err != nil {
+		return fmt.Sprintf("Failed to dump fakeintake ECS service state: %v\n", err)
+	}
+	return dump
+}
 
 func dumpEKSClusterState(ctx context.Context, name string) (ret string) {
 	var out strings.Builder
