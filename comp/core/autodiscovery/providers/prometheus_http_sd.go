@@ -83,27 +83,30 @@ type httpSDConfigEntry struct {
 }
 
 // buildEntries validates each raw config entry and produces the corresponding
-// httpSDEntry values that share a single HTTP client.
-func buildEntries(rawConfigs []httpSDConfigEntry, sharedClient *http.Client) ([]*httpSDEntry, error) {
-	if len(rawConfigs) == 0 {
-		return nil, errors.New("prometheus_http_sd provider requires at least one endpoint (set prometheus_http_sd.configs)")
-	}
-
+// httpSDEntry values that share a single HTTP client. Invalid entries are
+// skipped and their errors returned alongside the valid entries so the caller
+// can decide whether to abort (all failed) or continue with the remainder.
+func buildEntries(rawConfigs []httpSDConfigEntry, sharedClient *http.Client) ([]*httpSDEntry, []error) {
 	entries := make([]*httpSDEntry, 0, len(rawConfigs))
+	var errs []error
 	for i, raw := range rawConfigs {
 		if raw.URL == "" {
-			return nil, fmt.Errorf("prometheus_http_sd entry %d: url is required", i)
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: url is required", i))
+			continue
 		}
 		if raw.CheckTemplate == "" {
-			return nil, fmt.Errorf("prometheus_http_sd entry %d: check_template is required", i)
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: check_template is required", i))
+			continue
 		}
 		tmpl, err := parseCheckTemplate(raw.CheckTemplate)
 		if err != nil {
-			return nil, fmt.Errorf("prometheus_http_sd entry %d: %v", i, err)
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: %v", i, err))
+			continue
 		}
 		filterProg, err := compileExcludeFilter(raw.ExcludeFilter)
 		if err != nil {
-			return nil, fmt.Errorf("prometheus_http_sd entry %d: invalid exclude_filter: %v", i, err)
+			errs = append(errs, fmt.Errorf("prometheus_http_sd entry %d: invalid exclude_filter: %v", i, err))
+			continue
 		}
 		entries = append(entries, &httpSDEntry{
 			url:           raw.URL,
@@ -112,7 +115,7 @@ func buildEntries(rawConfigs []httpSDConfigEntry, sharedClient *http.Client) ([]
 			filterProgram: filterProg,
 		})
 	}
-	return entries, nil
+	return entries, errs
 }
 
 // PrometheusHTTPSDConfigProvider polls one or more Prometheus HTTP Service
@@ -147,9 +150,12 @@ func NewPrometheusHTTPSDConfigProvider(
 		return nil, err
 	}
 
-	entries, err := buildEntries(rawConfigs, client)
-	if err != nil {
-		return nil, err
+	entries, entryErrs := buildEntries(rawConfigs, client)
+	for _, err := range entryErrs {
+		log.Warnf("prometheus_http_sd: skipping invalid entry: %v", err)
+	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("prometheus_http_sd: all %d entry(ies) failed to initialize", len(rawConfigs))
 	}
 
 	return &PrometheusHTTPSDConfigProvider{
@@ -400,6 +406,9 @@ func compileExcludeFilter(expr string) (cel.Program, error) {
 	if issues != nil && issues.Err() != nil {
 		return nil, issues.Err()
 	}
+	if ast.OutputType() != cel.BoolType {
+		return nil, fmt.Errorf("exclude_filter must return bool, got %s", ast.OutputType())
+	}
 	return env.Program(ast)
 }
 
@@ -415,9 +424,5 @@ func (e *httpSDEntry) isExcluded(host, port string, labels map[string]string) (b
 	if err != nil {
 		return false, err
 	}
-	result, ok := out.Value().(bool)
-	if !ok {
-		return false, fmt.Errorf("exclude_filter must return bool, got %T", out.Value())
-	}
-	return result, nil
+	return out.Value().(bool), nil
 }

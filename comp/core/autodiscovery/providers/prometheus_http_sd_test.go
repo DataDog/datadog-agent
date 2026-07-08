@@ -333,40 +333,56 @@ func TestCollectDigestStability(t *testing.T) {
 }
 
 func TestBuildEntriesMultiple(t *testing.T) {
-	entries, err := buildEntries(
+	entries, errs := buildEntries(
 		[]httpSDConfigEntry{
 			{URL: "http://a/sd", CheckTemplate: defaultCheckTemplate()},
 			{URL: "http://b/sd", CheckTemplate: defaultCheckTemplate()},
 		},
 		http.DefaultClient,
 	)
-	require.NoError(t, err)
+	assert.Empty(t, errs)
 	require.Len(t, entries, 2)
 	assert.Equal(t, "http://a/sd", entries[0].url)
 	assert.Equal(t, "http://b/sd", entries[1].url)
 }
 
 func TestBuildEntriesEmpty(t *testing.T) {
-	_, err := buildEntries(nil, http.DefaultClient)
-	assert.Error(t, err)
+	entries, errs := buildEntries(nil, http.DefaultClient)
+	assert.Empty(t, entries)
+	assert.Empty(t, errs)
 }
 
 func TestBuildEntriesMissingURL(t *testing.T) {
-	_, err := buildEntries(
+	_, errs := buildEntries(
 		[]httpSDConfigEntry{{URL: "", CheckTemplate: defaultCheckTemplate()}},
 		http.DefaultClient,
 	)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "url")
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "url")
 }
 
 func TestBuildEntriesMissingTemplate(t *testing.T) {
-	_, err := buildEntries(
+	_, errs := buildEntries(
 		[]httpSDConfigEntry{{URL: "http://x/sd", CheckTemplate: ""}},
 		http.DefaultClient,
 	)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "check_template")
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "check_template")
+}
+
+func TestBuildEntriesPartialFailure(t *testing.T) {
+	// One valid entry and one with a missing URL — only the valid one is returned.
+	entries, errs := buildEntries(
+		[]httpSDConfigEntry{
+			{URL: "http://a/sd", CheckTemplate: defaultCheckTemplate()},
+			{URL: "", CheckTemplate: defaultCheckTemplate()},
+		},
+		http.DefaultClient,
+	)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "http://a/sd", entries[0].url)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "url")
 }
 
 func TestCollectPerEntryErrorIsolation(t *testing.T) {
@@ -687,13 +703,10 @@ func TestExcludeFilterInvalidExpression(t *testing.T) {
 }
 
 func TestExcludeFilterNonBoolExpression(t *testing.T) {
-	prog, err := compileExcludeFilter(`target.host`)
-	require.NoError(t, err)
-
-	entry := &httpSDEntry{filterProgram: prog}
-	_, filterErr := entry.isExcluded("myhost", "9090", nil)
-	assert.Error(t, filterErr)
-	assert.Contains(t, filterErr.Error(), "bool")
+	// Non-bool output (string) is now caught at compile time via ast.OutputType().
+	_, err := compileExcludeFilter(`target.host`)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "bool")
 }
 
 func TestCompileExcludeFilterEmpty(t *testing.T) {
@@ -717,7 +730,7 @@ func TestExcludeFilterUnknownFieldCompilesError(t *testing.T) {
 }
 
 func TestBuildEntriesInvalidExcludeFilter(t *testing.T) {
-	_, err := buildEntries(
+	_, errs := buildEntries(
 		[]httpSDConfigEntry{{
 			URL:           "http://x/sd",
 			CheckTemplate: defaultCheckTemplate(),
@@ -725,8 +738,16 @@ func TestBuildEntriesInvalidExcludeFilter(t *testing.T) {
 		}},
 		http.DefaultClient,
 	)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "exclude_filter")
+}
+
+func TestNewPrometheusHTTPSDConfigProviderNoConfig(t *testing.T) {
+	// Nothing set — prometheus_http_sd.configs is absent entirely.
+	pkgconfigmock.New(t)
+
+	_, err := NewPrometheusHTTPSDConfigProvider(nil, nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "exclude_filter")
 }
 
 // TestNewPrometheusHTTPSDConfigProviderFromConfig exercises the full initialization
