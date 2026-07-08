@@ -175,7 +175,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	run := runner.NewRunner(c.senderManager, c.haAgent, c.healthPlatform)
+	run := runner.NewRunner(c.senderManager, c.haAgent)
 	sched := scheduler.NewScheduler(run.GetChan(), run.GetShadowChan())
 
 	// let the runner some visibility into the scheduler

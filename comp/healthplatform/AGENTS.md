@@ -185,7 +185,7 @@ Declare every context key your module reads as a package-private `const` at the 
 
 ### No built-in check (externally reported)
 
-Use when detection happens in another component (the collector, autodiscovery). Both `BuiltInPeriodicHealthCheck()` and `BuiltInStartupHealthCheck()` return `nil`. Example: `checkfailure`.
+Use when detection happens in another component (the collector, autodiscovery). Both `BuiltInPeriodicHealthCheck()` and `BuiltInStartupHealthCheck()` return `nil`. Example: `admissionprobe`.
 
 For the simplest externally-reported case where no runner template is needed at all, skip the module entirely and use Path B layout — see `ad-misconfiguration` for an example.
 
