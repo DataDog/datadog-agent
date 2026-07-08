@@ -34,7 +34,7 @@ require (
 	code.cloudfoundry.org/bbs v1.3.0
 	code.cloudfoundry.org/bbs/models v0.0.0-20260618205254-dc4b9f8d5bc9
 	code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5
-	code.cloudfoundry.org/lager/v3 v3.75.0
+	code.cloudfoundry.org/lager/v3 v3.76.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0
@@ -483,7 +483,7 @@ require (
 	golang.org/x/term v0.44.0
 	golang.org/x/text v0.38.0
 	golang.org/x/time v0.15.0
-	golang.org/x/tools v0.46.0
+	golang.org/x/tools v0.47.0
 	google.golang.org/grpc v1.81.1
 	google.golang.org/grpc/examples v0.0.0-20230512210959-5dcfb37c0b43
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
@@ -1127,7 +1127,7 @@ require (
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20260209203927-2842357ff358 // indirect
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect
-	golang.org/x/telemetry v0.0.0-20260610154732-fb80ec83bdd9 // indirect
+	golang.org/x/telemetry v0.0.0-20260625142307-59b4966ccb57 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
