@@ -7,8 +7,5 @@ use std::os::windows::ffi::OsStrExt;
 
 /// Encode a Rust string as a null-terminated UTF-16 vector for Win32 APIs.
 pub(crate) fn null_terminated(s: impl AsRef<std::ffi::OsStr>) -> Vec<u16> {
-    s.as_ref()
-        .encode_wide()
-        .chain([0])
-        .collect()
+    s.as_ref().encode_wide().chain([0]).collect()
 }

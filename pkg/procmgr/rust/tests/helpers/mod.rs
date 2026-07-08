@@ -459,8 +459,7 @@ impl TestEnv {
 
     /// Set an extra environment variable on the daemon process before [`Self::start`].
     pub fn with_daemon_env(mut self, key: &str, value: &str) -> Self {
-        self.daemon_env
-            .push((key.to_string(), value.to_string()));
+        self.daemon_env.push((key.to_string(), value.to_string()));
         self
     }
 

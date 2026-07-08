@@ -2021,7 +2021,10 @@ fn test_ddot_template_skipped_when_binary_missing() {
 #[cfg(unix)]
 #[test]
 fn test_cli_run_privileged_unimplemented_on_unix() {
-    let env = TestEnv::new().start();
+    let env = TestEnv::new()
+        .with_daemon_env("DD_PM_PRIVILEGED_COMMANDS_ENABLED", "1")
+        .with_daemon_env("DD_PM_PRIVILEGED_COMMANDS_ALLOW_CLI", "1")
+        .start();
 
     env.cli(&[
         "run-privileged",
@@ -2077,10 +2080,7 @@ fn test_cli_run_privileged_executes_as_system() {
     out.assert_success();
     let json = out.stdout_json();
     assert_eq!(json["exit_code"], 0, "stdout: {}", out.stdout);
-    let whoami = json["stdout"]
-        .as_str()
-        .unwrap_or("")
-        .to_ascii_lowercase();
+    let whoami = json["stdout"].as_str().unwrap_or("").to_ascii_lowercase();
     assert!(
         whoami.contains("system"),
         "expected privileged child to run as SYSTEM, got stdout={whoami:?}"

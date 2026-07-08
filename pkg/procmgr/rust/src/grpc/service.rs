@@ -227,7 +227,9 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
 
             if !crate::privileged::enabled() {
                 log::warn!("RunPrivilegedCommand denied: privileged commands are disabled");
-                return Err(Status::permission_denied("privileged commands are disabled"));
+                return Err(Status::permission_denied(
+                    "privileged commands are disabled",
+                ));
             }
 
             let req = request.into_inner();

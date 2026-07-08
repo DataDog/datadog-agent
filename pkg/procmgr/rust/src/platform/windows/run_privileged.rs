@@ -381,11 +381,7 @@ mod tests {
         std::env::set_var("DD_PM_PRIVILEGED_COMMANDS_ENABLED", "1");
         let out = run_privileged_command(
             "cmd.exe",
-            &[
-                "/C".into(),
-                "echo".into(),
-                "procmgr-privileged-ok".into(),
-            ],
+            &["/C".into(), "echo".into(), "procmgr-privileged-ok".into()],
             &HashMap::new(),
         )
         .expect("catalog test command should run");

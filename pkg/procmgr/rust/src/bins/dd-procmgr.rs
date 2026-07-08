@@ -220,11 +220,7 @@ async fn run(cli: Cli) -> Result<Option<i32>, String> {
             cmd_reload(&mut client, json).await?;
             Ok(None)
         }
-        Commands::RunPrivileged {
-            command,
-            args,
-            env,
-        } => {
+        Commands::RunPrivileged { command, args, env } => {
             let env_map = parse_env_args(&env)?;
             let exit_code = cmd_run_privileged(&mut client, json, &command, &args, env_map).await?;
             Ok(Some(exit_code))

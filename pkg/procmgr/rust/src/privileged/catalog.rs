@@ -61,9 +61,7 @@ pub fn validate(command: &str, args: &[String], env: &HashMap<String, String>) -
         return Ok(());
     }
 
-    bail!(
-        "refusing privileged command: command not in catalog (got {command})"
-    );
+    bail!("refusing privileged command: command not in catalog (got {command})");
 }
 
 fn normalize_path(s: &str) -> String {
@@ -93,9 +91,13 @@ mod tests {
 
     #[test]
     fn catalog_rejects_wrong_args() {
-        let err = validate("cmd.exe", &["/C".into(), "exit".into(), "1".into()], &HashMap::new())
-            .unwrap_err()
-            .to_string();
+        let err = validate(
+            "cmd.exe",
+            &["/C".into(), "exit".into(), "1".into()],
+            &HashMap::new(),
+        )
+        .unwrap_err()
+        .to_string();
         assert!(err.contains("unexpected args"), "{err}");
     }
 
@@ -105,11 +107,7 @@ mod tests {
         env.insert("EVIL".into(), "1".into());
         let err = validate(
             "cmd.exe",
-            &[
-                "/C".into(),
-                "echo".into(),
-                "procmgr-privileged-ok".into(),
-            ],
+            &["/C".into(), "echo".into(), "procmgr-privileged-ok".into()],
             &env,
         )
         .unwrap_err()
@@ -121,11 +119,7 @@ mod tests {
     fn catalog_accepts_test_entry() {
         validate(
             "cmd.exe",
-            &[
-                "/C".into(),
-                "echo".into(),
-                "procmgr-privileged-ok".into(),
-            ],
+            &["/C".into(), "echo".into(), "procmgr-privileged-ok".into()],
             &HashMap::new(),
         )
         .unwrap();
@@ -135,11 +129,7 @@ mod tests {
     fn catalog_accepts_normalized_paths() {
         validate(
             r"C:\Windows\System32\cmd.exe",
-            &[
-                "/C".into(),
-                "echo".into(),
-                "procmgr-privileged-ok".into(),
-            ],
+            &["/C".into(), "echo".into(), "procmgr-privileged-ok".into()],
             &HashMap::new(),
         )
         .unwrap();

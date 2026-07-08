@@ -25,9 +25,7 @@ pub fn authorize_par_caller(client_pid: u32) -> bool {
     }
 
     #[cfg(test)]
-    if std::env::var("DD_PM_PRIVILEGED_COMMANDS_TEST_SKIP_PEER_AUTH")
-        .is_ok_and(|v| v == "1")
-    {
+    if std::env::var("DD_PM_PRIVILEGED_COMMANDS_TEST_SKIP_PEER_AUTH").is_ok_and(|v| v == "1") {
         return true;
     }
 
