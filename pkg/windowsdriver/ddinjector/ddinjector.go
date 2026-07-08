@@ -28,7 +28,7 @@ const (
 // maxKnownVersion is the highest counter contract version this agent knows how
 // to decode. Bump this (and add the corresponding gauges) when teaching the
 // agent about a new counter version.
-var maxKnownVersion = CountersVersion2
+const maxKnownVersion = CountersVersion2
 
 // capabilitiesErrorLogged ensures the capabilities-query fallback is logged
 // only once (older drivers without the capabilities IOCTL would otherwise spam
@@ -99,14 +99,7 @@ func (inj *Injector) negotiateCounterVersion() uint32 {
 		return CountersVersion1
 	}
 
-	negotiated := driverMax
-	if negotiated > maxKnownVersion {
-		negotiated = maxKnownVersion
-	}
-	if negotiated < CountersVersion1 {
-		negotiated = CountersVersion1
-	}
-	return negotiated
+	return max(min(driverMax, maxKnownVersion), CountersVersion1)
 }
 
 // GetCounters queries the ddinjector current counters, negotiating the counter
@@ -114,38 +107,31 @@ func (inj *Injector) negotiateCounterVersion() uint32 {
 func (inj *Injector) GetCounters(counters *InjectorCounters) error {
 	negotiated := inj.negotiateCounterVersion()
 
+	// A V2 buffer has the V1 counters at its head, so always read into the
+	// widest known struct and tell the driver only how much we expect for the
+	// negotiated version. This keeps a single read/validate path regardless of
+	// version.
+	raw := DDInjectorCountersV2{}
+	expectedSize := uint32(DDInjectorCountersV1Size)
 	if negotiated >= CountersVersion2 {
-		raw := DDInjectorCountersV2{}
-		request := NewCounterRequest(negotiated)
-
-		bytesReturned, err := doQueryDriverCounters(inj.handle, &request, unsafe.Pointer(&raw), uint32(DDInjectorCountersV2Size))
-		if err != nil {
-			return fmt.Errorf("ddinjector DeviceIoControl failed: %w", err)
-		}
-		if bytesReturned < uint32(DDInjectorCountersV2Size) {
-			return fmt.Errorf("ddinjector returned %d bytes for V2 counters, expected at least %d", bytesReturned, DDInjectorCountersV2Size)
-		}
-
-		// The V1 counters occupy the head of the V2 struct, so reinterpret the
-		// buffer to populate the V1 gauges without depending on cgo nested-field
-		// naming.
-		populateV1Gauges(counters, (*DDInjectorCountersV1)(unsafe.Pointer(&raw)))
-		populateV2Gauges(counters, &raw)
-		return nil
+		expectedSize = uint32(DDInjectorCountersV2Size)
 	}
 
-	raw := DDInjectorCountersV1{}
-	request := NewCounterRequest(CountersVersion1)
-
-	bytesReturned, err := doQueryDriverCounters(inj.handle, &request, unsafe.Pointer(&raw), uint32(DDInjectorCountersV1Size))
+	request := NewCounterRequest(negotiated)
+	bytesReturned, err := doQueryDriverCounters(inj.handle, &request, unsafe.Pointer(&raw), expectedSize)
 	if err != nil {
 		return fmt.Errorf("ddinjector DeviceIoControl failed: %w", err)
 	}
-	if bytesReturned < uint32(DDInjectorCountersV1Size) {
-		return fmt.Errorf("ddinjector returned %d bytes for V1 counters, expected at least %d", bytesReturned, DDInjectorCountersV1Size)
+	if bytesReturned < expectedSize {
+		return fmt.Errorf("ddinjector returned %d bytes, expected at least %d", bytesReturned, expectedSize)
 	}
 
-	populateV1Gauges(counters, &raw)
+	// The V1 counters occupy the head of the buffer, so reinterpret it to
+	// populate the V1 gauges without depending on cgo nested-field naming.
+	populateV1Gauges(counters, (*DDInjectorCountersV1)(unsafe.Pointer(&raw)))
+	if negotiated >= CountersVersion2 {
+		populateV2Gauges(counters, &raw)
+	}
 	return nil
 }
 
