@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import tempfile
 import unittest
@@ -56,6 +57,21 @@ class FakeGuidelineContext:
         self.commands.append((command, kwargs))
         self.stdin = kwargs["in_stream"].read()
         return type("Result", (), {"exited": self.exited, "stdout": self.stdout, "stderr": self.stderr})()
+
+
+class FakePromptContext:
+    def __init__(self, *, changed_files="", deleted_prompt_files=""):
+        self.changed_files = changed_files
+        self.deleted_prompt_files = deleted_prompt_files
+        self.commands = []
+
+    def run(self, command, **_kwargs):
+        self.commands.append(command)
+        if "--diff-filter=D" in command:
+            stdout = self.deleted_prompt_files
+        else:
+            stdout = self.changed_files
+        return type("Result", (), {"stdout": stdout})()
 
 
 def write_code_review_workflow(repo_root: Path, ref: str = "test-action-ref") -> None:
@@ -134,6 +150,27 @@ class TestCodeReviewPrompt(unittest.TestCase):
             repo_root = Path(tmp)
             write_code_review_workflow(repo_root)
             load_guidelines(ctx, repo_root, ("pkg/foo.go",))
+
+    def test_build_review_prompt_warns_when_prompt_file_is_deleted(self):
+        ctx = FakePromptContext(
+            changed_files="pkg/foo.go\nbazel/codereview_guideline.md\n",
+            deleted_prompt_files="bazel/codereview_guideline.md\n",
+        )
+
+        with (
+            patch(
+                "tasks.libs.code_review.prompt.load_guidelines",
+                return_value=(Guideline(path="codereview_guideline.md", content="root rules"),),
+            ),
+            patch("sys.stderr", new_callable=io.StringIO) as stderr,
+        ):
+            build_review_prompt(ctx=ctx, repo_root=Path("."), base="origin/main")
+
+        self.assertIn("Warning: deleted code review prompt file(s)", stderr.getvalue())
+        self.assertIn("bazel/codereview_guideline.md", stderr.getvalue())
+        deleted_file_commands = [command for command in ctx.commands if "--diff-filter=D" in command]
+        self.assertEqual(len(deleted_file_commands), 1)
+        self.assertIn(":(glob)**/codereview_guideline.md", deleted_file_commands[0])
 
     def test_render_prompt_appends_extra_prompt(self):
         prompt = render_prompt(

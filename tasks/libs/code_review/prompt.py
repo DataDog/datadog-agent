@@ -4,6 +4,7 @@ import io
 import json
 import re
 import shlex
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from tasks.libs.common.git import get_changed_files, get_origin_default_branch
 from tasks.libs.common.utils import is_installed
 
 PROMPT_FILE_PATTERN = "**/codereview_guideline.md"
+PROMPT_FILE_GIT_PATHSPEC = f":(glob){PROMPT_FILE_PATTERN}"
 CODE_REVIEW_ACTION_REPOSITORY = "DataDog/code-review-action"
 CODE_REVIEW_ACTION_WORKFLOW = f"{CODE_REVIEW_ACTION_REPOSITORY}/.github/workflows/code-review.yml"
 WORKFLOW_PATH = Path(".github/workflows/code-review.yml")
@@ -62,9 +64,32 @@ def build_review_prompt(
         )
 
     changed_files = tuple(get_changed_files(ctx, resolved_base))
+    _warn_deleted_prompt_files(ctx, resolved_base)
     guidelines = load_guidelines(ctx, repo_root, changed_files)
     content = render_prompt(guidelines, extra_prompt=extra_prompt)
     return ReviewPrompt(base=resolved_base, changed_files=changed_files, guidelines=guidelines, content=content)
+
+
+def _warn_deleted_prompt_files(ctx, base: str) -> None:
+    deleted_prompt_files = _get_deleted_prompt_files(ctx, base)
+    if not deleted_prompt_files:
+        return
+
+    print(
+        "Warning: deleted code review prompt file(s) match "
+        f"{PROMPT_FILE_PATTERN}: {', '.join(deleted_prompt_files)}. "
+        "They will not be included in local review prompts; make sure the deletion is intentional.",
+        file=sys.stderr,
+    )
+
+
+def _get_deleted_prompt_files(ctx, base: str) -> tuple[str, ...]:
+    base_to_head = shlex.quote(f"{base}...HEAD")
+    result = ctx.run(
+        f"git diff --name-only --diff-filter=D {base_to_head} -- {shlex.quote(PROMPT_FILE_GIT_PATHSPEC)}",
+        hide=True,
+    )
+    return tuple(line for line in result.stdout.splitlines() if line)
 
 
 def render_prompt(guidelines: tuple[Guideline, ...], *, extra_prompt: str | None = None) -> str:
