@@ -9156,12 +9156,18 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        tags:
+        - full-agent-only:true
       enabled_checks:
         node_type: setting
         type: array
         default: []
         items:
           type: string
+        tags:
+        - full-agent-only:true
+    tags:
+    - full-agent-only:true
   metric_tag_filterlist:
     node_type: setting
     type: array
