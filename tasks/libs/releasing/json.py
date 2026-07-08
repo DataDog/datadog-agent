@@ -47,50 +47,27 @@ DEFAULT_BRANCHES_AGENT6 = {
     "datadog-agent": "6.53.x",
 }
 
-# The dependencies block of release.json is split across per-project shard files
-# under release.d/, each with its own CODEOWNERS entry. This avoids cross-team
-# merge conflicts and over-broad review requests when a single project bumps its
-# version. Each dependency key is routed to a shard by its prefix; the first
-# matching prefix wins. Adding a dependency whose key matches no prefix is a hard
-# error at save time, forcing an explicit owner assignment.
+# The release.json configuration is split across per-project shard files under
+# release.d/, each with its own CODEOWNERS entry. This avoids cross-team merge
+# conflicts and over-broad review requests when a single project updates its config.
+# On load, all shards are recursively merged with release.json. On save, each
+# key's shard residence is discovered by reading which shard currently contains it,
+# preserving ownership structure automatically.
 RELEASE_JSON = "release.json"
 DEPENDENCY_SHARD_DIR = "release.d"
-DEPENDENCY_SHARD_PREFIXES = [
-    ("AGENT_DATA_PLANE_", "agent-data-plane.json"),
-    ("INTEGRATIONS_", "integrations-core.json"),
-    ("JMXFETCH_", "jmxfetch.json"),
-    ("SECURITY_AGENT_POLICIES_", "security-agent-policies.json"),
-    ("WINDOWS_DDNPM_", "windows-drivers.json"),
-    ("WINDOWS_DDPROCMON_", "windows-drivers.json"),
-    ("OMNIBUS_RUBY_", "omnibus-ruby.json"),
-]
-
-
-def _dependency_shard_files():
-    """Unique shard filenames, preserving DEPENDENCY_SHARD_PREFIXES order."""
-    seen = []
-    for _, filename in DEPENDENCY_SHARD_PREFIXES:
-        if filename not in seen:
-            seen.append(filename)
-    return seen
 
 
 def _shard_path(filename):
     return os.path.join(DEPENDENCY_SHARD_DIR, filename)
 
 
-def _shard_for_key(key):
-    for prefix, filename in DEPENDENCY_SHARD_PREFIXES:
-        if key.startswith(prefix):
-            return filename
-    raise Exit(
-        code=1,
-        message=(
-            f"release.json dependency key '{key}' does not map to any shard file under "
-            f"{DEPENDENCY_SHARD_DIR}/. Add a prefix rule to DEPENDENCY_SHARD_PREFIXES in "
-            "tasks/libs/releasing/json.py."
-        ),
-    )
+def _iter_shard_files():
+    """Yields (filename, parsed_shard) for each JSON file under release.d/, sorted by name."""
+    for filename in sorted(os.listdir(DEPENDENCY_SHARD_DIR)):
+        if not filename.endswith(".json"):
+            continue
+        with open(_shard_path(filename)) as shard_stream:
+            yield filename, json.load(shard_stream, object_pairs_hook=OrderedDict)
 
 
 def _dump_json(path, data):
@@ -100,46 +77,103 @@ def _dump_json(path, data):
         stream.write('\n')
 
 
+def _recursive_merge(base, override):
+    """
+    Recursively merge override dict into base dict. Override values win.
+    Both are expected to be OrderedDicts to preserve order.
+    """
+    result = OrderedDict(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _recursive_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def load_release_json():
     """
-    Loads release.json and merges all per-project dependency shards found under
-    release.d/ into a single dependencies block, reproducing the historical
-    single-file shape. Each shard file has the form {"dependencies": {...}}.
+    Loads release.json and recursively merges all per-project shard files found
+    under release.d/, treating it like a conf.d-style configuration system.
+    This allows shards to add or override any top-level or nested keys.
     """
     with open(RELEASE_JSON) as release_json_stream:
         release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
-    dependencies = OrderedDict()
     for filename in sorted(os.listdir(DEPENDENCY_SHARD_DIR)):
         if not filename.endswith(".json"):
             continue
         with open(_shard_path(filename)) as shard_stream:
             shard = json.load(shard_stream, object_pairs_hook=OrderedDict)
-        for key, value in shard.get(RELEASE_JSON_DEPENDENCIES, {}).items():
-            dependencies[key] = value
+        release_json = _recursive_merge(release_json, shard)
 
-    release_json[RELEASE_JSON_DEPENDENCIES] = OrderedDict(sorted(dependencies.items()))
+    # Sort top-level dependencies block for deterministic output (if it exists).
+    if RELEASE_JSON_DEPENDENCIES in release_json and isinstance(release_json[RELEASE_JSON_DEPENDENCIES], dict):
+        release_json[RELEASE_JSON_DEPENDENCIES] = OrderedDict(sorted(release_json[RELEASE_JSON_DEPENDENCIES].items()))
+
     return release_json
 
 
 def _save_release_json(release_json):
     """
-    Saves the top-level metadata to release.json and routes each dependency key
-    back to its owning shard file under release.d/. Each shard is written as
-    {"dependencies": {...}} so any JSON reader can locate the block by key.
+    Splits the merged release_json back into release.json plus the shards under
+    release.d/, preserving the conf.d layout. Each key is written back to
+    whichever file currently owns it on disk (release.json or a specific shard);
+    no hardcoded routing rules are used. A key that appears in no file on disk is
+    a hard error, forcing an explicit owner assignment.
+
+    Ownership is tracked at two levels: top-level keys, and one level of nesting
+    (e.g. keys inside "dependencies"), which covers the current structure while
+    leaving room for shards to grow additional keys.
     """
-    release_json = OrderedDict(release_json)
-    dependencies = release_json.pop(RELEASE_JSON_DEPENDENCIES, OrderedDict())
+    merged = OrderedDict(release_json)
 
-    _dump_json(RELEASE_JSON, release_json)
+    shards = list(_iter_shard_files())
 
-    shards = {filename: OrderedDict() for filename in _dependency_shard_files()}
-    for key, value in dependencies.items():
-        shards[_shard_for_key(key)][key] = value
+    # Determine which file owns each top-level key and each nested sub-key.
+    # release.json is the base owner for anything not claimed by a shard.
+    with open(RELEASE_JSON) as base_stream:
+        base = json.load(base_stream, object_pairs_hook=OrderedDict)
 
-    for filename in _dependency_shard_files():
-        shard_deps = OrderedDict(sorted(shards[filename].items()))
-        _dump_json(_shard_path(filename), OrderedDict([(RELEASE_JSON_DEPENDENCIES, shard_deps)]))
+    top_owner = {key: RELEASE_JSON for key in base}
+    nested_owner = {}  # (top_key, sub_key) -> owning file
+    for filename, shard in shards:
+        for top_key, value in shard.items():
+            if isinstance(value, dict):
+                for sub_key in value:
+                    nested_owner[(top_key, sub_key)] = filename
+            else:
+                top_owner[top_key] = filename
+
+    def _new_content():
+        return OrderedDict([(RELEASE_JSON, OrderedDict())] + [(filename, OrderedDict()) for filename, _ in shards])
+
+    contents = _new_content()
+
+    for top_key, value in merged.items():
+        if isinstance(value, dict):
+            # Route each sub-key to its owning file (defaulting the container's owner).
+            for sub_key, sub_value in value.items():
+                owner = nested_owner.get((top_key, sub_key)) or top_owner.get(top_key)
+                if owner is None:
+                    raise Exit(
+                        code=1,
+                        message=(
+                            f"release.json key '{top_key}::{sub_key}' is not owned by release.json or any "
+                            f"shard under {DEPENDENCY_SHARD_DIR}/. Create or update a shard to own it."
+                        ),
+                    )
+                contents[owner].setdefault(top_key, OrderedDict())[sub_key] = sub_value
+        else:
+            owner = top_owner.get(top_key, RELEASE_JSON)
+            contents[owner][top_key] = value
+
+    # Sort nested dicts for deterministic output and write every file.
+    for filename, data in contents.items():
+        for key, value in data.items():
+            if isinstance(value, dict):
+                data[key] = OrderedDict(sorted(value.items()))
+        _dump_json(filename if filename == RELEASE_JSON else _shard_path(filename), data)
 
 
 def _get_jmxfetch_release_json_info(release_json):

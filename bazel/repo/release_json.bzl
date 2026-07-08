@@ -25,6 +25,23 @@ exports_files(
 )
 """
 
+def _merge_release_config(base, override):
+    """Merge override into base, deep-merging one level of nested dicts.
+
+    Starlark forbids recursion, so this merges the top level and one level of
+    nested dicts (e.g. "dependencies"), which covers the release.json structure.
+    Override values win.
+    """
+    result = dict(base)
+    for key, value in override.items():
+        if key in result and type(result[key]) == type({}) and type(value) == type({}):
+            merged = dict(result[key])
+            merged.update(value)
+            result[key] = merged
+        else:
+            result[key] = value
+    return result
+
 def read_effective_release_json(rctx, release_json_label, shard_labels = []):
     """Read contents release.json file with environment overrides applied.
 
@@ -37,29 +54,26 @@ def read_effective_release_json(rctx, release_json_label, shard_labels = []):
         rctx: The repository context.
         release_json_label: Label for release.json (holds top-level metadata).
         shard_labels: Labels for per-project dependency shard files under
-            release.d/. Each shard has the form {"dependencies": {...}} and its
-            keys are merged into the returned dependencies dict. When empty,
-            falls back to reading a "dependencies" key directly from release.json
-            (for tests or callers that embed dependencies in release.json).
+            release.d/. Each shard is merged into the result, treating it like
+            a conf.d-style config system. When empty, falls back to reading a
+            "dependencies" key directly from release.json (for tests or callers
+            that embed dependencies).
     """
     release_json = json.decode(rctx.read(rctx.path(release_json_label)))
 
     if shard_labels:
-        # Merge dependency keys from per-project shard files.
-        dependencies = {}
+        # Merge each shard into the result.
         for label in shard_labels:
             shard = json.decode(rctx.read(rctx.path(label)))
-            dependencies.update(shard.get("dependencies", {}))
-    else:
-        # Fallback: read from a "dependencies" key embedded in release.json.
-        # Used by tests and any callers that have not yet been migrated.
-        dependencies = release_json.get("dependencies", {})
+            release_json = _merge_release_config(release_json, shard)
 
-    # Override with values from the environment
-    release_json["dependencies"] = {
-        dep_key: rctx.getenv(dep_key) or dependencies[dep_key]
-        for dep_key in dependencies
-    }
+    # Override with values from the environment (dependencies keys only).
+    if "dependencies" in release_json and type(release_json["dependencies"]) == type({}):
+        release_json["dependencies"] = {
+            dep_key: rctx.getenv(dep_key) or release_json["dependencies"][dep_key]
+            for dep_key in release_json["dependencies"]
+        }
+
     return release_json
 
 def _release_json_impl(rctx):
@@ -67,20 +81,22 @@ def _release_json_impl(rctx):
     release_json_path = rctx.path(rctx.attr._release_json)
     release_json_data = json.decode(rctx.read(release_json_path))
 
-    # Auto-discover all shards from release.d/ so new shards are picked up
-    # without needing to update this file.
+    # Auto-discover all shards from release.d/ and merge them, treating it
+    # like a conf.d-style config system.
     release_d_dir = release_json_path.dirname.get_child("release.d")
-    dependencies = {}
     for shard_path in sorted(release_d_dir.readdir(), key = lambda p: str(p)):
         if not str(shard_path).endswith(".json"):
             continue
         shard = json.decode(rctx.read(shard_path))
-        dependencies.update(shard.get("dependencies", {}))
+        release_json_data = _merge_release_config(release_json_data, shard)
 
-    release_json_data["dependencies"] = {
-        dep_key: rctx.getenv(dep_key) or dependencies[dep_key]
-        for dep_key in dependencies
-    }
+    # Override with environment variables (dependencies keys only).
+    if "dependencies" in release_json_data and type(release_json_data["dependencies"]) == type({}):
+        release_json_data["dependencies"] = {
+            dep_key: rctx.getenv(dep_key) or release_json_data["dependencies"][dep_key]
+            for dep_key in release_json_data["dependencies"]
+        }
+
     rctx.file("release_json.bzl", "release_json = %s\n" % str(release_json_data))
 
 release_json = repository_rule(
