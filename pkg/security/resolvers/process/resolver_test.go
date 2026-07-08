@@ -1160,6 +1160,147 @@ func TestSubreaperReparenting(t *testing.T) {
 	assertChildrenConsistency(t, resolver)
 }
 
+func TestTryReparentFromProcfsIgnoresStoppedExecEntries(t *testing.T) {
+	t.Run("old-exec-entry", func(t *testing.T) {
+		resolver, err := newResolver()
+		if err != nil {
+			t.Fatal()
+		}
+
+		realPid := uint32(os.Getpid())
+		realPPid := uint32(os.Getppid())
+		fakeParentPid := uint32(5000300)
+
+		if realPPid != 1 {
+			resolver.AddForkEntry(newFakeForkEvent(0, 1, 100, resolver), model.CGroupContext{}, nil)
+		}
+		grandparentPPid := 0
+		if realPPid != 1 {
+			grandparentPPid = 1
+		}
+		grandparent := newFakeForkEvent(grandparentPPid, int(realPPid), 100, resolver)
+		parentFork := newFakeForkEvent(int(realPPid), int(fakeParentPid), 100, resolver)
+		oldExec := newFakeExecEvent(int(realPPid), int(fakeParentPid), 200, resolver)
+		child := newFakeForkEvent(int(fakeParentPid), int(realPid), 100, resolver)
+		currentExec := newFakeExecEvent(int(realPPid), int(fakeParentPid), 300, resolver)
+
+		resolver.AddForkEntry(grandparent, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(parentFork, model.CGroupContext{}, nil)
+		resolver.AddExecEntry(oldExec, model.CGroupContext{})
+		resolver.AddForkEntry(child, model.CGroupContext{}, nil)
+		resolver.AddExecEntry(currentExec, model.CGroupContext{})
+
+		requireOldAncestor := child.ProcessCacheEntry.Ancestor
+		assert.Equal(t, oldExec.ProcessCacheEntry, requireOldAncestor)
+		assert.True(t, oldExec.ProcessCacheEntry.IsExec)
+		assert.True(t, oldExec.ProcessCacheEntry.ExitTime.IsZero())
+		assert.False(t, oldExec.ProcessCacheEntry.StopExecutionTime.IsZero())
+		assert.Equal(t, currentExec.ProcessCacheEntry, resolver.entryCache[fakeParentPid])
+
+		// /proc/<realPid> would report realPPid, but the child is below an older
+		// exec generation of a still-live process. That entry only has
+		// StopExecutionTime set by Exec(), not ExitTime from do_exit, so lazy
+		// subreaper repair must not reparent the child.
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathSetProcessContext, nil)
+
+		assert.Equal(t, fakeParentPid, child.ProcessCacheEntry.PPid)
+		assert.Equal(t, oldExec.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, int64(0), resolver.reparentSuccessStats[metrics.ReparentCallpathSetProcessContext].Load())
+		assertChildrenConsistency(t, resolver)
+	})
+
+	t.Run("final-exit-marks-exec-chain", func(t *testing.T) {
+		resolver, err := newResolver()
+		if err != nil {
+			t.Fatal()
+		}
+
+		realPid := uint32(os.Getpid())
+		realPPid := uint32(os.Getppid())
+		fakeParentPid := uint32(5000350)
+
+		if realPPid != 1 {
+			resolver.AddForkEntry(newFakeForkEvent(0, 1, 100, resolver), model.CGroupContext{}, nil)
+		}
+		grandparentPPid := 0
+		if realPPid != 1 {
+			grandparentPPid = 1
+		}
+		grandparent := newFakeForkEvent(grandparentPPid, int(realPPid), 100, resolver)
+		parentFork := newFakeForkEvent(int(realPPid), int(fakeParentPid), 100, resolver)
+		oldExec := newFakeExecEvent(int(realPPid), int(fakeParentPid), 200, resolver)
+		child := newFakeForkEvent(int(fakeParentPid), int(realPid), 100, resolver)
+		currentExec := newFakeExecEvent(int(realPPid), int(fakeParentPid), 300, resolver)
+
+		resolver.AddForkEntry(grandparent, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(parentFork, model.CGroupContext{}, nil)
+		resolver.AddExecEntry(oldExec, model.CGroupContext{})
+		resolver.AddForkEntry(child, model.CGroupContext{}, nil)
+		resolver.AddExecEntry(currentExec, model.CGroupContext{})
+
+		assert.Equal(t, oldExec.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+		assert.True(t, oldExec.ProcessCacheEntry.ExitTime.IsZero())
+		assert.True(t, parentFork.ProcessCacheEntry.ExitTime.IsZero())
+
+		exitTime := time.Now()
+		resolver.DeleteEntry(fakeParentPid, exitTime)
+
+		assert.Equal(t, exitTime, currentExec.ProcessCacheEntry.ExitTime)
+		assert.Equal(t, exitTime, oldExec.ProcessCacheEntry.ExitTime)
+		assert.Equal(t, exitTime, parentFork.ProcessCacheEntry.ExitTime)
+		assert.NotEqual(t, exitTime, oldExec.ProcessCacheEntry.StopExecutionTime)
+
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathSetProcessContext, nil)
+
+		assert.Equal(t, realPPid, child.ProcessCacheEntry.PPid)
+		assert.Equal(t, grandparent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, int64(1), resolver.reparentSuccessStats[metrics.ReparentCallpathSetProcessContext].Load())
+		assertChildrenConsistency(t, resolver)
+	})
+
+	t.Run("initial-fork-entry-before-first-exec", func(t *testing.T) {
+		resolver, err := newResolver()
+		if err != nil {
+			t.Fatal()
+		}
+
+		realPid := uint32(os.Getpid())
+		realPPid := uint32(os.Getppid())
+		fakeParentPid := uint32(5000400)
+
+		if realPPid != 1 {
+			resolver.AddForkEntry(newFakeForkEvent(0, 1, 100, resolver), model.CGroupContext{}, nil)
+		}
+		grandparentPPid := 0
+		if realPPid != 1 {
+			grandparentPPid = 1
+		}
+		grandparent := newFakeForkEvent(grandparentPPid, int(realPPid), 100, resolver)
+		parentFork := newFakeForkEvent(int(realPPid), int(fakeParentPid), 100, resolver)
+		child := newFakeForkEvent(int(fakeParentPid), int(realPid), 100, resolver)
+		currentExec := newFakeExecEvent(int(realPPid), int(fakeParentPid), 200, resolver)
+
+		resolver.AddForkEntry(grandparent, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(parentFork, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(child, model.CGroupContext{}, nil)
+		resolver.AddExecEntry(currentExec, model.CGroupContext{})
+
+		assert.Equal(t, parentFork.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+		assert.False(t, parentFork.ProcessCacheEntry.IsExec)
+		assert.True(t, currentExec.ProcessCacheEntry.IsExec)
+		assert.True(t, parentFork.ProcessCacheEntry.ExitTime.IsZero())
+		assert.False(t, parentFork.ProcessCacheEntry.StopExecutionTime.IsZero())
+		assert.Equal(t, currentExec.ProcessCacheEntry, resolver.entryCache[fakeParentPid])
+
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathSetProcessContext, nil)
+
+		assert.Equal(t, fakeParentPid, child.ProcessCacheEntry.PPid)
+		assert.Equal(t, parentFork.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, int64(0), resolver.reparentSuccessStats[metrics.ReparentCallpathSetProcessContext].Load())
+		assertChildrenConsistency(t, resolver)
+	})
+}
+
 func TestReparentExecChainPreservesExecAncestors(t *testing.T) {
 	resolver, err := newResolver()
 	if err != nil {

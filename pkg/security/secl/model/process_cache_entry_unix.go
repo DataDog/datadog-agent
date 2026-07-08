@@ -57,9 +57,20 @@ func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
 	return false, &ErrProcessIncompleteLineage{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
 }
 
-// Exit a process
+// StopExecution marks this process cache entry as no longer being the current
+// executing image. This happens both on exec replacement and on final exit.
+func (pc *ProcessCacheEntry) StopExecution(stopTime time.Time) {
+	pc.StopExecutionTime = stopTime
+}
+
+// Exit marks a process final exit. If this entry had already stopped executing
+// because it was replaced by a later exec, keep that StopExecutionTime and only
+// record the final process ExitTime.
 func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime
+	if pc.StopExecutionTime.IsZero() {
+		pc.StopExecution(exitTime)
+	}
 }
 
 func (pc *ProcessCacheEntry) copyProcessContextFrom(parent *ProcessCacheEntry) {
@@ -103,8 +114,9 @@ func (pc *ProcessCacheEntry) SetAsExec() {
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.SetExecParent(pc)
 
-	// use exec time as exit time
-	pc.Exit(entry.ExecTime)
+	// The previous cache entry stopped executing at this exec, but the process
+	// itself did not exit. Keep ExitTime reserved for the final do_exit event.
+	pc.StopExecution(entry.ExecTime)
 }
 
 // GetContainerPIDs return the pids

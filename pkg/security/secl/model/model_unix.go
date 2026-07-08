@@ -404,8 +404,14 @@ type Process struct {
 
 	// pid_cache_t
 	ForkTime time.Time `field:"fork_time,opts:getters_only"`
-	ExitTime time.Time `field:"exit_time,opts:getters_only"`
 	ExecTime time.Time `field:"exec_time,opts:getters_only"`
+	// ExitTime is set only when the process exits (do_exit).
+	ExitTime time.Time `field:"exit_time,opts:getters_only"`
+	// StopExecutionTime is set when this process cache entry stops being the
+	// currently executing image, either because it was replaced by a later exec
+	// or because the process exited. Unlike ExitTime, it is intentionally not
+	// exposed as a SECL field and must not be used as proof of a final process exit.
+	StopExecutionTime time.Time `field:"-"`
 
 	ForkFlags uint64 `field:"-"`
 

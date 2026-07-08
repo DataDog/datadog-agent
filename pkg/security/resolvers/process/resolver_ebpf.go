@@ -175,6 +175,16 @@ func wouldCreateAncestorCycle(entry *model.ProcessCacheEntry, newParent *model.P
 	return false
 }
 
+func markExecChainExited(entry *model.ProcessCacheEntry, exitTime time.Time) {
+	pid := entry.Pid
+	for iterations, pc := 0, entry; pc != nil && pc.Pid == pid; iterations, pc = iterations+1, pc.Ancestor {
+		if iterations >= tryReparentMaxIterations {
+			break
+		}
+		pc.Exit(exitTime)
+	}
+}
+
 // reparentTo looks up newPPid in the cache (falling back to procfs) and
 // reparents entry's exec-chain root to the resolved parent. Metrics are tracked
 // via callpathTag. Must be called with the lock held.
@@ -646,10 +656,10 @@ func (p *EBPFResolver) ApplyExitEntry(event *model.Event, newEntryCb func(*model
 		return false
 	}
 
-	// Use the event timestamp as exit time
-	// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
-	// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
-	event.ProcessCacheEntry.ExitTime = event.FieldHandlers.ResolveEventTime(event, &event.BaseEvent)
+	// Use the event timestamp as exit time.
+	// The local process cache hasn't been updated yet with the exit time when the exit event is first seen.
+	// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss.
+	markExecChainExited(event.ProcessCacheEntry, event.FieldHandlers.ResolveEventTime(event, &event.BaseEvent))
 	event.Exit.Process = &event.ProcessCacheEntry.Process
 
 	return true
@@ -943,7 +953,7 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
-		prev.Exit(entry.ForkTime)
+		markExecChainExited(prev, entry.ForkTime)
 	}
 	if entry.Pid != 1 {
 		parent := p.entryCache[entry.PPid]
@@ -1006,7 +1016,7 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 		p.cgroupResolver.DelPID(entry.Pid)
 	}
 
-	entry.Exit(exitTime)
+	markExecChainExited(entry, exitTime)
 	delete(p.entryCache, entry.Pid)
 }
 
@@ -1127,6 +1137,7 @@ func (p *EBPFResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 	entry.ExecTime = p.timeResolver.ApplyBootTime(entry.ExecTime)
 	entry.ForkTime = p.timeResolver.ApplyBootTime(entry.ForkTime)
 	entry.ExitTime = p.timeResolver.ApplyBootTime(entry.ExitTime)
+	entry.StopExecutionTime = p.timeResolver.ApplyBootTime(entry.StopExecutionTime)
 }
 
 // ResolveFromCache resolves cache entry from the cache
