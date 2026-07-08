@@ -774,7 +774,7 @@ def test(
 
     exclude_packages: set[str] = set()
     bazel_targets: dict[str, str] = {}
-    bazel_flags = []
+    bazel_flags = ["--config=gorace"]
     if unit_tests_tags:
         # Critically important to sort the gotags because their order matters for configuration calculation.
         # That is, you don't cache unless they come out the same way.
