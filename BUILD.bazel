@@ -85,7 +85,6 @@ exports_files(["go.mod"])
 # gazelle:exclude comp/logs/agent/impl
 # gazelle:exclude comp/metadata/clusteragent/fx
 # gazelle:exclude comp/metadata/clusteragent/impl
-# gazelle:exclude comp/metadata/clusterchecks/fx
 # gazelle:exclude comp/metadata/host/impl/utils
 # gazelle:exclude comp/metadata/inventorychecks/fx
 # gazelle:exclude comp/metadata/inventorychecks/impl
