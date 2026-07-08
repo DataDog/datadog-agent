@@ -229,6 +229,52 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 	}
 }
 
+// TestInfraAttributesMetricProcessorIgnoresContainerTagPromotion is a
+// regression guard: container_tag_promotion only makes sense for traces
+// (_dd.tags.container is a trace-agent-specific mechanism), so the metrics
+// processor must always behave as "off" even when the option is set to
+// duplicate/rename.
+func TestInfraAttributesMetricProcessorIgnoresContainerTagPromotion(t *testing.T) {
+	for _, mode := range []ContainerTagPromotionMode{ContainerTagPromotionDuplicate, ContainerTagPromotionRename} {
+		t.Run(string(mode), func(t *testing.T) {
+			next := new(consumertest.MetricsSink)
+			cfg := &Config{
+				Cardinality:                types.LowCardinality,
+				TraceContainerTagPromotion: mode,
+			}
+			tc := testutil.NewTestTaggerClient()
+			tc.TagMap["container_id://test"] = []string{"test_tag:bar"}
+
+			factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
+				return "test-host", nil
+			})
+			fmp, err := factory.CreateMetrics(
+				context.Background(),
+				processortest.NewNopSettings(Type),
+				cfg,
+				next,
+			)
+			assert.NoError(t, err)
+			ctx := context.Background()
+			assert.NoError(t, fmp.Start(ctx, nil))
+
+			md := testResourceMetrics([]metricWithResource{{
+				metricNames:        inMetricNames,
+				resourceAttributes: map[string]any{"container.id": "test"},
+			}})
+			assert.NoError(t, fmp.ConsumeMetrics(ctx, md))
+			assert.NoError(t, fmp.Shutdown(ctx))
+
+			assert.Len(t, next.AllMetrics(), 1)
+			out := next.AllMetrics()[0].ResourceMetrics().At(0).Resource().Attributes().AsRaw()
+			assert.EqualValues(t, map[string]any{
+				"container.id": "test",
+				"test_tag":     "bar",
+			}, out, "metrics must never gain a datadog.container.tag.* copy, regardless of container_tag_promotion")
+		})
+	}
+}
+
 func TestEntityIDsFromAttributes(t *testing.T) {
 	tests := []struct {
 		name      string

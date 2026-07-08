@@ -8,6 +8,7 @@ package observerimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -200,11 +201,12 @@ func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopOb
 func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
 
-func (*disabledObserver) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
-	return severityeventsdef.SeverityEventsSubscription{
-		Dispatcher:  nil,
-		Unsubscribe: func() {},
-	}, nil
+func (*disabledObserver) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
+	return severityeventsdef.SeverityEventsSubscription{}, errors.New("no active anomaly scorer")
+}
+
+func (*disabledObserver) SubscribeSeverityEventsReader(_ severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
+	return severityeventsdef.SeverityEventsReaderSubscription{}, errors.New("no active anomaly scorer")
 }
 
 // NewComponent creates an observer.Component.
@@ -440,11 +442,11 @@ type observerImpl struct {
 	metricFilter         *metricsFilterRules
 
 	// replayMu serialises engine access between the run() dispatch loop and
-	// the testbench's IngestLogSync/IngestMetricSync direct-ingest path.
-	// In production the sync methods are never called so this mutex is always
+	// the testbench's direct-ingest path (IngestTestbenchLog, IngestMetricSync).
+	// In production these methods are never called so this mutex is always
 	// uncontended. In the testbench it prevents a data race between the
 	// agent-internal-log observer (which can post to obsCh while run() is
-	// processing) and a concurrent IngestLogSync call.
+	// processing) and a concurrent testbench ingest call.
 	replayMu sync.Mutex
 }
 
@@ -701,19 +703,28 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	return o.engine.Storage().DumpToFile(path)
 }
 
-// SubscribeSeverityEvents registers a scorer event listener described by cfg.
-// Delegates to the engine scorer when one is configured.
-func (o *observerImpl) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsSubscription, error) {
+// SubscribeSeverityEvents registers listener described by cfg. Delegates to
+// the engine scorer when one is configured.
+func (o *observerImpl) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
 	o.engine.mu.RLock()
 	scorer := o.engine.scorer
 	o.engine.mu.RUnlock()
 	if scorer == nil {
-		return severityeventsdef.SeverityEventsSubscription{
-			Dispatcher:  nil,
-			Unsubscribe: func() {},
-		}, nil
+		return severityeventsdef.SeverityEventsSubscription{}, errors.New("no active anomaly scorer")
 	}
-	return scorer.SubscribeSeverityEvents(cfg)
+	return scorer.SubscribeSeverityEvents(cfg, listener)
+}
+
+// SubscribeSeverityEventsReader is a convenience for pull-only consumers.
+// Delegates to the engine scorer when one is configured.
+func (o *observerImpl) SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error) {
+	o.engine.mu.RLock()
+	scorer := o.engine.scorer
+	o.engine.mu.RUnlock()
+	if scorer == nil {
+		return severityeventsdef.SeverityEventsReaderSubscription{}, errors.New("no active anomaly scorer")
+	}
+	return scorer.SubscribeSeverityEventsReader(cfg)
 }
 
 // --- DebugView implementation ---
@@ -859,37 +870,12 @@ func (o *observerImpl) StorageReader() observerdef.StorageReader {
 	return o.engine.storage
 }
 
-// IngestLogSync feeds a log directly into the engine, bypassing the dispatch
-// channel. It replicates what the dispatcher run() loop does for a log
-// observation: build logObs, call engine.IngestLog, drive any advance
-// requests, and forward telemetry. Implements DebugView.
-func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
-	timestampMs := msg.GetTimestampUnixMilli()
-	lo := &logObs{
-		content:     msg.GetContent(),
-		status:      msg.GetStatus(),
-		tags:        copyTags(msg.Tags()),
-		hostname:    msg.GetHostname(),
-		timestampMs: timestampMs,
-	}
-	o.replayMu.Lock()
-	requests := o.engine.IngestLog(source, lo)
-	for _, req := range requests {
-		_ = o.engine.advanceWithReason(req.upToSec, req.reason)
-	}
-	if o.telemetry != nil {
-		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
-		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
-	}
-	o.replayMu.Unlock()
-}
-
-// IngestLogNoAdvance feeds a log directly into the engine without driving any
+// IngestTestbenchLog feeds a log directly into the engine without driving any
 // scheduler-triggered advances. Implements DebugView. Used during batch
 // pre-loading in the testbench replay path so that extractor state is built up
 // and log metrics are written to storage, but detector/correlator advances are
 // deferred to the subsequent ReplayStoredData call.
-func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView) {
+func (o *observerImpl) IngestTestbenchLog(source string, msg observerdef.LogView) {
 	timestampMs := msg.GetTimestampUnixMilli()
 	lo := &logObs{
 		content:     msg.GetContent(),
@@ -901,6 +887,7 @@ func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView
 	o.replayMu.Lock()
 	// Advance requests are intentionally discarded.
 	_ = o.engine.IngestLog(source, lo)
+	o.engine.storage.RecordObservationTime(lo.timestampMs / 1000)
 	if o.telemetry != nil {
 		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
 		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
