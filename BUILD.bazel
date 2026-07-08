@@ -66,6 +66,10 @@ exports_files(["go.mod"])
 # gazelle:exclude cmd/process-agent/subcommands
 # gazelle:exclude cmd/security-agent/*.go
 # gazelle:exclude cmd/serverless-init/*.go
+# cloudservice imports mode and log directly; excluded alongside them until that
+# chain (mode -> log -> pkg/serverless/logs -> comp/logs/agent/impl and its
+# launchers) is migrated, then drop this exclude too.
+# gazelle:exclude cmd/serverless-init/cloudservice
 # gazelle:exclude cmd/serverless-init/log
 # gazelle:exclude cmd/serverless-init/mode
 # gazelle:exclude comp/collector/bundle.go
