@@ -57,7 +57,7 @@ type InjectorCounters struct {
 	PeInjectionContextCleanedup          telemetry.SimpleGauge
 
 	// v2 fields (crash / boot-recovery telemetry). Populated only when the
-	// driver negotiates counter version >= 2; otherwise they stay at 0.
+	// driver negotiates counter version >= 2; otherwise they are reset to 0.
 	CrashesDuringInjection          telemetry.SimpleGauge
 	CrashesPostInjection            telemetry.SimpleGauge
 	BootRecoveryCrashBootsDetected  telemetry.SimpleGauge
@@ -131,6 +131,8 @@ func (inj *Injector) GetCounters(counters *InjectorCounters) error {
 	populateV1Gauges(counters, (*DDInjectorCountersV1)(unsafe.Pointer(&raw)))
 	if negotiated >= CountersVersion2 {
 		populateV2Gauges(counters, &raw)
+	} else {
+		clearV2Gauges(counters)
 	}
 	return nil
 }
@@ -163,6 +165,15 @@ func populateV2Gauges(counters *InjectorCounters, raw *DDInjectorCountersV2) {
 	counters.BootRecoveryCrashBootsDetected.Set(float64(raw.BootRecoveryCrashBootsDetected))
 	counters.BootRecoveryDriverSelfDisabled.Set(float64(raw.BootRecoveryDriverSelfDisabled))
 	counters.BootRecoveryStabilityTimerFired.Set(float64(raw.BootRecoveryStabilityTimerFired))
+}
+
+// clearV2Gauges resets V2 gauges when the current driver contract is V1-only.
+func clearV2Gauges(counters *InjectorCounters) {
+	counters.CrashesDuringInjection.Set(0)
+	counters.CrashesPostInjection.Set(0)
+	counters.BootRecoveryCrashBootsDetected.Set(0)
+	counters.BootRecoveryDriverSelfDisabled.Set(0)
+	counters.BootRecoveryStabilityTimerFired.Set(0)
 }
 
 // Close closes the handle to ddinjector.
@@ -223,10 +234,10 @@ func queryDriverCapabilities(handle windows.Handle) (uint32, error) {
 	err := windows.DeviceIoControl(
 		handle,
 		GetCapabilitiesIOCTL,
-		nil,                            // no input buffer
-		0,                              // no input
-		(*byte)(unsafe.Pointer(&caps)), // output buffer
-		uint32(unsafe.Sizeof(caps)),    // output size
+		nil,                                // no input buffer
+		0,                                  // no input
+		(*byte)(unsafe.Pointer(&caps)),     // output buffer
+		uint32(DDInjectorCapabilitiesSize), // output size
 		&bytesReturned,
 		nil, // not overlapped
 	)

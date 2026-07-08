@@ -285,6 +285,40 @@ func TestQueryCountersCapabilitiesUnsupported(t *testing.T) {
 	inj.Close()
 }
 
+// TestQueryCountersFallbackToV1ClearsV2Counters covers a long-lived system-probe
+// process observing a V2 driver first, then falling back to the V1 contract.
+func TestQueryCountersFallbackToV1ClearsV2Counters(t *testing.T) {
+	currentTest = t
+	overrideDriverCallbacks()
+	defer restoreDriverCallbacks()
+	resetMockState()
+
+	inj, err := NewInjector()
+	assert.NoError(t, err)
+	assert.NotNil(t, inj)
+
+	mockCapabilitiesVersion = CountersVersion2
+	fillMockCountersV2()
+
+	counters := createCounters()
+	err = inj.GetCounters(counters)
+	assert.NoError(t, err)
+	assertV2CountersEqual(t, &mockCountersV2, counters)
+
+	mockCapabilitiesVersion = 0
+	mockCapabilitiesError = errors.New("capabilities IOCTL not supported")
+	fillMockCountersV1()
+
+	err = inj.GetCounters(counters)
+	assert.NoError(t, err)
+
+	assert.Equal(t, CountersVersion1, mockRequestedVersion)
+	assertV1CountersEqual(t, &mockCountersV1, counters)
+	assertV2CountersZero(t, counters)
+
+	inj.Close()
+}
+
 // TestQueryCountersDriverNewerThanAgent covers a driver advertising a version
 // beyond what the agent understands: the negotiated version is clamped to
 // maxKnownVersion (V2).
@@ -394,7 +428,21 @@ func assertV2CountersEqual(t *testing.T, expected *DDInjectorCountersV2, actual 
 
 func assertV1CountersZero(t *testing.T, actual *InjectorCounters) {
 	assert.Zero(t, actual.ProcessesAddedToInjectionTracker.Get())
+	assert.Zero(t, actual.ProcessesRemovedFromInjectionTracker.Get())
+	assert.Zero(t, actual.ProcessesSkippedSubsystem.Get())
+	assert.Zero(t, actual.ProcessesSkippedContainer.Get())
+	assert.Zero(t, actual.ProcessesSkippedProtected.Get())
+	assert.Zero(t, actual.ProcessesSkippedSystem.Get())
+	assert.Zero(t, actual.ProcessesSkippedExcluded.Get())
 	assert.Zero(t, actual.InjectionAttempts.Get())
+	assert.Zero(t, actual.InjectionAttemptFailures.Get())
+	assert.Zero(t, actual.InjectionMaxTimeUs.Get())
+	assert.Zero(t, actual.InjectionSuccesses.Get())
+	assert.Zero(t, actual.InjectionFailures.Get())
+	assert.Zero(t, actual.PeCachingFailures.Get())
+	assert.Zero(t, actual.ImportDirectoryRestorationFailures.Get())
+	assert.Zero(t, actual.PeMemoryAllocationFailures.Get())
+	assert.Zero(t, actual.PeInjectionContextAllocated.Get())
 	assert.Zero(t, actual.PeInjectionContextCleanedup.Get())
 }
 
