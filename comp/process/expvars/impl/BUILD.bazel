@@ -25,6 +25,8 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = ["expvars_test.go"],
+    # This test creates a server that listens on a port. We can't run each flavor at once.
+    tags = ["exclusive"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
