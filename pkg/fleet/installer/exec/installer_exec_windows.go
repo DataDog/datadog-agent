@@ -17,10 +17,13 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
+
+const packageDatadogAgent = "datadog-agent"
 
 func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) *exec.Cmd {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -59,14 +62,24 @@ func (i *InstallerExec) getStates(ctx context.Context) (_ *repository.PackageSta
 		stableDeploymentID = "empty"
 	}
 	configStates := map[string]repository.State{
-		"datadog-agent": {
+		packageDatadogAgent: {
 			Stable:     stableDeploymentID,
 			Experiment: configState.ExperimentDeploymentID,
 		},
 	}
 
+	var pkgExtensions map[string][]string
+	agentExtensions, err := extensions.InstalledExtensions(packageDatadogAgent)
+	if err != nil {
+		return nil, fmt.Errorf("error getting installed extensions for %s: %w", packageDatadogAgent, err)
+	}
+	if len(agentExtensions) > 0 {
+		pkgExtensions = map[string][]string{packageDatadogAgent: agentExtensions}
+	}
+
 	return &repository.PackageStates{
 		States:       packageStates,
 		ConfigStates: configStates,
+		Extensions:   pkgExtensions,
 	}, nil
 }

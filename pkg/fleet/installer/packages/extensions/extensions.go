@@ -84,6 +84,36 @@ func DeletePackage(ctx context.Context, pkg string, isExperiment bool) (err erro
 	return db.RemovePackage(pkg, isExperiment)
 }
 
+// InstalledExtensions returns the names of the extensions currently installed (stable) for pkg.
+// It returns a nil slice, no error, if the extensions database doesn't exist yet or has no entry
+// for pkg (no extensions have ever been installed for it on this host).
+func InstalledExtensions(pkg string) ([]string, error) {
+	dbPath := filepath.Join(ExtensionsDBDir, "extensions.db")
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	// Open & lock the extensions database
+	db, err := newExtensionsDB(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not create extensions db: %w", err)
+	}
+	defer db.Close()
+
+	dbPkg, err := db.GetPackage(pkg, false)
+	if err != nil {
+		if errors.Is(err, errPackageNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not get package %s: %w", pkg, err)
+	}
+	names := make([]string, 0, len(dbPkg.Extensions))
+	for name := range dbPkg.Extensions {
+		names = append(names, name)
+	}
+	return names, nil
+}
+
 // Install installs extensions for a package.
 // If overrides is non-nil, extensions whose name appears as a key will be
 // downloaded from the corresponding registry instead of the default one.

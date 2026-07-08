@@ -13,9 +13,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -48,20 +48,11 @@ const (
 	// OpenTelemetry Collector (DDOT). DDOT ships either as this standalone package or as an
 	// extension of the datadog-agent package.
 	packageDatadogAgentDDOT = "datadog-agent-ddot"
-)
 
-// ddotExtensionInstalled reports whether the DDOT extension (the otel-agent binary) is present
-// under the stable datadog-agent package tree. It mirrors the ConditionPathExists predicate the
-// DDOT systemd unit / process-manager config use, so the daemon and the service manager agree.
-func ddotExtensionInstalled(packagesPath string) bool {
-	base := filepath.Join(packagesPath, "datadog-agent", "stable", "ext", "ddot", "embedded", "bin")
-	for _, name := range []string{"otel-agent", "otel-agent.exe"} {
-		if _, err := os.Stat(filepath.Join(base, name)); err == nil {
-			return true
-		}
-	}
-	return false
-}
+	// ddotExtensionName is the name under which DDOT is registered in the extensions database
+	// when it ships as an extension of datadog-agent, see packages/datadog_agent_extensions.go.
+	ddotExtensionName = "ddot"
+)
 
 var (
 	// errStateDoesntMatch is the error returned when the state doesn't match
@@ -832,7 +823,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	// Hosts without DDOT (and agents predating this change) report nothing here, so the backend
 	// must treat a missing datadog-agent-ddot state as "no signal / do not block".
 	_, ddotIsPackage := configAndPackageStates.States[packageDatadogAgentDDOT]
-	ddotExtension := ddotExtensionInstalled(paths.PackagesPath)
+	ddotExtension := slices.Contains(configAndPackageStates.Extensions["datadog-agent"], ddotExtensionName)
 	if ddotIsPackage || ddotExtension {
 		runningVersions[packageDatadogAgentDDOT] = version.AgentPackageVersion
 		runningConfigVersions[packageDatadogAgentDDOT] = d.env.ConfigID

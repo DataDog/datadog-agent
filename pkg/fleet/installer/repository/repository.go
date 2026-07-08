@@ -60,8 +60,9 @@ type Repository struct {
 
 // PackageStates contains the state all installed packages
 type PackageStates struct {
-	States       map[string]State `json:"states"`
-	ConfigStates map[string]State `json:"config_states"`
+	States       map[string]State    `json:"states"`
+	ConfigStates map[string]State    `json:"config_states"`
+	Extensions   map[string][]string `json:"extensions,omitempty"` // pkg name -> installed extension names (stable)
 }
 
 // State is the state of the repository.

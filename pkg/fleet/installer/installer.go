@@ -168,9 +168,18 @@ func (i *installerImpl) ConfigAndPackageStates(ctx context.Context) (*repository
 	if err != nil {
 		return nil, err
 	}
+	var pkgExtensions map[string][]string
+	agentExtensions, err := extensions.InstalledExtensions(packageDatadogAgent)
+	if err != nil {
+		return nil, fmt.Errorf("could not get installed extensions for %s: %w", packageDatadogAgent, err)
+	}
+	if len(agentExtensions) > 0 {
+		pkgExtensions = map[string][]string{packageDatadogAgent: agentExtensions}
+	}
 	return &repository.PackageStates{
 		ConfigStates: configStates,
 		States:       packageStates,
+		Extensions:   pkgExtensions,
 	}, nil
 }
 
