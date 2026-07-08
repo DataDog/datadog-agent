@@ -9,6 +9,7 @@ package utils
 import (
 	"fmt"
 	"math/big"
+	"strconv"
 )
 
 // TraceID is a 128-bit identifier for a trace.
@@ -45,7 +46,7 @@ func (t TraceID) String() string {
 // zeros in Lo — which are part of the real 128-bit ID — are preserved.
 func (t TraceID) HexString() string {
 	if t.Hi == 0 {
-		return fmt.Sprintf("%x", t.Lo)
+		return strconv.FormatUint(t.Lo, 16)
 	}
 	return fmt.Sprintf("%x%016x", t.Hi, t.Lo)
 }

@@ -7,6 +7,8 @@ bin/otel_tls_dynamic_tester
 bin/otel_tls_dynamic_tester.d
 bin/otel_tls_static_pie_tester
 bin/otel_tls_static_pie_tester.d
+bin/otel_tls_static_nopie_tester
+bin/otel_tls_static_nopie_tester.d
 bin/otel_tls_dlopen_loader
 bin/otel_tls_dlopen_loader.d
 bin/libotel_tls_fixture.so
@@ -15,3 +17,9 @@ bin/otel_tls_initial_exec_tester
 bin/otel_tls_initial_exec_tester.d
 bin/libotel_tls_initial_exec_fixture.so
 bin/libotel_tls_initial_exec_fixture.so.d
+bin/otel_tls_static_musl_tester
+bin/otel_tls_static_musl_tester.d
+bin/libotel_tls_musl_fixture.so
+bin/libotel_tls_musl_fixture.so.d
+bin/otel_tls_musl_dlopen_loader
+bin/otel_tls_musl_dlopen_loader.d

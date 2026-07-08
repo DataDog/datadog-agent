@@ -10,7 +10,7 @@ package process
 import (
 	"bufio"
 	"bytes"
-	"debug/elf"
+	"debug/elf" //nolint:depguard
 	"os"
 	"os/exec"
 	"path/filepath"

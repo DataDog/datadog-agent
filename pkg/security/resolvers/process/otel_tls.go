@@ -10,8 +10,9 @@ package process
 import (
 	"bufio"
 	"bytes"
-	"debug/elf"
+	"debug/elf" //nolint:depguard
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -539,7 +540,7 @@ func dtDebugValueAddr(modules []otelMappedELF) (uint64, error) {
 			return 0, fmt.Errorf("DT_DEBUG entry not found in main executable %q", module.path)
 		}
 	}
-	return 0, fmt.Errorf("main executable not found among mapped readable ELF objects")
+	return 0, errors.New("main executable not found among mapped readable ELF objects")
 }
 
 func glibcThreadDBLayout(modules []otelMappedELF) (otelGlibcThreadDBLayout, bool) {
@@ -726,7 +727,7 @@ func elfLoadBias(elfFile *safeelf.File, maps []procfs.MapsEntry, pageSize uint64
 		return 0, nil
 	}
 	if len(maps) == 0 {
-		return 0, fmt.Errorf("no maps entries for ELF")
+		return 0, errors.New("no maps entries for ELF")
 	}
 
 	anchor := maps[0]
@@ -748,7 +749,7 @@ func elfLoadBias(elfFile *safeelf.File, maps []procfs.MapsEntry, pageSize uint64
 		}
 	}
 
-	return 0, fmt.Errorf("could not compute load bias")
+	return 0, errors.New("could not compute load bias")
 }
 
 func alignDown(value uint64, alignment uint64) uint64 {

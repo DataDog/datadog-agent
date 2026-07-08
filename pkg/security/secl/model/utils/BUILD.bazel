@@ -18,4 +18,5 @@ go_test(
     name = "utils_test",
     srcs = ["uint128_test.go"],
     embed = [":utils"],
+    gotags = ["test"],
 )

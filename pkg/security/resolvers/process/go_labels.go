@@ -9,6 +9,7 @@ package process
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"runtime"
 	"strconv"
@@ -135,7 +136,7 @@ func getGoTLSGOffset(elfFile *safeelf.File) (int32, error) {
 // and pushes them to the go_labels_procs BPF map.
 func (p *EBPFResolver) resolveGoLabels(pid uint32) error {
 	if p.goLabelsMap == nil {
-		return fmt.Errorf("go_labels_procs map not available")
+		return errors.New("go_labels_procs map not available")
 	}
 
 	pidStr := strconv.FormatUint(uint64(pid), 10)
