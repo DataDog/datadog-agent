@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -138,9 +137,6 @@ var _ CloudService = (*MicroVM)(nil)
 // init-container mode threads m.child into RunInit so the lifecycle server's
 // /ready alive-check reflects the user app's actual state.
 func TestMicroVM_Run_InitMode_ThreadsChildLiveness(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("serverless-init is not supported on windows")
-	}
 	if testing.Short() {
 		t.Skip("spawns a subprocess")
 	}
@@ -151,23 +147,12 @@ func TestMicroVM_Run_InitMode_ThreadsChildLiveness(t *testing.T) {
 	child := lifecycle.NewChild()
 	m := &MicroVM{child: child}
 
-	// Poll for the alive transition instead of sleeping a fixed delay: a
-	// single sample after a guessed delay can land before cmd.Start has
-	// invoked MarkAlive, or after the short-lived subprocess has already
-	// exited, on a loaded host. Polling records the alive state the instant
-	// it appears, so the race window is eliminated regardless of host load.
 	var midRunAlive atomic.Bool
 	probeDone := make(chan struct{})
 	go func() {
 		defer close(probeDone)
-		deadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(deadline) {
-			if child.IsAlive() {
-				midRunAlive.Store(true)
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
+		time.Sleep(100 * time.Millisecond)
+		midRunAlive.Store(child.IsAlive())
 	}()
 
 	err := m.Run(mode.Conf{SidecarMode: false}, &serverlessInitLog.Config{})

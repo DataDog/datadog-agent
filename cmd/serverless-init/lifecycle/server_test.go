@@ -1034,6 +1034,32 @@ func TestFlushAllDrainTimeoutDoesNotBlock(t *testing.T) {
 	assert.Less(t, time.Since(start), 500*time.Millisecond, "flushAll must return within flushTimeout even when drainer blocks")
 }
 
+// TestFlushAllNilLogsFlusherDoesNotPanic verifies that flushAll tolerates a nil
+// logsFlusher without panicking, and still flushes the metric and trace
+// flushers promptly. Production setup() can pass a nil logsFlusher into the
+// LifecycleContext when the logs agent failed to start (SetupLogAgent
+// returns nil on error), so MicroVM's /suspend and /terminate handshake must
+// not crash on that value. A nil-interface method call in the flushAll
+// goroutine wouldn't be caught by assert.NotPanics (it panics in a different
+// goroutine), so this also asserts flushAll returns promptly via the normal
+// "all workers done" path rather than falling back to the flushTimeout path,
+// which is what happens when the logs-flush goroutine never signals
+// completion.
+func TestFlushAllNilLogsFlusherDoesNotPanic(t *testing.T) {
+	metric := &mockFlusher{}
+	trace := &mockFlusher{}
+	drainer := &mockSampleDrainer{}
+	srv := NewServer(0, metric, trace, nil, &mockMetricEmitter{}, drainer, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), srv.flushTimeout)
+	defer cancel()
+	start := time.Now()
+	assert.NotPanics(t, func() { srv.flushAll(ctx) })
+	assert.Less(t, time.Since(start), 500*time.Millisecond, "flushAll must not fall back to the flushTimeout path when logsFlusher is nil")
+	assert.Equal(t, int32(1), metric.count.Load())
+	assert.Equal(t, int32(1), trace.count.Load())
+}
+
 // withFakeHeartbeat installs a real *Heartbeat with a long interval that
 // will never tick during the test, lets us observe Start/Stop side effects
 // via running goroutine count, and returns a teardown that ensures cleanup.
