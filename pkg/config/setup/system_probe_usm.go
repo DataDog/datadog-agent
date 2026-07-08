@@ -81,14 +81,9 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("service_monitoring_config.http_replace_rules", []map[string]string{})
 	cfg.BindEnvAndSetDefault("network_config.http_replace_rules", []map[string]string{}, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
 
-	replaceRules := []string{
-		"service_monitoring_config.http.replace_rules",
-		"service_monitoring_config.http_replace_rules",
-		"network_config.http_replace_rules",
-	}
-	for _, rule := range replaceRules {
-		cfg.ParseEnvJSON(rule, []map[string]string{})
-	}
+	cfg.ParseEnvJSON("service_monitoring_config.http.replace_rules", []map[string]string{})
+	cfg.ParseEnvJSON("service_monitoring_config.http_replace_rules", []map[string]string{})
+	cfg.ParseEnvJSON("network_config.http_replace_rules", []map[string]string{})
 
 	// ========================================
 	// HTTP/2 Protocol Configuration
