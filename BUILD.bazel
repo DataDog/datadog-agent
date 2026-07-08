@@ -120,7 +120,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/metrics
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/provider
 # gazelle:exclude pkg/collector/aggregator
-# gazelle:exclude pkg/util/infratags
 # gazelle:exclude pkg/collector/corechecks/agentprofiling
 # gazelle:exclude pkg/collector/corechecks/cluster/ksm/*.go
 # gazelle:exclude pkg/collector/corechecks/cluster/orchestrator/*.go
