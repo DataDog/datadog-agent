@@ -60,9 +60,10 @@
   - cmd/otel-agent/**/*
 
 # Bazel build system paths - single source of truth for all Bazel-related change detection.
-# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion.
+# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion,
+# including nested BUILD.bazel files (a single "*" does not cross "/" in GitLab's changes:paths glob).
 .bazel_paths: &bazel_paths
-  - "*.bazel*"
+  - "**/*.bazel*"
   - deps/**/*
   - bazel/**/*
   - tasks/build_tags.bzl
@@ -1389,8 +1390,11 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/agent/subcommands/run/**/*
         - comp/core/agenttelemetry/**/*
+        - pkg/util/log/setup/**/*
         - pkg/util/log/errortracking/**/*
+        - test/new-e2e/tests/agent-telemetry/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
