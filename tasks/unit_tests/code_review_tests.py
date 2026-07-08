@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tasks.libs.code_review.prompt import (
-    PROMPT_FILE_PATTERN,
     CodeReviewError,
     Guideline,
     build_review_prompt,
@@ -74,7 +73,11 @@ class FakePromptContext:
         return type("Result", (), {"stdout": stdout})()
 
 
-def write_code_review_workflow(repo_root: Path, ref: str = "test-action-ref") -> None:
+def write_code_review_workflow(
+    repo_root: Path,
+    ref: str = "test-action-ref",
+    prompt_file_pattern: str = "**/codereview_guideline.md",
+) -> None:
     workflow_dir = repo_root / ".github" / "workflows"
     workflow_dir.mkdir(parents=True)
     (workflow_dir / "code-review.yml").write_text(
@@ -82,6 +85,8 @@ def write_code_review_workflow(repo_root: Path, ref: str = "test-action-ref") ->
 jobs:
   review:
     uses: DataDog/code-review-action/.github/workflows/code-review.yml@{ref} # v1.1.0
+    with:
+      prompt_file_pattern: "{prompt_file_pattern}"
 """.lstrip(),
         encoding="utf-8",
     )
@@ -96,7 +101,7 @@ class TestCodeReviewPrompt(unittest.TestCase):
             patch("tasks.libs.code_review.prompt.is_installed", return_value=True),
         ):
             repo_root = Path(tmp)
-            write_code_review_workflow(repo_root)
+            write_code_review_workflow(repo_root, prompt_file_pattern="**/custom_guideline.md")
             guidelines = load_guidelines(ctx, repo_root, ("bazel/BUILD.bazel", "pkg/foo.go"))
 
         self.assertEqual(
@@ -109,7 +114,7 @@ class TestCodeReviewPrompt(unittest.TestCase):
         self.assertIn("npm exec --yes --package", ctx.commands[0][0])
         self.assertIn("github:DataDog/code-review-action#test-action-ref", ctx.commands[0][0])
         self.assertIn("-- find-guidelines ", ctx.commands[0][0])
-        self.assertIn(f"--pattern '{PROMPT_FILE_PATTERN}'", ctx.commands[0][0])
+        self.assertIn("--pattern '**/custom_guideline.md'", ctx.commands[0][0])
         self.assertIn("--changed-files -", ctx.commands[0][0])
         self.assertEqual(ctx.stdin, "bazel/BUILD.bazel\npkg/foo.go")
 
@@ -153,24 +158,28 @@ class TestCodeReviewPrompt(unittest.TestCase):
 
     def test_build_review_prompt_warns_when_prompt_file_is_deleted(self):
         ctx = FakePromptContext(
-            changed_files="pkg/foo.go\nbazel/codereview_guideline.md\n",
-            deleted_prompt_files="bazel/codereview_guideline.md\n",
+            changed_files="pkg/foo.go\nbazel/custom_guideline.md\n",
+            deleted_prompt_files="bazel/custom_guideline.md\n",
         )
 
         with (
+            tempfile.TemporaryDirectory() as tmp,
             patch(
                 "tasks.libs.code_review.prompt.load_guidelines",
                 return_value=(Guideline(path="codereview_guideline.md", content="root rules"),),
             ),
             patch("sys.stderr", new_callable=io.StringIO) as stderr,
         ):
-            build_review_prompt(ctx=ctx, repo_root=Path("."), base="origin/main")
+            repo_root = Path(tmp)
+            write_code_review_workflow(repo_root, prompt_file_pattern="**/custom_guideline.md")
+            build_review_prompt(ctx=ctx, repo_root=repo_root, base="origin/main")
 
         self.assertIn("Warning: deleted code review prompt file(s)", stderr.getvalue())
-        self.assertIn("bazel/codereview_guideline.md", stderr.getvalue())
+        self.assertIn("**/custom_guideline.md", stderr.getvalue())
+        self.assertIn("bazel/custom_guideline.md", stderr.getvalue())
         deleted_file_commands = [command for command in ctx.commands if "--diff-filter=D" in command]
         self.assertEqual(len(deleted_file_commands), 1)
-        self.assertIn(":(glob)**/codereview_guideline.md", deleted_file_commands[0])
+        self.assertIn(":(glob)**/custom_guideline.md", deleted_file_commands[0])
 
     def test_render_prompt_appends_extra_prompt(self):
         prompt = render_prompt(

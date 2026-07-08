@@ -2,21 +2,19 @@ from __future__ import annotations
 
 import io
 import json
-import re
 import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 from tasks.libs.common.git import get_changed_files, get_origin_default_branch
 from tasks.libs.common.utils import is_installed
 
-PROMPT_FILE_PATTERN = "**/codereview_guideline.md"
-PROMPT_FILE_GIT_PATHSPEC = f":(glob){PROMPT_FILE_PATTERN}"
 CODE_REVIEW_ACTION_REPOSITORY = "DataDog/code-review-action"
 CODE_REVIEW_ACTION_WORKFLOW = f"{CODE_REVIEW_ACTION_REPOSITORY}/.github/workflows/code-review.yml"
 WORKFLOW_PATH = Path(".github/workflows/code-review.yml")
-CODE_REVIEW_ACTION_USES_RE = re.compile(rf"^\s*uses:\s*{re.escape(CODE_REVIEW_ACTION_WORKFLOW)}@(?P<ref>[^\s#]+)")
 
 
 class CodeReviewError(RuntimeError):
@@ -64,29 +62,31 @@ def build_review_prompt(
         )
 
     changed_files = tuple(get_changed_files(ctx, resolved_base))
-    _warn_deleted_prompt_files(ctx, resolved_base)
-    guidelines = load_guidelines(ctx, repo_root, changed_files)
+    prompt_file_pattern = _get_prompt_file_pattern(repo_root)
+    _warn_deleted_prompt_files(ctx, resolved_base, prompt_file_pattern)
+    guidelines = load_guidelines(ctx, repo_root, changed_files, prompt_file_pattern=prompt_file_pattern)
     content = render_prompt(guidelines, extra_prompt=extra_prompt)
     return ReviewPrompt(base=resolved_base, changed_files=changed_files, guidelines=guidelines, content=content)
 
 
-def _warn_deleted_prompt_files(ctx, base: str) -> None:
-    deleted_prompt_files = _get_deleted_prompt_files(ctx, base)
+def _warn_deleted_prompt_files(ctx, base: str, prompt_file_pattern: str) -> None:
+    deleted_prompt_files = _get_deleted_prompt_files(ctx, base, prompt_file_pattern)
     if not deleted_prompt_files:
         return
 
     print(
         "Warning: deleted code review prompt file(s) match "
-        f"{PROMPT_FILE_PATTERN}: {', '.join(deleted_prompt_files)}. "
+        f"{prompt_file_pattern}: {', '.join(deleted_prompt_files)}. "
         "They will not be included in local review prompts; make sure the deletion is intentional.",
         file=sys.stderr,
     )
 
 
-def _get_deleted_prompt_files(ctx, base: str) -> tuple[str, ...]:
+def _get_deleted_prompt_files(ctx, base: str, prompt_file_pattern: str) -> tuple[str, ...]:
     base_to_head = shlex.quote(f"{base}...HEAD")
+    prompt_file_pathspec = f":(glob){prompt_file_pattern}"
     result = ctx.run(
-        f"git diff --name-only --diff-filter=D {base_to_head} -- {shlex.quote(PROMPT_FILE_GIT_PATHSPEC)}",
+        f"git diff --name-only --diff-filter=D {base_to_head} -- {shlex.quote(prompt_file_pathspec)}",
         hide=True,
     )
     return tuple(line for line in result.stdout.splitlines() if line)
@@ -125,26 +125,34 @@ def render_prompt(guidelines: tuple[Guideline, ...], *, extra_prompt: str | None
     return "\n".join(sections).rstrip() + "\n"
 
 
-def load_guidelines(ctx, repo_root: Path, changed_files: tuple[str, ...]) -> tuple[Guideline, ...]:
+def load_guidelines(
+    ctx,
+    repo_root: Path,
+    changed_files: tuple[str, ...],
+    *,
+    prompt_file_pattern: str | None = None,
+) -> tuple[Guideline, ...]:
     """
     Read the guideline files that apply to the changed files.
     """
     if not is_installed("npm"):
         raise CodeReviewError("Cannot compute review guidelines: `npm` is not installed or is not on PATH")
 
-    result = _run_find_guidelines(ctx, repo_root, changed_files)
+    result = _run_find_guidelines(
+        ctx, repo_root, changed_files, prompt_file_pattern or _get_prompt_file_pattern(repo_root)
+    )
     if result.get("error"):
         raise CodeReviewError(str(result["error"]))
 
     return tuple(Guideline(path=guideline["path"], content=guideline["content"]) for guideline in result["guidelines"])
 
 
-def _run_find_guidelines(ctx, repo_root: Path, changed_files: tuple[str, ...]) -> dict:
+def _run_find_guidelines(ctx, repo_root: Path, changed_files: tuple[str, ...], prompt_file_pattern: str) -> dict:
     command = (
         f"npm exec --yes --package {shlex.quote(_get_code_review_action_package(repo_root))} "
         "-- find-guidelines "
         f"--repo-root {shlex.quote(str(repo_root))} "
-        f"--pattern {shlex.quote(PROMPT_FILE_PATTERN)} "
+        f"--pattern {shlex.quote(prompt_file_pattern)} "
         "--changed-files -"
     )
     result = ctx.run(
@@ -170,14 +178,37 @@ def _get_code_review_action_package(repo_root: Path) -> str:
 
 
 def _get_code_review_action_ref(repo_root: Path) -> str:
+    uses = _get_code_review_job(repo_root).get("uses")
+    if not isinstance(uses, str) or not uses.startswith(f"{CODE_REVIEW_ACTION_WORKFLOW}@"):
+        raise CodeReviewError(f"Cannot find {CODE_REVIEW_ACTION_WORKFLOW} pin in {WORKFLOW_PATH}")
+
+    return uses.removeprefix(f"{CODE_REVIEW_ACTION_WORKFLOW}@")
+
+
+def _get_prompt_file_pattern(repo_root: Path) -> str:
+    inputs = _get_code_review_job(repo_root).get("with")
+    if not isinstance(inputs, dict):
+        raise CodeReviewError(f"Cannot find code review workflow inputs in {WORKFLOW_PATH}")
+
+    prompt_file_pattern = inputs.get("prompt_file_pattern")
+    if not isinstance(prompt_file_pattern, str) or not prompt_file_pattern.strip():
+        raise CodeReviewError(f"Cannot find prompt_file_pattern in {WORKFLOW_PATH}")
+
+    return prompt_file_pattern.strip()
+
+
+def _get_code_review_job(repo_root: Path) -> dict:
     workflow_path = repo_root / WORKFLOW_PATH
     if not workflow_path.is_file():
         raise CodeReviewError(f"Cannot find code review workflow: {WORKFLOW_PATH}")
 
-    workflow = workflow_path.read_text(encoding="utf-8")
-    for line in workflow.splitlines():
-        match = CODE_REVIEW_ACTION_USES_RE.match(line)
-        if match:
-            return match.group("ref")
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    try:
+        job = workflow["jobs"]["review"]
+    except (KeyError, TypeError) as e:
+        raise CodeReviewError(f"Cannot find code review job in {WORKFLOW_PATH}") from e
 
-    raise CodeReviewError(f"Cannot find {CODE_REVIEW_ACTION_WORKFLOW} pin in {WORKFLOW_PATH}")
+    if not isinstance(job, dict):
+        raise CodeReviewError(f"Cannot find code review job in {WORKFLOW_PATH}")
+
+    return job
