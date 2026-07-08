@@ -438,7 +438,8 @@ func NewContainerLogSymlinkResolver() *ContainerLogSymlinkResolver {
 
 // containerLogFor returns the symlink in ContainersLogsDir whose target is podLogPath.
 // The second return value reports whether the directory scan succeeded; when false the
-// caller should not attempt to validate the container ID.
+// caller should not attempt to validate the container ID (matching the previous
+// behavior of bailing out when the directory could not be walked).
 func (r *ContainerLogSymlinkResolver) containerLogFor(podLogPath string) (string, bool) {
 	r.once.Do(func() {
 		r.links, r.err = buildContainerLogSymlinkMap()
@@ -449,33 +450,40 @@ func (r *ContainerLogSymlinkResolver) containerLogFor(podLogPath string) (string
 	return r.links[podLogPath], true
 }
 
-// buildContainerLogSymlinkMap scans ContainersLogsDir once and returns a map from
-// each symlink target (a /var/log/pods file path) to the symlink path itself.
+// buildContainerLogSymlinkMap walks ContainersLogsDir once and returns a map from each
+// symlink target (a /var/log/pods file path) to the symlink path itself. The traversal
+// intentionally mirrors the original per-file implementation (a recursive filepath.WalkDir
+// following only symlinks) so the resulting map is identical; the only change is that it
+// is now built a single time per scan instead of once for every candidate file.
 func buildContainerLogSymlinkMap() (map[string]string, error) {
-	// ContainersLogsDir is a flat directory of symlinks, so a single ReadDir is
-	// enough and avoids the overhead of a recursive walk.
-	entries, err := os.ReadDir(ContainersLogsDir)
+	infos := make(map[string]string)
+	err := filepath.WalkDir(ContainersLogsDir, func(containerLogFilename string, d os.DirEntry, err error) error {
+		// we only wants to follow symlinks
+		if d == nil || d.Type()&os.ModeSymlink != os.ModeSymlink || d.IsDir() {
+			// not a symlink, we are not interested in this file
+			return nil
+		}
+
+		// resolve the symlink
+		podLogFilename, err2 := os.Readlink(containerLogFilename)
+		if err2 != nil {
+			log.Debug("Error while resolving symlink of", containerLogFilename, ":", err)
+			return nil
+		}
+
+		infos[podLogFilename] = containerLogFilename
+		return nil
+	})
+
+	// this is not an error if we are not currently looking for container logs files,
+	// so not problem and just return false.
+	// Still, we write a debug message to be able to troubleshoot that
+	// in cases we're legitimately looking for containers logs.
 	if err != nil {
+		log.Debug("Can't look for symlinks in /var/log/containers:", err)
 		return nil, err
 	}
-
-	links := make(map[string]string, len(entries))
-	for _, entry := range entries {
-		// we only want to follow symlinks
-		if entry.IsDir() || entry.Type()&os.ModeSymlink != os.ModeSymlink {
-			continue
-		}
-
-		containerLogFilename := filepath.Join(ContainersLogsDir, entry.Name())
-		podLogFilename, err := os.Readlink(containerLogFilename)
-		if err != nil {
-			log.Debug("Error while resolving symlink of", containerLogFilename, ":", err)
-			continue
-		}
-
-		links[podLogFilename] = containerLogFilename
-	}
-	return links, nil
+	return infos, nil
 }
 
 // ShouldIgnore resolves symlinks in /var/log/containers in order to use that redirection
@@ -491,7 +499,8 @@ func buildContainerLogSymlinkMap() (map[string]string, error) {
 //
 // symlinkResolver caches the ContainersLogsDir scan so it can be reused across all
 // files evaluated in a single scan; pass a resolver from NewContainerLogSymlinkResolver.
-// A nil resolver is allowed and results in a one-off scan.
+// A nil resolver is allowed and results in a one-off scan. Aside from that caching, the
+// validation logic below is intentionally identical to the original implementation.
 // See these links for more info:
 //   - https://github.com/kubernetes/kubernetes/issues/58638
 //   - https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
@@ -509,25 +518,15 @@ func ShouldIgnore(validatePodContainerID bool, file *tailer.File, symlinkResolve
 		return false
 	}
 
-	// The only way this function ignores a file is by detecting a mismatch against the
-	// source's container Identifier. Without an Identifier to compare against there is
-	// nothing to validate, so we can skip the (comparatively expensive) directory scan.
-	sourceContainerID := file.Source.Config().Identifier
-	if sourceContainerID == "" {
-		return false
-	}
-
 	if symlinkResolver == nil {
 		symlinkResolver = NewContainerLogSymlinkResolver()
 	}
 
+	// The (cached) scan of ContainersLogsDir gives us the symlink pointing at the file
+	// we're about to tail. A failed scan is not treated as an error: we simply don't
+	// ignore the file, exactly as before.
 	containerLogFilename, ok := symlinkResolver.containerLogFor(file.Path)
 	if !ok {
-		// this is not an error if we are not currently looking for container logs files,
-		// so no problem and just return false.
-		// Still, we write a debug message to be able to troubleshoot that
-		// in cases we're legitimately looking for containers logs.
-		log.Debug("Can't look for symlinks in", ContainersLogsDir)
 		return false
 	}
 
@@ -542,15 +541,17 @@ func ShouldIgnore(validatePodContainerID bool, file *tailer.File, symlinkResolve
 
 	// basic validation of the ID that has been parsed, if it doesn't look like
 	// an ID we don't want to compare another ID to it
-	if containerIDFromFilename == "" || !rxContainerID.MatchString(containerIDFromFilename) {
+	if containerIDFromFilename == "" || !rxContainerID.Match([]byte(containerIDFromFilename)) {
 		return false
 	}
 
-	if strings.TrimSpace(strings.ToLower(containerIDFromFilename)) != strings.TrimSpace(strings.ToLower(sourceContainerID)) {
-		log.Debugf("We were about to tail a file attached to the wrong container (%s != %s), probably due to short-lived containers.",
-			containerIDFromFilename, sourceContainerID)
-		// ignore this file, it is not concerning the container stored in file.Source
-		return true
+	if file.Source.Config().Identifier != "" && containerIDFromFilename != "" {
+		if strings.TrimSpace(strings.ToLower(containerIDFromFilename)) != strings.TrimSpace(strings.ToLower(file.Source.Config().Identifier)) {
+			log.Debugf("We were about to tail a file attached to the wrong container (%s != %s), probably due to short-lived containers.",
+				containerIDFromFilename, file.Source.Config().Identifier)
+			// ignore this file, it is not concerning the container stored in file.Source
+			return true
+		}
 	}
 
 	return false
