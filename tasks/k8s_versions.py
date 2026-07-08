@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from invoke.exceptions import Exit
@@ -42,9 +43,96 @@ KIND_VERSIONS_JSON_PATH = "test/e2e-framework/components/kubernetes/kind_version
 # Matches: v1.35.0, v1.35.0-rc.1, etc.
 K8S_VERSION_PATTERN = r'v?\d+\.\d+(?:\.\d+)?(?:-rc\.\d+)?'
 
-def get_kubernetes_releases(version_pattern: str = K8S_VERSION_PATTERN) -> list[dict[str, str]]:
+class ReleaseType(Enum):
+    STABLE = 1
+    RC = 2
+
+# KubernetesRelease represents a Kubernetes version fetched from Github
+# Given that it is a Github release, it won't contain an image digest or kind version.
+class KubernetesRelease:
+    def __init__(self, tag: str):
+        self.tag: str = tag
+        self.semver: semver.VersionInfo = _parse_version(tag)
+
+        # start with stable
+        self.release_type: ReleaseType = ReleaseType.STABLE
+        if not self.semver:
+            raise ValueError(f"Version could not be parsed from {self.semver}")
+
+        # override to RC if applicable
+        if self.semver.prerelease and self.semver.prerelease.startswith("rc"):
+            self.release_type = ReleaseType.RC
+
+    def as_dict(self):
+        return { 'tag': self.tag, 'rc': self.release_type == ReleaseType.RC }
+
+# KindKubernetesImage represents an existing Kubernetes version. This means
+# a version that already has a corresponding Kind image built, so it will contain
+# a digest and possibly a kind_version.
+class KindKubernetesImage(KubernetesRelease):
+    def __init__(self, tag: str, digest: str, kind_version: str = ""):
+        super().__init__(tag)
+
+        self.digest: str = digest
+        if not self.digest:
+            raise ValueError(f"Digest is a required field")
+
+        self.kind_version: str = kind_version
+
+    @classmethod
+    def from_dict(cls, data) -> KindKubernetesImage:
+        tag = data.get('tag')
+        digest = data.get('digest')
+        kind_version = data.get('kind_version')
+        return cls(tag, digest, kind_version)
+
+    def as_dict(self):
+        tmp = {'tag': self.tag, 'digest': self.digest, 'rc': self.release_type == ReleaseType.RC,}
+        if self.kind_version:
+            tmp['kind_version'] = self.kind_version
+        return tmp
+
+
+class KubernetesVersions[T: (KubernetesRelease, KindKubernetesImage)]:
+    def __init__(self):
+        self.versions:list[T] = []
+
+    @classmethod
+    def from_dict(cls, data, *, type_: type[T])-> KubernetesVersions[T]:
+        versions = cls()
+        for _, version in data.items():
+            kv = type_.from_dict(version)
+            versions.add(kv)
+        return versions
+
+    def as_dict(self):
+        tmp = {}
+        for r in self.versions:
+            tmp[r.tag] = r.as_dict()
+        return tmp
+
+    def __bool__(self):
+        return len(self.versions) > 0
+
+    def __iter__(self):
+        return iter(self.versions)
+
+    def add(self, version: T):
+        self.versions.append(version)
+
+    def latest(self, release_type:ReleaseType) -> T | None:
+        filtered = [r for r in self.versions if r.release_type == release_type]
+        if filtered:
+            return max(filtered, key=lambda x: x.semver)
+        return None
+
+    def contains(self, tag: str) -> bool:
+        return any(x.tag == tag for x in self.versions)
+
+
+def fetch_github_releases(version_pattern: str = K8S_VERSION_PATTERN) -> KubernetesVersions[KubernetesRelease]:
     """Get releases from Kubernetes GitHub repository."""
-    releases = []
+    discovered = KubernetesVersions[KubernetesRelease]()
 
     # Get the last 100 releases
     # TODO(TBD): Should we fetch all releases or is the last 25 enough?
@@ -57,12 +145,12 @@ def get_kubernetes_releases(version_pattern: str = K8S_VERSION_PATTERN) -> list[
         for release in response.json():
             tag_name = release.get('tag_name', '')
             if re.fullmatch(version_pattern, tag_name):
-                releases.append({'tag_name': tag_name})
+                discovered.add(KubernetesRelease(tag_name))
 
     except requests.exceptions.RequestException as e:
         raise Exit(f"Error fetching releases from Github: {e}", code=1) from e
 
-    return releases
+    return discovered
 
 
 def _check_dependencies():
@@ -122,77 +210,57 @@ def _get_latest_kind_release() -> str | None:
         return None
 
 
-def _get_latest_k8s_versions() -> dict[str, dict[str, str]]:
+def _get_latest_releases() -> KubernetesVersions[KubernetesRelease]:
     """
-    Fetch and parse the latest Kubernetes version from GitHub releases.
-    Returns a dictionary with only the single latest version.
+    Fetch and parse the latest Kubernetes versions from GitHub releases.
+    Returns a dictionary with the latest stable and RC versions.
     """
 
-    # Filter for valid Kubernetes version tags
-    version_tags = []
+    all_versions = fetch_github_releases()
+    latest_versions = KubernetesVersions[KubernetesRelease]()
 
-    # Kubernetes version tags from GitHub
-    for tag in get_kubernetes_releases():
-        tag_name = tag.get('tag_name', '')
-        version = _parse_version(tag_name)
+    # Append the latest stable
+    latest_stable = all_versions.latest(ReleaseType.STABLE)
+    if latest_stable:
+        latest_versions.add(latest_stable)
 
-        if version and tag_name:
-            is_rc = "rc" in tag_name
-            version_tags.append(
-                {'version': version,
-                 'tag': tag_name,
-                 'rc': is_rc}
-            )
+    # Get the latest RC and append it if:
+    # - No latest_stable was found
+    # - latest_rc > latest stable
+    latest_rc = all_versions.latest(ReleaseType.RC)
+    if latest_rc and (latest_stable is None or latest_rc.semver > latest_stable.semver):
+        latest_versions.add(latest_rc)
 
-    # Sort by version (major, minor, patch)
-    version_tags.sort(key=lambda x: x['version'], reverse=True)
-
-    # Return only the single latest version
-    if version_tags:
-        latest = version_tags[0]
-
-        # Parse out the necessary fields
-        tag = latest.get('tag')
-        rc = latest.get('rc')
-
-        # Build return dictionary
-        # Structure: {tag_name: {'tag': tag_name, 'kind_version': str?, 'rc': bool?}}
-        # Final releases include 'digest' and 'kind_version'; RC releases include 'rc'
-        if tag:
-            result = {tag: {'tag': tag}}
-            if rc:
-                result[tag]['rc'] = rc
-            return result
-
-    return {}
+    return latest_versions
 
 
-def _load_existing_versions(versions_file: str) -> dict[str, dict[str, str]]:
+def _load_existing_versions(versions_file: str) -> KubernetesVersions[KindKubernetesImage]:
     """Load previously stored versions from file."""
     if os.path.exists(versions_file):
         try:
             with open(versions_file) as f:
-                return json.load(f)
+                return KubernetesVersions.from_dict(json.load(f), type_=KindKubernetesImage)
+
         except (OSError, json.JSONDecodeError) as e:
             print(f"Warning: Could not load existing versions: {e}", file=sys.stderr)
-    return {}
+    return KubernetesVersions()
 
 
-def _save_versions(versions: dict[str, dict[str, str]], versions_file: str) -> None:
+def _save_versions(versions: KubernetesVersions[KindKubernetesImage], versions_file: str) -> None:
     """Save versions to file for future comparison."""
     with open(versions_file, 'w') as f:
-        json.dump(versions, f, indent=2)
+        json.dump(versions.as_dict(), f, indent=2)
 
 
 def _find_new_versions(
-    current: dict[str, dict[str, str]], previous: dict[str, dict[str, str]]
-) -> dict[str, dict[str, str]]:
-    """Find versions that are new"""
-    new_versions = {}
-    for version, data in current.items():
+        latest: KubernetesVersions[KubernetesRelease], previous: KubernetesVersions[KindKubernetesImage]
+) -> KubernetesVersions[KubernetesRelease]:
+    new_versions = KubernetesVersions[KubernetesRelease]()
+
+    for version in latest:
         # Version doesn't exist in previous - it's new
-        if version not in previous:
-            new_versions[version] = data
+        if not previous.contains(version.tag):
+            new_versions.add(version)
 
     return new_versions
 
@@ -234,7 +302,7 @@ def _find_k8s_latest_job(content: str) -> tuple[int | None, int | None, int | No
     return None, None, None
 
 
-def _extract_version_from_latest_job(content: str) -> dict[str, str] | None:
+def _extract_version_from_latest_job(content: str) -> KindKubernetesImage | None:
     """
     Extract the current Kubernetes version from the new-e2e-containers-k8s-latest job.
     Returns {'version': 'v1.34.0', 'digest': 'sha256:...'} or None if not found.
@@ -255,12 +323,12 @@ def _extract_version_from_latest_job(content: str) -> dict[str, str] | None:
         # Check if it has a digest
         if '@sha256:' in version_str:
             version, digest = version_str.split('@')
-            return {'version': version, 'digest': digest}
+            return KindKubernetesImage(version, digest)
 
     return None
 
 
-def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool, list[str]]:
+def _update_e2e_yaml_file(new_versions: KubernetesVersions[KindKubernetesImage]) -> tuple[bool, list[str]]:
     """
     Update the e2e.yml file with new Kubernetes versions.
 
@@ -283,20 +351,8 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool
         print("No new versions found")
         return False, []
 
-    version_items = []
-    for version_str, data in new_versions.items():
-        parsed = _parse_version(version_str)
-        if parsed:
-            version_items.append((parsed, version_str, data))
-
-    if not version_items:
-        print("No valid versions found")
-        return False, []
-
-    version_items.sort(key=lambda x: x[0], reverse=True)
-    desired_latest_version = version_items[0][1]
-    desired_latest_digest = version_items[0][2]['digest']
-    print(f"Desired latest version from new_versions: {desired_latest_version}")
+    desired = new_versions.latest(ReleaseType.STABLE)
+    print(f"Desired latest version from new_versions: {desired.tag}")
 
     # 2. Reads the current latest version from new-e2e-containers-k8s-latest job
     current_latest = _extract_version_from_latest_job(content)
@@ -305,9 +361,9 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool
         print("No current latest version found in new-e2e-containers-k8s-latest job")
         return False, []
 
-    print(f"Current latest version in new-e2e-containers-k8s-latest job: {current_latest['version']}")
+    print(f"Current latest version in new-e2e-containers-k8s-latest job: {current_latest.tag}")
 
-    if current_latest['version'] == desired_latest_version and current_latest['digest'] == desired_latest_digest:
+    if current_latest.tag == desired.tag and current_latest.digest == desired.digest:
         print("YAML is already in sync with new_versions")
         return False, []
 
@@ -319,11 +375,11 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool
 
     lines = content.split('\n')
 
-    print(f"Updating new-e2e-containers-k8s-latest job to {desired_latest_version}")
+    print(f"Updating new-e2e-containers-k8s-latest job to {desired.tag}")
     old_line = lines[extra_params_line]
     new_line = re.sub(
         rf'kubernetesVersion={K8S_VERSION_PATTERN}@sha256:[a-f0-9]+',
-        f'kubernetesVersion={desired_latest_version}@{desired_latest_digest}',
+        f'kubernetesVersion={desired.tag}@{desired.digest}',
         old_line,
     )
     lines[extra_params_line] = new_line
@@ -333,7 +389,7 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool
         f.write(new_content)
 
     print(f"Successfully updated {E2E_YAML_PATH}")
-    return True, [desired_latest_version]
+    return True, [desired.tag]
 
 
 @task
@@ -348,31 +404,26 @@ def fetch_versions(_, output_file=VERSIONS_FILE):
     _check_dependencies()
 
     print(f"Fetching latest Kubernetes version...")
-    current_versions = _get_latest_k8s_versions()
-    if not current_versions:
+    latest = _get_latest_releases()
+    if not latest.versions:
         print("Error: Could not find any Kubernetes versions")
         _set_github_output('has_new_versions', 'false')
         raise Exit("No Kubernetes versions found", code=1)
 
-    # Show the latest version
-    latest_version = list(current_versions.keys())[0]
-
-    print(f"Latest Kubernetes version: {latest_version}")
-
     # Load previous versions and compare
-    previous_versions = _load_existing_versions(output_file)
-    new_versions = _find_new_versions(current_versions, previous_versions)
+    existing_versions = _load_existing_versions(output_file)
+    new_versions = _find_new_versions(latest, existing_versions)
 
     if new_versions:
         print("\nNew version(s) found!")
-        for version, data in new_versions.items():
-            print(f"  {version}")
+        for version in new_versions:
+            print(f"  {version.tag}")
 
         # Set GitHub Actions outputs
         _set_github_output('has_new_versions', 'true')
-        _set_github_output('new_versions', json.dumps(new_versions))
+        _set_github_output('new_versions', json.dumps(new_versions.as_dict()))
     else:
-        print(f"\nNo new version - {latest_version} is already tracked")
+        print(f"\nNo new version(s) found")
         _set_github_output('has_new_versions', 'false')
 
 
@@ -402,7 +453,7 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
 
     # Load new versions
     with open(versions_file) as f:
-        all_versions = json.load(f)
+        all_versions = KubernetesVersions.from_dict(json.load(f), type_=KindKubernetesImage)
 
     print("Checking for new versions to add to e2e.yml...")
 
@@ -441,7 +492,7 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
         return
 
     with open(versions_file) as f:
-        all_versions = json.load(f)
+        existing_k8s_versions = KubernetesVersions.from_dict(json.load(f), type_=KindKubernetesImage)
 
     # Load existing kind_versions.json
     kind_versions = {}
@@ -451,36 +502,23 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
 
     # We fetch the latest kind release later if needed
     latest_kind_release = None
-
     updated = False
-    for full_version, data in all_versions.items():
-        tag = data.get('tag')
-        digest = data.get('digest')
 
-        if not tag or not digest:
-            print(f"Skipping {full_version}: missing tag or digest")
-            continue
-
-        # Derive minor version key ("1.35" from "v1.35.1")
-        parsed = _parse_version(full_version)
-        if not parsed:
-            print(f"Skipping {full_version}: could not parse version")
-            continue
-        minor_key = f"{parsed.major}.{parsed.minor}"
-
+    for version in existing_k8s_versions:# Derive minor version key ("1.35" from "v1.35.1")
+        minor_key = f"{version.semver.major}.{version.semver.minor}"
         # Resolve kind_version: prefer what's already in kind_versions.json, then
         # the version in k8s_versions.json, then fallback to the latest kind release from GitHub.
         existing = kind_versions.get(minor_key, {})
-        kind_version = existing.get('kind_version') or data.get('kind_version')
+        kind_version = existing.get('kind_version') or version.get('kind_version')
         if not kind_version:
             if latest_kind_release is None:
                 latest_kind_release = _get_latest_kind_release()
             kind_version = latest_kind_release
             if not kind_version:
-                raise Exit(f"Could not determine kind version for {tag}", code=1)
+                raise Exit(f"Could not determine kind version for {version.tag}", code=1)
             print(f"Using latest kind release {kind_version} for {minor_key}")
 
-        node_image_version = f"{tag}@{digest}"
+        node_image_version = f"{version.tag}@{version.digest}"
 
         if existing.get('kind_version') != kind_version or existing.get('node_image_version') != node_image_version:
             kind_versions[minor_key] = {
@@ -522,24 +560,15 @@ def save_versions(_, versions, versions_file=VERSIONS_FILE):
     # Parse if it's a JSON string
     if isinstance(versions, str):
         try:
-            versions = json.loads(versions)
+            versions = KubernetesVersions.from_dict(json.loads(versions), type_=KindKubernetesImage)
         except json.JSONDecodeError as e:
             raise Exit(f"Invalid JSON in versions argument: {e}", code=1) from e
 
     # Load existing versions
     existing_versions = _load_existing_versions(versions_file)
 
-    # Safely append the passed in dictionary items to the version list
-    for outer_tag, version in versions.items():
-        inner_tag = version.get('tag')
-        digest = version.get('digest')
-        if not inner_tag or not digest:
-            print(f"Version {outer_tag} is missing required field tag or digest, skipping...")
-            continue
-
-        existing_versions[outer_tag] = {'tag': inner_tag, 'digest': digest}
-        if version.get('kind_version'):
-            existing_versions[outer_tag]['kind_version'] = version['kind_version']
+    for new in versions:
+        existing_versions.add(new)
 
     # Save to file
     _save_versions(existing_versions, versions_file)
