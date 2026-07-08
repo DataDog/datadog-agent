@@ -549,14 +549,15 @@ func TestParse_MultipleSD_ErrorInSecond(t *testing.T) {
 }
 
 func TestParse_RFC5424_VersionErrors(t *testing.T) {
+	// A digit run followed by SP looks like an RFC 5424 VERSION SP header, so
+	// these route to parseRFC5424 and surface a precise, malformed-VERSION
+	// error (rather than being silently reinterpreted as BSD content).
 	tests := []struct {
 		name  string
 		input string
 	}{
 		{"version starts with 0", "<14>0 - - - - - - test"},
 		{"version too long", "<14>1234 - - - - - - test"},
-		{"version non-digit", "<14>1a - - - - - - test"},
-		{"no space after version", "<14>1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -564,6 +565,29 @@ func TestParse_RFC5424_VersionErrors(t *testing.T) {
 			assert.Error(t, err)
 			assert.True(t, msg.Partial)
 			assert.Equal(t, 14, msg.Pri, "PRI should be preserved on version errors")
+		})
+	}
+
+	// A leading digit that is NOT a "digit run + SP" is not an RFC 5424 header.
+	// Per RFC 3164 §4.3.2 the remainder is MSG CONTENT (no partial error), which
+	// is what makes PAN-OS/Cisco digit-prefixed CSV lines parse cleanly.
+	notHeader := []struct {
+		name  string
+		input string
+		msg   string
+	}{
+		{"digit then non-digit is section 4.3.2", "<14>1a - - - - - - test", "1a - - - - - - test"},
+		{"lone digit, no space, is section 4.3.2", "<14>1", "1"},
+	}
+	for _, tt := range notHeader {
+		t.Run(tt.name, func(t *testing.T) {
+			msg, err := Parse([]byte(tt.input))
+			require.NoError(t, err)
+			assert.False(t, msg.Partial)
+			assert.Equal(t, 14, msg.Pri)
+			assert.Equal(t, tt.msg, string(msg.Msg))
+			assert.Equal(t, nilvalue, msg.Timestamp)
+			assert.Equal(t, nilvalue, msg.AppName)
 		})
 	}
 
@@ -747,6 +771,24 @@ func TestParseBSDNoTimestamp(t *testing.T) {
 			msg:   "short",
 		},
 		{
+			// PAN-OS / Cisco CSV dialect: valid PRI, content begins with a
+			// digit but is NOT an RFC 5424 VERSION SP token. It must be treated
+			// as no-timestamp MSG CONTENT, not forced through the RFC 5424
+			// parser (which previously produced a partial parse).
+			name:  "PAN-OS CSV digit-prefixed content",
+			input: "<134>1,2026/06/23 10:15:30,001801000000,TRAFFIC,end,2560",
+			pri:   134,
+			msg:   "1,2026/06/23 10:15:30,001801000000,TRAFFIC,end,2560",
+		},
+		{
+			// Multi-digit prefix (e.g. sequence number) followed by a CSV
+			// delimiter is content, not a 1-3 digit VERSION SP header.
+			name:  "digit run then comma is content",
+			input: "<13>12,alpha,beta",
+			pri:   13,
+			msg:   "12,alpha,beta",
+		},
+		{
 			name:    "empty after PRI remains error",
 			input:   "<14>",
 			pri:     14,
@@ -777,6 +819,26 @@ func TestParseBSDNoTimestamp(t *testing.T) {
 			assert.Equal(t, nilvalue, parsed.MsgID)
 		})
 	}
+}
+
+func TestParse_BSD_SingleLetterTag(t *testing.T) {
+	// A single-letter program name (e.g. "q") is unusual but valid. It must be
+	// recognized as the TAG rather than discarded as a numeric/data fragment.
+	msg, err := Parse([]byte(`<13>Feb 13 20:07:26 myhost q: short tag message`))
+	assert.NoError(t, err)
+	assert.Equal(t, "myhost", msg.Hostname)
+	assert.Equal(t, "q", msg.AppName)
+	assert.Equal(t, "short tag message", string(msg.Msg))
+}
+
+func TestParse_BSD_SingleDigitTagRejected(t *testing.T) {
+	// A single *digit* in the TAG position is a data fragment (e.g. PAN-OS
+	// FUTURE_USE), not a program name, and must remain part of MSG.
+	msg, err := Parse([]byte(`<13>Feb 13 20:07:26 myhost 1 firewall event`))
+	assert.NoError(t, err)
+	assert.Equal(t, "myhost", msg.Hostname)
+	assert.Equal(t, nilvalue, msg.AppName)
+	assert.Equal(t, "1 firewall event", string(msg.Msg))
 }
 
 func BenchmarkParse_BSD(b *testing.B) {

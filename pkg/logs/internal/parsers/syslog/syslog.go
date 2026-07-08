@@ -176,14 +176,24 @@ func Parse(line []byte) (SyslogMessage, error) {
 	b := line[pos]
 	switch {
 	case b >= '0' && b <= '9':
-		msg, err = parseRFC5424(line, pri, pos)
+		// A digit after PRI *may* be an RFC 5424 VERSION, but many network
+		// appliances (PAN-OS, Cisco) emit no-timestamp BSD messages whose
+		// CONTENT starts with a digit (e.g. "<134>1,2026/06/23,...,TRAFFIC,...").
+		// Only dispatch to the RFC 5424 parser when the bytes actually form a
+		// VERSION token (1-3 digits) followed by SP; otherwise treat the
+		// remainder as MSG CONTENT per RFC 3164 §4.3.2.
+		if isRFC5424Header(line, pos) {
+			msg, err = parseRFC5424(line, pri, pos)
+		} else {
+			msg = parseBSDNoTimestamp(line, pri, pos)
+		}
 	case (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z'):
 		msg, err = parseBSD(line, pri, pos)
 	default:
 		// RFC 3164 §4.3.2: valid PRI, but what follows is neither a digit
 		// (RFC 5424 VERSION) nor a letter (BSD TIMESTAMP month). Treat the
 		// remainder as MSG CONTENT with no TIMESTAMP, HOSTNAME, or TAG.
-		return parseBSDNoTimestamp(line, pri, pos), nil
+		msg = parseBSDNoTimestamp(line, pri, pos)
 	}
 
 	// Apply PRI range warning — join with any downstream error so neither is lost.
@@ -210,6 +220,28 @@ func ParseBSDLine(line []byte) (SyslogMessage, error) {
 // ---------------------------------------------------------------------------
 // RFC 5424 parsing
 // ---------------------------------------------------------------------------
+
+// isRFC5424Header reports whether the bytes starting at line[pos] look like an
+// RFC 5424 VERSION field immediately followed by SP. The VERSION token is a run
+// of digits; a genuine RFC 5424 line is "VERSION SP TIMESTAMP SP ...". We only
+// require that the leading digit run is terminated by a space here — the strict
+// VERSION validation (nonzero first digit, max 3 digits) is left to
+// parseRFC5424, which reports a precise error for malformed-but-5424-shaped
+// lines (e.g. "<14>0 ..." or "<14>1234 ...").
+//
+// This distinguishes those from no-timestamp BSD content that merely begins
+// with a digit but is NOT followed by a space ("<134>1,2026/06/23,...", the
+// PAN-OS/Cisco CSV dialect), which must be handled as RFC 3164 §4.3.2 MSG
+// CONTENT instead of being forced through the RFC 5424 parser.
+func isRFC5424Header(line []byte, pos int) bool {
+	i := pos
+	for i < len(line) && line[i] >= '0' && line[i] <= '9' {
+		i++
+	}
+	// The digit run must be immediately followed by SP. A non-digit delimiter
+	// (',', '/', ...) or end-of-line means this is not an RFC 5424 header.
+	return i > pos && i < len(line) && line[i] == ' '
+}
 
 // parseRFC5424 parses an RFC 5424 message starting at line[pos] (the VERSION
 // field). PRI has already been extracted.
@@ -672,13 +704,21 @@ func isAlphaNumeric(b byte) bool {
 // names and should not be promoted to appname/source/service.
 //
 // Rejected patterns:
-//   - Single character (e.g. "1" from PAN-OS FUTURE_USE field)
+//   - Single non-letter character (e.g. the digit "1" from a PAN-OS FUTURE_USE
+//     field); a single letter is accepted as a short program name (e.g. "q")
 //   - Purely numeric (e.g. "2026" from an ISO 8601 timestamp prefix)
 //   - Contains characters outside the set [a-zA-Z0-9._/@-] that are valid
 //     in Unix process names (e.g. commas from CSV data, "=" from key=value)
 func isPlausibleAppName(s string) bool {
-	if len(s) <= 1 {
+	if len(s) == 0 {
 		return false
+	}
+	// A single character is only a plausible program name when it is a letter
+	// (e.g. a short daemon tag "q:"). A lone digit or punctuation char is a
+	// CSV/FUTURE_USE data fragment (e.g. PAN-OS "1"), not a real TAG.
+	if len(s) == 1 {
+		c := s[0]
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 	}
 	allDigit := true
 	for i := 0; i < len(s); i++ {
