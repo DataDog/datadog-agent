@@ -127,7 +127,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/collector/corechecks/oracle/*.go
 # gazelle:exclude pkg/collector/corechecks/orchestrator/ecs
 # gazelle:exclude pkg/collector/corechecks/orchestrator/pod
-# gazelle:exclude pkg/collector/corechecks/snmp/internal/test
 # gazelle:exclude pkg/commonchecks
 # rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
 # Bazel go_deps graph (progs is a separate module outside go.work). Keep this
@@ -171,7 +170,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/serverless/trace/trace_test.go
 # gazelle:exclude pkg/serverless/trace/trace.go
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
-# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
 # Keep hostname.go out of //pkg/util/kubernetes:kubernetes: adding it pulls deps
 #   kubernetes -> clustername -> hostinfo -> kubelet -> kubernetes
 # because //pkg/util/kubernetes/kubelet depends on //pkg/util/kubernetes. Go build
@@ -293,12 +291,7 @@ exports_files(["go.mod"])
 # gazelle:exclude test/required_files
 # gazelle:exclude test/static
 # gazelle:exclude internal/qbranch/anomalydetection-testbench
-# gazelle:exclude tools/agent_QA
 # gazelle:exclude tools/retry_file_dump
-# gazelle:exclude tools/ci
-# gazelle:exclude tools/ebpf
-# gazelle:exclude tools/gdb
-# gazelle:exclude tools/go-update
 # gazelle:exclude vendor
 
 # ======= TESTDATA EXCLUDES =======
