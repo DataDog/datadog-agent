@@ -67,24 +67,29 @@ def _mock_gitlab_repo(artifacts_by_job_id):
 class TestFetchPipelineUtofResults(unittest.TestCase):
     """Test job filtering/fetching against a mocked GitLab API (fetch_pipeline_utof_results)."""
 
-    def test_only_relevant_stages_probed_and_returned(self):
-        pass_doc = UTOFDocument.from_dict(
-            {"version": "1.0.0", "summary": {"total": 1, "passed": 1, "status": "pass"}, "tests": []}
+    def test_only_relevant_stages_and_failed_status_probed_and_returned(self):
+        fail_doc = UTOFDocument.from_dict(
+            {
+                "version": "1.0.0",
+                "summary": {"total": 1, "failed": 1, "status": "fail"},
+                "tests": [{"id": "x", "name": "TestX", "full_name": "TestX", "package": "pkg", "status": "fail"}],
+            }
         )
         jobs = [
-            _mock_gitlab_job(1, "unit_tests-linux-x64", "source_test", "success"),
-            _mock_gitlab_job(2, "deploy_something", "deploy", "success"),  # irrelevant stage
-            _mock_gitlab_job(3, "unit_tests-macos", "source_test", "success"),  # succeeded, no artifact, no report
+            _mock_gitlab_job(1, "unit_tests-linux-x64", "source_test", "failed"),
+            _mock_gitlab_job(2, "deploy_something", "deploy", "failed"),  # irrelevant stage
+            _mock_gitlab_job(3, "unit_tests-macos", "source_test", "success"),  # not failed, never probed
         ]
         pipeline = MagicMock()
         pipeline.jobs.list.return_value = jobs
-        repo = _mock_gitlab_repo({1: ("test_output_unified.json", json.dumps(pass_doc.to_dict()).encode())})
+        repo = _mock_gitlab_repo({1: ("test_output_unified.json", json.dumps(fail_doc.to_dict()).encode())})
 
         results = fetch_pipeline_utof_results(repo, pipeline)
 
         self.assertEqual([r.job_name for r in results], ["unit_tests-linux-x64"])
         repo.jobs.get.assert_any_call(1, lazy=True)
         self.assertNotIn(2, [call.args[0] for call in repo.jobs.get.call_args_list])
+        self.assertNotIn(3, [call.args[0] for call in repo.jobs.get.call_args_list])
 
     def test_failed_job_without_artifact_reported_as_no_data(self):
         jobs = [_mock_gitlab_job(4, "e2e_tests-aws", "e2e", "failed")]
@@ -99,7 +104,7 @@ class TestFetchPipelineUtofResults(unittest.TestCase):
         self.assertIsNotNone(results[0].error)
         self.assertEqual(results[0].job_status, "failed")
 
-    def test_e2e_artifact_name_also_tried(self):
+    def test_e2e_stage_uses_e2e_artifact_name(self):
         fail_doc = UTOFDocument.from_dict(
             {
                 "version": "1.0.0",
@@ -119,6 +124,26 @@ class TestFetchPipelineUtofResults(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertIsNotNone(results[0].utof)
         self.assertEqual(results[0].utof.tests[0].name, "TestX")
+
+    def test_non_failed_status_jobs_skip_fetch(self):
+        jobs = [
+            _mock_gitlab_job(6, "unit_tests-linux-x64", "source_test", "created"),
+            _mock_gitlab_job(7, "unit_tests-macos", "source_test", "running"),
+            _mock_gitlab_job(8, "new-e2e-aws", "e2e", "manual"),
+            _mock_gitlab_job(9, "new-e2e-gcp", "e2e", "skipped"),
+            _mock_gitlab_job(10, "unit_tests-windows", "source_test", "canceled"),
+            _mock_gitlab_job(11, "unit_tests-arm64", "source_test", "success"),
+        ]
+        pipeline = MagicMock()
+        pipeline.jobs.list.return_value = jobs
+        repo = _mock_gitlab_repo({})
+
+        results = fetch_pipeline_utof_results(repo, pipeline)
+
+        # Only failed jobs are worth probing for this report — the artifact fetch
+        # itself (the expensive HTTP round trip) must never have been attempted.
+        self.assertEqual(results, [])
+        repo.jobs.get.assert_not_called()
 
 
 class TestAggregateResults(unittest.TestCase):

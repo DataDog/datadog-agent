@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 from dataclasses import asdict, dataclass, field
+from functools import partial
 from typing import TYPE_CHECKING
 
 from tasks.libs.testing.utof.models import UTOFDocument, UTOFSummary, UTOFTestResult, _strip_none, walk_tests
@@ -11,15 +13,28 @@ from tasks.libs.testing.utof.report import _get_test_failure
 if TYPE_CHECKING:
     from gitlab.v4.objects import Project, ProjectPipeline, ProjectPipelineJob
 
-# Job artifact filenames known to hold a UTOF document, keyed by the CI
-# variable each job family uses (test_output for unit tests, e2e_test_output
-# for new-e2e tests — see .gitlab/build/source_test/*.yml and
-# .gitlab/test/e2e/e2e.yml).
-CANDIDATE_ARTIFACT_NAMES = ("test_output_unified.json", "e2e_test_output_unified.json")
+# The UTOF artifact filename each stage's jobs archive it under — see
+# .gitlab/build/source_test/*.yml (TEST_OUTPUT_FILE) and
+# .gitlab/test/e2e/e2e.yml (E2E_RESULT_JSON_UNIFIED).
+STAGE_ARTIFACT_NAME = {
+    "source_test": "test_output_unified.json",
+    "e2e": "e2e_test_output_unified.json",
+    "e2e_pre_test": "e2e_test_output_unified.json",
+}
 
 # Only these stages run jobs that call generate_unified_output(); probing
 # every job in a pipeline would multiply API calls for no benefit.
-RELEVANT_STAGES = frozenset({"source_test", "e2e", "e2e_pre_test"})
+RELEVANT_STAGES = frozenset(STAGE_ARTIFACT_NAME)
+
+# Only failed jobs are worth reporting on here — passed/canceled/manual/skipped/
+# still-running jobs are never probed, which also means their test counts never
+# feed into the aggregate summary (only failed jobs' totals are reflected there).
+JOB_STATUS_TO_PROBE = "failed"
+
+# Number of jobs to fetch artifacts for concurrently. Each fetch is a
+# blocking HTTP round trip to GitLab; a pipeline can have hundreds of
+# relevant jobs, so doing this serially dominates the command's runtime.
+DEFAULT_FETCH_CONCURRENCY = 16
 
 
 @dataclass
@@ -65,23 +80,32 @@ class PipelineUTOFAggregate:
         )
 
 
-def fetch_pipeline_utof_results(repo: Project, pipeline: ProjectPipeline) -> list[JobUTOFResult]:
-    """Fetch the UTOF document for every UTOF-emitting job in a pipeline.
+def fetch_pipeline_utof_results(
+    repo: Project, pipeline: ProjectPipeline, max_workers: int = DEFAULT_FETCH_CONCURRENCY
+) -> list[JobUTOFResult]:
+    """Fetch the UTOF document for every failed UTOF-emitting job in a pipeline.
 
     Only the latest attempt of each job is considered: GitLab's job list
     excludes older retries unless include_retried=True is passed.
+
+    Artifact fetches are one blocking HTTP call each, so they're run
+    concurrently across jobs — a pipeline can have hundreds of relevant
+    jobs, and doing this serially dominates the command's runtime.
     """
+    candidates = [
+        job
+        for job in pipeline.jobs.list(per_page=100, all=True)
+        if job.stage in RELEVANT_STAGES and job.status == JOB_STATUS_TO_PROBE
+    ]
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        utofs = list(executor.map(partial(_fetch_job_utof, repo), candidates))
+
     results: list[JobUTOFResult] = []
-    jobs: list[ProjectPipelineJob] = pipeline.jobs.list(per_page=100, all=True)
-
-    for job in jobs:
-        if job.stage not in RELEVANT_STAGES:
-            continue
-
-        utof = _fetch_job_utof(repo, job)
+    for job, utof in zip(candidates, utofs, strict=False):
         if utof is not None:
             results.append(JobUTOFResult(job_name=job.name, job_url=job.web_url, job_status=job.status, utof=utof))
-        elif job.status != "success":
+        else:
             results.append(
                 JobUTOFResult(
                     job_name=job.name,
@@ -90,23 +114,24 @@ def fetch_pipeline_utof_results(repo: Project, pipeline: ProjectPipeline) -> lis
                     error=f"job {job.status}, no UTOF artifact found",
                 )
             )
-        # else: job succeeded but never emits UTOF (e.g. rtloader_tests) — nothing to report.
 
     return results
 
 
 def _fetch_job_utof(repo: Project, job: ProjectPipelineJob) -> UTOFDocument | None:
+    name = STAGE_ARTIFACT_NAME.get(job.stage)
+    if name is None:
+        return None
+
     project_job = repo.jobs.get(job.id, lazy=True)
-    for name in CANDIDATE_ARTIFACT_NAMES:
-        data = _artifact_or_none(project_job, name)
-        if data is None:
-            continue
-        try:
-            return UTOFDocument.from_json(data)
-        except (ValueError, KeyError, TypeError) as e:
-            print(f"Warning: failed to parse UTOF artifact {name} for job {job.name}: {e}")
-            return None
-    return None
+    data = _artifact_or_none(project_job, name)
+    if data is None:
+        return None
+    try:
+        return UTOFDocument.from_json(data)
+    except (ValueError, KeyError, TypeError) as e:
+        print(f"Warning: failed to parse UTOF artifact {name} for job {job.name}: {e}")
+        return None
 
 
 def _artifact_or_none(project_job, name: str) -> bytes | None:
