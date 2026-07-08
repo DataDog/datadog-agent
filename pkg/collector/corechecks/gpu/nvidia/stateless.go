@@ -413,8 +413,11 @@ var clockThrottleReasons = []clockThrottleReason{
 	{name: "gpu_idle", bit: nvml.ClocksEventReasonGpuIdle},
 	{name: "applications_clocks_setting", bit: nvml.ClocksEventReasonApplicationsClocksSetting},
 	{name: "sw_power_cap", bit: nvml.ClocksEventReasonSwPowerCap},
+	{name: "hw_slowdown", bit: nvml.ClocksThrottleReasonHwSlowdown},
 	{name: "sync_boost", bit: nvml.ClocksEventReasonSyncBoost},
 	{name: "sw_thermal_slowdown", bit: nvml.ClocksEventReasonSwThermalSlowdown},
+	{name: "hw_thermal_slowdown", bit: nvml.ClocksThrottleReasonHwThermalSlowdown},
+	{name: "hw_power_brake_slowdown", bit: nvml.ClocksThrottleReasonHwPowerBrakeSlowdown},
 	{name: "display_clock_setting", bit: nvml.ClocksEventReasonDisplayClockSetting},
 	{name: "none", bit: nvml.ClocksEventReasonNone},
 }

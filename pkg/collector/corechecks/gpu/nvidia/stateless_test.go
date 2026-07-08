@@ -882,6 +882,11 @@ func TestClockThrottleReasonMetrics(t *testing.T) {
 			expectedReason:               "sw_power_cap",
 			expectedThrottledWhileActive: 1,
 		},
+		"hw slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwSlowdown,
+			expectedReason:               "hw_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
 		"sync boost": {
 			reasons:                      nvml.ClocksEventReasonSyncBoost,
 			expectedReason:               "sync_boost",
@@ -890,6 +895,16 @@ func TestClockThrottleReasonMetrics(t *testing.T) {
 		"sw thermal slowdown": {
 			reasons:                      nvml.ClocksEventReasonSwThermalSlowdown,
 			expectedReason:               "sw_thermal_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"hw thermal slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwThermalSlowdown,
+			expectedReason:               "hw_thermal_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"hw power brake slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwPowerBrakeSlowdown,
+			expectedReason:               "hw_power_brake_slowdown",
 			expectedThrottledWhileActive: 1,
 		},
 		"display clock setting": {
