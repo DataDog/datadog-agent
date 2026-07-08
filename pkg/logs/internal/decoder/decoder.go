@@ -191,11 +191,13 @@ func resolveNoisyLogDetectionEnabled(sourceNoisyLogDetection *bool) bool {
 const disabledSourcesConfigKey = "logs_config.experimental_adaptive_sampling.disabled_sources"
 
 const (
-	smartSeverityProfilesEnabledConfigKey         = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
-	smartSeverityProfilesMediumRateLimitConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit"
-	smartSeverityProfilesMediumBurstSizeConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size"
-	smartSeverityProfilesHighRateLimitConfigKey   = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.rate_limit"
-	smartSeverityProfilesHighBurstSizeConfigKey   = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size"
+	smartSeverityProfilesEnabledConfigKey           = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
+	smartSeverityProfilesMediumPassThroughConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.pass_through"
+	smartSeverityProfilesMediumRateLimitConfigKey   = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.rate_limit"
+	smartSeverityProfilesMediumBurstSizeConfigKey   = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.medium.burst_size"
+	smartSeverityProfilesHighPassThroughConfigKey   = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.pass_through"
+	smartSeverityProfilesHighRateLimitConfigKey     = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.rate_limit"
+	smartSeverityProfilesHighBurstSizeConfigKey     = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.burst_size"
 )
 
 // resolveSmartSeverityProfiles builds the Low/Medium/High profile triple.
@@ -218,6 +220,10 @@ func resolveSmartSeverityProfiles(low preprocessor.SamplerProfile) [severityeven
 		profiles[severityeventsdef.SeverityMedium].BurstSize = clampBurstSize(cfg.GetFloat64(smartSeverityProfilesMediumBurstSizeConfigKey))
 		mediumConfigured = true
 	}
+	if cfg.IsConfigured(smartSeverityProfilesMediumPassThroughConfigKey) {
+		profiles[severityeventsdef.SeverityMedium].PassThrough = cfg.GetBool(smartSeverityProfilesMediumPassThroughConfigKey)
+		mediumConfigured = true
+	}
 
 	highConfigured := false
 	if cfg.IsConfigured(smartSeverityProfilesHighRateLimitConfigKey) {
@@ -226,6 +232,10 @@ func resolveSmartSeverityProfiles(low preprocessor.SamplerProfile) [severityeven
 	}
 	if cfg.IsConfigured(smartSeverityProfilesHighBurstSizeConfigKey) {
 		profiles[severityeventsdef.SeverityHigh].BurstSize = clampBurstSize(cfg.GetFloat64(smartSeverityProfilesHighBurstSizeConfigKey))
+		highConfigured = true
+	}
+	if cfg.IsConfigured(smartSeverityProfilesHighPassThroughConfigKey) {
+		profiles[severityeventsdef.SeverityHigh].PassThrough = cfg.GetBool(smartSeverityProfilesHighPassThroughConfigKey)
 		highConfigured = true
 	}
 
