@@ -2511,16 +2511,6 @@ properties:
         tags:
         - template_section:Dogstatsd
         properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-            visibility: public
-            description: |-
-              Enable retaining additional selected DogStatsD metrics. The monitor metric is auto-admitted from
-              DogStatsD when monitor.enabled is true and does not need to be repeated here.
-            tags:
-            - template_section:Dogstatsd
           metric_names:
             node_type: setting
             type: array
@@ -2528,8 +2518,9 @@ properties:
             items:
               type: string
             visibility: public
-            description: Additional exact DogStatsD metric names to retain in the lookback
-              ring.
+            description: |-
+              Additional exact DogStatsD metric names to retain in the lookback ring. The monitor metric is
+              auto-admitted from DogStatsD when monitor.enabled is true and does not need to be repeated here.
             tags:
             - template_section:Dogstatsd
       monitor:

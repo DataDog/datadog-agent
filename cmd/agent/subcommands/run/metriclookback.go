@@ -39,9 +39,9 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 			return nil
 		}
 
-		dogstatsdEnabled := cfg.GetBool("metric_lookback.dogstatsd.enabled")
+		metricNames := cfg.GetStringSlice("metric_lookback.dogstatsd.metric_names")
 		monitorEnabled := cfg.GetBool("metric_lookback.monitor.enabled")
-		if !dogstatsdEnabled && !monitorEnabled {
+		if len(metricNames) == 0 && !monitorEnabled {
 			return nil
 		}
 
@@ -62,10 +62,6 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 			Monitor: watcher,
 		})
 
-		metricNames := []string(nil)
-		if dogstatsdEnabled {
-			metricNames = cfg.GetStringSlice("metric_lookback.dogstatsd.metric_names")
-		}
 		adapter := metriclookback.NewDogStatsDAdapter(retention, metriclookback.DogStatsDOptions{
 			MetricNames:        metricNames,
 			Monitor:            watcher,

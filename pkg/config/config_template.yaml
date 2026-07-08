@@ -2701,16 +2701,10 @@ api_key:
 #
 #   dogstatsd:
 
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_METRIC_LOOKBACK_DOGSTATSD_ENABLED - boolean - optional - default: false
-#     # Enable retaining additional selected DogStatsD metrics. The monitor metric is auto-admitted from
-#     # DogStatsD when monitor.enabled is true and does not need to be repeated here.
-#
-#     enabled: false
-
 #     # @param metric_names - list of strings - optional - default: []
 #     # @env DD_METRIC_LOOKBACK_DOGSTATSD_METRIC_NAMES - space-separated list of strings - optional - default: []
-#     # Additional exact DogStatsD metric names to retain in the lookback ring.
+#     # Additional exact DogStatsD metric names to retain in the lookback ring. The monitor metric is
+#     # auto-admitted from DogStatsD when monitor.enabled is true and does not need to be repeated here.
 #
 #     metric_names: []
 

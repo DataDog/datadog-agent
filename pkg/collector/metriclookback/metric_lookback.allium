@@ -113,10 +113,9 @@ external entity LookbackConfiguration {
     monitor_range_epsilon: Decimal
     monitor_dry_run: Boolean
 
-    -- This flag controls only additional DogStatsD metrics listed in
-    -- dogstatsd_metric_names. It does not gate auto-admission of the monitor
-    -- metric as a DogStatsD trigger source.
-    dogstatsd_additional_metrics_enabled: Boolean
+    -- Additional DogStatsD metric names to retain. An empty set disables
+    -- additional DogStatsD retention. The monitor metric is separately
+    -- auto-admitted as a DogStatsD trigger source when the monitor is enabled.
     dogstatsd_metric_names: Set<MetricName>
 }
 
@@ -290,15 +289,13 @@ rule MonitorMetricAutoAdmittedFromDogStatsD {
         active: true
     )
     @guidance
-        -- This rule holds even when
-        -- configuration.dogstatsd_additional_metrics_enabled = false. The
-        -- monitor metric is a trigger source, not an additional retained metric.
+        -- The monitor metric is a trigger source, not an additional retained
+        -- metric, so it does not need to appear in dogstatsd_metric_names.
 }
 
 rule DogStatsDAdditionalMetricAdmission {
     when: RuntimeConfigured(configuration)
     requires: configuration.enabled = true
-    requires: configuration.dogstatsd_additional_metrics_enabled = true
     for name in configuration.dogstatsd_metric_names:
         ensures: DogStatsDAdmission.created(
             metric_name: name,
@@ -307,20 +304,17 @@ rule DogStatsDAdditionalMetricAdmission {
         )
 }
 
-rule DogStatsDAdditionalDisableDoesNotDisableMonitorAdmission {
+rule EmptyDogStatsDAdditionalMetricsDoesNotDisableMonitorAdmission {
     when: RuntimeConfigured(configuration)
     requires: configuration.enabled = true
     requires: configuration.monitor_enabled = true
     requires: configuration.monitor_metric_name != nil
-    requires: configuration.dogstatsd_additional_metrics_enabled = false
+    requires: configuration.dogstatsd_metric_names.count = 0
     ensures: DogStatsDAdmission.created(
         metric_name: configuration.monitor_metric_name,
         reason: monitor_trigger,
         active: true
     )
-    ensures:
-        for name in configuration.dogstatsd_metric_names:
-            not exists DogStatsDAdmission where metric_name = name and reason = additional_metric
 }
 
 rule AdmittedDogStatsDObservationIsRetainedWhenReady {
@@ -620,9 +614,9 @@ invariant MonitorMetricHasSourceIndependentSemantics {
     -- with the same metric name can affect monitor decisions.
 }
 
-invariant DogStatsDAdditionalEnablementIsNotMonitorEnablement {
-    -- dogstatsd_additional_metrics_enabled gates only additional DogStatsD
-    -- metric_names. It must not be interpreted as a prerequisite for using a
+invariant DogStatsDAdditionalMetricNamesAreNotMonitorEnablement {
+    -- dogstatsd_metric_names controls only additional DogStatsD metrics to
+    -- retain. It must not be interpreted as a prerequisite for using a
     -- DogStatsD-origin metric as the monitor trigger.
 }
 
@@ -632,13 +626,3 @@ invariant DryRunChangesOnlyEgressControlNotMonitorObservation {
     -- difference is that monitor decisions do not suppress or reopen egress;
     -- egress starts and remains forwarding.
 }
-
-------------------------------------------------------------
--- Open Questions
-------------------------------------------------------------
-
--- The public name `metric_lookback.dogstatsd.enabled` suggests it enables the
--- DogStatsD source generally. The behaviour specified here is narrower: it
--- enables additional DogStatsD metric_names only. Consider renaming or removing
--- this flag before broad exposure, or documenting the distinction wherever the
--- option appears.
