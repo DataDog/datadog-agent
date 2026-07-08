@@ -118,7 +118,7 @@ func TestDogStatsDBucketMaterializerSealsDistributionSketch(t *testing.T) {
 		time.Unix(11, 0),
 		PlaceholderAverageSketchProjection{},
 	)
-	require.Equal(t, []ringbuffer.Point{{Ts: time.Unix(10, 0), Value: 3.5}}, points)
+	require.Equal(t, []ringbuffer.Point{{Ts: time.Unix(10, 0), Value: 3.5, Tags: []string{"env:test", "role:web"}}}, points)
 }
 
 func TestDogStatsDBucketMaterializerFlushAllFlushesDistributionOnlyBuckets(t *testing.T) {

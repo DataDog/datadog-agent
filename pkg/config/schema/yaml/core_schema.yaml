@@ -2558,6 +2558,19 @@ properties:
             tags:
             - golang_type:float64
             - template_section:Dogstatsd
+          partition_tags:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            visibility: public
+            description: |-
+              Tag keys used to partition monitor range evaluation. When empty, all retained points for the
+              monitor metric are evaluated together. When set, the monitor evaluates each selected tag-value
+              tuple independently and breaches if any partition exceeds range_epsilon.
+            tags:
+            - template_section:Dogstatsd
           dry_run:
             node_type: setting
             type: boolean

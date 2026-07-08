@@ -11,6 +11,8 @@ package monitor
 import (
 	"errors"
 	"math"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +42,7 @@ var (
 type Point struct {
 	Ts    time.Time
 	Value float64
+	Tags  []string
 }
 
 // PointReader returns retained points for a metric in an inclusive time range.
@@ -87,15 +90,18 @@ func (s State) String() string {
 
 // Decision describes one evaluated monitor window.
 type Decision struct {
-	MetricName   string
-	WindowFrom   time.Time
-	WindowTo     time.Time
-	State        State
-	Min          float64
-	Max          float64
-	Range        float64
-	RangeEpsilon float64
-	PointCount   int
+	MetricName     string
+	WindowFrom     time.Time
+	WindowTo       time.Time
+	State          State
+	Min            float64
+	Max            float64
+	Range          float64
+	RangeEpsilon   float64
+	PointCount     int
+	PartitionTags  []string
+	PartitionKey   string
+	PartitionCount int
 }
 
 // DecisionSink receives monitor decisions. Implementations should avoid
@@ -116,8 +122,8 @@ func (f DecisionSinkFunc) OnDecision(decision Decision) {
 }
 
 // Config controls a Watcher. Zero values select conservative defaults so the
-// public config surface only needs an enabled flag, metric name, and range
-// epsilon initially.
+// public config surface can enable the monitor with just a metric name and range
+// epsilon, and can optionally partition evaluation by tag keys.
 type Config struct {
 	// MetricName is the exact metric name to watch.
 	MetricName string
@@ -125,6 +131,11 @@ type Config struct {
 	// window breaches when its valid point range is strictly greater than
 	// RangeEpsilon.
 	RangeEpsilon float64
+	// PartitionTags are tag keys used to partition range evaluation. When empty,
+	// all retained points for MetricName are evaluated together. When set, each
+	// selected tag-value tuple is evaluated independently and any sufficient
+	// partition can breach the monitor.
+	PartitionTags []string
 	// EvaluationInterval is the approximate high-resolution window size. Defaults
 	// to DefaultEvaluationInterval.
 	EvaluationInterval time.Duration
@@ -142,6 +153,7 @@ type Watcher struct {
 	rangeEpsilon       float64
 	evaluationInterval time.Duration
 	minPoints          int
+	partitionTags      []string
 	reader             PointReader
 	sink               DecisionSink
 
@@ -164,6 +176,7 @@ func New(cfg Config, reader PointReader, sink DecisionSink) (*Watcher, error) {
 	return &Watcher{
 		metricName:         cfg.MetricName,
 		rangeEpsilon:       cfg.RangeEpsilon,
+		partitionTags:      append([]string(nil), cfg.PartitionTags...),
 		evaluationInterval: cfg.EvaluationInterval,
 		minPoints:          cfg.MinPoints,
 		reader:             reader,
@@ -175,6 +188,7 @@ func normalizeConfig(cfg Config) (Config, error) {
 	if cfg.RangeEpsilon < 0 {
 		return Config{}, errors.New("range epsilon must be non-negative")
 	}
+	cfg.PartitionTags = normalizePartitionTags(cfg.PartitionTags)
 	if cfg.EvaluationInterval <= 0 {
 		cfg.EvaluationInterval = DefaultEvaluationInterval
 	}
@@ -241,15 +255,18 @@ func (w *Watcher) evaluateWindow(from, to time.Time) State {
 	tlmMonitorWindowPts.Set(float64(len(points)))
 	tlmMonitorRangeEpsilon.Set(w.rangeEpsilon)
 
-	minValue, maxValue, validCount, ok := windowMinMax(points)
-	if !ok || validCount < w.minPoints {
+	partitionStats := windowPartitionStats(points, w.partitionTags)
+	selected, sufficientCount, ok := selectMonitorPartition(partitionStats, w.minPoints)
+	if !ok {
 		decision := Decision{
-			MetricName:   w.metricName,
-			WindowFrom:   from,
-			WindowTo:     to,
-			State:        Unknown,
-			RangeEpsilon: w.rangeEpsilon,
-			PointCount:   validCount,
+			MetricName:     w.metricName,
+			WindowFrom:     from,
+			WindowTo:       to,
+			State:          Unknown,
+			RangeEpsilon:   w.rangeEpsilon,
+			PointCount:     totalValidPointCount(partitionStats),
+			PartitionTags:  append([]string(nil), w.partitionTags...),
+			PartitionCount: len(partitionStats),
 		}
 		w.recordDecision(decision)
 		tlmMonitorEvaluations.Inc("unknown")
@@ -257,24 +274,26 @@ func (w *Watcher) evaluateWindow(from, to time.Time) State {
 		return Unknown
 	}
 
-	valueRange := maxValue - minValue
 	state := Healthy
-	if valueRange > w.rangeEpsilon {
+	if selected.valueRange > w.rangeEpsilon {
 		state = Breach
 	}
-	tlmMonitorWindowMin.Set(minValue)
-	tlmMonitorWindowMax.Set(maxValue)
-	tlmMonitorWindowRange.Set(valueRange)
+	tlmMonitorWindowMin.Set(selected.min)
+	tlmMonitorWindowMax.Set(selected.max)
+	tlmMonitorWindowRange.Set(selected.valueRange)
 	decision := Decision{
-		MetricName:   w.metricName,
-		WindowFrom:   from,
-		WindowTo:     to,
-		State:        state,
-		Min:          minValue,
-		Max:          maxValue,
-		Range:        valueRange,
-		RangeEpsilon: w.rangeEpsilon,
-		PointCount:   validCount,
+		MetricName:     w.metricName,
+		WindowFrom:     from,
+		WindowTo:       to,
+		State:          state,
+		Min:            selected.min,
+		Max:            selected.max,
+		Range:          selected.valueRange,
+		RangeEpsilon:   w.rangeEpsilon,
+		PointCount:     selected.validCount,
+		PartitionTags:  append([]string(nil), w.partitionTags...),
+		PartitionKey:   selected.key,
+		PartitionCount: sufficientCount,
 	}
 	w.recordDecision(decision)
 	tlmMonitorEvaluations.Inc(state.String())
@@ -302,6 +321,110 @@ func windowMinMax(points []Point) (float64, float64, int, bool) {
 		return 0, 0, 0, false
 	}
 	return minValue, maxValue, validCount, true
+}
+
+type partitionWindowStats struct {
+	key        string
+	min        float64
+	max        float64
+	valueRange float64
+	validCount int
+}
+
+func windowPartitionStats(points []Point, partitionTags []string) []partitionWindowStats {
+	byKey := make(map[string][]Point)
+	for _, point := range points {
+		key := monitorPartitionKey(point.Tags, partitionTags)
+		byKey[key] = append(byKey[key], point)
+	}
+	keys := make([]string, 0, len(byKey))
+	for key := range byKey {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	stats := make([]partitionWindowStats, 0, len(keys))
+	for _, key := range keys {
+		minValue, maxValue, validCount, ok := windowMinMax(byKey[key])
+		if !ok {
+			stats = append(stats, partitionWindowStats{key: key})
+			continue
+		}
+		stats = append(stats, partitionWindowStats{
+			key:        key,
+			min:        minValue,
+			max:        maxValue,
+			valueRange: maxValue - minValue,
+			validCount: validCount,
+		})
+	}
+	return stats
+}
+
+func selectMonitorPartition(stats []partitionWindowStats, minPoints int) (partitionWindowStats, int, bool) {
+	var selected partitionWindowStats
+	sufficientCount := 0
+	for _, stat := range stats {
+		if stat.validCount < minPoints {
+			continue
+		}
+		sufficientCount++
+		if sufficientCount == 1 || stat.valueRange > selected.valueRange || (stat.valueRange == selected.valueRange && stat.key < selected.key) {
+			selected = stat
+		}
+	}
+	return selected, sufficientCount, sufficientCount > 0
+}
+
+func totalValidPointCount(stats []partitionWindowStats) int {
+	total := 0
+	for _, stat := range stats {
+		total += stat.validCount
+	}
+	return total
+}
+
+func monitorPartitionKey(tags []string, partitionTags []string) string {
+	if len(partitionTags) == 0 {
+		return ""
+	}
+	valuesByName := make(map[string]string, len(tags))
+	for _, tag := range tags {
+		name, value, ok := strings.Cut(tag, ":")
+		if !ok || name == "" {
+			continue
+		}
+		if _, exists := valuesByName[name]; !exists {
+			valuesByName[name] = value
+		}
+	}
+
+	parts := make([]string, 0, len(partitionTags))
+	for _, name := range partitionTags {
+		value, ok := valuesByName[name]
+		if !ok {
+			value = "<missing>"
+		}
+		parts = append(parts, name+":"+value)
+	}
+	return strings.Join(parts, ",")
+}
+
+func normalizePartitionTags(tags []string) []string {
+	seen := make(map[string]struct{}, len(tags))
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		name := strings.TrimSpace(strings.TrimSuffix(tag, ":"))
+		if name == "" {
+			continue
+		}
+		if _, found := seen[name]; found {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	return out
 }
 
 func (w *Watcher) recordDecision(decision Decision) {

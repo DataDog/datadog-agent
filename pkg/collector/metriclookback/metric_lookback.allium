@@ -74,6 +74,19 @@ value MetricName {
     value: String
 }
 
+value TagName {
+    value: String
+}
+
+value MetricTag {
+    name: TagName
+    value: String
+}
+
+value MonitorPartitionKey {
+    values: List<MetricTag?>
+}
+
 value TimeRange {
     start: Timestamp?
     end: Timestamp?
@@ -95,6 +108,7 @@ value MetricPoint {
     timestamp: Timestamp
     value: Decimal
     valid_number: Boolean
+    tags: Set<MetricTag>
 }
 
 ------------------------------------------------------------
@@ -111,6 +125,7 @@ external entity LookbackConfiguration {
     monitor_enabled: Boolean
     monitor_metric_name: MetricName?
     monitor_range_epsilon: Decimal
+    monitor_partition_tags: List<TagName>
     monitor_dry_run: Boolean
 
     -- Additional DogStatsD metric names to retain. An empty set disables
@@ -126,6 +141,7 @@ external entity DogStatsDObservation {
     name: MetricName
     timestamp: Timestamp
     value: Decimal
+    tags: Set<MetricTag>
     source: dogstatsd_bucketed | dogstatsd_no_aggregation
 
     -- A no-aggregation series is retention-ready when it reaches lookback.
@@ -141,6 +157,7 @@ external entity CheckShadowObservation {
     name: MetricName
     timestamp: Timestamp
     value: Decimal
+    tags: Set<MetricTag>
 }
 
 -- Intake is the externally observable destination for forwarded retained
@@ -164,6 +181,7 @@ entity DogStatsDAdmission {
 entity Monitor {
     metric_name: MetricName
     range_epsilon: Decimal
+    partition_tags: List<TagName>
     state: MonitorState?
     decisions: List<MonitorDecision>
     transition_logs: List<MonitorStateTransitionLog>
@@ -178,6 +196,9 @@ entity MonitorDecision {
     max: Decimal?
     range: Decimal?
     range_epsilon: Decimal
+    partition_tags: List<TagName>
+    partition_key: MonitorPartitionKey?
+    partition_count: Integer
 }
 
 entity MonitorStateTransitionLog {
@@ -193,6 +214,9 @@ entity MonitorStateTransitionLog {
     max: Decimal?
     range: Decimal?
     range_epsilon: Decimal
+    partition_tags: List<TagName>
+    partition_key: MonitorPartitionKey?
+    partition_count: Integer
 }
 
 entity EgressPolicy {
@@ -272,6 +296,7 @@ rule MonitorCreatesSharedRetentionReader {
     ensures: Monitor.created(
         metric_name: configuration.monitor_metric_name,
         range_epsilon: configuration.monitor_range_epsilon,
+        partition_tags: configuration.monitor_partition_tags,
         state: nil,
         decisions: [],
         transition_logs: []
@@ -325,7 +350,8 @@ rule AdmittedDogStatsDObservationIsRetainedWhenReady {
         source: observation.source,
         timestamp: observation.timestamp,
         value: observation.value,
-        valid_number: true
+        valid_number: true,
+        tags: observation.tags
     }]
 }
 
@@ -346,7 +372,8 @@ rule CheckShadowObservationIsRetained {
         source: check_shadow,
         timestamp: observation.timestamp,
         value: observation.value,
-        valid_number: true
+        valid_number: true,
+        tags: observation.tags
     }]
     @guidance
         -- Check/shadow retention also depends on scheduler/sender wiring outside
@@ -362,62 +389,73 @@ rule MonitorWindowUsesAllRetainedSourcesForMetricName {
         timestamp >= window.start and
         timestamp <= window.end and
         source in {dogstatsd_bucketed, dogstatsd_no_aggregation, check_shadow}
-    ensures: MonitorEvaluationRequested(window: window, points: matching_points)
+    let partitions = partition_by_tags(matching_points, Monitor.partition_tags)
+    ensures: MonitorEvaluationRequested(window: window, partitions: partitions)
+    @guidance
+        -- When Monitor.partition_tags is empty, partition_by_tags produces a
+        -- single partition containing all matching points. When a configured tag
+        -- is missing from a point, that point stays in evaluation under a stable
+        -- missing-value partition key rather than being dropped.
 }
 
-rule MonitorWindowUnknownWithInsufficientValidPoints {
-    when: MonitorEvaluationRequested(window, points)
-    let valid_points = points where valid_number = true
-    requires: valid_points.count < config.monitor_min_points
+rule MonitorWindowUnknownWhenNoPartitionHasEnoughValidPoints {
+    when: MonitorEvaluationRequested(window, partitions)
+    requires:
+        partitions.all(p => (p.points where valid_number = true).count < config.monitor_min_points)
     ensures: MonitorDecision.created(
         metric_name: window.metric_name,
         window: window,
         state: unknown,
-        point_count: valid_points.count,
+        point_count: sum(partitions, p => (p.points where valid_number = true).count),
         min: nil,
         max: nil,
         range: nil,
-        range_epsilon: Monitor.range_epsilon
+        range_epsilon: Monitor.range_epsilon,
+        partition_tags: Monitor.partition_tags,
+        partition_key: nil,
+        partition_count: partitions.count
     )
 }
 
-rule MonitorWindowHealthyWhenRangeWithinEpsilon {
-    when: MonitorEvaluationRequested(window, points)
-    let valid_points = points where valid_number = true
-    let min_value = min(valid_points.value)
-    let max_value = max(valid_points.value)
-    let value_range = max_value - min_value
-    requires: valid_points.count >= config.monitor_min_points
-    requires: value_range <= Monitor.range_epsilon
-    ensures: MonitorDecision.created(
-        metric_name: window.metric_name,
-        window: window,
-        state: healthy,
-        point_count: valid_points.count,
-        min: min_value,
-        max: max_value,
-        range: value_range,
-        range_epsilon: Monitor.range_epsilon
-    )
-}
-
-rule MonitorWindowBreachesWhenRangeExceedsEpsilon {
-    when: MonitorEvaluationRequested(window, points)
-    let valid_points = points where valid_number = true
-    let min_value = min(valid_points.value)
-    let max_value = max(valid_points.value)
-    let value_range = max_value - min_value
-    requires: valid_points.count >= config.monitor_min_points
-    requires: value_range > Monitor.range_epsilon
+rule MonitorWindowBreachesWhenAnySufficientPartitionRangeExceedsEpsilon {
+    when: MonitorEvaluationRequested(window, partitions)
+    let sufficient = partitions where (points where valid_number = true).count >= config.monitor_min_points
+    let selected = max_by(sufficient, p => range((p.points where valid_number = true).value))
+    requires: sufficient.any(p => range((p.points where valid_number = true).value) > Monitor.range_epsilon)
+    requires: range((selected.points where valid_number = true).value) > Monitor.range_epsilon
     ensures: MonitorDecision.created(
         metric_name: window.metric_name,
         window: window,
         state: breach,
-        point_count: valid_points.count,
-        min: min_value,
-        max: max_value,
-        range: value_range,
-        range_epsilon: Monitor.range_epsilon
+        point_count: (selected.points where valid_number = true).count,
+        min: min((selected.points where valid_number = true).value),
+        max: max((selected.points where valid_number = true).value),
+        range: range((selected.points where valid_number = true).value),
+        range_epsilon: Monitor.range_epsilon,
+        partition_tags: Monitor.partition_tags,
+        partition_key: selected.key,
+        partition_count: sufficient.count
+    )
+}
+
+rule MonitorWindowHealthyWhenAllSufficientPartitionsAreWithinEpsilon {
+    when: MonitorEvaluationRequested(window, partitions)
+    let sufficient = partitions where (points where valid_number = true).count >= config.monitor_min_points
+    let selected = max_by(sufficient, p => range((p.points where valid_number = true).value))
+    requires: sufficient.count > 0
+    requires: sufficient.all(p => range((p.points where valid_number = true).value) <= Monitor.range_epsilon)
+    ensures: MonitorDecision.created(
+        metric_name: window.metric_name,
+        window: window,
+        state: healthy,
+        point_count: (selected.points where valid_number = true).count,
+        min: min((selected.points where valid_number = true).value),
+        max: max((selected.points where valid_number = true).value),
+        range: range((selected.points where valid_number = true).value),
+        range_epsilon: Monitor.range_epsilon,
+        partition_tags: Monitor.partition_tags,
+        partition_key: selected.key,
+        partition_count: sufficient.count
     )
 }
 
@@ -437,7 +475,10 @@ rule InitialMonitorStateIsLogged {
         min: decision.min,
         max: decision.max,
         range: decision.range,
-        range_epsilon: decision.range_epsilon
+        range_epsilon: decision.range_epsilon,
+        partition_tags: decision.partition_tags,
+        partition_key: decision.partition_key,
+        partition_count: decision.partition_count
     )
 }
 
@@ -457,7 +498,10 @@ rule MonitorStateTransitionIsAlwaysLogged {
         min: decision.min,
         max: decision.max,
         range: decision.range,
-        range_epsilon: decision.range_epsilon
+        range_epsilon: decision.range_epsilon,
+        partition_tags: decision.partition_tags,
+        partition_key: decision.partition_key,
+        partition_count: decision.partition_count
     )
     ensures: Monitor.state = decision.state
     @guidance
@@ -618,6 +662,13 @@ invariant DogStatsDAdditionalMetricNamesAreNotMonitorEnablement {
     -- dogstatsd_metric_names controls only additional DogStatsD metrics to
     -- retain. It must not be interpreted as a prerequisite for using a
     -- DogStatsD-origin metric as the monitor trigger.
+}
+
+invariant MonitorPartitionTagsPreventCrossPopulationRangeInflation {
+    -- When monitor_partition_tags is non-empty, the monitor evaluates range
+    -- independently per selected tag-value tuple. A breach in any sufficient
+    -- partition breaches the monitor; sparse partitions are ignored unless no
+    -- partition has enough valid points, in which case the decision is unknown.
 }
 
 invariant DryRunChangesOnlyEgressControlNotMonitorObservation {

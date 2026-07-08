@@ -109,6 +109,145 @@ func TestWatcherEmitsHealthyForStableLowAbsoluteValue(t *testing.T) {
 	require.Equal(t, float64(0), decision.Range)
 }
 
+func TestWatcherPartitionsWindowRangeByConfiguredTags(t *testing.T) {
+	start := time.Unix(100, 0)
+	reader := &inMemoryReader{points: []Point{
+		{Ts: start, Value: 1.00, Tags: []string{"az:a"}},
+		{Ts: start.Add(time.Second), Value: 1.01, Tags: []string{"az:a"}},
+		{Ts: start.Add(2 * time.Second), Value: 2.00, Tags: []string{"az:b"}},
+		{Ts: start.Add(3 * time.Second), Value: 2.01, Tags: []string{"az:b"}},
+	}}
+	decisions := make(chan Decision, 1)
+	watcher := requireWatcher(t, Config{
+		MetricName:         "target",
+		RangeEpsilon:       0.05,
+		PartitionTags:      []string{"az"},
+		EvaluationInterval: 30 * time.Second,
+		MinPoints:          2,
+	}, reader, DecisionSinkFunc(func(decision Decision) {
+		decisions <- decision
+	}))
+
+	require.False(t, watcher.Observe("target", start))
+	require.False(t, watcher.Observe("target", start.Add(30*time.Second)))
+
+	decision := requireDecision(t, decisions)
+	require.Equal(t, Healthy, decision.State)
+	require.Equal(t, []string{"az"}, decision.PartitionTags)
+	require.Equal(t, 2, decision.PartitionCount)
+	require.Contains(t, []string{"az:a", "az:b"}, decision.PartitionKey)
+	require.InDelta(t, 0.01, decision.Range, 1e-12)
+}
+
+func TestWatcherBreachesWhenAnyPartitionExceedsRangeEpsilon(t *testing.T) {
+	start := time.Unix(100, 0)
+	reader := &inMemoryReader{points: []Point{
+		{Ts: start, Value: 1.00, Tags: []string{"az:a"}},
+		{Ts: start.Add(time.Second), Value: 1.01, Tags: []string{"az:a"}},
+		{Ts: start.Add(2 * time.Second), Value: 2.00, Tags: []string{"az:b"}},
+		{Ts: start.Add(3 * time.Second), Value: 2.20, Tags: []string{"az:b"}},
+	}}
+	decisions := make(chan Decision, 1)
+	watcher := requireWatcher(t, Config{
+		MetricName:         "target",
+		RangeEpsilon:       0.05,
+		PartitionTags:      []string{"az"},
+		EvaluationInterval: 30 * time.Second,
+		MinPoints:          2,
+	}, reader, DecisionSinkFunc(func(decision Decision) {
+		decisions <- decision
+	}))
+
+	require.False(t, watcher.Observe("target", start))
+	require.True(t, watcher.Observe("target", start.Add(30*time.Second)))
+
+	decision := requireDecision(t, decisions)
+	require.Equal(t, Breach, decision.State)
+	require.Equal(t, "az:b", decision.PartitionKey)
+	require.Equal(t, 2, decision.PartitionCount)
+	require.Equal(t, 2.00, decision.Min)
+	require.Equal(t, 2.20, decision.Max)
+	require.InDelta(t, 0.20, decision.Range, 1e-12)
+}
+
+func TestWatcherIgnoresSparsePartitionsWhenClassifyingHealthy(t *testing.T) {
+	start := time.Unix(100, 0)
+	reader := &inMemoryReader{points: []Point{
+		{Ts: start, Value: 1.00, Tags: []string{"az:a"}},
+		{Ts: start.Add(time.Second), Value: 1.01, Tags: []string{"az:a"}},
+		{Ts: start.Add(2 * time.Second), Value: 100.00, Tags: []string{"az:b"}},
+	}}
+	decisions := make(chan Decision, 1)
+	watcher := requireWatcher(t, Config{
+		MetricName:         "target",
+		RangeEpsilon:       0.05,
+		PartitionTags:      []string{"az"},
+		EvaluationInterval: 30 * time.Second,
+		MinPoints:          2,
+	}, reader, DecisionSinkFunc(func(decision Decision) {
+		decisions <- decision
+	}))
+
+	require.False(t, watcher.Observe("target", start))
+	require.False(t, watcher.Observe("target", start.Add(30*time.Second)))
+
+	decision := requireDecision(t, decisions)
+	require.Equal(t, Healthy, decision.State)
+	require.Equal(t, "az:a", decision.PartitionKey)
+	require.Equal(t, 1, decision.PartitionCount)
+}
+
+func TestWatcherUsesMissingTagPartition(t *testing.T) {
+	start := time.Unix(100, 0)
+	reader := &inMemoryReader{points: []Point{
+		{Ts: start, Value: 1.00, Tags: []string{"env:prod"}},
+		{Ts: start.Add(time.Second), Value: 1.20, Tags: []string{"env:prod"}},
+	}}
+	decisions := make(chan Decision, 1)
+	watcher := requireWatcher(t, Config{
+		MetricName:         "target",
+		RangeEpsilon:       0.05,
+		PartitionTags:      []string{"az"},
+		EvaluationInterval: 30 * time.Second,
+		MinPoints:          2,
+	}, reader, DecisionSinkFunc(func(decision Decision) {
+		decisions <- decision
+	}))
+
+	require.False(t, watcher.Observe("target", start))
+	require.True(t, watcher.Observe("target", start.Add(30*time.Second)))
+
+	decision := requireDecision(t, decisions)
+	require.Equal(t, Breach, decision.State)
+	require.Equal(t, "az:<missing>", decision.PartitionKey)
+}
+
+func TestWatcherEmitsUnknownWhenNoPartitionHasEnoughPoints(t *testing.T) {
+	start := time.Unix(100, 0)
+	reader := &inMemoryReader{points: []Point{
+		{Ts: start, Value: 1.00, Tags: []string{"az:a"}},
+		{Ts: start.Add(time.Second), Value: 2.00, Tags: []string{"az:b"}},
+	}}
+	decisions := make(chan Decision, 1)
+	watcher := requireWatcher(t, Config{
+		MetricName:         "target",
+		RangeEpsilon:       0.05,
+		PartitionTags:      []string{"az"},
+		EvaluationInterval: 30 * time.Second,
+		MinPoints:          2,
+	}, reader, DecisionSinkFunc(func(decision Decision) {
+		decisions <- decision
+	}))
+
+	require.False(t, watcher.Observe("target", start))
+	require.False(t, watcher.Observe("target", start.Add(30*time.Second)))
+
+	decision := requireDecision(t, decisions)
+	require.Equal(t, Unknown, decision.State)
+	require.Equal(t, 2, decision.PointCount)
+	require.Equal(t, 2, decision.PartitionCount)
+}
+
 func TestWatcherEmitsUnknownForSparseWindow(t *testing.T) {
 	start := time.Unix(100, 0)
 	reader := &inMemoryReader{points: []Point{{Ts: start, Value: 2}}}

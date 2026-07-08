@@ -148,6 +148,17 @@ func TestPointsBetweenFiltersBySourceNameAndTimestamp(t *testing.T) {
 	require.Equal(t, []Point{{Ts: time.Unix(20, 0), Value: 2}}, points)
 }
 
+func TestPointsBetweenReturnsRetainedPointTags(t *testing.T) {
+	buf := New(Options{Capacity: 8, ShardCount: 1})
+	source := Source{Kind: SourceCheckShadow, ID: "check:1"}
+	require.NoError(t, buf.AppendSamples(context.Background(), source, []metrics.MetricSample{
+		{Name: "metric", Value: 1, Mtype: metrics.GaugeType, Timestamp: 10, Tags: []string{"env:prod", "az:a"}},
+	}))
+
+	points := buf.PointsBetween(source, "metric", time.Time{}, time.Time{})
+	require.Equal(t, []Point{{Ts: time.Unix(10, 0), Value: 1, Tags: []string{"az:a", "env:prod"}}}, points)
+}
+
 func TestPointsBetweenSourcesReadsMultipleDogStatsDSources(t *testing.T) {
 	buf := New(Options{Capacity: 8, ShardCount: 1})
 	bucketedSource := Source{Kind: SourceDogStatsDBucketed}

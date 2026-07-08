@@ -2732,6 +2732,14 @@ api_key:
 #
 #     range_epsilon: 0
 
+#     # @param partition_tags - list of strings - optional - default: []
+#     # @env DD_METRIC_LOOKBACK_MONITOR_PARTITION_TAGS - space-separated list of strings - optional - default: []
+#     # Tag keys used to partition monitor range evaluation. When empty, all retained points for the
+#     # monitor metric are evaluated together. When set, the monitor evaluates each selected tag-value
+#     # tuple independently and breaches if any partition exceeds range_epsilon.
+#
+#     partition_tags: []
+
 #     # @param dry_run - boolean - optional - default: false
 #     # @env DD_METRIC_LOOKBACK_MONITOR_DRY_RUN - boolean - optional - default: false
 #     # Run the monitor and log monitor state transitions without allowing monitor state to suppress egress.

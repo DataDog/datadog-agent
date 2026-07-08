@@ -122,6 +122,7 @@ type Stats struct {
 type Point struct {
 	Ts    time.Time
 	Value float64
+	Tags  []string
 }
 
 // Buffer is a bounded in-memory ring for recent scalar metric samples.
@@ -386,6 +387,7 @@ func (b *Buffer) PointsBetweenSources(sources []Source, metricName string, from,
 		points = append(points, Point{
 			Ts:    time.UnixMicro(rec.timestampUnixMicro),
 			Value: rec.value,
+			Tags:  append([]string(nil), ctx.tags...),
 		})
 	}
 	sort.Slice(points, func(i, j int) bool {

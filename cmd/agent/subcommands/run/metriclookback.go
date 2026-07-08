@@ -86,7 +86,7 @@ func metricLookbackMonitorStateTransitionLogger(logger log.Component) metriclook
 		}
 		decision := transition.Decision
 		if transition.Initial {
-			logger.Infof("metric_lookback monitor state initialized: metric_name=%q state=%s dry_run=%t egress_mode=%s window_from=%s window_to=%s point_count=%d min=%v max=%v range=%v range_epsilon=%v",
+			logger.Infof("metric_lookback monitor state initialized: metric_name=%q state=%s dry_run=%t egress_mode=%s window_from=%s window_to=%s point_count=%d min=%v max=%v range=%v range_epsilon=%v partition_tags=%v partition_key=%q partition_count=%d",
 				transition.MetricName,
 				transition.To.String(),
 				transition.DryRun,
@@ -98,10 +98,13 @@ func metricLookbackMonitorStateTransitionLogger(logger log.Component) metriclook
 				decision.Max,
 				decision.Range,
 				decision.RangeEpsilon,
+				decision.PartitionTags,
+				decision.PartitionKey,
+				decision.PartitionCount,
 			)
 			return
 		}
-		logger.Infof("metric_lookback monitor state transition: metric_name=%q from=%s to=%s dry_run=%t egress_mode=%s window_from=%s window_to=%s point_count=%d min=%v max=%v range=%v range_epsilon=%v",
+		logger.Infof("metric_lookback monitor state transition: metric_name=%q from=%s to=%s dry_run=%t egress_mode=%s window_from=%s window_to=%s point_count=%d min=%v max=%v range=%v range_epsilon=%v partition_tags=%v partition_key=%q partition_count=%d",
 			transition.MetricName,
 			transition.From.String(),
 			transition.To.String(),
@@ -114,6 +117,9 @@ func metricLookbackMonitorStateTransitionLogger(logger log.Component) metriclook
 			decision.Max,
 			decision.Range,
 			decision.RangeEpsilon,
+			decision.PartitionTags,
+			decision.PartitionKey,
+			decision.PartitionCount,
 		)
 	}
 }
@@ -151,10 +157,10 @@ func newMetricLookbackMonitor(cfg config.Component, logger log.Component, retent
 		sketchPoints := retention.ProjectedSketchPointsBetweenSources(monitorSources, metricName, from, to, metriclookback.PlaceholderAverageSketchProjection{})
 		out := make([]monitor.Point, 0, len(points)+len(sketchPoints))
 		for _, point := range points {
-			out = append(out, monitor.Point{Ts: point.Ts, Value: point.Value})
+			out = append(out, monitor.Point{Ts: point.Ts, Value: point.Value, Tags: point.Tags})
 		}
 		for _, point := range sketchPoints {
-			out = append(out, monitor.Point{Ts: point.Ts, Value: point.Value})
+			out = append(out, monitor.Point{Ts: point.Ts, Value: point.Value, Tags: point.Tags})
 		}
 		sort.Slice(out, func(i, j int) bool {
 			if out[i].Ts.Equal(out[j].Ts) {
@@ -165,8 +171,9 @@ func newMetricLookbackMonitor(cfg config.Component, logger log.Component, retent
 		return out
 	})
 	watcher, err := monitor.New(monitor.Config{
-		MetricName:   metricName,
-		RangeEpsilon: cfg.GetFloat64("metric_lookback.monitor.range_epsilon"),
+		MetricName:    metricName,
+		RangeEpsilon:  cfg.GetFloat64("metric_lookback.monitor.range_epsilon"),
+		PartitionTags: cfg.GetStringSlice("metric_lookback.monitor.partition_tags"),
 	}, reader, sink)
 	if err != nil {
 		return nil, err

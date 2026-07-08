@@ -223,6 +223,7 @@ func (b *SketchBuffer) PointsBetweenSources(sources []Source, metricName string,
 		points = append(points, Point{
 			Ts:    time.UnixMicro(rec.timestampUnixMicro),
 			Value: value,
+			Tags:  append([]string(nil), ctx.tags...),
 		})
 	}
 	sort.Slice(points, func(i, j int) bool {
