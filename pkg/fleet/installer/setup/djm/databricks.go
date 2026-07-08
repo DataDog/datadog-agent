@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.64.0-1"
+	databricksInjectorVersion   = "0.67.2-1"
 	databricksJavaTracerVersion = "1.63.0-1"
 	databricksAgentVersion      = "7.79.2-1"
 	gpuIntegrationRestartDelay  = 60 * time.Second
