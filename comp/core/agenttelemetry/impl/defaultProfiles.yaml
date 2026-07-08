@@ -413,6 +413,16 @@ profiles:
       - name: workloadmeta.pull_errors
         preserve_tags:
           - collector_id
+      - name: appsec_injector.watched_changes
+        preserve_tags:
+          - proxy_type
+          - operation
+          - success
+      - name: appsec_injector.sidecar_mutations
+        preserve_tags:
+          - proxy_type
+          - outcome
+          - reason
   schedule:
     start_after: 30
     iterations: 0
