@@ -413,7 +413,6 @@ use_repo(
     "com_google_cloud_go_compute_metadata",
     "dev_essio_al_pkg_shellescape",
     "in_gopkg_ini_v1",
-    "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",
     "in_yaml_go_yaml_v2",
     "in_yaml_go_yaml_v3",

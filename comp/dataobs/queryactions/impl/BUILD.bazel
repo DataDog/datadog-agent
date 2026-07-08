@@ -21,7 +21,7 @@ go_library(
         "//pkg/config/remote/data",
         "//pkg/remoteconfig/state",
         "@com_github_robfig_cron_v3//:cron",
-        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -43,6 +43,6 @@ go_test(
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

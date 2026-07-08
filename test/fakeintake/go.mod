@@ -20,8 +20,8 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tinylib/msgp v1.6.4
+	go.yaml.in/yaml/v3 v3.0.4
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -54,6 +54,7 @@ require (
 	golang.org/x/text v0.38.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 // indirect
 	google.golang.org/grpc v1.82.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

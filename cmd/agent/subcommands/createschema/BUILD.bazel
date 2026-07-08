@@ -17,7 +17,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
-        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_fx//:fx",
     ],
 )

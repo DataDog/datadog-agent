@@ -24,7 +24,7 @@ go_library(
         "@com_github_prometheus_client_golang//prometheus",
         "@com_github_prometheus_client_golang//prometheus/collectors",
         "@com_github_prometheus_client_golang//prometheus/promhttp",
-        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_protobuf//proto",
     ] + select({
         "@rules_go//go/platform:aix": [

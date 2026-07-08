@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/robfig/cron/v3"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // A "base config" is a postgres integration.Config emitted by another provider (typically the
