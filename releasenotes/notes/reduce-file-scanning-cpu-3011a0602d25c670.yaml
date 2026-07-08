@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Reduced the CPU usage of the log file launcher when tailing container
+    log files. The check that validates a file belongs to the expected
+    container now scans the ``/var/log/containers`` directory at most once
+    per scan cycle instead of once per file, which noticeably lowers
+    overhead on nodes running many containers.
