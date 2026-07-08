@@ -546,12 +546,15 @@ docker_build_secret_generic_connector_arm64:
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_arm64"
 
-# FIPS variant: the boringcrypto binary is statically linked, so the same scratch image is reused.
-# The nm check fails the build if the binary is not boringcrypto-linked, rather than publishing a non-FIPS image.
+# FIPS variant: the FIPS binary is CGO/boringcrypto, so it is dynamically linked and needs glibc at
+# runtime — it cannot run on scratch. Build it against the FIPS distroless base via a dedicated build
+# context (Dockerfiles/secret-generic-connector-fips). The nm check fails the build if the binary is
+# not boringcrypto-linked, rather than publishing a non-FIPS image.
 .docker_build_secret_generic_connector_fips:
   extends: .docker_build_secret_generic_connector
   variables:
     TAG_SUFFIX: -fips
+    BUILD_CONTEXT: Dockerfiles/secret-generic-connector-fips
   before_script:
     - !reference [.docker_build_secret_generic_connector, before_script]
     - go tool nm $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector.${ARCH} | grep '_Cfunc__goboringcrypto_'
