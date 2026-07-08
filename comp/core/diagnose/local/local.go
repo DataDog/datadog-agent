@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -97,7 +97,7 @@ func getLocalIntegrationConfigs(
 	ac autodiscovery.Component,
 	tagger tagger.Component,
 	config config.Component) ([]integration.Config, error) {
-	common.LoadComponents(ac, config.GetString("confd_path"))
+	common.LoadComponents(ac, config)
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.

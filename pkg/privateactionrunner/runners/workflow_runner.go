@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -18,6 +19,7 @@ import (
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
@@ -28,13 +30,14 @@ import (
 )
 
 type WorkflowRunner struct {
-	registry     *privatebundles.Registry
-	opmsClient   opms.Client
-	resolver     resolver.PrivateCredentialResolver
-	config       *config.Config
-	keysManager  taskverifier.KeysManager
-	taskVerifier taskverifier.TaskVerifier
-	taskLoop     *Loop
+	registry        *privatebundles.Registry
+	opmsClient      opms.Client
+	resolver        resolver.PrivateCredentialResolver
+	config          *config.Config
+	keysManager     taskverifier.KeysManager
+	taskVerifier    taskverifier.TaskVerifier
+	taskLoop        *Loop
+	encryptionStore *encryptioncontext.Store
 }
 
 func NewWorkflowRunner(
@@ -44,14 +47,17 @@ func NewWorkflowRunner(
 	opmsClient opms.Client,
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipcClient ipc.HTTPClient,
 ) (*WorkflowRunner, error) {
+	encryptionStore := encryptioncontext.NewStore()
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform),
-		opmsClient:   opmsClient,
-		resolver:     resolver.NewPrivateCredentialResolver(),
-		config:       configuration,
-		keysManager:  keysManager,
-		taskVerifier: verifier,
+		registry:        privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore),
+		opmsClient:      opmsClient,
+		resolver:        resolver.NewPrivateCredentialResolver(),
+		config:          configuration,
+		keysManager:     keysManager,
+		taskVerifier:    verifier,
+		encryptionStore: encryptionStore,
 	}, nil
 }
 
@@ -62,6 +68,7 @@ func (n *WorkflowRunner) Start(ctx context.Context) error {
 		return nil
 	}
 	startTime := time.Now()
+	go n.encryptionStore.Start()
 	n.keysManager.Start(ctx)
 	n.taskLoop = NewLoop(n)
 	go func() {
@@ -79,6 +86,7 @@ func (n *WorkflowRunner) Stop(ctx context.Context) error {
 	if n.taskLoop != nil {
 		n.taskLoop.Close(ctx)
 	}
+	n.encryptionStore.Stop()
 	return nil
 }
 

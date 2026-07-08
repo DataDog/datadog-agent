@@ -1,6 +1,59 @@
 # gazelle:write_pb_go //pkg/proto/datadog/trace:trace_go_proto //pkg/proto/datadog/trace:trace_go_proto_tagged
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+filegroup(
+    name = "trace_go_proto_tagged_srcs",
+    srcs = ["//pkg/proto/datadog/trace:trace_go_proto_tagged"],
+    output_group = "go_generated_srcs",
+)
+
+go_msgp(
+    name = "agent_payload_gen",
+    src = ":trace_go_proto_tagged_srcs",
+    out = "agent_payload_gen.go",
+    directives = ["limit arrays:500000 maps:500000"],
+    out_test = "agent_payload_gen_test.go",
+    src_file = "agent_payload.pb.go",
+)
+
+go_msgp(
+    name = "span_gen",
+    src = ":trace_go_proto_tagged_srcs",
+    out = "span_gen.go",
+    directives = ["limit arrays:500000 maps:500000"],
+    out_test = "span_gen_test.go",
+    patch_strip = 4,
+    patches = ["//pkg/proto/patches:Customize-msgpack-parsing.patch"],
+    src_file = "span.pb.go",
+)
+
+go_msgp(
+    name = "stats_gen",
+    src = ":trace_go_proto_tagged_srcs",
+    out = "stats_gen.go",
+    directives = ["limit arrays:500000 maps:500000"],
+    io = True,
+    out_test = "stats_gen_test.go",
+    src_file = "stats.pb.go",
+)
+
+go_msgp(
+    name = "trace_gen",
+    src = "trace.go",
+    out = "trace_gen.go",
+    out_test = "trace_gen_test.go",
+)
+
+go_msgp(
+    name = "tracer_payload_gen",
+    src = ":trace_go_proto_tagged_srcs",
+    out = "tracer_payload_gen.go",
+    directives = ["limit arrays:500000 maps:500000"],
+    out_test = "tracer_payload_gen_test.go",
+    src_file = "tracer_payload.pb.go",
+)
 
 write_pb_go(
     name = "write_pb_go",
@@ -79,7 +132,7 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
-        "@com_github_vmihailenco_msgpack_v4//:msgpack",
+        "@com_github_vmihailenco_msgpack_v5//:msgpack",
         "@org_golang_google_protobuf//proto",
     ],
 )

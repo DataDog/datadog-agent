@@ -18,7 +18,7 @@
           {
             "function": "main.mapIndexMissing",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 1031
+            "lineNumber": 1045
           },
           {
             "function": "main.main",

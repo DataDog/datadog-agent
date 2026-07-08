@@ -214,6 +214,11 @@ func (l *KubeEndpointsListener) serviceUpdated(old, obj interface{}) {
 		l.createService(l.endpointsForService(castedObj), false)
 	}
 
+	// Detect if prometheus annotations changed
+	if l.promInclAnnot.AnnotationsDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
+		l.createService(l.endpointsForService(castedObj), false)
+	}
+
 	// Detect changes of AD labels for standard tags if the Service is annotated
 	if isServiceAnnotated(castedObj, kubeEndpointsID) && (standardTagsDigest(castedOld.GetLabels()) != standardTagsDigest(castedObj.GetLabels())) {
 		kep := l.endpointsForService(castedObj)

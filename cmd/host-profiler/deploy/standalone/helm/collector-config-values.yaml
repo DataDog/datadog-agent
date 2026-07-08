@@ -1,0 +1,41 @@
+alternateConfig:
+  extensions:
+    # Health endpoint for the Collector pod.
+    health_check:
+      endpoint: ${env:MY_POD_IP}:13133
+
+  receivers:
+    # OTLP receiver for Collector self-telemetry metrics forwarded to Datadog.
+    otlp:
+      protocols:
+        grpc: {}
+        http: {}
+    # Host Profiler receiver. DD_SITE and DD_API_KEY are provided by collector-values.yaml.
+    profiling:
+      symbol_uploader:
+        enabled: true
+        symbol_endpoints:
+          - site: ${env:DD_SITE}
+            api_key: ${env:DD_API_KEY}
+
+  exporters:
+    # Export profiles and metrics to Datadog through OTLP HTTP.
+    otlp_http:
+      endpoint: https://otlp.${env:DD_SITE}
+      headers:
+        dd-api-key: ${env:DD_API_KEY}
+        dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
+
+  service:
+    extensions: [health_check]
+    pipelines:
+      # The Helm chart's kubernetesAttributes preset adds the k8sattributes
+      # processor to the rendered metrics pipeline.
+      metrics:
+        receivers: [otlp]
+        exporters: [otlp_http]
+      # The Helm chart's profiling and kubernetesAttributes presets add the
+      # profiling receiver and k8sattributes processor to the rendered profiles
+      # pipeline.
+      profiles:
+        exporters: [otlp_http]

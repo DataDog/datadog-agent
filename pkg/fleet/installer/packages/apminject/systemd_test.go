@@ -126,7 +126,7 @@ func TestResolveInstallerPath(t *testing.T) {
 	executable := filepath.Join(tmpDir, "executable")
 	require.NoError(t, os.WriteFile(executable, []byte("#!/bin/sh\n"), 0755))
 
-	got, err := resolveInstallerPath([]string{missing, nonExec, executable})
+	got, err := resolveInstallerPath([]string{missing, nonExec, executable}, alwaysSupported)
 	require.NoError(t, err)
 	assert.Equal(t, executable, got)
 }
@@ -136,7 +136,7 @@ func TestResolveInstallerPath_AllMissing(t *testing.T) {
 	_, err := resolveInstallerPath([]string{
 		filepath.Join(tmpDir, "a"),
 		filepath.Join(tmpDir, "b"),
-	})
+	}, alwaysSupported)
 	assert.Error(t, err)
 }
 
@@ -147,10 +147,54 @@ func TestResolveInstallerPath_SkipsDirectory(t *testing.T) {
 	exe := filepath.Join(tmpDir, "candidate-exe")
 	require.NoError(t, os.WriteFile(exe, []byte{}, 0755))
 
-	got, err := resolveInstallerPath([]string{dir, exe})
+	got, err := resolveInstallerPath([]string{dir, exe}, alwaysSupported)
 	require.NoError(t, err)
 	assert.Equal(t, exe, got)
 }
+
+// TestResolveInstallerPath_SkipsUnsupportedInstaller guards the upgrade case: a
+// higher-priority candidate that is on disk and executable but too old to support
+// `apm instrument-start` must be skipped in favor of a newer candidate.
+func TestResolveInstallerPath_SkipsUnsupportedInstaller(t *testing.T) {
+	tmpDir := t.TempDir()
+	stale := filepath.Join(tmpDir, "stale-installer")
+	require.NoError(t, os.WriteFile(stale, []byte{}, 0755))
+	fresh := filepath.Join(tmpDir, "fresh-installer")
+	require.NoError(t, os.WriteFile(fresh, []byte{}, 0755))
+
+	got, err := resolveInstallerPath([]string{stale, fresh}, func(p string) bool { return p == fresh })
+	require.NoError(t, err)
+	assert.Equal(t, fresh, got, "stale installer (no instrument-start) must be skipped")
+}
+
+// TestResolveInstallerPath_AllUnsupported asserts we report failure rather than
+// return a stale installer that would produce a unit doomed to fail on boot.
+func TestResolveInstallerPath_AllUnsupported(t *testing.T) {
+	tmpDir := t.TempDir()
+	exe := filepath.Join(tmpDir, "old-installer")
+	require.NoError(t, os.WriteFile(exe, []byte{}, 0755))
+
+	_, err := resolveInstallerPath([]string{exe}, func(string) bool { return false })
+	assert.ErrorContains(t, err, "too old")
+}
+
+// TestSupportsInstrumentSubcommands exercises the real `apm --help` probe against
+// stub binaries standing in for a newer and an older datadog-installer.
+func TestSupportsInstrumentSubcommands(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	newer := filepath.Join(tmpDir, "new-installer")
+	require.NoError(t, os.WriteFile(newer, []byte("#!/bin/sh\necho 'Available Commands:'\necho '  instrument-start ...'\necho '  instrument-stop ...'\n"), 0755))
+	assert.True(t, supportsInstrumentSubcommands(newer))
+
+	older := filepath.Join(tmpDir, "old-installer")
+	require.NoError(t, os.WriteFile(older, []byte("#!/bin/sh\necho 'Available Commands:'\necho '  instrument ...'\necho '  uninstrument ...'\n"), 0755))
+	assert.False(t, supportsInstrumentSubcommands(older))
+
+	assert.False(t, supportsInstrumentSubcommands(filepath.Join(tmpDir, "does-not-exist")))
+}
+
+func alwaysSupported(string) bool { return true }
 
 func TestSystemdServiceManager_Uninstall(t *testing.T) {
 	tmpDir := t.TempDir()

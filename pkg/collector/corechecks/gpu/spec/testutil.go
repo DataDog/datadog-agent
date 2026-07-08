@@ -68,6 +68,7 @@ var nvmlFieldNameToFieldID = map[string]uint32{
 	"FI_DEV_C2C_LINK_ERROR_REPLAY_B2B":                    nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B,
 	"FI_DEV_PCIE_REPLAY_COUNTER":                          nvml.FI_DEV_PCIE_REPLAY_COUNTER,
 	"FI_DEV_PERF_POLICY_THERMAL":                          nvml.FI_DEV_PERF_POLICY_THERMAL,
+	"FI_DEV_GET_GPU_RECOVERY_ACTION":                      nvml.FI_DEV_GET_GPU_RECOVERY_ACTION,
 }
 
 func unsupportedFieldIDsFromNames(t *testing.T, names []string) []uint32 {
@@ -117,7 +118,7 @@ func BuildMockOptionsForConfig(t *testing.T, config GPUConfig, archSpecs *Archit
 	}
 
 	if config.DeviceMode == DeviceModeMIG {
-		opts = append(opts, testutil.WithMIGChildCount(1))
+		opts = append(opts, testutil.WithMIGChildUUIDs(map[int]map[int]string{0: {0: testutil.MIGUUIDs[0]}}))
 	} else {
 		opts = append(opts, testutil.WithMIGDisabled())
 	}

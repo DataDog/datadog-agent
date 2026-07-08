@@ -110,8 +110,6 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		}
 
 		// apply this new blocklist to all the running workers
-		fl.tlmMetricFilterListUpdates.Inc()
-		fl.tlmMetricFilterListSize.Set(float64(len(metricNames)))
 		fl.SetMetricFilterList(metricNames, false)
 	} else {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
@@ -131,8 +129,6 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		fl.config.Set("metric_tag_filterlist", tagEntries, model.SourceRC)
 
 		// apply this new blocklist to all the running workers
-		fl.tlmTagFilterListUpdates.Inc()
-		fl.tlmTagFilterListSize.Set(float64(len(tags)))
 		fl.setTagFilterList(tagMatcher{
 			MetricTags: tags,
 		})

@@ -17,7 +17,7 @@ import (
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -82,6 +82,17 @@ func fulfillDeps(t testing.TB) serverDeps {
 }
 
 func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
+	return fulfillDepsWithParamsAndConfigOverride(t, server.Params{Serverless: false}, overrides)
+}
+
+// fulfillDepsWithServerlessConfigOverride builds a serverDeps with the server
+// running in serverless mode (Params{Serverless: true}). This exercises the
+// newServerlessBatcher code path used by serverless-init in production.
+func fulfillDepsWithServerlessConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
+	return fulfillDepsWithParamsAndConfigOverride(t, server.Params{Serverless: true}, overrides)
+}
+
+func fulfillDepsWithParamsAndConfigOverride(t testing.TB, params server.Params, overrides map[string]interface{}) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, overrides) }),
@@ -98,7 +109,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
 
 		fxutil.ProvideComponentConstructor(NewComponent),
-		fx.Supply(server.Params{Serverless: false}),
+		fx.Supply(params),
 	))
 }
 
@@ -126,13 +137,17 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 // Returns a server that is not started along with associated dependencies
 // Be careful when using this functionality, as server start instantiates many internal components to non-nil values
 func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (depsWithoutServer, *dsdServer) {
+	return fulfillDepsWithInactiveServerAndParams(t, cfg, false)
+}
+
+func fulfillDepsWithInactiveServerAndParams(t *testing.T, cfg map[string]interface{}, serverless bool) (depsWithoutServer, *dsdServer) {
 	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugmock.MockModule(),
-		fx.Supply(server.Params{Serverless: false}),
+		fx.Supply(server.Params{Serverless: serverless}),
 		replaymock.MockModule(),
 		pidmapfx.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
@@ -143,7 +158,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
 
 	return deps, s
 }

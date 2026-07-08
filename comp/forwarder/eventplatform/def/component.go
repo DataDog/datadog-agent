@@ -37,6 +37,8 @@ const (
 	EventTypeContainerImages = "container-images"
 	// EventTypeContainerSBOM represents a container SBOM event
 	EventTypeContainerSBOM = "container-sbom"
+	// EventTypeGenResources represents a generic resources event
+	EventTypeGenResources = "genresources"
 	// EventTypeSoftwareInventory represents a software inventory event
 	EventTypeSoftwareInventory = "software-inventory"
 	// EventTypeEventManagement represents an event for the Event Management API

@@ -3,6 +3,7 @@ name: create-config-field
 description: Add a new configuration field to the Datadog Agent (datadog.yaml)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[config.key.name]"
+model: sonnet
 ---
 
 Add a new configuration field to a Datadog Agent. This involves registering the key with defaults/env bindings in Go, and optionally documenting it in the config template.
@@ -51,7 +52,7 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the con
 5. **Default value**: What should the default be?
 6. **Description**: Human-readable description of what this field controls.
 7. **Scope**: Add inline in the subsystem function, or create a dedicated setup file (`pkg/config/setup/<feature>.go`) for a group of related fields?
-8. **User-facing?**: Should it be documented in `pkg/config/config_template.yaml`?
+8. **User-facing?**: Should the rendered example yaml (`datadog.yaml`, `system-probe.yaml`, ...) show this setting?
 
 ### Step 2: Register the config key
 
@@ -65,28 +66,31 @@ For a **group of related fields**, create `pkg/config/setup/<feature>.go` with a
 
 For **serverless-compatible** core agent fields, register via the `serverlessConfigComponents` slice in `config.go` instead of directly in `InitConfig`.
 
-### Step 3: (Optional) Document in the config template
+### Step 3: Regenerate the schema
 
-If user-facing, add documentation to `pkg/config/config_template.yaml` inside the appropriate conditional block (see Template conditional column in tables above). Read existing entries nearby for the exact format (`@param`, `@env` annotations).
+The example yaml configs (`datadog.yaml`, `system-probe.yaml`, etc.) are rendered from the enriched schema under `pkg/config/schema/yaml/`. The schema is derived from the running agent, so build first, then regenerate:
+
+```bash
+dda inv agent.build --build-exclude=systemd
+dda inv schema.generate --agent-bin=./bin/agent/agent
+```
+
+Commit the resulting changes under `pkg/config/schema/yaml/` alongside your Go code.
 
 ### Step 4: Verify
 
-1. Build: `dda inv agent.build --build-exclude=systemd` (or `dda inv system-probe.build`)
-2. Lint: `dda inv linter.go`
-3. If the template was modified: `dda inv generate-config`
-4. Report the results to the user.
+1. Lint: `dda inv linter.go`
+2. Report the results to the user.
 
 ## Key Methods Reference
 
 - **`BindEnvAndSetDefault(key, default, envVars...)`** — Preferred. Registers key, sets default, binds `DD_*` env var.
 - **`SetDefault(key, value)`** — Default without env binding.
-- **`BindEnv(key, envVars...)`** — Env binding without default.
 
 `BindEnvAndSetDefault("my_feature.timeout", 30)` auto-creates `DD_MY_FEATURE_TIMEOUT`. Custom alias: `BindEnvAndSetDefault("my_feature.timeout", 30, "DD_MY_TIMEOUT")`.
 
 ## Important Notes
 
-- Do NOT use `SetKnown` for new fields — it's deprecated. Use `BindEnvAndSetDefault`.
 - Config priority: `default < file < env-var < fleet-policies < agent-runtime < remote-config < cli`.
 - Define exported string constants for keys when creating a dedicated setup file.
 

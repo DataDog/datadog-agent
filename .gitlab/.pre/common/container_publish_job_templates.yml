@@ -6,6 +6,7 @@
   SRC_CWS_INSTRUMENTATION: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
   SRC_OTEL_AGENT: registry.ddbuild.io/ci/datadog-agent/otel-agent
   SRC_DDOT_EBPF: registry.ddbuild.io/ci/datadog-agent/ddot-ebpf
+  SRC_SGC: registry.ddbuild.io/ci/datadog-agent/secret-generic-connector
 
 .docker_publish_job_definition:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
@@ -14,26 +15,31 @@
     <<: *docker_variables
     IMG_VARIABLES: ""
     IMG_SIGNING: "false"
-  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    PUBLIC_IMAGES_PUBLISH_TIMEOUT: "1800"
+  script:
     - |
-      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMG_SOURCES" =~ "$SRC_AGENT" || "$IMG_SOURCES" =~ "$SRC_OTEL_AGENT" || "$IMG_SOURCES" =~ "$SRC_DDOT_EBPF" || "$IMG_SOURCES" =~ "$SRC_DCA" || "$IMG_SOURCES" =~ "$SRC_CWS_INSTRUMENTATION" || "$IMG_VARIABLES" =~ "$SRC_AGENT" || "$IMG_VARIABLES" =~ "$SRC_DDOT_EBPF" || "$IMG_VARIABLES" =~ "$SRC_DCA" || "$IMG_VARIABLES" =~ "$SRC_CWS_INSTRUMENTATION" ) ]]; then
+      set -euo pipefail
+
+      if [[ "${BUCKET_BRANCH:-}" == "nightly" && ( "${IMG_SOURCES:-}" =~ "$SRC_AGENT" || "${IMG_SOURCES:-}" =~ "$SRC_OTEL_AGENT" || "${IMG_SOURCES:-}" =~ "$SRC_DDOT_EBPF" || "${IMG_SOURCES:-}" =~ "$SRC_DCA" || "${IMG_SOURCES:-}" =~ "$SRC_CWS_INSTRUMENTATION" || "${IMG_SOURCES:-}" =~ "$SRC_SGC" || "${IMG_VARIABLES:-}" =~ "$SRC_AGENT" || "${IMG_VARIABLES:-}" =~ "$SRC_DDOT_EBPF" || "${IMG_VARIABLES:-}" =~ "$SRC_DCA" || "${IMG_VARIABLES:-}" =~ "$SRC_CWS_INSTRUMENTATION" || "${IMG_VARIABLES:-}" =~ "$SRC_SGC" ) ]]; then
         export ECR_RELEASE_SUFFIX="-nightly"
       else
         export ECR_RELEASE_SUFFIX="${CI_COMMIT_TAG+-release}"
       fi
-    - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
-    - IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
-    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main --timeout 1800
-      --variable IMG_VARIABLES
-      --variable IMG_REGISTRIES
-      --variable IMG_SOURCES
-      --variable IMG_DESTINATIONS
-      --variable IMG_TAG_REFERENCE
-      --variable IMG_NEW_TAGS
-      --variable IMG_SIGNING
-      --variable APPS
-      --variable BAZEL_TARGET
-      --variable DDR
-      --variable DDR_WORKFLOW_ID
-      --variable TARGET_ENV
-      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+      IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION}|${SRC_SGC})#\1${ECR_RELEASE_SUFFIX}#g" <<<"${IMG_VARIABLES:-}")"
+      IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION}|${SRC_SGC})#\1${ECR_RELEASE_SUFFIX}#g" <<<"${IMG_SOURCES:-}")"
+
+      dd-pkg version
+
+      args=(publish-image --timeout "${PUBLIC_IMAGES_PUBLISH_TIMEOUT}" --poll-interval 30 --signing=false)
+
+      if [[ -n "${IMG_REGISTRIES:-}" ]]; then args+=(--registries "${IMG_REGISTRIES}"); fi
+      if [[ -n "${IMG_SOURCES:-}" ]]; then args+=(--sources "${IMG_SOURCES}"); fi
+      if [[ -n "${IMG_DESTINATIONS:-}" ]]; then args+=(--destinations "${IMG_DESTINATIONS}"); fi
+      if [[ -n "${IMG_DESTINATIONS_REGEX:-}" ]]; then args+=(--regex-expression "${IMG_DESTINATIONS_REGEX}"); fi
+      if [[ -n "${IMG_DESTINATIONS_REGEX_REPL:-}" ]]; then args+=(--regex-replacement "${IMG_DESTINATIONS_REGEX_REPL}"); fi
+      if [[ -n "${IMG_TAG_REFERENCE:-}" ]]; then args+=(--tag-reference "${IMG_TAG_REFERENCE}"); fi
+      if [[ -n "${IMG_NEW_TAGS:-}" ]]; then args+=(--new-tags "${IMG_NEW_TAGS}"); fi
+      if [[ -n "${IMG_VARIABLES:-}" ]]; then args+=(--variables "${IMG_VARIABLES}"); fi
+      if [[ -n "${IMG_MERGE_STRATEGY:-}" ]]; then args+=(--merge-strategy "${IMG_MERGE_STRATEGY}"); fi
+
+      dd-pkg "${args[@]}"

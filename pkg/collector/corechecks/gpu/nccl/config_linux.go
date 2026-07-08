@@ -10,8 +10,10 @@ package nccl
 import "time"
 
 const (
-	// ncclMetricsNs is the namespace for all NCCL metrics
-	ncclMetricsNs = "nccl."
+	// ncclMetricsNs is the namespace for all NCCL metrics. Prefixed with "gpu."
+	// to align with the parent GPU check (gpuMetricsNs = "gpu.") and this check's
+	// own config namespace (gpu.nccl.*) → metrics are gpu.nccl.collective.* etc.
+	ncclMetricsNs = "gpu.nccl."
 
 	// hangDetectionMetric is the metric emitted for each known rank.
 	// Value is the number of seconds since that rank last produced an event.

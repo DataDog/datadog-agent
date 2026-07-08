@@ -179,6 +179,7 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 		GettersOnly:  field.gettersOnly,
 		Ref:          field.ref,
 		RestrictedTo: restrictedTo,
+		DefaultValue: field.defaultValue,
 	}
 
 	module.Fields[alias] = newStructField
@@ -285,6 +286,7 @@ func handleNonEmbedded(module *common.Module, field seclField, aliasPrefix, alia
 		SetHandler:    field.setHandler,
 		AliasPrefix:   aliasPrefix,
 		Alias:         alias,
+		DefaultValue:  field.defaultValue,
 	}
 }
 
@@ -346,6 +348,7 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
 		ReadOnly:         field.readOnly,
+		DefaultValue:     field.defaultValue,
 	}
 
 	lengthField := addLengthOpField(module, alias, module.Iterators[alias])
@@ -398,6 +401,7 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
 		ReadOnly:         field.readOnly,
+		DefaultValue:     field.defaultValue,
 	}
 	module.Fields[alias] = newStructField
 
@@ -458,6 +462,7 @@ type seclField struct {
 	gettersOnly            bool //  a field that is not exposed via SECL, but still has an accessor generated
 	ref                    string
 	readOnly               bool
+	defaultValue           string
 }
 
 func parseFieldDef(def string) (seclField, error) {
@@ -494,6 +499,8 @@ func parseFieldDef(def string) (seclField, error) {
 				field.check = value
 			case "set_handler":
 				field.setHandler = value
+			case "default":
+				field.defaultValue = value
 			case "opts":
 				for opt := range strings.SplitSeq(value, "|") {
 					switch opt {

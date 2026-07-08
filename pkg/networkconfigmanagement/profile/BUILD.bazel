@@ -1,0 +1,68 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "profile",
+    srcs = [
+        "command.go",
+        "default_profiles.go",
+        "profile.go",
+        "profile_cache.go",
+        "profile_processing.go",
+        "profile_test_utils.go",
+    ],
+    embedsrcs = [
+        "fixtures/aoscx/running/expected.txt",
+        "fixtures/aoscx/running/initial.txt",
+        "fixtures/aoscx/startup/expected.txt",
+        "fixtures/aoscx/startup/initial.txt",
+        "fixtures/aosw/running/expected.txt",
+        "fixtures/aosw/running/initial.txt",
+        "fixtures/cisco-asa/running/expected.txt",
+        "fixtures/cisco-asa/running/initial.txt",
+        "fixtures/cisco-ios/running/expected.txt",
+        "fixtures/cisco-ios/running/initial.txt",
+        "fixtures/cisco-ios/startup/expected.txt",
+        "fixtures/cisco-ios/startup/initial.txt",
+        "fixtures/dellos10/running/expected.txt",
+        "fixtures/dellos10/running/initial.txt",
+        "fixtures/dellos10/startup/expected.txt",
+        "fixtures/dellos10/startup/initial.txt",
+        "fixtures/eos/running/expected.txt",
+        "fixtures/eos/running/initial.txt",
+        "fixtures/eos/startup/expected.txt",
+        "fixtures/eos/startup/initial.txt",
+        "fixtures/fortios/running/expected.txt",
+        "fixtures/fortios/running/initial.txt",
+        "fixtures/junos/running/expected.txt",
+        "fixtures/junos/running/initial.txt",
+        "fixtures/nxos/running/expected.txt",
+        "fixtures/nxos/running/initial.txt",
+        "fixtures/nxos/startup/expected.txt",
+        "fixtures/nxos/startup/initial.txt",
+        "fixtures/pan-os/running/expected.txt",
+        "fixtures/pan-os/running/initial.txt",
+        "fixtures/tmos/running/expected.txt",
+        "fixtures/tmos/running/initial.txt",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+    ],
+)
+
+go_test(
+    name = "profile_test",
+    srcs = [
+        "default_profiles_test.go",
+        "profile_processing_test.go",
+    ],
+    embed = [":profile"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

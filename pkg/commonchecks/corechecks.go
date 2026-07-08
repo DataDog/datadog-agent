@@ -64,6 +64,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/thermal"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/windowscertificate"
@@ -133,12 +134,13 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(kata.CheckName, kata.Factory(store, tagger))
-	corecheckLoader.RegisterCheck(csidriver.CheckName, csidriver.Factory())
+	corecheckLoader.RegisterCheck(csidriver.CheckName, csidriver.Factory(telemetry))
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
 	corecheckLoader.RegisterCheck(discovery.CheckName, discovery.Factory())
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg, ncmComp))
 	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
+	corecheckLoader.RegisterCheck(thermal.CheckName, thermal.Factory())
 
 	registerSystemProbeChecks(tagger)
 }

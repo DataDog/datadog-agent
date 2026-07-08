@@ -6,6 +6,8 @@
 package agent
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/ecsagentparams"
@@ -24,6 +26,11 @@ func ECSLinuxDaemonDefinition(e aws.Environment, name string, apiKeySSMParamName
 		return nil, err
 	}
 
+	containerDef, err := ecsLinuxAgentSingleContainerDefinition(&e, apiKeySSMParamName, fakeintake, params)
+	if err != nil {
+		return nil, err
+	}
+
 	return ecs.NewEC2Service(e.Ctx(), e.Namer.ResourceName(name), &ecs.EC2ServiceArgs{
 		Name:               e.CommonNamer().DisplayName(255, pulumi.String(name)),
 		Cluster:            clusterArn,
@@ -37,7 +44,7 @@ func ECSLinuxDaemonDefinition(e aws.Environment, name string, apiKeySSMParamName
 		EnableExecuteCommand: pulumi.BoolPtr(true),
 		TaskDefinitionArgs: &ecs.EC2ServiceTaskDefinitionArgs{
 			Containers: map[string]ecs.TaskDefinitionContainerDefinitionArgs{
-				"datadog-agent": ecsLinuxAgentSingleContainerDefinition(&e, apiKeySSMParamName, fakeintake, params),
+				"datadog-agent": containerDef,
 			},
 			ExecutionRole: &awsx.DefaultRoleWithPolicyArgs{
 				RoleArn: pulumi.StringPtr(e.ECSTaskExecutionRole()),
@@ -78,7 +85,11 @@ func ECSLinuxDaemonDefinition(e aws.Environment, name string, apiKeySSMParamName
 	}, e.WithProviders(config.ProviderAWS, config.ProviderAWSX))
 }
 
-func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pulumi.StringInput, fakeintake *fakeintake.Fakeintake, params *ecsagentparams.Params) ecs.TaskDefinitionContainerDefinitionArgs {
+func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pulumi.StringInput, fi *fakeintake.Fakeintake, params *ecsagentparams.Params) (ecs.TaskDefinitionContainerDefinitionArgs, error) {
+	fiEnv, err := ecsFakeintakeAdditionalEndpointsEnv(fi)
+	if err != nil {
+		return ecs.TaskDefinitionContainerDefinitionArgs{}, err
+	}
 	return ecs.TaskDefinitionContainerDefinitionArgs{
 		Cpu:       pulumi.IntPtr(200),
 		Memory:    pulumi.IntPtr(512),
@@ -149,7 +160,7 @@ func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pul
 				Name:  pulumi.StringPtr("DD_TELEMETRY_CHECKS"),
 				Value: pulumi.StringPtr("*"),
 			},
-		}, ecsAgentAdditionalEndpointsEnv(params)...), ecsFakeintakeAdditionalEndpointsEnv(fakeintake)...), ecsAgentAdditionalEnvFromConfig(e)...),
+		}, ecsAgentAdditionalEndpointsEnv(params)...), fiEnv...), ecsAgentAdditionalEnvFromConfig(e)...),
 		Secrets: ecs.TaskDefinitionSecretArray{
 			ecs.TaskDefinitionSecretArgs{
 				Name:      pulumi.String("DD_API_KEY"),
@@ -225,7 +236,7 @@ func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pul
 				},
 			)),
 		},
-	}
+	}, nil
 }
 
 func ecsAgentAdditionalEndpointsEnv(params *ecsagentparams.Params) []ecs.TaskDefinitionKeyValuePairInput {
@@ -240,9 +251,13 @@ func ecsAgentAdditionalEndpointsEnv(params *ecsagentparams.Params) []ecs.TaskDef
 	return taskDefArray
 }
 
-func ecsFakeintakeAdditionalEndpointsEnv(fakeintake *fakeintake.Fakeintake) []ecs.TaskDefinitionKeyValuePairInput {
-	if fakeintake == nil {
-		return []ecs.TaskDefinitionKeyValuePairInput{}
+func ecsFakeintakeAdditionalEndpointsEnv(fi *fakeintake.Fakeintake) ([]ecs.TaskDefinitionKeyValuePairInput, error) {
+	if fi == nil {
+		return []ecs.TaskDefinitionKeyValuePairInput{}, nil
+	}
+	rootJSON, err := fakeintake.RCRootJSON()
+	if err != nil {
+		return nil, fmt.Errorf("build fakeintake rc root json: %w", err)
 	}
 	return []ecs.TaskDefinitionKeyValuePairInput{
 		ecs.TaskDefinitionKeyValuePairArgs{
@@ -254,26 +269,66 @@ func ecsFakeintakeAdditionalEndpointsEnv(fakeintake *fakeintake.Fakeintake) []ec
 			Value: pulumi.StringPtr("true"),
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{
+			Name:  pulumi.StringPtr("DD_REMOTE_CONFIGURATION_ENABLED"),
+			Value: pulumi.StringPtr("true"),
+		},
+		ecs.TaskDefinitionKeyValuePairArgs{
+			Name:  pulumi.StringPtr("DD_REMOTE_CONFIGURATION_RC_DD_URL"),
+			Value: fi.URL.ToStringOutput(),
+		},
+		ecs.TaskDefinitionKeyValuePairArgs{
+			Name:  pulumi.StringPtr("DD_REMOTE_CONFIGURATION_NO_TLS"),
+			Value: pulumi.StringPtr("true"),
+		},
+		ecs.TaskDefinitionKeyValuePairArgs{
+			Name:  pulumi.StringPtr("DD_REMOTE_CONFIGURATION_CONFIG_ROOT"),
+			Value: pulumi.StringPtr(rootJSON),
+		},
+		ecs.TaskDefinitionKeyValuePairArgs{
+			Name:  pulumi.StringPtr("DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT"),
+			Value: pulumi.StringPtr(rootJSON),
+		},
+		ecs.TaskDefinitionKeyValuePairArgs{
+			Name:  pulumi.StringPtr("DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL"),
+			Value: pulumi.StringPtr("5s"),
+		},
+		ecs.TaskDefinitionKeyValuePairArgs{
 			Name:  pulumi.StringPtr("DD_PROCESS_CONFIG_PROCESS_DD_URL"),
-			Value: fakeintake.URL.ToStringOutput(),
+			Value: fi.URL.ToStringOutput(),
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{
 			Name:  pulumi.StringPtr("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"),
-			Value: fakeintake.URL.ToStringOutput(),
+			Value: fi.URL.ToStringOutput(),
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{
 			Name:  pulumi.StringPtr("DD_ADDITIONAL_ENDPOINTS"),
-			Value: pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.URL.ToStringOutput()),
+			Value: pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fi.URL.ToStringOutput()),
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{
-			Name:  pulumi.String("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS"),
-			Value: pulumi.Sprintf(`[{"host": "%s"}]`, fakeintake.Host),
+			Name: pulumi.String("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS"),
+			Value: pulumi.All(fi.Host, fi.Port, fi.Scheme).ApplyT(func(args []interface{}) (string, error) {
+				host := args[0].(string)
+				port := args[1].(int)
+				scheme := args[2].(string)
+				useSSL := scheme != "http"
+				return fmt.Sprintf(`[{"host": %q, "port": %d, "use_ssl": %t}]`, host, port, useSSL), nil
+			}).(pulumi.StringOutput),
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{
 			Name:  pulumi.StringPtr("DD_LOGS_CONFIG_USE_HTTP"),
 			Value: pulumi.StringPtr("true"),
 		},
-	}
+		ecs.TaskDefinitionKeyValuePairArgs{
+			Name: pulumi.StringPtr("DD_LOGS_CONFIG_LOGS_NO_SSL"),
+			Value: fi.Scheme.ApplyT(func(scheme string) *string {
+				s := "false"
+				if scheme == "http" {
+					s = "true"
+				}
+				return &s
+			}).(pulumi.StringPtrOutput),
+		},
+	}, nil
 }
 
 func ecsAgentAdditionalEnvFromConfig(e config.Env) []ecs.TaskDefinitionKeyValuePairInput {

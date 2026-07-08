@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"go.uber.org/atomic"
 )
 
 // SpanConcentratorConfig exposes configuration options for a SpanConcentrator
@@ -24,6 +25,10 @@ type SpanConcentratorConfig struct {
 	ComputeStatsBySpanKind bool
 	// BucketInterval the size of our pre-aggregation per bucket
 	BucketInterval int64
+	// AdditionalMetricTagsCardinalityLimit is the maximum number of distinct additional metric tag stats entries per bucket. 0 disables the cap.
+	// This is a tracer-only control (dd-trace-go imports this package and sets it) — the
+	// Agent intentionally leaves it unset, so the cardinality cap is a no-op in the Agent.
+	AdditionalMetricTagsCardinalityLimit int
 }
 
 // StatSpan holds all the required fields from a span needed to calculate stats
@@ -49,6 +54,29 @@ type StatSpan struct {
 
 	httpMethod   string
 	httpEndpoint string
+}
+
+const (
+	// additionalMetricTagValueMaxLength bounds an individual tag value; longer values are
+	// masked. This length cap is unconditional and runs in BOTH the Agent and the tracer.
+	additionalMetricTagValueMaxLength = 200
+	// Masked values carry a sentinel naming the component that masked them. The sentinel is
+	// propagated into each RawBucket so the same masking code attributes correctly in either
+	// context: tracer-side masking reports tracer_blocked_value, Agent-side reports agent_blocked_value.
+	blockedByTracerSentinel = "tracer_blocked_value"
+	blockedByAgentSentinel  = "agent_blocked_value"
+)
+
+func maskAdditionalMetricTagValues(tags []string, sentinel string) []string {
+	if sentinel == "" {
+		sentinel = blockedByTracerSentinel
+	}
+	masked := make([]string, 0, len(tags))
+	for _, t := range tags {
+		k, _, _ := strings.Cut(t, ":")
+		masked = append(masked, k+":"+sentinel)
+	}
+	return masked
 }
 
 func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
@@ -104,26 +132,34 @@ func peerTagKeysToAggregateForSpan(spanKind string, baseService string, peerTagK
 	return nil
 }
 
-func matchingAdditionalMetricTags(meta map[string]string, additionalMetricTagKeys []string) []string {
+func (sc *SpanConcentrator) matchingAdditionalMetricTags(meta map[string]string, additionalMetricTagKeys []string) []string {
 	if len(additionalMetricTagKeys) == 0 {
 		return nil
 	}
 	var tags []string
 	for _, t := range additionalMetricTagKeys {
 		if v, ok := meta[t]; ok && v != "" {
+			if len(v) > additionalMetricTagValueMaxLength {
+				v = sc.getAdditionalMetricTagValueBlockSentinel()
+				sc.addLengthBlock()
+			}
 			tags = append(tags, t+":"+v)
 		}
 	}
 	return tags
 }
 
-func matchingAdditionalMetricTagsV1(s *idx.InternalSpan, additionalMetricTagKeys []string) []string {
+func (sc *SpanConcentrator) matchingAdditionalMetricTagsV1(s *idx.InternalSpan, additionalMetricTagKeys []string) []string {
 	if len(additionalMetricTagKeys) == 0 {
 		return nil
 	}
 	var tags []string
 	for _, t := range additionalMetricTagKeys {
 		if v, ok := s.GetAttributeAsString(t); ok && v != "" {
+			if len(v) > additionalMetricTagValueMaxLength {
+				v = sc.getAdditionalMetricTagValueBlockSentinel()
+				sc.addLengthBlock()
+			}
 			tags = append(tags, t+":"+v)
 		}
 	}
@@ -132,7 +168,11 @@ func matchingAdditionalMetricTagsV1(s *idx.InternalSpan, additionalMetricTagKeys
 
 // SpanConcentrator produces time bucketed statistics from a stream of raw spans.
 type SpanConcentrator struct {
-	computeStatsBySpanKind bool
+	computeStatsBySpanKind                bool
+	additionalMetricTagValueBlockSentinel string
+	additionalTagsCardinalityLimit        int
+	lengthBlocks                          *atomic.Int64
+	capBlocks                             *atomic.Int64
 	// bucket duration in nanoseconds
 	bsize int64
 	// Timestamp of the oldest time bucket for which we allow data.
@@ -152,14 +192,55 @@ type SpanConcentrator struct {
 // NewSpanConcentrator builds a new SpanConcentrator object
 func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcentrator {
 	sc := &SpanConcentrator{
-		computeStatsBySpanKind: cfg.ComputeStatsBySpanKind,
-		bsize:                  cfg.BucketInterval,
-		oldestTs:               alignTs(now.UnixNano(), cfg.BucketInterval),
-		bufferLen:              defaultBufferLen,
-		mu:                     sync.Mutex{},
-		buckets:                make(map[int64]*RawBucket),
+		computeStatsBySpanKind:                cfg.ComputeStatsBySpanKind,
+		additionalMetricTagValueBlockSentinel: blockedByTracerSentinel,
+		additionalTagsCardinalityLimit:        cfg.AdditionalMetricTagsCardinalityLimit,
+		lengthBlocks:                          atomic.NewInt64(0),
+		capBlocks:                             atomic.NewInt64(0),
+		bsize:                                 cfg.BucketInterval,
+		oldestTs:                              alignTs(now.UnixNano(), cfg.BucketInterval),
+		bufferLen:                             defaultBufferLen,
+		mu:                                    sync.Mutex{},
+		buckets:                               make(map[int64]*RawBucket),
 	}
 	return sc
+}
+
+func (sc *SpanConcentrator) getAdditionalMetricTagValueBlockSentinel() string {
+	if sc.additionalMetricTagValueBlockSentinel == "" {
+		return blockedByTracerSentinel
+	}
+	return sc.additionalMetricTagValueBlockSentinel
+}
+
+func (sc *SpanConcentrator) addLengthBlock() {
+	if sc.lengthBlocks != nil {
+		sc.lengthBlocks.Add(1)
+	}
+}
+
+func (sc *SpanConcentrator) addCapBlocks(delta int64) {
+	if sc.capBlocks != nil {
+		sc.capBlocks.Add(delta)
+	}
+}
+
+// BlockCounts reports additional-metric-tag block events since the last drain.
+type BlockCounts struct {
+	LengthBlocks int64
+	CapBlocks    int64
+}
+
+// DrainBlockCounts atomically reads and zeroes the block counters.
+func (sc *SpanConcentrator) DrainBlockCounts() BlockCounts {
+	var counts BlockCounts
+	if sc.lengthBlocks != nil {
+		counts.LengthBlocks = sc.lengthBlocks.Swap(0)
+	}
+	if sc.capBlocks != nil {
+		counts.CapBlocks = sc.capBlocks.Swap(0)
+	}
+	return counts
 }
 
 // NewStatSpanFromPB is a helper version of NewStatSpanWithConfig that builds a StatSpan from a pb.Span.
@@ -236,7 +317,7 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 		statusCode:                   getStatusCode(config.Meta, config.Metrics),
 		isTopLevel:                   isTopLevel,
 		matchingPeerTags:             matchingPeerTags(config.Meta, config.PeerTags),
-		matchingAdditionalMetricTags: matchingAdditionalMetricTags(config.Meta, config.AdditionalMetricTagKeys),
+		matchingAdditionalMetricTags: sc.matchingAdditionalMetricTags(config.Meta, config.AdditionalMetricTagKeys),
 
 		grpcStatusCode: getGRPCStatusCode(config.Meta, config.Metrics),
 
@@ -274,7 +355,7 @@ func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []st
 		statusCode:                   getStatusCodeV1(s),
 		isTopLevel:                   isTopLevel,
 		matchingPeerTags:             matchingPeerTagsV1(s, peerTags),
-		matchingAdditionalMetricTags: matchingAdditionalMetricTagsV1(s, additionalMetricTagKeys),
+		matchingAdditionalMetricTags: sc.matchingAdditionalMetricTagsV1(s, additionalMetricTagKeys),
 		grpcStatusCode:               getGRPCStatusCodeV1(s),
 	}, true
 }
@@ -346,7 +427,8 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, t
 
 	b, ok := sc.buckets[btime]
 	if !ok {
-		b = NewRawBucket(uint64(btime), uint64(sc.bsize))
+		b = NewRawBucket(uint64(btime), uint64(sc.bsize), sc.additionalTagsCardinalityLimit)
+		b.additionalMetricTagValueBlockSentinel = sc.getAdditionalMetricTagValueBlockSentinel()
 		sc.buckets[btime] = b
 	}
 	if tags.processTagsHash != 0 && len(tags.processTags) > 0 {
@@ -355,7 +437,9 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, t
 	if tags.containerID != "" && len(tags.containerTags) > 0 {
 		b.containerTagsByID[tags.containerID] = tags.containerTags
 	}
-	b.HandleSpan(s, weight, origin, aggKey)
+	if d := b.HandleSpan(s, weight, origin, aggKey); d > 0 {
+		sc.addCapBlocks(int64(d))
+	}
 }
 
 // AddSpan to the SpanConcentrator, appending the new data to the appropriate internal bucket.

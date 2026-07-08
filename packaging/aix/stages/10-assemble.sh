@@ -55,7 +55,7 @@ log "Pre-flight: agent binary found at $AGENT_BIN"
 
 log "Copying main config example"
 mkdir -p "$STAGING/etc/datadog-agent"
-cp /opt/datadog-agent/cmd/agent/dist/datadog.yaml \
+cp "$AGENT_SRC/cmd/agent/dist/datadog.yaml" \
     "$STAGING/etc/datadog-agent/datadog.yaml.example"
 log "Config example written to $STAGING/etc/datadog-agent/datadog.yaml.example"
 
@@ -72,7 +72,7 @@ log "Installing check configs"
 # inv agent.build (stage 04) populates bin/agent/dist/conf.d/ with the check
 # configs for AIX_CORECHECKS (defined in tasks/core_checks.py).  Copy that
 # output directly — no list to maintain here.
-DIST_CONFD=/opt/datadog-agent/bin/agent/dist/conf.d
+DIST_CONFD=$AGENT_SRC/bin/agent/dist/conf.d
 STAGING_CONFD="$STAGING/etc/datadog-agent/conf.d"
 if [ ! -d "$DIST_CONFD" ]; then
     log "ERROR: $DIST_CONFD not found — did Stage 04 complete successfully?"
@@ -94,7 +94,7 @@ log "Check configs installed from $DIST_CONFD"
 # __xlcxx_personality_v0 is available when pydantic_core (or any other C++
 # extension using libunwind) is imported.
 
-SITECUSTOMIZE_SRC="$(dirname "$0")/../sitecustomize.py"
+SITECUSTOMIZE_SRC="$SCRIPT_DIR/../sitecustomize.py"
 PYTHON_LIB_DIR="$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}"
 if [ ! -f "$SITECUSTOMIZE_SRC" ]; then
     log "ERROR: sitecustomize.py not found at $SITECUSTOMIZE_SRC"
@@ -109,7 +109,7 @@ cp "$SITECUSTOMIZE_SRC" "$PYTHON_LIB_DIR/sitecustomize.py"
 # Remove any stale .pyc that may have been compiled against an older version of
 # this file in a previous build. The .pyc is not needed in the BFF — Python
 # regenerates it on first import on the target host.
-rm -f "$PYTHON_LIB_DIR/__pycache__/sitecustomize.cpython-313.pyc"
+rm -f "$PYTHON_LIB_DIR/__pycache__"/sitecustomize.*.pyc
 log "sitecustomize.py installed to $PYTHON_LIB_DIR/sitecustomize.py"
 
 # ─── Step 3: Create required empty directories ────────────────────────────────
@@ -145,7 +145,7 @@ mkdir -p "$SCRIPTS_DIR"
 # them when building the BFF on the same host that will run the agent).
 SCRIPTS_INSTALLED="$EMBEDDED/share/installp"
 mkdir -p "$SCRIPTS_INSTALLED"
-PKGSCRIPTS_SRC="$(dirname "$0")/../package-scripts"
+PKGSCRIPTS_SRC="$SCRIPT_DIR/../package-scripts"
 
 # Note: postrm is intentionally excluded. On AIX, installp removes tracked files
 # *before* running post-remove scripts, so a postrm stored at
@@ -176,6 +176,29 @@ log "All package lifecycle scripts installed"
 # will install them with that non-root ownership on the target system, which
 # causes permission errors at runtime. chown -h (portable spelling: -Rh) also
 # fixes symbolic link ownership without following the link target.
+
+# ─── Step 5b: Remove build-only static archives ──────────────────────────────
+#
+# Static archives (.a without a shared member) in embedded/lib are build-time
+# artefacts used when compiling Python and its C extensions. Nothing in the
+# installed package needs them at runtime — all consumers link statically.
+#
+# Shipping these archives is actively harmful: the agent wrapper puts
+# embedded/lib first in LIBPATH, so they shadow the system libraries of the
+# same name. When a user runs `pip install ibm_db` (or any C extension that
+# depends on e.g. libz), the linker finds our static-only libz.a first,
+# has no shared member to use for dynamic linking, and fails. Removing the
+# archives lets the linker fall through to the system versions (zlibNX, etc.)
+# which are proper shared libraries.
+for _lib in \
+    "$EMBEDDED_DESTDIR/lib/libz.a" \
+    "$EMBEDDED_DESTDIR/lib/libbz2.a" \
+; do
+    if [ -f "$_lib" ]; then
+        log "Removing build-only static archive: $_lib"
+        rm -f "$_lib"
+    fi
+done
 
 log "Setting root ownership on staging tree"
 chown -Rh 0:0 "$STAGING/opt" "$STAGING/etc" "$STAGING/var"

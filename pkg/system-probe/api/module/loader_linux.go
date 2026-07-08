@@ -8,6 +8,7 @@
 package module
 
 import (
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -32,10 +33,11 @@ func isEBPFOptional(factories []*Factory) bool {
 	return false
 }
 
-func preRegister(_ *sysconfigtypes.Config, rcclient rcclient.Component, moduleFactories []*Factory) error {
+func preRegister(cfg *sysconfigtypes.Config, rcclient rcclient.Component, telemetry telemetry.Component, moduleFactories []*Factory) error {
 	needed := isEBPFRequired(moduleFactories)
-	if needed || isEBPFOptional(moduleFactories) {
-		err := ebpf.Setup(ebpf.NewConfig(), rcclient)
+	contentionWillLoad := cfg.TelemetryEnabled && ebpf.ContentionCollector != nil
+	if needed || isEBPFOptional(moduleFactories) || contentionWillLoad {
+		err := ebpf.Setup(ebpf.NewConfig(), rcclient, telemetry)
 		if err != nil && !needed {
 			log.Warnf("ignoring eBPF setup error: %v", err)
 			return nil

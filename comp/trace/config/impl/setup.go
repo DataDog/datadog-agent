@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -95,7 +96,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	cfg.ReceiverSocket = coreConfigObject.GetString("apm_config.receiver_socket")
 
 	if !coreConfigObject.GetBool("disable_file_logging") {
-		cfg.LogFilePath = DefaultLogFilePath
+		cfg.LogFilePath = DefaultLogFilePath()
 	}
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
@@ -108,8 +109,34 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	if p := pkgconfigsetup.Datadog().GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
-	if utils.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote(c, ipcAddress, ipc)
+	rcEnabled := utils.IsRemoteConfigEnabled(coreConfigObject)
+	cfg.RemoteConfigAPMSamplingEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled")
+	cfg.RemoteConfigAPMSemanticsEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.apm_semantics.enabled")
+	cfg.RemoteConfigAgentConfigEnabled = rcEnabled && coreConfigObject.GetBool("remote_configuration.agent_config.enabled")
+
+	// Backward-compat inheritance: when the user has explicitly set
+	// apm_sampling.enabled (typically to false) but has NOT explicitly set
+	// agent_config.enabled, mirror apm_sampling.enabled into agent_config.
+	// This preserves the legacy behavior where apm_sampling.enabled
+	// implicitly gated the AGENT_CONFIG subscription by virtue of bundling
+	// both onto the same RC client.
+	if coreConfigObject.IsConfigured("remote_configuration.apm_sampling.enabled") &&
+		!coreConfigObject.IsConfigured("remote_configuration.agent_config.enabled") {
+		cfg.RemoteConfigAgentConfigEnabled = cfg.RemoteConfigAPMSamplingEnabled
+	}
+
+	var products []string
+	if cfg.RemoteConfigAPMSamplingEnabled {
+		products = append(products, state.ProductAPMSampling)
+	}
+	if cfg.RemoteConfigAgentConfigEnabled {
+		products = append(products, state.ProductAgentConfig)
+	}
+	if cfg.RemoteConfigAPMSemanticsEnabled {
+		products = append(products, state.ProductAPMSemanticCoreDD)
+	}
+	if len(products) > 0 {
+		client, err := remote(c, ipcAddress, ipc, products)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
@@ -155,7 +182,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 // The format for cfgKey should be a map which has the URL as a key and one or
 // more API keys as an array value.
 func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endpoint {
-	if !pkgconfigsetup.Datadog().IsSet(cfgKey) {
+	if !pkgconfigsetup.Datadog().IsConfigured(cfgKey) {
 		return endpoints
 	}
 	for url, keys := range pkgconfigsetup.Datadog().GetStringMapStringSlice(cfgKey) {
@@ -185,13 +212,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*config.Endpoint{{}}
 	}
-	if core.IsSet("api_key") {
+	if core.IsConfigured("api_key") {
 		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))
 	}
-	if core.IsSet("hostname") {
+	if core.IsConfigured("hostname") {
 		c.Hostname = core.GetString("hostname")
 	}
-	if core.IsSet("dogstatsd_port") {
+	if core.IsConfigured("dogstatsd_port") {
 		c.StatsdPort = core.GetInt("dogstatsd_port")
 	}
 
@@ -224,7 +251,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
-	if core.IsSet("proxy.no_proxy") {
+	if core.IsConfigured("proxy.no_proxy") {
 		proxyList := core.GetStringSlice("proxy.no_proxy")
 		noProxy := make(map[string]bool, len(proxyList))
 		for _, host := range proxyList {
@@ -245,12 +272,16 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 
-	if core.IsSet("skip_ssl_validation") {
+	if core.IsConfigured("skip_ssl_validation") {
 		c.SkipSSLValidation = core.GetBool("skip_ssl_validation")
 	}
-	if core.IsSet("apm_config.enabled") {
-		c.Enabled = utils.IsAPMEnabled(core)
-	}
+	// apm_config.enabled always has a default value, so this must not be gated
+	// on IsConfigured (which is false for default/SourceDefault values). The
+	// otel-agent enables its embedded trace-agent by setting apm_config.enabled
+	// to true on the default source; gating on IsConfigured skips this and
+	// leaves the trace-agent disabled, which later nil-panics the datadog
+	// exporter (see comp/trace/agent/impl/agent.go SetOTelAttributeTranslator).
+	c.Enabled = utils.IsAPMEnabled(core)
 	if pkgconfigsetup.Datadog().IsConfigured("apm_config.log_file") {
 		c.LogFilePath = pkgconfigsetup.Datadog().GetString("apm_config.log_file")
 	}
@@ -264,19 +295,18 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if c.DefaultEnv != prevEnv {
 		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
-	if core.IsSet("apm_config.receiver_enabled") {
-		c.ReceiverEnabled = core.GetBool("apm_config.receiver_enabled")
-	}
-	if core.IsSet("apm_config.receiver_port") {
-		c.ReceiverPort = core.GetInt("apm_config.receiver_port")
-	}
-	if core.IsSet("apm_config.receiver_socket") {
-		c.ReceiverSocket = core.GetString("apm_config.receiver_socket")
-	}
+	// These receiver settings always have defaults, so they must not be gated on
+	// IsConfigured (false for default/SourceDefault values). The otel-agent sets
+	// apm_config.receiver_enabled=false on the default source to disable its
+	// embedded HTTP receiver; gating on IsConfigured skips this and the receiver
+	// tries to bind 0.0.0.0:8126, colliding with the trace-agent container.
+	c.ReceiverEnabled = core.GetBool("apm_config.receiver_enabled")
+	c.ReceiverPort = core.GetInt("apm_config.receiver_port")
+	c.ReceiverSocket = core.GetString("apm_config.receiver_socket")
 	if core.IsConfigured("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
-	if core.IsSet("apm_config.sql_obfuscation_mode") {
+	if core.IsConfigured("apm_config.sql_obfuscation_mode") {
 		c.SQLObfuscationMode = core.GetString("apm_config.sql_obfuscation_mode")
 	}
 
@@ -327,13 +357,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsConfigured("apm_config.enable_rare_sampler") {
 		c.RareSamplerEnabled = core.GetBool("apm_config.enable_rare_sampler")
 	}
-	if core.IsSet("apm_config.rare_sampler.tps") {
+	if core.IsConfigured("apm_config.rare_sampler.tps") {
 		c.RareSamplerTPS = core.GetInt("apm_config.rare_sampler.tps")
 	}
-	if core.IsSet("apm_config.rare_sampler.cooldown") {
+	if core.IsConfigured("apm_config.rare_sampler.cooldown") {
 		c.RareSamplerCooldownPeriod = core.GetDuration("apm_config.rare_sampler.cooldown")
 	}
-	if core.IsSet("apm_config.rare_sampler.cardinality") {
+	if core.IsConfigured("apm_config.rare_sampler.cardinality") {
 		c.RareSamplerCardinality = core.GetInt("apm_config.rare_sampler.cardinality")
 	}
 
@@ -347,7 +377,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.ProbabilisticSamplerHashSeed = uint32(core.GetInt("apm_config.probabilistic_sampler.hash_seed"))
 	}
 
-	if core.IsSet("apm_config.error_tracking_standalone.enabled") {
+	if core.IsConfigured("apm_config.error_tracking_standalone.enabled") {
 		c.ErrorTrackingStandalone = core.GetBool("apm_config.error_tracking_standalone.enabled")
 	}
 
@@ -393,8 +423,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 
-	if core.IsSet("bind_host") || core.IsConfigured("apm_config.apm_non_local_traffic") {
-		if core.IsSet("bind_host") {
+	if core.IsConfigured("bind_host") || core.IsConfigured("apm_config.apm_non_local_traffic") {
+		if core.IsConfigured("bind_host") {
 			host := core.GetString("bind_host")
 			c.StatsdHost = host
 			c.ReceiverHost = host
@@ -553,7 +583,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	// Default of 4 was chosen through experimentation, but may not be the optimal value.
 	c.MaxSenderRetries = core.GetInt("apm_config.max_sender_retries")
-	if core.IsSet("secret_refresh_on_api_key_failure_interval") {
+	if core.IsConfigured("secret_refresh_on_api_key_failure_interval") {
 		// Use the global secret refresh interval for throttling API key refresh at the sender level
 		c.APIKeyRefreshThrottleInterval = time.Duration(core.GetInt("secret_refresh_on_api_key_failure_interval")) * time.Minute
 	}
@@ -613,6 +643,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.profiling_additional_endpoints"; core.IsConfigured(k) {
 		c.ProfilingProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
+	if !core.GetBool("apm_config.profiling_send_to_main_endpoint") {
+		c.ProfilingProxy.MainEndpointMode = config.ProfilingMainEndpointSkip
+	}
 	if k := "apm_config.profiling_receiver_timeout"; core.IsConfigured(k) {
 		c.ProfilingProxy.ReceiverTimeout = core.GetInt(k)
 	}
@@ -653,12 +686,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "evp_proxy_config.api_key"; core.IsConfigured(k) {
 		c.EVPProxy.APIKey = core.GetString(k)
 	}
-	if k := "evp_proxy_config.app_key"; core.IsSet(k) {
-		c.EVPProxy.ApplicationKey = core.GetString(k)
-	} else {
-		// Default to the agent-wide app_key if set
-		c.EVPProxy.ApplicationKey = core.GetString("app_key")
-	}
 	if k := "evp_proxy_config.additional_endpoints"; core.IsConfigured(k) {
 		c.EVPProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
@@ -677,7 +704,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.OpenLineageProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
 	c.OpenLineageProxy.APIVersion = core.GetInt("ol_proxy_config.api_version")
-	if k := "apm_config.debug_v1_payloads"; core.IsSet(k) {
+	if k := "apm_config.debug_v1_payloads"; core.IsConfigured(k) {
 		c.DebugV1Payloads = core.GetBool("apm_config.debug_v1_payloads")
 	}
 	if k := "apm_config.mode"; core.IsConfigured(k) {
@@ -696,7 +723,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 // TODO(x): remove them gradually or fully in a future release.
 func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := pkgconfigsetup.Datadog()
-	if cfg.IsSet("apm_config.api_key") {
+	if cfg.IsConfigured("apm_config.api_key") {
 		log.Warn("apm_config.api_key is deprecated. Use core api_key instead")
 		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
 	}

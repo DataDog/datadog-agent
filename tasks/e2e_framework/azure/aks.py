@@ -57,7 +57,6 @@ def create_aks(
 
     extra_flags = {
         "ddinfra:env": f"az/{account if account else cfg.get_azure().account}",
-        "ddinfra:az/defaultPublicKeyPath": cfg.get_azure().publicKeyPath,
         "ddagent:localChartPath": local_chart_path,
     }
 

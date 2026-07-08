@@ -62,7 +62,7 @@ profiles:
 	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "123") // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -194,7 +194,7 @@ global_metrics:
 	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "123") // required to initiate aggregator
 	sender.SetupAcceptAll()
 
 	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
@@ -245,7 +245,7 @@ community_string: public
 	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "123") // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	// without hostname
@@ -347,7 +347,7 @@ profiles:
 	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
 		"static_tag:from_profile_root", "static_tag:from_base_profile", "some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
 
-	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "123") // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -681,7 +681,7 @@ metrics:
 		deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 		assert.Nil(t, err)
 
-		sender := mocksender.NewMockSender("123")
+		sender := mocksender.NewMockSender(t, "123")
 		sender.SetupAcceptAll()
 		deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
 
@@ -744,7 +744,7 @@ profiles:
 	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "123") // required to initiate aggregator
 	sender.SetupAcceptAll()
 
 	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
@@ -793,7 +793,7 @@ profiles:
 	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender("123")
+	sender := mocksender.NewMockSender(t, "123")
 	sender.SetupAcceptAll()
 
 	// Use entries from 1 interval ago (within TTL of bandwidthStateTTLChecks intervals).
@@ -842,7 +842,7 @@ profiles:
 	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender("123")
+	sender := mocksender.NewMockSender(t, "123")
 	sender.SetupAcceptAll()
 
 	// Use entries from well beyond the TTL (2x the TTL to be safe).
@@ -899,7 +899,7 @@ profiles:
 	}, nil)
 	deviceCk.devicePinger = mp
 
-	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "123") // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1038,7 +1038,7 @@ profiles:
 	mp := pinger.NewMockPinger(nil, errors.New("test error"))
 	deviceCk.devicePinger = mp
 
-	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "123") // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1165,7 +1165,7 @@ collect_topology: false
 	assert.Nil(t, err)
 
 	cfg := agentconfig.NewMock(t)
-	cfg.SetWithoutSource("tags", []string{"tag1:value1"})
+	cfg.SetInTest("tags", []string{"tag1:value1"})
 
 	connMgr := NewConnectionManager(config, sessionFactory)
 	deviceCk, err := NewDeviceCheck(config, connMgr, cfg)
@@ -1201,7 +1201,7 @@ collect_topology: false
 	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "123") // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

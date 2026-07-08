@@ -6,27 +6,26 @@ files, run the following from the repository root:
 dda inv protobuf.generate
 ```
 
-This invokes Bazel to resolve all required tools (`protoc`,
-`protoc-gen-go`, etc.) hermetically; they do not need to be
-installed separately. To build the tools directly with Bazel:
+This task is essentially a wrapper around:
 ```
-bazel build \
-  //bazel/toolchains/protoc \
-  @com_github_favadi_protoc_go_inject_tag//:protoc-go-inject-tag \
-  @com_github_golang_mock//mockgen \
-  @com_github_planetscale_vtprotobuf//cmd/protoc-gen-go-vtproto \
-  @com_github_tinylib_msgp//:msgp \
-  @org_golang_google_grpc_cmd_protoc_gen_go_grpc//:protoc-gen-go-grpc \
-  @org_golang_google_protobuf//cmd/protoc-gen-go \
-  @rules_go//go
+bazel run //:write_all
 ```
+
+The above Bazel command makes sure all required tools (`protoc`,
+`protoc-gen-go`, etc.) are built hermetically, then runs them and
+writes their (re)generated outputs back into the source tree.
+
+To add generated files to its scope, declare the relevant rule
+(`write_pb_go`, `go_msgp`, `go_mockgen`, etc.) in the package's
+`BUILD.bazel` file and insert its label into `//:write_all`'s
+`additional_update_targets` in the root `BUILD.bazel` file.
 
 ### Notes
 
 We are currently pinned to fairly old versions for some of the
 protobuf/grpc dependencies and tooling. These are required as a
 consequence of third-party libraries (most notably etcd). Please
-see `go.mod` and `internal/tools/proto/go.mod` to understand the
+see `go.mod` and `internal/tools/go.mod` to understand the
 version requirements.
 
 The tooling in place should help our protobuf versions be consistent

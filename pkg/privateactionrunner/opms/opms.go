@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -32,6 +32,7 @@ import (
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/jsonapi"
 )
 
@@ -144,10 +145,11 @@ type client struct {
 	lastTaskReceivedAt atomic.Pointer[time.Time]
 }
 
-func NewClient(cfg *config.Config) Client {
+func NewClient(coreCfg model.Reader, cfg *config.Config) Client {
 	return &client{
 		httpClient: &http.Client{
-			Timeout: time.Millisecond * time.Duration(cfg.OpmsRequestTimeout),
+			Timeout:   time.Duration(cfg.OpmsRequestTimeout) * time.Millisecond,
+			Transport: httputils.CreateHTTPTransport(coreCfg),
 		},
 		config:          cfg,
 		runnerStartedAt: time.Now().UTC(),

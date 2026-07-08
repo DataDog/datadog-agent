@@ -50,7 +50,7 @@ func (s *vmLogsExampleSuite) TestLogs() {
 	}, 5*time.Minute, 10*time.Second)
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		// part 2: generate logs
-		s.Env().RemoteHost.MustExecute("echo 'totoro' >> /tmp/test.log")
+		s.Env().RemoteHost.MustExecuteOn(c, "echo 'totoro' >> /tmp/test.log")
 		// part 3: there should be logs
 		names, err := fakeintake.GetLogServiceNames()
 		assert.NoError(c, err)

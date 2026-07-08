@@ -6,16 +6,20 @@
 // Package remoteconfighandler holds the logic responsible for updating the samplers when the remote configuration changes.
 package remoteconfighandler
 
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=mock_samplers.go -build_constraint test
+
 import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/davecgh/go-spew/spew"
@@ -46,14 +50,18 @@ type RemoteConfigHandler struct {
 	configSetEndpointFormatString string
 }
 
-// New creates a new RemoteConfigHandler
+// New creates a new RemoteConfigHandler.
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
 	if conf.RemoteConfigClient == nil {
 		return nil
 	}
 
-	if conf.DebugServerPort == 0 {
-		log.Errorf("debug server(apm_config.debug.port) was disabled, server is required for remote config, RC is disabled.")
+	// The debug server is only required by AGENT_CONFIG (log-level writes).
+	// If it's disabled and no other RC product is enabled, the handler has
+	// nothing useful to do — disable RC. Otherwise we continue and skip just
+	// the AGENT_CONFIG subscription in Start().
+	if conf.DebugServerPort == 0 && !conf.RemoteConfigAPMSamplingEnabled && !conf.RemoteConfigAPMSemanticsEnabled {
+		log.Errorf("debug server(apm_config.debug.port) was disabled and no other RC product is enabled, RC is disabled.")
 		return nil
 	}
 
@@ -89,8 +97,22 @@ func (h *RemoteConfigHandler) Start() {
 	}
 
 	h.client.Start()
-	h.client.Subscribe(state.ProductAPMSampling, h.onUpdate)
-	h.client.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
+	if h.agentConfig.RemoteConfigAPMSamplingEnabled {
+		h.client.Subscribe(state.ProductAPMSampling, h.onUpdate)
+	}
+	if h.agentConfig.RemoteConfigAgentConfigEnabled {
+		// AGENT_CONFIG writes (log level overrides) require the debug server.
+		// Skip the subscription if it isn't running so the rest of the handler
+		// still works — see New() for the construction-time policy.
+		if h.agentConfig.DebugServerPort == 0 {
+			log.Warnf("AGENT_CONFIG remote config requested but the debug server (apm_config.debug.port) is disabled; skipping subscription.")
+		} else {
+			h.client.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
+		}
+	}
+	if h.agentConfig.RemoteConfigAPMSemanticsEnabled {
+		h.client.Subscribe(state.ProductAPMSemanticCoreDD, h.onSemanticCoreUpdate)
+	}
 	if h.mrfClient != nil {
 		h.mrfClient.Start()
 		h.mrfClient.Subscribe(state.ProductAgentFailover, h.mrfUpdateCallback)
@@ -270,4 +292,84 @@ func (h *RemoteConfigHandler) updateSamplers(config apmsampling.SamplerConfig) {
 		rareSamplerEnabled = h.agentConfig.RareSamplerEnabled
 	}
 	h.rareSampler.SetEnabled(rareSamplerEnabled)
+}
+
+// onSemanticCoreUpdate handles APM_SEMANTIC_CORE_DD configurations.
+//
+// v1 contract: the publisher pushes a single full-registry payload (no partial
+// updates). The RC protocol allows >1 config per product, so we defensively
+// handle that case by warning and picking the lex-last valid cfgPath. We do
+// not merge configs; that is intentional — RC payloads are full registries.
+//
+// Empty `concepts` payloads are rejected at parse time by NewRegistryFromJSON
+// (treated as a pipeline bug, not an intentional wipe). When that happens, the
+// previous registry stays live.
+func (h *RemoteConfigHandler) onSemanticCoreUpdate(
+	updates map[string]state.RawConfig,
+	applyStateCallback func(string, state.ApplyStatus),
+) {
+	if len(updates) == 0 {
+		// RC has nothing for us under this product: either the publisher has
+		// not pushed anything yet, or a previously-applied config was deleted
+		// or unassigned. In either case, revert to the embedded mappings so a
+		// backend rollback/untargeting is reflected immediately rather than
+		// leaving the agent stuck on the last RC payload until restart.
+		embedded, err := semantics.NewEmbeddedRegistry()
+		if err != nil {
+			// Should not happen — the embedded mappings.json is validated at
+			// process start. Log and leave the live registry in place.
+			pkglog.Errorf("semantic-core RC: failed to load embedded registry while reverting: %v", err)
+			return
+		}
+		if !semantics.RegistryEqual(embedded, semantics.DefaultRegistry()) {
+			semantics.UpdateRegistry(embedded)
+			pkglog.Infof("semantic-core RC: empty payload received; reverted to embedded registry content_hash=%s", embedded.ContentHash())
+		}
+		return
+	}
+
+	cfgPaths := make([]string, 0, len(updates))
+	for p := range updates {
+		cfgPaths = append(cfgPaths, p)
+	}
+	sort.Strings(cfgPaths)
+
+	var chosen semantics.Registry
+	var chosenPath string
+	statuses := make(map[string]state.ApplyStatus, len(updates))
+	for _, cfgPath := range cfgPaths {
+		r, err := semantics.NewRegistryFromJSON(updates[cfgPath].Config)
+		if err != nil {
+			pkglog.Errorf("semantic-core RC update failed for %s: %v", cfgPath, err)
+			statuses[cfgPath] = state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()}
+			continue
+		}
+		statuses[cfgPath] = state.ApplyStatus{State: state.ApplyStateAcknowledged}
+		// Last valid wins (cfgPaths is lex-sorted).
+		chosen = r
+		chosenPath = cfgPath
+	}
+
+	if len(cfgPaths) > 1 {
+		pkglog.Warnf("semantic-core RC update delivered %d configs; expected 1. Using lex-last valid cfgPath: %s", len(cfgPaths), chosenPath)
+	}
+
+	if chosen != nil {
+		if semantics.RegistryEqual(chosen, semantics.DefaultRegistry()) {
+			// Same registry content_hash as the one already live: skip the swap.
+			// Downstream consumers detect registry replacement themselves by
+			// comparing the live registry's content_hash against their own cached
+			// state, so we don't need to notify them explicitly.
+			pkglog.Debugf("semantic-core RC payload %s matches the live registry content_hash; no-op", chosenPath)
+		} else {
+			semantics.UpdateRegistry(chosen)
+			pkglog.Infof("semantic-core registry updated via RC: content_hash=%s, cfgPath=%s", chosen.ContentHash(), chosenPath)
+		}
+	}
+
+	// Emit per-cfgPath statuses in deterministic order so callers and tests
+	// see a stable sequence.
+	for _, cfgPath := range cfgPaths {
+		applyStateCallback(cfgPath, statuses[cfgPath])
+	}
 }

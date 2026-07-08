@@ -1,1 +1,31 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "networkpath",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/networkpath/npcollector/fx",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "networkpath_test",
+    srcs = ["bundle_test.go"],
+    embed = [":networkpath"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/forwarder/eventplatform/mock",
+        "//comp/networkpath/traceroute/def",
+        "//comp/networkpath/traceroute/mock",
+        "//comp/rdnsquerier/fx-mock",
+        "//comp/serializer/logscompression/fx-mock",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_fx//:fx",
+    ],
+)

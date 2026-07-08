@@ -21,12 +21,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/scap"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -62,7 +64,7 @@ var (
 )
 
 type oscapIO struct {
-	cmd      *exec.Cmd
+	cmd      *atomic.Pointer[exec.Cmd]
 	File     string
 	RuleCh   chan *oscapIORule
 	ResultCh chan *oscapIOResult
@@ -72,6 +74,7 @@ type oscapIO struct {
 
 func newOSCAPIO(file string) *oscapIO {
 	return &oscapIO{
+		cmd:      atomic.NewPointer[exec.Cmd](nil),
 		File:     file,
 		RuleCh:   make(chan *oscapIORule),
 		ResultCh: make(chan *oscapIOResult),
@@ -108,7 +111,6 @@ func (p *oscapIO) Run(ctx context.Context) error {
 	if oscapProbeRoot != "" {
 		cmd.Env = append(cmd.Env, "OSCAP_PROBE_ROOT="+oscapProbeRoot)
 	}
-	p.cmd = cmd
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -133,6 +135,7 @@ func (p *oscapIO) Run(ctx context.Context) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+	p.cmd.Store(cmd)
 
 	r := bufio.NewReader(stdout)
 	go func() {
@@ -240,7 +243,15 @@ func (p *oscapIO) Stop() {
 }
 
 func (p *oscapIO) Kill() error {
-	if err := p.cmd.Process.Kill(); err != nil {
+	// p.cmd is Stored asynchronously by Run only after the oscap-io process has started
+	// successfully. Kill may be called before that happens (for example from
+	// FinishXCCDFBenchmark on context cancellation), in which case cmd is
+	// still nil and there is no process to kill.
+	cmd := p.cmd.Load()
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+	if err := cmd.Process.Kill(); err != nil {
 		return err
 	}
 	// Wait for the oscap-io process to terminate.

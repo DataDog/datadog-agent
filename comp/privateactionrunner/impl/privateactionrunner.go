@@ -16,10 +16,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
@@ -37,9 +39,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	statsdclient "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -61,6 +62,8 @@ type Requires struct {
 	Tagger        tagger.Component
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
+	IPC           ipc.Component
+	Statsd        statsdcomp.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -76,6 +79,11 @@ type PrivateActionRunner struct {
 	tagger         tagger.Component
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
+	ipc            ipc.Component
+	// metricsClient is the resolved metrics sink: a DogStatsD client built from
+	// config (standalone runner) or an in-process adapter (Cluster Agent).
+	metricsClient     statsdclient.ClientInterface
+	ownsMetricsClient bool
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
@@ -97,10 +105,17 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform)
+	// The standalone runner sends metrics over a DogStatsD socket/UDP, built from
+	// the Agent's configured endpoint (it runs alongside a node Agent listener).
+	metricsClient, err := parconfig.NewMetricsClient(reqs.Config, reqs.Statsd)
+	if err != nil {
+		reqs.Log.Errorf("Private action runner metrics disabled: %v", err)
+	}
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient)
 	if err != nil {
 		return Provides{}, err
 	}
+	runner.ownsMetricsClient = true
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
 		OnStop:  runner.Stop,
@@ -117,6 +132,8 @@ func NewPrivateActionRunner(
 	taggerComp tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipcComp ipc.Component,
+	metricsClient statsdclient.ClientInterface,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,
@@ -126,6 +143,8 @@ func NewPrivateActionRunner(
 		tagger:         taggerComp,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
+		ipc:            ipcComp,
+		metricsClient:  metricsClient,
 		startChan:      make(chan struct{}),
 	}, nil
 }
@@ -148,7 +167,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		p.coreConfig.Set(privateactionrunner.PARUrn, persistedIdentity.URN, model.SourceAgentRuntime)
 	}
 
-	cfg, err := parconfig.FromDDConfig(p.coreConfig)
+	cfg, err := parconfig.FromDDConfig(p.coreConfig, p.metricsClient)
 	if err != nil {
 		return nil, err
 	}
@@ -206,6 +225,10 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		ExtraTags:     cfg.Tags,
 	}
 	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
+	// Stamp runner identity (runner_id, runner_version, modes) on every PAR metric so
+	// executions are attributable to the runner that produced them. Done here because
+	// runner_id is only finalized after enrollment.
+	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
 
 	p.telemetry = telemetry.NewTelemetry(
 		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
@@ -222,13 +245,13 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
-	opmsClient := opms.NewClient(cfg)
+	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
 	if err != nil {
 		return err
 	}
-	p.commonRunner = runners.NewCommonRunner(cfg)
+	p.commonRunner = runners.NewCommonRunner(p.coreConfig, cfg)
 	err = p.workflowRunner.Start(ctx)
 	if err != nil {
 		return err
@@ -250,22 +273,33 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		// Don't return - continue to cleanup what we can
 	}
 
+	var stopErr error
 	if p.workflowRunner != nil {
 		err := p.workflowRunner.Stop(ctx)
 		if err != nil {
-			return err
+			err = fmt.Errorf("failed to stop workflow runner: %w", err)
 		}
+		stopErr = errors.Join(stopErr, err)
 	}
 	if p.commonRunner != nil {
 		err := p.commonRunner.Stop(ctx)
 		if err != nil {
-			return err
+			err = fmt.Errorf("failed to stop common runner: %w", err)
 		}
+		stopErr = errors.Join(stopErr, err)
 	}
 	if p.telemetry != nil {
 		p.telemetry.Stop()
 	}
-	return nil
+	if p.ownsMetricsClient && p.metricsClient != nil {
+		if err := p.metricsClient.Flush(); err != nil {
+			stopErr = errors.Join(stopErr, fmt.Errorf("failed to flush metrics client: %w", err))
+		}
+		if err := p.metricsClient.Close(); err != nil {
+			stopErr = errors.Join(stopErr, fmt.Errorf("failed to close metrics client: %w", err))
+		}
+	}
+	return stopErr
 }
 
 func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
@@ -283,7 +317,6 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 //   - true:  enroll with API key only (app key ignored, no auto-connections)
 //   - false: enroll with API key + app key (app key required, auto-connections created)
 func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
-	ddSite := cfg.DatadogSite
 	apiKey := p.coreConfig.GetString("api_key")
 	apiKeyOnlyEnrollment := p.coreConfig.GetBool(privateactionrunner.PARApiKeyOnlyEnrollment)
 
@@ -308,26 +341,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		}
 	}
 
-	// For cluster agent, use cluster name instead of hostname for better identification.
-	runnerNamePrefix := agentIdentifier.Hostname
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		clusterName := clustername.GetClusterName(ctx, agentIdentifier.Hostname)
-		if clusterName != "" {
-			runnerNamePrefix = clusterName
-		} else {
-			p.logger.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", agentIdentifier.Hostname)
-		}
-	}
-
-	var (
-		enrollmentResult *enrollment.Result
-		err              error
-	)
-	if apiKeyOnlyEnrollment {
-		enrollmentResult, err = enrollment.SelfEnrollApiKeyOnly(ctx, ddSite, runnerNamePrefix, apiKey, agentIdentifier, cfg.OpmsExtraHeaders)
-	} else {
-		enrollmentResult, err = enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, cfg.OpmsExtraHeaders)
-	}
+	enrollmentResult, err := enrollment.Enroll(ctx, p.coreConfig, agentIdentifier)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
@@ -347,27 +361,10 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	cfg.OrgId = urnParts.OrgID
 	cfg.RunnerId = urnParts.RunnerID
 
-	// Auto-create connections when using app-key enrollment mode and skip_connection_creation is false.
-	if !apiKeyOnlyEnrollment && !p.coreConfig.GetBool(privateactionrunner.PARSkipConnectionCreation) {
-		var actionsAllowlist = make([]string, 0, len(cfg.ActionsAllowlist))
-		for fqnPrefix := range cfg.ActionsAllowlist {
-			actionsAllowlist = append(actionsAllowlist, fqnPrefix)
-		}
-
-		if len(actionsAllowlist) > 0 {
-			client, err := autoconnections.NewConnectionsAPIClient(p.coreConfig, ddSite, apiKey, appKey)
-			if err != nil {
-				p.logger.Warnf("Failed to create connections API client: %v", err)
-			} else {
-				tagsProvider := autoconnections.NewTagsProvider(p.tagger)
-				creator := autoconnections.NewConnectionsCreator(*client, tagsProvider)
-
-				if err := creator.AutoCreateConnections(ctx, urnParts.RunnerID, enrollmentResult, actionsAllowlist); err != nil {
-					p.logger.Warnf("Failed to auto-create connections: %v", err)
-				}
-			}
-		}
-	}
+	autoconnections.CreateConnectionsIfEnabled(
+		ctx, p.coreConfig, cfg, apiKey, appKey, urnParts.RunnerID,
+		enrollmentResult, autoconnections.NewTagsProvider(p.tagger),
+	)
 
 	return cfg, nil
 }

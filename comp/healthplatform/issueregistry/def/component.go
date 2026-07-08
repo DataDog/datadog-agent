@@ -9,7 +9,7 @@
 // (for template lookup on IssueReport) and the bundle (for bootstrapping built-in checks).
 package issueregistry
 
-// team: agent-health
+// team: agent-health fleet-remediation
 
 import (
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"

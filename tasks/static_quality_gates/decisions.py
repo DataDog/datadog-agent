@@ -13,7 +13,15 @@ PER_PR_THRESHOLDS = {
     # on-disk increase - that's why this threshold is much higher than the one for on-disk.
     "on_wire": 5 * 1024 * 1024,
 }
-EXCEPTION_APPROVERS = {"cmourot", "dd-ddamien"}
+# Gates listed here are exempt from the per-PR threshold check.
+PER_PR_THRESHOLD_EXCLUDED_GATES = {
+    # The host profiler images isn't GA'ed yet, and is shipped in its own
+    # dedicated artifact, so it's not impacted customers who don't use it
+    # https://datadoghq.atlassian.net/wiki/spaces/ABLD/pages/6646202391/Host+Profiler+-+Quality+Gates+Decision+Records
+    "static_quality_gate_docker_host_profiler_amd64",
+    "static_quality_gate_docker_host_profiler_arm64",
+}
+EXCEPTION_APPROVERS = {"cmourot", "aiuto", "quentinus95"}
 
 
 class GateFailureKind(Enum):
@@ -150,7 +158,7 @@ def evaluate_gate(
 
     # Check per-PR threshold: if a gate increased by more than PER_PR_THRESHOLD, mark it as failing.
     # Skip on merge queue jobs: the MQ working branch is an ephemeral merge preview, not a PR.
-    if not is_on_main_branch and not is_merge_queue:
+    if not is_on_main_branch and not is_merge_queue and outcome.config.gate_name not in PER_PR_THRESHOLD_EXCLUDED_GATES:
         gate_metrics = metric_handler.metrics.get(outcome.config.gate_name, {})
         disk_delta = gate_metrics.get("relative_on_disk_size", 0)
         wire_delta = gate_metrics.get("relative_on_wire_size", 0)

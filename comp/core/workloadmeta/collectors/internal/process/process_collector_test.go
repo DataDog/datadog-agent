@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && test
+//go:build linux && systemprobechecks && test
 
 // Package process implements the process collector for Workloadmeta.
 package process
@@ -15,11 +15,11 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"go.uber.org/mock/gomock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -97,8 +97,8 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
-			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-			cfg.SetWithoutSource("process_config.intervals.process", 10)
+			cfg.SetInTest("process_config.process_collection.enabled", true)
+			cfg.SetInTest("process_config.intervals.process", 10)
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
 
@@ -175,9 +175,9 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
-			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-			cfg.SetWithoutSource("process_config.intervals.process", 10)
-			cfg.SetWithoutSource("language_detection.enabled", true)
+			cfg.SetInTest("process_config.process_collection.enabled", true)
+			cfg.SetInTest("process_config.intervals.process", 10)
+			cfg.SetInTest("language_detection.enabled", true)
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
 
@@ -282,8 +282,8 @@ func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
-			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-			cfg.SetWithoutSource("process_config.intervals.process", 10)
+			cfg.SetInTest("process_config.process_collection.enabled", true)
+			cfg.SetInTest("process_config.intervals.process", 10)
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
 
@@ -462,9 +462,9 @@ func TestProcessLifecycleCollection(t *testing.T) {
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
-			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-			cfg.SetWithoutSource("process_config.intervals.process", 10)
-			cfg.SetWithoutSource("language_detection.enabled", true)
+			cfg.SetInTest("process_config.process_collection.enabled", true)
+			cfg.SetInTest("process_config.intervals.process", 10)
+			cfg.SetInTest("language_detection.enabled", true)
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
 
@@ -574,7 +574,7 @@ func TestStartConfiguration(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
 			for k, v := range tc.configOverrides {
-				cfg.SetWithoutSource(k, v)
+				cfg.SetInTest(k, v)
 			}
 
 			c := setUpCollectorTest(t, cfg, tc.sysConfigOverrides, nil)
@@ -621,7 +621,7 @@ func TestProcessCollectorIntervalConfig(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
 			if tc.intervalProcess != 0 {
-				cfg.SetWithoutSource("process_config.intervals.process", tc.intervalProcess)
+				cfg.SetInTest("process_config.intervals.process", tc.intervalProcess)
 			}
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
@@ -670,9 +670,9 @@ func TestProcessDifferentCmdline(t *testing.T) {
 	}
 
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-	cfg.SetWithoutSource("process_config.intervals.process", 10)
-	cfg.SetWithoutSource("language_detection.enabled", true)
+	cfg.SetInTest("process_config.process_collection.enabled", true)
+	cfg.SetInTest("process_config.intervals.process", 10)
+	cfg.SetInTest("language_detection.enabled", true)
 
 	c := setUpCollectorTest(t, cfg, nil, nil)
 
@@ -855,8 +855,8 @@ func TestContainerIDRaceCondition(t *testing.T) {
 	proc1CycleB := createTestPythonProcess(pid1, creationTime1)
 
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-	cfg.SetWithoutSource("process_config.intervals.process", 10)
+	cfg.SetInTest("process_config.process_collection.enabled", true)
+	cfg.SetInTest("process_config.intervals.process", 10)
 
 	c := setUpCollectorTest(t, cfg, nil, nil)
 
@@ -924,7 +924,7 @@ func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverri
 	// mock language detection system probe config
 	mockSystemProbeConfig := sysprobeconfigmock.NewMock(t)
 	for k, v := range sysProbeConfigOverrides {
-		mockSystemProbeConfig.SetWithoutSource(k, v)
+		mockSystemProbeConfig.SetInTest(k, v)
 	}
 	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, cfg, mockSystemProbeConfig)
 	processCollector.containerProvider = mockContainerProvider
