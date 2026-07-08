@@ -647,7 +647,7 @@
 /pkg/pidfile/                           @DataDog/agent-runtimes
 /pkg/persistentcache/                   @DataDog/agent-runtimes
 /pkg/procmgr/                           @DataDog/agent-runtimes
-/pkg/procmgr/rust/src/platform/windows.rs          @DataDog/agent-runtimes @DataDog/windows-products
+/pkg/procmgr/rust/src/platform/windows/            @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/procmgr/rust/src/transport/named_pipe.rs       @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/privateactionrunner/               @DataDog/action-platform
 /pkg/privateactionrunner/bundles/remoteaction/rshell  @DataDog/action-platform @DataDog/dd-agent-mcp
