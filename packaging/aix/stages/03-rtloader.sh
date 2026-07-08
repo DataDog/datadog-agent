@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="03-rtloader"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -16,11 +15,9 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
+# No completion sentinel: this stage always runs so the built library stays in
+# sync with its source. rtloader builds in seconds and cmake/make rebuild
+# incrementally (see Step 1), so always running it is cheap.
 
 # --- Input validation ---
 : "${STAGING:?STAGING must be set}"
@@ -51,10 +48,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# ─── Step 1: Clean and create rtloader build directory ────────────────────────
+# ─── Step 1: Create rtloader build directory ──────────────────────────────────
+#
+# The build directory is deliberately NOT wiped between runs: this stage always
+# runs (no sentinel), and cmake/make do incremental rebuilds, recompiling only
+# what changed since the last run. The failure-cleanup trap removes the build
+# directory on error, so a broken configure self-heals on the next run.
 
-log "Cleaning rtloader build directory"
-rm -rf "$AGENT_SRC/rtloader/build"
+log "Preparing rtloader build directory"
 mkdir -p "$AGENT_SRC/rtloader/build"
 
 # ─── Step 2: CMake configure ──────────────────────────────────────────────────
@@ -259,7 +260,4 @@ if [ "$MAGIC" != "01f7" ]; then
 fi
 log "XCOFF64 magic verified for libdatadog-agent-rtloader.so (magic: $MAGIC)"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="
