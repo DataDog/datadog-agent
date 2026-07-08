@@ -18,35 +18,36 @@ Released on: 2026-07-08
 
 
 Metrics are now forwarded to the new Datadog v3 API by default
-(`/api/intake/metrics/v3/series`). The v3 API payload format is more compact,
+(``/api/intake/metrics/v3/series``). The v3 API payload format is more compact,
 reducing outbound bandwidth from Agents to Datadog.
 
-If you configure `additional_endpoints` to forward to a non-Datadog endpoint,
+If you configure ``additional_endpoints`` to forward to a non-Datadog endpoint,
 you will likely need to disable v3 for this endpoint. Otherwise you will see
 404s. This can be done via:
 
-```yaml
-use_v3_api:
-  series:
-    endpoints:
-      "<additional_endpoint>": false
-```
+.. code-block:: yaml
+
+   use_v3_api:
+     series:
+       endpoints:
+         "<additional_endpoint>": false
 
 Example:
 
-```yaml
-additional_endpoints:
-  "https://non-datadog-endpoint":
-    - apikey2
-```
+.. code-block:: yaml
+
+   additional_endpoints:
+     "https://non-datadog-endpoint":
+       - apikey2
+
 will need:
 
-```yaml
-use_v3_api:
-  series:
-    endpoints:
-      "https://non-datadog-endpoint": false
-```
+.. code-block:: yaml
+
+   use_v3_api:
+     series:
+       endpoints:
+         "https://non-datadog-endpoint": false
 
 Metrics sent to Observability Pipelines Worker continue to use
 the v2 API by default.
@@ -67,19 +68,19 @@ Upgrade Notes
 - Removed the ``agent status py`` subcommand (which wasn't officially supported)
 
 - On Linux, the agent process manager systemd units were renamed from ``datadog-agent-procmgrd.service`` / ``datadog-agent-procmgrd-exp.service`` to ``datadog-agent-procmgr.service`` / ``datadog-agent-procmgr-exp.service``. The ``dd-procmgrd`` binary and its paths are unchanged.
-
+  
   On upgrade, the installer stops and removes the legacy ``procmgrd``-suffixed unit files so only one process manager daemon binds the socket. Update any custom automation that referenced the old unit names.
 
 - Upgrade OpenTelemetry Collector dependencies from v0.152.0 to v0.153.0
   (core v1.58.0 to v1.59.0).
-
+  
   See the full upstream changelogs:
   `collector-contrib v0.153.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.153.0>`_,
   `collector core v0.153.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.153.0>`_.
 
 - Upgrade OpenTelemetry Collector dependencies from v0.153.0 to v0.154.0
   (core v1.59.0 to v1.60.0).
-
+  
   See the full upstream changelogs:
   `collector-contrib v0.154.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.154.0>`_,
   `collector core v0.154.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.154.0>`_.
@@ -279,10 +280,10 @@ Enhancement Notes
   changes — for example, removing the service account from
   ``SeDenyNetworkLogonRight`` so the Agent can access network resources —
   across upgrades.
-
+  
   ``SeServiceLogonRight`` is always granted regardless of this flag because
   the Agent service cannot start without it.
-
+  
   Default behavior is unchanged: when the property is not set, the installer
   continues to enforce the hardened user-rights baseline.
 
@@ -505,7 +506,7 @@ Other Notes
 - Added Cross-Org Agent Telemetry (COAT) metrics to track whether agent services are supervised by
   ``dd-procmgrd`` or legacy supervisors (systemd on Linux, Windows Service Manager on Windows).
   DDOT is the first tracked service. Metrics are reported under the ``procmgr`` COAT profile:
-
+  
   | Metric Name | Type | Description |
   | --- | --- | --- |
   | ``runtime.procmgr_daemon_reachable`` | Gauge | Whether the agent can reach ``dd-procmgrd`` |
@@ -696,13 +697,13 @@ Upgrade Notes
   fields — ``IssueID`` (unique instance id), ``IssueType`` (template id),
   and ``Source`` (reporting integration name) — replacing the separate
   ``checkID`` and ``checkName`` arguments.
-
+  
   The health platform persistence file format has been bumped to version 2.
   Existing persistence files (``<run_path>/health-platform/issues.json``)
   written by a previous agent version will be detected, logged as
   incompatible, and discarded on startup; the agent starts with a fresh
   issue state. No data migration is performed.
-
+  
   For integrations calling ``ReportIssue``: construct an ``IssueReport``
   with ``IssueID`` set to a unique instance key (e.g.
   ``"check-execution-failure:<check-id>"``), ``IssueType`` set to the
@@ -718,7 +719,7 @@ Upgrade Notes
 
 - **APM: On Linux, the trace agent process now only starts once data is sent to any of its
   configured listeners.**
-
+  
   Previously, the trace agent started immediately on agent startup, it now starts lazily when needed,
   which reduces resource usage.
   To disable and restore the previous behavior, set ``apm_config.socket_activation.enabled: false``
@@ -757,15 +758,15 @@ New Features
 
 - Add a new ``nccl`` core check that collects per-rank NCCL collective
   communication metrics from GPU training and inference workloads.
-
+  
   The check listens on a Unix domain socket (default
   ``/var/run/datadog/nccl.socket``) for JSON events emitted by the
   NCCL profiler plugin (``libnccl-profiler-dd.so``) running inside GPU
   pods. Each event is tagged with ``rank``, ``collective``, ``n_ranks``,
   ``kube_pod_name``, ``kube_namespace``, and ``kube_container_name``.
-
+  
   Metrics emitted:
-
+  
   - ``nccl.collective.exec_time_us`` — time a rank spends inside a
     collective operation. A rank with a significantly lower value than
     its peers is the straggler; ranks with higher values are waiting at
@@ -777,7 +778,7 @@ New Features
   - ``nccl.collective.msg_size_bytes`` — tensor size being communicated.
   - ``nccl.rank.seconds_since_last_event`` — seconds since this rank
     last reported an event; non-zero values indicate a potential hang.
-
+  
   Enable the check cluster-wide by setting ``gpu.nccl.enabled: true`` in the
   Agent configuration (or ``DD_GPU_NCCL_ENABLED=true``). The socket path
   can be overridden via ``gpu.nccl.socket_path``; the host directory mounted
@@ -939,9 +940,9 @@ Enhancement Notes
 
 - Upgrade OpenTelemetry Collector dependencies from v0.150.0 to v0.151.0
   (core v1.56.0 to v1.57.0).
-
+  
   Notable upstream changes:
-
+  
   - Removed stable feature gates that are no longer needed:
     ``connector.datadogconnector.NativeIngest``,
     ``exporter.datadogexporter.UseLogsAgentExporter``, and
@@ -950,14 +951,14 @@ Enhancement Notes
     aliases (``spanmetrics`` to ``span_metrics``, ``hostmetrics`` to
     ``host_metrics``, ``fluentforward`` to ``fluent_forward``). The old
     names continue to work but will be removed in a future release.
-
+  
   See the full upstream changelogs:
   `collector-contrib v0.151.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.151.0>`_,
   `collector core v0.151.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.151.0>`_.
 
 - Upgrade OpenTelemetry Collector dependencies from v0.151.0 to v0.152.0
   (core v1.57.0 to v1.58.0).
-
+  
   See the full upstream changelogs:
   `collector-contrib v0.152.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.152.0>`_,
   `collector core v0.152.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.152.0>`_.
@@ -1214,13 +1215,13 @@ Bug Fixes
 - Fix the Agent's Docker integration against Docker daemons that return
   malformed values in their ``/info`` response. The failure was visible in
   Agent logs as::
-
+  
       Docker init error: temporary failure in dockerutil, will retry later:
       Error reading remote info: netip.ParsePrefix("invalid Prefix"): no '/'
-
+  
   When triggered, it prevented the Docker integration from initializing,
   which cascaded into:
-
+  
   * missing container and image tags on metrics, traces and logs collected
     from Docker containers,
   * missing ``docker_version`` and ``docker_swarm`` entries in host
@@ -1485,9 +1486,9 @@ Enhancement Notes
   commands to omit them. Runtime behavior is unchanged: only user-configured
   values are forwarded to the OTel Collector pipeline, so unconfigured settings
   continue to use the Collector's own built-in defaults.
-
+  
   Notable default changes in pkg/config/config_template.yaml:
-
+  
   * **Receiver endpoints** — ``localhost:4317`` (gRPC) and ``localhost:4318``
     (HTTP) instead of the former ``0.0.0.0`` bind address
     (see `7.56.0 Upgrade Notes <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#upgrade-notes-25>`_).
@@ -1542,9 +1543,9 @@ Enhancement Notes
 
 - Upgrade OpenTelemetry Collector dependencies from v0.147.0 to v0.150.0
   (core v1.53.0 to v1.56.0).
-
+  
   Notable upstream changes:
-
+  
   - The ``exporter.datadogexporter.DisableAllMetricRemapping`` feature gate
     has been promoted to beta (enabled by default). Metric remappings are now
     handled by the Datadog backend. If you experience issues, disable the gate
@@ -1563,7 +1564,7 @@ Enhancement Notes
     processor) may see new errors if their OTTL statements had pre-existing
     type mismatches. Switch to ``error_mode: ignore`` to preserve the previous
     behavior while fixing the statements.
-
+  
   See the full upstream changelogs:
   `collector-contrib v0.150.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.150.0>`_,
   `collector core v0.150.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.150.0>`_.
@@ -1643,7 +1644,7 @@ Bug Fixes
 
 - Fix AKS cluster name parsing from kubernetes.azure.com/cluster label.
 
-- Fixes a bug where autodiscovered services were not being deleted if GetAuroraClustersFromTags or GetRdsInstancesFromTags returned no matches.
+- Fixes a bug where autodiscovered services were not being deleted if GetAuroraClustersFromTags or GetRdsInstancesFromTags returned no matches. 
 
 - SNMP: Fix bandwidth usage rate metrics (``snmp.ifBandwidthInUsage.rate`` and ``snmp.ifBandwidthOutUsage.rate``)
   not being emitted when there are intermittent check failures.
@@ -1709,7 +1710,7 @@ Bug Fixes
   registration when deduplication was enabled.
 
 - Windows: Fixed a remote update failure in ``datadog-installer`` when validating Agent domain accounts.
-
+  
   When querying some domain account names, ``NetQueryServiceAccount`` can return NTSTATUS ``0xC0000106``
   (``STATUS_NAME_TOO_LONG``) during gMSA detection. This status is now treated like
   ``STATUS_INVALID_ACCOUNT_NAME`` so the account is handled as a regular domain account instead of
@@ -1902,13 +1903,13 @@ Upgrade Notes
 -------------
 
 - APM OTLP: Changed attribute precedence behavior when looking up OpenTelemetry semantic convention attributes that have multiple equivalent keys (e.g., ``http.status_code`` vs ``http.response.status_code``, ``deployment.environment`` vs ``deployment.environment.name``).
-
+  
   **Previous behavior**: When both old and new semantic convention keys existed, the lookup would check ALL keys in span attributes before checking ANY key in resource attributes. So whichever key appeared in span attributes would win, regardless of which key was in resource attributes.
-
+  
   **New behavior**: The lookup now uses a per-concept precedence order. For each semantic concept, the registry defines an ordered list of attribute keys; the first key that has a value is returned. The precedence order (which key takes priority) depends on the concept and may prefer either the newer or the older convention key. Span vs resource precedence (which map is checked first) is unchanged and still depends on the function.
-
+  
   **Who is affected**: This change only affects users who have the same concept represented by different convention-version keys in span vs resource attributes. The returned value may now come from a different key than before, according to the concept's precedence order.
-
+  
   This is an uncommon configuration since most instrumentation libraries use consistent semantic convention versions across span and resource attributes.
 
 
@@ -1926,13 +1927,13 @@ New Features
 
 - Add a new configuration provider, which schedules new instances of KSM checks to generate metrics
   from ``CustomResourceDefinitions``.
-
+  
   This new provider works with the ``kube_crd`` listener which listens for ``CustomResourceDefinitions``
   created on the cluster and triggers a new autodiscovery-service for each one.
-
+  
   This new configuration provider must use the standard kubernetes ``GroupVersionKind`` format in its
   ``AdvancedADIdentifier`` section to apply to a matching ``CustomResourceDefinition``.
-
+  
   The rest of the configuration is a standard KSM configuration instance.
 
 - CNM - Add 7 per-connection TCP congestion signals: rto_count (RTO
@@ -2219,8 +2220,8 @@ Bug Fixes
 
 - Fixes Workload Protection raw-packet eBPF programs when multiple packet filters are
   compiled together. The generated assembly reused register R8 both as the event
-  pointer expected by the filter chain and to hold immediate values, which corrupted the pointer
-  and caused the kernel BPF verifier to reject the program.
+  pointer expected by the filter chain and to hold immediate values, which corrupted the pointer 
+  and caused the kernel BPF verifier to reject the program. 
   The code now uses a separate register for those
   immediates so the pointer is preserved across filters.
 
@@ -2285,21 +2286,21 @@ Upgrade Notes
 -------------
 
 - APM OTLP: The ``datadog.*`` namespaced span attributes are no longer used to construct Datadog span fields. Previously, attributes like ``datadog.service``, ``datadog.env``, and ``datadog.container_id`` were used to directly set corresponding Datadog span fields. This functionality has been removed and the Agent now relies solely on standard OpenTelemetry semantic conventions.
-
+  
   **Exceptions**:
-
+  
   * The ``datadog.host.name`` attribute continues to be respected for hostname resolution as documented at https://docs.datadoghq.com/opentelemetry/mapping/hostname/.
   * The ``datadog.container.tag.*`` attributes continue to be supported for custom container tags.
-
+  
   The configuration option ``otlp_config.traces.ignore_missing_datadog_fields`` (and corresponding environment variable ``DD_OTLP_CONFIG_IGNORE_MISSING_DATADOG_FIELDS``) is deprecated and no longer has any effect. The Agent now always uses standard OTel semantic conventions.
-
+  
   **Migration**: If you were using ``datadog.*`` attributes, switch to the standard OpenTelemetry semantic conventions:
-
+  
   * ``datadog.service`` → ``service.name``
   * ``datadog.env`` → ``deployment.environment.name`` (OTel 1.27+) or ``deployment.environment``
   * ``datadog.version`` → ``service.version``
   * ``datadog.container_id`` → ``container.id``
-
+  
   **Who is affected**: Users who explicitly set ``datadog.*`` attributes (other than ``datadog.host.name`` and ``datadog.container.tag.*``) in their OpenTelemetry instrumentation to override default field mappings. Users relying solely on standard OpenTelemetry semantic conventions are not affected.
 
 
@@ -2384,7 +2385,7 @@ Enhancement Notes
 - The Agent's embedded Python has been upgraded from 3.13.11 to 3.13.12.
 
 - Add ``ntp.offset`` metric with ``source:intake`` tag to monitor clock drift using
-  Datadog intake server timestamps. Original ``ntp.offset`` metric calculated from
+  Datadog intake server timestamps. Original ``ntp.offset`` metric calculated from 
   an NTP server is now tagged ``source:ntp``.
 
 - As of Kubernetes version 1.33, the ``Endpoint`` API object has been deprecated in favor of ``EndpointSlice``.
@@ -2435,7 +2436,7 @@ Enhancement Notes
 
 - Add new DDOT feature gate 'exporter.datadogexporter.DisableAllMetricRemapping' to disable all client-side metric remapping.
 
-- Increases the reliability of ``namespaceLabelsAsTags`` and
+- Increases the reliability of ``namespaceLabelsAsTags`` and 
   ``namespaceAnnotationsAsTags`` for new pods by caching the
   last seen namespace metadata.
 
@@ -2454,11 +2455,11 @@ Enhancement Notes
 
 - Added the ``enable_otlp_container_tags_v2`` feature flag,
   which may reduce the Agent's outgoing traffic when ingesting OTLP traces from containerized applications.
-
+  
   However, the flag introduces some breaking changes:
   - container tags on the new spans can no longer be queried as span attributes (with ``@``);
   - using the ``k8s.pod.uid`` attribute as a fallback container ID is no longer supported;
-  - disabling the infraattributes processor in DDOT trace pipelines will prevent automatic container tag detection.
+  - disabling the infraattributes processor in DDOT trace pipelines will prevent automatic container tag detection. 
 
 - The ``datadog.yaml`` configuration file now includes a commented-out
   ``private_action_runner`` section on all platforms.
@@ -2588,7 +2589,7 @@ Bug Fixes
 - Fix the private action runner PowerShell example config not being installed on Windows.
   The file is now correctly placed at ``C:\ProgramData\Datadog\private-action-runner\powershell-script-config.yaml``.
 
-- Fix process collection to detect command line changes for processes with the
+- Fix process collection to detect command line changes for processes with the 
   same PID and creation time by hashing the command line.
 
 - Fixed a bug where tailing UTF-16 encoded log files (UTF-16-LE or UTF-16-BE) could
@@ -2748,18 +2749,18 @@ New Features
 
 - Integration check failures are now automatically reported to the Agent Health Platform component
   when enabled via ``health_platform.enabled: true``. This provides structured health issue tracking with:
-
+  
   * Detailed error context including check name, error message, and configuration source
   * Actionable remediation steps for debugging check failures
   * Automatic issue resolution when checks recover
   * Integration with the health platform telemetry and reporting system
-
+  
   This feature helps users proactively identify and troubleshoot integration issues across their fleet.
 
 - The Agent Profiling check now supports automatic Agent termination after flare generation when memory or CPU thresholds are exceeded. This feature is useful in resource-constrained environments where the Agent needs to be restarted after generating diagnostic information.
-
+  
   Enable this feature by setting ``terminate_agent_on_threshold: true`` in the Agent Profiling check configuration. When enabled, the Agent uses its established shutdown mechanism to trigger graceful shutdown after successfully generating a flare, ensuring proper cleanup before exit.
-
+  
   **Warning**: This feature will cause the Agent to exit. This feature is disabled by default and should be used with caution.
 
 - Experimental support the ConfigSync HTTP endpoints over unix sockets with
@@ -2832,7 +2833,7 @@ Enhancement Notes
 - The logs agent now supports using ``start_position: beginning`` and
   ``start_position: forceBeginning`` with wildcard file paths. Previously,
   configurations like ``path: /var/log/*.log`` with ``start_position: beginning``
-  would fail validation. The agent's fingerprinting system when enabled prevents
+  would fail validation. The agent's fingerprinting system when enabled prevents 
   duplicate log reads during file rotation, making this combination safe to use.
 
 - Site config URLs are now lowercased for consistent handling.
@@ -2881,7 +2882,7 @@ Bug Fixes
 - Properly scrub sensitive information from Kubernetes pod specifications in agent flares.
   Environment variables with sensitive names are now redacted.
 
-- Fixed a bug where long Kubernetes event bundles were being truncated by dogweb.
+- Fixed a bug where long Kubernetes event bundles were being truncated by dogweb. 
 
 - APM: Fix a bug where the Agent would log a warning when the ``DD_APM_MODE`` environment variable was unset.
 
@@ -2922,8 +2923,8 @@ Bug Fixes
 
 - GPUm: fix gpu.memory.limit being duplicated in Hopper devices
 
-- Fixed the ``logs.sent`` metric for the HTTP log transport to no longer
-  increment when logs are dropped due to non-retryable errors. This ensures
+- Fixed the ``logs.sent`` metric for the HTTP log transport to no longer 
+  increment when logs are dropped due to non-retryable errors. This ensures 
   more accurate reporting of successfully delivered logs.
 
 - Fix WLAN check failure on macOS systems.

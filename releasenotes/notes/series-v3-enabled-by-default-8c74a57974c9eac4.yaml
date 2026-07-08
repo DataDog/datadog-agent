@@ -1,35 +1,36 @@
 prelude:
   |
   Metrics are now forwarded to the new Datadog v3 API by default
-  (`/api/intake/metrics/v3/series`). The v3 API payload format is more compact,
+  (``/api/intake/metrics/v3/series``). The v3 API payload format is more compact,
   reducing outbound bandwidth from Agents to Datadog.
 
-  If you configure `additional_endpoints` to forward to a non-Datadog endpoint,
+  If you configure ``additional_endpoints`` to forward to a non-Datadog endpoint,
   you will likely need to disable v3 for this endpoint. Otherwise you will see
   404s. This can be done via:
 
-  ```yaml
-  use_v3_api:
-    series:
-      endpoints:
-        "<additional_endpoint>": false
-  ```
+  .. code-block:: yaml
+
+     use_v3_api:
+       series:
+         endpoints:
+           "<additional_endpoint>": false
 
   Example:
 
-  ```yaml
-  additional_endpoints:
-    "https://non-datadog-endpoint":
-      - apikey2
-  ```
+  .. code-block:: yaml
+
+     additional_endpoints:
+       "https://non-datadog-endpoint":
+         - apikey2
+
   will need:
 
-  ```yaml
-  use_v3_api:
-    series:
-      endpoints:
-        "https://non-datadog-endpoint": false
-  ```
+  .. code-block:: yaml
+
+     use_v3_api:
+       series:
+         endpoints:
+           "https://non-datadog-endpoint": false
 
   Metrics sent to Observability Pipelines Worker continue to use
   the v2 API by default.
