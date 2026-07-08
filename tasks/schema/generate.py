@@ -255,6 +255,7 @@ def filter(expect, filename):
     def comparator(othername):
         actual = filename == othername
         return actual == expect
+
     return comparator
 
 
@@ -287,7 +288,11 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
         try:
             ctx.run(f"diff {tmpdir}/ {SETUP_INIT_DIR}/")
         except Failure:
-            print(color_message("Codegen for configuration differs, fix this by running `dda inv schema.codegen --fix`", "yellow"))
+            print(
+                color_message(
+                    "Codegen for configuration differs, fix this by running `dda inv schema.codegen --fix`", "yellow"
+                )
+            )
             raise Exit(code=1)
 
     if fix:
