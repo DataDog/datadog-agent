@@ -19,13 +19,13 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/cilium/ebpf/btf"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -88,7 +88,7 @@ func FlushBTF() {
 	if loader != nil {
 		loader.btfLoader.Flush()
 	} else {
-		newBTFCache()
+		ddbtf.Flush()
 	}
 }
 
@@ -185,7 +185,7 @@ func initBTFLoader(cfg *Config, rcclient rcclient.Component, telemetrycomp telem
 			rcErrors:  telemetrycomp.NewCounter("ebpf", "core_remoteconfig_error", []string{"platform", "platform_version", "kernel", "arch", "error_type"}, "count of CO-RE remote config BTF errors"),
 		},
 	}
-	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, newBTFCache)
+	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, ddbtf.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
 	return btfLoader, nil
 }
@@ -244,7 +244,7 @@ func (b *orderedBTFLoader) get() (*returnBTF, error) {
 }
 
 func (b *orderedBTFLoader) loadKernel(_ context.Context) (*returnBTF, error) {
-	spec, err := GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		return nil, err
 	}
@@ -512,21 +512,6 @@ func loadBTFFrom(path string) (*btf.Spec, error) {
 	defer data.Close()
 
 	return btf.LoadSpecFromReader(data)
-}
-
-var kernelCache atomic.Pointer[btf.Cache]
-
-func newBTFCache() {
-	kernelCache.Store(btf.NewCache())
-}
-func init() {
-	newBTFCache()
-}
-
-// GetKernelSpec returns a possibly cached version of the running kernel BTF spec
-// it's very important that the caller of this function does not modify the returned value
-func GetKernelSpec() (*btf.Spec, error) {
-	return kernelCache.Load().Kernel()
 }
 
 // copyFileMkdir copies file path `src` to file path `dst`.

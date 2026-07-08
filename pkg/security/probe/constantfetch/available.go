@@ -14,7 +14,7 @@ import (
 
 	"github.com/cilium/ebpf/btf"
 
-	pkgebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -45,7 +45,7 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version) []C
 }
 
 func getBTFFuncProto(funcName string) (*btf.FuncProto, error) {
-	spec, err := pkgebpf.GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func GetBTFFunctionArgCount(funcName string) (int, error) {
 
 // AreFentryTailCallsBroken checks if fentry tail calls are broken
 func AreFentryTailCallsBroken() (bool, error) {
-	spec, err := pkgebpf.GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		return false, err
 	}
