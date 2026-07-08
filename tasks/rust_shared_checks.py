@@ -111,6 +111,16 @@ def _select_checks(specs: list[CheckSpec], platform: str) -> tuple[list[CheckSpe
     return final, skipped
 
 
+def _bazel_executable(ctx, target: str) -> Path:
+    bazel(ctx, "build", "--remote_download_outputs=all", target)
+    rel = bazel(ctx, "cquery", target, "--output=files", capture_output=True).strip().splitlines()[-1]
+    exec_root = bazel(ctx, "info", "execution_root", capture_output=True).strip()
+    path = (Path(exec_root) / rel).resolve()
+    if not path.exists():
+        raise Exit(f"Bazel executable not found after build: {path}")
+    return path
+
+
 def _cargo_build_env(repo_root: Path) -> dict[str, str]:
     cargo_home = repo_root / "pkg/collector/sharedlibrary/rustchecks/.cargo-home"
     cargo_home.mkdir(parents=True, exist_ok=True)
@@ -178,13 +188,20 @@ def build(ctx, checks_d_dir, manifest_path=None):
     for s in selected:
         cargo_args += ["-p", s.crate]
 
+    bazel_run_args = [
+        "run",
+        "--remote_download_outputs=all",
+        f"--action_env=CARGO_HOME={build_env['CARGO_HOME']}",
+    ]
+    if any(s.crate == "datasecurity" for s in selected):
+        protoc = _bazel_executable(ctx, "//bazel/toolchains/protoc:protoc")
+        bazel_run_args.append(f"--action_env=PROTOC={protoc}")
+
     with gitlab_section("Build Rust shared-library checks", collapsed=True):
-        bazel(
-            ctx,
-            "run",
-            f"--action_env=CARGO_HOME={build_env['CARGO_HOME']}",
-            *cargo_args,
-        )
+        # Force-download the rules_rust toolchain. upstream_wrapper resolves the real
+        # cargo binary via runfiles; with remote/disk cache hits, the default
+        # (toplevel) may leave those transitive toolchain files metadata-only on disk.
+        bazel(ctx, *bazel_run_args, *cargo_args)
 
     # Stage and enforce file mode:
     #   - group/other must have no permissions (loader uses mode bits checks)
