@@ -103,7 +103,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/clusteragent/admission/mutate/appsec
 # gazelle:exclude pkg/clusteragent/admission/mutate/autoinstrumentation
 # gazelle:exclude pkg/clusteragent/admission/mutate/autoscaling
-# gazelle:exclude pkg/clusteragent/admission/mutate/config
 # gazelle:exclude pkg/clusteragent/admission/mutate/spot
 # gazelle:exclude pkg/clusteragent/admission/validate/kubernetesadmissionevents
 # gazelle:exclude pkg/clusteragent/autoscaling/externalmetrics/*.go
