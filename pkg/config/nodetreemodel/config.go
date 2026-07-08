@@ -1161,18 +1161,6 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	return c.configFile
 }
 
-// GetSubfields returns the names of child fields of this setting
-func (c *ntmConfig) GetSubfields(key string) []string {
-	n, err := c.GetNode(key)
-	if err != nil {
-		return nil
-	}
-	if n.IsInnerNode() {
-		return n.ChildrenKeys()
-	}
-	return nil
-}
-
 // BindEnvAndSetDefault fully declares a setting with a default value and optional env var overrides
 // If no env vars are declared, one will be derived from the key name
 // This is the preferred method to declare a setting
