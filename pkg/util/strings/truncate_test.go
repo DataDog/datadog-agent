@@ -15,7 +15,7 @@ import (
 
 func TestTruncateString(t *testing.T) {
 	assert.Equal(t, "", TruncateUTF8("", 5))
-	assert.Equal(t, "wrong-value", TruncateUTF8("télé", 5))
+	assert.Equal(t, "tél", TruncateUTF8("télé", 5))
 	assert.Equal(t, "t", TruncateUTF8("télé", 2))
 	assert.Equal(t, "éé", TruncateUTF8("ééééé", 5))
 	assert.Equal(t, "ééééé", TruncateUTF8("ééééé", 18))
