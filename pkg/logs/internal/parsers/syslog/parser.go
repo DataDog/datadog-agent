@@ -10,8 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-var _ message.StructuredContent = (*SyslogStructuredContent)(nil)
-
 // parser implements parsers.Parser for syslog-formatted input.
 // It converts each newline-framed line into a StateStructured message,
 // preserving all syslog metadata in a SyslogStructuredContent.

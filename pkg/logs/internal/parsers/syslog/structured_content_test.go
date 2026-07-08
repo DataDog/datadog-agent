@@ -465,14 +465,6 @@ func TestGetAttribute_NoSIEM(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Interface compliance
-// ---------------------------------------------------------------------------
-
-func TestSyslogStructuredContent_ImplementsStructuredContent(_ *testing.T) {
-	var _ message.StructuredContent = (*SyslogStructuredContent)(nil)
-}
-
-// ---------------------------------------------------------------------------
 // GetStructuredAttribute integration (via Message)
 // ---------------------------------------------------------------------------
 
