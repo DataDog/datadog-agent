@@ -165,24 +165,14 @@ surface WindowsEventTruncation {
         --   carry-over occurs downstream. This is enforced at the
         --   wiring level (call graph), not at runtime.
         --
-        -- The write-side / read-side asymmetry is a current
-        -- design choice that should be preserved across any
-        -- future refactor. The read side's both-boundaries scan
+        -- The write-side / read-side asymmetry is a deliberate
+        -- design choice. The read side's both-boundaries scan
         -- exists to recognise truncation markers that may have
         -- been applied by code paths the Windows event pathway
         -- did not originate — for example, content propagated
         -- from a different truncation pathway and embedded into
-        -- the Windows event message field. A refactor that
-        -- consolidated this with other truncation pathways
-        -- would need to preserve the both-boundaries scan
-        -- semantics OR demonstrate that no current upstream
-        -- emits head-decorated content into this pathway.
+        -- the Windows event message field.
         --
         -- This is the only truncation site in the agent that
         -- detects via marker scan rather than flag propagation.
-        -- Property tests anchored to RetroactiveDetection and
-        -- MarkerScanAtBothBoundaries should be a refactor
-        -- safety net: a consolidated truncation utility must
-        -- preserve these semantics if Windows event continues to
-        -- use it.
 }

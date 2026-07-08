@@ -23,8 +23,7 @@
 --   handler. Only buffer-overflow during accumulation triggers
 --   the tail marker; upstream truncation signals do not flow
 --   through. This is a deliberate non-conformance documented
---   below; a refactor must preserve it (or fix it as a
---   separate explicit behaviour change).
+--   below.
 -- Includes: The MultiLineHandler entity (truncation-relevant
 --   configuration and state), the MultiLineHandling surface
 --   with @guarantees covering: pattern-boundary emission,
@@ -257,15 +256,6 @@ surface MultiLineHandling {
         -- truncation signal is dropped. This is a
         -- DEVIATION from the Truncatable contract's
         -- UpstreamFlagPropagation invariant.
-        --
-        -- The deviation is current behaviour. A refactor
-        -- preserving observable behaviour must preserve
-        -- the upstream-flag-ignoring semantics; a
-        -- refactor that begins propagating the upstream
-        -- flag would be a deliberate behaviour change,
-        -- producing additional IsTruncated=true
-        -- emissions for inputs that the framer already
-        -- marked.
 
     @guarantee TagOnTruncation
         -- When the emission carries is_buffer_truncated=
@@ -433,26 +423,4 @@ surface MultiLineHandling {
         --         multi-line source tag with
         --         h.multi_line_tag_value.
         --       - outputFn(h.msg).
-        --
-        -- For the refactor, the MultiLineHandler's
-        -- truncation behaviour differs from
-        -- SingleLineHandler's in several ways:
-        --   - Operates per-EMISSION (buffer-level) not
-        --     per-input.
-        --   - IGNORES the upstream IsTruncated input
-        --     flag (UpstreamFlagIgnored).
-        --   - Has line-separator semantics within the
-        --     buffer.
-        --   - Has multi-line source tagging orthogonal
-        --     to truncation tagging.
-        -- A shared truncation utility extracted from
-        -- the codebase would be invoked here with
-        -- (buffer_content, line_limit, upstream=false,
-        -- prior_carryover=should_truncate); explicitly
-        -- passing upstream=false preserves the
-        -- UpstreamFlagIgnored deviation. If the
-        -- refactor later decides to honour upstream
-        -- flags here, that is a deliberate behaviour
-        -- change requiring its own justification and
-        -- tests.
 }

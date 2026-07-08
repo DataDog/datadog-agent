@@ -46,7 +46,7 @@
 --     at truncation_detector.allium (fulfilled by framer);
 --     MultiLineParser is a stateful accumulator with its own
 --     surface spec. Both sites have separate surface specs and
---     property test coverage as part of the same refactor effort.
+--     property test coverage.
 --   - The Windows event 128 KB truncation pathway, which is
 --     single-stage, has no carry-over, and detects truncation
 --     retroactively by scanning for marker presence. It does not

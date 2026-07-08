@@ -17,8 +17,7 @@
 --   The SingleLineHandler's truncation behaviour is the
 --   reference implementation of the Truncatable contract; its
 --   logic is structurally identical to PassThroughAggregator's
---   (in the preprocessor) and is the model for the
---   shared truncation utility that the refactor will extract.
+--   in the preprocessor.
 -- Includes: The SingleLineHandler entity (truncation-relevant
 --   configuration and state), the SingleLineHandling surface
 --   declaring fulfilment of the Truncatable contract, the

@@ -192,13 +192,6 @@ surface MultiLineParserTruncation {
         -- set. This is a consequence of bufferedMsg being
         -- overwritten on every process call: only the
         -- last input's upstream flag survives to emission.
-        --
-        -- This is current behaviour. A refactor preserving
-        -- observable behaviour must preserve this
-        -- last-input-wins semantics. (A refactor that
-        -- "fixes" this by OR-ing across all contributors
-        -- would be a deliberate behaviour change, not a
-        -- behaviour-preserving refactor.)
 
     @guarantee EmissionCarriesFullBuffer
         -- The emitted message's content is the FULL

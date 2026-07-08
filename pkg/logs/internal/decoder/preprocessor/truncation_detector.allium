@@ -14,9 +14,7 @@
 --   because its non-enforcing matchers (dockerStreamMatcher,
 --   noFramingMatcher) emit found frames regardless of size with
 --   wasTruncated = false. See framer.allium for the per-framing
---   @guarantees that capture actual observable behaviour. The
---   contract is kept strict so a shared utility can fulfil it
---   cleanly once one is extracted.
+--   @guarantees that capture actual observable behaviour.
 -- Includes: The TruncationDetector contract, the DetectionResult
 --   value type, the byte-boundary cut semantics, the flag-only
 --   guarantee.
@@ -114,10 +112,7 @@ contract TruncationDetector {
 
     @guidance
         -- This contract describes the abstract per-decision
-        -- "cut at hard limit + flag" operation. After the
-        -- truncation refactor, a shared utility extracted from
-        -- inline-duplicated cut logic across the logs pipeline
-        -- is expected to fulfil this contract directly.
+        -- "cut at hard limit + flag" operation.
         --
         -- The framer at pkg/logs/internal/framer composes this
         -- contract with non-conforming matcher behaviour: its
