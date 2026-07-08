@@ -9,6 +9,7 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -100,7 +101,7 @@ func preInstallAIUsageExtension(ctx HookContext) error {
 // postInstallAIUsageExtension sets up the AI Usage native host after the extension layer is extracted.
 func postInstallAIUsageExtension(ctx HookContext) error {
 	if paths.DatadogProgramFilesDir == "" {
-		return fmt.Errorf("cannot install AI Usage extension: Agent install directory is unknown")
+		return errors.New("cannot install AI Usage extension: Agent install directory is unknown")
 	}
 	extensionPath := aiUsageExtensionPath(ctx)
 	srcBinary := filepath.Join(extensionPath, aiUsageBinaryName)
