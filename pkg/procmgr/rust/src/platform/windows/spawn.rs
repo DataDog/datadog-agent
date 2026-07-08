@@ -55,12 +55,9 @@ pub(crate) fn spawn_child(
         validate_privileged_process_request(process_name, &request)?;
     }
 
-    // Long-term: prefer primary-token spawning via `CreateProcessAsUserW`
-    // for the privileged (legacy LocalSystem) profile.
-    //
-    // Short-term: when token spawning isn't supported for the configured
-    // stdio/env/working-dir shape, fall back to the existing impersonation
-    // implementation.
+    // Prefer primary-token spawning for privileged profiles; if the request
+    // can't be represented with explicit stdio/env/working-dir, fall back to
+    // the existing impersonation-based spawn.
     match profile {
         SpawnProfile::Privileged => {
             // Legacy privileged SCM-like behavior.
@@ -73,8 +70,7 @@ pub(crate) fn spawn_child(
             }
         }
         SpawnProfile::Agent => {
-            // Attempt primary-token spawn as the configured agent service account
-            // (including passwordless/service accounts).
+            // Primary-token spawn as the resolved agent account (passwordless supported).
             if let Ok(account) = resolve_agent_account() {
                 if let Ok(handle) = spawn_as_primary_token(process_name, &request, &account)
                 {
@@ -96,87 +92,151 @@ pub(crate) fn spawn_child(
     }
 }
 
-/// Validate that the privileged spawn request matches the reserved,
-/// binary-managed catalog template (currently `process-agent.exe`).
-///
-/// This prevents customers from self-provisioning privileged behavior by
-/// dropping/changing a YAML file under `processes.d` with the reserved
-/// process name.
+/// Reject privileged spawn requests that don't exactly match our embedded
+/// privileged process catalog spec.
 fn validate_privileged_process_request(
     process_name: &str,
     request: &SpawnRequest,
 ) -> Result<()> {
-    // Expected command + args for the embedded `datadog-agent-process.yaml.tmpl`.
-    //
-    // command:
-    //   <InstallDir>/bin/agent/process-agent.exe
-    // args:
-    //   --cfgpath <EtcDir>/datadog.yaml
-    //   --sysprobe-config <EtcDir>/system-probe.yaml
-    //   --pid <InstallDir>/run/process-agent.pid
     let install_root = install_root();
     let etc_root = program_data_root();
 
-    let expected_cmd = install_root.join(r"bin\agent\process-agent.exe");
-    let expected_cfg = etc_root.join("datadog.yaml");
-    let expected_sysprobe = etc_root.join("system-probe.yaml");
-    let expected_pid = install_root.join(r"run\process-agent.pid");
+    let spec = privileged_process_spec(process_name, &install_root, &etc_root)?;
 
-    let norm_cmd = normalize_win_path(&request.command);
-    let expected_cmd = normalize_win_path(expected_cmd.to_string_lossy().as_ref());
-    if norm_cmd != expected_cmd {
-        bail!(
-            "[{process_name}] refusing privileged spawn: unexpected command (got {}, expected {})",
-            request.command,
-            expected_cmd
-        );
-    }
+    validate_privileged_stdio(process_name, request)?;
+    validate_privileged_working_dir(process_name, &spec, request)?;
+    validate_privileged_command_args(process_name, &spec, request)?;
+    validate_privileged_env(process_name, &spec, request)?;
 
-    if request.args.len() != 6
-        || request.args[0] != "--cfgpath"
-        || normalize_win_path(&request.args[1]) != normalize_win_path(expected_cfg.to_string_lossy().as_ref())
-        || request.args[2] != "--sysprobe-config"
-        || normalize_win_path(&request.args[3]) != normalize_win_path(expected_sysprobe.to_string_lossy().as_ref())
-        || request.args[4] != "--pid"
-        || normalize_win_path(&request.args[5]) != normalize_win_path(expected_pid.to_string_lossy().as_ref())
-    {
-        bail!(
-            "[{process_name}] refusing privileged spawn: unexpected args {:?}",
-            request.args
-        );
-    }
+    Ok(())
+}
 
-    // For privileged spawning, restrict stdio to avoid any file-write
-    // redirection based on untrusted config.
-    let allow_stdio = |s: &std::process::Stdio| matches!(s, std::process::Stdio::Inherit | std::process::Stdio::Null);
-    if !allow_stdio(&request.stdout) || !allow_stdio(&request.stderr) {
+fn validate_privileged_stdio(process_name: &str, request: &SpawnRequest) -> Result<()> {
+    // Privileged spawn only allows inherit/null stdio.
+    let allow = |s: &std::process::Stdio| {
+        matches!(s, std::process::Stdio::Inherit | std::process::Stdio::Null)
+    };
+    if !allow(&request.stdout) || !allow(&request.stderr) {
         bail!(
             "[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null"
         );
     }
+    Ok(())
+}
 
-    // working_dir is not part of the embedded template for process-agent.
-    if request.working_dir.is_some() {
+fn validate_privileged_working_dir(
+    process_name: &str,
+    spec: &PrivilegedProcessSpec,
+    request: &SpawnRequest,
+) -> Result<()> {
+    if spec.disallow_working_dir && request.working_dir.is_some() {
+        bail!("[{process_name}] refusing privileged spawn: working_dir is not allowed");
+    }
+    Ok(())
+}
+
+fn validate_privileged_command_args(
+    process_name: &str,
+    spec: &PrivilegedProcessSpec,
+    request: &SpawnRequest,
+) -> Result<()> {
+    // Validate command/args match the embedded privileged catalog spec.
+    let norm_cmd = normalize_win_path(&request.command);
+    let expected_cmd = normalize_win_path(spec.expected_command.as_str());
+    if norm_cmd != expected_cmd {
         bail!(
-            "[{process_name}] refusing privileged spawn: working_dir is not allowed"
+            "[{process_name}] refusing privileged spawn: unexpected command (got {}, expected {})",
+            request.command,
+            spec.expected_command
         );
     }
 
-    // Only allow DD_FLEET_POLICIES_DIR env override for the embedded template.
+    let norm_args: Vec<_> = request
+        .args
+        .iter()
+        .map(|a| normalize_win_path(a))
+        .collect();
+    let expected_args: Vec<_> = spec
+        .expected_args
+        .iter()
+        .map(|a| normalize_win_path(a.as_str()))
+        .collect();
+
+    if norm_args != expected_args {
+        bail!(
+            "[{process_name}] refusing privileged spawn: unexpected args {:?} (expected {:?})",
+            request.args,
+            spec.expected_args
+        );
+    }
+    Ok(())
+}
+
+fn validate_privileged_env(
+    process_name: &str,
+    spec: &PrivilegedProcessSpec,
+    request: &SpawnRequest,
+) -> Result<()> {
+    // Env allowlist: only variables required by the embedded template.
     // Anything else could be used to alter privileged behavior.
     for (k, v) in &request.env {
-        if k == "DD_FLEET_POLICIES_DIR" {
-            if v.trim().is_empty() {
-                bail!("[{process_name}] refusing privileged spawn: DD_FLEET_POLICIES_DIR must be non-empty");
-            }
-            continue;
+        if !spec.allowed_env.contains(&k.as_str()) {
+            bail!(
+                "[{process_name}] refusing privileged spawn: disallowed env var for privileged process: {k}"
+            );
         }
-        bail!(
-            "[{process_name}] refusing privileged spawn: disallowed env var for privileged process: {k}"
-        );
+        if spec.non_empty_env.contains(&k.as_str()) && v.trim().is_empty() {
+            bail!(
+                "[{process_name}] refusing privileged spawn: {k} must be non-empty"
+            );
+        }
     }
-
     Ok(())
+}
+
+struct PrivilegedProcessSpec {
+    expected_command: String,
+    expected_args: Vec<String>,
+    allowed_env: &'static [&'static str],
+    non_empty_env: &'static [&'static str],
+    disallow_working_dir: bool,
+}
+
+fn privileged_process_spec(
+    process_name: &str,
+    install_root: &std::path::PathBuf,
+    etc_root: &std::path::PathBuf,
+) -> Result<PrivilegedProcessSpec> {
+    use crate::spawn_profile::DATADOG_AGENT_PROCESS;
+
+    match process_name {
+        DATADOG_AGENT_PROCESS => Ok(PrivilegedProcessSpec {
+            expected_command: install_root
+                .join(r"bin\agent\process-agent.exe")
+                .to_string_lossy()
+                .into_owned(),
+            expected_args: vec![
+                "--cfgpath".to_string(),
+                etc_root.join("datadog.yaml").to_string_lossy().into_owned(),
+                "--sysprobe-config".to_string(),
+                etc_root
+                    .join("system-probe.yaml")
+                    .to_string_lossy()
+                    .into_owned(),
+                "--pid".to_string(),
+                install_root
+                    .join(r"run\process-agent.pid")
+                    .to_string_lossy()
+                    .into_owned(),
+            ],
+            allowed_env: &["DD_FLEET_POLICIES_DIR"],
+            non_empty_env: &["DD_FLEET_POLICIES_DIR"],
+            disallow_working_dir: true,
+        }),
+        other => bail!(
+            "[{other}] refusing privileged spawn: no privileged catalog template (internal error?)"
+        ),
+    }
 }
 
 fn normalize_win_path(s: &str) -> String {
