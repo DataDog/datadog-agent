@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -41,7 +42,18 @@ func getCurrentAgentVersion() string {
 //nolint:unused // Used in platform-specific files
 type datadogAgentConfig struct {
 	Installer installerConfig `yaml:"installer"`
+	// InfrastructureMode mirrors the top-level `infrastructure_mode` key in datadog.yaml
+	// (full|basic|end_user_device|none). Used to gate End User Device Monitoring
+	// extensions (e.g. ai-usage) when the mode is configured in datadog.yaml rather
+	// than passed as DD_INFRASTRUCTURE_MODE at install time.
+	InfrastructureMode string `yaml:"infrastructure_mode,omitempty"`
 }
+
+// infrastructureModeEndUserDevice is the infrastructure_mode value that enables
+// End User Device Monitoring (EUDM).
+//
+//nolint:unused // Used in platform-specific files
+const infrastructureModeEndUserDevice = "end_user_device"
 
 //nolint:unused // Used in platform-specific files
 type installerConfig struct {
@@ -119,6 +131,37 @@ func setRegistryConfig(env *env.Env) map[string]extensionsPkg.ExtensionRegistry 
 	return overrides
 }
 
+// isEndUserDeviceMode reports whether End User Device Monitoring (EUDM) is enabled,
+// either via DD_INFRASTRUCTURE_MODE passed at install time or via
+// infrastructure_mode: end_user_device already configured in datadog.yaml.
+//
+//nolint:unused // Used in platform-specific files
+func isEndUserDeviceMode(env *env.Env) bool {
+	if strings.EqualFold(env.InfrastructureMode, infrastructureModeEndUserDevice) {
+		return true
+	}
+	return strings.EqualFold(readInfrastructureModeFromConfig(), infrastructureModeEndUserDevice)
+}
+
+// readInfrastructureModeFromConfig returns the infrastructure_mode value from datadog.yaml,
+// or "" if the file cannot be read/parsed or the key is unset.
+//
+//nolint:unused // Used in platform-specific files
+func readInfrastructureModeFromConfig() string {
+	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
+	rawConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		log.Debugf("could not read agent config at %s: %v", configPath, err)
+		return ""
+	}
+	var config datadogAgentConfig
+	if err := yaml.Unmarshal(rawConfig, &config); err != nil {
+		log.Warnf("could not parse agent config at %s: %v", configPath, err)
+		return ""
+	}
+	return config.InfrastructureMode
+}
+
 // saveAgentExtensions saves the extensions of the Agent package by writing them to a file on disk.
 // the extensions can then be picked up by the restoreAgentExtensions function to restore them
 //
@@ -171,6 +214,14 @@ func installAgentExtensions(ctx HookContext, version string, isExperiment bool) 
 	var extensions []string
 	if env.OTelCollectorEnabled {
 		extensions = append(extensions, "ddot")
+	}
+	// The ai-usage extension (AI Usage Chrome Native Messaging host + desktop monitor)
+	// is Windows-only and gated on End User Device Monitoring (EUDM). It is enabled when
+	// DD_INFRASTRUCTURE_MODE=end_user_device is passed at install time, or when the Agent
+	// is already configured with infrastructure_mode: end_user_device in datadog.yaml
+	// (covers upgrades that do not re-supply the env var).
+	if runtime.GOOS == "windows" && isEndUserDeviceMode(env) {
+		extensions = append(extensions, "ai-usage")
 	}
 	// if no extensions are requested, return early
 	if len(extensions) == 0 {

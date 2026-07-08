@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    On Windows, the AI Usage Chrome Native Messaging host and its desktop
+    monitor are no longer installed unconditionally by the MSI. They are now
+    delivered as the ``ai-usage`` fleet installer extension and installed only
+    when End User Device Monitoring is enabled at install time
+    (``DD_INFRASTRUCTURE_MODE=end_user_device``) or already configured via
+    ``infrastructure_mode: end_user_device`` in ``datadog.yaml``. Upgrading an
+    Agent that previously installed the AI Usage host without End User Device
+    Monitoring enabled removes the host, its Chrome registry entries, and the
+    ``Datadog AI Usage Agent`` scheduled task.

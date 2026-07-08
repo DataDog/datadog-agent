@@ -294,14 +294,11 @@ build do
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
   end
 
-  if windows_target?
-    # AI usage Chrome native messaging host (Rust). Mirrors the macOS osx_target? branch above:
-    # the Bazel target installs the .exe into bin/agent (Windows convention; see
-    # //pkg/procmgr/rust:install for the same Linux-vs-Windows prefix split). The final Chrome
-    # Native Messaging Host manifest is staged under bin/agent/dist so the MSI owns the file
-    # during rollback/uninstall. The MSI custom action rewrites it with the final installation path.
-    command "bazel run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-  end
+  # Note: on Windows the AI Usage Chrome native messaging host is no longer staged into the MSI
+  # payload. It ships as the "ai-usage" fleet installer extension layer, built via
+  # //cmd/ai_prompt_logger:install-extension and attached to the datadog-agent OCI image with
+  # `datadog-package create --extension ai-usage=<dir>` (see the ai_usage_win_zip CI job and
+  # tasks/msi.py). It is installed at runtime only when EUDM is enabled.
 
   # APM Hands Off config file
   if linux_target?
