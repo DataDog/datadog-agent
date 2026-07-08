@@ -8,8 +8,6 @@ require (
 	github.com/stretchr/testify v1.11.1
 )
 
-require gopkg.in/yaml.v3 v3.0.1 // indirect
-
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.0 // indirect
@@ -32,6 +30,7 @@ require (
 	google.golang.org/api v0.279.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apimachinery v0.35.6 // indirect
 	k8s.io/client-go v0.35.5 // indirect
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect

@@ -56,6 +56,11 @@ elsif windows_target?
   end
   package_target = "windows-#{target_arch}"
   if fips_mode?
+    # The saluki CI publishes the Windows FIPS zip with the fips suffix
+    # (e.g. windows-amd64-fips.zip), unlike Linux which embeds fips in the
+    # version string (e.g. fips-linux-amd64.tar.gz). Preserve the existing
+    # release.json key name (AGENT_DATA_PLANE_HASH_FIPS_WINDOWS_AMD64 →
+    # "fips-windows-amd64") while using the correct filename suffix for S3.
     adp_hash_key = "fips-#{package_target}"
     package_target = "#{package_target}-fips"
   end
