@@ -142,6 +142,7 @@ func TestGetChecksFromConfigs(t *testing.T) {
 }
 
 func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t *testing.T) {
+	core.WithTestCatalog(t)
 	cfg := configmock.New(t)
 	cfg.SetInTest("metric_lookback.enabled", true)
 	cfg.SetInTest("metric_lookback.enabled_checks", []string{"cpu"})
@@ -211,6 +212,7 @@ func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t
 }
 
 func TestGetChecksFromConfigsDoesNotLoadShadowChecksWhenCacheIsNotPopulated(t *testing.T) {
+	core.WithTestCatalog(t)
 	cfg := configmock.New(t)
 	cfg.SetInTest("metric_lookback.enabled", true)
 	cfg.SetInTest("metric_lookback.enabled_checks", []string{"cpu"})
@@ -247,6 +249,7 @@ func TestGetChecksFromConfigsDoesNotLoadShadowChecksWhenCacheIsNotPopulated(t *t
 }
 
 func TestGetChecksFromConfigsUsesFallbackShadowSenderManager(t *testing.T) {
+	core.WithTestCatalog(t)
 	cfg := configmock.New(t)
 	cfg.SetInTest("metric_lookback.enabled", true)
 	cfg.SetInTest("metric_lookback.enabled_checks", []string{"cpu"})
@@ -287,6 +290,7 @@ func TestGetChecksFromConfigsUsesFallbackShadowSenderManager(t *testing.T) {
 }
 
 func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowLoadFails(t *testing.T) {
+	core.WithTestCatalog(t)
 	cfg := configmock.New(t)
 	cfg.SetInTest("metric_lookback.enabled", true)
 	cfg.SetInTest("metric_lookback.enabled_checks", []string{"cpu"})
@@ -381,8 +385,9 @@ func TestGetChecksFromConfigsSkipsShadowCheckForUnsupportedLoader(t *testing.T) 
 
 func TestShadowLoaderForPythonReusesLoadedLoader(t *testing.T) {
 	loader := &recordingSchedulerLoader{name: "python"}
+	s := CheckScheduler{}
 
-	shadowLoader, ok := shadowLoaderFor(loader)
+	shadowLoader, ok := s.shadowLoaderFor(loader)
 
 	require.True(t, ok)
 	assert.Same(t, loader, shadowLoader)
@@ -391,13 +396,27 @@ func TestShadowLoaderForPythonReusesLoadedLoader(t *testing.T) {
 func TestShadowLoaderForCoreUsesShadowLoadMode(t *testing.T) {
 	loader, err := core.NewGoCheckLoader()
 	require.NoError(t, err)
+	s := CheckScheduler{}
 
-	shadowLoader, ok := shadowLoaderFor(loader)
+	shadowLoader, ok := s.shadowLoaderFor(loader)
 
 	require.True(t, ok)
 	shadowCoreLoader, ok := shadowLoader.(*core.GoCheckLoader)
 	require.True(t, ok)
 	assert.Equal(t, core.ShadowLoadMode, shadowCoreLoader.LoadMode())
+}
+
+func TestShadowLoaderForCoreReusesShadowLoader(t *testing.T) {
+	loader, err := core.NewGoCheckLoader()
+	require.NoError(t, err)
+	s := CheckScheduler{}
+
+	firstShadowLoader, ok := s.shadowLoaderFor(loader)
+	require.True(t, ok)
+	secondShadowLoader, ok := s.shadowLoaderFor(loader)
+
+	require.True(t, ok)
+	assert.Same(t, firstShadowLoader, secondShadowLoader)
 }
 
 // MockCollector is a mock implementation of collectorcomp.Component for testing

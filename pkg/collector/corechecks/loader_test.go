@@ -44,11 +44,7 @@ func (c *TestCheck) Configure(_ sender.SenderManager, digest uint64, data integr
 
 func withTestCatalog(t *testing.T) {
 	t.Helper()
-	originalCatalog := catalog
-	catalog = make(map[string]ContextualCheckFactory)
-	t.Cleanup(func() {
-		catalog = originalCatalog
-	})
+	WithTestCatalog(t)
 }
 
 func TestNewGoCheckLoader(t *testing.T) {
