@@ -105,20 +105,20 @@ profiles:
     metrics:
       - name: agent_performance.containers_restarts
         preserve_tags:
-          - kube_app_component
+          - kind
           - pod_name
       - name: agent_performance.containers_terminated
         preserve_tags:
-          - kube_app_component
+          - kind
           - pod_name
           - reason
       - name: agent_performance.memory_usage
         preserve_tags:
-          - kube_app_component
+          - kind
           - pod_name
       - name: agent_performance.memory_limit
         preserve_tags:
-          - kube_app_component
+          - kind
           - pod_name
   schedule:
     start_after: 30

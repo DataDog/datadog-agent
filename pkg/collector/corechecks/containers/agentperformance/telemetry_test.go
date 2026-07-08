@@ -19,28 +19,28 @@ import (
 
 func TestRecorderComponent(t *testing.T) {
 	tests := []struct {
-		name              string
-		pod               *workloadmeta.KubernetesPod
-		expectedComponent string
-		expectedOK        bool
+		name         string
+		pod          *workloadmeta.KubernetesPod
+		expectedKind string
+		expectedOK   bool
 	}{
 		{
-			name:              "cluster agent",
-			pod:               newTestPod(clusterAgentComponent, "metadata-pod"),
-			expectedComponent: clusterAgentComponent,
-			expectedOK:        true,
+			name:         "cluster agent",
+			pod:          newTestPod(clusterAgentComponent, "metadata-pod"),
+			expectedKind: clusterAgentComponent,
+			expectedOK:   true,
 		},
 		{
-			name:              "cluster checks agent helm",
-			pod:               newTestPod(clusterChecksAgentComponentHelm, "metadata-pod"),
-			expectedComponent: clusterChecksAgentComponentOperator,
-			expectedOK:        true,
+			name:         "cluster checks agent helm",
+			pod:          newTestPod(clusterChecksAgentComponentHelm, "metadata-pod"),
+			expectedKind: clusterChecksAgentComponentOperator,
+			expectedOK:   true,
 		},
 		{
-			name:              "cluster checks agent operator",
-			pod:               newTestPod(clusterChecksAgentComponentOperator, "metadata-pod"),
-			expectedComponent: clusterChecksAgentComponentOperator,
-			expectedOK:        true,
+			name:         "cluster checks agent operator",
+			pod:          newTestPod(clusterChecksAgentComponentOperator, "metadata-pod"),
+			expectedKind: clusterChecksAgentComponentOperator,
+			expectedOK:   true,
 		},
 		{
 			name:       "other component",
@@ -61,9 +61,9 @@ func TestRecorderComponent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			component, ok := agentPodComponent(tt.pod)
+			kind, ok := agentPodKind(tt.pod)
 			assert.Equal(t, tt.expectedOK, ok)
-			assert.Equal(t, tt.expectedComponent, component)
+			assert.Equal(t, tt.expectedKind, kind)
 		})
 	}
 }
@@ -170,7 +170,7 @@ func ptr(v float64) *float64 {
 	return &v
 }
 
-func assertGaugeValue(t *testing.T, tel telemetry.Mock, metricName string, component string, podName string, expected float64) {
+func assertGaugeValue(t *testing.T, tel telemetry.Mock, metricName string, kind string, podName string, expected float64) {
 	t.Helper()
 
 	metrics, err := tel.GetGaugeMetric(subsystem, metricName)
@@ -179,16 +179,16 @@ func assertGaugeValue(t *testing.T, tel telemetry.Mock, metricName string, compo
 	}
 
 	for _, metric := range metrics {
-		if metric.Tags()[tags.KubeAppComponent] == component && metric.Tags()[tags.KubePod] == podName {
+		if metric.Tags()[kindTag] == kind && metric.Tags()[tags.KubePod] == podName {
 			assert.Equal(t, expected, metric.Value())
 			return
 		}
 	}
 
-	assert.Failf(t, "missing metric", "metric %s for %s/%s not found", metricName, component, podName)
+	assert.Failf(t, "missing metric", "metric %s for %s/%s not found", metricName, kind, podName)
 }
 
-func assertGaugeMissing(t *testing.T, tel telemetry.Mock, metricName string, component string, podName string) {
+func assertGaugeMissing(t *testing.T, tel telemetry.Mock, metricName string, kind string, podName string) {
 	t.Helper()
 
 	metrics, err := tel.GetGaugeMetric(subsystem, metricName)
@@ -197,14 +197,14 @@ func assertGaugeMissing(t *testing.T, tel telemetry.Mock, metricName string, com
 	}
 
 	for _, metric := range metrics {
-		if metric.Tags()[tags.KubeAppComponent] == component && metric.Tags()[tags.KubePod] == podName {
-			assert.Failf(t, "unexpected metric", "metric %s for %s/%s found", metricName, component, podName)
+		if metric.Tags()[kindTag] == kind && metric.Tags()[tags.KubePod] == podName {
+			assert.Failf(t, "unexpected metric", "metric %s for %s/%s found", metricName, kind, podName)
 			return
 		}
 	}
 }
 
-func assertTerminatedGaugeMissing(t *testing.T, tel telemetry.Mock, component string, podName string, reason string) {
+func assertTerminatedGaugeMissing(t *testing.T, tel telemetry.Mock, kind string, podName string, reason string) {
 	t.Helper()
 
 	metrics, err := tel.GetGaugeMetric(subsystem, ContainerTerminated)
@@ -213,14 +213,14 @@ func assertTerminatedGaugeMissing(t *testing.T, tel telemetry.Mock, component st
 	}
 
 	for _, metric := range metrics {
-		if metric.Tags()[tags.KubeAppComponent] == component && metric.Tags()[tags.KubePod] == podName && metric.Tags()["reason"] == reason {
-			assert.Failf(t, "unexpected metric", "terminated metric for %s/%s/%s found", component, podName, reason)
+		if metric.Tags()[kindTag] == kind && metric.Tags()[tags.KubePod] == podName && metric.Tags()["reason"] == reason {
+			assert.Failf(t, "unexpected metric", "terminated metric for %s/%s/%s found", kind, podName, reason)
 			return
 		}
 	}
 }
 
-func assertTerminatedGaugeValue(t *testing.T, tel telemetry.Mock, component string, podName string, reason string, expected float64) {
+func assertTerminatedGaugeValue(t *testing.T, tel telemetry.Mock, kind string, podName string, reason string, expected float64) {
 	t.Helper()
 
 	metrics, err := tel.GetGaugeMetric(subsystem, ContainerTerminated)
@@ -229,11 +229,11 @@ func assertTerminatedGaugeValue(t *testing.T, tel telemetry.Mock, component stri
 	}
 
 	for _, metric := range metrics {
-		if metric.Tags()[tags.KubeAppComponent] == component && metric.Tags()[tags.KubePod] == podName && metric.Tags()["reason"] == reason {
+		if metric.Tags()[kindTag] == kind && metric.Tags()[tags.KubePod] == podName && metric.Tags()["reason"] == reason {
 			assert.Equal(t, expected, metric.Value())
 			return
 		}
 	}
 
-	assert.Failf(t, "missing metric", "terminated metric for %s/%s/%s not found", component, podName, reason)
+	assert.Failf(t, "missing metric", "terminated metric for %s/%s/%s not found", kind, podName, reason)
 }
