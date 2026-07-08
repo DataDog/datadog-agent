@@ -63,24 +63,8 @@ class CodeGeneratorTarget:
                 continue
 
             # Get filename to write to, add header if its empty
-            need_import_statements = False
             if filename not in self.filesystem:
-                self.filesystem[filename] = self.header_text.split('\n')
-                need_import_statements = True
-
-            # Determine if the target file needs to import pkgconfighelper
-            need_pkgconfighelper = False
-            for row in settings:
-                keyname = row[0]
-                setting = self.buffer.get(keyname)
-                if setting:
-                    for line in setting.sourcecode:
-                        if 'pkgconfighelper.' in line:
-                            need_pkgconfighelper = True
-
-            # Imports section
-            if need_import_statements:
-                self.filesystem[filename] += self._add_imports(need_pkgconfighelper)
+                self._add_file_header(filename, settings)
 
             # Create the function, declare all settings in it
             sourcecode = self.filesystem[filename]
@@ -96,7 +80,9 @@ class CodeGeneratorTarget:
             self.filesystem[filename] = sourcecode
 
         # Afterwards: run over buffer to get everything else
-        sourcecode = []
+        other_filename = 'other_settings.go'
+        self._add_file_header(other_filename, [])
+        sourcecode = self.filesystem[other_filename]
         output_func_header("otherSettings", sourcecode)
         for keyname in self.buffer:
             if self.buffer[keyname].done:
@@ -104,7 +90,20 @@ class CodeGeneratorTarget:
             self.buffer[keyname].done = True
             sourcecode = sourcecode + self.buffer[keyname].sourcecode
         output_func_footer("otherSettings", sourcecode)
-        self.filesystem['other_settings.go'] = sourcecode
+        self.filesystem[other_filename] = sourcecode
+
+    def _add_file_header(self, filename, settings):
+        self.filesystem[filename] = self.header_text.split('\n')
+        # Determine if the target file needs to import pkgconfighelper
+        need_pkgconfighelper = False
+        for row in settings:
+            keyname = row[0]
+            setting = self.buffer.get(keyname)
+            if setting:
+                for line in setting.sourcecode:
+                    if 'pkgconfighelper.' in line:
+                        need_pkgconfighelper = True
+        self.filesystem[filename] += self._add_imports(need_pkgconfighelper)
 
     def _add_imports(self, need_pkgconfighelper):
         sourcecode = ['import (']
@@ -487,6 +486,7 @@ config_setup_func_names = [
     'podman',
     'setupAPM',
     'setupMultiRegionFailover',
+    'remoteflags',
     'OTLP',
     'setupProcesses',
     'anomalyDetection',
