@@ -20,6 +20,7 @@ from typing import Any
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.utils import gitlab_section
 
 RUSTCHECKS_MANIFEST_REL_PATH = "pkg/collector/sharedlibrary/rustchecks/shared_checks_manifest.json"
@@ -111,6 +112,25 @@ def _select_checks(specs: list[CheckSpec], platform: str) -> tuple[list[CheckSpe
     return final, skipped
 
 
+def _bazel_toolchain_bin(ctx, target: str) -> Path:
+    rel = bazel(ctx, "cquery", target, "--output=files", capture_output=True).strip().splitlines()[0]
+    exec_root = bazel(ctx, "info", "execution_root", capture_output=True).strip()
+    path = Path(exec_root) / rel
+    if not path.exists():
+        raise Exit(f"Bazel toolchain binary not found: {path}")
+    return path
+
+
+def _cargo_build_env(ctx, repo_root: Path) -> dict[str, str]:
+    cargo_home = repo_root / "pkg/collector/sharedlibrary/rustchecks/.cargo-home"
+    cargo_home.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    env["CARGO"] = str(_bazel_toolchain_bin(ctx, "@rules_rust//rust/toolchain:current_cargo_files"))
+    env["RUSTC"] = str(_bazel_toolchain_bin(ctx, "@rules_rust//rust/toolchain:current_rustc_files"))
+    env["CARGO_HOME"] = str(cargo_home)
+    return env
+
+
 @task
 def build(ctx, checks_d_dir, manifest_path=None):
     """
@@ -158,14 +178,21 @@ def build(ctx, checks_d_dir, manifest_path=None):
             candidate.unlink()
 
     rustchecks_dir = repo_root / "pkg/collector/sharedlibrary/rustchecks"
-    cargo_args = ["cargo", "build", "--release", "--manifest-path", str(rustchecks_dir / "Cargo.toml")]
+    build_env = _cargo_build_env(ctx, repo_root)
+    cargo_args = [
+        build_env["CARGO"],
+        "build",
+        "--release",
+        "--manifest-path",
+        str(rustchecks_dir / "Cargo.toml"),
+    ]
     for s in selected:
         cargo_args += ["-p", s.crate]
 
     with gitlab_section("Build Rust shared-library checks", collapsed=True):
         # ctx.run uses the shell; use a single command string for compatibility.
         cmd = " ".join(shlex.quote(a) for a in cargo_args)
-        ctx.run(f"cd {shlex.quote(str(rustchecks_dir))} && {cmd}", err_stream=sys.stdout)
+        ctx.run(f"cd {shlex.quote(str(rustchecks_dir))} && {cmd}", env=build_env, err_stream=sys.stdout)
 
     # Stage and enforce file mode:
     #   - group/other must have no permissions (loader uses mode bits checks)
