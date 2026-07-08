@@ -371,11 +371,11 @@ func TestConvertToIdx_NilChunksSkipped(t *testing.T) {
 
 	result := ConvertToIdx(payload, "")
 
-	require.Len(t, result.Chunks, 2)
-	// First chunk should be nil/empty, second should have data
-	assert.Nil(t, result.Chunks[0])
-	assert.NotNil(t, result.Chunks[1])
-	assert.Len(t, result.Chunks[1].Spans, 1)
+	// The nil chunk is dropped at conversion (no nil entries left in the slice),
+	// leaving only the chunk with data.
+	require.Len(t, result.Chunks, 1)
+	assert.NotNil(t, result.Chunks[0])
+	assert.Len(t, result.Chunks[0].Spans, 1)
 }
 
 // Test that chunks with empty spans are skipped
@@ -401,9 +401,11 @@ func TestConvertToIdx_EmptySpansChunksSkipped(t *testing.T) {
 
 	result := ConvertToIdx(payload, "")
 
-	require.Len(t, result.Chunks, 2)
-	assert.Nil(t, result.Chunks[0])
-	assert.NotNil(t, result.Chunks[1])
+	// The empty-spans chunk is dropped at conversion (no nil entries left in the
+	// slice), leaving only the chunk with data.
+	require.Len(t, result.Chunks, 1)
+	assert.NotNil(t, result.Chunks[0])
+	assert.Len(t, result.Chunks[0].Spans, 1)
 }
 
 // Test that span metrics are converted correctly
