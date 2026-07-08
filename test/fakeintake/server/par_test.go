@@ -49,6 +49,6 @@ func TestPARDequeueSurfacesRshellPolicyInSignedEnvelope(t *testing.T) {
 
 	remoteAction := task.GetSystemInputs().GetRemoteAction()
 	require.NotNil(t, remoteAction)
-	assert.Equal(t, []string{"rshell:cat"}, remoteAction.TargetCommands)
-	assert.Equal(t, []string{"/tmp:rw", "/host/var/log"}, remoteAction.TargetPaths)
+	assert.Equal(t, []string{"rshell:cat"}, remoteAction.AllowedCommands)
+	assert.Equal(t, []string{"/tmp:rw", "/host/var/log"}, remoteAction.AllowedPaths)
 }

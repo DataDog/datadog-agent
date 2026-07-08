@@ -77,12 +77,12 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 	// e2e flows behave like a real backend-signed task.
 	remoteAction := &privateactionspb.RemoteAction{}
 	if v, ok := task.Inputs["allowedCommands"]; ok {
-		remoteAction.TargetCommands = parStringSlice(v)
+		remoteAction.AllowedCommands = parStringSlice(v)
 	}
 	if v, ok := task.Inputs["allowedPaths"]; ok {
-		remoteAction.TargetPaths = parStringSlice(v)
+		remoteAction.AllowedPaths = parStringSlice(v)
 	}
-	if len(remoteAction.TargetCommands) > 0 || len(remoteAction.TargetPaths) > 0 {
+	if len(remoteAction.AllowedCommands) > 0 || len(remoteAction.AllowedPaths) > 0 {
 		pbTask.SystemInputs = &privateactionspb.SystemInputs{
 			Input: &privateactionspb.SystemInputs_RemoteAction{
 				RemoteAction: remoteAction,
