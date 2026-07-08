@@ -15,10 +15,6 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
-# No completion sentinel: this stage always runs so the built library stays in
-# sync with its source. The build directory is wiped on every run to avoid stale
-# cmake cache or mtime-based make decisions (see Step 1).
-
 # --- Input validation ---
 : "${STAGING:?STAGING must be set}"
 : "${EMBEDDED:?EMBEDDED must be set}"
@@ -49,14 +45,9 @@ cleanup() {
 trap cleanup EXIT
 
 # ─── Step 1: Clean and create rtloader build directory ────────────────────────
-#
-# The build directory is wiped on every run so cmake always starts from a clean
-# state. This avoids stale cache entries and mtime-based make decisions that
-# could cause make to silently skip rebuilding object files after a source
-# refresh (tar preserves original mtimes, so extracted sources may be older
-# than the previous build outputs).
 
 log "Cleaning rtloader build directory"
+# The build directory is wiped to avoid stale cache entries mtime-based make decisions.
 rm -rf "$AGENT_SRC/rtloader/build"
 mkdir -p "$AGENT_SRC/rtloader/build"
 
