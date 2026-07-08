@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	containercoat "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/coat"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
@@ -54,16 +54,16 @@ var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
 // ContainerdCheck grabs containerd metrics and events
 type ContainerdCheck struct {
 	corechecks.CheckBase
-	instance          *ContainerdConfig
-	processor         generic.Processor
-	subscriber        *subscriber
-	client            cutil.ContainerdItf
-	httpClient        http.Client
-	containerFilter   workloadfilter.FilterBundle
-	pauseFilter       workloadfilter.FilterBundle
-	store             workloadmeta.Component
-	tagger            tagger.Component
-	agentPodTelemetry *containercoat.AgentPodTelemetry
+	instance         *ContainerdConfig
+	processor        generic.Processor
+	subscriber       *subscriber
+	client           cutil.ContainerdItf
+	httpClient       http.Client
+	containerFilter  workloadfilter.FilterBundle
+	pauseFilter      workloadfilter.FilterBundle
+	store            workloadmeta.Component
+	tagger           tagger.Component
+	agentPerformance *agentperformance.Recorder
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
@@ -75,16 +75,16 @@ type ContainerdConfig struct {
 
 // Factory is used to create register the check and initialize it.
 func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, telemetry telemetry.Component) option.Option[func() check.Check] {
-	agentPodTelemetry := containercoat.NewAgentPodTelemetry(telemetry)
+	agentPerformance := agentperformance.NewRecorder(telemetry)
 	return option.New(func() check.Check {
 		return &ContainerdCheck{
-			CheckBase:         corechecks.NewCheckBase(CheckName),
-			instance:          &ContainerdConfig{},
-			store:             store,
-			containerFilter:   filterStore.GetContainerSharedMetricFilters(),
-			pauseFilter:       filterStore.GetContainerPausedFilters(),
-			tagger:            tagger,
-			agentPodTelemetry: agentPodTelemetry,
+			CheckBase:        corechecks.NewCheckBase(CheckName),
+			instance:         &ContainerdConfig{},
+			store:            store,
+			containerFilter:  filterStore.GetContainerSharedMetricFilters(),
+			pauseFilter:      filterStore.GetContainerPausedFilters(),
+			tagger:           tagger,
+			agentPerformance: agentPerformance,
 		}
 	})
 }
@@ -111,7 +111,7 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, _ uint64
 	}
 
 	c.httpClient = http.Client{Timeout: time.Duration(1) * time.Second}
-	c.processor = generic.NewProcessor(metrics.GetProvider(option.New(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store), c.tagger, c.agentPodTelemetry, false)
+	c.processor = generic.NewProcessor(metrics.GetProvider(option.New(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store), c.tagger, c.agentPerformance, false)
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters), c.pauseFilter)
 

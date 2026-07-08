@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	containercoat "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/coat"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -43,25 +43,25 @@ func (c *ContainerConfig) Parse(data []byte) error {
 // ContainerCheck generates metrics for all containers
 type ContainerCheck struct {
 	core.CheckBase
-	instance          *ContainerConfig
-	processor         Processor
-	store             workloadmeta.Component
-	filterStore       workloadfilter.Component
-	tagger            tagger.Component
-	agentPodTelemetry *containercoat.AgentPodTelemetry
+	instance         *ContainerConfig
+	processor        Processor
+	store            workloadmeta.Component
+	filterStore      workloadfilter.Component
+	tagger           tagger.Component
+	agentPerformance *agentperformance.Recorder
 }
 
 // Factory returns a new check factory
 func Factory(wmeta workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, telemetry telemetry.Component) option.Option[func() check.Check] {
-	agentPodTelemetry := containercoat.NewAgentPodTelemetry(telemetry)
+	agentPerformance := agentperformance.NewRecorder(telemetry)
 	return option.New(func() check.Check {
 		return &ContainerCheck{
-			CheckBase:         core.NewCheckBase(CheckName),
-			instance:          &ContainerConfig{},
-			store:             wmeta,
-			filterStore:       filterStore,
-			tagger:            tagger,
-			agentPodTelemetry: agentPodTelemetry,
+			CheckBase:        core.NewCheckBase(CheckName),
+			instance:         &ContainerConfig{},
+			store:            wmeta,
+			filterStore:      filterStore,
+			tagger:           tagger,
+			agentPerformance: agentPerformance,
 		}
 	})
 }
@@ -78,7 +78,7 @@ func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64,
 		return err
 	}
 
-	c.processor = NewProcessor(metrics.GetProvider(option.New(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{ContainerFilter: c.filterStore.GetContainerSharedMetricFilters(), Store: c.store}, c.tagger, c.agentPodTelemetry, c.instance.ExtendedMemoryMetrics)
+	c.processor = NewProcessor(metrics.GetProvider(option.New(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{ContainerFilter: c.filterStore.GetContainerSharedMetricFilters(), Store: c.store}, c.tagger, c.agentPerformance, c.instance.ExtendedMemoryMetrics)
 	return nil
 }
 

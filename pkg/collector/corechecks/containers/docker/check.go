@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	containercoat "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/coat"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -70,7 +70,7 @@ type DockerCheck struct {
 	store                       workloadmeta.Component
 	containerFilter             workloadfilter.FilterBundle
 	tagger                      tagger.Component
-	agentPodTelemetry           *containercoat.AgentPodTelemetry
+	agentPerformance            *agentperformance.Recorder
 
 	lastEventTime    time.Time
 	eventTransformer eventTransformer
@@ -78,15 +78,15 @@ type DockerCheck struct {
 
 // Factory returns a new docker corecheck factory
 func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, telemetry telemetry.Component) option.Option[func() check.Check] {
-	agentPodTelemetry := containercoat.NewAgentPodTelemetry(telemetry)
+	agentPerformance := agentperformance.NewRecorder(telemetry)
 	return option.New(func() check.Check {
 		return &DockerCheck{
-			CheckBase:         core.NewCheckBase(CheckName),
-			instance:          &DockerConfig{},
-			store:             store,
-			containerFilter:   filterStore.GetContainerSharedMetricFilters(),
-			tagger:            tagger,
-			agentPodTelemetry: agentPodTelemetry,
+			CheckBase:        core.NewCheckBase(CheckName),
+			instance:         &DockerConfig{},
+			store:            store,
+			containerFilter:  filterStore.GetContainerSharedMetricFilters(),
+			tagger:           tagger,
+			agentPerformance: agentPerformance,
 		}
 	})
 }
@@ -135,7 +135,7 @@ func (d *DockerCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		d.eventTransformer = newBundledTransformer(d.dockerHostname, filteredEventTypes, d.tagger)
 	}
 
-	d.processor = generic.NewProcessor(metrics.GetProvider(option.New(d.store)), generic.NewMetadataContainerAccessor(d.store), metricsAdapter{}, getProcessorFilter(d.containerFilter, d.store), d.tagger, d.agentPodTelemetry, false)
+	d.processor = generic.NewProcessor(metrics.GetProvider(option.New(d.store)), generic.NewMetadataContainerAccessor(d.store), metricsAdapter{}, getProcessorFilter(d.containerFilter, d.store), d.tagger, d.agentPerformance, false)
 	d.processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 	d.configureNetworkProcessor(&d.processor)
 	d.setOkExitCodes()

@@ -31,7 +31,7 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
-        "//pkg/collector/corechecks/containers/coat",
+        "//pkg/collector/corechecks/containers/agentperformance",
         "//pkg/util/cache",
         "//pkg/util/containers/metrics",
         "//pkg/util/containers/metrics/mock",

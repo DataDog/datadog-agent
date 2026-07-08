@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	containercoat "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/coat"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/cadvisor"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/health"
@@ -48,29 +48,29 @@ type Provider interface {
 // KubeletCheck wraps the config and the metric stores needed to run the check
 type KubeletCheck struct {
 	core.CheckBase
-	instance          *common.KubeletConfig
-	providers         []Provider
-	podUtils          *common.PodUtils
-	filterStore       workloadfilter.Component
-	store             workloadmeta.Component
-	tagger            tagger.Component
-	agentPodTelemetry *containercoat.AgentPodTelemetry
+	instance         *common.KubeletConfig
+	providers        []Provider
+	podUtils         *common.PodUtils
+	filterStore      workloadfilter.Component
+	store            workloadmeta.Component
+	tagger           tagger.Component
+	agentPerformance *agentperformance.Recorder
 }
 
 // NewKubeletCheck returns a new KubeletCheck
-func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig, store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, agentPodTelemetry *containercoat.AgentPodTelemetry) *KubeletCheck {
+func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig, store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, agentPerformance *agentperformance.Recorder) *KubeletCheck {
 	return &KubeletCheck{
-		CheckBase:         base,
-		instance:          instance,
-		filterStore:       filterStore,
-		store:             store,
-		tagger:            tagger,
-		agentPodTelemetry: agentPodTelemetry,
+		CheckBase:        base,
+		instance:         instance,
+		filterStore:      filterStore,
+		store:            store,
+		tagger:           tagger,
+		agentPerformance: agentPerformance,
 	}
 }
 
-func initProviders(filterStore workloadfilter.Component, config *common.KubeletConfig, podUtils *common.PodUtils, store workloadmeta.Component, tagger tagger.Component, agentPodTelemetry *containercoat.AgentPodTelemetry) []Provider {
-	podProvider := pod.NewProvider(filterStore, store, config, podUtils, tagger, agentPodTelemetry)
+func initProviders(filterStore workloadfilter.Component, config *common.KubeletConfig, podUtils *common.PodUtils, store workloadmeta.Component, tagger tagger.Component, agentPerformance *agentperformance.Recorder) []Provider {
+	podProvider := pod.NewProvider(filterStore, store, config, podUtils, tagger, agentPerformance)
 	// nodeProvider collects from the /spec endpoint, which was hidden by default in k8s 1.18 and removed in k8s 1.19.
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
@@ -111,9 +111,9 @@ func initProviders(filterStore workloadfilter.Component, config *common.KubeletC
 
 // Factory returns a new KubeletCheck factory
 func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, telemetry telemetry.Component) option.Option[func() check.Check] {
-	agentPodTelemetry := containercoat.NewAgentPodTelemetry(telemetry)
+	agentPerformance := agentperformance.NewRecorder(telemetry)
 	return option.New(func() check.Check {
-		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store, filterStore, tagger, agentPodTelemetry)
+		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store, filterStore, tagger, agentPerformance)
 	})
 }
 
@@ -146,7 +146,7 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 	}
 
 	k.podUtils = common.NewPodUtils(k.tagger)
-	k.providers = initProviders(k.filterStore, k.instance, k.podUtils, k.store, k.tagger, k.agentPodTelemetry)
+	k.providers = initProviders(k.filterStore, k.instance, k.podUtils, k.store, k.tagger, k.agentPerformance)
 
 	return nil
 }
@@ -159,8 +159,8 @@ func (k *KubeletCheck) Run() error {
 	}
 	defer sender.Commit()
 	defer k.podUtils.Reset()
-	if k.agentPodTelemetry != nil {
-		k.agentPodTelemetry.ResetKubeletMetrics()
+	if k.agentPerformance != nil {
+		k.agentPerformance.ResetKubeletMetrics()
 	}
 
 	// Get client

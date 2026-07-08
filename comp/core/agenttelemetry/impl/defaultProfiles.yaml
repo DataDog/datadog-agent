@@ -98,25 +98,25 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
-- name: kubernetes-agent
+- name: agent-performance
   metric:
     exclude:
       zero_metric: true
     metrics:
-      - name: kubernetes_agent.containers_restarts
+      - name: agent_performance.containers_restarts
         preserve_tags:
           - kube_app_component
           - pod_name
-      - name: kubernetes_agent.containers_terminated
+      - name: agent_performance.containers_terminated
         preserve_tags:
           - kube_app_component
           - pod_name
           - reason
-      - name: kubernetes_agent.memory_usage
+      - name: agent_performance.memory_usage
         preserve_tags:
           - kube_app_component
           - pod_name
-      - name: kubernetes_agent.memory_limit
+      - name: agent_performance.memory_limit
         preserve_tags:
           - kube_app_component
           - pod_name

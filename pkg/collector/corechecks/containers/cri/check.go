@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	containercoat "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/coat"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -43,25 +43,25 @@ type CRIConfig struct {
 // CRICheck grabs CRI metrics
 type CRICheck struct {
 	core.CheckBase
-	instance          *CRIConfig
-	processor         generic.Processor
-	filterStore       workloadfilter.Component
-	store             workloadmeta.Component
-	tagger            tagger.Component
-	agentPodTelemetry *containercoat.AgentPodTelemetry
+	instance         *CRIConfig
+	processor        generic.Processor
+	filterStore      workloadfilter.Component
+	store            workloadmeta.Component
+	tagger           tagger.Component
+	agentPerformance *agentperformance.Recorder
 }
 
 // Factory is exported for integration testing
 func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, telemetry telemetry.Component) option.Option[func() check.Check] {
-	agentPodTelemetry := containercoat.NewAgentPodTelemetry(telemetry)
+	agentPerformance := agentperformance.NewRecorder(telemetry)
 	return option.New(func() check.Check {
 		return &CRICheck{
-			CheckBase:         core.NewCheckBase(CheckName),
-			instance:          &CRIConfig{},
-			filterStore:       filterStore,
-			store:             store,
-			tagger:            tagger,
-			agentPodTelemetry: agentPodTelemetry,
+			CheckBase:        core.NewCheckBase(CheckName),
+			instance:         &CRIConfig{},
+			filterStore:      filterStore,
+			store:            store,
+			tagger:           tagger,
+			agentPerformance: agentPerformance,
 		}
 	})
 }
@@ -85,7 +85,7 @@ func (c *CRICheck) Configure(senderManager sender.SenderManager, _ uint64, confi
 		return err
 	}
 
-	c.processor = generic.NewProcessor(metrics.GetProvider(option.New(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.filterStore.GetContainerSharedMetricFilters(), c.store), c.tagger, c.agentPodTelemetry, false)
+	c.processor = generic.NewProcessor(metrics.GetProvider(option.New(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.filterStore.GetContainerSharedMetricFilters(), c.store), c.tagger, c.agentPerformance, false)
 	if c.instance.CollectDisk {
 		c.processor.RegisterExtension("cri-custom-metrics", &criCustomMetricsExtension{criGetter: func() (cri.CRIClient, error) {
 			return cri.GetUtil()

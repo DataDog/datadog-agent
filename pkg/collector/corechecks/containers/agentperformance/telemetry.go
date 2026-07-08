@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package coat is used to collect container/kubernetes metrics of agents running in a kubernetes cluster.
-package coat
+// Package agentperformance records Agent performance COAT metrics from container checks.
+package agentperformance
 
 import (
 	"sync"
@@ -16,15 +16,15 @@ import (
 )
 
 const (
-	agentSubsystem = "kubernetes_agent"
-	// AgentContainerRestarts is the COAT metric name for Kubernetes container restarts.
-	AgentContainerRestarts = "containers_restarts"
-	// AgentContainerTerminated is the COAT metric name for Kubernetes container terminated states.
-	AgentContainerTerminated = "containers_terminated"
-	// AgentMemoryUsage is the COAT metric name for container runtime memory usage.
-	AgentMemoryUsage = "memory_usage"
-	// AgentMemoryLimit is the COAT metric name for container runtime memory limits.
-	AgentMemoryLimit = "memory_limit"
+	subsystem = "agent_performance"
+	// ContainerRestarts is the COAT metric name for Kubernetes container restarts.
+	ContainerRestarts = "containers_restarts"
+	// ContainerTerminated is the COAT metric name for Kubernetes container terminated states.
+	ContainerTerminated = "containers_terminated"
+	// MemoryUsage is the COAT metric name for container runtime memory usage.
+	MemoryUsage = "memory_usage"
+	// MemoryLimit is the COAT metric name for container runtime memory limits.
+	MemoryLimit = "memory_limit"
 
 	clusterAgentComponent               = "cluster-agent"
 	clusterChecksAgentComponentHelm     = "clusterchecks-agent"
@@ -32,49 +32,49 @@ const (
 )
 
 var (
-	defaultAgentPodTelemetry     *AgentPodTelemetry
-	defaultAgentPodTelemetryOnce sync.Once
+	defaultRecorder     *Recorder
+	defaultRecorderOnce sync.Once
 )
 
-// AgentPodTelemetry records COAT metrics for Datadog Agent pods.
-type AgentPodTelemetry struct {
+// Recorder records COAT metrics for Datadog Agent pods.
+type Recorder struct {
 	containersRestarts   telemetry.Gauge
 	containersTerminated telemetry.Gauge
 	memoryUsage          telemetry.Gauge
 	memoryLimits         telemetry.Gauge
 }
 
-// NewAgentPodTelemetry returns the shared COAT recorder for Datadog Agent pods.
-func NewAgentPodTelemetry(tm telemetry.Component) *AgentPodTelemetry {
-	defaultAgentPodTelemetryOnce.Do(func() {
-		defaultAgentPodTelemetry = newAgentPodTelemetry(tm)
+// NewRecorder returns the shared COAT recorder for Datadog Agent pods.
+func NewRecorder(tm telemetry.Component) *Recorder {
+	defaultRecorderOnce.Do(func() {
+		defaultRecorder = newRecorder(tm)
 	})
-	return defaultAgentPodTelemetry
+	return defaultRecorder
 }
 
-func newAgentPodTelemetry(tm telemetry.Component) *AgentPodTelemetry {
-	return &AgentPodTelemetry{
+func newRecorder(tm telemetry.Component) *Recorder {
+	return &Recorder{
 		containersRestarts: tm.NewGauge(
-			agentSubsystem,
-			AgentContainerRestarts,
+			subsystem,
+			ContainerRestarts,
 			[]string{tags.KubeAppComponent, tags.KubePod},
 			"Sum of kubernetes.containers.restarts for Datadog Cluster Agent pods",
 		),
 		containersTerminated: tm.NewGauge(
-			agentSubsystem,
-			AgentContainerTerminated,
+			subsystem,
+			ContainerTerminated,
 			[]string{tags.KubeAppComponent, tags.KubePod, "reason"},
 			"Sum of kubernetes.containers.*.terminated for Datadog Cluster Agent pods",
 		),
 		memoryUsage: tm.NewGauge(
-			agentSubsystem,
-			AgentMemoryUsage,
+			subsystem,
+			MemoryUsage,
 			[]string{tags.KubeAppComponent, tags.KubePod},
 			"Sum of container runtime memory usage for Datadog Cluster Agent pods",
 		),
 		memoryLimits: tm.NewGauge(
-			agentSubsystem,
-			AgentMemoryLimit,
+			subsystem,
+			MemoryLimit,
 			[]string{tags.KubeAppComponent, tags.KubePod},
 			"Sum of container runtime memory limits for Datadog Cluster Agent pods",
 		),
@@ -82,18 +82,18 @@ func newAgentPodTelemetry(tm telemetry.Component) *AgentPodTelemetry {
 }
 
 // ResetRuntimeMetrics clears runtime-sourced memory aggregates.
-func (t *AgentPodTelemetry) ResetRuntimeMetrics() {
+func (t *Recorder) ResetRuntimeMetrics() {
 	t.resetRuntimeMetrics()
 }
 
 // ResetKubeletMetrics clears kubelet-sourced state aggregates.
-func (t *AgentPodTelemetry) ResetKubeletMetrics() {
+func (t *Recorder) ResetKubeletMetrics() {
 	t.resetKubeletMetrics()
 }
 
 // RecordMetric adds a metric to the COAT aggregate when it belongs to
 // a Datadog Cluster Agent or Cluster Check Runner pod.
-func (t *AgentPodTelemetry) RecordMetric(metricName string, value *float64, pod *workloadmeta.KubernetesPod, reason string) {
+func (t *Recorder) RecordMetric(metricName string, value *float64, pod *workloadmeta.KubernetesPod, reason string) {
 	if value == nil || pod == nil {
 		return
 	}
@@ -109,7 +109,7 @@ func (t *AgentPodTelemetry) RecordMetric(metricName string, value *float64, pod 
 	t.record(metricName, *value, component, pod.Name, reason)
 }
 
-func (t *AgentPodTelemetry) resetRuntimeMetrics() {
+func (t *Recorder) resetRuntimeMetrics() {
 	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponentOperator} {
 		match := map[string]string{tags.KubeAppComponent: component}
 		t.memoryUsage.DeletePartialMatch(match)
@@ -117,7 +117,7 @@ func (t *AgentPodTelemetry) resetRuntimeMetrics() {
 	}
 }
 
-func (t *AgentPodTelemetry) resetKubeletMetrics() {
+func (t *Recorder) resetKubeletMetrics() {
 	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponentOperator} {
 		match := map[string]string{tags.KubeAppComponent: component}
 		t.containersRestarts.DeletePartialMatch(match)
@@ -125,18 +125,18 @@ func (t *AgentPodTelemetry) resetKubeletMetrics() {
 	}
 }
 
-func (t *AgentPodTelemetry) record(metricName string, value float64, component string, podName string, reason string) {
+func (t *Recorder) record(metricName string, value float64, component string, podName string, reason string) {
 	switch metricName {
-	case AgentContainerRestarts:
+	case ContainerRestarts:
 		t.containersRestarts.Add(value, component, podName)
-	case AgentContainerTerminated:
+	case ContainerTerminated:
 		if reason == "" {
 			return
 		}
 		t.containersTerminated.Add(value, component, podName, reason)
-	case AgentMemoryUsage:
+	case MemoryUsage:
 		t.memoryUsage.Add(value, component, podName)
-	case AgentMemoryLimit:
+	case MemoryLimit:
 		t.memoryLimits.Add(value, component, podName)
 	}
 }

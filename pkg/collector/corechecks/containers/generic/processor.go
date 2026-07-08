@@ -13,7 +13,7 @@ import (
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	containercoat "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/coat"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -28,20 +28,20 @@ const (
 
 // Processor contains the core logic of the generic check, allowing reusability
 type Processor struct {
-	metricsProvider   metrics.Provider
-	ctrLister         ContainerAccessor
-	metricsAdapter    MetricsAdapter
-	ctrFilter         ContainerFilter
-	extensions        map[string]ProcessorExtension
-	tagger            tagger.Component
-	agentPodTelemetry *containercoat.AgentPodTelemetry
+	metricsProvider  metrics.Provider
+	ctrLister        ContainerAccessor
+	metricsAdapter   MetricsAdapter
+	ctrFilter        ContainerFilter
+	extensions       map[string]ProcessorExtension
+	tagger           tagger.Component
+	agentPerformance *agentperformance.Recorder
 	// extendedMemoryMetrics allows to send extednded metrics
 	extendedMemoryMetrics bool
 }
 
 // NewProcessor creates a new processor
 func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter MetricsAdapter,
-	filter ContainerFilter, tagger tagger.Component, agentPodTelemetry *containercoat.AgentPodTelemetry, extendedMemoryMetrics bool) Processor {
+	filter ContainerFilter, tagger tagger.Component, agentPerformance *agentperformance.Recorder, extendedMemoryMetrics bool) Processor {
 	return Processor{
 		metricsProvider: provider,
 		ctrLister:       lister,
@@ -51,7 +51,7 @@ func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter M
 			NetworkExtensionID: NewProcessorNetwork(),
 		},
 		tagger:                tagger,
-		agentPodTelemetry:     agentPodTelemetry,
+		agentPerformance:      agentPerformance,
 		extendedMemoryMetrics: extendedMemoryMetrics,
 	}
 }
@@ -63,8 +63,8 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 
 // Run executes the check
 func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error {
-	if p.agentPodTelemetry != nil {
-		p.agentPodTelemetry.ResetRuntimeMetrics()
+	if p.agentPerformance != nil {
+		p.agentPerformance.ResetRuntimeMetrics()
 	}
 
 	allContainers := p.ctrLister.ListRunning()
@@ -167,9 +167,9 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 	}
 
 	if containerStats.Memory != nil {
-		if p.agentPodTelemetry != nil {
-			p.agentPodTelemetry.RecordMetric(containercoat.AgentMemoryUsage, containerStats.Memory.UsageTotal, ownerPod, "")
-			p.agentPodTelemetry.RecordMetric(containercoat.AgentMemoryLimit, containerStats.Memory.Limit, ownerPod, "")
+		if p.agentPerformance != nil {
+			p.agentPerformance.RecordMetric(agentperformance.MemoryUsage, containerStats.Memory.UsageTotal, ownerPod, "")
+			p.agentPerformance.RecordMetric(agentperformance.MemoryLimit, containerStats.Memory.Limit, ownerPod, "")
 		}
 
 		p.sendMetric(sender.Gauge, "container.memory.usage", containerStats.Memory.UsageTotal, tags)
