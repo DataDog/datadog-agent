@@ -18,6 +18,10 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	adtelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // fakeDiscoverer is a ConfigDiscoverer stub whose DiscoverConfig is supplied
@@ -78,17 +82,26 @@ func newSvc(id string) ServiceInfo {
 	}
 }
 
+func newTestTelemetryStore(t testing.TB) *adtelemetry.Store {
+	t.Helper()
+	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	return adtelemetry.NewStore(telemetryComp)
+}
+
 // TestWorker_Success_TriggersCallbackOnce: a probe that returns valid JSON
 // fires onResult exactly once and does not retry.
 func TestWorker_Success_TriggersCallbackOnce(t *testing.T) {
+	const svcID = "docker://svc-1"
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		return `[{"instances":[{"host":"x"}]}]`, nil
 	}}
-	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
+	lookup := &fixedLookup{services: map[string]ServiceInfo{svcID: newSvc(svcID)}}
 	cb := &recordingCallback{}
+	telStore := newTestTelemetryStore(t)
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 3, RetryDelay: 10 * time.Millisecond})
-	w.Enqueue("svc-1", testTplDigest, "myinteg")
+	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 3, RetryDelay: 10 * time.Millisecond}, telStore)
+	w.Enqueue(svcID, testTplDigest, "myinteg")
+	assert.Equal(t, float64(1), telStore.DiscoveryQueueDepth.WithValues("myinteg", "docker").Get())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -96,33 +109,40 @@ func TestWorker_Success_TriggersCallbackOnce(t *testing.T) {
 
 	require.Eventually(t, func() bool { return len(cb.snapshot()) == 1 }, time.Second, 5*time.Millisecond)
 	got := cb.snapshot()[0]
-	assert.Equal(t, "svc-1", got.svcID)
+	assert.Equal(t, svcID, got.svcID)
 	assert.Equal(t, testTplDigest, got.tplDigest)
 	require.Len(t, got.configs, 1)
 	assert.Equal(t, "myinteg", got.configs[0].Name)
 	assert.Equal(t, 1, disco.callCount())
+	assert.Equal(t, float64(0), telStore.DiscoveryQueueDepth.WithValues("myinteg", "docker").Get())
+	assert.Equal(t, float64(1), telStore.DiscoveryResults.WithValues("myinteg", "success", "docker").Get())
 }
 
 // TestWorker_RetriesUpToMax: a probe that always returns an error retries
 // until maxAttempts is reached, then gives up — onResult is never fired.
 func TestWorker_RetriesUpToMax(t *testing.T) {
+	const svcID = "containerd://svc-1"
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		return "", errors.New("nope")
 	}}
-	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
+	lookup := &fixedLookup{services: map[string]ServiceInfo{svcID: newSvc(svcID)}}
 	cb := &recordingCallback{}
+	telStore := newTestTelemetryStore(t)
 
 	const max = 4
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: max, RetryDelay: 5 * time.Millisecond})
+	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: max, RetryDelay: 5 * time.Millisecond}, telStore)
 	w.Start()
 	defer w.Stop()
-	w.Enqueue("svc-1", testTplDigest, "myinteg")
+	w.Enqueue(svcID, testTplDigest, "myinteg")
+	assert.Equal(t, float64(1), telStore.DiscoveryQueueDepth.WithValues("myinteg", "containerd").Get())
 
 	require.Eventually(t, func() bool { return disco.callCount() >= max }, time.Second, 2*time.Millisecond)
 	// Give one extra retry window to confirm there's no (max+1)th attempt.
 	time.Sleep(20 * time.Millisecond)
 	assert.Equal(t, max, disco.callCount(), "worker should give up after max attempts")
 	assert.Empty(t, cb.snapshot(), "onResult should never fire when discovery fails")
+	assert.Equal(t, float64(0), telStore.DiscoveryQueueDepth.WithValues("myinteg", "containerd").Get())
+	assert.Equal(t, float64(1), telStore.DiscoveryResults.WithValues("myinteg", "max_attempts_exceeded", "containerd").Get())
 }
 
 // TestWorker_PermFail_DropsImmediately: a PermFail error drops the job after
@@ -134,7 +154,7 @@ func TestWorker_PermFail_DropsImmediately(t *testing.T) {
 	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 10, RetryDelay: 5 * time.Millisecond})
+	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 10, RetryDelay: 5 * time.Millisecond}, nil)
 	w.Start()
 	defer w.Stop()
 	w.Enqueue("svc-1", testTplDigest, "myinteg")
@@ -158,7 +178,7 @@ func TestWorker_RetriesOnEmptyResult(t *testing.T) {
 	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond})
+	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond}, nil)
 	w.Start()
 	defer w.Stop()
 	w.Enqueue("svc-1", testTplDigest, "myinteg")
@@ -185,7 +205,7 @@ func TestWorker_ServiceRemovedBetweenRetries(t *testing.T) {
 	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond})
+	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond}, nil)
 	w.Start()
 	defer w.Stop()
 	w.Enqueue("svc-1", testTplDigest, "myinteg")
@@ -205,20 +225,27 @@ func TestWorker_ServiceRemovedBetweenRetries(t *testing.T) {
 // TestWorker_DropsWhenServiceGone: if the service has disappeared from the
 // lookup, the worker drops the job without calling DiscoverConfig at all.
 func TestWorker_DropsWhenServiceGone(t *testing.T) {
+	const svcID = "process://svc-gone"
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
 		return "", errors.New("should not be called")
 	}}
 	lookup := &fixedLookup{services: map[string]ServiceInfo{}} // empty
 	cb := &recordingCallback{}
+	telStore := newTestTelemetryStore(t)
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 3, RetryDelay: 5 * time.Millisecond})
+	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 3, RetryDelay: 5 * time.Millisecond}, telStore)
+	w.Enqueue(svcID, testTplDigest, "myinteg")
+	assert.Equal(t, float64(1), telStore.DiscoveryQueueDepth.WithValues("myinteg", "process").Get())
+
 	w.Start()
 	defer w.Stop()
-	w.Enqueue("svc-gone", testTplDigest, "myinteg")
 
-	time.Sleep(40 * time.Millisecond)
+	require.Eventually(t, func() bool {
+		return telStore.DiscoveryQueueDepth.WithValues("myinteg", "process").Get() == float64(0)
+	}, time.Second, 2*time.Millisecond, "worker must drain queue depth")
 	assert.Zero(t, disco.callCount())
 	assert.Empty(t, cb.snapshot())
+	assert.Equal(t, float64(1), telStore.DiscoveryResults.WithValues("myinteg", "service_not_found", "process").Get())
 }
 
 // TestWorker_NoHost_TriggersRetry: a service whose GetHosts returns nothing
@@ -233,7 +260,7 @@ func TestWorker_NoHost_TriggersRetry(t *testing.T) {
 	cb := &recordingCallback{}
 
 	const max = 3
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: max, RetryDelay: 5 * time.Millisecond})
+	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: max, RetryDelay: 5 * time.Millisecond}, nil)
 	w.Start()
 	defer w.Stop()
 	w.Enqueue("svc-1", testTplDigest, "myinteg")
@@ -259,7 +286,7 @@ func TestWorker_NoBookkeepingLeakAfterServiceRemoval(t *testing.T) {
 	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond})
+	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond}, nil)
 	w.Start()
 	defer w.Stop()
 
@@ -301,7 +328,7 @@ func TestWorker_ParallelProbes_DifferentServices(t *testing.T) {
 	lookup := &fixedLookup{services: services}
 	cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{Workers: workers, MaxAttempts: 1, RetryDelay: 5 * time.Millisecond})
+	w := NewWorker(disco, lookup, cb.callback, Config{Workers: workers, MaxAttempts: 1, RetryDelay: 5 * time.Millisecond}, nil)
 	w.Start()
 	defer w.Stop()
 	for id := range services {
@@ -330,7 +357,7 @@ func TestWorker_SameKeyStillSerial(t *testing.T) {
 	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
 	cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{Workers: 4, MaxAttempts: 10, RetryDelay: 5 * time.Millisecond})
+	w := NewWorker(disco, lookup, cb.callback, Config{Workers: 4, MaxAttempts: 10, RetryDelay: 5 * time.Millisecond}, nil)
 	w.Start()
 	defer w.Stop()
 	for range 20 {
@@ -348,7 +375,7 @@ func TestWorker_SameKeyStillSerial(t *testing.T) {
 func TestWorker_StopIsIdempotent(_ *testing.T) {
 	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) { return `[]`, nil }}
 	lookup := &fixedLookup{}
-	w := NewWorker(disco, lookup, func(string, string, []integration.Config) {}, Config{})
+	w := NewWorker(disco, lookup, func(string, string, []integration.Config) {}, Config{}, nil)
 	w.Start()
 	w.Stop()
 	w.Stop() // second Stop must be safe

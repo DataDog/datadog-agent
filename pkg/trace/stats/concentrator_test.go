@@ -206,7 +206,7 @@ func TestConcentrator_PeerTagKeysFollowRegistry(t *testing.T) {
 	assert.Contains(t, originalKeys, "peer.service", "embedded registry maps peer.service concept")
 
 	// Install a registry with a different Version() and a remapped peer.service concept.
-	customJSON := `{"version":"test-custom-1","concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test-custom-1","metadata":{"content_hash":"hash-a"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
 	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 	semantics.UpdateRegistry(custom)
@@ -890,10 +890,10 @@ func TestPeerTags(t *testing.T) {
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 		c := NewTestConcentrator(now)
 		// Inject a peer-tag key set directly, keyed by the live registry's
-		// version so getPeerTagKeys returns it without rebuilding from conf.
+		// content hash so getPeerTagKeys returns it without rebuilding from conf.
 		c.peerTagsCache.Store(&config.PeerTagsCache{
-			Version: semantics.DefaultRegistry().Version(),
-			Keys:    []string{"db.instance", "db.system", "peer.service"},
+			ContentHash: semantics.DefaultRegistry().ContentHash(),
+			Keys:        []string{"db.instance", "db.system", "peer.service"},
 		})
 		c.addNow(testTrace, infraTags{})
 		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)

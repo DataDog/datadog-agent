@@ -65,6 +65,13 @@ dd_agent_go_test(
         "//pkg/gpu/safenvml",
         "@com_github_stretchr_testify//require",
     ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/gpu/testutil",
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/util/kernel",
+            "//pkg/util/safeelf",
+            "@com_github_prometheus_procfs//:procfs",
+        ],
         "@rules_go//go/platform:linux": [
             "//pkg/gpu/testutil",
             "//pkg/network/protocols/http/testutil",

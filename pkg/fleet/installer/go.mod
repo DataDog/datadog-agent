@@ -16,7 +16,7 @@ require (
 	github.com/google/go-containerregistry v0.21.7
 	github.com/google/uuid v1.6.0
 	github.com/itchyny/gojq v0.12.19
-	github.com/shirou/gopsutil/v4 v4.26.5
+	github.com/shirou/gopsutil/v4 v4.26.6
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.5.0
@@ -33,7 +33,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/docker/cli v29.6.0+incompatible // indirect
+	github.com/docker/cli v29.6.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -56,6 +56,7 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/tools v0.47.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )
 
@@ -93,8 +94,6 @@ replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../confi
 replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../config/structure
-
-replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../config/viperconfig
 
 replace github.com/DataDog/datadog-agent/pkg/fips => ../../fips
 
