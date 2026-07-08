@@ -218,6 +218,8 @@ func TestAdded_skipsGateway_whenClassIsEmptyOrUnsupported(t *testing.T) {
 	}{
 		{name: "empty class", gatewayClass: ""},
 		{name: "unsupported class", gatewayClass: "istio"},
+		{name: "multi-cluster class excluded from default allowlist", gatewayClass: "gke-l7-global-external-managed-mc"},
+		{name: "regional multi-cluster class excluded from default allowlist", gatewayClass: "gke-l7-regional-external-managed-mc"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

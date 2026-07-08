@@ -52,7 +52,7 @@ Currently supported proxy types:
 
 - GKE Gateway (ProxyTypeGKEGateway): Configures GCPTrafficExtension resources for external traffic routing
   - EXTERNAL mode only: Managed GKE has no in-cluster data plane; SIDECAR mode is not supported
-  - Auto-detects via GatewayClass with external-managed controllers (gke-l7-global-external-managed, gke-l7-regional-external-managed, and -mc variants)
+  - Auto-detects via GatewayClass with external-managed controllers (gke-l7-global-external-managed, gke-l7-regional-external-managed); multi-cluster -mc variants are excluded by default (they require a ServiceImport backendRef; follow-up)
   - Creates one GCPTrafficExtension (networking.gke.io/v1) per Gateway in the Gateway's own namespace
   - Callout Deployment/Service/HealthCheckPolicy are user-deployed per public GKE docs
 
@@ -427,12 +427,14 @@ of external-managed class names:
 
   - gke-l7-global-external-managed
   - gke-l7-regional-external-managed
-  - gke-l7-global-external-managed-mc
-  - gke-l7-regional-external-managed-mc
 
 Internal GKE GatewayClasses (e.g. gke-l7-rilb, gke-l7-regional-internal-managed) are intentionally
-excluded because they do not support GCPTrafficExtension-based callouts. The allowlist is
-overridable via the appsec.proxy.gke.gateway_classes configuration key.
+excluded because they do not support GCPTrafficExtension-based callouts. The multi-cluster variants
+(gke-l7-global-external-managed-mc, gke-l7-regional-external-managed-mc) are also intentionally
+excluded from the default allowlist: multi-cluster Gateways require the callout backendRef to be a
+ServiceImport (group net.gke.io), whereas this reconciler only emits a core Service backendRef.
+Multi-cluster (ServiceImport) support is a documented follow-up. The allowlist is overridable via
+the appsec.proxy.gke.gateway_classes configuration key.
 
 Gateway resources carrying the label appsec.datadoghq.com/enabled=false are skipped.
 

@@ -36,11 +36,18 @@ const (
 var (
 	_ appsecconfig.InjectionPattern = (*gkeGatewayInjectionPattern)(nil)
 
+	// supportedGatewayClasses is the built-in allowlist of external-managed,
+	// single-cluster GKE GatewayClasses. The multi-cluster variants
+	// (gke-l7-*-external-managed-mc) are intentionally excluded: multi-cluster
+	// Gateways require the callout backendRef to be a ServiceImport
+	// (group net.gke.io), whereas newGCPTrafficExtension only emits a core
+	// Service backendRef. Emitting a Service-kind extension for an -mc Gateway
+	// would fail to program the callout, so multi-cluster support is deferred to
+	// a follow-up. Users who know their -mc callout is reachable via a plain
+	// Service can still opt in via appsec.proxy.gke.gateway_classes.
 	supportedGatewayClasses = []string{
 		"gke-l7-global-external-managed",
 		"gke-l7-regional-external-managed",
-		"gke-l7-global-external-managed-mc",
-		"gke-l7-regional-external-managed-mc",
 	}
 
 	gkeServiceNamespaceInfoOnce sync.Once
