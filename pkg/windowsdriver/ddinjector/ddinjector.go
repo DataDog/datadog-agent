@@ -11,6 +11,7 @@ package ddinjector
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -22,9 +23,17 @@ import (
 const (
 	// ddInjectorDeviceName is the device name for the APM injector driver
 	ddInjectorDeviceName = `\\.\DDInjector`
-
-	countersVersion = 1
 )
+
+// maxKnownVersion is the highest counter contract version this agent knows how
+// to decode. Bump this (and add the corresponding gauges) when teaching the
+// agent about a new counter version.
+var maxKnownVersion = CountersVersion2
+
+// capabilitiesErrorLogged ensures the capabilities-query fallback is logged
+// only once (older drivers without the capabilities IOCTL would otherwise spam
+// the log on every collection).
+var capabilitiesErrorLogged atomic.Bool
 
 // InjectorCounters encapsulates ddinjector counters to be reported upstream.
 type InjectorCounters struct {
@@ -46,6 +55,14 @@ type InjectorCounters struct {
 	PeMemoryAllocationFailures           telemetry.SimpleGauge
 	PeInjectionContextAllocated          telemetry.SimpleGauge
 	PeInjectionContextCleanedup          telemetry.SimpleGauge
+
+	// v2 fields (crash / boot-recovery telemetry). Populated only when the
+	// driver negotiates counter version >= 2; otherwise they stay at 0.
+	CrashesDuringInjection          telemetry.SimpleGauge
+	CrashesPostInjection            telemetry.SimpleGauge
+	BootRecoveryCrashBootsDetected  telemetry.SimpleGauge
+	BootRecoveryDriverSelfDisabled  telemetry.SimpleGauge
+	BootRecoveryStabilityTimerFired telemetry.SimpleGauge
 }
 
 // Injector represents an opened instance to the ddinjector driver.
@@ -55,6 +72,7 @@ type Injector struct {
 
 // function pointers to swap out driver-specific calls to facilitate unit testing
 var doOpenDriverHandle = openDriverHandle
+var doQueryDriverCapabilities = queryDriverCapabilities
 var doQueryDriverCounters = queryDriverCounters
 
 // NewInjector opens a handle to ddinjector to allow subsequent queries.
@@ -66,37 +84,99 @@ func NewInjector() (*Injector, error) {
 	return &Injector{handle: h}, nil
 }
 
-// GetCounters queries the ddinjector current counters.
+// negotiateCounterVersion queries the driver capabilities and returns the
+// highest counter version both the agent and the driver understand.
+//
+// Older drivers do not implement the capabilities IOCTL; in that case we fall
+// back to V1 (the frozen baseline every driver supports) and log the first
+// occurrence only.
+func (inj *Injector) negotiateCounterVersion() uint32 {
+	driverMax, err := doQueryDriverCapabilities(inj.handle)
+	if err != nil {
+		if capabilitiesErrorLogged.CompareAndSwap(false, true) {
+			log.Warnf("ddinjector capabilities query failed, falling back to V1 counters (logging first error only): %v", err)
+		}
+		return CountersVersion1
+	}
+
+	negotiated := driverMax
+	if negotiated > maxKnownVersion {
+		negotiated = maxKnownVersion
+	}
+	if negotiated < CountersVersion1 {
+		negotiated = CountersVersion1
+	}
+	return negotiated
+}
+
+// GetCounters queries the ddinjector current counters, negotiating the counter
+// contract version with the driver and collecting whatever it supports.
 func (inj *Injector) GetCounters(counters *InjectorCounters) error {
-	request := DDInjectorCounterRequest{}
-	request.RequestedVersion = countersVersion
+	negotiated := inj.negotiateCounterVersion()
 
-	rawCounters := DDInjectorCountersV1{}
+	if negotiated >= CountersVersion2 {
+		raw := DDInjectorCountersV2{}
+		request := NewCounterRequest(negotiated)
 
-	err := doQueryDriverCounters(inj.handle, &request, &rawCounters)
+		bytesReturned, err := doQueryDriverCounters(inj.handle, &request, unsafe.Pointer(&raw), uint32(DDInjectorCountersV2Size))
+		if err != nil {
+			return fmt.Errorf("ddinjector DeviceIoControl failed: %w", err)
+		}
+		if bytesReturned < uint32(DDInjectorCountersV2Size) {
+			return fmt.Errorf("ddinjector returned %d bytes for V2 counters, expected at least %d", bytesReturned, DDInjectorCountersV2Size)
+		}
+
+		// The V1 counters occupy the head of the V2 struct, so reinterpret the
+		// buffer to populate the V1 gauges without depending on cgo nested-field
+		// naming.
+		populateV1Gauges(counters, (*DDInjectorCountersV1)(unsafe.Pointer(&raw)))
+		populateV2Gauges(counters, &raw)
+		return nil
+	}
+
+	raw := DDInjectorCountersV1{}
+	request := NewCounterRequest(CountersVersion1)
+
+	bytesReturned, err := doQueryDriverCounters(inj.handle, &request, unsafe.Pointer(&raw), uint32(DDInjectorCountersV1Size))
 	if err != nil {
 		return fmt.Errorf("ddinjector DeviceIoControl failed: %w", err)
 	}
+	if bytesReturned < uint32(DDInjectorCountersV1Size) {
+		return fmt.Errorf("ddinjector returned %d bytes for V1 counters, expected at least %d", bytesReturned, DDInjectorCountersV1Size)
+	}
 
-	counters.ProcessesAddedToInjectionTracker.Set(float64(rawCounters.ProcessesAddedToInjectionTracker))
-	counters.ProcessesRemovedFromInjectionTracker.Set(float64(rawCounters.ProcessesRemovedFromInjectionTracker))
-	counters.ProcessesSkippedSubsystem.Set(float64(rawCounters.ProcessesSkippedSubsystem))
-	counters.ProcessesSkippedContainer.Set(float64(rawCounters.ProcessesSkippedContainer))
-	counters.ProcessesSkippedProtected.Set(float64(rawCounters.ProcessesSkippedProtected))
-	counters.ProcessesSkippedSystem.Set(float64(rawCounters.ProcessesSkippedSystem))
-	counters.ProcessesSkippedExcluded.Set(float64(rawCounters.ProcessesSkippedExcluded))
-	counters.InjectionAttempts.Set(float64(rawCounters.InjectionAttempts))
-	counters.InjectionAttemptFailures.Set(float64(rawCounters.InjectionAttemptFailures))
-	counters.InjectionMaxTimeUs.Set(float64(rawCounters.InjectionMaxTimeUs))
-	counters.InjectionSuccesses.Set(float64(rawCounters.InjectionSuccesses))
-	counters.InjectionFailures.Set(float64(rawCounters.InjectionFailures))
-	counters.PeCachingFailures.Set(float64(rawCounters.PeCachingFailures))
-	counters.ImportDirectoryRestorationFailures.Set(float64(rawCounters.ImportDirectoryRestorationFailures))
-	counters.PeMemoryAllocationFailures.Set(float64(rawCounters.PeMemoryAllocationFailures))
-	counters.PeInjectionContextAllocated.Set(float64(rawCounters.PeInjectionContextAllocated))
-	counters.PeInjectionContextCleanedup.Set(float64(rawCounters.PeInjectionContextCleanedup))
-
+	populateV1Gauges(counters, &raw)
 	return nil
+}
+
+// populateV1Gauges sets the V1 counter gauges from a raw V1 counter struct.
+func populateV1Gauges(counters *InjectorCounters, raw *DDInjectorCountersV1) {
+	counters.ProcessesAddedToInjectionTracker.Set(float64(raw.ProcessesAddedToInjectionTracker))
+	counters.ProcessesRemovedFromInjectionTracker.Set(float64(raw.ProcessesRemovedFromInjectionTracker))
+	counters.ProcessesSkippedSubsystem.Set(float64(raw.ProcessesSkippedSubsystem))
+	counters.ProcessesSkippedContainer.Set(float64(raw.ProcessesSkippedContainer))
+	counters.ProcessesSkippedProtected.Set(float64(raw.ProcessesSkippedProtected))
+	counters.ProcessesSkippedSystem.Set(float64(raw.ProcessesSkippedSystem))
+	counters.ProcessesSkippedExcluded.Set(float64(raw.ProcessesSkippedExcluded))
+	counters.InjectionAttempts.Set(float64(raw.InjectionAttempts))
+	counters.InjectionAttemptFailures.Set(float64(raw.InjectionAttemptFailures))
+	counters.InjectionMaxTimeUs.Set(float64(raw.InjectionMaxTimeUs))
+	counters.InjectionSuccesses.Set(float64(raw.InjectionSuccesses))
+	counters.InjectionFailures.Set(float64(raw.InjectionFailures))
+	counters.PeCachingFailures.Set(float64(raw.PeCachingFailures))
+	counters.ImportDirectoryRestorationFailures.Set(float64(raw.ImportDirectoryRestorationFailures))
+	counters.PeMemoryAllocationFailures.Set(float64(raw.PeMemoryAllocationFailures))
+	counters.PeInjectionContextAllocated.Set(float64(raw.PeInjectionContextAllocated))
+	counters.PeInjectionContextCleanedup.Set(float64(raw.PeInjectionContextCleanedup))
+}
+
+// populateV2Gauges sets the V2 counter gauges from a raw V2 counter struct.
+func populateV2Gauges(counters *InjectorCounters, raw *DDInjectorCountersV2) {
+	counters.CrashesDuringInjection.Set(float64(raw.CrashesDuringInjection))
+	counters.CrashesPostInjection.Set(float64(raw.CrashesPostInjection))
+	counters.BootRecoveryCrashBootsDetected.Set(float64(raw.BootRecoveryCrashBootsDetected))
+	counters.BootRecoveryDriverSelfDisabled.Set(float64(raw.BootRecoveryDriverSelfDisabled))
+	counters.BootRecoveryStabilityTimerFired.Set(float64(raw.BootRecoveryStabilityTimerFired))
 }
 
 // Close closes the handle to ddinjector.
@@ -142,24 +222,59 @@ func openDriverHandle() (windows.Handle, error) {
 	return handle, nil
 }
 
-// queryDriverCounters calls DeviceIoControl on ddinjector to query raw counters.
-func queryDriverCounters(handle windows.Handle, request *DDInjectorCounterRequest, counters *DDInjectorCountersV1) error {
+// queryDriverCapabilities calls DeviceIoControl on ddinjector to query the
+// driver capabilities, returning the highest counter version the driver
+// supports.
+func queryDriverCapabilities(handle windows.Handle) (uint32, error) {
 	var bytesReturned uint32
 
 	if handle == windows.InvalidHandle || handle == 0 {
-		return errors.New("invalid handle to ddinjector, cannot query")
+		return 0, errors.New("invalid handle to ddinjector, cannot query capabilities")
+	}
+
+	caps := DDInjectorCapabilities{}
+
+	err := windows.DeviceIoControl(
+		handle,
+		GetCapabilitiesIOCTL,
+		nil,                            // no input buffer
+		0,                              // no input
+		(*byte)(unsafe.Pointer(&caps)), // output buffer
+		uint32(unsafe.Sizeof(caps)),    // output size
+		&bytesReturned,
+		nil, // not overlapped
+	)
+	if err != nil {
+		return 0, err
+	}
+	if bytesReturned < uint32(DDInjectorCapabilitiesSize) {
+		return 0, fmt.Errorf("ddinjector capabilities query returned %d bytes, expected at least %d", bytesReturned, DDInjectorCapabilitiesSize)
+	}
+
+	return uint32(caps.MaxSupportedCounterVersion), nil
+}
+
+// queryDriverCounters calls DeviceIoControl on ddinjector to query raw counters
+// of the requested version into the supplied buffer. It returns the number of
+// bytes the driver wrote so the caller can validate it against the expected
+// struct size before trusting the buffer contents.
+func queryDriverCounters(handle windows.Handle, request *DDInjectorCounterRequest, buffer unsafe.Pointer, bufferSize uint32) (uint32, error) {
+	var bytesReturned uint32
+
+	if handle == windows.InvalidHandle || handle == 0 {
+		return 0, errors.New("invalid handle to ddinjector, cannot query")
 	}
 
 	err := windows.DeviceIoControl(
 		handle,
 		GetCountersIOCTL,
-		(*byte)(unsafe.Pointer(request)),  // input buffer
-		uint32(unsafe.Sizeof(*request)),   // input size
-		(*byte)(unsafe.Pointer(counters)), // output buffer
-		uint32(unsafe.Sizeof(*counters)),  // output size
+		(*byte)(unsafe.Pointer(request)), // input buffer
+		uint32(unsafe.Sizeof(*request)),  // input size
+		(*byte)(buffer),                  // output buffer
+		bufferSize,                       // output size
 		&bytesReturned,
 		nil, // not overlapped
 	)
 
-	return err
+	return bytesReturned, err
 }
