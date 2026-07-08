@@ -8,6 +8,7 @@ package datasecurityimpl
 
 import (
 	"context"
+	"runtime"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -81,6 +82,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 // start subscribes to the DEBUG remote-config product, unless the component is
 // disabled via data_security.enabled (the default).
 func (c *component) start(_ context.Context) error {
+	if runtime.GOOS == "windows" {
+		// Shared-library checks used by datasecurity are not shipped on Windows.
+		// Avoid starting subscriptions/runs that would inevitably fail at runtime.
+		c.log.Warn("datasecurity is not supported on Windows; disabling")
+		return nil
+	}
 	if !c.enabled {
 		c.log.Info("datasecurity: data_security.enabled is false, not subscribing to remote-config")
 		return nil
