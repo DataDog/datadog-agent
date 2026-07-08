@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "calculator_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/verifier/calculator",
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/ebpf/verifier",
+        "@com_github_cilium_ebpf//rlimit",
+    ],
+)
+
+go_binary(
+    name = "calculator",
+    data = ["//pkg/ebpf/verifier:verifier_bpf_dir"],
+    embed = [":calculator_lib"],
+    env = {
+        "DD_SYSTEM_PROBE_BPF_DIR": "$(rootpath //pkg/ebpf/verifier:verifier_bpf_dir)",
+    },
+    gotags = ["linux_bpf"],
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)

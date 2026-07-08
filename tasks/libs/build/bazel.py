@@ -92,6 +92,19 @@ def bazel_not_found_message(color: str) -> str:
     return color_message("Please run `inv install-tools` for `bazel` support!", color)
 
 
+_PLATFORM_BY_KMT_ARCH = {
+    "x86_64": "//bazel/platforms:linux_x86_64",
+    "arm64": "//bazel/platforms:linux_arm64",
+}
+
+
+def bazel_platform_flags(arch) -> list[str]:
+    """Return --platforms flags to cross-compile for the given KMT arch, if supported."""
+    if arch.kmt_arch in _PLATFORM_BY_KMT_ARCH:
+        return [f"--platforms={_PLATFORM_BY_KMT_ARCH[arch.kmt_arch]}"]
+    return []
+
+
 def bazel(
     ctx: Context,
     *args: str,

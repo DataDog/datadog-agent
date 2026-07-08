@@ -30,6 +30,7 @@ ebpf_prog(
     src = "sleepable.c",
     core = True,
     extra_flags = _TEST_FLAGS,
+    visibility = ["//visibility:public"],
     deps = _COMMON_DEPS,
 )
 

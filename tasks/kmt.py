@@ -778,20 +778,10 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={"mode": "-m744"},
     )
 
-    verifier_files = glob("pkg/ebpf/verifier/*")
-    nw.build(
-        rule="gobin",
-        pool="gobuild",
-        inputs=[os.path.abspath("./pkg/ebpf/verifier/calculator/main.go")],
-        outputs=[os.fspath(kmt_paths.dependencies / "verifier-calculator")],
-        implicit=[os.path.abspath(f) for f in verifier_files],
-        variables={
-            "go": go_path,
-            "chdir": "true",
-            "env": env_str,
-            "tags": f"-tags=\"{','.join(get_sysprobe_test_buildtags(False, False))}\"",
-        },
-    )
+    if arch.is_cross_compiling():
+        build_verifier_calculator_ninja(nw, kmt_paths, go_path, env_str)
+    else:
+        build_verifier_calculator_bazel(ctx, kmt_paths)
 
 
 def ninja_copy_ebpf_files(
@@ -1055,6 +1045,41 @@ def build_object_files(ctx, arch: Arch):
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
     bazel(ctx, "test", *ebpf_bazel_flags(arch), "//pkg/ebpf:verify_generated_files")
+
+
+def build_verifier_calculator_bazel(ctx, kmt_paths: KMTPaths):
+    # Bazel builds this target natively only (no --platforms= cross-compilation
+    # support yet); callers must fall back to build_verifier_calculator_ninja
+    # when cross-compiling for a KMT VM of a different arch than the host.
+    info("[+] Building verifier calculator via Bazel...")
+    bazel(ctx, "build", "//pkg/ebpf/verifier/calculator")
+    execroot = bazel(ctx, "info", "execution_root", capture_output=True).strip()
+    # cquery resolves the actual output path, accounting for the gotags-driven
+    # self-transition on this target; "bazel info bazel-bin" does not.
+    rel_path = bazel(ctx, "cquery", "--output=files", "//pkg/ebpf/verifier/calculator", capture_output=True).strip()
+    dest = kmt_paths.dependencies / "verifier-calculator"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(os.path.join(execroot, rel_path), dest)
+    os.chmod(dest, 0o755)
+
+
+def build_verifier_calculator_ninja(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str, env_str: str):
+    # Cross-compilation fallback: `go build` cross-compiles cleanly via the
+    # GOARCH/CC/CXX vars already baked into env_str, unlike the Bazel path above.
+    verifier_files = glob("pkg/ebpf/verifier/*")
+    nw.build(
+        rule="gobin",
+        pool="gobuild",
+        inputs=[os.path.abspath("./pkg/ebpf/verifier/calculator/main.go")],
+        outputs=[os.fspath(kmt_paths.dependencies / "verifier-calculator")],
+        implicit=[os.path.abspath(f) for f in verifier_files],
+        variables={
+            "go": go_path,
+            "chdir": "true",
+            "env": env_str,
+            "tags": f"-tags=\"{','.join(get_sysprobe_test_buildtags(False, False))}\"",
+        },
+    )
 
 
 def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:

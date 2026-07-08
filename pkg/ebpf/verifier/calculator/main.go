@@ -75,6 +75,12 @@ func main() {
 	if directory == "" {
 		log.Fatalf("DD_SYSTEM_PROBE_BPF_DIR env var not set")
 	}
+	// filepath.WalkDir does not descend into its root argument if that root
+	// itself is a symlink (e.g. a Bazel data dependency's runfiles entry).
+	directory, err = filepath.EvalSymlinks(directory)
+	if err != nil {
+		log.Fatalf("failed to resolve %s: %v", directory, err)
+	}
 	hasAbsPaths := false
 	for _, f := range filterFiles {
 		if filepath.IsAbs(f) {
