@@ -20,6 +20,7 @@ from tasks import (
     claude,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    code_review,
     collector,
     components,
     coverage,
@@ -208,6 +209,7 @@ ns.add_collection(agent_ci_api)
 ns.add_collection(ai_sandbox)
 ns.add_collection(buildimages)
 ns.add_collection(claude)
+ns.add_collection(code_review)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
