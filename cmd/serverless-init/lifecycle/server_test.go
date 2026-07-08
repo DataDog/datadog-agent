@@ -12,7 +12,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -578,4 +580,282 @@ func TestServerStop_AlsoStopsHeartbeat(t *testing.T) {
 	require.NoError(t, srv.Stop(ctx))
 
 	assert.False(t, started(), "Server.Stop must also stop the heartbeat")
+}
+
+// ---------------------------------------------------------------------------
+// Log tag setter tests
+// ---------------------------------------------------------------------------
+
+// mockLogsTagSetter records every SetLogsTags call for assertions.
+type mockLogsTagSetter struct {
+	mu    sync.Mutex
+	calls [][]string
+}
+
+func (m *mockLogsTagSetter) SetLogsTags(tags []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, slices.Clone(tags))
+}
+
+func (m *mockLogsTagSetter) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.calls)
+}
+
+func (m *mockLogsTagSetter) lastCall() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.calls) == 0 {
+		return nil
+	}
+	return slices.Clone(m.calls[len(m.calls)-1])
+}
+
+func (m *mockLogsTagSetter) allCalls() [][]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([][]string, len(m.calls))
+	for i, c := range m.calls {
+		out[i] = slices.Clone(c)
+	}
+	return out
+}
+
+// TestLogsTagSetterFunc_CallsWrappedFunction verifies that LogsTagSetterFunc
+// delegates to the underlying function when SetLogsTags is called.
+func TestLogsTagSetterFunc_CallsWrappedFunction(t *testing.T) {
+	var received []string
+	fn := LogsTagSetterFunc(func(tags []string) { received = tags })
+	fn.SetLogsTags([]string{"env:prod", "region:us-east-1"})
+	assert.Equal(t, []string{"env:prod", "region:us-east-1"}, received)
+}
+
+// TestSetLogsTagSetter_WiresFields verifies that SetLogsTagSetter stores both
+// the setter and the base-tag snapshot on the server.
+func TestSetLogsTagSetter_WiresFields(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockLogsTagSetter{}
+	baseTags := []string{"region:us-east-1"}
+	srv.SetLogsTagSetter(setter, baseTags)
+	assert.Equal(t, setter, srv.logsTagSetter)
+	assert.Equal(t, baseTags, srv.baseTags)
+}
+
+// TestHandleRun_UpdatesLogTagsWithMicroVMID is the primary feature test:
+// /run with a microvmId body calls SetLogsTags with baseTags + lambdaMicroVMID + id.
+func TestHandleRun_UpdatesLogTagsWithMicroVMID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockLogsTagSetter{}
+	srv.SetLogsTagSetter(setter, []string{"env:prod", "region:us-east-1"})
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+
+	require.Equal(t, 1, setter.callCount(), "SetLogsTags must be called exactly once on /run")
+	assert.Equal(t, []string{"env:prod", "region:us-east-1", lambdaMicroVMID + "vm-abc123"}, setter.lastCall())
+}
+
+// TestHandleRun_NoMicroVmID_DoesNotUpdateLogTags verifies that when the platform
+// sends /run with no microvmId, SetLogsTags is not called — the tag pipeline
+// should not be updated with an unknown value.
+func TestHandleRun_NoMicroVmID_DoesNotUpdateLogTags(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockLogsTagSetter{}
+	srv.SetLogsTagSetter(setter, []string{"env:prod"})
+
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
+
+	assert.Equal(t, 0, setter.callCount(), "SetLogsTags must not be called when microvmId is absent")
+}
+
+// TestHandleRun_NilLogsTagSetter_DoesNotPanic verifies nil-safety: a server
+// constructed without SetLogsTagSetter must not panic when /run fires.
+func TestHandleRun_NilLogsTagSetter_DoesNotPanic(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	// logsTagSetter is nil by default
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	assert.NotPanics(t, func() {
+		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+	})
+}
+
+// TestHandleRun_BaseTagsNotMutated verifies the safe-append contract: each
+// call to handleRun produces an independent slice and does not modify the
+// baseTags stored on the server. This guards against the naive
+// append(s.baseTags, ...) pattern which can corrupt baseTags when the slice
+// has spare capacity.
+func TestHandleRun_BaseTagsNotMutated(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockLogsTagSetter{}
+	baseTags := []string{"env:prod", "service:foo"}
+	originalBase := slices.Clone(baseTags)
+	srv.SetLogsTagSetter(setter, baseTags)
+
+	body1 := strings.NewReader(`{"microvmId":"vm-first"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body1))
+	assert.Equal(t, originalBase, baseTags, "handleRun must not mutate the baseTags slice")
+
+	// Simulate a second /run (e.g. resumed from snapshot with a new ID) to
+	// confirm each call produces an independent result.
+	body2 := strings.NewReader(`{"microvmId":"vm-second"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body2))
+
+	calls := setter.allCalls()
+	require.Len(t, calls, 2)
+	assert.Equal(t, []string{"env:prod", "service:foo", lambdaMicroVMID + "vm-first"}, calls[0])
+	assert.Equal(t, []string{"env:prod", "service:foo", lambdaMicroVMID + "vm-second"}, calls[1])
+}
+
+// TestHandleRun_EmptyBaseTags_AppendsMicroVMIDOnly verifies that when the
+// server is started with no base tags, the resulting tag slice contains only
+// the microvm_id tag (not an empty leading element).
+func TestHandleRun_EmptyBaseTags_AppendsMicroVMIDOnly(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockLogsTagSetter{}
+	srv.SetLogsTagSetter(setter, nil)
+
+	body := strings.NewReader(`{"microvmId":"vm-solo"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+
+	require.Equal(t, 1, setter.callCount())
+	assert.Equal(t, []string{lambdaMicroVMID + "vm-solo"}, setter.lastCall())
+}
+
+// ---------------------------------------------------------------------------
+// Trace tag setter tests
+// ---------------------------------------------------------------------------
+
+// mockTraceTagSetter records every SetTraceTags call for assertions.
+type mockTraceTagSetter struct {
+	mu    sync.Mutex
+	calls []map[string]string
+}
+
+func (m *mockTraceTagSetter) SetTraceTags(tags map[string]string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := make(map[string]string, len(tags))
+	for k, v := range tags {
+		cp[k] = v
+	}
+	m.calls = append(m.calls, cp)
+}
+
+func (m *mockTraceTagSetter) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.calls)
+}
+
+func (m *mockTraceTagSetter) lastCall() map[string]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.calls) == 0 {
+		return nil
+	}
+	return m.calls[len(m.calls)-1]
+}
+
+// TestTraceTagSetterFunc_CallsWrappedFunction verifies that TraceTagSetterFunc
+// delegates to the underlying function when SetTraceTags is called.
+func TestTraceTagSetterFunc_CallsWrappedFunction(t *testing.T) {
+	var received map[string]string
+	fn := TraceTagSetterFunc(func(tags map[string]string) { received = tags })
+	fn.SetTraceTags(map[string]string{"env": "prod"})
+	assert.Equal(t, map[string]string{"env": "prod"}, received)
+}
+
+// TestSetTraceTagSetter_WiresFields verifies that SetTraceTagSetter stores both
+// the setter and the base trace tag snapshot on the server.
+func TestSetTraceTagSetter_WiresFields(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockTraceTagSetter{}
+	base := map[string]string{"env": "prod", "region": "us-east-1"}
+	srv.SetTraceTagSetter(setter, base)
+	assert.Equal(t, setter, srv.traceTagSetter)
+	assert.Equal(t, base, srv.baseTraceTags)
+}
+
+// TestHandleRun_UpdatesTraceTagsWithMicroVMID is the primary feature test:
+// /run with a microvmId body calls SetTraceTags with baseTraceTags + lambda_microvm_id.
+func TestHandleRun_UpdatesTraceTagsWithMicroVMID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockTraceTagSetter{}
+	srv.SetTraceTagSetter(setter, map[string]string{"env": "prod", "region": "us-east-1"})
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+
+	require.Equal(t, 1, setter.callCount(), "SetTraceTags must be called exactly once on /run")
+	got := setter.lastCall()
+	assert.Equal(t, "vm-abc123", got["lambda_microvm_id"])
+	assert.Equal(t, "prod", got["env"])
+	assert.Equal(t, "us-east-1", got["region"])
+}
+
+// TestHandleRun_NoMicroVmID_DoesNotUpdateTraceTags verifies that when the
+// platform sends /run with no microvmId, SetTraceTags is not called.
+func TestHandleRun_NoMicroVmID_DoesNotUpdateTraceTags(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockTraceTagSetter{}
+	srv.SetTraceTagSetter(setter, map[string]string{"env": "prod"})
+
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
+
+	assert.Equal(t, 0, setter.callCount(), "SetTraceTags must not be called when microvmId is absent")
+}
+
+// TestHandleRun_NilTraceTagSetter_DoesNotPanic verifies nil-safety: a server
+// constructed without SetTraceTagSetter must not panic when /run fires.
+func TestHandleRun_NilTraceTagSetter_DoesNotPanic(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	assert.NotPanics(t, func() {
+		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+	})
+}
+
+// TestHandleRun_NilBaseTraceTags_DoesNotPanic verifies that a non-nil
+// traceTagSetter wired with a nil baseTraceTags map (the default when no
+// trace tags are configured, e.g. MakeTraceAgentTags passes through a nil
+// input unchanged) does not panic on /run. maps.Clone(nil) returns nil, so
+// writing the microvm_id tag into it would otherwise panic with "assignment
+// to entry in nil map".
+func TestHandleRun_NilBaseTraceTags_DoesNotPanic(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockTraceTagSetter{}
+	srv.SetTraceTagSetter(setter, nil)
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	assert.NotPanics(t, func() {
+		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+	})
+	assert.Equal(t, map[string]string{"lambda_microvm_id": "vm-abc123"}, setter.lastCall())
+}
+
+// TestHandleRun_BaseTraceTagsNotMutated verifies the safe-copy contract: each
+// /run call produces an independent map and does not modify baseTraceTags.
+func TestHandleRun_BaseTraceTagsNotMutated(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	setter := &mockTraceTagSetter{}
+	base := map[string]string{"env": "prod"}
+	srv.SetTraceTagSetter(setter, base)
+
+	body1 := strings.NewReader(`{"microvmId":"vm-first"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body1))
+
+	assert.Equal(t, map[string]string{"env": "prod"}, base, "handleRun must not mutate baseTraceTags")
+	assert.Equal(t, "vm-first", setter.lastCall()["lambda_microvm_id"])
+
+	// A second /run (e.g. resume from snapshot with new ID) must produce an
+	// independent result without leaking the first ID into baseTraceTags.
+	body2 := strings.NewReader(`{"microvmId":"vm-second"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body2))
+
+	assert.Equal(t, map[string]string{"env": "prod"}, base, "baseTraceTags must still be unmodified after second /run")
+	assert.Equal(t, "vm-second", setter.lastCall()["lambda_microvm_id"])
 }
