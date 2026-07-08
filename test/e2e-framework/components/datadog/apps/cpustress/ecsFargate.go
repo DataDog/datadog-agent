@@ -12,8 +12,8 @@ import (
 	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	ecsClient "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs"
-	classicECS "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ecs"
-	"github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/ecs"
+	classicECS "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ecs"
+	"github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 

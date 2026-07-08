@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "tags",
+    srcs = ["store.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags",
+    visibility = [
+        "//pkg/aggregator:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_aggregator_ckey//:__subpackages__",
+    ],
+    deps = [
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
+        "//pkg/aggregator/ckey",
+        "//pkg/tagset",
+        "//pkg/util/size",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+dd_agent_go_test(
+    name = "tags_test",
+    srcs = ["store_test.go"],
+    embed = [":tags"],
+    deps = [
+        "//pkg/aggregator/ckey",
+        "//pkg/tagset",
+        "@com_github_stretchr_testify//require",
+    ],
+)

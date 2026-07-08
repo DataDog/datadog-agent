@@ -36,6 +36,7 @@ const (
 //   - [WithHelmChartPath]
 //   - [WithHelmValues]
 //   - [WithNamespace]
+//   - [WithOpenShiftControlPlaneMonitoring]
 //   - [WithDeployWindows]
 //   - [WithFakeintake]
 //   - [WithoutLogsContainerCollectAll]
@@ -85,6 +86,11 @@ type Params struct {
 	WindowsImage bool
 	// TimeoutSeconds is the timeout for Helm operations in seconds (default: 300)
 	TimeoutSeconds int
+	// HelmChartVersion overrides the default Helm chart version for this installation.
+	// When empty, the framework default HelmVersion is used.
+	HelmChartVersion string
+	// OpenShiftControlPlaneMonitoring enables OpenShift control plane monitoring setup.
+	OpenShiftControlPlaneMonitoring bool
 }
 
 type Option = func(*Params) error
@@ -178,6 +184,15 @@ func WithHelmRepoURL(repoURL string) func(*Params) error {
 	}
 }
 
+// WithHelmChartVersion overrides the Helm chart version for this installation.
+// Use this to pin a specific chart version without changing the global framework default.
+func WithHelmChartVersion(version string) func(*Params) error {
+	return func(p *Params) error {
+		p.HelmChartVersion = version
+		return nil
+	}
+}
+
 // WithHelmChartPath specifies the remote chart name or local chart path to use for the agent installation.
 func WithHelmChartPath(chartPath string) func(*Params) error {
 	return func(p *Params) error {
@@ -191,6 +206,19 @@ func WithHelmChartPath(chartPath string) func(*Params) error {
 func WithHelmValues(values string) func(*Params) error {
 	return func(p *Params) error {
 		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(values))
+		return nil
+	}
+}
+
+// WithOpenShiftControlPlaneMonitoring configures OpenShift control plane monitoring.
+func WithOpenShiftControlPlaneMonitoring() func(*Params) error {
+	return func(p *Params) error {
+		p.OpenShiftControlPlaneMonitoring = true
+		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(`
+providers:
+  openshift:
+    controlPlaneMonitoring: true
+`))
 		return nil
 	}
 }

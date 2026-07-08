@@ -61,6 +61,8 @@ const (
 	MetricSourceDisk
 	MetricSourceNetwork
 	MetricSourceSnmp
+	MetricSourceCiscoSdwan
+	MetricSourceVersa
 	MetricSourceCloudFoundry
 	MetricSourceJenkins
 	MetricSourceGPU
@@ -341,6 +343,8 @@ const (
 	MetricSourceBattery
 	MetricSourcePinot
 	MetricSourceDellPowerFlex
+	MetricSourceHPEArubaEdgeConnect
+	MetricSourceNiFi
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -363,6 +367,7 @@ const (
 	MetricSourceOpenTelemetryCollectorNginxReceiver
 	MetricSourceOpenTelemetryCollectorNsxtReceiver
 	MetricSourceOpenTelemetryCollectorOracledbReceiver
+	MetricSourceOpenTelemetryCollectorPodmanReceiver
 	MetricSourceOpenTelemetryCollectorPostgresqlReceiver
 	MetricSourceOpenTelemetryCollectorPrometheusReceiver
 	MetricSourceOpenTelemetryCollectorRabbitmqReceiver
@@ -492,6 +497,10 @@ func (ms MetricSource) String() string {
 		return "network"
 	case MetricSourceSnmp:
 		return "snmp"
+	case MetricSourceCiscoSdwan:
+		return "cisco_sdwan"
+	case MetricSourceVersa:
+		return "versa"
 	case MetricSourceInternal:
 		return "internal"
 	case MetricSourceActiveDirectory:
@@ -1060,6 +1069,8 @@ func (ms MetricSource) String() string {
 		return "opentelemetry_collector_nsxtreceiver"
 	case MetricSourceOpenTelemetryCollectorOracledbReceiver:
 		return "opentelemetry_collector_oracledbreceiver"
+	case MetricSourceOpenTelemetryCollectorPodmanReceiver:
+		return "opentelemetry_collector_podmanreceiver"
 	case MetricSourceOpenTelemetryCollectorPostgresqlReceiver:
 		return "opentelemetry_collector_postgresqlreceiver"
 	case MetricSourceOpenTelemetryCollectorPrometheusReceiver:
@@ -1134,6 +1145,10 @@ func (ms MetricSource) String() string {
 		return "pinot"
 	case MetricSourceDellPowerFlex:
 		return "dell_powerflex"
+	case MetricSourceHPEArubaEdgeConnect:
+		return "hpe_aruba_edgeconnect"
+	case MetricSourceNiFi:
+		return "nifi"
 	default:
 		return "<unknown>"
 	}
@@ -1770,6 +1785,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOpenTelemetryCollectorNsxtReceiver
 	case "opentelemetry_collector_oracledbreceiver":
 		return MetricSourceOpenTelemetryCollectorOracledbReceiver
+	case "opentelemetry_collector_podmanreceiver":
+		return MetricSourceOpenTelemetryCollectorPodmanReceiver
 	case "opentelemetry_collector_postgresqlreceiver":
 		return MetricSourceOpenTelemetryCollectorPostgresqlReceiver
 	case "opentelemetry_collector_prometheusreceiver":
@@ -1824,6 +1841,14 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourcePinot
 	case "dell_powerflex":
 		return MetricSourceDellPowerFlex
+	case "hpe_aruba_edgeconnect":
+		return MetricSourceHPEArubaEdgeConnect
+	case "nifi":
+		return MetricSourceNiFi
+	case "cisco_sdwan":
+		return MetricSourceCiscoSdwan
+	case "versa":
+		return MetricSourceVersa
 	default:
 		return MetricSourceUnknown
 	}

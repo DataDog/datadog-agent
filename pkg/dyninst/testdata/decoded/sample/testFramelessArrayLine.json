@@ -26,9 +26,14 @@
             "lineNumber": 105
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 61
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 34
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -78,10 +83,6 @@
                       "value": "5"
                     }
                   ]
-                },
-                "~r0": {
-                  "type": "int",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -91,6 +92,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "[1, 2, 3, ...]"
+    "message": "[1, 2, 3, ...]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -40,7 +41,7 @@ const (
 // domainURLRegexp matches and captures known Datadog domains with optional protocol and trailing characters
 // Captures: protocol (optional), subdomain (ignored), regional prefix + base domain, trailing dot (optional)
 // Examples: https://agent.datad0g.com., http://metrics.us1.datadoghq.com, agent.ddog-gov.com
-var domainURLRegexp = regexp.MustCompile(`^(?:https?://)?[^./]+\.((?:[a-z]{2,}\d{1,2}\.)?)(?:(datadoghq|datad0g)\.(com|eu)|(ddog-gov\.(?:com|mil)))(\.)?\/?$`)
+var domainURLRegexp = regexp.MustCompile(`^(?:https?://)?[^./]+\.((?:[a-z]{2,}\d{1,2}\.)?)(?:(datadoghq|datad0g)\.(com|eu)|(ddog-gov\.com))(\.)?\/?$`)
 
 // getAPIDomain transforms intake/metrics endpoints (e.g., agent.datad0g.com) to API endpoints (e.g., app.datad0g.com)
 // for known Datadog domains. This ensures API operations use the correct subdomain.
@@ -112,7 +113,12 @@ func GetAPIKey(cfg pkgconfigmodel.Reader, delegatedAuthProof string) (*string, e
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		err = fmt.Errorf("failed to get API key: %s", resp.Status)
+		// Surface the server's JSON:API error detail (ex: the verified identity + "no identity
+		// mapping was found" guidance from the intake-key endpoint), which is otherwise only
+		// visible in Datadog's internal logs. We extract only the server-authored title/detail
+		// fields, never the raw body, so a successful-path token (200 only) or any unexpected
+		// content cannot leak into logs.
+		err = fmt.Errorf("failed to get API key: %s%s", resp.Status, errorDetail(tokenBytes))
 		return nil, err
 	}
 
@@ -137,6 +143,35 @@ type TokenData struct {
 // TokenAttributes represents the attributes field containing the API key
 type TokenAttributes struct {
 	APIKey string `json:"api_key"`
+}
+
+// errorDetail extracts the human-readable message(s) from a JSON:API error response body,
+// returning ": <detail>" for appending to an error. It surfaces only the server-authored
+// title/detail fields (never the raw body), so a successful-path token or any unexpected content
+// cannot leak into logs. Returns "" when the body is not a JSON:API error envelope.
+func errorDetail(body []byte) string {
+	var envelope struct {
+		Errors []struct {
+			Title  string `json:"title"`
+			Detail string `json:"detail"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return ""
+	}
+	var msgs []string
+	for _, e := range envelope.Errors {
+		switch {
+		case e.Detail != "":
+			msgs = append(msgs, e.Detail)
+		case e.Title != "":
+			msgs = append(msgs, e.Title)
+		}
+	}
+	if len(msgs) == 0 {
+		return ""
+	}
+	return ": " + strings.Join(msgs, "; ")
 }
 
 func parseResponse(tokenBytes []byte) (*string, error) {

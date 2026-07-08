@@ -42,19 +42,38 @@ func (l *StaticConfigListener) Stop() {
 }
 
 func (l *StaticConfigListener) createServices() {
-	for _, staticCheck := range []string{
-		"container_image",
-		"container_lifecycle",
-		"sbom",
-		"gpu",
+	// Each entry maps a config key (which controls enablement) to an autodiscovery
+	// identifier (which routes to a check via ad_identifiers). Nested config keys
+	// like gpu.nccl require an explicit AD identifier because dots are not
+	// conventional in AD names.
+	for _, entry := range []struct {
+		configKey    string
+		adIdentifier string
+	}{
+		{"container_image.enabled", "_container_image"},
+		{"container_lifecycle.enabled", "_container_lifecycle"},
+		{"sbom.enabled", "_sbom"},
+		{"gpu.enabled", "_gpu"},
+		{"gpu.nccl.enabled", "_gpu_nccl"},
 	} {
-		if enabled := pkgconfigsetup.Datadog().GetBool(staticCheck + ".enabled"); enabled {
-			l.newService <- &StaticConfigService{adIdentifier: "_" + staticCheck}
+		if enabled := pkgconfigsetup.Datadog().GetBool(entry.configKey); enabled {
+			l.newService <- &StaticConfigService{adIdentifier: entry.adIdentifier}
 		}
 	}
 
-	if enabled := pkgconfigsetup.SystemProbe().GetBool("discovery.enabled"); enabled {
-		l.newService <- &StaticConfigService{adIdentifier: "_discovery"}
+	// System-probe sourced toggles: these live in system-probe.yaml and enable
+	// checks that depend on a system-probe module being active.
+	for _, entry := range []struct {
+		configKey    string
+		adIdentifier string
+	}{
+		{"discovery.enabled", "_discovery"},
+		{"system_probe_config.enable_oom_kill", "_oom_kill"},
+		{"system_probe_config.enable_tcp_queue_length", "_tcp_queue_length"},
+	} {
+		if enabled := pkgconfigsetup.SystemProbe().GetBool(entry.configKey); enabled {
+			l.newService <- &StaticConfigService{adIdentifier: entry.adIdentifier}
+		}
 	}
 
 	// Infrastructure mode: emit a single service for the mode

@@ -26,9 +26,14 @@
             "lineNumber": 148
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 81
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -75,15 +80,10 @@
           }
         }
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{m: map[1: 1]} {error: not available: function has no body}"
+    "message": "{m: map[1: 1]} {error: @duration is only available at function return}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

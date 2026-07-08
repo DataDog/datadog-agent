@@ -415,6 +415,59 @@ func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 	s.T().Log("Got APM stats", stats)
 }
 
+// TestHeadBasedSamplingScaling validates that the Datadog connector scales APM
+// stats up by the W3C tracestate head-sampling weight.
+//
+// The accompanying config (config/sampling-head-based.yml) runs two connectors
+// over the same OTLP stream:
+//   - datadog/unsampled sees 100% of traffic (service "calendar-rest-go"), so
+//     its Hits are the ground-truth volume.
+//   - datadog/sampled sits behind a 50% proportional probabilistic_sampler that
+//     stamps an "ot=th:" tracestate; its service is renamed to
+//     "calendar-rest-go-sampled". It observes only the sampled subset and must
+//     recover the sampling weight from the tracestate to scale its Hits back up.
+//
+// With correct scaling the sampled connector's Hits approximate the unsampled
+// baseline (ratio ~1.0). Without scaling they would be roughly half (~0.5), so
+// the ratio band below both requires the fix and tolerates 50% sampling variance.
+func TestHeadBasedSamplingScaling(s OTelTestSuite) {
+	const sampledService = CalendarService + "-sampled"
+	s.T().Log("Waiting for head-based-sampling APM stats")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := s.Env().FakeIntake.Client().GetAPMStats()
+		require.NoError(c, err)
+		require.NotEmpty(c, stats)
+
+		var unsampledHits, sampledHits uint64
+		for _, payload := range stats {
+			for _, csp := range payload.StatsPayload.Stats {
+				for _, bucket := range csp.Stats {
+					for _, cgs := range bucket.Stats {
+						switch cgs.Service {
+						case CalendarService:
+							unsampledHits += cgs.Hits
+						case sampledService:
+							sampledHits += cgs.Hits
+						}
+					}
+				}
+			}
+		}
+		s.T().Logf("head-based sampling hits: unsampled=%d sampled=%d", unsampledHits, sampledHits)
+
+		// Require enough volume on both branches before comparing, so the ratio
+		// is not dominated by sampling variance at low counts.
+		require.Greater(c, unsampledHits, uint64(20), "not enough baseline volume yet")
+		require.Greater(c, sampledHits, uint64(20), "not enough sampled volume yet")
+
+		ratio := float64(sampledHits) / float64(unsampledHits)
+		assert.Greater(c, ratio, 0.65,
+			"sampled connector Hits should be scaled up to ~unsampled baseline (ratio %.2f); a ratio near 0.5 means the tracestate head-sampling weight was not applied", ratio)
+		assert.Less(c, ratio, 1.5,
+			"sampled connector Hits unexpectedly high (ratio %.2f)", ratio)
+	}, 5*time.Minute, 10*time.Second)
+}
+
 const (
 	originProductDatadogExporter     = 19
 	originServicePrometheusReceiver  = 238
@@ -439,17 +492,17 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 			assert.Equal(c, originServicePrometheusReceiver, int(origin.OriginService))
 		}
 
-		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("otelcol_datadog_trace_agent_trace_writer_spans")
+		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("datadog_trace_agent_trace_writer_spans")
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traceAgentMetrics)
-		for _, m := range otelcolMetrics {
+		for _, m := range traceAgentMetrics {
 			origin := m.Metadata.Origin
 			assert.Equal(c, originProductDatadogExporter, int(origin.OriginProduct))
 			assert.Equal(c, originServicePrometheusReceiver, int(origin.OriginService))
 		}
 	}, 2*time.Minute, 10*time.Second)
 	s.T().Log("Got otelcol_process_uptime", otelcolMetrics)
-	s.T().Log("Got otelcol_datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
+	s.T().Log("Got datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
 }
 
 // TestHostMetrics tests that expected host metrics are scraped
@@ -458,9 +511,9 @@ func TestHostMetrics(s OTelTestSuite) {
 	require.NoError(s.T(), err)
 	s.T().Log("Waiting for metrics")
 	expectedMetrics := []string{
-		"otel.system.cpu.load_average.15m",
-		"otel.system.cpu.load_average.5m",
-		"otel.system.memory.usage",
+		"system.cpu.load_average.15m",
+		"system.cpu.load_average.5m",
+		"system.memory.usage",
 	}
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		for _, m := range expectedMetrics {

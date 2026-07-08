@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "agent_failover.go",
+        "rcclient.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/core/settings/def",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/def",
+        "//comp/remote-config/rcclient/def",
+        "//comp/remote-config/rcclient/types",
+        "//pkg/config/model",
+        "//pkg/config/remote/client",
+        "//pkg/config/remote/data",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["rcclient_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/settings/def",
+        "//comp/core/settings/fx",
+        "//comp/core/settings/mock",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/remote-config/rcclient/def",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/remote/client",
+        "//pkg/config/setup",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

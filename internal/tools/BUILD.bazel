@@ -1,3 +1,4 @@
-# This module only pins tool dependencies via //go:build tools.
-# The tools tag pulls heavyweight external deps not in the Bazel graph.
+# Tools-only module (//go:build tools tracker for `go install` dependencies).
+# No Bazel targets are generated; the empty BUILD.bazel keeps bazelify_go_work
+# happy without compiling anything.
 # gazelle:ignore

@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "loclist",
+    srcs = [
+        "fix.go",
+        "locations.go",
+        "parse.go",
+        "reader.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/dwarf/dwarfutil",
+        "//pkg/dyninst/ir",
+    ],
+)
+
+go_test(
+    name = "loclist_test",
+    srcs = [
+        "fuzz_test.go",
+        "parse_test.go",
+    ],
+    embed = [":loclist"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)

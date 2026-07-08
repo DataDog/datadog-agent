@@ -21,12 +21,37 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
+
+func TestStatefulSetHandlers_BeforeCacheCheck(t *testing.T) {
+	resourceModel := &model.StatefulSet{}
+	resource := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-sts",
+			Namespace: "test-ns",
+		},
+	}
+
+	ctx := processorstest.NewProcessorContextBeforeCacheCheck("apps", "statefulsets")
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), resource.Namespace, resource.Name)),
+	)
+	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
+	handlers := NewStatefulSetHandlers(tagger)
+
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	assert.False(t, skip)
+	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
+}
 
 func TestStatefulSetHandlers_ExtractResource(t *testing.T) {
 	handlers := &StatefulSetHandlers{}
@@ -97,16 +122,16 @@ func TestStatefulSetHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*appsv1.StatefulSet)
 	assert.True(t, ok)
 	assert.Equal(t, "test-statefulset", resource1.Name)
-	assert.NotSame(t, statefulSet1, resource1) // Should be a copy
+	assert.Same(t, statefulSet1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*appsv1.StatefulSet)
 	assert.True(t, ok)
 	assert.Equal(t, "statefulset2", resource2.Name)
-	assert.NotSame(t, statefulSet2, resource2) // Should be a copy
+	assert.Same(t, statefulSet2, resource2) // ResourceList returns raw informer references
 }
 
 func TestStatefulSetHandlers_ResourceUID(t *testing.T) {
@@ -299,7 +324,7 @@ func TestStatefulSetProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process statefulsets
-	processor := processors.NewProcessor(&StatefulSetHandlers{})
+	processor := processors.NewProcessor(&StatefulSetHandlers{tagger: processorstest.NewEmptyFakeTagger()})
 	result, listed, processed := processor.Process(ctx, []*appsv1.StatefulSet{statefulSet1, statefulSet2})
 
 	assert.Equal(t, 2, listed)
@@ -426,4 +451,14 @@ func createTestStatefulSet() *appsv1.StatefulSet {
 			},
 		},
 	}
+}
+
+func TestStatefulSetHandlers_CloneResource(t *testing.T) {
+	handlers := &StatefulSetHandlers{}
+	original := createTestStatefulSet()
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*appsv1.StatefulSet)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

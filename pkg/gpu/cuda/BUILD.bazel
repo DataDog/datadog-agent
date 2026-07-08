@@ -1,0 +1,103 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "cuda",
+    srcs = [
+        "cubin.go",
+        "cubin_string.go",
+        "elf.go",
+        "env.go",
+        "fatbin.go",
+        "fatbin_string.go",
+        "kernel_cache.go",
+        "symbols.go",
+        "testutil.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu/cuda",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/gpu/safenvml",
+        "//pkg/util/safeelf",
+        "@com_github_pierrec_lz4_v4//:lz4",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/telemetry/def",
+            "//pkg/gpu/config/consts",
+            "//pkg/security/utils",
+            "//pkg/status/health",
+            "//pkg/util/log",
+            "@com_github_prometheus_procfs//:procfs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry/def",
+            "//pkg/gpu/config/consts",
+            "//pkg/security/utils",
+            "//pkg/status/health",
+            "//pkg/util/log",
+            "@com_github_prometheus_procfs//:procfs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "cuda_test",
+    srcs = [
+        "elf_test.go",
+        "env_test.go",
+        "fatbin_test.go",
+        "kernel_cache_test.go",
+        "symbols_test.go",
+    ],
+    data = [
+        "//pkg/gpu/cuda/testutil/testdata",
+        "//pkg/network/usm/testdata/site-packages/ddtrace:testdata",
+    ],
+    embed = [":cuda"],
+    deps = [
+        "//pkg/gpu/cuda/testutil",
+        "//pkg/gpu/safenvml",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/gpu/testutil",
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/util/kernel",
+            "//pkg/util/safeelf",
+            "@com_github_prometheus_procfs//:procfs",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/gpu/testutil",
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/util/kernel",
+            "//pkg/util/safeelf",
+            "@com_github_prometheus_procfs//:procfs",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_stringer(
+    name = "cubin_string",
+    src = "cubin.go",
+    linecomment = True,
+    output = "cubin_string.go",
+    types = [
+        "nvInfoAttr",
+        "nvInfoFormat",
+    ],
+)
+
+go_stringer(
+    name = "fatbin_string",
+    src = "fatbin.go",
+    linecomment = True,
+    output = "fatbin_string.go",
+    types = ["fatbinDataKind"],
+)

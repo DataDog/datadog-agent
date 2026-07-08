@@ -6,12 +6,16 @@
 package stats
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -362,8 +366,8 @@ func TestNewAggregation(t *testing.T) {
 	}
 }
 
-func TestSpanDerivedPrimaryTags(t *testing.T) {
-	spanDerivedPrimaryTagsHash := tagsFnvHash([]string{"customer_tier:premium", "datacenter:us-east-1"})
+func TestAdditionalMetricTags(t *testing.T) {
+	additionalMetricTagsHash := tagsFnvHash([]string{"customer_tier:premium", "datacenter:us-east-1"})
 	sc := &SpanConcentrator{}
 
 	span := &pb.Span{
@@ -379,13 +383,58 @@ func TestSpanDerivedPrimaryTags(t *testing.T) {
 	}
 	traceutil.SetMeasured(span, true)
 
-	spanDerivedPrimaryTags := []string{"datacenter", "customer_tier"}
-	statSpan, ok := sc.NewStatSpanFromPB(span, nil, spanDerivedPrimaryTags)
+	additionalMetricTagKeys := []string{"datacenter", "customer_tier"}
+	statSpan, ok := sc.NewStatSpanFromPB(span, nil, additionalMetricTagKeys)
 	assert.True(t, ok)
-	assert.Equal(t, []string{"datacenter:us-east-1", "customer_tier:premium"}, statSpan.matchingSpanDerivedPrimaryTags)
+	assert.Equal(t, []string{"datacenter:us-east-1", "customer_tier:premium"}, statSpan.matchingAdditionalMetricTags)
 
 	agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
-	assert.Equal(t, spanDerivedPrimaryTagsHash, agg.SpanDerivedPrimaryTagsHash)
+	assert.Equal(t, additionalMetricTagsHash, agg.AdditionalMetricTagsHash)
+}
+
+func TestAdditionalMetricTagsValueLengthCap(t *testing.T) {
+	sc := NewSpanConcentrator(&SpanConcentratorConfig{
+		BucketInterval: int64(time.Second),
+	}, time.Unix(0, 0))
+	maxLengthValue := strings.Repeat("a", additionalMetricTagValueMaxLength)
+	overLengthValue := strings.Repeat("b", additionalMetricTagValueMaxLength+1)
+
+	span := &pb.Span{
+		Service:  "checkout-service",
+		Name:     "checkout.process",
+		Resource: "POST /checkout/process",
+		Type:     "web",
+		Meta: map[string]string{
+			"customer_tier": overLengthValue,
+			"datacenter":    maxLengthValue,
+		},
+	}
+	traceutil.SetMeasured(span, true)
+
+	statSpan, ok := sc.NewStatSpanFromPB(span, nil, []string{"datacenter", "customer_tier"})
+	require.True(t, ok)
+	assert.Equal(t, []string{"datacenter:" + maxLengthValue, "customer_tier:tracer_blocked_value"}, statSpan.matchingAdditionalMetricTags)
+	assert.Equal(t, BlockCounts{LengthBlocks: 1}, sc.DrainBlockCounts())
+	assert.Equal(t, BlockCounts{}, sc.DrainBlockCounts())
+
+	agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
+	assert.Equal(t, tagsFnvHash([]string{"customer_tier:tracer_blocked_value", "datacenter:" + maxLengthValue}), agg.AdditionalMetricTagsHash)
+}
+
+func TestAdditionalMetricTagsValueLengthCapV1(t *testing.T) {
+	sc := NewSpanConcentrator(&SpanConcentratorConfig{
+		BucketInterval: int64(time.Second),
+	}, time.Unix(0, 0))
+	span := newTestInternalSpanV1()
+	span.SetFloat64Attribute("_dd.measured", 1)
+	span.SetStringAttribute("customer_tier", strings.Repeat("b", additionalMetricTagValueMaxLength+1))
+	span.SetStringAttribute("datacenter", "use1")
+
+	statSpan, ok := sc.NewStatSpanFromV1(span, nil, []string{"datacenter", "customer_tier"})
+	require.True(t, ok)
+	assert.Equal(t, []string{"datacenter:use1", "customer_tier:tracer_blocked_value"}, statSpan.matchingAdditionalMetricTags)
+	assert.Equal(t, BlockCounts{LengthBlocks: 1}, sc.DrainBlockCounts())
+	assert.Equal(t, BlockCounts{}, sc.DrainBlockCounts())
 }
 
 func TestPeerTagsToAggregateForSpan(t *testing.T) {
@@ -439,4 +488,21 @@ func TestIsRootSpan(t *testing.T) {
 		agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
 		assert.Equal(t, tt.isTraceRoot, agg.IsTraceRoot)
 	}
+}
+
+func TestGetStatusCodeUsesLiveRegistry(t *testing.T) {
+	// A registry where http.status_code only maps to "x.custom.status", not the standard key.
+	customJSON := `{"version":"test","metadata":{"content_hash":"hash-a"},"concepts":{"http.status_code":{"canonical":"http.status_code","fallbacks":[{"name":"x.custom.status","provider":"datadog","type":"string"}]}}}`
+	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
+	require.NoError(t, err)
+	original, err := semantics.NewEmbeddedRegistry()
+	require.NoError(t, err)
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	semantics.UpdateRegistry(custom)
+
+	// Standard key should not resolve — custom registry remapped the concept.
+	assert.Equal(t, uint32(0), getStatusCode(map[string]string{"http.status_code": "200"}, nil))
+	// Custom key should resolve.
+	assert.Equal(t, uint32(404), getStatusCode(map[string]string{"x.custom.status": "404"}, nil))
 }

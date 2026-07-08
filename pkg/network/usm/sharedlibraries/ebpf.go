@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,6 +28,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -180,10 +182,9 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 	}
 
 	// Load perf handlers for all enabled libsets
+	perfOutputRedundant := false
 	for libset, handler := range e.libsets {
-		if !handler.enabled {
-			continue
-		}
+		// we cannot skip disabled handlers here, because we need all loaded eBPF programs to use ringbuffers if they are sleepable
 
 		mapName := string(libset) + "_" + sharedLibrariesPerfMap
 		mode := perf.UpgradePerfBuffers(perfBufferSize, dataChannelSize, perf.Watermark(1), ringBufferSize)
@@ -195,10 +196,15 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 			return fmt.Errorf("failed to create perf handler for map %s: %w", mapName, err)
 		}
 
+		perfOutputRedundant = true
 		managerMods = append(managerMods, perfHandler)
 	}
 
-	e.initializeProbes()
+	sleepableIDs, err := e.initializeProbes()
+	if err != nil {
+		return err
+	}
+
 	for _, identifier := range e.enabledProbes {
 		probe := &manager.Probe{
 			ProbeIdentificationPair: identifier,
@@ -206,6 +212,11 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 		}
 		mgr.Probes = append(mgr.Probes, probe)
 	}
+
+	managerMods = append(managerMods, &modifiers.SleepableProgramModifier{
+		ProbeIDs:             sleepableIDs,
+		PatchPerfEventOutput: perfOutputRedundant,
+	})
 
 	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", managerMods...)
 
@@ -543,16 +554,34 @@ func fexitSupported(funcName string) bool {
 }
 
 // initializedProbes initializes the probes that are enabled for the current system
-func (e *EbpfProgram) initializeProbes() {
+func (e *EbpfProgram) initializeProbes() ([]manager.ProbeIdentificationPair, error) {
 	openat2Supported := sysOpenAt2Supported()
 	isFexitSupported := fexitSupported("do_sys_openat2")
 
+	arch := "__x64_"
+	disabledArch := "__arm64_"
+	if strings.HasPrefix(runtime.GOARCH, "arm") {
+		arch = "__arm64_"
+		disabledArch = "__x64_"
+	}
+
 	// Tracing represents fentry/fexit probes.
-	tracingProbes := []manager.ProbeIdentificationPair{
-		{
-			EBPFFuncName: "do_sys_" + openat2SysCall + "_exit",
+	tracingProbes := []manager.ProbeIdentificationPair{}
+	disabledTracingProbes := []manager.ProbeIdentificationPair{}
+	for _, syscall := range []string{openat2SysCall, openatSysCall, openSysCall} {
+		disabledTracingProbes = append(disabledTracingProbes, manager.ProbeIdentificationPair{
+			EBPFFuncName: disabledArch + "sys_" + syscall + "_exit",
 			UID:          probeUID,
-		},
+		})
+
+		// open syscall is not present on arm64
+		if strings.HasPrefix(runtime.GOARCH, "arm") && syscall == openSysCall {
+			continue
+		}
+		tracingProbes = append(tracingProbes, manager.ProbeIdentificationPair{
+			EBPFFuncName: arch + "sys_" + syscall + "_exit",
+			UID:          probeUID,
+		})
 	}
 
 	openatProbes := []string{openatSysCall}
@@ -596,6 +625,7 @@ func (e *EbpfProgram) initializeProbes() {
 	e.disabledProbes = append(tracingProbes, tpProbes...)
 
 	kv, err := kernel.HostVersion()
+	var sleepableIDs []manager.ProbeIdentificationPair
 	if err != nil {
 		log.Warnf("Failed to get kernel version for shared library probes, using kprobe fallback: %v", err)
 	} else {
@@ -605,6 +635,16 @@ func (e *EbpfProgram) initializeProbes() {
 			// Kernel >= 5.6 with fexit support - use fexit probes (most efficient)
 			e.enabledProbes = tracingProbes
 			e.disabledProbes = append(tpProbes, kprobeProbes...)
+
+			// Only fentry/fexit/fmod_ret, lsm, iter, uprobe, and struct_ops programs can be sleepable
+			ok, err := modifiers.SleepableSyscallsSupported()
+			if err != nil {
+				log.Errorf("failed to check if sleepable syscalls are enabled: %v", err)
+			}
+			if ok {
+				sleepableIDs = slices.Clone(e.enabledProbes)
+			}
+
 			log.Infof("Using fexit probes for shared library monitoring (kernel %s)", kv)
 		} else if kv >= kv415 {
 			// Kernel >= 4.15 - use tracepoints (multiple attachment supported)
@@ -615,7 +655,12 @@ func (e *EbpfProgram) initializeProbes() {
 			// Kernel < 4.15 - keep kprobe fallback (no multiple tracepoint attachment)
 			log.Infof("Using kprobe fallback for shared library monitoring (kernel %s < 4.15)", kv)
 		}
+
 	}
+
+	e.disabledProbes = append(e.disabledProbes, disabledTracingProbes...)
+
+	return sleepableIDs, nil
 }
 
 func getAssetName(module string, debug bool) string {

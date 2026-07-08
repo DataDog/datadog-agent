@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "privateconnection",
+    srcs = [
+        "constants.go",
+        "convert.go",
+        "private_credentials.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/constants",
+        "//pkg/privateactionrunner/libs/connection",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions",
+    ],
+)

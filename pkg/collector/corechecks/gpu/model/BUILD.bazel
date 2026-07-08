@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "model",
+    srcs = [
+        "model.go",
+        "prm.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model",
+    visibility = ["//visibility:public"],
+)

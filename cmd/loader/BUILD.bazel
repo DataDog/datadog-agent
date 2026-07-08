@@ -1,0 +1,120 @@
+"""The trace loader."""
+
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_files",
+)
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+pkg_files(
+    name = "trace_loader",
+    srcs = select({
+        "//packages/agent:linux_default": [
+            "@trace_loader_binary//:trace_loader",
+        ],
+        "//packages/agent:linux_fips": [
+            "@trace_loader_binary//:trace_loader",
+        ],
+        # This shouldn't be needed in practice, but it is used by the systemd
+        # service, which is used when installing the deb manually.
+        "//packages/agent:linux_heroku": [
+            "main_noop.sh",
+        ],
+        "//conditions:default": [],
+    }),
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+    renames = select({
+        "//packages/agent:linux_heroku": {":main_noop.sh": "trace-loader"},
+        "//conditions:default": {},
+    }),
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+go_library(
+    name = "loader_lib",
+    srcs = [
+        "docs.go",
+        "main_nix.go",
+        "memory_darwin.go",
+        "memory_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/loader",
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/delegatedauth/noop-impl/types",
+            "//comp/core/log/def",
+            "//comp/core/secrets/noop-impl/types",
+            "//comp/otelcol/otlp/configcheck",
+            "//pkg/config/env",
+            "//pkg/config/model",
+            "//pkg/config/setup",
+            "//pkg/config/utils",
+            "//pkg/trace/api/loader",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/log",
+            "//pkg/util/log/setup",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/delegatedauth/noop-impl/types",
+            "//comp/core/log/def",
+            "//comp/core/secrets/noop-impl/types",
+            "//comp/otelcol/otlp/configcheck",
+            "//pkg/config/env",
+            "//pkg/config/model",
+            "//pkg/config/setup",
+            "//pkg/config/utils",
+            "//pkg/trace/api/loader",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/log",
+            "//pkg/util/log/setup",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/delegatedauth/noop-impl/types",
+            "//comp/core/log/def",
+            "//comp/core/secrets/noop-impl/types",
+            "//comp/otelcol/otlp/configcheck",
+            "//pkg/config/env",
+            "//pkg/config/model",
+            "//pkg/config/setup",
+            "//pkg/config/utils",
+            "//pkg/trace/api/loader",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/log",
+            "//pkg/util/log/setup",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/delegatedauth/noop-impl/types",
+            "//comp/core/log/def",
+            "//comp/core/secrets/noop-impl/types",
+            "//comp/otelcol/otlp/configcheck",
+            "//pkg/config/env",
+            "//pkg/config/model",
+            "//pkg/config/setup",
+            "//pkg/config/utils",
+            "//pkg/trace/api/loader",
+            "//pkg/util/defaultpaths",
+            "//pkg/util/log",
+            "//pkg/util/log/setup",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_binary(
+    name = "loader",
+    embed = [":loader_lib"],
+    gotags = ["linux_bpf"],  # keep
+    # keep
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)

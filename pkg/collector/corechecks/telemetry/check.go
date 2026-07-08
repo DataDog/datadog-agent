@@ -13,7 +13,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -35,8 +35,22 @@ type checkImpl struct {
 func (c *checkImpl) Run() error {
 	mfs, err := c.telemetry.Gather(true)
 	if err != nil {
+		log.Warnf("agent_telemetry check: failed to gather default telemetry metrics: %v", err)
 		return err
 	}
+
+	// Remote Agent Registry telemetry lives in the regular registry. Gather it on a best-effort basis so failures there
+	// do not prevent the customer-facing telemetry check from reporting Core Agent default telemetry values.
+	var regularMfs []*dto.MetricFamily
+	if gathered, err := c.telemetry.Gather(false); err != nil {
+		log.Warnf("failed to gather regular telemetry metrics for default telemetry merge: %v", err)
+	} else {
+		regularMfs = gathered
+	}
+
+	mergeLabelsByMetric := discoverMergeLabels(mfs, regularMfs)
+	mergedMetrics := collectMergeMetrics(mfs, false, mergeLabelsByMetric)
+	mergedMetrics.merge(collectMergeMetrics(regularMfs, true, mergeLabelsByMetric))
 
 	sender, err := c.GetSender()
 	if err != nil {
@@ -45,6 +59,7 @@ func (c *checkImpl) Run() error {
 
 	sender.SetNoIndex(true)
 
+	c.sendMergedMetrics(mergedMetrics, sender)
 	c.handleMetricFamilies(mfs, sender)
 
 	return nil
@@ -52,7 +67,9 @@ func (c *checkImpl) Run() error {
 
 func (c *checkImpl) handleMetricFamilies(mfs []*dto.MetricFamily, sender sender.Sender) {
 	for _, mf := range mfs {
-		if mf.Name == nil || mf.Type == nil || len(mf.Metric) == 0 {
+		// Merged metrics are emitted explicitly by sendMergedMetrics so overlapping regular-registry values can be included
+		// without changing customer-facing metric names or tags.
+		if mf == nil || mf.Name == nil || mf.Type == nil || len(mf.Metric) == 0 || isMergedMetric(mf.GetName()) {
 			continue
 		}
 

@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 )
 
 // Sender allows sending metrics from checks/a check
@@ -28,6 +29,7 @@ type Sender interface {
 	Historate(metric string, value float64, hostname string, tags []string)
 	Distribution(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string)
+	OpenmetricsBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	// GaugeWithTimestamp reports a new gauge value to the intake with the given timestamp.
 	// Gauge time series measure a simple value over time.
@@ -44,6 +46,8 @@ type Sender interface {
 	GetSenderStats() stats.SenderStats
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
+	// SetInfraTagger sets the Tagger that appends infra_mode tags to every metric sample.
+	SetInfraTagger(tagger *infratags.Tagger)
 	SetCheckService(service string)
 	SetNoIndex(noIndex bool)
 	FinalizeCheckServiceTag()
@@ -51,7 +55,6 @@ type Sender interface {
 	OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 type SenderManager interface {
 	GetSender(id checkid.ID) (Sender, error)
 	SetSender(Sender, checkid.ID) error

@@ -9,7 +9,9 @@
 package kfilters
 
 import (
+	"errors"
 	"path"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -35,16 +37,76 @@ const (
 	InUpperLayerApproverType = "in_upper_layer"
 )
 
+// Basename approver types — kept in sync with enum BASENAME_APPROVER_TYPE on the kernel side.
+const (
+	// leafBasename matches the event's own basename exactly.
+	leafBasename uint8 = iota
+	// leafBasenamePrefix matches the first patternPrefixSize bytes of the event's basename
+	// (used for wildcard rules whose leaf has a usable fixed prefix).
+	leafBasenamePrefix
+	// parentBasename matches the basename of the event's parent directory exactly
+	// (used for wildcard rules whose leaf has no usable prefix).
+	parentBasename
+)
+
+// basenameApprover is the userspace form of struct basename_t: a one-byte type tag followed by
+// a fixed-length, NUL-padded value. MarshalBinary produces a byte-for-byte match with the kernel
+// struct so it can be used as a map key.
+type basenameApprover struct {
+	kind  uint8
+	value string
+}
+
+// MarshalBinary serialises basenameApprover as `[type][value padded to BasenameFilterSize]`.
+func (ba *basenameApprover) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 1+BasenameFilterSize)
+	b[0] = ba.kind
+
+	n := BasenameFilterSize - 1 // leave room for trailing \0
+	if len(ba.value) < n {
+		n = len(ba.value)
+	}
+	copy(b[1:], ba.value[:n])
+
+	return b, nil
+}
+
 type kfiltersGetter func(approvers rules.Approvers) (KFilters, []eval.Field, error)
 
 // KFilterGetters var contains all the kfilter getters
 var KFilterGetters = make(map[eval.EventType]kfiltersGetter)
 
-func newBasenameKFilter(tableName string, eventType model.EventType, basename string) (kFilter, error) {
+func newBasenameKFilter(tableName string, eventType model.EventType, basename string, valueType eval.FieldValueType) (kFilter, error) {
+	basenameType := leafBasename
+
+	if valueType == eval.PatternValueType || valueType == eval.GlobValueType {
+		if strings.Contains(basename, "*") {
+			// Reduce to a fixed-length prefix so the kernel can match it with a single
+			// map lookup using the same shape built from the event basename.
+			// validateScalarPathFilter guarantees len(els[0]) >= patternPrefixSize, so
+			// the slice below is safe.
+			els := strings.Split(basename, "*")
+			if len(els[0]) < patternPrefixSize {
+				return nil, errors.New("unexpected pattern prefix size")
+			}
+			basenameType = leafBasenamePrefix
+			basename = els[0][:patternPrefixSize]
+		}
+	}
+
 	return &eventMaskKFilter{
 		approverType: BasenameApproverType,
 		tableName:    tableName,
-		tableKey:     ebpf.NewStringMapItem(basename, BasenameFilterSize),
+		tableKey:     &basenameApprover{kind: basenameType, value: basename},
+		eventMask:    uint64(1 << (eventType - 1)),
+	}, nil
+}
+
+func newParentBasenameKFilter(tableName string, eventType model.EventType, basename string) (kFilter, error) {
+	return &eventMaskKFilter{
+		approverType: BasenameApproverType,
+		tableName:    tableName,
+		tableKey:     &basenameApprover{kind: parentBasename, value: basename},
 		eventMask:    uint64(1 << (eventType - 1)),
 	}, nil
 }
@@ -59,9 +121,58 @@ func newInUpperLayerKFilter(tableName string, eventType model.EventType) (kFilte
 	}, nil
 }
 
-func newBasenameKFilters(tableName string, eventType model.EventType, basenames ...string) (approvers []kFilter, _ error) {
-	for _, basename := range basenames {
-		activeKFilter, err := newBasenameKFilter(tableName, eventType, basename)
+func newBasenameKFilters(tableName string, eventType model.EventType, fvs ...rules.FilterValue) (approvers []kFilter, _ error) {
+	for _, fv := range fvs {
+		value, ok := fv.Value.(string)
+		if !ok {
+			return nil, errors.New("wrong basename value type")
+		}
+		basename := path.Base(value)
+
+		activeKFilter, err := newBasenameKFilter(tableName, eventType, basename, fv.Type)
+		if err != nil {
+			return nil, err
+		}
+		approvers = append(approvers, activeKFilter)
+	}
+	return approvers, nil
+}
+
+func newPathKFilters(tableName string, eventType model.EventType, fvs ...rules.FilterValue) (approvers []kFilter, _ error) {
+	for _, fv := range fvs {
+		value, ok := fv.Value.(string)
+		if !ok {
+			return nil, errors.New("wrong path value type")
+		}
+		basename := path.Base(value)
+
+		if fv.Type == eval.PatternValueType || fv.Type == eval.GlobValueType {
+			if strings.Contains(basename, "*") {
+				els := strings.Split(basename, "*")
+
+				// When the leaf's pre-'*' prefix is shorter than patternPrefixSize, the kernel
+				// prefix-match approver is too coarse to be useful (or impossible to build when
+				// the basename is just "*"). Fall back to approving on the parent directory
+				// basename instead, which the resolver looks up exactly.
+				if len(els[0]) < patternPrefixSize {
+					basename = path.Base(path.Dir(value))
+					// should have been validated by the capabilities but worth validating here again
+					if strings.Contains(basename, "*") {
+						return nil, errors.New("wildcard on parent basename is not supported")
+					}
+
+					activeKFilter, err := newParentBasenameKFilter(tableName, eventType, basename)
+					if err != nil {
+						return nil, err
+					}
+					approvers = append(approvers, activeKFilter)
+
+					continue
+				}
+			}
+		}
+
+		activeKFilter, err := newBasenameKFilter(tableName, eventType, basename, fv.Type)
 		if err != nil {
 			return nil, err
 		}
@@ -138,14 +249,6 @@ func getEnumsKFiltersWithIndex(tableName string, index uint32, enums ...uint64) 
 func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]kFilter, []eval.Field, error) {
 	var fieldHandled []eval.Field
 
-	stringValues := func(fvs rules.FilterValues) []string {
-		var values []string
-		for _, v := range fvs {
-			values = append(values, v.Value.(string))
-		}
-		return values
-	}
-
 	prefix := eventType.String()
 	if field != "" {
 		prefix += "." + field
@@ -155,21 +258,18 @@ func getBasenameKFilters(eventType model.EventType, field string, approvers rule
 	for field, values := range approvers {
 		switch field {
 		case prefix + model.NameSuffix:
-			activeKFilters, err := newBasenameKFilters(BasenameApproverKernelMapName, eventType, stringValues(values)...)
+			activeKFilters, err := newBasenameKFilters(BasenameApproverKernelMapName, eventType, values...)
 			if err != nil {
 				return nil, nil, err
 			}
 			kfilters = append(kfilters, activeKFilters...)
 			fieldHandled = append(fieldHandled, field)
 		case prefix + model.PathSuffix:
-			for _, value := range stringValues(values) {
-				basename := path.Base(value)
-				activeKFilter, err := newBasenameKFilter(BasenameApproverKernelMapName, eventType, basename)
-				if err != nil {
-					return nil, nil, err
-				}
-				kfilters = append(kfilters, activeKFilter)
+			activeKFilters, err := newPathKFilters(BasenameApproverKernelMapName, eventType, values...)
+			if err != nil {
+				return nil, nil, err
 			}
+			kfilters = append(kfilters, activeKFilters...)
 			fieldHandled = append(fieldHandled, field)
 		}
 	}
@@ -223,4 +323,5 @@ func init() {
 	KFilterGetters["connect"] = connectKFiltersGetter
 	KFilterGetters["prctl"] = prctlKFiltersGetter
 	KFilterGetters["setsockopt"] = setsockoptKFiltersGetter
+	KFilterGetters["socket"] = socketKFiltersGetter
 }

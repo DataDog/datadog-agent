@@ -1,6 +1,39 @@
+load("@bazel_lib//lib:expand_template.bzl", "expand_template")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_go//go:def.bzl", "go_library")
 
 # gazelle:go_stringer off
+
+[
+    expand_template(
+        name = "strip_go_build_windows_from_{}".format(src),
+        out = src,
+        substitutions = {"//go:build windows\n\n": ""},
+        template = "//pkg/security/secl/model:{}".format(src),
+    )
+    for src in [
+        "accessors_windows.go",
+        "field_handlers_windows.go",
+    ]
+]
+
+write_source_files(
+    name = "sync",
+    files = {
+        "accessors_helpers.go": "//pkg/security/secl/model:accessors_helpers.go",
+        "accessors_win.go": ":strip_go_build_windows_from_accessors_windows.go",
+        "args_envs.go": "//pkg/security/secl/model:args_envs.go",
+        "consts_common.go": "//pkg/security/secl/model:consts_common.go",
+        "consts_win.go": "//pkg/security/secl/model:consts_windows.go",
+        "events.go": "//pkg/security/secl/model:events.go",
+        "field_handlers_win.go": ":strip_go_build_windows_from_field_handlers_windows.go",
+        "iterator.go": "//pkg/security/secl/model:iterator.go",
+        "legacy_secl.go": "//pkg/security/secl/model:legacy_secl.go",
+        "model.go": "//pkg/security/secl/model:model.go",
+        "model_win.go": "//pkg/security/secl/model:model_windows.go",
+        "security_profile.go": "//pkg/security/secl/model:security_profile.go",
+    },
+)
 
 go_library(
     name = "model",
@@ -21,11 +54,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/seclwin/model",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/discovery/tracermetadata/model",
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/containerutils",
         "//pkg/security/secl/model/sharedconsts",
         "//pkg/security/secl/model/usersession",
         "//pkg/security/secl/model/utils",
-        "@com_github_datadog_datadog_agent_pkg_discovery_tracermetadata_model//:model",
     ],
 )

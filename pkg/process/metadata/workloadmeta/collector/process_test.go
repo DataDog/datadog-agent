@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -215,8 +215,8 @@ func TestEnabled(t *testing.T) {
 			setFlavor(t, tc.flavor)
 
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("process_config.process_collection.enabled", tc.processCollectionEnabled)
-			cfg.SetWithoutSource("language_detection.enabled", tc.remoteProcessCollectorEnabled)
+			cfg.SetInTest("process_config.process_collection.enabled", tc.processCollectionEnabled)
+			cfg.SetInTest("language_detection.enabled", tc.remoteProcessCollectorEnabled)
 
 			assert.Equal(t, tc.expectEnabled, Enabled(cfg))
 		})

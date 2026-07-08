@@ -1,0 +1,66 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "agenttelemetry.go",
+        "config.go",
+        "errortracking_sender.go",
+        "logs_payload.go",
+        "runner.go",
+        "sender.go",
+        "utils.go",
+    ],
+    embedsrcs = ["defaultProfiles.yaml"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/agenttelemetry/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/telemetry/def",
+        "//comp/def",
+        "//comp/logs/agent/config",
+        "//pkg/config/utils",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/util/hostinfo",
+        "//pkg/util/http",
+        "//pkg/util/log/errortracking",
+        "//pkg/util/log/setup",
+        "//pkg/util/scrubber",
+        "//pkg/version",
+        "@com_github_datadog_zstd//:zstd",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_robfig_cron_v3//:cron",
+        "@in_yaml_go_yaml_v2//:yaml",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = [
+        "agenttelemetry_test.go",
+        "errortracking_sender_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
+        "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "//pkg/util/fxutil",
+        "//pkg/util/jsonquery",
+        "//pkg/util/log/errortracking",
+        "@com_github_datadog_zstd//:zstd",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

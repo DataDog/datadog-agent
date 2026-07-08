@@ -1,0 +1,13 @@
+# Schema linter exception lists
+# ==============================
+# These lists baseline existing violations at the time the linter was introduced.
+# Remove entries as violations are fixed; do NOT add new entries without a good reason.
+
+# Array settings without an 'items' field.
+array_no_items:
+  - apm_config.instrumentation.targets
+  - cel_workload_exclude
+  - external_metrics_provider.endpoints
+  - metric_tag_filterlist
+  - logs_config.processing_rules
+  - dogstatsd_mapper_profiles

@@ -11,18 +11,20 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/exp/maps"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
@@ -651,6 +653,7 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 	if errors.As(err, &unknownErr) {
 		return ua.attachLimiter.ShouldLog()
 	}
+
 	return false
 }
 
@@ -786,7 +789,9 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) (e
 	if ua.handlesExecutables() || (ua.config.ExcludeTargets&ExcludeInternal) != 0 {
 		binPath, err = procInfo.Exe()
 		if err != nil {
-			if !errors.Is(err, os.ErrNotExist) {
+			// procfs can return ESRCH if the process exits while the kernel is
+			// resolving /proc/<pid>/exe, even after path lookup has found it.
+			if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ESRCH) {
 				return utils.NewUnknownAttachmentError(err)
 			}
 			return err
@@ -1089,7 +1094,7 @@ func (ua *UprobeAttacher) getLibrariesFromMapsFile(pid int) ([]string, error) {
 		}
 	}
 
-	return maps.Keys(libs), nil
+	return slices.Collect(maps.Keys(libs)), nil
 }
 
 func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
@@ -1099,12 +1104,13 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 	if err != nil {
 		return utils.NewUnknownAttachmentError(err)
 	}
+
 	for _, libpath := range libs {
 		err := ua.AttachLibrary(libpath, pid)
 
 		if err == nil {
 			successfulMatches = append(successfulMatches, libpath)
-		} else if !errors.Is(err, ErrNoMatchingRule) {
+		} else if !errors.Is(err, ErrNoMatchingRule) && !errors.Is(err, utils.ErrPathIsAlreadyRegistered) {
 			registerErrors = append(registerErrors, err)
 		}
 	}
@@ -1113,10 +1119,10 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 		if len(registerErrors) == 0 {
 			return nil // No libraries found to attach
 		}
-		return utils.NewUnknownAttachmentError(fmt.Errorf("no rules matched for pid %d, errors: %v", pid, registerErrors))
+		return fmt.Errorf("no rules matched for pid %d: %w", pid, errors.Join(registerErrors...))
 	}
 	if len(registerErrors) > 0 {
-		return utils.NewUnknownAttachmentError(fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %v", successfulMatches, pid, registerErrors))
+		return fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %w", successfulMatches, pid, errors.Join(registerErrors...))
 	}
 	return nil
 }

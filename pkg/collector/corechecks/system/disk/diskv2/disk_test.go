@@ -200,7 +200,7 @@ func (sc *signalClock) After(d time.Duration) <-chan time.Time {
 
 func configureCheck(t *testing.T, diskCheck check.Check, config, initConfig integration.Data) *mocksender.MockSender {
 	t.Helper()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	diskCheck.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test", "") //nolint:errcheck
 	m := mocksender.NewMockSenderWithSenderManager(diskCheck.ID(), senderManager)
 	m.SetupAcceptAll()
@@ -209,7 +209,7 @@ func configureCheck(t *testing.T, diskCheck check.Check, config, initConfig inte
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, []byte(`min_collection_interval: "string_value"`), nil, "test", "provider")
 
@@ -217,15 +217,13 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckIsConfigured_ThenErrorIsRetur
 }
 
 func TestGivenADiskCheckAndStoppedSender(t *testing.T) {
-	stoppedSenderError := errors.New("demultiplexer is stopped")
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.NewStoppedSenderManager()
 
 	diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "provider")
-	senderManager.Stop(false)
 	err := diskCheck.Run()
 
-	assert.Equal(t, stoppedSenderError, err)
+	assert.ErrorIs(t, err, mocksender.ErrStoppedSenderManager)
 }
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemCallReturnsErrorWithNoPartitions_ThenErrorIsReturned(t *testing.T) {
@@ -316,7 +314,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersSystemCallRe
 func TestGivenADiskCheckWithFileSystemGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	initConfig := integration.Data([]byte(`
 file_system_global_blacklist:
   - ext4
@@ -336,7 +334,7 @@ file_system_global_blacklist:
 func TestGivenADiskCheckWithDeviceGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	initConfig := integration.Data([]byte(`
 device_global_blacklist:
   - shm
@@ -356,7 +354,7 @@ device_global_blacklist:
 func TestGivenADiskCheckWithMountpointGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	initConfig := integration.Data([]byte(`
 mount_point_global_blacklist:
   - /dev/shm
@@ -376,7 +374,7 @@ mount_point_global_blacklist:
 func TestGivenADiskCheckWithFileSystemWhiteListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 file_system_whitelist:
   - ext4
@@ -396,7 +394,7 @@ file_system_whitelist:
 func TestGivenADiskCheckWithFileSystemBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 file_system_blacklist:
   - ext4
@@ -416,7 +414,7 @@ file_system_blacklist:
 func TestGivenADiskCheckWithDeviceWhiteListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 device_whitelist:
   - ext4
@@ -436,7 +434,7 @@ device_whitelist:
 func TestGivenADiskCheckWithDeviceBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 device_blacklist:
   - ext4
@@ -456,7 +454,7 @@ device_blacklist:
 func TestGivenADiskCheckWithMountPointWhiteListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 mount_point_whitelist:
   - ext4
@@ -476,7 +474,7 @@ mount_point_whitelist:
 func TestGivenADiskCheckWithMountPointBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 mount_point_blacklist:
   - ext4
@@ -496,7 +494,7 @@ mount_point_blacklist:
 func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 excluded_mountpoint_re:
   - ext4
@@ -516,7 +514,7 @@ excluded_mountpoint_re:
 func TestGivenADiskCheckWithExcludedFileSystemsConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 excluded_filesystems:
   - ext4
@@ -536,7 +534,7 @@ excluded_filesystems:
 func TestGivenADiskCheckWithExcludedDisksConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 excluded_disks:
   - ext4
@@ -556,7 +554,7 @@ excluded_disks:
 func TestGivenADiskCheckWithExcludedDisksReConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 excluded_disk_re:
   - ext4
@@ -636,7 +634,7 @@ device_exclude:
 func TestGivenADiskCheckWithDeviceGlobalExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	initConfig := integration.Data([]byte(`
 device_global_exclude:
   - /dev/sda(.*
@@ -754,7 +752,7 @@ excluded_disks:
 func TestGivenADiskCheckWithDeviceExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 device_exclude:
   - /dev/sda(.*
@@ -791,7 +789,7 @@ func TestGivenADiskCheckWithExcludedDiskReConfigured_WhenCheckRuns_ThenUsageMetr
 func TestGivenADiskCheckWithExcludedDiskReIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte("excluded_disk_re: /dev/sda(.*"))
 
 	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
@@ -802,7 +800,7 @@ func TestGivenADiskCheckWithExcludedDiskReIncorrectlyConfigured_WhenCheckIsConfi
 func TestGivenADiskCheckWithDeviceIncludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 device_include:
   - /dev/sda(.*
@@ -816,7 +814,7 @@ device_include:
 func TestGivenADiskCheckWithFileSystemGlobalExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	initConfig := integration.Data([]byte(`
 file_system_global_exclude:
   - tmp(.*
@@ -830,7 +828,7 @@ file_system_global_exclude:
 func TestGivenADiskCheckWithFileSystemExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 file_system_exclude:
   - tmp(.*
@@ -844,7 +842,7 @@ file_system_exclude:
 func TestGivenADiskCheckWithFileSystemIncludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 file_system_include:
   - ext(.*
@@ -901,7 +899,7 @@ func TestGivenADiskCheckWithMountPointGlobalExcludeNotConfigured_WhenCheckRuns_T
 func TestGivenADiskCheckWithMountPointGlobalExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	initConfig := integration.Data([]byte(`
 mount_point_global_exclude:
   - /dev/shm(.*
@@ -915,7 +913,7 @@ mount_point_global_exclude:
 func TestGivenADiskCheckWithMountPointExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 mount_point_exclude:
   - /dev/(.*
@@ -929,7 +927,7 @@ mount_point_exclude:
 func TestGivenADiskCheckWithExcludedMountPointReIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte("excluded_mountpoint_re: /dev/(.*"))
 
 	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
@@ -992,7 +990,7 @@ mount_point_whitelist:
 func TestGivenADiskCheckWithMountPointIncludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 mount_point_include:
   - /dev/(.*
@@ -1204,7 +1202,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotRe
 func TestGivenADiskCheckWithDeviceTagReIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 device_tag_re:
   /dev/sda.*: role:primary
@@ -1219,7 +1217,7 @@ device_tag_re:
 func TestGivenADiskCheckWithUseLsblkAndBlkidCacheFileConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte(`
 use_lsblk: true
 blkid_cache_file: /run/blkid/blkid.tab
@@ -1290,7 +1288,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 			}}, nil
 	}), testClock)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "")
 	m := mocksender.NewMockSenderWithSenderManager(diskCheck.ID(), senderManager)
@@ -1333,7 +1331,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionDiscoveryTimeout_ThenErro
 	defer close(unblock)
 
 	// Configure with a short timeout (1s) to keep the test fast.
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	config := integration.Data([]byte("timeout: 1"))
 	diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test", "")
 	m := mocksender.NewMockSenderWithSenderManager(diskCheck.ID(), senderManager)
@@ -1365,7 +1363,7 @@ func TestDiskCheckNonDefaultFlavor(t *testing.T) {
 			require.True(t, ok)
 			diskCheck := diskCheckFunc()
 
-			senderManager := mocksender.CreateDefaultDemultiplexer()
+			senderManager := mocksender.CreateDefaultDemultiplexer(t)
 			err := diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test", "")
 			require.NoError(t, err)
 		})
@@ -1476,7 +1474,7 @@ func TestGivenMultipleDiskInstances_WhenConfiguredWithDifferentTags_ThenEachInst
 	check1 := createDiskCheck(t)
 	check2 := createDiskCheck(t)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	config1 := integration.Data([]byte(`tags:
   - "poi.monitors:disk:wxe100gb"
@@ -1491,4 +1489,390 @@ func TestGivenMultipleDiskInstances_WhenConfiguredWithDifferentTags_ThenEachInst
 	assert.NotEqual(t, check1.ID(), check2.ID(),
 		"disk check instances with different configs must have unique IDs; "+
 			"shared IDs cause a shared sender, which leaks custom tags between instances")
+}
+
+func TestGivenADiskCheckWithDefaultConfiguration_WhenCheckRuns_ThenNoPhysicalDiskTagIsReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	m := configureCheck(t, diskCheck, nil, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.utilized", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.in_use", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.utilized", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.in_use", []string{"is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskDisabled_WhenCheckRuns_ThenNoPhysicalDiskTagIsReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	config := integration.Data([]byte(`
+tag_by_physical_storage: false
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.utilized", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.in_use", []string{"is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.utilized", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.in_use", []string{"is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenCheckRuns_ThenPhysicalDiskTagIsReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskCheck, "linux")
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.utilized", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.in_use", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.utilized", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.in_use", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.utilized", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.in_use", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:shm", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:shm", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.utilized", []string{"device:shm", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.in_use", []string{"device:shm", "is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckWithDefaultConfiguration_WhenCheckRuns_ThenNoDiskPhysicalMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	m := configureCheck(t, diskCheck, nil, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_utilized", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_in_use", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestGivenADiskCheckWithCollectPhysicalMetricsDisabled_WhenCheckRuns_ThenNoDiskPhysicalMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	config := integration.Data([]byte(`
+collect_physical_metrics: false
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_utilized", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.physical_in_use", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestGivenADiskCheckWithCollectPhysicalMetricsEnabled_WhenCheckRuns_ThenDiskPhysicalMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskCheck, "linux")
+	config := integration.Data([]byte(`
+collect_physical_metrics: true
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.physical_total", []string{"device:/dev/sda1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.physical_used", []string{"device:/dev/sda1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.physical_free", []string{"device:/dev/sda1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.physical_utilized", []string{"device:/dev/sda1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.physical_in_use", []string{"device:/dev/sda1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.physical_total", []string{"device:/dev/sda2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.physical_used", []string{"device:/dev/sda2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.physical_free", []string{"device:/dev/sda2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.physical_utilized", []string{"device:/dev/sda2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.physical_in_use", []string{"device:/dev/sda2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.physical_total", []string{"device:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.physical_total", []string{"device:shm"})
+}
+
+func TestGivenADiskCheckWithIncludeAllDevicesDisabled_WhenCheckRuns_ThenOnlyPhysicalPartitionsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskCheck, "linux")
+	config := integration.Data([]byte(`
+include_all_devices: false
+tag_by_physical_storage: true
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm"})
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenAllPartitionsCallFailsCompletely_ThenOnlyPhysicalPartitionsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	callCount := 0
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskCheck, "linux")
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		callCount++
+		if all {
+			return nil, errors.New("error enumerating all partitions")
+		}
+		return partitionsFalse, nil
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenNoPhysicalPartitionsExist_ThenNonPhysicalPartitionsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	nonPhysicalOnly := []gopsutil_disk.PartitionStat{
+		{Device: "tmpfs", Mountpoint: "/run", Fstype: "tmpfs", Opts: []string{"nosuid", "nodev", "relatime"}},
+		{Device: "shm", Mountpoint: "/dev/shm", Fstype: "tmpfs", Opts: []string{"ro", "nosuid", "nodev"}},
+	}
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskCheck, "linux")
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if all {
+			return nonPhysicalOnly, nil
+		}
+		return []gopsutil_disk.PartitionStat{}, nil
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenPhysicalPartitionsCallFailsCompletely_ThenCheckReturnsError(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskCheck, "linux")
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if !all {
+			return nil, errors.New("permission denied")
+		}
+		return partitionsTrue, nil
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "permission denied")
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenBothCallsYieldZeroPartitions_ThenCheckReturnsError(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskCheck, "linux")
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if all {
+			return nil, errors.New("all-partitions enumeration failed")
+		}
+		return []gopsutil_disk.PartitionStat{}, nil
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "all-partitions enumeration failed")
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenPhysicalPartitionsCallReturnsPartialResults_ThenUnclassifiedPartitionsHaveNoPhysicalTag(t *testing.T) {
+	setupDefaultMocks()
+	partialPhysical := []gopsutil_disk.PartitionStat{
+		{Device: "/dev/sda1", Mountpoint: "/", Fstype: "ext4", Opts: []string{"rw", "relatime"}},
+	}
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithGOOS(diskCheck, "linux")
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if all {
+			return partitionsTrue, nil
+		}
+		return partialPhysical, errors.New("partial enumeration failure")
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "is_physical_storage:false"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "is_physical_storage:true"})
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenBindMountExistsForPhysicalDevice_ThenBindMountIsClassifiedAsPhysical(t *testing.T) {
+	setupDefaultMocks()
+	bindPartitionsAll := []gopsutil_disk.PartitionStat{
+		{Device: "/dev/sda1", Mountpoint: "/", Fstype: "ext4", Opts: []string{"rw"}},
+		{Device: "/dev/sda2", Mountpoint: "/home", Fstype: "ext4", Opts: []string{"rw"}},
+		{Device: "/dev/sda1", Mountpoint: "/mnt/bind", Fstype: "ext4", Opts: []string{"rw", "bind"}},
+		{Device: "tmpfs", Mountpoint: "/run", Fstype: "tmpfs", Opts: []string{"nosuid"}},
+	}
+	bindPartitionsPhysical := []gopsutil_disk.PartitionStat{
+		{Device: "/dev/sda1", Mountpoint: "/", Fstype: "ext4", Opts: []string{"rw"}},
+		{Device: "/dev/sda2", Mountpoint: "/home", Fstype: "ext4", Opts: []string{"rw"}},
+	}
+	bindUsage := map[string]*gopsutil_disk.UsageStat{
+		"/":         usageData["/"],
+		"/home":     usageData["/home"],
+		"/mnt/bind": {Path: "/mnt/bind", Fstype: "ext4", Total: 100000000000, Free: 30000000000, Used: 70000000000, UsedPercent: 70.0, InodesTotal: 1000000, InodesUsed: 500000, InodesFree: 500000, InodesUsedPercent: 50.0},
+		"/run":      usageData["/run"],
+	}
+
+	diskCheckOpt := diskv2.Factory()
+	diskCheckFunc, _ := diskCheckOpt.Get()
+	diskCheck := diskCheckFunc()
+	diskCheck = diskv2.WithGOOS(diskCheck, "linux")
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return ioCountersData, nil
+	}), func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return bindUsage[mountpoint], nil
+	}), func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if all {
+			return bindPartitionsAll, nil
+		}
+		return bindPartitionsPhysical, nil
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+use_mount: true
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/home", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/mnt/bind", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/run", "is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckWithTagByPhysicalDiskEnabled_WhenAllPartitionsCallReturnsPartialResults_ThenNonPhysicalPartitionsAreStillReported(t *testing.T) {
+	setupDefaultMocks()
+	partialAllPartitions := []gopsutil_disk.PartitionStat{
+		{Device: "/dev/sda1", Mountpoint: "/", Fstype: "ext4", Opts: []string{"rw"}},
+		{Device: "/dev/sda2", Mountpoint: "/home", Fstype: "ext4", Opts: []string{"rw"}},
+		{Device: "tmpfs", Mountpoint: "/run", Fstype: "tmpfs", Opts: []string{"nosuid"}},
+	}
+
+	diskCheckOpt := diskv2.Factory()
+	diskCheckFunc, _ := diskCheckOpt.Get()
+	diskCheck := diskCheckFunc()
+	diskCheck = diskv2.WithGOOS(diskCheck, "linux")
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return ioCountersData, nil
+	}), func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return usageData[mountpoint], nil
+	}), func(_ context.Context, all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if all {
+			return partialAllPartitions, errors.New("error enumerating some partitions")
+		}
+		return partitionsFalse, nil
+	})
+	config := integration.Data([]byte(`
+tag_by_physical_storage: true
+`))
+
+	m := configureCheck(t, diskCheck, config, nil)
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "is_physical_storage:false"})
+}
+
+func TestGivenADiskCheckOnNonLinux_WhenPhysicalClassificationEnabled_ThenClassificationIsSkipped(t *testing.T) {
+	for _, platform := range []string{"windows", "darwin"} {
+		t.Run(platform, func(t *testing.T) {
+			setupDefaultMocks()
+			diskCheck := createDiskCheck(t)
+			diskCheck = diskv2.WithGOOS(diskCheck, platform)
+			config := integration.Data([]byte(`
+tag_by_physical_storage: true
+collect_physical_metrics: true
+`))
+
+			m := configureCheck(t, diskCheck, config, nil)
+			err := diskCheck.Run()
+
+			assert.Nil(t, err)
+			m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:true"})
+			m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:false"})
+			m.AssertNotCalled(t, "Gauge", "system.disk.physical_total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+		})
+	}
 }

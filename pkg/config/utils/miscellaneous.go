@@ -70,16 +70,13 @@ func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.GetBool("remote_configuration.enabled")
 }
 
-var (
-	reFedSite = regexp.MustCompile(`(.+\.)?ddog-gov\.(com|mil)`)
-	reFedURL  = regexp.MustCompile(`https://.+\.ddog-gov\.(com|mil)`)
-)
-
 // IsFed returns true if the Agent is running in a gov environment
 func IsFed(cfg pkgconfigmodel.Reader) bool {
+	reSite := regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
+	reURL := regexp.MustCompile(`https://.+\.ddog-gov\.com`)
 	isFipsAgent, _ := pkgfips.Enabled()
 	return cfg.GetBool("fips.enabled") || isFipsAgent ||
-		reFedSite.MatchString(cfg.GetString("site")) || reFedURL.MatchString(cfg.GetString("dd_url"))
+		reSite.MatchString(cfg.GetString("site")) || reURL.MatchString(cfg.GetString("dd_url"))
 }
 
 // IsCloudProviderEnabled checks the cloud provider family provided in
@@ -103,11 +100,12 @@ func IsCloudProviderEnabled(cloudProviderName string, config pkgconfigmodel.Read
 	return false
 }
 
-// GetBindHost returns `bind_host` variable or default value
-// Not using `config.BindEnvAndSetDefault` as some processes need to know
-// if value was default one or not (e.g. trace-agent)
+// GetBindHost returns the `bind_host` value. Callers that need to distinguish
+// "user explicitly set bind_host" from "default applied" must check
+// `cfg.IsConfigured("bind_host")` directly (see trace-agent's containerized
+// auto-`0.0.0.0` logic).
 func GetBindHost(cfg pkgconfigmodel.Reader) string {
-	if cfg.IsSet("bind_host") {
+	if cfg.IsConfigured("bind_host") {
 		return cfg.GetString("bind_host")
 	}
 	return "localhost"

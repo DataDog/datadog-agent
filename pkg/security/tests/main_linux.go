@@ -74,6 +74,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestSpan",
 			"~TestChdir",
 			"~TestBindEvent",
+			"~TestSocketEvent",
 			"~TestAccept",
 			"~TestConnect",
 			"TestMountEvent",
@@ -82,6 +83,8 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestSetSockOpt",
 			"~TestSetrlimitEvent",
 			"TestPrCtl",
+			"TestCGroupVariables",
+			"TestTimestampVariable",
 		}
 
 		exclude := []string{
@@ -91,6 +94,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestOpen/truncate",
 			"TestOpen/ftruncate",
 			"TestOpen/io_uring",
+			"TestOpen/io_uring_ftruncate",
 			"TestProcessContext/inode",
 			"TestProcessContext/pid1",
 			"~TestProcessBusybox",
@@ -112,6 +116,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestProcessInterpreter",
 			"~TestConnectEventAFInetIOUring",
 			"TestAcceptEvent/accept-af-inet-any-tcp-success-sockaddrin-io-uring",
+			"TestSocketEvent/socket-af-inet-tcp-io-uring",
 			"TestOpenTree",
 			"TestMoveMount",
 			"TestMoveMountRecursiveNoPropagation",
@@ -119,6 +124,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestActionKillContainerWithSignature",
 			"TestActionKillContainerWithSignatureBroadRule",
 			"TestActionKillWithSignature",
+			"TestCGroupVariablesReleased",
 		}
 
 		if disableSeccomp {

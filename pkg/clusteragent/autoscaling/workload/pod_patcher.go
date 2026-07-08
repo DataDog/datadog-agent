@@ -89,14 +89,26 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		return patched, nil
 	}
 
-	// Patching the pod with the recommendations
-	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues().Vertical.ResourcesHash {
-		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues().Vertical.ResourcesHash
+	// Re-derive the burstable/constraint transformations here so they are applied consistently on
+	// every replica. The controller stamps the removeLimitSentinel only on the leader (and it is
+	// stripped from the DPA status), so a follower webhook would otherwise leave the CPU limit in
+	// place. Inputs come from the spec/annotations, available on all replicas; idempotent on the leader.
+	constrainedVertical := autoscaler.ScalingValues().Vertical.DeepCopy()
+	if _, err := applyVerticalConstraints(constrainedVertical, autoscaler.Spec().Constraints, autoscaler.IsBurstable()); err != nil {
+		log.Warnf("Autoscaler %s: failed to apply vertical constraints for POD %s/%s, not patching resources: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
+		return patched, nil
+	}
+
+	// Use the active scaling values hash (mirrored to the DPA status) so the annotation stays
+	// identical across replicas; not the recomputed constrained hash.
+	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
+	if pod.Annotations[model.RecommendationIDAnnotation] != effectiveRecommendationID {
+		pod.Annotations[model.RecommendationIDAnnotation] = effectiveRecommendationID
 		patched = true
 	}
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
-	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
+	for _, reco := range constrainedVertical.ContainerResources {
 		patched = patchPod(reco, pod) || patched
 	}
 
@@ -233,15 +245,22 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 	if cont.Resources.Requests == nil {
 		cont.Resources.Requests = corev1.ResourceList{}
 	}
-	for resource, limit := range reco.Limits {
-		if limit != cont.Resources.Limits[resource] {
-			cont.Resources.Limits[resource] = limit
+	for resourceName, limit := range reco.Limits {
+		if limit.Cmp(removeLimitSentinel) == 0 {
+			// Sentinel: applyVerticalConstraints signalled that this limit must be actively
+			// removed from the pod (e.g. CPURequestsRemoveLimitsMemoryRequestsAndLimits).
+			if _, exists := cont.Resources.Limits[resourceName]; exists {
+				delete(cont.Resources.Limits, resourceName)
+				patched = true
+			}
+		} else if limit.Cmp(cont.Resources.Limits[resourceName]) != 0 {
+			cont.Resources.Limits[resourceName] = limit
 			patched = true
 		}
 	}
-	for resource, request := range reco.Requests {
-		if request != cont.Resources.Requests[resource] {
-			cont.Resources.Requests[resource] = request
+	for resourceName, request := range reco.Requests {
+		if request.Cmp(cont.Resources.Requests[resourceName]) != 0 {
+			cont.Resources.Requests[resourceName] = request
 			patched = true
 		}
 	}

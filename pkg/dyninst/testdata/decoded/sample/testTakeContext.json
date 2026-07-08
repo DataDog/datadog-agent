@@ -1,0 +1,94 @@
+[
+  {
+    "service": "sample",
+    "dd.trace_id": "00000000000000000123456789abcdef",
+    "dd.span_id": "81985529216486895",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testTakeContext",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testTakeContext",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context.go",
+            "lineNumber": 24
+          },
+          {
+            "function": "main.executeContextFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context.go",
+            "lineNumber": 32
+          },
+          {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 84
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 39
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testTakeContext",
+          "location": {
+            "method": "main.testTakeContext"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "ctx": {
+                "type": "context.Context",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "span_id"
+                    },
+                    {
+                      "type": "uint64",
+                      "value": "81985529216486895"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "trace_id"
+                    },
+                    {
+                      "type": "big.Int",
+                      "value": "81985529216486895"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

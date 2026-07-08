@@ -8,62 +8,45 @@
 package docker
 
 import (
-	"context"
 	"testing"
 
-	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/api/types/system"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/api/types/system"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/util/docker/fake"
 )
 
-func TestGetTags(t *testing.T) {
+func TestBuildSwarmTags(t *testing.T) {
 	tests := []struct {
-		desc   string
-		client client.SystemAPIClient
-		tags   []string
+		desc string
+		info system.Info
+		tags []string
 	}{
 		{
 			"manager node with swarm active",
-			&fake.SystemAPIClient{
-				InfoFunc: func() (system.Info, error) {
-					return system.Info{
-						Swarm: swarm.Info{
-							LocalNodeState:   swarm.LocalNodeStateActive,
-							ControlAvailable: true,
-						},
-					}, nil
+			system.Info{
+				Swarm: swarm.Info{
+					LocalNodeState:   swarm.LocalNodeStateActive,
+					ControlAvailable: true,
 				},
 			},
 			[]string{"docker_swarm_node_role:manager"},
 		},
 		{
 			"worker node with swarm active",
-			&fake.SystemAPIClient{
-				InfoFunc: func() (system.Info, error) {
-					return system.Info{
-						Swarm: swarm.Info{
-							LocalNodeState:   swarm.LocalNodeStateActive,
-							ControlAvailable: false,
-						},
-					}, nil
+			system.Info{
+				Swarm: swarm.Info{
+					LocalNodeState:   swarm.LocalNodeStateActive,
+					ControlAvailable: false,
 				},
 			},
 			[]string{"docker_swarm_node_role:worker"},
 		},
 		{
 			"swarm inactive",
-			&fake.SystemAPIClient{
-				InfoFunc: func() (system.Info, error) {
-					return system.Info{
-						Swarm: swarm.Info{
-							LocalNodeState:   swarm.LocalNodeStatePending,
-							ControlAvailable: true,
-						},
-					}, nil
+			system.Info{
+				Swarm: swarm.Info{
+					LocalNodeState:   swarm.LocalNodeStatePending,
+					ControlAvailable: true,
 				},
 			},
 			[]string{},
@@ -71,10 +54,7 @@ func TestGetTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			ctx := context.TODO()
-			tags, err := getTags(ctx, tt.client)
-			require.NoError(t, err)
-			assert.Equal(t, tt.tags, tags)
+			assert.Equal(t, tt.tags, buildSwarmTags(tt.info))
 		})
 	}
 }

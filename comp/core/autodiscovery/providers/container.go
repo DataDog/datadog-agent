@@ -22,6 +22,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,16 +35,19 @@ type ContainerConfigProvider struct {
 	configCache       map[string]map[string]integration.Config // map[entity name]map[config digest]integration.Config
 	mu                sync.RWMutex
 	telemetryStore    *telemetry.Store
+
+	healthPlatform healthplatformdef.Component
 }
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	return &ContainerConfigProvider{
 		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),
 		configErrors:      make(map[string]types.ErrorMsgSet),
 		telemetryStore:    telemetryStore,
+		healthPlatform:    hp,
 	}, nil
 }
 
@@ -102,12 +106,14 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
-			configs, err := k.generateConfig(event.Entity)
+			configs, err, errorSource := k.generateConfig(event.Entity)
 
 			if err != nil {
 				k.configErrors[entityName] = err
+				reportConfigurationError(k.healthPlatform, entityName, err, errorSource)
 			} else {
 				delete(k.configErrors, entityName)
+				clearConfigurationErrors(k.healthPlatform, entityName)
 			}
 
 			configCache, ok := k.configCache[entityName]
@@ -145,6 +151,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 				changes.UnscheduleConfig(oldConfig)
 			}
 
+			clearConfigurationErrors(k.healthPlatform, entityName)
 			delete(k.configCache, entityName)
 			delete(k.configErrors, entityName)
 
@@ -160,15 +167,17 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 	return changes
 }
 
-func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integration.Config, types.ErrorMsgSet) {
+func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integration.Config, types.ErrorMsgSet, types.ErrorSource) {
 	var (
-		errMsgSet types.ErrorMsgSet
-		errs      []error
-		configs   []integration.Config
+		errMsgSet   types.ErrorMsgSet
+		errs        []error
+		configs     []integration.Config
+		errorSource types.ErrorSource
 	)
 
 	switch entity := e.(type) {
 	case *workloadmeta.Container:
+		errorSource = types.ContainerLabelSource
 		// kubernetes containers need to be handled together with their
 		// pod, so they generate a single []integration.Config.
 		// otherwise, it's possible for a container that belongs to an
@@ -187,9 +196,23 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 		}
 
 	case *workloadmeta.KubernetesPod:
+		errorSource = types.PodAnnotationSource
 		containerIdentifiers := map[string]struct{}{}
 		containerNames := map[string]struct{}{}
 		for _, podContainer := range entity.GetAllContainers() {
+			// Register container name and identifier for annotation validation even if the container
+			// entity hasn't propagated to workloadmeta to avoid false positives when validating annotations.
+			//
+			// There may be a delay between a pod and container set event. However, we'd like
+			// to ensure that this delay does not affect annotation validation since it'll
+			// likely resolve almost immediately after when the container set WLM event comes through.
+			adIdentifier := podContainer.Name
+			if customADID, found := utils.ExtractCheckIDFromPodAnnotations(entity.Annotations, podContainer.Name); found {
+				adIdentifier = customADID
+			}
+			containerNames[podContainer.Name] = struct{}{}
+			containerIdentifiers[adIdentifier] = struct{}{}
+
 			container, err := k.workloadmetaStore.GetContainer(podContainer.ID)
 			if err != nil {
 				log.Debugf("Pod %q has reference to non-existing container %q", entity.Name, podContainer.ID)
@@ -204,11 +227,6 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 			c, errors = k.generateContainerConfig(container)
 			configs = append(configs, c...)
 			errs = append(errs, errors...)
-
-			adIdentifier := podContainer.Name
-			if customADID, found := utils.ExtractCheckIDFromPodAnnotations(entity.Annotations, podContainer.Name); found {
-				adIdentifier = customADID
-			}
 
 			containerEntity := containers.BuildEntityName(string(container.Runtime), container.ID)
 			c, errors = utils.ExtractTemplatesFromAnnotations(
@@ -235,9 +253,6 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 				}
 			}
 
-			containerIdentifiers[adIdentifier] = struct{}{}
-			containerNames[podContainer.Name] = struct{}{}
-
 			for idx := range c {
 				c[idx].Source = names.Container + ":" + containerEntity
 			}
@@ -261,7 +276,7 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 		}
 	}
 
-	return configs, errMsgSet
+	return configs, errMsgSet, errorSource
 }
 
 func (k *ContainerConfigProvider) generateContainerConfig(container *workloadmeta.Container) ([]integration.Config, []error) {

@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -44,76 +44,29 @@ func newTestComponentWithAC(t *testing.T, configs []integration.Config) *compone
 	return &component{
 		log:           logmock.New(t),
 		ac:            newMockAutodiscovery(t, configs),
-		activeConfigs: make(map[string]integration.Config),
+		activeConfigs: make(map[string]activeConfigEntry),
+		managedBases:  make(map[string]*managedBaseEntry),
 	}
 }
 
-func TestIsPostgresIntegration(t *testing.T) {
-	assert.True(t, isPostgresIntegration("postgres"))
-	assert.False(t, isPostgresIntegration("mysql"))
-	assert.False(t, isPostgresIntegration("redis"))
-	assert.False(t, isPostgresIntegration(""))
+func TestInstanceHasDOEnabled(t *testing.T) {
+	assert.False(t, instanceHasDOEnabled(map[string]any{}))
+	assert.False(t, instanceHasDOEnabled(map[string]any{"data_observability": "not-a-map"}))
+	assert.False(t, instanceHasDOEnabled(map[string]any{"data_observability": map[string]any{}}))
+	assert.False(t, instanceHasDOEnabled(map[string]any{"data_observability": map[string]any{"enabled": false}}))
+	assert.True(t, instanceHasDOEnabled(map[string]any{"data_observability": map[string]any{"enabled": true}}))
 }
 
-func TestMatchesDBName(t *testing.T) {
-	t.Run("empty RC dbname matches empty instance dbname", func(t *testing.T) {
-		instance := map[string]any{}
-		dbID := &DBIdentifier{DBName: ""}
-		assert.True(t, matchesDBName(instance, dbID))
-	})
+func TestMatchesIdentifier_HostOnly(t *testing.T) {
+	instance := map[string]any{"host": "localhost", "dbname": "production"}
 
-	t.Run("empty RC dbname does not match instance with dbname", func(t *testing.T) {
-		instance := map[string]any{"dbname": "mydb"}
-		dbID := &DBIdentifier{DBName: ""}
-		assert.False(t, matchesDBName(instance, dbID))
-	})
-
-	t.Run("empty instance dbname does not match specific RC dbname", func(t *testing.T) {
-		instance := map[string]any{}
-		dbID := &DBIdentifier{DBName: "mydb"}
-		assert.False(t, matchesDBName(instance, dbID))
-	})
-
-	t.Run("matching dbnames", func(t *testing.T) {
-		instance := map[string]any{"dbname": "mydb"}
-		dbID := &DBIdentifier{DBName: "mydb"}
-		assert.True(t, matchesDBName(instance, dbID))
-	})
-
-	t.Run("mismatching dbnames", func(t *testing.T) {
-		instance := map[string]any{"dbname": "otherdb"}
-		dbID := &DBIdentifier{DBName: "mydb"}
-		assert.False(t, matchesDBName(instance, dbID))
-	})
-}
-
-func TestMatchesIdentifier_SelfHosted(t *testing.T) {
-	instance := map[string]any{"host": "localhost"}
-	dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost"}
-	assert.True(t, matchesIdentifier(instance, dbID))
-
-	dbID = &DBIdentifier{Type: "self-hosted", Host: "otherhost"}
-	assert.False(t, matchesIdentifier(instance, dbID))
-}
-
-func TestMatchesIdentifier_SelfHosted_WithDBName(t *testing.T) {
-	instance := map[string]any{
-		"host":   "localhost",
-		"dbname": "production",
-	}
-
-	t.Run("matching dbname", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "production"}
+	t.Run("matching host", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost"}
 		assert.True(t, matchesIdentifier(instance, dbID))
 	})
 
-	t.Run("mismatching dbname", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "staging"}
-		assert.False(t, matchesIdentifier(instance, dbID))
-	})
-
-	t.Run("empty RC dbname does not match instance with dbname", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost"}
+	t.Run("mismatching host", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "self-hosted", Host: "otherhost"}
 		assert.False(t, matchesIdentifier(instance, dbID))
 	})
 }
@@ -127,69 +80,6 @@ func TestMatchesIdentifier_RDS(t *testing.T) {
 	assert.False(t, matchesIdentifier(instance, dbID))
 }
 
-func TestExtractDBAuthFromInstance(t *testing.T) {
-	instance := map[string]any{
-		"host":        "localhost",
-		"port":        5432,
-		"username":    "datadog",
-		"password":    "secret",
-		"dbname":      "testdb",
-		"ssl_mode":    "require",
-		"extra_field": "should_not_appear",
-	}
-	auth := extractDBAuthFromInstance(instance)
-
-	require.Equal(t, "localhost", auth["host"])
-	require.Equal(t, 5432, auth["port"])
-	require.Equal(t, "datadog", auth["username"])
-	require.Equal(t, "secret", auth["password"])
-	require.Equal(t, "testdb", auth["dbname"])
-	require.Equal(t, "require", auth["ssl_mode"])
-	_, ok := auth["extra_field"]
-	assert.False(t, ok, "extra_field should not be in allowlist output")
-}
-
-func TestExtractDBAuthFromInstance_NestedMap(t *testing.T) {
-	instance := map[string]any{
-		"host":     "mydb.rds.amazonaws.com",
-		"port":     5432,
-		"username": "datadog",
-		"password": "secret",
-		"aws": map[string]any{
-			"instance_endpoint": "my-rds-instance",
-			"region":            "us-east-1",
-		},
-	}
-	auth := extractDBAuthFromInstance(instance)
-
-	require.Equal(t, "mydb.rds.amazonaws.com", auth["host"])
-	awsMap, ok := auth["aws"].(map[string]any)
-	require.True(t, ok, "aws should be a map[string]any")
-	assert.Equal(t, "my-rds-instance", awsMap["instance_endpoint"])
-	assert.Equal(t, "us-east-1", awsMap["region"])
-}
-
-func TestDBCredentialAllowList_ExcludesReservedKeys(t *testing.T) {
-	instance := map[string]any{
-		"host":             "localhost",
-		"port":             5432,
-		"remote_config_id": "should-not-appear",
-		"db_type":          "should-not-appear",
-		"db_identifier":    "should-not-appear",
-		"queries":          []any{"should-not-appear"},
-	}
-	auth := extractDBAuthFromInstance(instance)
-
-	_, hasRemoteConfigID := auth["remote_config_id"]
-	assert.False(t, hasRemoteConfigID, "remote_config_id must not be in the allowlist")
-	_, hasDBType := auth["db_type"]
-	assert.False(t, hasDBType, "db_type must not be in the allowlist")
-	_, hasDBIdentifier := auth["db_identifier"]
-	assert.False(t, hasDBIdentifier, "db_identifier must not be in the allowlist")
-	_, hasQueries := auth["queries"]
-	assert.False(t, hasQueries, "queries must not be in the allowlist")
-}
-
 func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 	c := &component{
 		log: logmock.New(t),
@@ -197,7 +87,7 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 
 	payload := &DOQueryPayload{
 		ConfigID:     "test-config-1",
-		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "testdb"},
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
 		Queries: []QuerySpec{
 			{
 				MonitorID:       100,
@@ -241,12 +131,15 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 		"port":     5432,
 		"username": "datadog",
 		"password": "secret",
+		"data_observability": map[string]any{
+			"enabled": true,
+		},
 	}
 
 	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-id-1")
 	require.NoError(t, err)
 
-	assert.Equal(t, "do_query_actions", checkCfg.Name)
+	assert.Equal(t, "postgres", checkCfg.Name)
 	assert.Equal(t, "file", checkCfg.Provider)
 	assert.Equal(t, "node1", checkCfg.NodeName)
 	require.Len(t, checkCfg.Instances, 1)
@@ -255,32 +148,32 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 	err = yaml.Unmarshal(checkCfg.Instances[0], &instance)
 	require.NoError(t, err)
 
-	assert.Equal(t, "rc-id-1", instance["remote_config_id"])
-	assert.Equal(t, "postgres", instance["db_type"])
-
-	dbID, ok := instance["db_identifier"].(map[string]interface{})
-	require.True(t, ok, "db_identifier should be a map")
-	assert.Equal(t, "localhost", dbID["host"])
-	assert.Equal(t, "testdb", dbID["dbname"])
-
+	// Verify full postgres instance fields are preserved
 	assert.Equal(t, "localhost", instance["host"])
 	assert.Equal(t, 5432, instance["port"])
 	assert.Equal(t, "datadog", instance["username"])
 	assert.Equal(t, "secret", instance["password"])
 
-	queries, ok := instance["queries"].([]interface{})
+	// Verify data_observability section
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok, "data_observability should be a map")
+	assert.Equal(t, true, doConfig["enabled"])
+	assert.Equal(t, "rc-id-1", doConfig["config_id"])
+	assert.Equal(t, 10, doConfig["collection_interval"])
+
+	queries, ok := doConfig["queries"].([]any)
 	require.True(t, ok, "queries should be a list")
 	require.Len(t, queries, 2)
 
-	q1, ok := queries[0].(map[string]interface{})
+	q1, ok := queries[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, 100, q1["monitor_id"])
 	assert.Equal(t, "run_query", q1["type"])
 	assert.Equal(t, "SELECT count(*) FROM orders", q1["query"])
 	assert.Equal(t, 60, q1["interval_seconds"])
-	assert.Equal(t, 10, q1["timeout_seconds"])
+	assert.Equal(t, 10000, q1["query_timeout"])
 
-	entity1, ok := q1["entity"].(map[string]interface{})
+	entity1, ok := q1["entity"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "postgres", entity1["platform"])
 	assert.Equal(t, "my-account", entity1["account"])
@@ -288,14 +181,10 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 	assert.Equal(t, "public", entity1["schema"])
 	assert.Equal(t, "orders", entity1["table"])
 
-	q2, ok := queries[1].(map[string]interface{})
+	q2, ok := queries[1].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, 200, q2["monitor_id"])
 	assert.Equal(t, "SELECT avg(price) FROM products", q2["query"])
-
-	// Verify run_once is NOT present
-	_, hasRunOnce := instance["run_once"]
-	assert.False(t, hasRunOnce, "run_once should not be present in declarative model")
 }
 
 func TestBuildCheckConfig_CustomSQLSelectFields(t *testing.T) {
@@ -319,7 +208,7 @@ func TestBuildCheckConfig_CustomSQLSelectFields(t *testing.T) {
 	}
 
 	baseCfg := &integration.Config{Name: "postgres"}
-	pgInstance := map[string]any{"host": "localhost", "port": 5432}
+	pgInstance := map[string]any{"host": "localhost", "port": 5432, "data_observability": map[string]any{"enabled": true}}
 
 	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-id-custom")
 	require.NoError(t, err)
@@ -327,14 +216,16 @@ func TestBuildCheckConfig_CustomSQLSelectFields(t *testing.T) {
 	var instance map[string]any
 	require.NoError(t, yaml.Unmarshal(checkCfg.Instances[0], &instance))
 
-	queries, ok := instance["queries"].([]interface{})
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok)
+	queries, ok := doConfig["queries"].([]any)
 	require.True(t, ok)
 	require.Len(t, queries, 1)
 
-	q, ok := queries[0].(map[string]interface{})
+	q, ok := queries[0].(map[string]any)
 	require.True(t, ok)
 
-	csf, ok := q["custom_sql_select_fields"].(map[string]interface{})
+	csf, ok := q["custom_sql_select_fields"].(map[string]any)
 	require.True(t, ok, "custom_sql_select_fields should be present")
 	assert.Equal(t, 42, csf["metric_config_id"])
 	assert.Equal(t, "entity-abc", csf["entity_id"])
@@ -357,7 +248,7 @@ func TestBuildCheckConfig_NoCustomSQLSelectFields(t *testing.T) {
 	}
 
 	baseCfg := &integration.Config{Name: "postgres"}
-	pgInstance := map[string]any{"host": "localhost", "port": 5432}
+	pgInstance := map[string]any{"host": "localhost", "port": 5432, "data_observability": map[string]any{"enabled": true}}
 
 	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-id")
 	require.NoError(t, err)
@@ -365,9 +256,11 @@ func TestBuildCheckConfig_NoCustomSQLSelectFields(t *testing.T) {
 	var instance map[string]any
 	require.NoError(t, yaml.Unmarshal(checkCfg.Instances[0], &instance))
 
-	queries, ok := instance["queries"].([]interface{})
+	doConfig, ok := instance["data_observability"].(map[string]any)
 	require.True(t, ok)
-	q, ok := queries[0].(map[string]interface{})
+	queries, ok := doConfig["queries"].([]any)
+	require.True(t, ok)
+	q, ok := queries[0].(map[string]any)
 	require.True(t, ok)
 
 	_, hasCsf := q["custom_sql_select_fields"]
@@ -380,7 +273,8 @@ func newTestComponent(t *testing.T) *component {
 	t.Helper()
 	return &component{
 		log:           logmock.New(t),
-		activeConfigs: make(map[string]integration.Config),
+		activeConfigs: make(map[string]activeConfigEntry),
+		managedBases:  make(map[string]*managedBaseEntry),
 	}
 }
 
@@ -413,57 +307,96 @@ func TestOnRCUpdate_EmptyConfigID(t *testing.T) {
 	assert.Empty(t, c.activeConfigs)
 }
 
-func TestOnRCUpdate_EmptyQueriesUnschedules(t *testing.T) {
-	existing := integration.Config{Name: "do_query_actions"}
-	c := newTestComponent(t)
-	c.activeConfigs["cfg-1"] = existing
-
-	updates := map[string]state.RawConfig{
-		"path/config": {Config: []byte(`{"config_id": "cfg-1", "queries": []}`)},
+func TestOnRCUpdate_EmptyQueriesDisables(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		NodeName:  "node1",
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
-	statuses, changes := collectStatuses(c, updates)
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	// First: schedule a DO config so the base config becomes managed.
+	enable := DOQueryPayload{
+		ConfigID:     "cfg-1",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	enableJSON, err := json.Marshal(enable)
+	require.NoError(t, err)
+	collectStatuses(c, map[string]state.RawConfig{"path/config": {Config: enableJSON}})
+	require.Contains(t, c.activeConfigs, "cfg-1")
+
+	// Now: empty queries disables the DO config and the original base config must be restored.
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/config": {Config: []byte(`{"config_id": "cfg-1", "queries": []}`)},
+	})
 
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["path/config"].State)
 	assert.Empty(t, c.activeConfigs)
-	require.Len(t, changes.Unschedule, 1)
-	assert.Equal(t, "do_query_actions", changes.Unschedule[0].Name)
+	require.Len(t, changes.Unschedule, 1, "should unschedule the DO config")
+	require.Len(t, changes.Schedule, 1, "should re-schedule original base config")
+	assert.Equal(t, postgresCfg, changes.Schedule[0], "scheduled config should be the original base config")
 }
 
-func TestOnRCUpdate_ReconcileRemovesStaleConfigs(t *testing.T) {
-	existing := integration.Config{Name: "do_query_actions"}
-	c := newTestComponent(t)
-	c.activeConfigs["stale-config"] = existing
-
-	// Update snapshot contains only a config without config_id — stale-config should be unscheduled
-	updates := map[string]state.RawConfig{
-		"path/other": {Config: []byte(`{"some_field": true}`)},
+func TestOnRCUpdate_ReconcileDisablesStaleConfigs(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
-	_, changes := collectStatuses(c, updates)
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	// First: schedule a DO config so the base config becomes managed.
+	enable := DOQueryPayload{
+		ConfigID:     "stale-config",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	enableJSON, err := json.Marshal(enable)
+	require.NoError(t, err)
+	collectStatuses(c, map[string]state.RawConfig{"path/stale": {Config: enableJSON}})
+	require.Contains(t, c.activeConfigs, "stale-config")
+
+	// Update snapshot contains only a config without config_id — stale-config should be disabled
+	// and the original base config restored.
+	_, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/other": {Config: []byte(`{"some_field": true}`)},
+	})
 
 	assert.Empty(t, c.activeConfigs)
-	require.Len(t, changes.Unschedule, 1)
+	require.Len(t, changes.Unschedule, 1, "should unschedule the DO config")
+	require.Len(t, changes.Schedule, 1, "should re-schedule original base config")
+	assert.Equal(t, postgresCfg, changes.Schedule[0])
 }
 
-// --- collectUnschedule tests ---
+// --- removeActiveConfig tests ---
 
-func TestCollectUnschedule_NotFound(t *testing.T) {
+func TestRemoveActiveConfig_NotFound(t *testing.T) {
 	c := newTestComponent(t)
 	changes := integration.ConfigChanges{}
-	c.collectUnschedule("nonexistent", &changes)
+	c.removeActiveConfig("nonexistent", &changes)
+	assert.Empty(t, changes.Schedule)
 	assert.Empty(t, changes.Unschedule)
-	assert.Empty(t, c.activeConfigs)
 }
 
-func TestCollectUnschedule_Found(t *testing.T) {
+func TestRemoveActiveConfig_Found(t *testing.T) {
+	baseCfg := &integration.Config{Name: "postgres", Provider: "file"}
+	doCheckConfig := integration.Config{Name: "postgres", Provider: "do_query_actions"}
 	c := newTestComponent(t)
-	c.activeConfigs["my-config"] = integration.Config{Name: "do_query_actions"}
+	c.activeConfigs["my-config"] = activeConfigEntry{
+		checkConfig: doCheckConfig,
+		baseCfg:     baseCfg,
+		matchHost:   "localhost",
+	}
 	changes := integration.ConfigChanges{}
 
-	c.collectUnschedule("my-config", &changes)
+	c.removeActiveConfig("my-config", &changes)
 
-	assert.Empty(t, c.activeConfigs)
-	require.Len(t, changes.Unschedule, 1)
-	assert.Equal(t, "do_query_actions", changes.Unschedule[0].Name)
+	assert.Empty(t, c.activeConfigs, "config should be removed from activeConfigs")
+	require.Len(t, changes.Unschedule, 1, "should unschedule previous DO config")
+	assert.Equal(t, doCheckConfig, changes.Unschedule[0])
+	assert.Empty(t, changes.Schedule, "removeActiveConfig should NOT re-schedule base config")
 }
 
 // --- Happy-path integration tests (require mocked autodiscovery) ---
@@ -476,14 +409,14 @@ func TestOnRCUpdate_ValidConfig_SchedulesCheck(t *testing.T) {
 		Provider: "file",
 		NodeName: "node1",
 		Instances: []integration.Data{
-			integration.Data("host: localhost\nport: 5432\nusername: datadog\npassword: secret\ndbname: mydb\n"),
+			integration.Data("host: localhost\nport: 5432\nusername: datadog\npassword: secret\ndbname: mydb\ndata_observability:\n  enabled: true\n"),
 		},
 	}
 	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
 
 	payload := DOQueryPayload{
 		ConfigID:     "cfg-happy",
-		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "mydb"},
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
 		Queries: []QuerySpec{
 			{
 				MonitorID:       42,
@@ -504,24 +437,27 @@ func TestOnRCUpdate_ValidConfig_SchedulesCheck(t *testing.T) {
 	statuses, changes := collectStatuses(c, updates)
 
 	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-happy"].State)
-	require.Len(t, changes.Schedule, 1, "expected one scheduled check")
-	assert.Empty(t, changes.Unschedule)
-	assert.Equal(t, "do_query_actions", changes.Schedule[0].Name)
+	require.Len(t, changes.Schedule, 1, "expected one scheduled DO check")
+	require.Len(t, changes.Unschedule, 1, "should unschedule base file-provider config to prevent duplicate")
+	assert.Equal(t, "postgres", changes.Schedule[0].Name)
 	assert.Equal(t, "file", changes.Schedule[0].Provider)
 	assert.Equal(t, "node1", changes.Schedule[0].NodeName)
 
 	require.Len(t, changes.Schedule[0].Instances, 1)
 	var instance map[string]any
 	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
-	assert.Equal(t, "rc-id-happy", instance["remote_config_id"])
-	assert.Equal(t, "postgres", instance["db_type"])
 	assert.Equal(t, "localhost", instance["host"])
 	assert.Equal(t, "datadog", instance["username"])
 
-	queries, ok := instance["queries"].([]interface{})
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, true, doConfig["enabled"])
+	assert.Equal(t, "rc-id-happy", doConfig["config_id"])
+
+	queries, ok := doConfig["queries"].([]any)
 	require.True(t, ok)
 	require.Len(t, queries, 1)
-	q := queries[0].(map[string]interface{})
+	q := queries[0].(map[string]any)
 	assert.Equal(t, "SELECT count(*) FROM orders", q["query"])
 
 	require.Contains(t, c.activeConfigs, "cfg-happy")
@@ -532,45 +468,176 @@ func TestOnRCUpdate_ValidConfig_SchedulesCheck(t *testing.T) {
 func TestOnRCUpdate_UpdateReplacesExistingCheck(t *testing.T) {
 	postgresCfg := integration.Config{
 		Name:      "postgres",
-		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\n")},
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
 	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
 
 	mkPayload := func(query string) []byte {
 		b, err := json.Marshal(DOQueryPayload{
 			ConfigID:     "cfg-update",
-			DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "mydb"},
+			DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
 			Queries:      []QuerySpec{{Type: "run_query", Query: query, IntervalSeconds: 60, TimeoutSeconds: 10}},
 		})
 		require.NoError(t, err)
 		return b
 	}
 
-	// First update: schedule initial version.
+	// First update: schedule initial version. Unschedules the base file-provider config.
 	_, changes1 := collectStatuses(c, map[string]state.RawConfig{
 		"path/cfg": {Config: mkPayload("SELECT 1")},
 	})
-	require.Len(t, changes1.Schedule, 1, "first update should schedule the check")
-	assert.Empty(t, changes1.Unschedule, "first update should not unschedule anything")
+	require.Len(t, changes1.Schedule, 1, "first update should schedule the DO check")
+	require.Len(t, changes1.Unschedule, 1, "first update should unschedule base config")
 	require.Contains(t, c.activeConfigs, "cfg-update")
 
-	firstCfg := changes1.Schedule[0]
-
-	// Second update: same config_id, different query. Should unschedule the old and schedule the new.
+	// Second update: same config_id, different query. The base config is already managed
+	// (unscheduled on the first update), so only the previous DO config is unscheduled and the
+	// new one scheduled — the base config is not touched again.
 	_, changes2 := collectStatuses(c, map[string]state.RawConfig{
 		"path/cfg": {Config: mkPayload("SELECT 2")},
 	})
-	require.Len(t, changes2.Schedule, 1, "second update should schedule the updated check")
-	require.Len(t, changes2.Unschedule, 1, "second update should unschedule the previous check")
-	assert.Equal(t, firstCfg, changes2.Unschedule[0], "unscheduled config should be the previous version")
+	require.Len(t, changes2.Unschedule, 1, "should unschedule only the previous DO config")
+	require.Len(t, changes2.Schedule, 1, "should schedule only the new DO check")
 
-	// Verify the new instance has the updated query.
 	var instance map[string]any
 	require.NoError(t, yaml.Unmarshal(changes2.Schedule[0].Instances[0], &instance))
-	queries, ok := instance["queries"].([]interface{})
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok)
+	queries, ok := doConfig["queries"].([]any)
 	require.True(t, ok)
 	require.Len(t, queries, 1)
-	assert.Equal(t, "SELECT 2", queries[0].(map[string]interface{})["query"])
+	assert.Equal(t, "SELECT 2", queries[0].(map[string]any)["query"])
+}
+
+// hostsOf parses every instance of a config and returns the set of host values, for asserting
+// which postgres instances a scheduled config covers.
+func hostsOf(t *testing.T, cfg integration.Config) map[string]bool {
+	t.Helper()
+	hosts := make(map[string]bool, len(cfg.Instances))
+	for _, instanceData := range cfg.Instances {
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(instanceData, &instance))
+		host, _ := instance["host"].(string)
+		hosts[host] = true
+	}
+	return hosts
+}
+
+// findScheduledWithHost returns the scheduled config that contains an instance with the given
+// host, failing the test if none is found.
+func findScheduledWithHost(t *testing.T, changes integration.ConfigChanges, host string) integration.Config {
+	t.Helper()
+	for _, cfg := range changes.Schedule {
+		if hostsOf(t, cfg)[host] {
+			return cfg
+		}
+	}
+	t.Fatalf("no scheduled config contains host %q", host)
+	return integration.Config{}
+}
+
+// TestOnRCUpdate_PreservesUnrelatedInstances is the regression test for the bug where a
+// do-query-actions config replaced the whole file-provider postgres config, dropping sibling
+// instances. A base config with two instances (localhost + an RDS endpoint) receives a DO config
+// targeting only localhost; the RDS instance must stay scheduled, and only localhost may carry
+// the DO queries.
+func TestOnRCUpdate_PreservesUnrelatedInstances(t *testing.T) {
+	const rdsHost = "iceberg-test-postgres-demo-rds.c0lma4q6o85w.us-east-1.rds.amazonaws.com"
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: localhost\nport: 5432\ndbname: testdb\ndata_observability:\n  enabled: true\ntags:\n  - env:demo\n"),
+			integration.Data("host: " + rdsHost + "\nport: 5432\ndbname: testdb\ndata_observability:\n  enabled: true\ntags:\n  - env:rds\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-local",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-local": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-local"].State)
+
+	// The original two-instance base config is unscheduled.
+	require.Len(t, changes.Unschedule, 1)
+	assert.Equal(t, map[string]bool{"localhost": true, rdsHost: true}, hostsOf(t, changes.Unschedule[0]))
+
+	// Two configs scheduled: the DO check for localhost and the remainder holding the RDS instance.
+	require.Len(t, changes.Schedule, 2)
+
+	doCfg := findScheduledWithHost(t, changes, "localhost")
+	require.Len(t, doCfg.Instances, 1, "DO config should carry only the targeted localhost instance")
+	var doInstance map[string]any
+	require.NoError(t, yaml.Unmarshal(doCfg.Instances[0], &doInstance))
+	_, hasDO := doInstance["data_observability"].(map[string]any)["queries"]
+	assert.True(t, hasDO, "localhost instance should carry DO queries")
+
+	remainder := findScheduledWithHost(t, changes, rdsHost)
+	require.Len(t, remainder.Instances, 1, "remainder should hold only the untargeted RDS instance")
+	assert.Equal(t, "file", remainder.Provider, "remainder keeps the base config provider")
+	var rdsInstance map[string]any
+	require.NoError(t, yaml.Unmarshal(remainder.Instances[0], &rdsInstance))
+	assert.Equal(t, rdsHost, rdsInstance["host"])
+	_, rdsHasQueries := rdsInstance["data_observability"].(map[string]any)["queries"]
+	assert.False(t, rdsHasQueries, "RDS instance must remain a plain DBM instance with no DO queries")
+}
+
+// TestOnRCUpdate_MultipleDOConfigsSameBase verifies that two DO configs targeting two different
+// instances of the same base config never leave an instance both in the remainder and as a DO
+// check (which would double-run it). With both instances targeted, no remainder is scheduled.
+func TestOnRCUpdate_MultipleDOConfigsSameBase(t *testing.T) {
+	const rdsHost = "rds.example.com"
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: localhost\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: " + rdsHost + "\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	mkPayload := func(configID, host string) []byte {
+		b, err := json.Marshal(DOQueryPayload{
+			ConfigID:     configID,
+			DBIdentifier: DBIdentifier{Type: "self-hosted", Host: host},
+			Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+		})
+		require.NoError(t, err)
+		return b
+	}
+
+	_, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/local": {Config: mkPayload("cfg-local", "localhost")},
+		"path/rds":   {Config: mkPayload("cfg-rds", rdsHost)},
+	})
+
+	// Both instances are DO-targeted, so the base config is unscheduled and there is no remainder.
+	require.Len(t, changes.Unschedule, 1, "only the original base config is unscheduled")
+	require.Len(t, changes.Schedule, 2, "two DO checks, no remainder")
+	for _, cfg := range changes.Schedule {
+		require.Len(t, cfg.Instances, 1, "each scheduled config is a single-instance DO check")
+	}
+
+	// Disabling one DO config restores a remainder holding the still-targeted other instance.
+	_, changes2 := collectStatuses(c, map[string]state.RawConfig{
+		"path/local": {Config: mkPayload("cfg-local", "localhost")},
+		"path/rds":   {Config: []byte(`{"config_id": "cfg-rds", "queries": []}`)},
+	})
+	assert.NotContains(t, c.activeConfigs, "cfg-rds")
+	require.Contains(t, c.activeConfigs, "cfg-local")
+	remainder := findScheduledWithHost(t, changes2, rdsHost)
+	require.Len(t, remainder.Instances, 1)
+	assert.Equal(t, map[string]bool{rdsHost: true}, hostsOf(t, remainder))
 }
 
 // TestOnRCUpdate_NoMatchingPostgres_ReportsError verifies that when no postgres instance
@@ -580,7 +647,7 @@ func TestOnRCUpdate_NoMatchingPostgres_ReportsError(t *testing.T) {
 
 	payload := DOQueryPayload{
 		ConfigID:     "cfg-nomatch",
-		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "notfound.example.com", DBName: "mydb"},
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "notfound.example.com"},
 		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
 	}
 	payloadJSON, err := json.Marshal(payload)
@@ -596,6 +663,95 @@ func TestOnRCUpdate_NoMatchingPostgres_ReportsError(t *testing.T) {
 	assert.Empty(t, c.activeConfigs)
 }
 
+// TestOnRCUpdate_HostOnlyMatching verifies that a config matches a postgres instance
+// by host only, with per-query dbname routing to different databases.
+func TestOnRCUpdate_HostOnlyMatching(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: testdb\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-hostonly",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				DBName:          "analyticsdb",
+				Type:            "run_query",
+				Query:           "SELECT count(*) AS dd_value FROM events.page_views",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-hostonly": {Config: payloadJSON},
+	})
+
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-hostonly"].State)
+	require.Len(t, changes.Schedule, 1, "should schedule the DO check")
+	require.Len(t, changes.Unschedule, 1, "should unschedule base file-provider config")
+	require.Contains(t, c.activeConfigs, "cfg-hostonly")
+}
+
+// TestBuildCheckConfig_PerQueryDBName verifies that the dbname field from each QuerySpec
+// appears in the YAML output for each query entry.
+func TestBuildCheckConfig_PerQueryDBName(t *testing.T) {
+	c := &component{log: logmock.New(t)}
+
+	payload := &DOQueryPayload{
+		ConfigID: "cfg-multidb",
+		Queries: []QuerySpec{
+			{
+				DBName:          "testdb",
+				MonitorID:       100,
+				Type:            "run_query",
+				Query:           "SELECT count(*) AS dd_value FROM shop.orders",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "testdb", Schema: "shop", Table: "orders"},
+			},
+			{
+				DBName:          "analyticsdb",
+				MonitorID:       200,
+				Type:            "run_query",
+				Query:           "SELECT count(*) AS dd_value FROM events.clicks",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "analyticsdb", Schema: "events", Table: "clicks"},
+			},
+		},
+	}
+
+	baseCfg := &integration.Config{Name: "postgres"}
+	pgInstance := map[string]any{"host": "localhost", "dbname": "testdb", "data_observability": map[string]any{"enabled": true}}
+
+	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-multidb")
+	require.NoError(t, err)
+
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(checkCfg.Instances[0], &instance))
+
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok)
+	queries, ok := doConfig["queries"].([]any)
+	require.True(t, ok)
+	require.Len(t, queries, 2)
+
+	q1 := queries[0].(map[string]any)
+	assert.Equal(t, "testdb", q1["dbname"])
+	assert.Equal(t, 100, q1["monitor_id"])
+
+	q2 := queries[1].(map[string]any)
+	assert.Equal(t, "analyticsdb", q2["dbname"])
+	assert.Equal(t, 200, q2["monitor_id"])
+}
+
 // TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError verifies that when a postgres
 // instance's YAML is malformed, the error message from findPostgresConfig mentions the
 // parse failure, not just "identifier not found".
@@ -608,7 +764,7 @@ func TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError(t *testing.T) {
 
 	payload := DOQueryPayload{
 		ConfigID:     "cfg-badyaml",
-		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "mydb"},
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
 		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
 	}
 	payloadJSON, err := json.Marshal(payload)
@@ -622,4 +778,224 @@ func TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError(t *testing.T) {
 	require.Equal(t, state.ApplyStateError, statuses["path/cfg-badyaml"].State)
 	assert.Contains(t, statuses["path/cfg-badyaml"].Error, "YAML parse error",
 		"error message should surface the YAML parse failure, not just 'identifier not found'")
+}
+
+// --- validateQuerySpec tests ---
+
+// TestValidateQuerySpec_ValidScheduleOnly verifies that a query with a valid cron schedule
+// and no interval_seconds passes validation and flows through to the scheduled check.
+func TestValidateQuerySpec_ValidScheduleOnly(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		NodeName:  "node1",
+		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-cron-only",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:      42,
+				Type:           "run_query",
+				Query:          "SELECT count(*) FROM orders",
+				Schedule:       "20 * * * *",
+				TimeoutSeconds: 10,
+				Entity:         EntityMetadata{Platform: "postgres", Database: "shop", Table: "orders"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-cron-only": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-cron-only"].State)
+	require.Len(t, changes.Schedule, 1, "should schedule the DO check")
+
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 10, doConfig["collection_interval"], "collection_interval must always be 10")
+
+	queries, ok := doConfig["queries"].([]any)
+	require.True(t, ok)
+	require.Len(t, queries, 1)
+	q := queries[0].(map[string]any)
+	assert.Equal(t, "20 * * * *", q["schedule"], "schedule field should be injected into query YAML")
+	_, hasInterval := q["interval_seconds"]
+	assert.False(t, hasInterval, "interval_seconds should be absent when not set in the RC payload")
+}
+
+// TestValidateQuerySpec_BothScheduleAndInterval verifies that when both schedule and
+// interval_seconds are set, the config flows through (cron wins downstream in Python).
+func TestValidateQuerySpec_BothScheduleAndInterval(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-both",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       77,
+				Type:            "run_query",
+				Query:           "SELECT 1",
+				IntervalSeconds: 300,
+				Schedule:        "*/15 * * * *",
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "db", Table: "t"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-both": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-both"].State)
+	require.Len(t, changes.Schedule, 1, "should schedule the DO check when both fields are set")
+
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 10, doConfig["collection_interval"], "collection_interval must always be 10")
+
+	queries, ok := doConfig["queries"].([]any)
+	require.True(t, ok)
+	require.Len(t, queries, 1)
+	q := queries[0].(map[string]any)
+	assert.Equal(t, "*/15 * * * *", q["schedule"], "schedule field should be injected")
+	assert.Equal(t, 300, q["interval_seconds"], "interval_seconds should be present when set in the RC payload")
+}
+
+// TestValidateQuerySpec_NeitherSetRejected verifies that a query with neither schedule nor
+// a positive interval_seconds is rejected with ApplyStateError and no check is scheduled.
+func TestValidateQuerySpec_NeitherSetRejected(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-neither",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       55,
+				Type:            "run_query",
+				Query:           "SELECT 1",
+				IntervalSeconds: 0, // zero — invalid when no schedule
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "db", Table: "t"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-neither": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateError, statuses["path/cfg-neither"].State)
+	assert.Contains(t, statuses["path/cfg-neither"].Error, "interval_seconds must be > 0 when schedule is unset")
+	assert.Empty(t, changes.Schedule, "no check should be scheduled for invalid query")
+}
+
+// TestValidateQuerySpec_InvalidCronRejected verifies that a query with an invalid cron
+// expression is rejected with ApplyStateError before any postgres config lookup occurs.
+func TestValidateQuerySpec_InvalidCronRejected(t *testing.T) {
+	// No postgres configs at all — if validation fires before findPostgresConfig, this test
+	// will still report ApplyStateError (not "no matching postgres config").
+	c := newTestComponentWithAC(t, []integration.Config{})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-badcron",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:      33,
+				Type:           "run_query",
+				Query:          "SELECT 1",
+				Schedule:       "not-a-cron",
+				TimeoutSeconds: 10,
+				Entity:         EntityMetadata{Platform: "postgres", Database: "db", Table: "t"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-badcron": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateError, statuses["path/cfg-badcron"].State)
+	assert.Contains(t, statuses["path/cfg-badcron"].Error, "invalid cron schedule",
+		"error should mention the bad cron expression")
+	assert.Empty(t, changes.Schedule, "no check should be scheduled for invalid cron")
+}
+
+// TestValidateQuerySpec_ValidIntervalOnly verifies that existing behavior is preserved:
+// a query with only interval_seconds set (no schedule) flows through correctly and
+// does not inject a schedule field into the YAML.
+func TestValidateQuerySpec_ValidIntervalOnly(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-interval-only",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       99,
+				Type:            "run_query",
+				Query:           "SELECT count(*) FROM orders",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "shop", Table: "orders"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-interval-only": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-interval-only"].State)
+	require.Len(t, changes.Schedule, 1, "should schedule the DO check")
+
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 10, doConfig["collection_interval"], "collection_interval must always be 10")
+
+	queries, ok := doConfig["queries"].([]any)
+	require.True(t, ok)
+	require.Len(t, queries, 1)
+	q := queries[0].(map[string]any)
+	assert.Equal(t, 60, q["interval_seconds"], "interval_seconds should be present")
+	_, hasSchedule := q["schedule"]
+	assert.False(t, hasSchedule, "schedule field must be absent when not set on the query")
 }

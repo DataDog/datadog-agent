@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "config",
+    srcs = ["agent_config.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/delegatedauth/noop-impl/types",
+        "//comp/core/secrets/impl",
+        "//comp/core/secrets/noop-impl/types",
+        "//comp/core/telemetry/impl/noops",
+        "//comp/otelcol/dogtelextension/impl",
+        "//comp/otelcol/otlp/components/exporter/datadogexporter",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//featuregates",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_confmap_provider_envprovider//:envprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_fileprovider//:fileprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_httpprovider//:httpprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_httpsprovider//:httpsprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_yamlprovider//:yamlprovider",
+        "@io_opentelemetry_go_collector_service//:service",
+    ],
+)
+
+dd_agent_go_test(
+    name = "config_test",
+    srcs = ["agent_config_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":config"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/util/defaultpaths",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_featuregate//:featuregate",
+    ],
+)

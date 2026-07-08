@@ -108,7 +108,7 @@ func launchFakeProcess(ctx context.Context, t *testing.T, procname string, args 
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pipeR.Close()
+	t.Cleanup(func() { pipeR.Close() }) // outlive the function so child doesn't SIGPIPE (empty /proc/<pid>/cmdline)
 	defer pipeW.Close()
 
 	args = append([]string{"-test.run=TestDBConfigLaunchFakeProcess", "--"}, args...)
@@ -805,7 +805,8 @@ net:
 	defer stop()
 
 	c, ok := LoadMongoDBConfig(context.Background(), hostroot, proc)
-	assert.True(t, ok)
+	require.True(t, ok)
+	require.NotNil(t, c)
 	assert.Equal(t, customConfigPath, c.ConfigFilePath)
 
 	configData := c.ConfigData.(*mongoDBConfig)

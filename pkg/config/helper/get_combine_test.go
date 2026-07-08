@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 )
 
 func TestGetViperCombine(t *testing.T) {
@@ -25,7 +25,7 @@ func TestGetViperCombine(t *testing.T) {
 	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
 
 	// Create the config's defaults
-	cfg := viperconfig.NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
@@ -40,25 +40,18 @@ func TestGetViperCombine(t *testing.T) {
 	assert.Equal(t, 8, cfg.GetInt("network_path.collector.workers"))
 	assert.Equal(t, 64, cfg.GetInt("network_path.collector.max_ttl"))
 
-	// Viper's .Get method has a long-standing known issue: only returns a single layer
+	// NTM's .Get merges all the layers
 	expect := map[string]interface{}{
-		"collector": map[string]interface{}{
-			"workers": 8,
-		},
-	}
-	actual := cfg.Get("network_path")
-	assert.Equal(t, expect, actual)
-
-	// GetViperCombine correctly combines all the layers
-	expect = map[string]interface{}{
 		"collector": map[string]interface{}{
 			"input_chan_size": 23456,
 			"workers":         8,
 			"max_ttl":         64,
 		},
 	}
-	actual = GetViperCombine(cfg, "network_path")
-	assert.Equal(t, expect, actual)
+	assert.Equal(t, expect, cfg.Get("network_path"))
+
+	// GetViperCombine also combines all the layers
+	assert.Equal(t, expect, GetViperCombine(cfg, "network_path"))
 }
 
 func TestGetViperCombineEmptySection(t *testing.T) {
@@ -67,7 +60,7 @@ func TestGetViperCombineEmptySection(t *testing.T) {
   collector:
 `
 	// Create the config's defaults
-	cfg := viperconfig.NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 
 	cfg.BuildSchema()
@@ -91,10 +84,10 @@ func TestGetViperCombineWithoutSection(t *testing.T) {
 	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_WORKERS", "8")
 
 	// Create the config's defaults
-	cfg := viperconfig.NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
-	cfg.BindEnv("network_path.collector.workers") //nolint:forbidigo // used to test behavior
+	cfg.BindEnvAndSetDefault("network_path.collector.workers", "0")
 
 	cfg.BuildSchema()
 	err := cfg.ReadConfig(strings.NewReader(configData))
@@ -124,10 +117,10 @@ func TestGetViperCombineWithoutDefaults(t *testing.T) {
 	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_WORKERS", "8")
 
 	// Create the config's defaults
-	cfg := viperconfig.NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
-	cfg.BindEnv("network_path.collector.input_chan_size") //nolint:forbidigo // used to test behavior
-	cfg.BindEnv("network_path.collector.workers")         //nolint:forbidigo // used to test behavior
+	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", "0")
+	cfg.BindEnvAndSetDefault("network_path.collector.workers", "0")
 
 	cfg.BuildSchema()
 	err := cfg.ReadConfig(strings.NewReader(configData))

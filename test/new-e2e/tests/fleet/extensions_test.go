@@ -17,6 +17,7 @@ import (
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/ddot"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite"
@@ -188,6 +189,44 @@ func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
 	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should remain on promoted version after promote experiment")
 }
 
+// TestExtensionSurvivesExperimentManagedByProcmgr verifies that a DDOT extension
+// installed on datadog-agent stays under dd-procmgrd (not datadog-agent-ddot.service)
+// through agent start/promote experiment on Linux.
+func (s *extensionsSuite) TestExtensionSurvivesExperimentManagedByProcmgr() {
+	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
+		s.T().Skip("DDOT procmgr management is Linux-only")
+	}
+
+	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
+	defer s.Agent.MustUninstall()
+
+	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
+	defer func() {
+		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	}()
+
+	// Staging deb/rpm (7.78.0-beta) predates dd-procmgr; DDOT runs via systemd there.
+	s.verifyDDOTRunning()
+	initialDDOTVersion := s.getDDOTAgentVersion()
+	s.setInstallerRegistryConfig()
+
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	err := s.Backend.StartExperiment("datadog-agent", targetVersion)
+	s.Require().NoError(err)
+	// Pipeline OCI experiment includes dd-procmgr and processes.d DDOT config.
+	ddot.AssertDDOTSystemdUnitsNotActive(s.T(), s.Env().RemoteHost)
+	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
+	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
+	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be running on experiment version after start experiment")
+
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+	ddot.AssertDDOTSystemdUnitsNotActive(s.T(), s.Env().RemoteHost)
+	ddot.AssertDDOTManagedByProcmgr(s.T(), s.Env().RemoteHost)
+	ddot.AssertProcmgrDDOTTelemetry(s.T(), s.Env().RemoteHost)
+	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should remain on promoted version after promote experiment")
+}
+
 // TestExtensionRestoredAfterExperimentRollback verifies that extensions are
 // restored to their stable state when an experiment is stopped (rolled back).
 func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
@@ -230,6 +269,8 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 func (s *extensionsSuite) TestDDOTAutoInstalledWithEnvVar() {
 	s.Agent.MustInstall(agent.WithOTelCollectorEnabled())
 	defer s.Agent.MustUninstall()
+
+	ddot.AssertDDOTAutoInstallUnderProcmgr(s.T(), s.Env().RemoteHost)
 
 	s.verifyDDOTRunning()
 }
@@ -368,7 +409,7 @@ func (s *extensionsSuite) verifyDDOTRunning() {
 func (s *extensionsSuite) verifyDDOTServiceRemoved() {
 	// Wait for service to be removed
 	isDDOTRemoved := assert.Eventually(s.T(), func() bool {
-		output, err := s.Env().RemoteHost.Execute(`$svc = Get-Service -Name "datadog-otel-agent" -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output "NotFound" } else { Write-Output $svc.Status }`)
+		output, err := s.Env().RemoteHost.Execute(`$svc = Get-Service -Name "` + ddot.WindowsLegacyDDOTSCMServiceName + `" -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output "NotFound" } else { Write-Output $svc.Status }`)
 		return err == nil && strings.Contains(output, "NotFound")
 	}, 30*time.Second, 1*time.Second, "DDOT service should be removed")
 	if !isDDOTRemoved {

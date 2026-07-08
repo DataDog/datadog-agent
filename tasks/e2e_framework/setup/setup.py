@@ -12,6 +12,7 @@ from tasks.e2e_framework import doc
 from tasks.e2e_framework.tool import (
     debug,
     error,
+    get_aws_cmd,
     get_pulumi_run_folder,
     info,
     is_windows,
@@ -19,66 +20,164 @@ from tasks.e2e_framework.tool import (
 )
 
 
-@task(help={"config_path": doc.config_path, "interactive": doc.interactive, "debug": doc.debug}, default=True)
-def setup(
-    ctx: Context, config_path: str | None = None, interactive: bool | None = True, debug: bool | None = False
+def _force_cleanup(
+    ctx: Context,
+    config_path: str | None = None,
+    account: str | None = None,
+    with_azure: bool = False,
+    with_gcp: bool = False,
 ) -> None:
     """
-    Setup a local environment, interactively by default
+    Delete the config file and the SSH keys that setup would auto-generate:
+    the AWS keypair (from EC2 and local disk) always; Azure and GCP local files
+    when the matching --with-* flag is active.
+
+    Uses computed default paths — not the existing config — so it targets exactly
+    what the next setup run would create.
+    """
+    import getpass
+
+    from tasks.e2e_framework.config import get_full_profile_path
+    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_ACCOUNT, _default_keypair_name
+    from tasks.e2e_framework.setup.ssh_keys import default_key_paths, ssh_agent_supported
+
+    info("🧹 Force-cleaning existing config and SSH keys...")
+
+    def _remove_key(priv: Path, pub: Path) -> None:
+        """Remove key from ssh-agent then delete both local files."""
+        if ssh_agent_supported() and pub.is_file():
+            try:
+                ctx.run(f'ssh-add -d "{pub}"', hide=True, warn=True)
+                info(f"✓ Removed key from ssh-agent: {pub.name}")
+            except Exception:
+                pass
+        for p in [priv, pub]:
+            if p.is_file():
+                p.unlink()
+                info(f"✓ Deleted {p}")
+
+    user = getpass.getuser()
+    effective_account = account or DEFAULT_AWS_ACCOUNT
+
+    # AWS: remove from agent, delete local files, then delete EC2 keypair
+    _remove_key(*default_key_paths(effective_account, user))
+    keypair_name = _default_keypair_name(effective_account, user)
+    try:
+        cmd = get_aws_cmd(
+            f'ec2 delete-key-pair --key-name "{keypair_name}"',
+            use_aws_vault=True,
+            aws_account=effective_account,
+        )
+        out = ctx.run(cmd, warn=True, hide="stdout")
+        if out and out.exited == 0:
+            info(f"✓ Deleted AWS keypair '{keypair_name}'")
+        else:
+            warn(f"AWS keypair '{keypair_name}' not found or credentials expired — skipping")
+    except Exception as e:
+        warn(f"Could not delete AWS keypair '{keypair_name}': {e}")
+
+    # Azure: remove from agent and delete local files when --with-azure is active
+    if with_azure:
+        _remove_key(*default_key_paths(effective_account, user, provider="azure", key_type="ed25519"))
+
+    # GCP: remove from agent and delete local files when --with-gcp is active
+    if with_gcp:
+        _remove_key(*default_key_paths(effective_account, user, provider="gcp", key_type="ed25519"))
+
+    # Delete config file last
+    full_config_path = Path(get_full_profile_path(config_path))
+    if full_config_path.is_file():
+        full_config_path.unlink()
+        info(f"✓ Deleted config {full_config_path}")
+
+
+@task(
+    help={
+        "config_path": doc.config_path,
+        "interactive": doc.interactive,
+        "debug": doc.debug,
+        "with_azure": doc.with_azure,
+        "with_gcp": doc.with_gcp,
+        "account": doc.account,
+        "force": doc.force,
+    },
+    default=True,
+)
+def setup(
+    ctx: Context,
+    config_path: str | None = None,
+    interactive: bool | None = True,
+    debug: bool | None = False,
+    with_azure: bool = False,
+    with_gcp: bool = False,
+    account: str | None = None,
+    force: bool = False,
+) -> None:
+    """
+    Configure the local environment for E2E tests.
+
+    On the default path this configures AWS only (the cloud the vast majority of
+    E2E tests target) and asks at most one question (the GitHub team tag for
+    resource attribution). Pass --with-azure / --with-gcp to also configure
+    those providers.
     """
     from tasks.e2e_framework import config
     from tasks.e2e_framework.setup.agent import setup_agent_config
     from tasks.e2e_framework.setup.aws import setup_aws_config
-    from tasks.e2e_framework.setup.azure import setup_azure_config
     from tasks.e2e_framework.setup.config import check_config
-    from tasks.e2e_framework.setup.gcp import install_gcloud_auth_plugin, setup_gcp_config
     from tasks.e2e_framework.setup.pulumi import install_pulumi, pulumi_version, setup_pulumi_config
 
-    # Ensure aws cli is installed
+    # AWS CLI is the only hard prereq on the default path.
     if not shutil.which("aws"):
         error("AWS CLI not found, please install it: https://aws.amazon.com/cli/")
         raise Exit(code=1)
-    # Ensure azure cli is installed
-    if not shutil.which("az"):
+
+    if with_azure and not shutil.which("az"):
         error("Azure CLI not found, please install it: https://learn.microsoft.com/en-us/cli/azure/install-azure-cli")
         raise Exit(code=1)
-    # Ensure gcloud cli is installed
-    if not shutil.which("gcloud"):
+    if with_gcp and not shutil.which("gcloud"):
         error("Gcloud CLI not found, please install it: https://cloud.google.com/sdk/docs/install")
         raise Exit(code=1)
 
-    # Ensure gke-gcloud-auth-plugin is installed
-    install_gcloud_auth_plugin(ctx)
+    if with_gcp:
+        from tasks.e2e_framework.setup.gcp import install_gcloud_auth_plugin
 
-    pulumi_version, pulumi_up_to_date = pulumi_version(ctx)
+        install_gcloud_auth_plugin(ctx)
+
+    pulumi_ver, pulumi_up_to_date = pulumi_version(ctx)
     if pulumi_up_to_date:
-        info(f"Pulumi is up to date: {pulumi_version}")
+        info(f"✓ Pulumi is up to date: {pulumi_ver}")
     else:
         install_pulumi(ctx)
 
     with ctx.cd(get_pulumi_run_folder()):
-        # install plugins
-        ctx.run("pulumi --non-interactive plugin install")
-        # login to local stack storage
-        ctx.run("pulumi login --local")
+        ctx.run("pulumi --non-interactive plugin install", hide=True)
+        ctx.run("pulumi login --local", hide=True)
+    info("✓ Pulumi plugins installed; local backend configured")
 
     try:
         cfg = config.get_local_config(config_path)
     except Exception:
         cfg = config.Config.model_validate({})
 
+    if force:
+        _force_cleanup(ctx, config_path=config_path, account=account, with_azure=with_azure, with_gcp=with_gcp)
+        cfg = config.Config.model_validate({})
+
     if interactive:
-        info("🤖 Let's configure your environment for e2e tests! Press ctrl+c to stop me")
-        # AWS config
-        setup_aws_config(ctx, cfg)
-        # Azure config
-        setup_azure_config(cfg)
-        # Gcp config
-        setup_gcp_config(cfg)
-        # Agent config
+        info("🤖 Configuring E2E environment...")
+        setup_aws_config(ctx, cfg, account=account)
         setup_agent_config(cfg)
-        # Pulumi config
         setup_pulumi_config(cfg)
+
+        if with_azure:
+            from tasks.e2e_framework.setup.azure import setup_azure_config
+
+            setup_azure_config(ctx, cfg)
+        if with_gcp:
+            from tasks.e2e_framework.setup.gcp import setup_gcp_config
+
+            setup_gcp_config(ctx, cfg)
 
         cfg.save_to_local_config(config_path)
 
@@ -88,13 +187,7 @@ def setup(
         debug_env(ctx, config_path=config_path)
 
     if interactive:
-        import pyperclip
-
-        cat_profile_command = f"cat {config.get_full_profile_path(config_path)}"
-        pyperclip.copy(cat_profile_command)
-        print(
-            f"\nYou can run the following command to print your configuration: `{cat_profile_command}`. This command was copied to the clipboard\n"
-        )
+        info("\n✓ Setup complete. Try: dda inv new-e2e-tests.run --targets=./test/new-e2e/examples\n")
 
 
 @task
@@ -244,9 +337,6 @@ def debug_keys(ctx: Context, config_path: str | None = None):
         error(f"{e}")
         error("Failed to load config")
         raise Exit(code=1) from e
-    if config.configParams is None:
-        error("configParams missing from config")
-        raise Exit(code=1)
     if config.configParams.aws is None:
         error("configParams.aws missing from config")
         raise Exit(code=1)

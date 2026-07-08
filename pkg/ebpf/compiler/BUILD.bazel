@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "compiler",
+    srcs = [
+        "compiler.go",
+        "stdarg.h",
+    ],
+    embedsrcs = ["stdarg.h"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/compiler",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/defaultpaths",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+    ],
+)

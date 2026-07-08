@@ -5,7 +5,7 @@
 #include "constants/syscall_macro.h"
 #include "helpers/discarders.h"
 
-int __attribute__((always_inline)) sys_connect(u64 pid_tgid) {
+int __attribute__((always_inline)) sys_connect(void *ctx, u64 pid_tgid) {
     struct policy_t policy = fetch_policy(EVENT_CONNECT);
     struct syscall_cache_t syscall = {
         .policy = policy,
@@ -15,7 +15,7 @@ int __attribute__((always_inline)) sys_connect(u64 pid_tgid) {
             .pid_tgid = pid_tgid,
         }
     };
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -24,7 +24,7 @@ HOOK_SYSCALL_ENTRY3(connect, int, socket, struct sockaddr *, addr, unsigned int,
         return 0;
     }
 
-    return sys_connect(0);
+    return sys_connect(ctx, 0);
 }
 
 int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
@@ -40,6 +40,13 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         return 0;
     }
 
+    // emit a sample refresh if the dedup map flagged one
+    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
+        struct sample_refresh_event_t ev = {};
+        ev.cookie = syscall->sample_cookie;
+        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
+    }
+
     if (syscall->state == DISCARDED) {
         return 0;
     }
@@ -52,7 +59,8 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         .family = syscall->connect.family,
         .port = syscall->connect.port,
         .protocol = syscall->connect.protocol,
-        .event.flags = (syscall->resolver.flags & SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0),
+        .event.flags = (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0),
+        .sample_cookie = syscall->sample_cookie,
     };
 
     struct proc_cache_t *entry;
@@ -118,7 +126,7 @@ HOOK_ENTRY("io_connect")
 int hook_io_connect(ctx_t *ctx) {
     void *raw_req = (void *)CTX_PARM1(ctx);
     u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
-    return sys_connect(pid_tgid);
+    return sys_connect(ctx, pid_tgid);
 }
 
 HOOK_EXIT("io_connect")

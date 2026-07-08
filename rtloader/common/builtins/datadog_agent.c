@@ -27,6 +27,8 @@ static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
 static cb_get_process_start_time_t cb_get_process_start_time = NULL;
 static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
 static cb_emit_agent_telemetry_t cb_emit_agent_telemetry = NULL;
+static cb_report_issue_t cb_report_issue = NULL;
+static cb_resolve_issue_t cb_resolve_issue = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -47,6 +49,8 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
 static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *report_issue(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -67,6 +71,8 @@ static PyMethodDef methods[] = {
     { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
     { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a MongoDB command string." },
     { "emit_agent_telemetry", (PyCFunction)emit_agent_telemetry, METH_VARARGS|METH_KEYWORDS, "Emit agent telemetry." },
+    { "report_issue", (PyCFunction)report_issue, METH_VARARGS|METH_KEYWORDS, "Report a health platform issue." },
+    { "resolve_issue", (PyCFunction)resolve_issue, METH_VARARGS|METH_KEYWORDS, "Resolve a health platform issue by issue id." },
     { NULL, NULL } // guards
 };
 
@@ -158,6 +164,16 @@ void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t cb) {
 
 void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t cb) {
     cb_emit_agent_telemetry = cb;
+}
+
+void _set_report_issue_cb(cb_report_issue_t cb)
+{
+    cb_report_issue = cb;
+}
+
+void _set_resolve_issue_cb(cb_resolve_issue_t cb)
+{
+    cb_resolve_issue = cb;
 }
 
 
@@ -637,14 +653,21 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
     char *hostname = NULL;
     char *source_type = NULL;
     // We already PyList_Check input_list, so PyList_Size won't fail and return -1
-    int input_len = PyList_Size(input_list);
-    int i;
+    Py_ssize_t input_len = PyList_Size(input_list);
+    Py_ssize_t i;
     for (i = 0; i < input_len; i++) {
         PyObject *tuple = PyList_GetItem(input_list, i);
 
         // list must contain only tuples in form ('hostname', {'source_type': ['tag1', 'tag2']},)
         if (!PyTuple_Check(tuple)) {
             PyErr_SetString(PyExc_TypeError, "external host tags list must contain only tuples");
+            error = 1;
+            goto done;
+        }
+
+        // PyTuple_GetItem returns NULL for an out-of-range index
+        if (PyTuple_Size(tuple) < 2) {
+            PyErr_SetString(PyExc_TypeError, "external host tags tuple must have at least 2 elements");
             error = 1;
             goto done;
         }
@@ -691,15 +714,24 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         // allocate an array of char* to store the tags we'll send to the Go function
         char **tags;
         // We already PyList_Check value, so PyList_Size won't fail and return -1
-        int tags_len = PyList_Size(value);
-        if (!(tags = (char **)_malloc(sizeof(*tags) * tags_len + 1))) {
+        Py_ssize_t tags_len = PyList_Size(value);
+        // Sanity-check tags_len and guard the allocation size against overflow
+        if (tags_len < 0 || (size_t)tags_len > SIZE_MAX / sizeof(*tags) - 1) {
+            PyErr_SetString(PyExc_OverflowError, "tag list too large");
+            error = 1;
+            goto done;
+        }
+        // +1 slot for the trailing NULL sentinel; the Go side walks the array
+        // until it hits NULL. Parentheses around (tags_len + 1) are required —
+        // without them, operator precedence adds 1 byte instead of 1 pointer slot.
+        if (!(tags = (char **)_malloc(sizeof(*tags) * (tags_len + 1)))) {
             PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
             error = 1;
             goto done;
         }
 
         // copy the list of tags into an array of char*
-        int j, actual_size = 0;
+        Py_ssize_t j, actual_size = 0;
         for (j = 0; j < tags_len; j++) {
             PyObject *s = PyList_GetItem(value, j);
             if (s == NULL) {
@@ -948,5 +980,74 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
 
     PyGILState_Release(gstate);
 
+    Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *report_issue(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief Implements `datadog_agent.report_issue`, forwarding to the CGO callback.
+*/
+static PyObject *report_issue(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    if (cb_report_issue == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *check_name = NULL;
+    char *report_json = NULL;
+    static char *kwlist[] = { "check_name", "report_json", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|z", kwlist, &check_name, &report_json)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    char *err = NULL;
+    cb_report_issue(check_name, report_json, &err);
+
+    if (err != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, err);
+    }   
+    
+    cgo_free(err);
+    PyGILState_Release(gstate);
+    // we need to return NULL to raise the exception set by PyErr_SetString
+    if (err != NULL) {
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief Implements `datadog_agent.resolve_issue`, forwarding to the CGO callback.
+*/
+static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    if (cb_resolve_issue == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *issue_id = NULL;
+    static char *kwlist[] = { "issue_id", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s", kwlist, &issue_id)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    char *err = NULL;
+    cb_resolve_issue(issue_id, &err);
+
+    if (err != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, err);
+    }
+    
+    cgo_free(err);
+    PyGILState_Release(gstate);
+    // we need to return NULL to raise the exception set by PyErr_SetString
+    if (err != NULL) {
+        return NULL;
+    }
     Py_RETURN_NONE;
 }

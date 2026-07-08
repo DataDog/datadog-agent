@@ -55,7 +55,7 @@ class TestOmnibusCache(unittest.TestCase):
             for platform, get_dd_api_key_env in {
                 "darwin": {"AGENT_API_KEY_ORG2": "agent-api-key"},
                 "linux": {"AGENT_API_KEY_ORG2": "agent-api-key", "POD_NAMESPACE": "pod-ns"},
-                "win32": {"API_KEY_ORG2": "api-key"},
+                "win32": {"AGENT_API_KEY_ORG2": "api-key"},
             }.items():
                 with (
                     self.subTest(platform=platform),
@@ -76,9 +76,11 @@ class TestOmnibusCache(unittest.TestCase):
             (r'git .*', Result()),
             (r'aws(\.exe)? s3 .*', Result()),
             (r'go mod .*', Result()),
+            (r'go run .*compress_schema\.go .*', Result()),
             (r'grep .*', Result()),
             (r'aws(\.exe)? ssm .*', Result()),
             (r'vault kv get .*', Result()),
+            (r'C:\\devtools\\ci-identities-gitlab-job-client\.exe secrets read .*', Result()),
         ]
         for pattern, result in patterns:
             self.mock_ctx.set_result_for('run', re.compile(pattern), result)
@@ -231,6 +233,30 @@ class TestOmnibusCache(unittest.TestCase):
         )
 
 
+class TestOmnibusRunTask(unittest.TestCase):
+    def setUp(self):
+        self.mock_ctx = MockContextRaising(run={})
+        self.mock_ctx.set_result_for('run', re.compile(r'bundle exec omnibus build agent .*'), Result())
+
+    def test_formats_overrides_as_single_hash_option(self):
+        omnibus.omnibus_run_task(
+            self.mock_ctx,
+            task="build",
+            target_project="agent",
+            base_dir="/opt/dd/omnibus",
+            env={},
+            host_distribution="ubuntu",
+            cache_dir="/var/cache/dd/omnibus/cache",
+        )
+
+        command = self.mock_ctx.run.mock_calls[0].args[0]
+        self.assertIn(
+            "--override=base_dir:/opt/dd/omnibus cache_dir:/var/cache/dd/omnibus/cache host_distribution:ubuntu",
+            command,
+        )
+        self.assertEqual(command.count("--override="), 1)
+
+
 class TestOmnibusInstall(unittest.TestCase):
     def setUp(self):
         self.mock_ctx = MockContextRaising(run={})
@@ -320,6 +346,7 @@ class TestRpathEdit(unittest.TestCase):
         self.mock_ctx.set_result_for(
             'run', 'install_name_tool -change some/path/somelib.dylib some/path/somelib.dylib some/file', Result()
         )
+        self.mock_ctx.set_result_for('run', 'codesign --sign - --force some/file', Result())
         omnibus.rpath_edit(self.mock_ctx, "some/path", "some/other/path", "macos")
         call_list = self.mock_ctx.run.mock_calls
         assert mock.call('find some/path -type f -exec file --mime-type \\{\\} \\+', hide=True) in call_list
@@ -336,8 +363,9 @@ class TestRpathEdit(unittest.TestCase):
             )
             in call_list
         )
+        assert mock.call('codesign --sign - --force some/file') in call_list
         # We can't assert regex based temporary name in calls, hence we're checking that we get the correct total number of calls
-        assert len(call_list) == 8
+        assert len(call_list) == 9
 
 
 class TestBuildRepackagedAgent(unittest.TestCase):

@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
 )
 
 // ProgramID is a ID corresponding to an instance of a Program.  It is used to
@@ -44,8 +45,19 @@ type Program struct {
 	Issues []ProbeIssue
 	// GoModuledataInfo is used to resolve types from interfaces.
 	GoModuledataInfo GoModuledataInfo
+	// GoMapHashInfo holds addresses of runtime hash secrets needed for
+	// swiss table map lookups. Zero values indicate the symbols were not
+	// found in DWARF (map index expressions will be unsupported).
+	GoMapHashInfo GoMapHashInfo
 	// CommonTypes store references to common types.
 	CommonTypes CommonTypes
+	// IsARM64 is true when the target binary is arm64. This determines which
+	// AES instruction semantics (x86 AESENC vs arm64 AESE+AESMC) the BPF
+	// hash emulation uses for swiss table map lookups.
+	IsARM64 bool
+	// Redaction is the policy for scrubbing sensitive captured values. It is
+	// nil when no policy is configured, in which case nothing is redacted.
+	Redaction *redaction.Config `json:"-"`
 }
 
 // GoModuledataInfo is information about the runtime-internal structure used to
@@ -65,12 +77,33 @@ type GoModuledataInfo struct {
 	TypesOffset uint32
 }
 
+// GoMapHashInfo holds the addresses of runtime hash-related globals needed to
+// perform swiss table map lookups from BPF. These addresses are extracted from
+// DWARF during irgen and used by the loader to read the per-process hash
+// secrets at program load time.
+//
+// See pkg/dyninst/irgen/go_swiss_maps.md for details on the hash algorithms.
+type GoMapHashInfo struct {
+	// UseAeshashAddr is the address of runtime.useAeshash (bool).
+	// Determines whether the process uses AES-NI or wyhash for map hashing.
+	UseAeshashAddr uint64
+	// AeskeyschedAddr is the address of runtime.aeskeysched (uint8[128]).
+	// The per-process AES round key schedule, used when useAeshash is true.
+	AeskeyschedAddr uint64
+}
+
 // CommonTypes stores references to common types.
 type CommonTypes struct {
 	// G corresponds to runtime.g, non-nil
 	G *StructureType
 	// M corresponds to runtime.m, non-nil
 	M *StructureType
+	// Panic corresponds to runtime._panic. Nil if the type wasn't found
+	// in the binary's DWARF (e.g. stripped runtime, exotic toolchain).
+	// Loader treats absence as a signal to not attach the runtime.recovery
+	// probe; the rest of dyninst keeps working without panic-unwind
+	// handling.
+	Panic *StructureType
 }
 
 // InlinePCRanges represent the pc ranges for a single instance of an inlined subprogram.
@@ -101,6 +134,10 @@ type Subprogram struct {
 	InlinePCRanges []InlinePCRanges
 	// Variables are the variables that are used in the subprogram.
 	Variables []*Variable
+	// DictRegister is the ABI register number holding the dictionary pointer
+	// for shape-instantiated generic functions. Nil for non-generic functions.
+	// See pkg/dyninst/irgen/go_generics.md for details.
+	DictRegister *uint8
 }
 
 // VariableRole is the role of a variable within a subprogram.
@@ -112,6 +149,19 @@ const (
 	VariableRoleParameter
 	VariableRoleReturn
 	VariableRoleLocal
+	// VariableRoleDuration is a synthetic variable that resolves at
+	// BPF evaluation time to the nanoseconds elapsed between the entry
+	// event and the return event for the invocation. Only available on
+	// subprograms that have a return event.
+	VariableRoleDuration
+	// VariableRoleLoopIt is a synthetic variable representing the
+	// current element (`@it`) of an any/all loop. Its bytes live at
+	// sm->offset in the loop's scratch slot, written by the loop's
+	// Begin/End ops before each body iteration. The compiler treats a
+	// LocationOp with this role as a no-op (the bytes are already at
+	// sm->offset); GetMemberExpr-driven offset and ByteSize adjustments
+	// on the LocationOp narrow to the desired field within @it.
+	VariableRoleLoopIt
 )
 
 func (vr VariableRole) String() string {
@@ -122,6 +172,10 @@ func (vr VariableRole) String() string {
 		return "Return"
 	case VariableRoleLocal:
 		return "Local"
+	case VariableRoleDuration:
+		return "Duration"
+	case VariableRoleLoopIt:
+		return "LoopIt"
 	default:
 		return fmt.Sprintf("VariableRole(%d)", vr)
 	}
@@ -139,6 +193,17 @@ type Variable struct {
 	Locations []Location
 	// Role is the role of the variable within the subprogram.
 	Role VariableRole
+	// DictIndex is the index into the runtime dictionary where the concrete
+	// *runtime._type for this variable's shape type can be found. -1 means
+	// no dict resolution is needed (the variable is not a generic shape type).
+	// See pkg/dyninst/irgen/go_generics.md for details.
+	DictIndex int
+	// LoopBaseOffset is the byte offset of this variable's bytes inside the
+	// any/all loop's per-iteration scratch slot. Only meaningful when Role is
+	// VariableRoleLoopIt. For slice/array iteration and the map @it (key),
+	// this is 0. For the map @value, this is the 8-byte-aligned value offset
+	// the loop runtime writes alongside the key.
+	LoopBaseOffset uint32
 }
 
 // PCRange is the range of PC values that will be probed.
@@ -185,19 +250,30 @@ type InvalidSegment struct {
 
 func (s InvalidSegment) templateSegment() {}
 
-// DurationSegment is a segment that is a simple reference to @duration.
-type DurationSegment struct{}
-
-func (s *DurationSegment) templateSegment() {}
-
 // Probe represents a probe from the config as it applies to the program.
+// A single probe may target multiple subprograms (e.g. different shape
+// instantiations of a generic function), each represented as a
+// ProbeInstance. Throttling is shared across all instances.
 type Probe struct {
 	ProbeDefinition
-	// The subprogram to which the probe is attached.
+	// Instances are the per-subprogram instances of this probe. There is
+	// one instance per matching subprogram (shape function). For
+	// non-generic probes there is exactly one instance.
+	Instances []ProbeInstance
+}
+
+// ProbeInstance represents a single subprogram targeted by a probe. Each
+// instance has its own events and template because expression indices may
+// differ across shape instantiations.
+type ProbeInstance struct {
+	// Subprogram is the subprogram targeted by this instance.
 	Subprogram *Subprogram
-	// The events that trigger the probe.
+	// Events are the events that trigger this instance.
 	Events []*Event
-	// Template contains the concrete template structure for this probe.
+	// Template contains the concrete template structure for this instance.
+	// The template string is the same across all instances of a probe, but
+	// the JSONSegment.EventExpressionIndex values may differ because
+	// expression resolution can produce different results per shape.
 	Template *Template
 }
 

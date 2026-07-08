@@ -6,16 +6,24 @@
 package collector
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -23,6 +31,7 @@ type MockCheck struct {
 	core.CheckBase
 	Name       string
 	LoaderName string
+	CheckID    checkid.ID
 }
 
 func (m MockCheck) Run() error {
@@ -36,6 +45,10 @@ func (m MockCheck) Loader() string {
 
 func (m MockCheck) String() string {
 	return m.Name
+}
+
+func (m MockCheck) ID() checkid.ID {
+	return m.CheckID
 }
 
 type MockCoreLoader struct{}
@@ -125,10 +138,262 @@ func TestGetChecksFromConfigs(t *testing.T) {
 	}, actualChecks)
 }
 
-// MockCollector is a mock implementation of collector.Component for testing
+func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("metric_lookback.enabled", true)
+	cfg.SetInTest("metric_lookback.enabled_checks", []string{"cpu"})
+	cfg.SetInTest("infrastructure_mode", "cloud_cost_only")
+
+	normalSenderManager := &recordingSchedulerSenderManager{name: "normal"}
+	shadowSenderManager := &recordingSchedulerSenderManager{name: "shadow"}
+	sourceID := checkid.ID("cpu:loaded-source-id")
+	loader := &recordingSchedulerLoader{name: "core", normalCheckID: sourceID}
+	s := CheckScheduler{
+		configToChecks:      make(map[string][]checkid.ID),
+		senderManager:       normalSenderManager,
+		shadowSenderManager: shadowSenderManager,
+		infraTagger:         infratags.NewTagger(cfg),
+	}
+	s.addLoader(loader)
+
+	config := integration.Config{
+		Name:       "cpu",
+		Instances:  []integration.Data{integration.Data("name: first\n")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	checks := s.GetChecksFromConfigs([]integration.Config{config}, true)
+
+	require.Len(t, checks, 2)
+	normalCheck := checks[0]
+	shadowCheck := checks[1]
+	assert.False(t, check.IsShadow(normalCheck))
+	require.True(t, check.IsShadow(shadowCheck))
+
+	assert.Equal(t, sourceID, normalCheck.ID())
+	assert.Equal(t, check.ShadowID(sourceID), shadowCheck.ID())
+	assert.Equal(t, time.Second, shadowCheck.Interval())
+
+	shadowSenderOverride, ok := check.SenderManagerOverride(shadowCheck)
+	require.True(t, ok)
+	shadowSenderOverrideAdapter, ok := shadowSenderOverride.(shadowCheckSenderManager)
+	require.True(t, ok)
+	assert.Same(t, shadowSenderManager, shadowSenderOverrideAdapter.SenderManager)
+
+	assert.Equal(t, []checkid.ID{sourceID, check.ShadowID(sourceID)}, s.configToChecks[config.Digest()])
+	require.Len(t, loader.calls, 2)
+	assert.Same(t, normalSenderManager, loader.calls[0].senderManager)
+	shadowLoadSenderManager, ok := loader.calls[1].senderManager.(shadowCheckSenderManager)
+	require.True(t, ok)
+	assert.Same(t, shadowSenderManager, shadowLoadSenderManager.SenderManager)
+	assert.NotContains(t, string(loader.calls[0].instance), "_datadog")
+	assert.Contains(t, string(loader.calls[1].instance), "_datadog")
+	assert.Contains(t, string(loader.calls[1].instance), "execution_mode")
+	assert.NotEqual(t, check.ShadowID(sourceID), loader.calls[1].checkID)
+	assert.Equal(t, []checkid.ID{sourceID, sourceID}, normalSenderManager.requestedIDs)
+	assert.Equal(t, []checkid.ID{sourceID}, normalSenderManager.infraTaggedIDs)
+	assert.Equal(t, []checkid.ID{check.ShadowID(sourceID), check.ShadowID(sourceID)}, shadowSenderManager.requestedIDs)
+	assert.Equal(t, []checkid.ID{check.ShadowID(sourceID)}, shadowSenderManager.infraTaggedIDs)
+}
+
+func TestGetChecksFromConfigsDoesNotLoadShadowChecksWhenCacheIsNotPopulated(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("metric_lookback.enabled", true)
+	cfg.SetInTest("metric_lookback.enabled_checks", []string{"cpu"})
+
+	normalSenderManager := &recordingSchedulerSenderManager{name: "normal"}
+	shadowSenderManager := &recordingSchedulerSenderManager{name: "shadow"}
+	loader := &recordingSchedulerLoader{name: "core"}
+	s := CheckScheduler{
+		configToChecks:      make(map[string][]checkid.ID),
+		senderManager:       normalSenderManager,
+		shadowSenderManager: shadowSenderManager,
+	}
+	s.addLoader(loader)
+
+	config := integration.Config{
+		Name:       "cpu",
+		Instances:  []integration.Data{integration.Data("name: first\n")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	checks := s.GetChecksFromConfigs([]integration.Config{config}, false)
+
+	require.Len(t, checks, 1)
+	assert.False(t, check.IsShadow(checks[0]))
+	assert.Empty(t, s.configToChecks)
+	require.Len(t, loader.calls, 1)
+	assert.Same(t, normalSenderManager, loader.calls[0].senderManager)
+	assert.Empty(t, shadowSenderManager.requestedIDs)
+}
+
+func TestGetChecksFromConfigsUsesFallbackShadowSenderManager(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("metric_lookback.enabled", true)
+	cfg.SetInTest("metric_lookback.enabled_checks", []string{"cpu"})
+
+	normalSenderManager := &recordingSchedulerSenderManager{name: "normal"}
+	loader := &recordingSchedulerLoader{name: "core"}
+	s := CheckScheduler{
+		configToChecks: make(map[string][]checkid.ID),
+		senderManager:  normalSenderManager,
+	}
+	s.addLoader(loader)
+
+	config := integration.Config{
+		Name:       "cpu",
+		Instances:  []integration.Data{integration.Data("name: first\n")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	checks := s.GetChecksFromConfigs([]integration.Config{config}, true)
+
+	require.Len(t, checks, 2)
+	assert.False(t, check.IsShadow(checks[0]))
+	assert.True(t, check.IsShadow(checks[1]))
+	assert.Equal(t, []checkid.ID{checks[0].ID(), checks[1].ID()}, s.configToChecks[config.Digest()])
+	require.Len(t, loader.calls, 2)
+	assert.Same(t, normalSenderManager, loader.calls[0].senderManager)
+	assert.NotNil(t, s.shadowSenderManager)
+	assert.NotEqual(t, normalSenderManager, loader.calls[1].senderManager)
+	shadowCallSenderManager, ok := loader.calls[1].senderManager.(shadowCheckSenderManager)
+	require.True(t, ok)
+	assert.Equal(t, s.shadowSenderManager, shadowCallSenderManager.SenderManager)
+	assert.Equal(t, checks[1].ID(), shadowCallSenderManager.shadowCheckID)
+}
+
+func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowLoadFails(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("metric_lookback.enabled", true)
+	cfg.SetInTest("metric_lookback.enabled_checks", []string{"cpu"})
+
+	normalSenderManager := &recordingSchedulerSenderManager{name: "normal"}
+	shadowSenderManager := &recordingSchedulerSenderManager{name: "shadow"}
+	loader := &recordingSchedulerLoader{name: "core", failShadowLoad: true}
+	s := CheckScheduler{
+		configToChecks:      make(map[string][]checkid.ID),
+		senderManager:       normalSenderManager,
+		shadowSenderManager: shadowSenderManager,
+	}
+	s.addLoader(loader)
+
+	config := integration.Config{
+		Name:       "cpu",
+		Instances:  []integration.Data{integration.Data("name: first\n")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	checks := s.GetChecksFromConfigs([]integration.Config{config}, true)
+
+	require.Len(t, checks, 1)
+	assert.False(t, check.IsShadow(checks[0]))
+	assert.Equal(t, []checkid.ID{checks[0].ID()}, s.configToChecks[config.Digest()])
+	assert.Len(t, loader.calls, 2)
+	assert.Equal(t, []checkid.ID{check.ShadowID(checks[0].ID())}, shadowSenderManager.destroyedIDs)
+}
+
+func TestStopCancelsShadowSenderContext(t *testing.T) {
+	s := CheckScheduler{}
+	ctx := s.ensureShadowSenderContext()
+
+	s.Stop()
+
+	select {
+	case <-ctx.Done():
+		assert.ErrorIs(t, ctx.Err(), context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for shadow sender context cancellation")
+	}
+}
+
+func TestInitCheckSchedulerDoesNotCreateShadowSenderContext(t *testing.T) {
+	s := InitCheckScheduler(
+		option.None[collectorcomp.Component](),
+		&recordingSchedulerSenderManager{},
+		option.None[integrations.Component](),
+		nil,
+		nil,
+	)
+
+	assert.Nil(t, s.shadowSenderContext)
+	assert.Nil(t, s.shadowSenderCancel)
+}
+
+// MockCollector is a mock implementation of collectorcomp.Component for testing
 type MockCollector struct {
 	RunCheckCalls []check.Check // Track which checks were run
 	RunCheckError error         // Error to return from RunCheck
+}
+
+type schedulerLoadCall struct {
+	senderManager sender.SenderManager
+	config        integration.Config
+	instance      integration.Data
+	instanceIndex int
+	checkID       checkid.ID
+}
+
+type recordingSchedulerLoader struct {
+	name           string
+	normalCheckID  checkid.ID
+	failShadowLoad bool
+	calls          []schedulerLoadCall
+}
+
+func (l *recordingSchedulerLoader) Name() string {
+	return l.name
+}
+
+func (l *recordingSchedulerLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
+	checkID := checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig)
+	if l.normalCheckID != "" && !bytes.Contains(instance, []byte("_datadog")) {
+		checkID = l.normalCheckID
+	}
+	l.calls = append(l.calls, schedulerLoadCall{
+		senderManager: senderManager,
+		config:        config,
+		instance:      append(integration.Data(nil), instance...),
+		instanceIndex: instanceIndex,
+		checkID:       checkID,
+	})
+	if l.failShadowLoad && bytes.Contains(instance, []byte("_datadog")) {
+		return nil, errors.New("shadow load failed")
+	}
+	if _, err := senderManager.GetSender(checkID); err != nil {
+		return nil, err
+	}
+	return &MockCheck{
+		Name:       config.Name,
+		LoaderName: l.Name(),
+		CheckID:    checkID,
+	}, nil
+}
+
+type recordingSchedulerSenderManager struct {
+	sender.SenderManager
+	name           string
+	requestedIDs   []checkid.ID
+	destroyedIDs   []checkid.ID
+	infraTaggedIDs []checkid.ID
+}
+
+func (m *recordingSchedulerSenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
+	m.requestedIDs = append(m.requestedIDs, id)
+	return &recordingSchedulerSender{id: id, manager: m}, nil
+}
+
+func (m *recordingSchedulerSenderManager) DestroySender(id checkid.ID) {
+	m.destroyedIDs = append(m.destroyedIDs, id)
+}
+
+type recordingSchedulerSender struct {
+	sender.Sender
+	id      checkid.ID
+	manager *recordingSchedulerSenderManager
+}
+
+func (s *recordingSchedulerSender) SetInfraTagger(*infratags.Tagger) {
+	s.manager.infraTaggedIDs = append(s.manager.infraTaggedIDs, s.id)
 }
 
 func (m *MockCollector) RunCheck(c check.Check) (checkid.ID, error) {
@@ -155,14 +420,14 @@ func (m *MockCollector) MapOverChecks(cb func([]check.Info)) {
 	cb(nil)
 }
 
-func (m *MockCollector) AddEventReceiver(_ collector.EventReceiver) {
+func (m *MockCollector) AddEventReceiver(_ collectorcomp.EventReceiver) {
 }
 
 func TestSchedule_AllChecksAllowed(t *testing.T) {
 	// Test that when not in basic mode, all checks are scheduled
 	mockCollector := &MockCollector{}
 	s := &CheckScheduler{
-		collector:      option.New[collector.Component](mockCollector),
+		collector:      option.New[collectorcomp.Component](mockCollector),
 		configToChecks: make(map[string][]checkid.ID),
 	}
 	s.addLoader(&MockCoreLoader{})

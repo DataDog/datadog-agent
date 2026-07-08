@@ -6,7 +6,7 @@
 package listeners
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 var (
@@ -37,13 +37,13 @@ func NewTelemetryStore(buckets []float64, telemetrycomp telemetry.Component) *Te
 		tlmUDPPackets: telemetrycomp.NewCounter("dogstatsd", "udp_packets",
 			[]string{"state"}, "Dogstatsd UDP packets count"),
 		tlmUDPPacketsBytes: telemetrycomp.NewCounter("dogstatsd", "udp_packets_bytes",
-			nil, "Dogstatsd UDP packets bytes count"),
+			[]string{"emitter"}, "Dogstatsd UDP packets bytes count"),
 		tlmUDSPackets: telemetrycomp.NewCounter("dogstatsd", "uds_packets",
 			[]string{"listener_id", "transport", "state"}, "Dogstatsd UDS packets count"),
 		tlmUDSOriginDetectionError: telemetrycomp.NewCounter("dogstatsd", "uds_origin_detection_error",
 			[]string{"listener_id", "transport"}, "Dogstatsd UDS origin detection error count"),
 		tlmUDSPacketsBytes: telemetrycomp.NewCounter("dogstatsd", "uds_packets_bytes",
-			[]string{"listener_id", "transport"}, "Dogstatsd UDS packets bytes"),
+			[]string{"emitter", "listener_id", "transport"}, "Dogstatsd UDS packets bytes"),
 		tlmUDSConnections: telemetrycomp.NewGauge("dogstatsd", "uds_connections",
 			[]string{"listener_id", "transport"}, "Dogstatsd UDS connections count"),
 		tlmListener: telemetrycomp.NewHistogram(

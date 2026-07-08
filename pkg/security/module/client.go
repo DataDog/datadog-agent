@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	backoffticker "github.com/cenkalti/backoff/v5"
+	backoffticker "github.com/cenkalti/backoff/v6"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
@@ -65,7 +65,7 @@ func (c *SecurityAgentAPIClient) logConnectError(err error) {
 // SendEvents sends events to the security agent
 func (c *SecurityAgentAPIClient) SendEvents(ctx context.Context, msgs chan *api.SecurityEventMessage, onConnectCb func()) {
 	for {
-		seclog.Trace("connecting to security agent event grpc server")
+		seclog.Debugf("connecting to security agent event grpc server")
 
 		stream, err := c.SecurityAgentAPIClient.SendEvent(context.Background())
 		if err != nil {
@@ -166,13 +166,13 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 
 	seclog.Infof("using socket family '%s' and path '%s' to connect to security agent", family, socketPath)
 	if family == "vsock" {
-		cmdPort, err := strconv.Atoi(socketPath)
+		cmdPort, err := strconv.ParseUint(socketPath, 10, 16)
 		if err != nil {
 			return nil, err
 		}
 
-		if cmdPort <= 0 {
-			return nil, fmt.Errorf("invalid port '%s' for vsock", cfg.SocketPath)
+		if cmdPort == 0 {
+			return nil, errors.New("invalid port '0' for vsock")
 		}
 
 		socketPath = "passthrough:target"

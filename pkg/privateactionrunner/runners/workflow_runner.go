@@ -7,17 +7,19 @@ package runners
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
@@ -28,30 +30,34 @@ import (
 )
 
 type WorkflowRunner struct {
-	registry     *privatebundles.Registry
-	opmsClient   opms.Client
-	resolver     resolver.PrivateCredentialResolver
-	config       *config.Config
-	keysManager  taskverifier.KeysManager
-	taskVerifier *taskverifier.TaskVerifier
-	taskLoop     *Loop
+	registry        *privatebundles.Registry
+	opmsClient      opms.Client
+	resolver        resolver.PrivateCredentialResolver
+	config          *config.Config
+	keysManager     taskverifier.KeysManager
+	taskVerifier    taskverifier.TaskVerifier
+	taskLoop        *Loop
+	encryptionStore *encryptioncontext.Store
 }
 
 func NewWorkflowRunner(
 	configuration *config.Config,
 	keysManager taskverifier.KeysManager,
-	verifier *taskverifier.TaskVerifier,
+	verifier taskverifier.TaskVerifier,
 	opmsClient opms.Client,
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipcClient ipc.HTTPClient,
 ) (*WorkflowRunner, error) {
+	encryptionStore := encryptioncontext.NewStore()
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform),
-		opmsClient:   opmsClient,
-		resolver:     resolver.NewPrivateCredentialResolver(),
-		config:       configuration,
-		keysManager:  keysManager,
-		taskVerifier: verifier,
+		registry:        privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore),
+		opmsClient:      opmsClient,
+		resolver:        resolver.NewPrivateCredentialResolver(),
+		config:          configuration,
+		keysManager:     keysManager,
+		taskVerifier:    verifier,
+		encryptionStore: encryptionStore,
 	}, nil
 }
 
@@ -62,6 +68,7 @@ func (n *WorkflowRunner) Start(ctx context.Context) error {
 		return nil
 	}
 	startTime := time.Now()
+	go n.encryptionStore.Start()
 	n.keysManager.Start(ctx)
 	n.taskLoop = NewLoop(n)
 	go func() {
@@ -79,6 +86,7 @@ func (n *WorkflowRunner) Stop(ctx context.Context) error {
 	if n.taskLoop != nil {
 		n.taskLoop.Close(ctx)
 	}
+	n.encryptionStore.Stop()
 	return nil
 }
 
@@ -86,7 +94,7 @@ func (n *WorkflowRunner) RunTask(
 	ctx context.Context,
 	task *types.Task,
 	credential *privateconnection.PrivateCredentials,
-) (interface{}, error) {
+) (output interface{}, err error) {
 	fqn := task.GetFQN()
 	bundleName, actionName := actions.SplitFQN(fqn)
 	bundle := n.registry.GetBundle(bundleName)
@@ -106,15 +114,6 @@ func (n *WorkflowRunner) RunTask(
 	if !n.config.IsActionAllowed(bundleName, actionName) {
 		return nil, util.DefaultActionError(fmt.Errorf("action %s is not in the allow list", fqn))
 	}
-	if actions.IsHttpBundle(bundleName) {
-		url, ok := task.Data.Attributes.Inputs["url"].(string)
-		if !ok {
-			return nil, util.DefaultActionError(errors.New("missing required field url"))
-		}
-		if !n.config.IsURLInAllowlist(url) {
-			return nil, util.DefaultActionError(errors.New("request url is not allowed by runner policy: check your configuration file"))
-		}
-	}
 
 	logger := log.FromContext(ctx)
 
@@ -122,8 +121,14 @@ func (n *WorkflowRunner) RunTask(
 	defer heartbeatCancel()
 	go n.startHeartbeat(heartbeatCtx, task, logger)
 
+	ctx = telemetry.WithService(ctx, observability.ParService)
+	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, task.Data.Attributes.TraceId, task.Data.Attributes.SpanId)
+	span.SetResourceName(fqn)
+	span.SetTag("task_id", task.Data.ID)
+	defer func() { span.Finish(err) }()
+
 	startTime := observability.ReportExecutionStart(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
-	output, err := action.Run(ctx, task, credential)
+	output, err = action.Run(ctx, task, credential)
 	observability.ReportExecutionCompleted(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger)
 
 	if err != nil {

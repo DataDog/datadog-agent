@@ -15,25 +15,25 @@ import (
 	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 )
 
 var (
-	tlmColumnSize = telemetry.NewCounter("serializer", "v3_column_size",
+	tlmColumnSize = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_column_size",
 		[]string{"column", "compressed"},
 		"Number of bytes occupied by each column",
 	)
-	tlmValuesCount = telemetry.NewCounter("serializer", "v3_values_count",
+	tlmValuesCount = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_values_count",
 		[]string{"type"},
 		"Number of values encoded using a specific encoding type",
 	)
-	tlmSplitReason = telemetry.NewCounter("serializer", "v3_payload_split_reason",
+	tlmSplitReason = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_payload_split_reason",
 		[]string{"reason"},
 		"Why payload was split",
 	)
@@ -69,6 +69,8 @@ const (
 	columnSketchBinCnts
 	columnSourceTypeNameRef
 	columnOriginRef
+	columnDictUnitStr
+	columnUnitRef
 	numberOfColumns
 )
 
@@ -98,6 +100,8 @@ var columnNames = []string{
 	"SketchBinCounts",
 	"SourceTypeName",
 	"OriginInfo",
+	"DictUnitStr",
+	"UnitRef",
 }
 
 // Constants for type column
@@ -113,6 +117,7 @@ const (
 	valueFloat64 int64 = 0x30
 
 	flagNoIndex = 0x100
+	flagHasUnit = 0x200
 )
 
 const (
@@ -131,6 +136,7 @@ type payloadsBuilderV3 struct {
 	deltaTimestamp         deltaEncoder
 	deltaSourceTypeNameRef deltaEncoder
 	deltaOriginRef         deltaEncoder
+	deltaUnitRef           deltaEncoder
 
 	pointsThisPayload   int
 	maxPointsPerPayload int
@@ -142,6 +148,8 @@ type payloadsBuilderV3 struct {
 	pipelineContext *PipelineContext
 
 	resourcesBuf []metrics.Resource
+
+	sketchStats []v3SketchStat
 
 	scratchBuf []byte
 
@@ -306,6 +314,7 @@ func (pb *payloadsBuilderV3) reset() {
 	pb.deltaTimestamp.reset()
 	pb.deltaSourceTypeNameRef.reset()
 	pb.deltaOriginRef.reset()
+	pb.deltaUnitRef.reset()
 	pb.compressor.Reset()
 	pb.stats = v3stats{}
 }
@@ -456,8 +465,16 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	if serie.NoIndex {
 		typeValue |= flagNoIndex
 	}
+	if serie.Unit != "" {
+		typeValue |= flagHasUnit
+	}
 
 	pb.txn.Int64(columnType, typeValue)
+
+	if serie.Unit != "" {
+		pb.txn.Sint64(columnUnitRef,
+			pb.deltaUnitRef.encode(pb.dict.internUnit(serie.Unit)))
+	}
 
 	for _, pnt := range serie.Points {
 		pb.writePointCommon(int64(pnt.Ts))
@@ -477,18 +494,23 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	}
 }
 
-func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
-	if !pb.pipelineConfig.Filter.Filter(sketch) {
+var _ metrics.DistributionWriter = (*payloadsBuilderV3)(nil)
+
+// v3SketchStat holds the per-point summary values that cannot be streamed directly:
+// the value-type narrowing pass must see every point before choosing the column for
+// sum/min/max (and cnt shares that column when it is Sint64).
+type v3SketchStat struct {
+	cnt           int64
+	min, max, sum float64
+}
+
+func (pb *payloadsBuilderV3) writeSketch(dist metrics.Distribution) error {
+	if !pb.pipelineConfig.Filter.Filter(dist) {
 		return nil
 	}
 
-	if ok, err := pb.checkPointsLimit(len(sketch.Points)); !ok {
-		return err
-	}
-
 	for {
-		pb.writeSketchToTxn(sketch)
-		err := pb.finishTxn(len(sketch.Points))
+		err := dist.WriteTo(pb)
 		if err == errRetry {
 			continue
 		}
@@ -496,80 +518,85 @@ func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
 	}
 }
 
-func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
+// WriteDDSketch implements metrics.DistributionWriter.
+func (pb *payloadsBuilderV3) WriteDDSketch(meta metrics.DistributionMetadata, numPoints int, points metrics.DDSketchPoints) error {
+	if ok, err := pb.checkPointsLimit(numPoints); !ok {
+		return err
+	}
+
 	pb.txn.Reset()
 
 	pb.resourcesBuf = pb.resourcesBuf[:0]
-	if sketch.Host != "" {
+	if meta.Host != "" {
 		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
 			Type: resourceTypeHost,
-			Name: sketch.Host,
+			Name: meta.Host,
 		})
 	}
 
-	pb.writeMetricCommon(
-		sketch.Name,
-		sketch.Tags,
-		0,
-		"",
-		sketch.Source,
-		len(sketch.Points),
-	)
+	// interval 0 preserves the current wire behavior for sketches.
+	pb.writeMetricCommon(meta.Name, meta.Tags, 0, "", meta.Source, numPoints)
+
+	pb.sketchStats = pb.sketchStats[:0]
+	for i := 0; i < numPoints; i++ {
+		// Must not hold k and n across loop iterations.
+		ts, cnt, min, max, sum, _, k, n := points.GetDDSketchPoint(i)
+		pb.sketchStats = append(pb.sketchStats, v3SketchStat{cnt: cnt, min: min, max: max, sum: sum})
+
+		pb.writePointCommon(ts)
+
+		kDelta := deltaEncoder{}
+		for j := range k {
+			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[j])))
+			pb.txn.Uint64(columnSketchBinCnts, uint64(n[j]))
+		}
+		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
+	}
 
 	// find a single smallest type that can fit all summary values
 	// without loss of precision
 	pointKind := pointKindZero
-	for _, pnt := range sketch.Points {
-		_, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
-		pointKind = pointKind.unionOf(bSum)
-		pointKind = pointKind.unionOf(bMin)
-		pointKind = pointKind.unionOf(bMax)
+	for _, s := range pb.sketchStats {
+		pointKind = pointKind.unionOf(s.sum)
+		pointKind = pointKind.unionOf(s.min)
+		pointKind = pointKind.unionOf(s.max)
 	}
 	valueType := pointKind.toValueType()
 
 	typeValue := valueType | metricSketch
-	if sketch.NoIndex {
+	if meta.NoIndex {
 		typeValue |= flagNoIndex
 	}
 
 	pb.txn.Int64(columnType, typeValue)
 
-	for _, pnt := range sketch.Points {
-		pb.writePointCommon(pnt.Ts)
-		bCnt, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
-
+	for _, s := range pb.sketchStats {
 		switch valueType {
 		case valueZero:
 			pb.stats.valuesZero += 3
 		case valueSint64:
-			pb.txn.Sint64(columnValueSint64, int64(bSum))
-			pb.txn.Sint64(columnValueSint64, int64(bMin))
-			pb.txn.Sint64(columnValueSint64, int64(bMax))
+			pb.txn.Sint64(columnValueSint64, int64(s.sum))
+			pb.txn.Sint64(columnValueSint64, int64(s.min))
+			pb.txn.Sint64(columnValueSint64, int64(s.max))
 			pb.stats.valuesSint64 += 3
 		case valueFloat32:
-			pb.txn.Float32(columnValueFloat32, float32(bSum))
-			pb.txn.Float32(columnValueFloat32, float32(bMin))
-			pb.txn.Float32(columnValueFloat32, float32(bMax))
+			pb.txn.Float32(columnValueFloat32, float32(s.sum))
+			pb.txn.Float32(columnValueFloat32, float32(s.min))
+			pb.txn.Float32(columnValueFloat32, float32(s.max))
 			pb.stats.valuesFloat32 += 3
 		case valueFloat64:
-			pb.txn.Float64(columnValueFloat64, bSum)
-			pb.txn.Float64(columnValueFloat64, bMin)
-			pb.txn.Float64(columnValueFloat64, bMax)
+			pb.txn.Float64(columnValueFloat64, s.sum)
+			pb.txn.Float64(columnValueFloat64, s.min)
+			pb.txn.Float64(columnValueFloat64, s.max)
 			pb.stats.valuesFloat64 += 3
 		}
 
 		// can share column with sum, min max, if so, cnt must be last.
-		pb.txn.Sint64(columnValueSint64, bCnt)
+		pb.txn.Sint64(columnValueSint64, s.cnt)
 		pb.stats.valuesSint64++
-
-		k, n := pnt.Sketch.Cols()
-		kDelta := deltaEncoder{}
-		for i := range k {
-			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))
-			pb.txn.Uint64(columnSketchBinCnts, uint64(n[i]))
-		}
-		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
 	}
+
+	return pb.finishTxn(numPoints)
 }
 
 func (pb *payloadsBuilderV3) updateValuesStats() {
@@ -664,6 +691,7 @@ type dictionaryBuilder struct {
 	tagsInterner           interner[istr]
 	resourceInterner       interner[istr]
 	sourceTypeNameInterner interner[istr]
+	unitInterner           interner[istr]
 
 	originInfoInterner interner[originInfo]
 
@@ -693,6 +721,7 @@ func newDictionaryBuilder(txn *stream.ColumnTransaction) *dictionaryBuilder {
 		resourceInterner: newInterner[istr](txn, columnDictResourceStr),
 
 		sourceTypeNameInterner: newInterner[istr](txn, columnDictSourceTypeName),
+		unitInterner:           newInterner[istr](txn, columnDictUnitStr),
 
 		originInfoInterner: newInterner[originInfo](txn, columnDictOrigin),
 
@@ -706,6 +735,7 @@ func (db *dictionaryBuilder) reset() {
 	db.tagsInterner.reset()
 	db.resourceInterner.reset()
 	db.sourceTypeNameInterner.reset()
+	db.unitInterner.reset()
 	db.originInfoInterner.reset()
 	db.tagsLastID = 0
 	db.tagsIndex = map[tagsKey]int64{}
@@ -819,6 +849,13 @@ func (db *dictionaryBuilder) internSourceTypeName(stn string) int64 {
 		return 0
 	}
 	return db.sourceTypeNameInterner.intern(istr(stn))
+}
+
+func (db *dictionaryBuilder) internUnit(unit string) int64 {
+	if unit == "" {
+		return 0
+	}
+	return db.unitInterner.intern(istr(unit))
 }
 
 // pointType represents the kind (integer or floating point, range) of a time series point value.

@@ -20,6 +20,8 @@ import (
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
@@ -27,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
@@ -296,9 +296,9 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotation() {
 func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_RotationOccurs() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_lines", 1)
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.to_skip", 0)
+	mockConfig.SetInTest("logs_config.fingerprint_config.max_bytes", 256)
+	mockConfig.SetInTest("logs_config.fingerprint_config.max_lines", 1)
+	mockConfig.SetInTest("logs_config.fingerprint_config.to_skip", 0)
 
 	// Create fingerprint config for this test
 	launcherFingerprintConfig := &types.FingerprintConfig{
@@ -378,7 +378,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_R
 func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRotationOccurs() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
+	mockConfig.SetInTest("logs_config.fingerprint_config.max_bytes", 256)
 
 	// Create fingerprint config for this test
 	fingerprintConfig := &types.FingerprintConfig{
@@ -627,7 +627,7 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 
 func runLauncherScanStartNewTailerWithLongLineTest(t *testing.T, testDirs []string) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
+	mockConfig.SetInTest("logs_config.fingerprint_config.max_bytes", 256)
 	testDir := testDirs[0]
 
 	// Temporarily set the global config for this test
@@ -1313,7 +1313,7 @@ func getScanKey(path string, source *sources.LogSource) string {
 func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.close_timeout", 1) // seconds
+	mockConfig.SetInTest("logs_config.close_timeout", 1) // seconds
 
 	// Create fingerprint config for this test
 	fingerprintConfig := types.FingerprintConfig{
@@ -1379,7 +1379,7 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTailer() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.close_timeout", 1) // seconds
+	mockConfig.SetInTest("logs_config.close_timeout", 1) // seconds
 
 	// Create fingerprint config for this test
 	fingerprintConfig := types.FingerprintConfig{

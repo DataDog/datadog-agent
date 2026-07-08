@@ -1,4 +1,4 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
@@ -101,24 +101,24 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-so_symlink(
-    name = "lib_files",
-    src = ":attr",
-    libname = "libattr",
-    version = "1.1.2501",
-)
-
 pkg_files(
     name = "hdr_files",
     srcs = _PUBLIC_HEADERS,
     prefix = "include/attr/",
 )
 
+dd_cc_packaged(
+    name = "attr_pkg",
+    input = ":attr",
+    version = "1.1.2501",
+    installed_files = [":hdr_files"],
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":hdr_files",
-        ":lib_files",
     ],
     prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],

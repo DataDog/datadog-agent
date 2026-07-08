@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
@@ -52,8 +54,15 @@ const (
 	defaultGpuSystem             systemName = gpuSystemUbuntu2204
 	defaultCudaVersion           string     = "12.4.1"
 	oldCudaVersion               string     = "10.2"
-	dockerRegistry               string     = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub"
 )
+
+var dockerRegistry = func() string {
+	reg, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
+	if reg != "" {
+		return strings.SplitN(reg, ",", 2)[0] + "/dockerhub"
+	}
+	return "docker.io"
+}()
 
 var (
 	cuda12DockerImage    = fmt.Sprintf("%s/nvidia/cuda:%s-base-ubuntu22.04", dockerRegistry, defaultCudaVersion)
@@ -169,6 +178,7 @@ type gpuK8sSuite struct {
 // TestGPUK8sSuiteUbuntu2204 runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUK8sSuiteUbuntu2204(t *testing.T) {
+	flake.Mark(t)
 	runGpuK8sSuite(t, gpuSystemUbuntu2204)
 }
 

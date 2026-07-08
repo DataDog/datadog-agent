@@ -113,7 +113,7 @@ func resetGlobalClusterAgentClient() {
 }
 
 // GetClusterAgentClient returns or init the DCAClient
-func GetClusterAgentClient() (DCAClientInterface, error) {
+func GetClusterAgentClient() (*DCAClient, error) {
 	if globalClusterAgentClient == nil {
 		globalClusterAgentClient = &DCAClient{}
 		globalClusterAgentClient.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck

@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/containerd/containerd/protobuf/proto"
+	"github.com/containerd/containerd/v2/pkg/protobuf/proto"
 )
 
 // DumpDiscarders handles discarder dump requests
@@ -308,7 +308,7 @@ func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher 
 	return nil
 }
 
-func (a *APIServer) collectSBOMS() {
+func (a *SBOMAPIServer) collectSBOMS() {
 	ebpfProbe, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
 		return
@@ -330,7 +330,7 @@ func (a *APIServer) collectSBOMS() {
 }
 
 // GetSBOMStream handles SBOM stream requests
-func (a *APIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.SBOMCollector_GetSBOMStreamServer) error {
+func (a *SBOMAPIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.SBOMCollector_GetSBOMStreamServer) error {
 	for {
 		select {
 		case <-stream.Context().Done():

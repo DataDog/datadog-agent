@@ -1,15 +1,22 @@
 {
-  "type": "unsupported",
-  "operation": "any",
-  "argument": [
-    {
-      "ref": "coll"
+  "type": "any",
+  "operation": "",
+  "left": {
+    "type": "ref",
+    "ref": "coll",
+    "operation": "",
+    "error": ""
+  },
+  "right": {
+    "type": "isEmpty",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "@key",
+      "operation": "",
+      "error": ""
     },
-    {
-      "isEmpty": {
-        "ref": "@key"
-      }
-    }
-  ],
+    "error": ""
+  },
   "error": ""
 }

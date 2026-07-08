@@ -6,10 +6,9 @@
 package retry
 
 import (
+	"errors"
 	"fmt"
 	"sync"
-
-	"github.com/hashicorp/go-multierror"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -23,11 +22,6 @@ type TransactionDiskStorage interface {
 	GetDiskSpaceUsed() int64
 }
 
-// TransactionPrioritySorter is an interface to sort transactions.
-type TransactionPrioritySorter interface {
-	Sort([]transaction.Transaction)
-}
-
 // TransactionRetryQueue stores transactions in memory and flush them to disk when the memory
 // limit is exceeded.
 type TransactionRetryQueue struct {
@@ -35,7 +29,6 @@ type TransactionRetryQueue struct {
 	currentMemSizeInBytes int
 	maxMemSizeInBytes     int
 	flushToStorageRatio   float64
-	dropPrioritySorter    TransactionPrioritySorter
 	optionalStorage       TransactionDiskStorage
 	telemetry             TransactionRetryQueueTelemetry
 	pointCountTelemetry   *PointCountTelemetry
@@ -49,7 +42,6 @@ func BuildTransactionRetryQueue(
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
 	optionalDiskUsageLimit *DiskUsageLimit,
-	dropPrioritySorter TransactionPrioritySorter,
 	resolver resolver.DomainResolver,
 	pointCountTelemetry *PointCountTelemetry) *TransactionRetryQueue {
 	var storage TransactionDiskStorage
@@ -68,7 +60,6 @@ func BuildTransactionRetryQueue(
 	}
 
 	return NewTransactionRetryQueue(
-		dropPrioritySorter,
 		storage,
 		maxMemSizeInBytes,
 		flushToStorageRatio,
@@ -78,7 +69,6 @@ func BuildTransactionRetryQueue(
 
 // NewTransactionRetryQueue creates a new instance of NewTransactionRetryQueue
 func NewTransactionRetryQueue(
-	dropPrioritySorter TransactionPrioritySorter,
 	optionalTransactionStorage TransactionDiskStorage,
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
@@ -87,7 +77,6 @@ func NewTransactionRetryQueue(
 	return &TransactionRetryQueue{
 		maxMemSizeInBytes:   maxMemSizeInBytes,
 		flushToStorageRatio: flushToStorageRatio,
-		dropPrioritySorter:  dropPrioritySorter,
 		optionalStorage:     optionalTransactionStorage,
 		telemetry:           telemetry,
 		pointCountTelemetry: pointCountTelemetry,
@@ -112,9 +101,10 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 	payloadSize := t.GetPayloadSize()
 	if tc.optionalStorage != nil {
 		payloadsGroupToFlush := tc.extractTransactionsForDisk(payloadSize)
+		var diskErrs []error
 		for _, payloads := range payloadsGroupToFlush {
 			if err := tc.optionalStorage.Store(payloads); err != nil {
-				diskErr = multierror.Append(diskErr, err)
+				diskErrs = append(diskErrs, err)
 				// Assuming all payloads failed during serialization
 				pointCountDroppped := 0
 				for _, payload := range payloads {
@@ -123,6 +113,7 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 				tc.onDropPoints(pointCountDroppped)
 			}
 		}
+		diskErr = errors.Join(diskErrs...)
 		if diskErr != nil {
 			diskErr = fmt.Errorf("Cannot store transactions on disk: %v", diskErr)
 			tc.telemetry.incErrorsCount()
@@ -226,7 +217,7 @@ func (tc *TransactionRetryQueue) extractTransactionsForDisk(payloadSize int) [][
 	sizeInBytesToFlush := int(float64(tc.maxMemSizeInBytes) * tc.flushToStorageRatio)
 	var payloadsGroupToFlush [][]transaction.Transaction
 	for tc.currentMemSizeInBytes+payloadSize > tc.maxMemSizeInBytes && len(tc.transactions) > 0 {
-		// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
+		// Flush the N last (lowest-priority/oldest) transactions whose payload size sum is greater than `sizeInBytesToFlush`
 		transactions := tc.extractTransactionsFromMemory(sizeInBytesToFlush)
 
 		if len(transactions) == 0 {
@@ -240,19 +231,26 @@ func (tc *TransactionRetryQueue) extractTransactionsForDisk(payloadSize int) [][
 	return payloadsGroupToFlush
 }
 
+// Extracts transactions whose combined payload size is not less than `payloadSizeInBytesToExtract`.
 func (tc *TransactionRetryQueue) extractTransactionsFromMemory(payloadSizeInBytesToExtract int) []transaction.Transaction {
-	i := 0
+	i := len(tc.transactions) - 1
 	sizeInBytesExtracted := 0
 	var transactionsExtracted []transaction.Transaction
 
-	tc.dropPrioritySorter.Sort(tc.transactions)
-	for ; i < len(tc.transactions) && sizeInBytesExtracted < payloadSizeInBytesToExtract; i++ {
+	// SortByCreatedTimeAndPriority places high-priority/newest transactions at the
+	// front (index 0) and low-priority/oldest at the tail. Extracting from the tail
+	// evicts the least-valuable transactions first and lets us shrink the slice
+	// with a simple reslice instead of cutting from the front, so this way we
+	// preserve the capacity.
+	transaction.SortByCreatedTimeAndPriority(tc.transactions)
+	for ; i >= 0 && sizeInBytesExtracted < payloadSizeInBytesToExtract; i-- {
 		transaction := tc.transactions[i]
 		sizeInBytesExtracted += transaction.GetPayloadSize()
 		transactionsExtracted = append(transactionsExtracted, transaction)
+		tc.transactions[i] = nil
 	}
 
-	tc.transactions = tc.transactions[i:]
+	tc.transactions = tc.transactions[:i+1]
 	tc.currentMemSizeInBytes -= sizeInBytesExtracted
 	return transactionsExtracted
 }

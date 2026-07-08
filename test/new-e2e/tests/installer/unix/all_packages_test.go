@@ -227,9 +227,14 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		}
 		// Install ansible then install the agent
 		var ansiblePrefix string
+		collectionVersion := os.Getenv("E2E_DATADOG_DD_COLLECTION_VERSION")
+		if collectionVersion == "" {
+			collectionVersion = "6.5.0"
+		}
 		for i := 0; i < 3; i++ {
 			ansiblePrefix = s.installAnsible(s.os)
-			if _, err := s.Env().RemoteHost.Execute(ansiblePrefix + "ansible-galaxy collection install -vvv datadog.dd"); err == nil {
+			collectionInstallCmd := fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:%s", ansiblePrefix, collectionVersion)
+			if _, err := s.Env().RemoteHost.Execute(collectionInstallCmd); err == nil {
 				break
 			}
 			if i == 2 {
@@ -238,12 +243,17 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 			time.Sleep(time.Second)
 		}
 
-		// Write the playbook
+		// Write the playbook. InstallScriptEnv sets datadog_installer_registry to the
+		// pipeline OCI registry (installtesting.datad0g.com.internal.dda-testing.com), which
+		// the role passes as DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE to install-ssi.sh.
+		// The script URL is overridden via -e (extra vars beat set_fact) so ansible fetches
+		// the pipeline-specific install-ssi.sh from S3 instead of the production script.
 		env := InstallScriptEnv(s.arch)
 		playbookPath := s.writeAnsiblePlaybook(env, params...)
+		scriptURL := "https://" + InstallerScriptBaseURL() + "/scripts/install-ssi.sh"
 
 		// Run the playbook
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s -e 'datadog_installer_install_ssi_script_url=%s'", ansiblePrefix, playbookPath, scriptURL))
 
 		// touch install files for compatibility
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")
@@ -325,7 +335,7 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 	case e2eos.Suse:
 		s.Env().RemoteHost.MustExecute("sudo zypper install -y python3 python3-pip && sudo pip3 install ansible")
 	default:
-		s.Env().RemoteHost.MustExecute("python3 -m ensurepip --upgrade && python3 -m pip install pipx && python3 -m pipx ensurepath")
+		s.Env().RemoteHost.MustExecute("python3 -m ensurepip --upgrade && python3 -m pip install pipx==1.11.1 && python3 -m pipx ensurepath")
 		pathPrefix = "/usr/bin/"
 	}
 
@@ -367,10 +377,19 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		"TESTING_YUM_URL":          "yum.datadoghq.com",
 		"TESTING_YUM_VERSION_PATH": "",
 	}
+	// Build a set of keys already provided in params so env defaults don't override them.
+	paramKeys := make(map[string]struct{}, len(params))
+	for _, p := range params {
+		if key, _, found := strings.Cut(p, "="); found {
+			paramKeys[key] = struct{}{}
+		}
+	}
 	mergedParams := make([]string, len(params))
 	copy(mergedParams, params)
 	for k, v := range env {
-		mergedParams = append(mergedParams, fmt.Sprintf("%s=%s", k, v))
+		if _, overridden := paramKeys[k]; !overridden {
+			mergedParams = append(mergedParams, fmt.Sprintf("%s=%s", k, v))
+		}
 	}
 
 	environments := []string{}

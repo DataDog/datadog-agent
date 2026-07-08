@@ -7,6 +7,8 @@ package metrics
 
 import (
 	"math/rand"
+	"runtime"
+	"sort"
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -40,8 +42,8 @@ func TestConfigure(t *testing.T) {
 	defaultAggregates = nil
 	defaultPercentiles = nil
 	aggregates := []string{"max", "min", "test"}
-	mockConfig.SetWithoutSource("histogram_aggregates", aggregates)
-	mockConfig.SetWithoutSource("histogram_percentiles", []string{"0.50", "0.30", "0.98"})
+	mockConfig.SetInTest("histogram_aggregates", aggregates)
+	mockConfig.SetInTest("histogram_percentiles", []string{"0.50", "0.30", "0.98"})
 
 	hist := NewHistogram(10, mockConfig)
 	assert.Equal(t, aggregates, hist.aggregates)
@@ -267,6 +269,75 @@ func TestHistogramReset(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+// TestHistogramAverageExtremeScale uses the classic float-pathology sequence
+// {1, +1e100, 1, -1e100} (see Kahan / Peters on
+// https://en.wikipedia.org/wiki/Kahan_summation_algorithm). The exact sum in ℝ
+// is 2.0; the flushed .sum is compared to that (addSample order matches the slice).
+func TestHistogramAverageExtremeScale(t *testing.T) {
+	defaultAggregates = nil
+	defaultPercentiles = nil
+	cfg := setupConfig(t)
+	hist := NewHistogram(10, cfg)
+	hist.configure([]string{"sum"}, nil)
+
+	petersExtreme := []float64{1.0, 1e100, 1.0, -1e100}
+	const wantSum = 2.0 // 1 + 1e100 + 1 + (-1e100) in exact arithmetic
+
+	for _, v := range petersExtreme {
+		hist.addSample(&MetricSample{Value: v}, 0)
+	}
+
+	series, err := hist.flush(1)
+	require.NoError(t, err)
+	require.Len(t, series, 1)
+	assert.Equal(t, ".sum", series[0].NameSuffix)
+	assert.Equal(t, wantSum, series[0].Points[0].Value,
+		"flushed .sum should be 2.0 in ℝ; Neumaier summation in addSample recovers it in float64.")
+}
+
+// TestHistogramNonReciprocalSampleRate pins the .sum/.avg/.count scaling for DogStatsD
+// sample rates whose reciprocal is not an integer (e.g. @0.21 → 1/rate ≈ 4.7619).
+//
+// The historical implementation stored an int64-truncated weight and used it for the
+// sum, producing .sum = value*4 instead of value*4.7619 — a ~16% undercount versus the
+// Counter metric type, which scales by the exact 1/SampleRate. All three aggregates now
+// use the exact 1/rate scaling, matching Counter and the documented DogStatsD semantics.
+//
+// Regression check: an int-truncated weight (= 4 for @0.21) would give .sum = 200 and
+// .count = 2.0 — both off by ~16%, well outside the 1e-12 epsilon below.
+func TestHistogramNonReciprocalSampleRate(t *testing.T) {
+	defaultAggregates = nil
+	defaultPercentiles = nil
+	cfg := setupConfig(t)
+	hist := NewHistogram(10, cfg)
+	hist.configure([]string{"sum", "avg", "count"}, nil)
+
+	for i := 0; i < 5; i++ {
+		hist.addSample(&MetricSample{Value: 10, SampleRate: 0.21}, 0)
+	}
+
+	series, err := hist.flush(1)
+	require.NoError(t, err)
+	require.Len(t, series, 3)
+
+	const (
+		wantSum   = 238.09523809523807 // 50 / 0.21 at float64 precision
+		wantAvg   = 10.0
+		wantCount = 2.380952380952381 // (5 / 0.21) / interval(10)
+	)
+
+	assert.Equal(t, ".sum", series[0].NameSuffix)
+	assert.InEpsilon(t, wantSum, series[0].Points[0].Value, 1e-12,
+		"sum must scale by exact 1/rate (matches Counter), not int64-truncated 1/rate")
+
+	assert.Equal(t, ".avg", series[1].NameSuffix)
+	assert.InEpsilon(t, wantAvg, series[1].Points[0].Value, 1e-12)
+
+	assert.Equal(t, ".count", series[2].NameSuffix)
+	assert.InEpsilon(t, wantCount, series[2].Points[0].Value, 1e-12,
+		"count must scale by exact 1/rate, matching Counter and DogStatsD docs")
+}
+
 //
 // Benchmark
 //
@@ -356,3 +427,122 @@ func BenchmarkHistogram10000SampleRate02(b *testing.B) {
 func BenchmarkHistogram100000SampleRate02(b *testing.B) {
 	benchHistogram(b, 100000, 0.2)
 }
+
+func TestHistogramUnitPropagation(t *testing.T) {
+	aggregates := []string{"max", "avg", "count"}
+	percentiles := []int{95}
+
+	// Timing sample: unit must appear on every flushed serie.
+	h := &Histogram{interval: 10, aggregates: aggregates, percentiles: percentiles}
+	h.addSample(&MetricSample{Value: 100, SampleRate: 1, Unit: UnitMilliseconds}, 50)
+	h.addSample(&MetricSample{Value: 200, SampleRate: 1, Unit: UnitMilliseconds}, 51)
+
+	series, err := h.flush(60)
+	require.Nil(t, err)
+	require.NotEmpty(t, series)
+	for _, s := range series {
+		if s.NameSuffix == ".count" {
+			assert.Emptyf(t, s.Unit, "serie %s should be dimensionless", s.NameSuffix)
+		} else {
+			assert.Equal(t, UnitMilliseconds, s.Unit, "serie %s should carry unit", s.NameSuffix)
+		}
+	}
+
+	// Plain histogram sample (no unit): every flushed serie must have empty unit.
+	h2 := &Histogram{interval: 10, aggregates: aggregates, percentiles: percentiles}
+	h2.addSample(&MetricSample{Value: 100, SampleRate: 1}, 50)
+
+	series2, err := h2.flush(60)
+	require.Nil(t, err)
+	require.NotEmpty(t, series2)
+	for _, s := range series2 {
+		assert.Equal(t, "", s.Unit, "serie %s should have no unit", s.NameSuffix)
+	}
+}
+
+// benchHistogramMixedSign exercises the mixed-sign path of sampleSum by alternating
+// positive and negative values. Used to measure the split-by-sign optimization; the
+// all-positive benchHistogram above never reaches that code path.
+func benchHistogramMixedSign(b *testing.B, number int, sampleRate float64) {
+	cfg := setupConfig(b)
+	for n := 0; n < b.N; n++ {
+		h := NewHistogram(1, cfg)
+		h.configure([]string{"max", "min", "median", "avg", "sum", "count"}, []int{20, 95, 80})
+		pos := MetricSample{Value: 21, SampleRate: sampleRate}
+		neg := MetricSample{Value: -21, SampleRate: sampleRate}
+		for i := 0; i < number; i++ {
+			if i%2 == 0 {
+				h.addSample(&pos, 10)
+			} else {
+				h.addSample(&neg, 10)
+			}
+		}
+		h.flush(10)
+	}
+}
+
+func BenchmarkHistogram1000MixedSignSampleRate1(b *testing.B) {
+	benchHistogramMixedSign(b, 1000, 1.0)
+}
+
+func BenchmarkHistogram10000MixedSignSampleRate1(b *testing.B) {
+	benchHistogramMixedSign(b, 10000, 1.0)
+}
+
+func BenchmarkHistogram100000MixedSignSampleRate1(b *testing.B) {
+	benchHistogramMixedSign(b, 100000, 1.0)
+}
+
+// benchSampleSum isolates sampleSum (no sort, no flush, no alloc in the hot loop) so the
+// summation algorithm is actually what's being measured, not slice growth/sort/percentile
+// computation. Samples are pre-sorted to match the sort.Sort invariant of flush().
+func benchSampleSum(b *testing.B, values []float64) {
+	h := &Histogram{
+		samples:      make(weightSamples, len(values)),
+		count:        float64(len(values)),
+		sharedWeight: 1,
+	}
+	for i, v := range values {
+		h.samples[i] = weightSample{value: v, weight: 1}
+	}
+	sort.Sort(h.samples)
+	b.ReportAllocs()
+	b.ResetTimer()
+	var sink float64
+	for n := 0; n < b.N; n++ {
+		sink += h.sampleSum()
+	}
+	b.StopTimer()
+	runtime.KeepAlive(sink)
+}
+
+func buildMixedSignValues(n int) []float64 {
+	vs := make([]float64, n)
+	for i := range vs {
+		if i%2 == 0 {
+			vs[i] = 21
+		} else {
+			vs[i] = -21
+		}
+	}
+	return vs
+}
+
+func buildAllPositiveValues(n int) []float64 {
+	vs := make([]float64, n)
+	for i := range vs {
+		vs[i] = 21
+	}
+	return vs
+}
+
+func BenchmarkSampleSum100AllPositive(b *testing.B) { benchSampleSum(b, buildAllPositiveValues(100)) }
+func BenchmarkSampleSum10000AllPositive(b *testing.B) {
+	benchSampleSum(b, buildAllPositiveValues(10000))
+}
+func BenchmarkSampleSum100000AllPositive(b *testing.B) {
+	benchSampleSum(b, buildAllPositiveValues(100000))
+}
+func BenchmarkSampleSum100MixedSign(b *testing.B)    { benchSampleSum(b, buildMixedSignValues(100)) }
+func BenchmarkSampleSum10000MixedSign(b *testing.B)  { benchSampleSum(b, buildMixedSignValues(10000)) }
+func BenchmarkSampleSum100000MixedSign(b *testing.B) { benchSampleSum(b, buildMixedSignValues(100000)) }

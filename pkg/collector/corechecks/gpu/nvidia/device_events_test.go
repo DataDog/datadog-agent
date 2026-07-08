@@ -22,19 +22,18 @@ import (
 )
 
 func TestDeviceEventsGatherer_RegisterBeforeStart(t *testing.T) {
-	device := setupMockDevice(t, nil)
+	device := setupMockDevice(t)
 
 	gatherer := NewDeviceEventsGatherer()
 	assert.Error(t, gatherer.RegisterDevice(device))
 }
 
 func TestDeviceEventsGatherer_RegisterWithUnsupportedEvents(t *testing.T) {
-	device := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
 		device.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
 			return 0, nvml.SUCCESS
 		}
-		return device
-	})
+	}))
 
 	gatherer := NewDeviceEventsGatherer()
 	assert.Error(t, gatherer.RegisterDevice(device))
@@ -55,13 +54,16 @@ func TestDeviceEventsGatherer_GetWithUnregistered(t *testing.T) {
 }
 
 func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
+	WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
+
 	// by controlling this, we can influence the gathered device events
 	gatheredDeviceEvents := make(chan nvml.EventData, 10)
 	t.Cleanup(func() { close(gatheredDeviceEvents) })
 
 	// setup mock device, and the nvml lib to return events at our command
-	device := setupMockDeviceWithLibOpts(t, nil,
+	device := setupMockDevice(t,
 		testutil.WithSymbolsMock(map[string]struct{}{"nvmlDeviceGetUUID": {}}),
+		testutil.WithMockAllFunctions(),
 		testutil.WithEventSetCreate(func() (nvml.EventSet, nvml.Return) {
 			return &mock.EventSet{
 				FreeFunc: func() nvml.Return { return nvml.SUCCESS },
@@ -104,10 +106,12 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 	assert.Empty(t, events)
 
 	// after refreshing, the event should be present
-	require.NoError(t, gatherer.Refresh())
-	events, err = gatherer.GetEvents(uuid)
-	require.NoError(t, err)
-	require.Len(t, events, 1)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		require.NoError(c, gatherer.Refresh())
+		events, err = gatherer.GetEvents(uuid)
+		require.NoError(c, err)
+		require.Len(c, events, 1)
+	}, 200*time.Millisecond, 2*time.Millisecond)
 	assert.Equal(t, safenvml.DeviceEventData{
 		DeviceUUID: uuid,
 		EventType:  sampleDeviceEvent.EventType,
@@ -158,7 +162,7 @@ func (m *mockDeviceEventsCollectorCache) GetEvents(_ string) ([]safenvml.DeviceE
 
 func TestDeviceEventsCollector(t *testing.T) {
 	cache := mockDeviceEventsCollectorCache{}
-	device := setupMockDevice(t, nil)
+	device := setupMockDevice(t)
 	uuid := device.GetDeviceInfo().UUID
 
 	collector, err := newDeviceEventsCollectorWithCache(device, &cache)
@@ -202,7 +206,7 @@ func TestDeviceEventsCollector(t *testing.T) {
 	mm, err = collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, mm, 1)
-	assert.Equal(t, Metric{
+	assert.Equal(t, &Metric{
 		Name:     xidErrorsMetricName,
 		Value:    1,
 		Type:     metrics.GaugeType,
@@ -226,7 +230,7 @@ func TestDeviceEventsCollector(t *testing.T) {
 	mm2, err := collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, mm2, 2)
-	assert.ElementsMatch(t, []Metric{
+	assert.ElementsMatch(t, []*Metric{
 		{
 			Name:     xidErrorsMetricName,
 			Value:    1,

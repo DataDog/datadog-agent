@@ -5,10 +5,10 @@ go 1.23.1
 toolchain go1.24.4
 
 require (
-	github.com/DataDog/dd-trace-go/contrib/net/http/v2 v2.0.1
+	github.com/DataDog/dd-trace-go/contrib/net/http/v2 v2.2.3
 	// Version 2.2.3 is the first one that supports subscribing to the remote
 	// config product for SymDB upload requests.
-	github.com/DataDog/dd-trace-go/v2 v2.2.3-rc.1
+	github.com/DataDog/dd-trace-go/v2 v2.2.3
 
 	// This is the last version of dd-trace-go that isn't just a wrapper around
 	// the v2 package. Note that this tracer does not have support for the
@@ -95,8 +95,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/grpc v1.73.0 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/protobuf v1.36.12-0.20260116114154-8c4c4ae446ca // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-require gopkg.in/yaml.v3 v3.0.1 // indirect

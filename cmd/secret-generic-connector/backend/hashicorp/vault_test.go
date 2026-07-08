@@ -4,6 +4,12 @@
 // Copyright 2024-present Datadog, Inc.
 // Copyright (c) 2021, RapDev.IO
 
+// AIX is excluded because github.com/hashicorp/go-secure-stdlib/mlock does not
+// support AIX (its lockMemory is only defined for linux and darwin). This
+// transitively breaks compilation of github.com/hashicorp/vault/http on AIX.
+// Track https://github.com/hashicorp/go-secure-stdlib/pull/187 for the upstream fix.
+//go:build !aix
+
 package hashicorp
 
 import (
@@ -899,6 +905,30 @@ func TestNewAuthenticationFromBackendConfig_ImplicitAuth(t *testing.T) {
 			assert.Equal(t, implicitAuthToken, token)
 		})
 	}
+}
+
+func TestNewVaultBackend_VaultNamespace(t *testing.T) {
+	const wantNamespace = "eoc_datadog"
+
+	// Use the real in-memory vault server with token auth so we don't need to
+	// mock the approle library's internal request flow. The invariant we're
+	// testing is that client.SetNamespace() is called with the configured value,
+	// which sets X-Vault-Namespace on the client's persistent header map and
+	// therefore propagates to every outbound Vault API call.
+	client, token := createTestVault(t)
+
+	backendConfig := map[string]interface{}{
+		"vault_address":   client.Address(),
+		"vault_namespace": wantNamespace,
+		"vault_token":     token,
+	}
+
+	vb, err := NewVaultBackend(backendConfig)
+	require.NoError(t, err)
+	require.NotNil(t, vb)
+
+	assert.Equal(t, wantNamespace, vb.Client.Headers().Get(api.NamespaceHeaderName),
+		"X-Vault-Namespace must be set on the client so it is sent on every Vault API call")
 }
 
 func TestNewAuthenticationFromBackendConfig_OtherAuthMethods(t *testing.T) {

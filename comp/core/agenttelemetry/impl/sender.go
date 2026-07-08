@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -40,6 +41,7 @@ const (
 
 	metricPayloadType = "agent-metrics"
 	batchPayloadType  = "message-batch"
+	logsPayloadType   = "agent-logs"
 
 	httpClientResetInterval = 5 * time.Minute
 	httpClientTimeout       = 10 * time.Second
@@ -53,6 +55,12 @@ type sender interface {
 
 	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric)
 	sendEventPayload(ss *senderSession, eventInfo *Event, eventPayload map[string]interface{})
+
+	// sendLogsBatch is the entry point used by atel's
+	// errortracking flush goroutine. It takes already-converted wire
+	// Log structs and POSTs them as a single LogsPayload via the
+	// shared sendPayloadBody helper.
+	sendLogsBatch(ctx context.Context, logs []Log) error
 }
 
 type client interface {
@@ -174,13 +182,18 @@ func newSenderClientImpl(agentCfg config.Component) client {
 func buildURL(endpoint logconfig.Endpoint) string {
 	var address string
 	if endpoint.Port != 0 {
-		address = fmt.Sprintf("%v:%v", endpoint.Host, endpoint.Port)
+		address = net.JoinHostPort(endpoint.Host, strconv.Itoa(endpoint.Port))
 	} else {
 		address = endpoint.Host
 	}
 
+	scheme := "https"
+	if !endpoint.UseSSL() {
+		scheme = "http"
+	}
+
 	url := url.URL{
-		Scheme: "https",
+		Scheme: scheme,
 		Host:   address,
 		Path:   endpoint.PathPrefix + telemetryPath,
 	}
@@ -409,6 +422,107 @@ func (ss *senderSession) flush() Payload {
 	return payload
 }
 
+// sendPayloadBody POSTs body to a single endpoint with the given request
+// type and API key, and returns the HTTP status code plus any transport
+// error.
+//
+// Status-code interpretation (2xx success, 4xx terminal, 5xx retryable) is
+// the caller's responsibility — flushSession and the errortracking path
+// want different policies despite sharing the marshal / scrub / compress
+// / transport stack. Centralising the per-endpoint POST here means there
+// is exactly one place to audit headers, compression handling, response
+// body lifecycle and error wrapping; addresses review comment C3 on
+// PR #49946.
+//
+// Return contract:
+//   - (statusCode, nil) on a successful round trip (caller inspects status).
+//   - (0, err) on request-build or transport failure.
+//
+// The response body is always closed before this function returns.
+func (s *senderImpl) sendPayloadBody(ctx context.Context, body []byte, reqType, apiKey, url string, compressed bool) (int, error) {
+	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return 0, fmt.Errorf("new %s request to %s: %w", reqType, url, err)
+	}
+	s.addHeaders(req, reqType, apiKey, strconv.Itoa(len(body)), compressed)
+	resp, err := s.client.Do(req.WithContext(ctx))
+	if err != nil {
+		return 0, fmt.Errorf("post %s to %s: %w", reqType, url, err)
+	}
+	if resp.Body != nil {
+		resp.Body.Close()
+	}
+	return resp.StatusCode, nil
+}
+
+// sendPayload marshals v, scrubs sensitive fields, optionally
+// zstd-compresses, and POSTs to every configured endpoint via the shared
+// sendPayloadBody helper. The four steps (marshal -> scrub -> compress ->
+// endpoint iteration) are identical for both the metrics-style payload
+// flushed by flushSession and the logs-style payload sent by
+// sendLogsBatch -- this is the single home for them.
+//
+// Returns a joined error containing every endpoint's transport failure
+// and every non-2xx status, with the URL embedded. Callers may log the
+// error at Debug (telemetry is opportunistic) and move on.
+func (s *senderImpl) sendPayload(ctx context.Context, v any, reqType string) error {
+	payloadJSON, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("marshal %s payload: %w", reqType, err)
+	}
+
+	reqBodyRaw, err := scrubber.ScrubJSON(payloadJSON)
+	if err != nil {
+		return fmt.Errorf("scrub %s payload: %w", reqType, err)
+	}
+
+	return s.sendPayloadBytes(ctx, reqBodyRaw, reqType)
+}
+
+// sendPayloadBytes compresses (if configured) and POSTs reqBodyRaw to every
+// configured endpoint. Callers handling scrubbing directly call
+// this directly instead of going through sendPayload.
+//
+// Returns a joined error of every transport failure. Non-2xx HTTP statuses are
+// logged at Debug and do not surface in the error (opportunistic telemetry
+// contract, see PR #50607 F1/F6).
+func (s *senderImpl) sendPayloadBytes(ctx context.Context, reqBodyRaw []byte, reqType string) error {
+	// Try to compress the payload if needed. On compression failure we
+	// fall back to the uncompressed body and emit a Debug log -- this
+	// flush path is opportunistic and must never log at Error (an Error
+	// here would re-enter the errortracking handler in the worst case;
+	// see review comment F6 on PR #50607).
+	reqBody := reqBodyRaw
+	compressed := false
+	if s.compress {
+		reqBodyCompressed, errTemp := zstd.CompressLevel(nil, reqBodyRaw, s.compressionLevel)
+		if errTemp == nil {
+			compressed = true
+			reqBody = reqBodyCompressed
+		} else {
+			s.logComp.Debugf("Failed to compress %s payload: %v", reqType, errTemp)
+		}
+	}
+
+	// Send to every configured endpoint. Status codes -- both 2xx and
+	// non-2xx -- are logged at Debug; only transport failures surface in
+	// the returned joined error. This preserves the pre-F1 flushSession
+	// contract (non-2xx is not an error to the caller) and keeps the
+	// errortracking flush path free of any Errorf-level log that would
+	// re-enter the slog handler (see F1/F6 on PR #50607).
+	var errs error
+	for _, ep := range s.endpoints.Endpoints {
+		url := buildURL(ep)
+		status, sendErr := s.sendPayloadBody(ctx, reqBody, reqType, ep.GetAPIKey(), url, compressed)
+		if sendErr != nil {
+			errs = errors.Join(errs, sendErr)
+			continue
+		}
+		s.logComp.Debugf("Telemetry endpoint response status code:%d, request type:%s, url:%s", status, reqType, url)
+	}
+	return errs
+}
+
 func (s *senderImpl) flushSession(ss *senderSession) error {
 	// There is nothing to do if there are no payloads
 	if ss.payloadCount() == 0 {
@@ -418,62 +532,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 	s.logComp.Debugf("Flushing Agent Telemetery session with %d payloads", ss.payloadCount())
 
 	payloads := ss.flush()
-	payloadJSON, err := json.Marshal(payloads)
-	if err != nil {
-		return fmt.Errorf("failed to marshal agent telemetry payload: %w", err)
-	}
-
-	reqBodyRaw, err := scrubber.ScrubJSON(payloadJSON)
-	if err != nil {
-		return fmt.Errorf("failed to scrubl agent telemetry payload: %w", err)
-	}
-
-	// Try to compress the payload if needed
-	reqBody := reqBodyRaw
-	compressed := false
-	if s.compress {
-		// In case of failed to compress continue with uncompress body
-		reqBodyCompressed, errTemp := zstd.CompressLevel(nil, reqBodyRaw, s.compressionLevel)
-		if errTemp == nil {
-			compressed = true
-			reqBody = reqBodyCompressed
-		} else {
-			s.logComp.Errorf("Failed to compress agent telemetry payload: %v", errTemp)
-		}
-	}
-
-	// Send the payload to all endpoints
-	var errs error
-	reqType := payloads.RequestType
-	bodyLen := strconv.Itoa(len(reqBody))
-	for _, ep := range s.endpoints.Endpoints {
-		url := buildURL(ep)
-		req, err := http.NewRequest("POST", url, bytes.NewReader(reqBody))
-		if err != nil {
-			errs = errors.Join(errs, err)
-			continue
-		}
-		s.addHeaders(req, reqType, ep.GetAPIKey(), bodyLen, compressed)
-		resp, err := s.client.Do(req.WithContext(ss.cancelCtx))
-		if err != nil {
-			errs = errors.Join(errs, err)
-			continue
-		}
-		defer func() {
-			if resp != nil && resp.Body != nil {
-				resp.Body.Close()
-			}
-		}()
-
-		// Log return status (and URL if unsuccessful)
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			s.logComp.Debugf("Telemetry endpoint response status:%s, request type:%s, status code:%d", resp.Status, reqType, resp.StatusCode)
-		} else {
-			s.logComp.Debugf("Telemetry endpoint response status:%s, request type:%s, status code:%d, url:%s", resp.Status, reqType, resp.StatusCode, url)
-		}
-	}
-
-	return errs
+	return s.sendPayload(ss.cancelCtx, payloads, payloads.RequestType)
 }
 
 func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) {

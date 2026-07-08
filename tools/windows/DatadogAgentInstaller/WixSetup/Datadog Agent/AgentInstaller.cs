@@ -164,7 +164,11 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                new Property("DD_LOGON_DURATION_AUTOLOGGER")
+                // When set to a truthy value (1/true/yes), the installer skips re-applying the
+                // ddagentuser SeDeny*LogonRight assignments so customers can preserve custom
+                // user-rights changes across upgrades. SeServiceLogonRight is always granted
+                // because the Agent service cannot start without it.
+                new Property("DDAGENTUSER_KEEP_RIGHTS")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
@@ -195,6 +199,22 @@ namespace WixSetup.Datadog_Agent
                     // which can cause the directory to be added to the CreateFolder table.
                     new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true, AttributesDefinition = "KeyPath=yes" },
                     new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
+                )
+                {
+                    Win64 = true
+                },
+                new RegKey(
+                    _agentFeatures.MainApplication,
+                    RegistryHive.LocalMachine, @"Software\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_usage_agent.native_host",
+                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_usage_agent.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
+                )
+                {
+                    Win64 = true
+                },
+                new RegKey(
+                    _agentFeatures.MainApplication,
+                    RegistryHive.LocalMachine, @"Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_usage_agent.native_host",
+                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_usage_agent.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
                 )
                 {
                     Win64 = true
@@ -679,6 +699,29 @@ namespace WixSetup.Datadog_Agent
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 });
             }
+            var procmgrService = GenerateDependentServiceInstaller(
+                new Id("ddagentprocmgrservice"),
+                Constants.ProcmgrServiceName,
+                "Datadog Process Manager",
+                "Manage Datadog agent processes",
+                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                "[DDAGENTUSER_PROCESSED_PASSWORD]");
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
+            agentBinDir.Add(new EventSource
+            {
+                Name = Constants.ProcmgrServiceName,
+                Log = "Application",
+                EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcmgrService)}",
+                AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
+            });
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.Procmgr));
+
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));
+
+            // AI usage Chrome native messaging host (Rust). Plain non-service file in bin\agent.
+            // Explicit Id only on the .exe so future custom actions can reference it via [#ai_usage_agent_native_host].
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AiUsageAgentNativeHostId, _agentBinaries.AiUsageAgentNativeHost));
+
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
                 // Temporary binary for extracting the embedded Python - will be deleted

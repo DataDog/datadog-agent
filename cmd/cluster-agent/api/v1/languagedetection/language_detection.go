@@ -9,8 +9,7 @@ package languagedetection
 
 import (
 	"context"
-
-	"github.com/gorilla/mux"
+	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -20,7 +19,7 @@ import (
 const pldHandlerName = "language-detection-handler"
 
 // InstallLanguageDetectionEndpoints installs language detection endpoints
-func InstallLanguageDetectionEndpoints(ctx context.Context, r *mux.Router, wmeta workloadmeta.Component, cfg config.Component) {
+func InstallLanguageDetectionEndpoints(ctx context.Context, r *http.ServeMux, wmeta workloadmeta.Component, cfg config.Component) {
 	service := newLanguageDetectionHandler(wmeta, cfg)
 
 	service.startCleanupInBackground(ctx)
@@ -30,5 +29,5 @@ func InstallLanguageDetectionEndpoints(ctx context.Context, r *mux.Router, wmeta
 		service.preHandler,
 		service.leaderHandler,
 	)
-	r.HandleFunc("/languagedetection", api.WithTelemetryWrapper(pldHandlerName, handler)).Methods("POST")
+	r.HandleFunc("POST /languagedetection", api.WithTelemetryWrapper(pldHandlerName, handler))
 }

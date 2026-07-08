@@ -1,29 +1,19 @@
-extensions:
-  ddprofiling/default:
-  hpflare/default:
 receivers:
   otlp:
     protocols:
       grpc:
       http:
-  hostprofiler:
+  profiling:
     symbol_uploader:
       enabled: true
       symbol_endpoints:
         - site: ${env:DD_SITE}
           api_key: ${env:DD_API_KEY}
 processors:
-# infraattributes/default is automatically removed when the Agent Core is not available
-  infraattributes/default:
-    cardinality: 2 # HighCardinality
-    allow_hostname_override: true
   cumulativetodelta: {}
-# resourcedetection is automatically removed when the Agent Core is available
   resourcedetection:
     detectors: ["system"]
     system:
-      # TODO: which resource attributes do we want as default?
-      # https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/internal/system/documentation.md
       resource_attributes:
         host.arch:
           enabled: true
@@ -33,24 +23,18 @@ processors:
           enabled: false
 
 exporters:
-  debug: {}
-  otlphttp:
-    profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
-    metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+  otlp_http:
+    endpoint: https://otlp.${env:DD_SITE}
     headers:
       dd-api-key: ${env:DD_API_KEY}
       dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 service:
-  extensions: [hpflare/default]
   pipelines:
     profiles:
-      receivers: [hostprofiler]
-      # infraattributes/default is automatically removed when the Agent Core is not available
-      # resourcedetection is automatically removed when the Agent Core is available
-      processors: [infraattributes/default, resourcedetection]
-      exporters: [debug, otlphttp]
+      receivers: [profiling]
+      processors: [resourcedetection]
+      exporters: [otlp_http]
     metrics:
       receivers: [otlp]
-      # infraattributes/default is automatically removed when the Agent Core is not available
-      processors: [cumulativetodelta, infraattributes/default]
-      exporters: [otlphttp]
+      processors: [cumulativetodelta]
+      exporters: [otlp_http]

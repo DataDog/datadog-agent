@@ -30,7 +30,7 @@ func (h *GetJobStatusHandler) WithHttpClientProvider(httpClientProvider httpclie
 
 func NewGetJobStatusHandler(runnerConfig *config.Config) *GetJobStatusHandler {
 	return &GetJobStatusHandler{
-		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig),
+		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig, httpclient.WithURLAllowlistDisabled()),
 	}
 }
 

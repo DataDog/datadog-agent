@@ -18,8 +18,9 @@ import (
 	"go.uber.org/atomic"
 
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
@@ -113,7 +114,7 @@ func newCheck(t *testing.T, id string, doErr bool, runFunc func(checkid.ID)) *te
 }
 
 func newScheduler() *scheduler.Scheduler {
-	return scheduler.NewScheduler(nil)
+	return scheduler.NewScheduler(nil, nil)
 }
 
 func assertAsyncWorkerCount(t *testing.T, count int) {
@@ -132,7 +133,7 @@ func testSetUp(t *testing.T) model.Config {
 	mockConfig := configmock.New(t)
 	assertAsyncWorkerCount(t, 0)
 	expvars.Reset()
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("hostname", "myhost")
 
 	// at the end of the test, ensure that the worker count is 0
 	t.Cleanup(func() {
@@ -161,7 +162,7 @@ func testSetUp(t *testing.T) model.Config {
 
 func TestNewRunner(t *testing.T) {
 	mockConfig := testSetUp(t)
-	mockConfig.SetWithoutSource("check_runners", "3")
+	mockConfig.SetInTest("check_runners", "3")
 
 	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
 	require.NotNil(t, r)
@@ -175,7 +176,7 @@ func TestNewRunner(t *testing.T) {
 
 func TestRunnerAddWorker(t *testing.T) {
 	mockConfig := testSetUp(t)
-	mockConfig.SetWithoutSource("check_runners", "1")
+	mockConfig.SetInTest("check_runners", "1")
 
 	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
 	require.NotNil(t, r)
@@ -190,7 +191,7 @@ func TestRunnerAddWorker(t *testing.T) {
 
 func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
 	mockConfig := testSetUp(t)
-	mockConfig.SetWithoutSource("check_runners", "2")
+	mockConfig.SetInTest("check_runners", "2")
 
 	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
 	require.NotNil(t, r)
@@ -209,7 +210,7 @@ func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
 
 func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 	mockConfig := testSetUp(t)
-	mockConfig.SetWithoutSource("check_runners", "0")
+	mockConfig.SetInTest("check_runners", "0")
 
 	testCases := [][]int{
 		{0, 10, 4},
@@ -259,10 +260,87 @@ func TestRunner(t *testing.T) {
 	}
 }
 
+func TestRunnerShadowWorkerUsesShadowChannel(t *testing.T) {
+	mockConfig := testSetUp(t)
+	mockConfig.SetInTest("check_runners", "1")
+
+	inner := newCheck(t, "mycheck:123", false, nil)
+	shadow := check.NewShadowCheck(inner, time.Second)
+
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
+	require.NotNil(t, r)
+	defer r.Stop()
+
+	assertAsyncWorkerCount(t, 1)
+	require.Len(t, r.workers, 1)
+	require.Empty(t, r.shadowWorkers)
+
+	r.AddShadowWorker()
+	assertAsyncWorkerCount(t, 2)
+	require.Len(t, r.workers, 1)
+	require.Len(t, r.shadowWorkers, 1)
+
+	r.GetShadowChan() <- shadow
+	require.Eventually(t, func() bool {
+		return inner.RunCount() == 1
+	}, 750*time.Millisecond, 10*time.Millisecond)
+}
+
+func TestRunnerStopStopsShadowWorkers(t *testing.T) {
+	mockConfig := testSetUp(t)
+	mockConfig.SetInTest("check_runners", "0")
+
+	inner := newCheck(t, "mycheck:123", false, nil)
+	inner.RunLock.Lock()
+	shadow := check.NewShadowCheck(inner, time.Second)
+
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
+	require.NotNil(t, r)
+
+	r.AddShadowWorker()
+	assertAsyncWorkerCount(t, 5)
+	require.Len(t, r.workers, 4)
+	require.Len(t, r.shadowWorkers, 1)
+
+	r.GetShadowChan() <- shadow
+	<-inner.StartedChan()
+
+	stopDone := make(chan struct{})
+	go func() {
+		r.Stop()
+		close(stopDone)
+	}()
+
+	assertAsyncBool(t, inner.IsStopped, true)
+	inner.RunLock.Unlock()
+
+	select {
+	case <-stopDone:
+	case <-time.After(750 * time.Millisecond):
+		t.Fatal("timed out waiting for runner stop")
+	}
+
+	require.Eventually(t, func() bool {
+		r.workersLock.Lock()
+		defer r.workersLock.Unlock()
+		return len(r.workers) == 0 && len(r.shadowWorkers) == 0
+	}, 750*time.Millisecond, 10*time.Millisecond)
+	assertAsyncWorkerCount(t, 0)
+
+	// Calling Stop on a stopped runner should be a noop.
+	r.Stop()
+
+	// Ensure that the shadow channel can't be written to anymore.
+	defer func() {
+		require.NotNil(t, recover())
+	}()
+	r.GetShadowChan() <- shadow
+}
+
 func TestRunnerStop(t *testing.T) {
 	mockConfig := testSetUp(t)
 
-	mockConfig.SetWithoutSource("check_runners", "10")
+	mockConfig.SetInTest("check_runners", "10")
 	numChecks := 8
 
 	checks := make([]*testCheck, numChecks)
@@ -316,10 +394,10 @@ func TestRunnerConfigurableValues(t *testing.T) {
 	mockConfig := testSetUp(t)
 
 	// Test custom utilization threshold
-	mockConfig.SetWithoutSource("check_runner_utilization_threshold", 0.85)
-	mockConfig.SetWithoutSource("check_runner_utilization_monitor_interval", "30s")
-	mockConfig.SetWithoutSource("check_runner_utilization_warning_cooldown", "5m")
-	mockConfig.SetWithoutSource("check_runners", "1")
+	mockConfig.SetInTest("check_runner_utilization_threshold", 0.85)
+	mockConfig.SetInTest("check_runner_utilization_monitor_interval", "30s")
+	mockConfig.SetInTest("check_runner_utilization_warning_cooldown", "5m")
+	mockConfig.SetInTest("check_runners", "1")
 
 	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
 	require.NotNil(t, r)
@@ -340,12 +418,12 @@ func TestRunnerConfigurableValues(t *testing.T) {
 
 func TestRunnerDefaultConfigurableValues(t *testing.T) {
 	mockConfig := testSetUp(t)
-	mockConfig.SetWithoutSource("check_runners", "1")
+	mockConfig.SetInTest("check_runners", "1")
 
 	// Set default values for the mock config
-	mockConfig.SetWithoutSource("check_runner_utilization_threshold", 0.95)
-	mockConfig.SetWithoutSource("check_runner_utilization_monitor_interval", "60s")
-	mockConfig.SetWithoutSource("check_runner_utilization_warning_cooldown", "10m")
+	mockConfig.SetInTest("check_runner_utilization_threshold", 0.95)
+	mockConfig.SetInTest("check_runner_utilization_monitor_interval", "60s")
+	mockConfig.SetInTest("check_runner_utilization_warning_cooldown", "10m")
 
 	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
 	require.NotNil(t, r)
@@ -367,7 +445,7 @@ func TestRunnerDefaultConfigurableValues(t *testing.T) {
 func TestRunnerStopWithStuckCheck(t *testing.T) {
 	mockConfig := testSetUp(t)
 
-	mockConfig.SetWithoutSource("check_runners", "10")
+	mockConfig.SetInTest("check_runners", "10")
 	numChecks := 8
 
 	checks := make([]*testCheck, numChecks)
@@ -423,7 +501,7 @@ func TestRunnerStopWithStuckCheck(t *testing.T) {
 
 func TestRunnerStopCheck(t *testing.T) {
 	mockConfig := testSetUp(t)
-	mockConfig.SetWithoutSource("check_runners", "3")
+	mockConfig.SetInTest("check_runners", "3")
 
 	testCheck := newCheck(t, "mycheck:123", false, nil)
 	blockedCheck := newCheck(t, "mycheck2:123", false, nil)
@@ -471,7 +549,7 @@ func TestRunnerStopCheck(t *testing.T) {
 
 func TestRunnerScheduler(t *testing.T) {
 	mockConfig := testSetUp(t)
-	mockConfig.SetWithoutSource("check_runners", "3")
+	mockConfig.SetInTest("check_runners", "3")
 
 	sched1 := newScheduler()
 	sched2 := newScheduler()
@@ -491,7 +569,7 @@ func TestRunnerScheduler(t *testing.T) {
 
 func TestRunnerShouldAddCheckStats(t *testing.T) {
 	mockConfig := testSetUp(t)
-	mockConfig.SetWithoutSource("check_runners", "3")
+	mockConfig.SetInTest("check_runners", "3")
 
 	testCheck := newCheck(t, "test", false, nil)
 	sched := newScheduler()

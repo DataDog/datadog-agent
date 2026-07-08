@@ -34,6 +34,11 @@ func NewImageVolumeProvider(cfg LibraryInjectionConfig) *ImageVolumeProvider {
 	}
 }
 
+// GetName returns the injection mode for this provider.
+func (p *ImageVolumeProvider) GetName() string {
+	return string(InjectionModeImageVolume)
+}
+
 func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
 	// Validate that the pod has sufficient resources for the micro init container.
 	result, err := ComputeInitContainerResourceRequirementsForInitContainer(pod, p.cfg.DefaultResourceRequirements, InjectLDPreloadInitContainerName)
@@ -109,12 +114,12 @@ func (p *ImageVolumeProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) 
 		},
 	})
 
-	patcher.AddVolumeMount(corev1.VolumeMount{
+	patcher.AddVolumeMountWithTarget(corev1.VolumeMount{
 		Name:      volumeName,
 		MountPath: asAbsPath(libraryPackagesDir) + "/" + cfg.Language,
 		SubPath:   librarySubPath,
 		ReadOnly:  true,
-	})
+	}, cfg.ContainerName)
 
 	return MutationResult{
 		Status: MutationStatusInjected,

@@ -24,7 +24,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -539,4 +539,9 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 		"consumer_healthy": slices.Contains(healthStatus.Healthy, consts.GpuConsumerHealthName),
 		"last_check":       p.lastCheck.Load(),
 	}
+}
+
+// GetDeviceCache returns the device cache used by the GPU probe.
+func (p *Probe) GetDeviceCache() safenvml.DeviceCache {
+	return p.sysCtx.deviceCache
 }

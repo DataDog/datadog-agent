@@ -1,0 +1,36 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build test
+
+package submitterimpl
+
+import (
+	"testing"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
+	connectionsforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/mock"
+	forwardersimpl "github.com/DataDog/datadog-agent/comp/process/forwarders/mock"
+	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
+	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+func TestSubmitterLifecycle(t *testing.T) {
+	_ = fxutil.Test[submitter.Component](t, fx.Options(
+		hostinfomock.MockModule(),
+		core.MockBundle(),
+		fx.Provide(func() connectionsforwarder.Component { return connectionsforwardermock.Mock(t) }),
+		forwardersimpl.MockModule(),
+		fx.Provide(func() statsd.ClientInterface {
+			return &statsd.NoOpClient{}
+		}),
+		fxutil.ProvideComponentConstructor(NewComponent),
+	))
+}

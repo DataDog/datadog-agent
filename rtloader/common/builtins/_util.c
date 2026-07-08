@@ -39,6 +39,9 @@ static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, _UTIL_MODULE_NAM
 PyMODINIT_FUNC PyInit__util(void)
 {
     PyObject *m = PyModule_Create(&module_def);
+    if (m == NULL) {
+        return NULL;
+    }
     addSubprocessException(m);
     return m;
 }
@@ -109,6 +112,9 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
     PyObject *cmd_raise_on_empty = NULL;
     PyObject *cmd_env = NULL;
     PyObject *pyResult = NULL;
+    PyObject *pyStdout = NULL;
+    PyObject *pyStderr = NULL;
+    PyObject *pyRetCode = NULL;
 
     if (!cb_get_subprocess_output) {
         Py_RETURN_NONE;
@@ -231,42 +237,59 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
     PyEval_RestoreThread(Tstate);
     gstate = PyGILState_Ensure();
 
-    if (raise && strlen(c_stdout) == 0) {
-        raiseEmptyOutputError();
-        goto cleanup;
-    }
-
     if (exception) {
         PyErr_SetString(PyExc_Exception, exception);
         goto cleanup;
     }
 
-    PyObject *pyStdout = NULL;
+    if (raise && (c_stdout == NULL || strlen(c_stdout) == 0)) {
+        raiseEmptyOutputError();
+        goto cleanup;
+    }
+
+    // PyUnicode_FromString can return NULL: invalid UTF-8, size > PY_SSIZE_T_MAX, or allocation failure.
     if (c_stdout) {
         pyStdout = PyUnicode_FromString(c_stdout);
+        if (pyStdout == NULL) {
+            goto cleanup;
+        }
     } else {
         Py_INCREF(Py_None);
         pyStdout = Py_None;
     }
 
-    PyObject *pyStderr = NULL;
     if (c_stderr) {
         pyStderr = PyUnicode_FromString(c_stderr);
+        if (pyStderr == NULL) {
+            goto cleanup;
+        }
     } else {
         Py_INCREF(Py_None);
         pyStderr = Py_None;
     }
 
+    pyRetCode = PyLong_FromLong(ret_code);
+    if (pyRetCode == NULL) {
+        goto cleanup;
+    }
+
     pyResult = PyTuple_New(3);
-    PyTuple_SetItem(pyResult, 0, pyStdout);
-    PyTuple_SetItem(pyResult, 1, pyStderr);
-#ifdef DATADOG_AGENT_THREE
-    PyTuple_SetItem(pyResult, 2, PyLong_FromLong(ret_code));
-#else
-    PyTuple_SetItem(pyResult, 2, PyInt_FromLong(ret_code));
-#endif
+    if (pyResult == NULL) {
+        goto cleanup;
+    }
+
+    // PyTuple_SetItem "steals" the reference: no INCREF, the tuple takes
+    // over the obligation. Null each local so cleanup's Py_XDECREF won't
+    // over-decref what the tuple now owns.
+    PyTuple_SetItem(pyResult, 0, pyStdout);  pyStdout = NULL;
+    PyTuple_SetItem(pyResult, 1, pyStderr);  pyStderr = NULL;
+    PyTuple_SetItem(pyResult, 2, pyRetCode); pyRetCode = NULL;
 
 cleanup:
+    Py_XDECREF(pyStdout);
+    Py_XDECREF(pyStderr);
+    Py_XDECREF(pyRetCode);
+
     if (c_stdout) {
         cgo_free(c_stdout);
     }

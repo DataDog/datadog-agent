@@ -75,6 +75,11 @@ type dependencies struct {
 var _ traceagent.Component = (*component)(nil)
 
 func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
+	// c.Agent is nil when the trace-agent is disabled (see NewAgent). Guard
+	// against it so callers such as the Datadog exporter do not nil-panic.
+	if c.Agent == nil || c.Agent.OTLPReceiver == nil {
+		return
+	}
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
@@ -98,6 +103,7 @@ type component struct {
 	*pkgagent.Agent
 
 	cancel             context.CancelFunc
+	ctx                context.Context
 	config             traceconfigdef.Component
 	secrets            secrets.Component
 	params             *Params
@@ -121,6 +127,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	c = component{
 		cancel:             cancel,
+		ctx:                ctx,
 		config:             deps.Config,
 		secrets:            deps.Secrets,
 		params:             deps.Params,

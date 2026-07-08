@@ -10,8 +10,10 @@ package run
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.opentelemetry.io/collector/confmap"
@@ -20,12 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -35,12 +37,13 @@ import (
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-otel"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -48,21 +51,23 @@ import (
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/fx"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
+	inventoryhostfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/fx"
+	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
+	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
+	logsagentpipelinefx "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -75,11 +80,13 @@ import (
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"go.uber.org/fx"
@@ -135,11 +142,11 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 				return acfg
 			}),
 			fx.Provide(func(_ coreconfig.Component) log.Params {
-				return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+				return log.ForDaemon(params.LoggerName, "log_file", defaultpaths.GetDefaultOTelAgentLogFile())
 			}),
 			logfx.Module(),
 			ipcfx.ModuleReadWrite(),
-			configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+			configsyncfx.Module(configsync.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 			pidfx.Module(),
 			fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 			converterfx.Module(),
@@ -150,7 +157,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 				return h.Get, nil
 			}),
-			telemetryimpl.Module(),
+			telemetryfx.Module(),
 			remotehostnameimpl.Module(),
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
@@ -179,7 +186,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 	return fx.Options(
 		ForwarderBundle(),
 		logtracefx.Module(),
-		inventoryagentimpl.Module(),
+		inventoryagentfx.Module(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsdotel.NewOTelStatsd(client)
@@ -207,12 +214,12 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 			return h.Get, nil
 		}),
 		fx.Provide(func(_ coreconfig.Component) log.Params {
-			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+			return log.ForDaemon(params.LoggerName, "log_file", defaultpaths.GetDefaultOTelAgentLogFile())
 		}),
 		fx.Provide(func() logconfig.IntakeOrigin {
 			return logconfig.DDOTIntakeOrigin
 		}),
-		logsagentpipelineimpl.Module(),
+		logsagentpipelinefx.Module(),
 		logscompressionfx.Module(),
 		metricscompressionfx.Module(),
 		// For FX to provide the compression.Compressor interface (used by serializer.NewSerializer)
@@ -236,14 +243,28 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 
 		pidfx.Module(),
 		fx.Supply(pidimpl.NewParams(params.pidfilePath)),
-		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
+		fx.Provide(func(c defaultforwarder.Component, cfg coreconfig.Component, l log.Component, sec secrets.Component) (defaultforwarder.Forwarder, error) {
+			if serializerexporter.IsSyncForwarderEnabled() {
+				eds, err := configutils.GetMultipleEndpoints(cfg)
+				if err != nil {
+					return nil, fmt.Errorf("building sync forwarder endpoints: %w", err)
+				}
+				timeout := time.Duration(cfg.GetInt("forwarder_timeout")) * time.Second
+				if timeout == 0 {
+					timeout = serializerexporter.LegacyForwarderTimeout
+				}
+				return defaultforwarderimpl.NewOTelSyncForwarder(cfg, l, sec, eds, &http.Client{
+					Timeout:   timeout,
+					Transport: utilhttp.CreateHTTPTransport(cfg),
+				})
+			}
 			return defaultforwarder.Forwarder(c), nil
 		}),
 		fx.Provide(newOrchestratorinterfaceimpl),
 		fx.Options(opts...),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
 		}),
-		telemetryimpl.Module(),
+		telemetryfx.Module(),
 		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
@@ -284,16 +305,16 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 func standaloneAgentFxOptions(params *cliParams) fx.Option {
 	return fx.Options(
 		// Metadata collection (host inventory, runner) for dogtelextension
-		runnerimpl.Module(),
-		hostimpl.Module(),
-		inventoryhostimpl.Module(),
+		runnerfx.Module(),
+		hostfx.Module(),
+		inventoryhostfx.Module(),
 		// Real secrets backend so ENC[] handles in OTel/DD config are resolved locally
 		secretsfx.Module(),
 		// Resolve hostname locally; no core agent to ask
 		hostnameimpl.Module(),
 		// No on-init config sync (no core agent to sync from); periodic sync is also
 		// effectively disabled by the default agent_ipc.config_refresh_interval=0
-		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, false, params.SyncOnInitTimeout)),
+		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, false, params.SyncOnInitTimeout)),
 		// Local workloadmeta-backed tagger so the infraattributes processor can enrich
 		// spans with K8s tags (pod, namespace, deployment, ...) without a core agent
 		taggerfx.Module(),
@@ -310,7 +331,7 @@ func connectedAgentFxOptions(params *cliParams) fx.Option {
 		// Ask core agent for hostname first, fall back to local resolution
 		remotehostnameimpl.Module(),
 		// Sync config from core agent on init and periodically
-		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 		// Remote tagger proxying tag lookups to core agent
 		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 	)
@@ -323,7 +344,7 @@ func connectedAgentFxOptions(params *cliParams) fx.Option {
 // new forwarder.BundleWithProvider makes a few assumptions in its generic prototype, and
 // this is the current workaround to leverage it.
 func ForwarderBundle() fx.Option {
-	return defaultforwarder.ModulWithOptionTMP(
+	return defaultforwarderfx.ModuleWithOptionTMP(
 		fx.Provide(func(_ configsync.Component) defaultforwarder.Params {
 			return defaultforwarder.NewParams()
 		}))

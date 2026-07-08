@@ -147,8 +147,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, rawInsta
 
 func (c *Check) collectVMStatPressureMetrics(sender sender.Sender) {
 	procfsPath := "/proc"
-	if pkgconfigsetup.Datadog().IsSet("procfs_path") {
-		procfsPath = pkgconfigsetup.Datadog().GetString("procfs_path")
+	if v := pkgconfigsetup.Datadog().GetString("procfs_path"); v != "" {
+		procfsPath = v
 	}
 
 	filePath := procfsPath + "/vmstat"

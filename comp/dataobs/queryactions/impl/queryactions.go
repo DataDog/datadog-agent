@@ -11,23 +11,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	doqueryactions "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"gopkg.in/yaml.v3"
 )
 
 // Requires defines the dependencies for the Data Observability query actions component
 type Requires struct {
 	Lc       compdef.Lifecycle
-	Config   config.Component
 	Log      log.Component
 	RcClient rcclient.Component
 	Ac       autodiscovery.Component
@@ -40,24 +39,27 @@ type Provides struct {
 
 // component implements the Data Observability query actions component
 type component struct {
-	log             log.Component
-	ac              autodiscovery.Component
-	rcclient        rcclient.Component
-	enabled         bool
-	activeConfigs   map[string]integration.Config
+	log      log.Component
+	ac       autodiscovery.Component
+	rcclient rcclient.Component
+	// activeConfigs maps a DO config_id to the DO check config currently scheduled for it.
+	activeConfigs map[string]activeConfigEntry
+	// managedBases maps a base postgres config Digest to the bookkeeping needed to restore it.
+	// A base config has an entry here while at least one DO config targets one of its instances;
+	// the entry records the original config (for restoration) and the remainder config currently
+	// scheduled in its place. See reconcileBases.
+	managedBases    map[string]*managedBaseEntry
 	activeConfigsMu sync.Mutex
 }
 
 // NewComponent creates a new Data Observability query actions component
 func NewComponent(reqs Requires) (Provides, error) {
-	enabled := reqs.Config.GetBool("data_observability.query_actions.enabled")
-
 	c := &component{
 		log:           reqs.Log,
 		ac:            reqs.Ac,
 		rcclient:      reqs.RcClient,
-		enabled:       enabled,
-		activeConfigs: make(map[string]integration.Config),
+		activeConfigs: make(map[string]activeConfigEntry),
+		managedBases:  make(map[string]*managedBaseEntry),
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -68,10 +70,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func (c *component) start(_ context.Context) error {
-	if !c.enabled {
-		c.log.Info("Data Observability query actions component disabled (data_observability.query_actions.enabled)")
-		return nil
-	}
 	c.ac.AddConfigProvider(c, false, 0)
 	c.log.Info("Data Observability query actions component started")
 	return nil
@@ -120,10 +118,11 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 		select {
 		case outCh <- changes:
 		default:
-			// Channel full: drain old entry, preserving its Unschedule events so that
-			// checks already in autodiscovery are not orphaned.
-			// The drain is non-blocking because config_poller may have already read the
-			// buffer between the default branch firing and this point.
+			// Channel full: drain old entry. Only preserve Unschedule events from the
+			// dropped update so checks already in autodiscovery are not orphaned.
+			// dropped.Schedule is NOT preserved: the latest RC snapshot is authoritative,
+			// and re-adding stale Schedule entries would resurrect configs that the new
+			// snapshot intentionally removed.
 			var dropped integration.ConfigChanges
 			select {
 			case dropped = <-outCh:
@@ -158,7 +157,7 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 
 		// Check immediately: the file config provider runs before this one in LoadAndRun,
 		// so postgres is typically already available when Stream() is called.
-		if c.hasPostgresIntegration() {
+		if c.hasSupportedIntegration() {
 			subscribeAndWait()
 			return
 		}
@@ -170,7 +169,7 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if c.hasPostgresIntegration() {
+				if c.hasSupportedIntegration() {
 					subscribeAndWait()
 					return
 				}
@@ -181,11 +180,18 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 	return outCh
 }
 
-// hasPostgresIntegration checks if any postgres integration is configured in autodiscovery
-func (c *component) hasPostgresIntegration() bool {
+// hasSupportedIntegration checks if any supported DB integration with
+// data_observability.enabled: true is configured in autodiscovery.
+func (c *component) hasSupportedIntegration() bool {
 	for _, cfg := range c.ac.GetUnresolvedConfigs() {
-		if isPostgresIntegration(cfg.Name) {
-			return true
+		for _, instanceData := range cfg.Instances {
+			var instance map[string]any
+			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
+				continue
+			}
+			if instanceHasDOEnabled(instance) {
+				return true
+			}
 		}
 	}
 	return false

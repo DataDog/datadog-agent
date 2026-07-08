@@ -162,6 +162,10 @@ type Agent struct {
 	// Used to synchronize on a clean exit
 	ctx context.Context
 
+	// stopped is closed when Run() returns, allowing callers to wait for
+	// the agent's full shutdown sequence to complete.
+	stopped chan struct{}
+
 	firstSpanMap sync.Map
 
 	processWg *sync.WaitGroup
@@ -211,6 +215,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		InV1:                  inV1,
 		conf:                  conf,
 		ctx:                   ctx,
+		stopped:               make(chan struct{}),
 		DebugServer:           api.NewDebugServer(conf),
 		Statsd:                statsd,
 		Timing:                timing,
@@ -227,6 +232,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received.
 func (a *Agent) Run() {
+	defer close(a.stopped)
 	a.Timing.Start()
 	defer a.Timing.Stop()
 	for _, starter := range []interface{ Start() }{
@@ -287,6 +293,18 @@ func (a *Agent) FlushSync() {
 	}
 }
 
+// WaitForStopped blocks until the agent's Run() method has fully returned,
+// meaning all components have been stopped and the shutdown sequence is complete.
+// It returns nil on clean shutdown, or the context's error if ctx is done first.
+func (a *Agent) WaitForStopped(ctx context.Context) error {
+	select {
+	case <-a.stopped:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // UpdateAPIKey receives the API Key update signal and propagates it across all internal
 // components that rely on API Key configuration:
 // - HTTP Receiver (used in reverse proxies)
@@ -341,9 +359,28 @@ func (a *Agent) loop() {
 	//Wait to process any leftover payloads in flight before closing components that might be needed
 	a.processWg.Wait()
 
+	// Phase 1: Stop stats producers. Their Stop() methods flush remaining stats
+	// into the StatsWriter's buffer (via Write calls).
 	for _, stopper := range []interface{ Stop() }{
 		a.Concentrator,
 		a.ClientStatsAggregator,
+	} {
+		if stopper != nil && !reflect.ValueOf(stopper).IsNil() {
+			stopper.Stop()
+		}
+	}
+
+	// Phase 2: In sync mode, flush all buffered data to the network.
+	// Stats buffered by Concentrator.Stop() and ClientStatsAggregator.Stop()
+	// above are sent here, along with any buffered traces.
+	if a.conf.SynchronousFlushing {
+		a.FlushSync()
+	}
+
+	// Phase 3: Stop remaining components. Writers have nothing left to send
+	// since FlushSync already drained their buffers (sync mode) or they flush
+	// on their own during Stop (async mode).
+	for _, stopper := range []interface{ Stop() }{
 		a.TraceWriter,
 		a.TraceWriterV1,
 		a.StatsWriter,
@@ -448,7 +485,7 @@ func (a *Agent) Process(p *api.Payload) {
 		a.TracerPayloadModifier.Modify(p.TracerPayload)
 	}
 
-	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
+	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
 	a.discardSpans(p)
 
@@ -501,7 +538,7 @@ func (a *Agent) Process(p *api.Payload) {
 			if a.SpanModifier != nil {
 				a.SpanModifier.ModifySpan(chunk, span)
 			}
-			a.obfuscateSpan(span)
+			a.ObfuscateSpan(span)
 			a.Truncate(span)
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevel(span)
@@ -518,7 +555,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		a.setPayloadAttributes(p, root, chunk)
 
-		pt := processedTrace(p, chunk, root, imageTag, gitCommitSha)
+		pt := processedTrace(p, chunk, root, imageTag, gitCommitSha, appVersion)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -569,15 +606,24 @@ func (a *Agent) writeChunks(p *writer.SampledChunks) {
 		return
 	}
 	// callback function to be executed once tags are resolved, or buffer times out
-	fn := func(cTags []string, err error) {
-		enrichTracesWithCtags(p, cTags, err)
+	fn := func(cTags []string, err error, debug *containertagsbuffer.DebugInfo) {
+		enrichTracesWithCtags(p, cTags, err, debug)
 		a.TraceWriter.WriteChunks(p)
 	}
 	a.ContainerTagsBuffer.AsyncEnrichment(p.TracerPayload.ContainerID, fn, int64(p.Size))
 }
 
 // enrichTracesWithCtags modifies the trace payload in-place by overriding container tags.
-func enrichTracesWithCtags(p *writer.SampledChunks, ctags []string, err error) {
+func enrichTracesWithCtags(p *writer.SampledChunks, ctags []string, err error, debug *containertagsbuffer.DebugInfo) {
+	if debug.HasData() {
+		p.TracerPayload.ContainerDebug = &pb.ContainerDebug{
+			Error:                debug.Error,
+			LatencyMs:            debug.LatencyMs,
+			WasBuffered:          debug.WasBuffered,
+			BufferMs:             debug.BufferMs,
+			BufferEvictionReason: debug.BufferEvictionReason,
+		}
+	}
 	if err != nil {
 		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)
 		return
@@ -618,7 +664,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		}
 	}
 
-	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
+	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
 	// TODO: Implement this when we support v1 on serverless
 	// a.discardSpans(p)
@@ -686,7 +732,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			traceutil.ComputeTopLevelV1(chunk)
 		}
 
-		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha)
+		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha, appVersion)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -728,17 +774,26 @@ func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
 		return
 	}
 	// callback function to be executed once tags are resolved, or buffer times out
-	fn := func(cTags []string, err error) {
-		enrichTracesWithCtagsV1(p, cTags, err)
+	fn := func(cTags []string, err error, debug *containertagsbuffer.DebugInfo) {
+		enrichTracesWithCtagsV1(p, cTags, err, debug)
 		a.TraceWriterV1.WriteChunksV1(p)
 	}
 	a.ContainerTagsBuffer.AsyncEnrichment(containerID, fn, int64(p.TracerPayload.Msgsize()))
 }
 
 // enrichTracesWithCtagsV1 modifies the trace payload in-place by overriding container tags.
-func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error) {
+func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error, debug *containertagsbuffer.DebugInfo) {
+	if debug.HasData() {
+		p.TracerPayload.ContainerDebug = &idx.ContainerDebug{
+			Error:                debug.Error,
+			LatencyMs:            debug.LatencyMs,
+			WasBuffered:          debug.WasBuffered,
+			BufferMs:             debug.BufferMs,
+			BufferEvictionReason: debug.BufferEvictionReason,
+		}
+	}
 	if err != nil {
-		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)
+		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID(), err)
 		return
 	}
 	if len(ctags) == 0 {
@@ -788,7 +843,7 @@ func normalizeAPMModeSpanTag(apmMode string) string {
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
-func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTag string, gitCommitSha string) *traceutil.ProcessedTrace {
+func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTag string, gitCommitSha string, appVersion string) *traceutil.ProcessedTrace {
 	pt := &traceutil.ProcessedTrace{
 		TraceChunk:             chunk,
 		Root:                   root,
@@ -804,23 +859,32 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTa
 	if pt.GitCommitSha == "" {
 		pt.GitCommitSha = gitCommitSha
 	}
+	// Only override AppVersion if it was not set in the tracer payload or span tags.
+	if pt.AppVersion == "" {
+		pt.AppVersion = appVersion
+	}
 	return pt
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
-func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, imageTag string, gitCommitSha string) *traceutil.ProcessedTraceV1 {
+func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, imageTag string, gitCommitSha string, appVersion string) *traceutil.ProcessedTraceV1 {
 	pt := &traceutil.ProcessedTraceV1{
 		TraceChunk:             chunk,
 		Root:                   root,
 		AppVersion:             p.TracerPayload.AppVersion(),
 		TracerEnv:              p.TracerPayload.Env(),
 		TracerHostname:         p.TracerPayload.Hostname(),
+		Lang:                   p.TracerPayload.LanguageName(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
 		GitCommitSha:           gitCommitSha,
 	}
 	pt.ImageTag = imageTag
 	if payloadGitCommitSha, ok := p.TracerPayload.GetAttributeAsString("_dd.git.commit.sha"); ok {
 		pt.GitCommitSha = payloadGitCommitSha
+	}
+	// Only override AppVersion if it was not set in the tracer payload.
+	if pt.AppVersion == "" {
+		pt.AppVersion = appVersion
 	}
 	return pt
 }

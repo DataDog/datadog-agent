@@ -194,14 +194,10 @@ end
 
 # Windows .zip specific flags
 package :zip do
-  if windows_arch_i386?
-    skip_packager true
-  else
-    # noinspection RubyLiteralArrayInspection
-    extra_package_dirs [
-      "#{Omnibus::Config.source_dir()}\\cf-root"
-    ]
-  end
+  # noinspection RubyLiteralArrayInspection
+  extra_package_dirs [
+    "#{Omnibus::Config.source_dir()}\\cf-root"
+  ]
 end
 
 package :msi do
@@ -314,7 +310,7 @@ if windows_target?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\privateactionrunner.exe"
   end
 
-  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
   end
 
@@ -338,10 +334,15 @@ if windows_target?
     windows_symbol_stripping_file bin
   end
 
-  # We need to strip the debug symbols from the rtloader files, from the installer, and from the compile policy binary
+  # We need to strip the debug symbols from the rtloader files and from the compile policy binary
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
-  windows_symbol_stripping_file "#{install_dir}\\datadog-installer.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-compile-policy.exe"
+
+  # Rust binaries (not in GO_BINARIES — no Go symbol inspection needed)
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgrd.exe"
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgr.exe"
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\agent-data-plane.exe"
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\ai-usage-agent-native-host.exe"
 
   if windows_signing_enabled?
     # Sign additional binaries from here.
@@ -366,6 +367,10 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll",
       "#{install_dir}\\bin\\agent\\dd-compile-policy.exe",
+      "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",
+      "#{install_dir}\\bin\\agent\\dd-procmgr.exe",
+      "#{install_dir}\\bin\\agent\\agent-data-plane.exe",
+      "#{install_dir}\\bin\\agent\\ai-usage-agent-native-host.exe",
     ]
 
     BINARIES_TO_SIGN.each do |bin|

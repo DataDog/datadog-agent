@@ -28,6 +28,7 @@ var (
 		"datadog-apm-library-java",
 		"datadog-apm-library-python",
 		"datadog-apm-library-ruby",
+		"datadog-apm-library-nginx",
 	}
 )
 
@@ -81,4 +82,30 @@ func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	installer.Env.InstallScript.APMInstrumentationEnabled = method
 	defer func() { installer.Finish(err) }()
 	return installer.Uninstrument(ctx)
+}
+
+// InstrumentAPMInjectorStart directly adds the injector library to /etc/ld.so.preload.
+// It is called by the datadog-apm-inject systemd service on start and must not
+// attempt to manage systemd itself.
+func InstrumentAPMInjectorStart(ctx context.Context) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_injector_start")
+	defer func() { span.Finish(err) }()
+	installer := apminject.NewInstaller()
+	defer func() { installer.Finish(err) }()
+	// Invoked by the datadog-apm-inject service on every boot: use the
+	// reboot-safe tmpfs symlink path so the service repopulates /run after the
+	// tmpfs is wiped on boot.
+	return installer.InstrumentLDPreload(ctx, apminject.ViaTmpfsLink)
+}
+
+// UninstrumentAPMInjectorStop removes the tmpfs launcher entry from
+// /etc/ld.so.preload and the tmpfs symlink. It is called by the
+// datadog-apm-inject systemd service on stop and must not attempt to manage
+// systemd itself.
+func UninstrumentAPMInjectorStop(ctx context.Context) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_injector_stop")
+	defer func() { span.Finish(err) }()
+	installer := apminject.NewInstaller()
+	defer func() { installer.Finish(err) }()
+	return installer.UninstrumentLDPreloadTmpfs(ctx)
 }

@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "walker",
+    srcs = ["walker.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/trivy/walker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_aquasecurity_trivy//pkg/fanal/utils",
+        "@com_github_aquasecurity_trivy//pkg/fanal/walker",
+        "@com_github_aquasecurity_trivy//pkg/x/io",
+        "@com_github_samber_lo//:lo",
+    ],
+)
+
+dd_agent_go_test(
+    name = "walker_test",
+    srcs = [
+        "testmain_test.go",
+        "walker_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":walker"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "@com_github_aquasecurity_trivy//pkg/fanal/analyzer",
+        "@com_github_aquasecurity_trivy//pkg/fanal/walker",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

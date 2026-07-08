@@ -21,8 +21,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
@@ -98,13 +97,14 @@ func newFactoryForAgentWithType(
 	ipath ingestionPath,
 ) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
-	switch {
-	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
+	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
-	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
-		// old gate, no action needed
-	default:
+	} else {
 		options = append(options, otlpmetrics.WithOTelPrefix())
+	}
+
+	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
 	f := &factory{
@@ -141,15 +141,18 @@ func newFactoryForAgentWithType(
 }
 
 // NewFactoryForOSSExporter creates a new serializer exporter factory for the OSS Datadog exporter.
+// This function is part of the public API consumed by opentelemetry-collector-contrib's datadogexporter.
+// Do not remove or change its signature without coordinating with the upstream repository.
 func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
-	switch {
-	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
+	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
-	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
-		// old gate, no action needed
-	default:
+	} else {
 		options = append(options, otlpmetrics.WithRemapping())
+	}
+
+	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
 	f := &factory{
@@ -175,11 +178,6 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 		newDefaultConfig,
 		exp.WithMetrics(f.createMetricExporter, stability),
 	)
-}
-
-// NewFactory implements the required func to be used in OCB. This interface does not work with APM stats. Do not change the func signature or OCB will fail.
-func NewFactory() exp.Factory {
-	return NewFactoryForOSSExporter(component.MustNewType(TypeStr), nil)
 }
 
 // Reporter builds and returns an *inframetadata.Reporter.
@@ -216,18 +214,24 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 	if err != nil {
 		return nil, err
 	}
-	var forwarder *defaultforwarder.DefaultForwarder
+	var ownedForwarder stoppableForwarder
 	if f.s == nil {
-		f.s, forwarder, err = InitSerializer(params.Logger, cfg, f.hostProvider)
+		// f.s is nil only for the OSS Datadog exporter (opentelemetry-collector-contrib),
+		// which owns its own serializer lifecycle. DDOT and Agent OTLP ingestion always
+		// inject a non-nil serializer from their Fx graphs, so this block is never
+		// reached in those paths.
+		var fw stoppableForwarder
+		f.s, fw, err = initSerializerInternal(params.Logger, cfg, f.hostProvider)
 		if err != nil {
 			return nil, err
 		}
+		ownedForwarder = fw
 		params.Logger.Info("starting forwarder")
-		err := forwarder.Start()
-		if err != nil {
+		if err := fw.Start(); err != nil {
 			params.Logger.Error("failed to start forwarder", zap.Error(err))
 		}
 	}
+	s := f.s
 
 	// TODO: Ideally the attributes translator would be created once and reused
 	// across all signals. This would need unifying the logsagent and serializer
@@ -248,7 +252,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 
 	var reporter *inframetadata.Reporter
 	if cfg.HostMetadata.Enabled {
-		reporter, err = f.Reporter(params, f.s, cfg.HostMetadata.ReporterPeriod)
+		reporter, err = f.Reporter(params, s, cfg.HostMetadata.ReporterPeriod)
 		if err != nil {
 			return nil, err
 		}
@@ -261,7 +265,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		usageMetric = f.store.DDOTMetrics
 	}
 
-	newExp, err := NewExporter(f.s, cfg, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage, usageMetric, f.store.DDOTGWUsage, f.ipath)
+	newExp, err := NewExporter(s, cfg, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage, usageMetric, f.store.DDOTGWUsage, f.ipath)
 	if err != nil {
 		return nil, err
 	}
@@ -269,6 +273,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 	exporter, err := exporterhelper.NewMetrics(ctx, params, cfg, newExp.ConsumeMetrics,
 		exporterhelper.WithQueue(cfg.QueueBatchConfig),
 		exporterhelper.WithTimeout(cfg.TimeoutConfig),
+		exporterhelper.WithRetry(cfg.RetryConfig),
 		// the metrics remapping code mutates data
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: true}),
 		exporterhelper.WithShutdown(func(ctx context.Context) error {
@@ -278,8 +283,8 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 					return err
 				}
 			}
-			if forwarder != nil {
-				forwarder.Stop()
+			if ownedForwarder != nil {
+				ownedForwarder.Stop()
 			}
 			return nil
 		}),

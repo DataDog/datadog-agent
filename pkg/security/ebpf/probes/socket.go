@@ -16,8 +16,8 @@ import (
 	"github.com/cilium/ebpf/asm"
 )
 
-func getSocketProbes(cgroup2MountPoint string) []*manager.Probe {
-	return []*manager.Probe{
+func getSocketProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
+	socketProbes := []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
@@ -32,7 +32,27 @@ func getSocketProbes(cgroup2MountPoint string) []*manager.Probe {
 			},
 			CGroupPath: cgroup2MountPoint,
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_io_socket",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_io_socket",
+			},
+		},
 	}
+
+	socketProbes = append(socketProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "socket",
+	}, fentry, EntryAndExit)...)
+	return socketProbes
 }
 
 // GetAllSocketProgramFunctions returns the list of socket functions

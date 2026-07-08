@@ -44,7 +44,7 @@ var (
 )
 
 func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor, config *netconfig.Config) error {
-	if !usmconfig.IsUSMSupportedAndEnabled(config) || !usmconfig.NeedProcessMonitor(config) || usmstate.Get() != usmstate.Running {
+	if !usmconfig.IsUSMSupportedAndEnabled(config) || !usmconfig.NeedProcessMonitor(config) || !usmstate.IsActive() {
 		return nil
 	}
 

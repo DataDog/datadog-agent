@@ -112,6 +112,10 @@ try {
 		SafeModeAdministratorPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
 		Force                         = $true
 	}; Install-ADDSForest @HashArguments
+	# Install-ADDSForest may return RebootRequired:False yet still require a reboot for ADWS to start.
+	# Schedule the reboot 5 seconds out so the command returns and Pulumi acknowledges success
+	# before the SSH connection drops. Exit 1190 means a reboot is already pending; ignore it.
+	shutdown.exe /r /f /t 5; if ($LASTEXITCODE -eq 1190) { $LASTEXITCODE = 0 }
 }
 `, params.DomainName, params.DomainPassword),
 	}, pulumi.Parent(adCtx.comp), pulumi.DependsOn(adCtx.createdResources))
@@ -130,7 +134,15 @@ try {
 	}
 	adCtx.createdResources = append(adCtx.createdResources, waitForRebootCmd)
 
-	// Wait for service to enter running state, then wait for it to respond successfully to the Get-ADDomain command.
+	// Wait for the DC to be ready for AD operations. Three checks, in order:
+	//   1. ADWS service is Running.
+	//   2. Get-ADDomain succeeds.
+	//   3. RID allocation works — probe by creating and deleting a throwaway user.
+	// The third check is needed because Get-ADDomain returns while the DC is still finishing post-boot
+	// stabilization (quota-tracking table rebuild, FSMO role assumption). Writes that need a fresh RID
+	// block (New-ADUser, New-ADServiceAccount, etc.) fail with "directory service was unable to allocate
+	// a relative identifier" (ActiveDirectoryServer:8208) until that stabilization completes.
+	// See WINA-2095.
 	ensureAdwsStartedCmd, err := adCtx.comp.host.OS.Runner().Command(adCtx.comp.namer.ResourceName("ensure-adws-started"), &command.Args{
 		Create: pulumi.String(`
 (Get-Service ADWS).WaitForStatus('Running', '00:01:00')
@@ -145,6 +157,29 @@ while ([DateTime]::Now -lt $timeout) {
 }
 if ([DateTime]::Now -ge $timeout) {
     throw "Get-ADDomain timed out"
+}
+
+# Generate a random password (cryptographically secure) that satisfies default AD password policy.
+$rngBytes = New-Object byte[] 24
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($rngBytes)
+$probePassword = [Convert]::ToBase64String($rngBytes) + "Aa1!"
+
+# Probe RID allocation by creating and deleting a throwaway user.
+$timeout = [DateTime]::Now.AddMinutes(10)
+while ([DateTime]::Now -lt $timeout) {
+    $probeName = "rid-probe-$([guid]::NewGuid().ToString('N').Substring(0,8))"
+    try {
+        New-ADUser -Name $probeName -AccountPassword (ConvertTo-SecureString $probePassword -AsPlainText -Force) -Enabled $false -ErrorAction Stop
+        Remove-ADUser -Identity $probeName -Confirm:$false -ErrorAction Stop
+        break
+    } catch {
+        # Best-effort cleanup in case New-ADUser succeeded after a transient hiccup but Remove-ADUser didn't run.
+        try { Remove-ADUser -Identity $probeName -Confirm:$false -ErrorAction Stop } catch {}
+        Start-Sleep -Seconds 5
+    }
+}
+if ([DateTime]::Now -ge $timeout) {
+    throw "RID allocation probe timed out — DC not ready to issue RID pools"
 }
 `),
 	}, utils.PulumiDependsOn(waitForRebootCmd))

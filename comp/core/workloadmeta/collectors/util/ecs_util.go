@@ -52,7 +52,9 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 	clusterName := parseClusterName(task.ClusterName)
 	clusterARN := BuildClusterARN(clusterName, awsAccountID, region)
 	serviceARN := BuildServiceARN(clusterName, task.ServiceName, awsAccountID, region)
-	taskDefinitionARN := BuildTaskDefinitionARN(awsAccountID, task.Family, region, task.Version)
+	daemonName := parseDaemonNameFromGroup(task.Group)
+	taskDefinitionARN := BuildTaskDefinitionARN(awsAccountID, task.Family, region, task.Version, daemonName != "")
+	daemonARN := BuildDaemonARN(clusterName, daemonName, awsAccountID, region)
 
 	entity := &workloadmeta.ECSTask{
 		EntityID: entityID,
@@ -69,7 +71,9 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 		KnownStatus:             task.KnownStatus,
 		VPCID:                   task.VPCID,
 		ServiceName:             task.ServiceName,
+		DaemonName:              daemonName,
 		ServiceARN:              serviceARN,
+		DaemonARN:               daemonARN,
 		TaskDefinitionARN:       taskDefinitionARN,
 		EphemeralStorageMetrics: task.EphemeralStorageMetrics,
 		Limits:                  task.Limits,
@@ -305,12 +309,38 @@ func BuildServiceARN(clusterName, serviceName, awsAccountID, region string) stri
 	return fmt.Sprintf("arn:aws:ecs:%s:%s:service/%s/%s", region, awsAccountID, clusterName, serviceName)
 }
 
-// BuildTaskDefinitionARN builds the task definition ARN from the AWS account ID, family, region, and version
-func BuildTaskDefinitionARN(awsAccountID, family, region, version string) string {
+// BuildDaemonARN builds the daemon ARN from the cluster name, daemon name, AWS account ID, and region
+func BuildDaemonARN(clusterName, daemonName, awsAccountID, region string) string {
+	if clusterName == "" || daemonName == "" || awsAccountID == "" || region == "" {
+		return ""
+	}
+	return fmt.Sprintf("arn:aws:ecs:%s:%s:daemon/%s/%s", region, awsAccountID, clusterName, daemonName)
+}
+
+// parseDaemonNameFromGroup returns the daemon name encoded in a task's Group field on
+// ECS Managed Instances. AWS prefixes Group with "daemon:" for daemon-scheduled tasks
+// (and "service:" / "family:" otherwise); the daemon name is the suffix after the prefix.
+// Returns "" when the group is not a daemon group.
+func parseDaemonNameFromGroup(group string) string {
+	const daemonPrefix = "daemon:"
+	if name, ok := strings.CutPrefix(group, daemonPrefix); ok {
+		return name
+	}
+	return ""
+}
+
+// BuildTaskDefinitionARN builds the task definition ARN from the AWS account ID, family, region, and version.
+// When isDaemon is true it builds a daemon task definition ARN (daemon-task-definition/) instead of the regular
+// task definition ARN (task-definition/), matching the ARN form AWS uses for daemon-scheduled tasks.
+func BuildTaskDefinitionARN(awsAccountID, family, region, version string, isDaemon bool) string {
 	if awsAccountID == "" || family == "" || region == "" || version == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:ecs:%s:%s:task-definition/%s:%s", region, awsAccountID, family, version)
+	resourceType := "task-definition"
+	if isDaemon {
+		resourceType = "daemon-task-definition"
+	}
+	return fmt.Sprintf("arn:aws:ecs:%s:%s:%s/%s:%s", region, awsAccountID, resourceType, family, version)
 }
 
 // ecsAgentRegexp is a regular expression to match ECS agent versions

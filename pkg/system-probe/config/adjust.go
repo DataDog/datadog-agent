@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,12 +28,10 @@ func Adjust(cfg model.Config) {
 	deprecateString(cfg, spNS("log_level"), "log_level")
 	deprecateString(cfg, spNS("log_file"), "log_file")
 
-	usmEnabled := cfg.GetBool(smNS("enabled"))
-	npmEnabled := cfg.GetBool(netNS("enabled"))
 	// this check must come first, so we can accurately tell if system_probe was explicitly enabled
 	if cfg.GetBool(spNS("enabled")) &&
-		!cfg.IsSet(netNS("enabled")) &&
-		!usmEnabled {
+		!cfg.IsConfigured(netNS("enabled")) &&
+		!cfg.GetBool(smNS("enabled")) {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
 		log.Warn(deprecationMessage(spNS("enabled"), netNS("enabled")))
@@ -41,18 +39,25 @@ func Adjust(cfg model.Config) {
 		cfg.Set(netNS("enabled"), true, model.SourceAgentRuntime)
 	}
 
-	validateString(cfg, spNS("sysprobe_socket"), setup.DefaultSystemProbeAddress, ValidateSocketAddress)
+	validateString(cfg, spNS("sysprobe_socket"), defaultpaths.GetDefaultSystemProbeAddress(), ValidateSocketAddress)
 
 	deprecateBool(cfg, spNS("allow_precompiled_fallback"), spNS("allow_prebuilt_fallback"))
 	allowPrebuiltEbpfFallback(cfg)
 
+	adjustDiscovery(cfg)
 	adjustNetwork(cfg)
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
 
+	// Re-read the USM/NPM flags here: adjustDiscovery, adjustNetwork, and
+	// adjustUSM may all have flipped them since the locals at the top of
+	// this function were captured. In particular, discovery-only mode
+	// force-enables service_monitoring_config.enabled; without re-reading,
+	// this guard would silently undo the process inference that
+	// adjustDiscovery just turned on.
 	if cfg.GetBool(spNS("process_service_inference", "enabled")) &&
-		!usmEnabled &&
-		!npmEnabled {
+		!cfg.GetBool(smNS("enabled")) &&
+		!cfg.GetBool(netNS("enabled")) {
 		log.Warn("universal service monitoring and network monitoring are disabled, disabling process service inference")
 		cfg.Set(spNS("process_service_inference", "enabled"), false, model.SourceAgentRuntime)
 	}
@@ -181,5 +186,13 @@ func limitMaxInt64(cfg model.Config, key string, max int64) {
 	if val > max {
 		log.Warnf("configuration key `%s` was set to `%d`, using maximum value `%d` instead", key, val, max)
 		cfg.Set(key, max, model.SourceAgentRuntime)
+	}
+}
+
+// disableConfig sets `key` to false, if set to `true`, and logs a warning with the `reason`.
+func disableConfig(cfg model.Config, key string, reason string) {
+	if cfg.GetBool(key) {
+		log.Warnf("disabling %s: %s", key, reason)
+		cfg.Set(key, false, model.SourceAgentRuntime)
 	}
 }

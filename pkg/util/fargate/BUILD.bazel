@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "fargate",
+    srcs = [
+        "detection.go",
+        "hostname_core.go",
+        "hostname_process.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/fargate",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/util/ecs/metadata",
+        "//pkg/util/log",
+    ],
+)
+
+dd_agent_go_test(
+    name = "fargate_test",
+    srcs = ["hostname_process_test.go"],
+    embed = [":fargate"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

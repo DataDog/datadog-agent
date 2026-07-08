@@ -14,8 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/mux"
-
 	pingcheck "github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -56,9 +54,8 @@ func (p *pinger) Register(httpMux *module.Router) error {
 
 	httpMux.HandleFunc("/ping/{host}", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		vars := mux.Vars(req)
 		id := utils.GetClientID(req)
-		host := vars["host"]
+		host := req.PathValue("host")
 
 		count, err := getIntParam(countParam, req)
 		if err != nil {

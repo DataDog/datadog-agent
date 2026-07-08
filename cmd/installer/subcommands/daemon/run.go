@@ -18,15 +18,17 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
+	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
+	rctelemetryreporterfx "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/fx"
 	localapiimplFx "github.com/DataDog/datadog-agent/comp/updater/localapi/fx"
 	updatertelemetryfx "github.com/DataDog/datadog-agent/comp/updater/telemetry/fx"
-	"github.com/DataDog/datadog-agent/comp/updater/updater/updaterimpl"
+	updaterFx "github.com/DataDog/datadog-agent/comp/updater/updater/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func runCommand(global *command.GlobalParams) *cobra.Command {
@@ -48,7 +50,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", pkgconfigsetup.DefaultUpdaterLogFile),
+			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", defaultpaths.GetDefaultUpdaterLogFile()),
 		}),
 		core.Bundle(core.WithSecrets()),
 		hostnameimpl.Module(),
@@ -57,9 +59,10 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 				service.WithDatabaseFileName("remote-config-installer.db"),
 			},
 		}),
-		rctelemetryreporterimpl.Module(),
-		rcserviceimpl.Module(),
-		updaterimpl.Module(),
+		fx.Supply(option.None[tagger.Component]()),
+		rctelemetryreporterfx.Module(),
+		rcservicefx.Module(),
+		updaterFx.Module(),
 		localapiimplFx.Module(),
 		updatertelemetryfx.Module(),
 		fx.Supply(pidimpl.NewParams(global.PIDFilePath)),
