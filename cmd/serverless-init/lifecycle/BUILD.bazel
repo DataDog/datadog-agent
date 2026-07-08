@@ -7,10 +7,13 @@ go_library(
         "childhandle.go",
         "config.go",
         "forwarder.go",
+        "heartbeat.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/metrics",
+        "//pkg/util/log",
         "@org_uber_go_atomic//:atomic",
     ],
 )
@@ -21,9 +24,11 @@ dd_agent_go_test(
         "childhandle_test.go",
         "config_test.go",
         "forwarder_test.go",
+        "heartbeat_test.go",
     ],
     embed = [":lifecycle"],
     deps = [
+        "//pkg/metrics",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
