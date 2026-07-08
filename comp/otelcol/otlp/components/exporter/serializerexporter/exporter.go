@@ -48,8 +48,10 @@ const (
 	legacyForwarderQueueSize = 300
 	// legacyForwarderNumConsumers matches forwarder_num_workers = 1.
 	legacyForwarderNumConsumers = 1
-	// legacyForwarderTimeout matches forwarder_timeout = 20 seconds.
-	legacyForwarderTimeout = 20 * time.Second
+	// LegacyForwarderTimeout matches forwarder_timeout = 20 seconds. Exported
+	// so callers outside this package (e.g. the DDOT otel-agent command) can
+	// reuse the same fallback instead of duplicating the literal.
+	LegacyForwarderTimeout = 20 * time.Second
 	// legacyForwarderBackoffInitial / Max / MaxElapsed mirror the
 	// forwarder_backoff_* and forwarder_retry_queue_capacity_time_interval_sec
 	// settings: base 2s, factor 2, cap 64s, total 15 min budget.
@@ -100,8 +102,8 @@ func newDefaultConfigForAgent() component.Config {
 	// HTTPConfig.Timeout controls the underlying http.Client, which bounds the
 	// TCP round-trip when the sync forwarder is in use (sendHTTPTransactions
 	// does not propagate the caller context to t.Process).
-	cfg.TimeoutConfig = exporterhelper.TimeoutConfig{Timeout: legacyForwarderTimeout}
-	cfg.HTTPConfig.Timeout = legacyForwarderTimeout
+	cfg.TimeoutConfig = exporterhelper.TimeoutConfig{Timeout: LegacyForwarderTimeout}
+	cfg.HTTPConfig.Timeout = LegacyForwarderTimeout
 
 	return cfg
 }

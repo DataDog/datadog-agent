@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -904,6 +905,37 @@ func TestSyncForwarder_PropagatesErrors(t *testing.T) {
 	err := mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50))
 	require.Error(t, err, "5xx from intake must surface back through ConsumeMetrics")
 	require.GreaterOrEqual(t, intake.requests.Load(), int64(1), "intake should have received at least one request")
+}
+
+// TestSyncForwarder_PermanentError verifies that a non-retryable intake
+// response (400/403/413) is wrapped in consumererror.NewPermanent so the
+// exporterhelper queue does not retry it. Exercises the allSendsPermanent
+// true-branch in ConsumeMetrics, which TestSyncForwarder_PropagatesErrors
+// (5xx, transient) never reaches.
+func TestSyncForwarder_PermanentError(t *testing.T) {
+	restore := setSyncForwarderGate(t, true)
+	defer restore()
+
+	intake := newFakeIntake(http.StatusBadRequest)
+	defer intake.Close()
+
+	cfg := benchExporterConfig(t, intake.URL)
+	exp := buildBenchExporter(t, cfg)
+	defer func() { _ = exp.Shutdown(context.Background()) }()
+
+	mc, ok := exp.(metricsConsumer)
+	require.True(t, ok)
+
+	err := mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50))
+	require.Error(t, err, "400 from intake must surface back through ConsumeMetrics")
+	require.True(t, consumererror.IsPermanent(err), "400 is non-retryable and must be wrapped as a permanent error")
+	requestsAfterFirstAttempt := intake.requests.Load()
+
+	err = mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50))
+	require.Error(t, err, "400 from intake must surface back through ConsumeMetrics")
+	require.True(t, consumererror.IsPermanent(err))
+	require.Equal(t, requestsAfterFirstAttempt*2, intake.requests.Load(),
+		"a second ConsumeMetrics call should issue the same number of requests as the first, with no exporterhelper retries in between")
 }
 
 // TestSyncForwarder_RetryOnTransientError verifies that the OTel

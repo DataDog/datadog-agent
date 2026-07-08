@@ -251,7 +251,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 				}
 				timeout := time.Duration(cfg.GetInt("forwarder_timeout")) * time.Second
 				if timeout == 0 {
-					timeout = 20 * time.Second
+					timeout = serializerexporter.LegacyForwarderTimeout
 				}
 				return defaultforwarderimpl.NewOTelSyncForwarder(cfg, l, sec, eds, &http.Client{
 					Timeout:   timeout,

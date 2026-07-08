@@ -211,7 +211,7 @@ func initSerializerInternal(logger *zap.Logger, cfg *ExporterConfig, sourceProvi
 				}
 				timeout := cfg.HTTPConfig.Timeout
 				if timeout == 0 {
-					timeout = legacyForwarderTimeout
+					timeout = LegacyForwarderTimeout
 				}
 				httpClient := &http.Client{
 					Timeout:   timeout,

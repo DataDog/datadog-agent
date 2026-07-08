@@ -133,6 +133,7 @@ dd_agent_go_test(
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@io_opentelemetry_go_collector_confmap//confmaptest",
         "@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap",
+        "@io_opentelemetry_go_collector_consumer_consumererror//:consumererror",
         "@io_opentelemetry_go_collector_exporter//:exporter",
         "@io_opentelemetry_go_collector_exporter_exporterhelper//:exporterhelper",
         "@io_opentelemetry_go_collector_exporter_exportertest//:exportertest",
