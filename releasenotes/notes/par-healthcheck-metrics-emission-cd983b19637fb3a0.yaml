@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+enhancements:
   - |
     Private Action Runner in Datadog Agent now emits healthcheck metrics like its standalone counterpart.
