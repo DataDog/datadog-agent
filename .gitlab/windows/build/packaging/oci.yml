@@ -60,6 +60,8 @@ agent_win_oci:
       artifacts: true
     - job: "windows_zip_ddot_x64"
       artifacts: true
+    - job: "windows_zip_ai_usage_x64"
+      artifacts: true
   variables:
     OCI_PRODUCT: "datadog-agent"
     WIN_SOURCE_TYPE: "msi"
@@ -94,6 +96,19 @@ agent_win_oci:
         cp -r "${DDOT_INPUT_DIR}"/* "${DDOT_EXTENSION_DIR}"/
 
         EXTRA_FLAGS="${EXTRA_FLAGS} --extension ddot=${DDOT_EXTENSION_DIR}"
+      fi
+    - |
+      AI_USAGE_ARTIFACT=$(ls -1 "${PIPE_DIR}"/datadog-agent-ai-usage-*x86_64.zip 2>/dev/null || true)
+      if [ -n "$AI_USAGE_ARTIFACT" ]; then
+        AI_USAGE_INPUT_DIR="$(mktemp -d)"
+        AI_USAGE_EXTENSION_DIR="$(mktemp -d)"
+        echo "Extracting AI Usage to ${AI_USAGE_INPUT_DIR}"
+        unzip -q "${AI_USAGE_ARTIFACT}" -d "${AI_USAGE_INPUT_DIR}"
+
+        # Copy entire AI Usage structure (flat: binary + example config) to extension directory
+        cp -r "${AI_USAGE_INPUT_DIR}"/* "${AI_USAGE_EXTENSION_DIR}"/
+
+        EXTRA_FLAGS="${EXTRA_FLAGS} --extension ai-usage=${AI_USAGE_EXTENSION_DIR}"
       fi
     - |
       INSTALLER_BIN=$(ls -1 "${PIPE_DIR}"/datadog-installer-*-x86_64.exe 2>/dev/null | head -1)
