@@ -350,7 +350,7 @@ def finish(ctx, release_branch, upstream="origin", release_date=None):
                 "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
             )
         )
-        ctx.run("git add release.json")
+        ctx.run("git add release.json release.d")
         ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
         commit_message = f"'Final updates for release.json and Go modules for {new_version} release'"
@@ -498,7 +498,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
                 "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
             )
         )
-        ctx.run("git add release.json")
+        ctx.run("git add release.json release.d")
         ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
         commit_message = f"Update release.json and Go modules for {new_highest_version}"

@@ -69,7 +69,7 @@ def _integration_dependency_wheels_impl(rctx):
     python_version = rctx.attr.python_version
     lockfile_name = _lockfile_name(rctx.attr.os, rctx.attr.arch, python_version)
 
-    release_info = read_effective_release_json(rctx, rctx.attr._release_info)
+    release_info = read_effective_release_json(rctx, rctx.attr._release_info, rctx.attr._release_shards)
 
     commit = release_info["dependencies"]["INTEGRATIONS_CORE_VERSION"]
     reproducible = _is_full_commit_hash(commit)
@@ -121,6 +121,10 @@ integration_dependency_wheels = repository_rule(
             doc = "Python version string used to select the platform lockfile",
         ),
         "_release_info": attr.label(default = "//:release.json", allow_single_file = True),
+        "_release_shards": attr.label_list(
+            default = ["//:release.d/integrations-core.json"],
+            allow_files = True,
+        ),
     },
     doc =
         """Retrieves integration dependency wheels for a target platform and provides rules to

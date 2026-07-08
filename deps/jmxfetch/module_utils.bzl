@@ -28,6 +28,10 @@ get_jmxfetch_using_release_constants_attrs = {
     ),
     "canonical_id": attr.string(),
     "_release_info": attr.label(default = "//:release.json", allow_single_file = True),
+    "_release_shards": attr.label_list(
+        default = ["//:release.d/jmxfetch.json"],
+        allow_files = True,
+    ),
 }
 
 def parse_jmxfetch_version(version):
@@ -93,7 +97,7 @@ def parse_jmxfetch_version(version):
 
 def _get_jmxfetch_using_release_constants_impl(rctx):
     """Implementation of the get_jmxfetch_using_release_constants rule."""
-    release_info = read_effective_release_json(rctx, rctx.attr._release_info)
+    release_info = read_effective_release_json(rctx, rctx.attr._release_info, rctx.attr._release_shards)
     vars = release_info["dependencies"]
 
     version = vars["JMXFETCH_VERSION"]

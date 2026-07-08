@@ -9,7 +9,7 @@ EXCLUSIONS = [
 ]
 
 def _integration_source_packages_impl(rctx):
-    release_info = read_effective_release_json(rctx, rctx.attr._release_info)
+    release_info = read_effective_release_json(rctx, rctx.attr._release_info, rctx.attr._release_shards)
     commit = release_info["dependencies"]["INTEGRATIONS_CORE_VERSION"]
 
     # https://docs.github.com/en/repositories/working-with-files/using-files/downloading-source-code-archives#source-code-archive-urls
@@ -194,6 +194,10 @@ integration_source_packages = repository_rule(
             doc = "Base URL of the repository",
         ),
         "_release_info": attr.label(default = "//:release.json", allow_single_file = True),
+        "_release_shards": attr.label_list(
+            default = ["//:release.d/integrations-core.json"],
+            allow_files = True,
+        ),
     },
     doc = "Retrieves integrations-core source packages used to build Agent integration wheels.",
 )

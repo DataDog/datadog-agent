@@ -246,7 +246,7 @@
       },
       {
         "customType": "regex",
-        "managerFilePatterns": ["release.json"],
+        "managerFilePatterns": ["release.d/omnibus-ruby.json"],
         "matchStrings": [
           "[ ]+\"OMNIBUS_RUBY_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""
         ],
@@ -258,7 +258,7 @@
       },
       {
         "customType": "regex",
-        "managerFilePatterns": ["release.json"],
+        "managerFilePatterns": ["release.d/integrations-core.json"],
         "matchStrings": [
           "[ ]+\"INTEGRATIONS_CORE_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""
         ],

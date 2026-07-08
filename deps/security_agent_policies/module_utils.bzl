@@ -19,11 +19,15 @@ load("//bazel/repo:release_json.bzl", "read_effective_release_json")
 _get_security_agent_policies_attrs = {
     "canonical_id": attr.string(),
     "_release_info": attr.label(default = "//:release.json", allow_single_file = True),
+    "_release_shards": attr.label_list(
+        default = ["//:release.d/security-agent-policies.json"],
+        allow_files = True,
+    ),
 }
 
 def _get_security_agent_policies_impl(rctx):
     """Implementation of the get_security_agent_policies_using_release_constants rule."""
-    release_info = read_effective_release_json(rctx, rctx.attr._release_info)
+    release_info = read_effective_release_json(rctx, rctx.attr._release_info, rctx.attr._release_shards)
     vars = release_info["dependencies"]
 
     version = vars["SECURITY_AGENT_POLICIES_VERSION"]  # e.g. "v0.77.0"
