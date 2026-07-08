@@ -5,14 +5,15 @@
 
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::parse_environment_file;
+use crate::handle::ProcessHandle;
 use crate::platform;
 use crate::spawn_profile;
+use crate::spawn_request::SpawnRequest;
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{info, warn};
 use std::collections::VecDeque;
 use std::process::Stdio;
-use tokio::process::{Child, Command};
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
 
@@ -94,7 +95,7 @@ pub struct ManagedProcess {
     config: ProcessConfig,
     state: ProcessState,
     pid: Option<u32>,
-    child: Option<Child>,
+    handle: Option<ProcessHandle>,
     watcher_handle: Option<JoinHandle<()>>,
     restarts: RestartTracker,
     stop_requested: bool,
@@ -123,7 +124,7 @@ impl ManagedProcess {
             config,
             state: ProcessState::Created,
             pid: None,
-            child: None,
+            handle: None,
             watcher_handle: None,
             restarts,
             stop_requested: false,
@@ -226,17 +227,11 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
-        let mut cmd = self.build_command()?;
         let profile = spawn_profile::profile_for(&self.name);
+        let request = self.build_spawn_request()?;
+        let handle = platform::spawn_child(&self.name, request, profile)?;
 
-        let child = platform::spawn_child(
-            &self.name,
-            &self.config.command,
-            profile,
-            &mut cmd,
-        )?;
-
-        self.pid = child.id();
+        self.pid = handle.id();
         info!(
             "[{}] spawned (pid={}, cmd={})",
             self.name,
@@ -269,25 +264,68 @@ impl ManagedProcess {
             }
         }
 
-        self.child = Some(child);
+        self.handle = Some(handle);
         self.transition_to(ProcessState::Running);
         self.restarts.mark_spawned();
         Ok(())
     }
 
-    fn build_command(&self) -> Result<Command> {
-        let mut cmd = Command::new(expand_env_vars(&self.config.command));
-        cmd.args(self.config.args.iter().map(|a| expand_env_vars(a)));
+    fn build_spawn_request(&self) -> Result<SpawnRequest> {
+        // Collect environment variables that should be visible to the child.
+        //
+        // Platform backends are responsible for applying any baseline
+        // environment and clearing the process env (e.g. Windows
+        // `apply_child_baseline_env` after `env_clear`).
+        let mut env = Vec::new();
 
-        apply_child_environment(&mut cmd, self.name(), &self.config)?;
+        if let Some(ref raw_path) = self.config.environment_file {
+            let raw_path = expand_env_vars(raw_path);
+            let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
+                (true, stripped)
+            } else {
+                (false, raw_path.as_str())
+            };
 
-        if let Some(ref dir) = self.config.working_dir {
-            cmd.current_dir(expand_env_vars(dir));
+            if optional && !std::path::Path::new(path).exists() {
+                info!("[{}] optional environment file not found, skipping: {}", self.name, path);
+            } else {
+                let vars = parse_environment_file(path)
+                    .with_context(|| {
+                        format!(
+                            "[{}] failed to read environment file: {}",
+                            self.name, path
+                        )
+                    })?;
+                env.extend(vars);
+            }
         }
 
-        apply_child_stdio(&mut cmd, &self.config);
+        for (k, v) in &self.config.env {
+            env.push((k.clone(), expand_env_vars(v)));
+        }
 
-        Ok(cmd)
+        let stdout = stdio_from_config(&self.config.stdout, platform::stdout_inheritable());
+        let stderr = stdio_from_config(&self.config.stderr, platform::stderr_inheritable());
+
+        let working_dir = self
+            .config
+            .working_dir
+            .as_ref()
+            .map(|dir| std::path::PathBuf::from(expand_env_vars(dir)));
+
+        Ok(SpawnRequest {
+            command: expand_env_vars(&self.config.command),
+            args: self
+                .config
+                .args
+                .iter()
+                .map(|a| expand_env_vars(a))
+                .collect(),
+            env,
+            working_dir,
+            stdout,
+            stderr,
+        })
     }
 
     pub fn is_running(&self) -> bool {
@@ -296,12 +334,12 @@ impl ManagedProcess {
 
     /// Hand the child handle to a watcher task.
     /// The process remains in `Running` state — only the handle moves.
-    pub fn take_child(&mut self) -> Option<Child> {
-        self.child.take()
+    pub fn take_handle(&mut self) -> Option<ProcessHandle> {
+        self.handle.take()
     }
 
     fn has_child_handle(&self) -> bool {
-        self.child.is_some()
+        self.handle.is_some()
     }
 
     pub(crate) fn set_watcher_handle(&mut self, handle: JoinHandle<()>) {
@@ -394,10 +432,13 @@ impl ManagedProcess {
 
     /// Wait for the child to exit. Only works when we still hold the handle.
     pub async fn wait(&mut self) -> Result<std::process::ExitStatus> {
-        let child = self.child.as_mut().context("no child handle to wait on")?;
-        let status = child.wait().await?;
+        let handle = self
+            .handle
+            .as_mut()
+            .context("no process handle to wait on")?;
+        let status = handle.wait().await?;
         info!("[{}] exited with {status}", self.name);
-        self.child = None;
+        self.handle = None;
         Ok(status)
     }
 
@@ -517,34 +558,6 @@ impl ManagedProcess {
     }
 }
 
-fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig) -> Result<()> {
-    cmd.env_clear();
-    #[cfg(windows)]
-    platform::apply_child_baseline_env(cmd);
-
-    if let Some(ref raw_path) = config.environment_file {
-        let raw_path = expand_env_vars(raw_path);
-        let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
-            (true, stripped)
-        } else {
-            (false, raw_path.as_str())
-        };
-        if optional && !std::path::Path::new(path).exists() {
-            info!("[{name}] optional environment file not found, skipping: {path}");
-        } else {
-            let vars = parse_environment_file(path)
-                .with_context(|| format!("[{name}] failed to read environment file: {path}"))?;
-            for (k, v) in &vars {
-                cmd.env(k, v);
-            }
-        }
-    }
-    for (k, v) in &config.env {
-        cmd.env(k, expand_env_vars(v));
-    }
-    Ok(())
-}
-
 /// Expand `${VAR}` references in `input` using dd-procmgr's own environment.
 ///
 /// This lets a single process definition be pointed at the stable or experiment configuration
@@ -589,22 +602,6 @@ fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> Str
     }
     out.push_str(rest);
     out
-}
-
-fn apply_child_stdio(cmd: &mut Command, config: &ProcessConfig) {
-    #[cfg(windows)]
-    {
-        // Don't inherit stdin: invalid after AttachConsole/FreeConsole on stop.
-        cmd.stdin(Stdio::null());
-    }
-    cmd.stdout(stdio_from_config(
-        &config.stdout,
-        platform::stdout_inheritable(),
-    ));
-    cmd.stderr(stdio_from_config(
-        &config.stderr,
-        platform::stderr_inheritable(),
-    ));
 }
 
 fn stdio_from_path(path: &str) -> Stdio {
@@ -748,20 +745,20 @@ pub mod tests {
         proc.spawn().unwrap();
         assert_eq!(proc.state(), ProcessState::Running);
 
-        let child = proc.take_child();
-        assert!(child.is_some());
+        let handle = proc.take_handle();
+        assert!(handle.is_some());
         assert_eq!(
             proc.state(),
             ProcessState::Running,
-            "state should remain Running after take_child"
+            "state should remain Running after take_handle"
         );
         assert!(proc.is_running());
 
         if let Some(pid) = proc.pid() {
             test_helpers::cleanup_process(pid);
         }
-        let mut child = child.unwrap();
-        let _ = child.wait().await;
+        let mut handle = handle.unwrap();
+        let _ = handle.wait().await;
     }
 
     #[cfg(unix)]
@@ -774,13 +771,13 @@ pub mod tests {
             test_helpers::make_config(cmd, args),
         );
         proc.spawn().unwrap();
-        let mut child = proc.take_child().unwrap();
+        let mut handle = proc.take_handle().unwrap();
 
         proc.send_signal(Signal::SIGTERM);
-        let status = child.wait().await.unwrap();
+        let status = handle.wait().await.unwrap();
         assert!(
             !status.success(),
-            "signal by stored PID should reach child after take_child"
+            "signal by stored PID should reach handle after take_handle"
         );
     }
 
@@ -865,8 +862,8 @@ pub mod tests {
         );
         proc.spawn().unwrap();
         proc.request_stop();
-        let mut child = proc.take_child().unwrap();
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
         assert_eq!(proc.state(), ProcessState::Stopped);
 
@@ -1226,8 +1223,8 @@ runtime_success_sec: 5
         assert_eq!(proc.state(), ProcessState::Running);
 
         proc.request_stop();
-        let mut child = proc.take_child().unwrap();
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Stopped);
@@ -1242,15 +1239,15 @@ runtime_success_sec: 5
         proc.spawn().unwrap();
 
         proc.request_stop();
-        let _ = proc.take_child();
+        let _ = proc.take_handle();
         // Mirrors handle_stop: wait_for_stop may call mark_stopped before the exit
         // watcher runs set_last_status, leaving stop_requested set without this clear.
         proc.mark_stopped();
 
         proc.spawn().unwrap();
-        let mut child = proc.take_child().unwrap();
-        child.kill().await.expect("kill child");
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        handle.kill().await.expect("kill handle");
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Failed);
@@ -1269,8 +1266,8 @@ runtime_success_sec: 5
         proc.spawn().unwrap();
 
         proc.request_stop();
-        let mut child = proc.take_child().unwrap();
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Stopped);
@@ -1290,8 +1287,8 @@ runtime_success_sec: 5
         );
         proc.spawn().unwrap();
 
-        let mut child = proc.take_child().unwrap();
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
 
         assert_eq!(

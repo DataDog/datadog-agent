@@ -79,7 +79,7 @@ mod tests {
         let mut proc =
             ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), sleep_config());
         proc.spawn().unwrap();
-        let _child = proc.take_child();
+        let _handle = proc.take_handle();
 
         assert!(proc.is_running(), "state should still be Running");
         let mut procs = vec![proc];

@@ -8,17 +8,35 @@
 use anyhow::{Context, Result, bail};
 use log::info;
 use std::ptr;
-use tokio::process::{Child, Command};
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+use std::process::Stdio;
+use std::os::windows::ffi::OsStrExt;
+use std::collections::HashMap;
+use tokio::process::Command;
+use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Security::{
     ImpersonateLoggedOnUser, LogonUserW, RevertToSelf, LOGON32_LOGON_SERVICE,
-    LOGON32_PROVIDER_DEFAULT,
+    LOGON32_PROVIDER_DEFAULT, DuplicateTokenEx, SecurityDelegation, TokenPrimary,
+};
+use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
+use windows_sys::Win32::System::Console::{
+    GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+};
+use windows_sys::Win32::System::Threading::{
+    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
+    CreateProcessAsUserW, PROCESS_INFORMATION, STARTUPINFOW, STARTF_USESTDHANDLES,
+};
+use windows_sys::Win32::Storage::FileSystem::{
+    CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
+    FILE_SHARE_WRITE, OPEN_EXISTING,
 };
 
 use crate::spawn_context;
 use crate::spawn_profile::SpawnProfile;
+use crate::handle::ProcessHandle;
+use crate::spawn_request::SpawnRequest;
 
 use super::agent_credentials::{AgentAccount, resolve_agent_account};
+use super::apply_child_baseline_env;
 use super::setup_process_group;
 use super::wide;
 
@@ -27,31 +45,59 @@ use super::wide;
 /// Caller must hold [`super::console_lock`] on Windows (see `ManagedProcess::try_spawn`).
 pub(crate) fn spawn_child(
     process_name: &str,
-    command: &str,
+    request: SpawnRequest,
     profile: SpawnProfile,
-    cmd: &mut Command,
-) -> Result<Child> {
+) -> Result<ProcessHandle> {
     info!("[{process_name}] spawn profile: {profile}");
+
+    // Long-term: prefer primary-token spawning via `CreateProcessAsUserW`
+    // for the privileged (legacy LocalSystem) profile.
+    //
+    // Short-term: when token spawning isn't supported for the configured
+    // stdio/env/working-dir shape, fall back to the existing impersonation
+    // implementation.
+    if matches!(profile, SpawnProfile::Privileged) {
+        if let Ok(handle) = spawn_as_local_system_primary_token(process_name, &request) {
+            return Ok(handle);
+        }
+    } else if matches!(profile, SpawnProfile::Agent) {
+        if let Ok(AgentAccount::LocalSystem) = resolve_agent_account() {
+            if let Ok(handle) = spawn_as_local_system_primary_token(process_name, &request) {
+                return Ok(handle);
+            }
+        }
+    }
+
+    let (command, mut cmd) = build_command(request)?;
     match profile {
-        // Preserve legacy `datadog-process-agent` (LocalSystem) behavior by explicitly
-        // impersonating LocalSystem for the legacy SCM privilege level.
-        SpawnProfile::Privileged => spawn_as_local_system(process_name, command, cmd).or_else(|e| {
+        SpawnProfile::Privileged => spawn_as_local_system(process_name, &command, &mut cmd).or_else(|e| {
             log::warn!(
                 "[{process_name}] failed to spawn as LocalSystem (falling back to inherited token): {e:#}"
             );
-            exec_spawn(process_name, command, cmd)
+            exec_spawn(process_name, &command, &mut cmd)
         }),
-        SpawnProfile::Agent => spawn_as_agent_user(process_name, command, cmd),
+        SpawnProfile::Agent => spawn_as_agent_user(process_name, &command, &mut cmd),
     }
 }
 
-fn exec_spawn(process_name: &str, command: &str, cmd: &mut Command) -> Result<Child> {
+fn exec_spawn(
+    process_name: &str,
+    command: &str,
+    cmd: &mut Command,
+) -> Result<ProcessHandle> {
     setup_process_group(cmd);
-    cmd.spawn()
+    let child = cmd
+        .spawn()
         .with_context(|| spawn_context::failed_message(process_name, command))
+        ?;
+    Ok(ProcessHandle::from_child(child))
 }
 
-fn spawn_as_local_system(process_name: &str, command: &str, cmd: &mut Command) -> Result<Child> {
+fn spawn_as_local_system(
+    process_name: &str,
+    command: &str,
+    cmd: &mut Command,
+) -> Result<ProcessHandle> {
     // LogonUserW + impersonation is required because dd-procmgr-service may not run as
     // LocalSystem; we explicitly impersonate LocalSystem so the privileged behavior matches
     // the legacy SCM service.
@@ -67,7 +113,11 @@ fn spawn_as_local_system(process_name: &str, command: &str, cmd: &mut Command) -
     )
 }
 
-fn spawn_as_agent_user(process_name: &str, command: &str, cmd: &mut Command) -> Result<Child> {
+fn spawn_as_agent_user(
+    process_name: &str,
+    command: &str,
+    cmd: &mut Command,
+) -> Result<ProcessHandle> {
     let account = resolve_agent_account().with_context(|| {
         format!("[{process_name}] resolve agent service account for spawn")
     })?;
@@ -107,7 +157,7 @@ fn spawn_with_impersonation(
     domain: &str,
     user: &str,
     password: Option<&str>,
-) -> Result<Child> {
+) -> Result<ProcessHandle> {
     let domain_wide = wide::null_terminated(logon_domain(domain));
     let user_wide = wide::null_terminated(user);
     let password_wide = password.map(wide::null_terminated);
@@ -143,6 +193,242 @@ fn spawn_with_impersonation(
         };
         exec_spawn(process_name, command, cmd)
     }
+}
+
+fn spawn_as_local_system_primary_token(
+    process_name: &str,
+    request: &SpawnRequest,
+) -> Result<ProcessHandle> {
+    // Only support stdio shapes that can be mapped to explicit Win32 handles.
+    // For anything else, fall back to impersonation + tokio::Command.
+    let stdout_handle = map_stdio_handle(&request.stdout, STD_OUTPUT_HANDLE)?;
+    let stderr_handle = map_stdio_handle(&request.stderr, STD_ERROR_HANDLE)?;
+    let stdin_handle = open_nul_handle(FILE_GENERIC_READ | FILE_GENERIC_WRITE)?;
+
+    let command_line = {
+        let mut cmdline = windows_crt_escape_arg(&request.command);
+        for arg in &request.args {
+            cmdline.push(' ');
+            cmdline.push_str(&windows_crt_escape_arg(arg));
+        }
+        cmdline
+    };
+
+    let application_name_w = wide::null_terminated(&request.command);
+    let mut command_line_w: Vec<u16> = std::ffi::OsStr::new(&command_line)
+        .encode_wide()
+        .chain([0])
+        .collect();
+
+    let env_block = env_block_from_current_plus_overrides(&request.env)?;
+    let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
+
+    let current_dir_w = request.working_dir.as_ref().map(|d| wide::null_terminated(d.to_string_lossy().as_ref()));
+
+    // Acquire LocalSystem token.
+    let domain_w = wide::null_terminated("NT AUTHORITY");
+    let user_w = wide::null_terminated("SYSTEM");
+    let password_w = wide::null_terminated("");
+
+    let mut logon_token: HANDLE = std::ptr::null_mut();
+    let ok = unsafe {
+        LogonUserW(
+            user_w.as_ptr(),
+            domain_w.as_ptr(),
+            password_w.as_ptr(),
+            LOGON32_LOGON_SERVICE,
+            LOGON32_PROVIDER_DEFAULT,
+            &mut logon_token,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "[{process_name}] LogonUserW(LocalSystem) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    let logon_token_guard = TokenHandle(logon_token);
+
+    // Ensure we have a primary token suitable for CreateProcessAsUserW.
+    let mut primary_token: HANDLE = std::ptr::null_mut();
+    let ok = unsafe {
+        DuplicateTokenEx(
+            logon_token_guard.0,
+            MAXIMUM_ALLOWED,
+            std::ptr::null(),
+            SecurityDelegation,
+            TokenPrimary,
+            &mut primary_token,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "[{process_name}] DuplicateTokenEx failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    let primary_token_guard = TokenHandle(primary_token);
+
+    let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
+    si.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = stdin_handle;
+    si.hStdOutput = stdout_handle;
+    si.hStdError = stderr_handle;
+
+    let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
+    let dw_creation_flags =
+        CREATE_NEW_PROCESS_GROUP | CREATE_NEW_CONSOLE | CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT;
+
+    let ok = unsafe {
+        CreateProcessAsUserW(
+            primary_token_guard.0,
+            application_name_w.as_ptr(),
+            command_line_w.as_mut_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            1,
+            dw_creation_flags,
+            env_block_ptr,
+            current_dir_w
+                .as_ref()
+                .map(|w| w.as_ptr())
+                .unwrap_or(std::ptr::null()),
+            &si,
+            &mut pi,
+        )
+    };
+
+    // Close local stdio handles: the child has its own copies by the time
+    // CreateProcessAsUserW returns.
+    unsafe {
+        let _ = CloseHandle(stdin_handle);
+        let _ = CloseHandle(stdout_handle);
+        let _ = CloseHandle(stderr_handle);
+    }
+
+    if ok == 0 {
+        bail!(
+            "[{process_name}] CreateProcessAsUserW failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
+    unsafe {
+        let _ = CloseHandle(pi.hThread);
+    }
+
+    Ok(ProcessHandle::from_raw(pi.dwProcessId, pi.hProcess))
+}
+
+fn windows_crt_escape_arg(s: &str) -> String {
+    // Matches the quoting rules used by the Windows CRT (inverse of
+    // CommandLineToArgvW decoding).
+    let mut out = String::new();
+    out.push('"');
+    let mut backslashes = 0usize;
+    for ch in s.chars() {
+        match ch {
+            '\\' => backslashes += 1,
+            '"' => {
+                out.push_str(&"\\".repeat(backslashes * 2 + 1));
+                out.push('"');
+                backslashes = 0;
+            }
+            _ => {
+                out.push_str(&"\\".repeat(backslashes));
+                out.push(ch);
+                backslashes = 0;
+            }
+        }
+    }
+    out.push_str(&"\\".repeat(backslashes * 2));
+    out.push('"');
+    out
+}
+
+fn env_block_from_current_plus_overrides(
+    overrides: &[(String, String)],
+) -> Result<Vec<u16>> {
+    let mut vars: HashMap<String, String> = std::env::vars().collect();
+    for (k, v) in overrides {
+        vars.insert(k.clone(), v.clone());
+    }
+
+    let mut block: Vec<u16> = Vec::new();
+    for (k, v) in vars {
+        let kv = format!("{k}={v}");
+        block.extend(std::ffi::OsStr::new(&kv).encode_wide());
+        block.push(0);
+    }
+    // Double NUL terminator.
+    block.push(0);
+    Ok(block)
+}
+
+fn open_nul_handle(access: u32) -> Result<HANDLE> {
+    let nul = wide::null_terminated("NUL");
+    let h = unsafe {
+        CreateFileW(
+            nul.as_ptr(),
+            access,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            std::ptr::null(),
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            0,
+        )
+    };
+    if h == INVALID_HANDLE_VALUE || h.is_null() {
+        bail!("CreateFileW(NUL) failed: {}", std::io::Error::last_os_error());
+    }
+    Ok(h)
+}
+
+fn map_stdio_handle(stdio: &Stdio, kind: u32) -> Result<HANDLE> {
+    match stdio {
+        Stdio::Inherit => unsafe {
+            let h = GetStdHandle(kind);
+            if h == INVALID_HANDLE_VALUE || h.is_null() {
+                bail!("GetStdHandle({kind}) returned invalid");
+            }
+            Ok(h)
+        },
+        Stdio::Null => open_nul_handle(FILE_GENERIC_READ | FILE_GENERIC_WRITE),
+        other => bail!(
+            "primary-token spawn only supports inherit/null stdio, got {other:?}"
+        ),
+    }
+}
+
+fn build_command(request: SpawnRequest) -> Result<(String, Command)> {
+    let SpawnRequest {
+        command,
+        args,
+        env,
+        working_dir,
+        stdout,
+        stderr,
+    } = request;
+
+    let mut cmd = Command::new(&command);
+    cmd.args(&args);
+    // Ensure children don't see fleet installer environment.
+    cmd.env_clear();
+    apply_child_baseline_env(&mut cmd);
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    if let Some(dir) = working_dir {
+        cmd.current_dir(dir);
+    }
+
+    // Don't inherit stdin: invalid after AttachConsole/FreeConsole on stop.
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(stdout);
+    cmd.stderr(stderr);
+
+    Ok((command, cmd))
 }
 
 /// Local account logon expects `"."` when the registry domain is empty.

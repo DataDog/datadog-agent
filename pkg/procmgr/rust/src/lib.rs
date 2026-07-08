@@ -11,6 +11,8 @@ pub mod manager;
 pub mod ordering;
 pub mod platform;
 pub mod process;
+pub mod handle;
+pub mod spawn_request;
 mod spawn_context;
 #[cfg(windows)]
 pub mod service;

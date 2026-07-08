@@ -452,8 +452,8 @@ mod tests {
             ManagedProcess::new_config("fail-proc".to_string(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
 
-        let mut child = proc.take_child().unwrap();
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
 
         let proto = process_to_proto(&proc);

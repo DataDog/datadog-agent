@@ -9,10 +9,12 @@ use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
-use tokio::process::{Child, Command};
+use tokio::process::Command;
 
 use crate::spawn_context;
 use crate::spawn_profile::SpawnProfile;
+use crate::handle::ProcessHandle;
+use crate::spawn_request::SpawnRequest;
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
@@ -24,14 +26,35 @@ pub fn setup_process_group(cmd: &mut tokio::process::Command) {
 /// use the supervisor identity until a distinct host-privileged child is needed.
 pub(crate) fn spawn_child(
     process_name: &str,
-    command: &str,
+    request: SpawnRequest,
     profile: SpawnProfile,
-    cmd: &mut Command,
-) -> Result<Child> {
+) -> Result<ProcessHandle> {
     info!("[{process_name}] spawn profile: {profile}");
-    setup_process_group(cmd);
-    cmd.spawn()
-        .with_context(|| spawn_context::failed_message(process_name, command))
+    let SpawnRequest {
+        command,
+        args,
+        env,
+        working_dir,
+        stdout,
+        stderr,
+    } = request;
+    let mut cmd = Command::new(&command);
+    cmd.args(&args);
+    cmd.env_clear();
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    if let Some(dir) = working_dir {
+        cmd.current_dir(dir);
+    }
+    cmd.stdout(stdout);
+    cmd.stderr(stderr);
+
+    setup_process_group(&mut cmd);
+    let child = cmd.spawn().with_context(|| {
+        spawn_context::failed_message(process_name, &command)
+    })?;
+    Ok(ProcessHandle::from_child(child))
 }
 
 /// Negate a PID to produce the process group ID for `kill(2)`.

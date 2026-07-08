@@ -424,17 +424,16 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
 
 /// Spawn a background task that awaits the child's exit and sends the result.
 fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
-    if let Some(child) = proc.take_child() {
+    if let Some(mut handle) = proc.take_handle() {
         let name = proc.name().to_owned();
         let pid = proc.pid().unwrap_or(0);
         let handle = tokio::spawn(async move {
-            let mut child = child;
-            let status = match child.wait().await {
+            let status = match handle.wait().await {
                 Ok(status) => status,
                 Err(e) => {
                     warn!("[{name}] wait error: {e}, killing process");
-                    let _ = child.kill().await;
-                    match child.wait().await {
+                    let _ = handle.kill().await;
+                    match handle.wait().await {
                         Ok(s) => s,
                         Err(e2) => {
                             warn!("[{name}] failed to reap after kill: {e2}");
