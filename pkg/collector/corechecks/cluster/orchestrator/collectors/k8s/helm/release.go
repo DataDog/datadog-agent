@@ -28,6 +28,21 @@ type Release struct {
 	Manifest string `json:"manifest,omitempty"`
 	// ResourceVersion is the backing storage object's resourceVersion.
 	ResourceVersion string `json:"-"`
+	// History holds a compact summary of every revision of this release. It is
+	// computed by the collector (not part of Helm's stored payload) and surfaced
+	// on the current release CR so the UI can render release history.
+	History []RevisionSummary `json:"-"`
+}
+
+// RevisionSummary is a compact per-revision record surfaced on the current
+// release CR.
+type RevisionSummary struct {
+	Revision     int
+	Status       string
+	ChartVersion string
+	AppVersion   string
+	// Updated is the revision's last-deployed time.
+	Updated string
 }
 
 // Info describes the deployment state of a release.

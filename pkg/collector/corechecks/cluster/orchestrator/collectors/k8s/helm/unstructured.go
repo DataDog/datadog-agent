@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -73,6 +74,10 @@ func ReleaseToUnstructured(r *Release) *unstructured.Unstructured {
 		spec["config"] = r.Config
 	}
 
+	if len(r.History) > 0 {
+		spec["history"] = revisionSummariesToInterface(r.History)
+	}
+
 	// Keep manifests structured so the scrubber can inspect nested fields.
 	if resources := parseManifest(r.Manifest); len(resources) > 0 {
 		spec["resources"] = resources
@@ -83,7 +88,7 @@ func ReleaseToUnstructured(r *Release) *unstructured.Unstructured {
 			"apiVersion": helmReleaseAPIVersion,
 			"kind":       HelmReleaseKind,
 			"metadata": map[string]interface{}{
-				"name":            fmt.Sprintf("%s.v%d", r.Name, r.Version),
+				"name":            r.Name,
 				"namespace":       r.Namespace,
 				"uid":             releaseUID(r),
 				"resourceVersion": r.ResourceVersion,
@@ -139,9 +144,9 @@ func parseManifest(manifest string) []interface{} {
 	return resources
 }
 
-// releaseUID returns a deterministic UUID for a release revision.
+// releaseUID returns a deterministic UUID for a release, stable across revisions.
 func releaseUID(r *Release) string {
-	key := fmt.Sprintf("%s/%s/%d", r.Namespace, r.Name, r.Version)
+	key := fmt.Sprintf("%s/%s", r.Namespace, r.Name)
 	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(key)).String()
 }
 
@@ -213,6 +218,86 @@ func dependenciesToInterface(deps []*Dependency) []interface{} {
 func chartUID(name, version string) string {
 	key := fmt.Sprintf("%s/%s", name, version)
 	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(key)).String()
+}
+
+// CurrentReleases returns the latest revision of each release (namespace/name),
+// mirroring `helm list`. Helm retains one storage object per revision; we surface
+// only the most recent so each release appears once, and attach a summary of all
+// revisions as its history.
+func CurrentReleases(releases []*Release) []*Release {
+	groups := make(map[string][]*Release)
+	for _, r := range releases {
+		if r == nil {
+			continue
+		}
+		key := r.Namespace + "/" + r.Name
+		groups[key] = append(groups[key], r)
+	}
+	out := make([]*Release, 0, len(groups))
+	for _, group := range groups {
+		current := group[0]
+		for _, r := range group[1:] {
+			if r.Version > current.Version {
+				current = r
+			}
+		}
+		current.History = revisionSummaries(group)
+		out = append(out, current)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Namespace != out[j].Namespace {
+			return out[i].Namespace < out[j].Namespace
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+// revisionSummaries builds a per-revision summary for a release's revisions,
+// newest first.
+func revisionSummaries(releases []*Release) []RevisionSummary {
+	summaries := make([]RevisionSummary, 0, len(releases))
+	for _, r := range releases {
+		if r == nil {
+			continue
+		}
+		var chartVersion, appVersion string
+		if r.Chart != nil && r.Chart.Metadata != nil {
+			chartVersion = r.Chart.Metadata.Version
+			appVersion = r.Chart.Metadata.AppVersion
+		}
+		var status, updated string
+		if r.Info != nil {
+			status = r.Info.Status
+			updated = r.Info.LastDeployed
+		}
+		summaries = append(summaries, RevisionSummary{
+			Revision:     r.Version,
+			Status:       status,
+			ChartVersion: chartVersion,
+			AppVersion:   appVersion,
+			Updated:      updated,
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].Revision > summaries[j].Revision
+	})
+	return summaries
+}
+
+// revisionSummariesToInterface converts revision summaries into JSON-compatible maps.
+func revisionSummariesToInterface(summaries []RevisionSummary) []interface{} {
+	out := make([]interface{}, 0, len(summaries))
+	for _, s := range summaries {
+		out = append(out, map[string]interface{}{
+			"revision":     int64(s.Revision),
+			"status":       s.Status,
+			"chartVersion": s.ChartVersion,
+			"appVersion":   s.AppVersion,
+			"updated":      s.Updated,
+		})
+	}
+	return out
 }
 
 // UniqueCharts returns one chart per distinct (name, version).
