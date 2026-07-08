@@ -82,16 +82,8 @@ type installerRegistryConfig struct {
 //
 //nolint:unused // Used in platform-specific files
 func setRegistryConfig(env *env.Env) map[string]extensionsPkg.ExtensionRegistry {
-	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
-	rawConfig, err := os.ReadFile(configPath)
-	if err != nil {
-		log.Debugf("could not read agent config at %s: %v", configPath, err)
-		return nil
-	}
-	var config datadogAgentConfig
-	err = yaml.Unmarshal(rawConfig, &config)
-	if err != nil {
-		log.Warnf("could not parse agent config at %s: %v", configPath, err)
+	config, ok := loadDatadogAgentConfig()
+	if !ok {
 		return nil
 	}
 
@@ -148,18 +140,35 @@ func isEndUserDeviceMode(env *env.Env) bool {
 //
 //nolint:unused // Used in platform-specific files
 func readInfrastructureModeFromConfig() string {
+	config, ok := loadDatadogAgentConfig()
+	if !ok {
+		return ""
+	}
+	return config.InfrastructureMode
+}
+
+// loadDatadogAgentConfig reads and parses the subset of the installed datadog.yaml that the
+// installer cares about. It returns ok=false (best effort) if the file cannot be read or parsed.
+//
+// The fleet installer is a lightweight, separately-built binary that intentionally does not import
+// the full agent config machinery (pkg/config/setup), so — like setRegistryConfig, the ddot hooks,
+// and apm_inject — it reads the config into a local subset struct rather than through the agent
+// config API.
+//
+//nolint:unused // Used in platform-specific files
+func loadDatadogAgentConfig() (datadogAgentConfig, bool) {
 	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
 		log.Debugf("could not read agent config at %s: %v", configPath, err)
-		return ""
+		return datadogAgentConfig{}, false
 	}
 	var config datadogAgentConfig
 	if err := yaml.Unmarshal(rawConfig, &config); err != nil {
 		log.Warnf("could not parse agent config at %s: %v", configPath, err)
-		return ""
+		return datadogAgentConfig{}, false
 	}
-	return config.InfrastructureMode
+	return config, true
 }
 
 // saveAgentExtensions saves the extensions of the Agent package by writing them to a file on disk.

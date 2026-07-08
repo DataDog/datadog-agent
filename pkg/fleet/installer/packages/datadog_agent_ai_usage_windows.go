@@ -252,6 +252,9 @@ func readAIUsageChromeExtensionIDFromFile(path string) string {
 // writeAIUsageManifest writes the Chrome native messaging host manifest, and cleans up the
 // obsolete manifest if present.
 func writeAIUsageManifest(manifestPath, hostExe, extensionID string) error {
+	if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
+		return fmt.Errorf("could not create manifest directory: %w", err)
+	}
 	obsolete := filepath.Join(filepath.Dir(manifestPath), aiUsageObsoleteNativeHostName+".json")
 	if err := os.Remove(obsolete); err != nil && !os.IsNotExist(err) {
 		log.Warnf("AI Usage: failed to delete obsolete manifest %q: %v", obsolete, err)
