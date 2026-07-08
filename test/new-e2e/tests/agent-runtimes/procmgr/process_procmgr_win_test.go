@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
