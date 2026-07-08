@@ -37,6 +37,7 @@ const (
 type jmxInstanceData struct {
 	host string
 	port string
+	name string // explicit "name:" from the instance config; empty if none was set
 	tags interface{}
 }
 
@@ -131,6 +132,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	jmxStatus.PopulateStatus(stats)
 	instanceConfByName := map[string]*jmxInstanceData{}
 	for _, config := range jmxfetch.GetScheduledConfigs() {
+		checkName := config.Name
 		for _, instance := range config.Instances {
 			instanceconfig := map[interface{}]interface{}{}
 			err := yaml.Unmarshal(instance, &instanceconfig)
@@ -139,23 +141,10 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 				continue
 			}
 
-			// Instance name is required to map this data
-			instanceName, hasName := instanceconfig["name"].(string)
-			if !hasName {
-				continue
-			}
-
-			// Extract host with default
-			host := "unknown"
-			if h, ok := instanceconfig["host"]; ok {
-				host = fmt.Sprint(h)
-			}
-
-			// Extract port with default
-			port := "unknown"
-			if p, ok := instanceconfig["port"]; ok {
-				port = fmt.Sprint(p)
-			}
+			// Use fmt.Sprint (no "unknown" default) so the resulting check ID matches
+			// the config.hash built in integrations_jmx.go (getJMXChecksMetadata).
+			host := fmt.Sprint(instanceconfig["host"])
+			port := fmt.Sprint(instanceconfig["port"])
 
 			// Extract tags
 			var tags interface{} = []string{}
@@ -163,10 +152,23 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 				tags = tagsNode
 			}
 
-			instanceConfByName[instanceName] = &jmxInstanceData{
+			data := &jmxInstanceData{
 				host: host,
 				port: port,
 				tags: tags,
+			}
+
+			// Key the instance by the same string JMXFetch reports as instance_name in
+			// its runtime status, so the lookup below succeeds for both named and unnamed
+			// instances.
+			if name, ok := instanceconfig["name"].(string); ok {
+				// Named instance: JMXFetch reports instance_name == the configured name.
+				data.name = name
+				instanceConfByName[name] = data
+			} else {
+				// Unnamed instance: JMXFetch auto-generates instance_name as
+				// "<check>-<host>-<port>". Key by that so the status lookup hits.
+				instanceConfByName[fmt.Sprintf("%s-%s-%s", checkName, host, port)] = data
 			}
 		}
 	}
@@ -199,9 +201,13 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 					} else {
 						// Instance name exists - look up full instance data
 						if instanceData, found := instanceConfByName[instanceName]; found {
-							// Build checkID in format: checkName-host-port:instanceName
-							// This matches the format used in inventory metadata (integrations_jmx.go:77-79)
-							checkID = fmt.Sprintf("%s-%s-%s:%s", checkName, instanceData.host, instanceData.port, instanceName)
+							// Build checkID to match the config.hash format in inventory
+							// metadata (integrations_jmx.go:77-80): "<check>-<host>-<port>",
+							// with a ":<name>" suffix only when the instance set an explicit name.
+							checkID = fmt.Sprintf("%s-%s-%s", checkName, instanceData.host, instanceData.port)
+							if instanceData.name != "" {
+								checkID = fmt.Sprintf("%s:%s", checkID, instanceData.name)
+							}
 							tags = instanceData.tags
 						} else {
 							// Instance not found in config - fall back with unknown host/port
