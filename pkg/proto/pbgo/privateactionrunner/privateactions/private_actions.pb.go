@@ -484,15 +484,15 @@ func (*SystemInputs_RemoteAction) isSystemInputs_Input() {}
 
 type RemoteAction struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// target_commands and target_paths carry the rshell allowlists resolved
+	// allowed_commands and allowed_paths carry the rshell allowlists resolved
 	// from execution policies for remote-action tasks. They are empty for
-	// non-remote-action tasks. target_commands is the flat, namespaced
-	// ("rshell:<command>") command allowlist; target_paths is the flat path
+	// non-remote-action tasks. allowed_commands is the flat, namespaced
+	// ("rshell:<command>") command allowlist; allowed_paths is the flat path
 	// allowlist rshell may operate on.
-	TargetCommands []string `protobuf:"bytes,1,rep,name=target_commands,json=targetCommands,proto3" json:"target_commands,omitempty"`
-	TargetPaths    []string `protobuf:"bytes,2,rep,name=target_paths,json=targetPaths,proto3" json:"target_paths,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	AllowedCommands []string `protobuf:"bytes,1,rep,name=allowed_commands,json=allowedCommands,proto3" json:"allowed_commands,omitempty"`
+	AllowedPaths    []string `protobuf:"bytes,2,rep,name=allowed_paths,json=allowedPaths,proto3" json:"allowed_paths,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *RemoteAction) Reset() {
@@ -525,16 +525,16 @@ func (*RemoteAction) Descriptor() ([]byte, []int) {
 	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *RemoteAction) GetTargetCommands() []string {
+func (x *RemoteAction) GetAllowedCommands() []string {
 	if x != nil {
-		return x.TargetCommands
+		return x.AllowedCommands
 	}
 	return nil
 }
 
-func (x *RemoteAction) GetTargetPaths() []string {
+func (x *RemoteAction) GetAllowedPaths() []string {
 	if x != nil {
-		return x.TargetPaths
+		return x.AllowedPaths
 	}
 	return nil
 }
@@ -883,10 +883,10 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\"x\n" +
 	"\fSystemInputs\x12_\n" +
 	"\rremote_action\x18\x01 \x01(\v28.datadog.privateactionrunner.privateactions.RemoteActionH\x00R\fremoteActionB\a\n" +
-	"\x05input\"Z\n" +
-	"\fRemoteAction\x12'\n" +
-	"\x0ftarget_commands\x18\x01 \x03(\tR\x0etargetCommands\x12!\n" +
-	"\ftarget_paths\x18\x02 \x03(\tR\vtargetPaths\"\x8f\x02\n" +
+	"\x05input\"^\n" +
+	"\fRemoteAction\x12)\n" +
+	"\x10allowed_commands\x18\x01 \x03(\tR\x0fallowedCommands\x12#\n" +
+	"\rallowed_paths\x18\x02 \x03(\tR\fallowedPaths\"\x8f\x02\n" +
 	"\x0eConnectionInfo\x12#\n" +
 	"\rconnection_id\x18\x01 \x01(\tR\fconnectionId\x12S\n" +
 	"\x06tokens\x18\x02 \x03(\v2;.datadog.privateactionrunner.privateactions.ConnectionTokenR\x06tokens\x12f\n" +

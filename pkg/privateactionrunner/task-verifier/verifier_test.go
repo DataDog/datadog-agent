@@ -27,8 +27,8 @@ func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
 		SystemInputs: &privateactionspb.SystemInputs{
 			Input: &privateactionspb.SystemInputs_RemoteAction{
 				RemoteAction: &privateactionspb.RemoteAction{
-					TargetCommands: []string{"rshell:cat"},
-					TargetPaths:    []string{"/host/var/log"},
+					AllowedCommands: []string{"rshell:cat"},
+					AllowedPaths:    []string{"/host/var/log"},
 				},
 			},
 		},
@@ -41,8 +41,8 @@ func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
 	require.NotNil(t, got.Data.Attributes.SystemInputs)
 	remoteAction := got.Data.Attributes.SystemInputs.GetRemoteAction()
 	require.NotNil(t, remoteAction)
-	assert.Equal(t, []string{"rshell:cat"}, remoteAction.TargetCommands)
-	assert.Equal(t, []string{"/host/var/log"}, remoteAction.TargetPaths)
+	assert.Equal(t, []string{"rshell:cat"}, remoteAction.AllowedCommands)
+	assert.Equal(t, []string{"/host/var/log"}, remoteAction.AllowedPaths)
 }
 
 func TestMapPbTaskToStructEmptyRemoteActionPolicyFields(t *testing.T) {
@@ -62,8 +62,8 @@ func TestNoOpTaskVerifierUnwrapsSignedEnvelopeData(t *testing.T) {
 		SystemInputs: &privateactionspb.SystemInputs{
 			Input: &privateactionspb.SystemInputs_RemoteAction{
 				RemoteAction: &privateactionspb.RemoteAction{
-					TargetCommands: []string{"rshell:cat"},
-					TargetPaths:    []string{"/tmp:ro"},
+					AllowedCommands: []string{"rshell:cat"},
+					AllowedPaths:    []string{"/tmp:ro"},
 				},
 			},
 		},
@@ -84,6 +84,6 @@ func TestNoOpTaskVerifierUnwrapsSignedEnvelopeData(t *testing.T) {
 	assert.Equal(t, "task-id", got.Data.ID)
 	remoteAction := got.Data.Attributes.SystemInputs.GetRemoteAction()
 	require.NotNil(t, remoteAction)
-	assert.Equal(t, []string{"rshell:cat"}, remoteAction.TargetCommands)
-	assert.Equal(t, []string{"/tmp:ro"}, remoteAction.TargetPaths)
+	assert.Equal(t, []string{"rshell:cat"}, remoteAction.AllowedCommands)
+	assert.Equal(t, []string{"/tmp:ro"}, remoteAction.AllowedPaths)
 }

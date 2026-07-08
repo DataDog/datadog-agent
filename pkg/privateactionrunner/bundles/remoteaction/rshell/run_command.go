@@ -123,12 +123,13 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 
 // RunCommandInputs defines the user-supplied inputs for the runCommand action.
 //
-// The command allowlists are no longer carried in inputs: they are resolved
-// from execution policies on the backend and delivered in the signed task's
-// system_inputs.remote_action fields.
-// Inputs only carry the command to run.
+// Newer tasks carry backend allowlists in system_inputs.remote_action. The
+// legacy allowedCommands/allowedPaths input fields are still accepted as a
+// compatibility fallback for tasks signed by older servers.
 type RunCommandInputs struct {
-	Command string `json:"command"`
+	Command         string              `json:"command"`
+	AllowedCommands []string            `json:"allowedCommands"`
+	AllowedPaths    map[string][]string `json:"allowedPaths"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -160,13 +161,7 @@ func (h *RunCommandHandler) Run(
 		return nil, errors.New("command is required")
 	}
 
-	// The backend allowlists come from the signed task, not from user inputs.
-	var backendCommands []string
-	var backendPaths []string
-	if remoteAction := task.Data.Attributes.SystemInputs.GetRemoteAction(); remoteAction != nil {
-		backendCommands = remoteAction.TargetCommands
-		backendPaths = remoteAction.TargetPaths
-	}
+	backendCommands, backendPaths := backendAllowlistsFromTask(task, inputs)
 	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
 	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
@@ -218,6 +213,16 @@ func (h *RunCommandHandler) Run(
 		Stderr:          stderr.String(),
 		SandboxWarnings: runner.Warnings(),
 	}, nil
+}
+
+func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (commands []string, paths []string) {
+	// The signed system inputs are authoritative for new tasks. A present but
+	// empty remote_action allowlist intentionally blocks that axis.
+	if remoteAction := task.Data.Attributes.SystemInputs.GetRemoteAction(); remoteAction != nil {
+		return remoteAction.AllowedCommands, remoteAction.AllowedPaths
+	}
+
+	return inputs.AllowedCommands, selectBackendPathsFromEnv(inputs.AllowedPaths)
 }
 
 // resolveProcPath returns the proc filesystem path appropriate for the current
