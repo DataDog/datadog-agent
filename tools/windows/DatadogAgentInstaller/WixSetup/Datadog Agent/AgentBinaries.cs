@@ -23,10 +23,6 @@ namespace WixSetup.Datadog_Agent
         public string Procmgr => $@"{_binSource}\dd-procmgr.exe";
         public string AgentDataPlane => $@"{_binSource}\agent-data-plane.exe";
 
-        // Note: the AI Usage Chrome native messaging host is no longer shipped by the MSI.
-        // It is delivered as the "ai-usage" fleet installer extension, gated on EUDM
-        // (see pkg/fleet/installer/packages/datadog_agent_ai_usage_windows.go).
-
         public AgentBinaries(string binSource, string installerSource)
         {
             _binSource = binSource;

@@ -203,9 +203,6 @@ namespace WixSetup.Datadog_Agent
                 {
                     Win64 = true
                 }
-                // Note: the Chrome NativeMessagingHosts registry entries for the AI Usage host
-                // are now created by the "ai-usage" fleet installer extension (gated on EUDM),
-                // not by the MSI.
             );
             var agentOpenSSLVersion = Environment.GetEnvironmentVariable("AGENT_OPENSSL_VERSION");
             if (!string.IsNullOrEmpty(agentOpenSSLVersion))
