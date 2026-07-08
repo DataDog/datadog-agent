@@ -42,10 +42,10 @@ class CodeGeneratorTarget:
             return
         self.buffer[path] = BufferedSetting(path, sourcecode)
 
-    def flush_buffer(self):
-        # Without the --keep-orig-order flag, output everything in 1 function
+    def flush_buffer(self, filename_filter):
+        # Without the --keep-orig-order flag, output everything at once
         if self.buffer is None:
-            self.result_as_single_func()
+            self.output_result_for_all_settings(filename_filter)
             return
 
         # Otherwise, we output multiple source files
@@ -58,13 +58,12 @@ class CodeGeneratorTarget:
             if not h:
                 print(f"[WARN] not found: {funcname}")
                 continue
+            (filename, settings) = h['filename'], h['settings']
+            if filename_filter and not filename_filter(filename):
+                continue
 
             # Get filename to write to, add header if its empty
             need_import_statements = False
-            (
-                filename,
-                settings,
-            ) = h['filename'], h['settings']
             if filename not in self.filesystem:
                 self.filesystem[filename] = self.header_text.split('\n')
                 need_import_statements = True
@@ -73,10 +72,11 @@ class CodeGeneratorTarget:
             need_pkgconfighelper = False
             for row in settings:
                 keyname = row[0]
-                setting = self.buffer[keyname]
-                for line in setting.sourcecode:
-                    if 'pkgconfighelper.' in line:
-                        need_pkgconfighelper = True
+                setting = self.buffer.get(keyname)
+                if setting:
+                    for line in setting.sourcecode:
+                        if 'pkgconfighelper.' in line:
+                            need_pkgconfighelper = True
 
             # Imports section
             if need_import_statements:
@@ -87,6 +87,8 @@ class CodeGeneratorTarget:
             output_func_header(funcname, sourcecode)
             for row in settings:
                 keyname = row[0]
+                if keyname not in self.buffer:
+                    continue
                 setting = self.buffer[keyname]
                 self.buffer[keyname].done = True
                 sourcecode = sourcecode + setting.sourcecode
@@ -112,7 +114,20 @@ class CodeGeneratorTarget:
         sourcecode += [')', '']
         return sourcecode
 
-    def result_as_single_func(self):
+    def output_result_for_all_settings(self, filename_filter):
+        if filename_filter("system_probe_settings.go"):
+            return self.output_result_for_sysprobe_settings()
+        return self.output_result_for_core_agent_settings()
+
+    def output_result_for_sysprobe_settings(self):
+        res = self.header_text.split('\n')
+        res += self._add_imports(False)
+        res += ['func initSystemProbeConfig(config pkgconfigmodel.Setup) {']
+        res += self.output_everything
+        res += ['}']
+        self.filesystem = {'system_probe_settings.go': res}
+
+    def output_result_for_core_agent_settings(self):
         res = self.header_text.split('\n')
         res += self._add_imports(False)
         res += ['func initCoreAgentFull(config pkgconfigmodel.Setup) {']
@@ -123,8 +138,12 @@ class CodeGeneratorTarget:
         res += ['}']
         self.filesystem = {'all_settings.go': res}
 
-    def write_to_directory(self, out_dir):
+    def write_to_directory(self, out_dir, filename_filter):
         for filename in self.filesystem:
+            if filename_filter and not filename_filter(filename):
+                print('Skipping %s' % filename)
+                continue
+            print('Output %s' % filename)
             out_filename = os.path.join(out_dir, filename)
             with open(out_filename, "w") as f:
                 f.write('\n'.join(self.filesystem[filename]))
@@ -228,9 +247,10 @@ def get_golang_type_tag(curr):
     if not tags:
         return None
     for t in tags:
-        (k, v) = t.split(':')
-        if k == 'golang_type':
-            return v
+        if ':' in t:
+            (k, v) = t.split(':')
+            if k == 'golang_type':
+                return v
     return None
 
 
@@ -469,16 +489,18 @@ config_setup_func_names = [
     'setupMultiRegionFailover',
     'OTLP',
     'setupProcesses',
+    'anomalyDetection',
+    'initMainSystemProbeConfig',
     'initCWSSystemProbeConfig',
     'initUSMSystemProbeConfig',
-    'InitSystemProbeConfig',
 ]
 
 
-def run_codegen(schema, hints, keep_orig_order, outsource_dir):
+def run_codegen(schema, filename_filter, hints, keep_orig_order, outsource_dir):
     """
     Entry point for code generation.
-    schema          - a loaded schema object, a dict with schema['properities']
+    schema          - loaded schema object (dict with schema['properities'])
+    filename_filter - optional function to filter output filenames (or None)
     hints           - hints object
     keep_orig_order - bool, whether to use order from the hints object
     outsource_dir   - the directory to output source code to
@@ -500,7 +522,6 @@ def run_codegen(schema, hints, keep_orig_order, outsource_dir):
 
     # walk the schema to generate code
     walk_schema(schema, '', process_single_setting)
-    target.flush_buffer()
+    target.flush_buffer(filename_filter)
 
-    target.write_to_directory(outsource_dir)
-    print(f"Wrote to {outsource_dir}")
+    target.write_to_directory(outsource_dir, filename_filter)
