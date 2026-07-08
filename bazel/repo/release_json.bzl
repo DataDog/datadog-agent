@@ -87,7 +87,7 @@ def _release_json_impl(rctx):
     for shard_path in sorted(release_d_dir.readdir(), key = lambda p: str(p)):
         if not str(shard_path).endswith(".json"):
             continue
-        shard = json.decode(rctx.read(shard_path))
+        shard = json.decode(rctx.read(shard_path), default = {})
         release_json_data = _merge_release_config(release_json_data, shard)
 
     # Override with environment variables (dependencies keys only).

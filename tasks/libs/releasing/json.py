@@ -67,7 +67,10 @@ def _iter_shard_files():
         if not filename.endswith(".json"):
             continue
         with open(_shard_path(filename)) as shard_stream:
-            yield filename, json.load(shard_stream, object_pairs_hook=OrderedDict)
+            try:
+                yield filename, json.load(shard_stream, object_pairs_hook=OrderedDict)
+            except json.JSONDecodeError as e:
+                raise Exit(code=1, message=f"Failed to parse {_shard_path(filename)}: {e}") from e
 
 
 def _dump_json(path, data):
@@ -104,11 +107,7 @@ def load_release_json():
         release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
     if os.path.isdir(DEPENDENCY_SHARD_DIR):
-        for filename in sorted(os.listdir(DEPENDENCY_SHARD_DIR)):
-            if not filename.endswith(".json"):
-                continue
-            with open(_shard_path(filename)) as shard_stream:
-                shard = json.load(shard_stream, object_pairs_hook=OrderedDict)
+        for _, shard in _iter_shard_files():
             release_json = _recursive_merge(release_json, shard)
 
     # Sort top-level dependencies block for deterministic output (if it exists).

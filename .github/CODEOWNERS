@@ -80,14 +80,14 @@
 /rust/LICENSE*				# do not notify anyone
 
 /mkdocs.yml                             @DataDog/agent-devx
-/release.json                           @DataDog/agent-build @DataDog/agent-delivery
-/release.d/                             @DataDog/agent-build @DataDog/agent-delivery
+/release.json                           @DataDog/agent-delivery
+/release.d/                             @DataDog/agent-delivery
 /release.d/agent-data-plane.json        @DataDog/agent-data-plane
 /release.d/integrations-core.json       @DataDog/agent-integrations
 /release.d/jmxfetch.json                @DataDog/agent-metric-pipelines
 /release.d/security-agent-policies.json @DataDog/agent-security
 /release.d/windows-drivers.json         @DataDog/windows-products
-/release.d/omnibus-ruby.json            @DataDog/agent-build @DataDog/agent-delivery
+/release.d/omnibus-ruby.json            @DataDog/agent-build
 /renovate.json                          @DataDog/agent-build
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
