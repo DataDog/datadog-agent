@@ -1645,16 +1645,38 @@
                   },
                   "ctx": {
                     "type": "context.Context",
-                    "fields": {
-                      "data": {
-                        "type": "context.Context",
-                        "value": {
-                          "trace_id": "00000000000000000123456789abcdef",
-                          "span_id": "[span_id]",
-                          "parent_id": "1229782938247303441"
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "parent_id"
+                        },
+                        {
+                          "type": "uint64",
+                          "value": "1229782938247303441"
                         }
-                      }
-                    }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "span_id"
+                        },
+                        {
+                          "type": "uint64",
+                          "value": "[span_id]"
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "trace_id"
+                        },
+                        {
+                          "type": "big.Int",
+                          "value": "81985529216486895"
+                        }
+                      ]
+                    ]
                   },
                   "pat": {
                     "type": "*net/http.pattern",
@@ -3366,16 +3388,38 @@
                   },
                   "ctx": {
                     "type": "context.Context",
-                    "fields": {
-                      "data": {
-                        "type": "context.Context",
-                        "value": {
-                          "trace_id": "00000000000000000123456789abcdef",
-                          "span_id": "[span_id]",
-                          "parent_id": "2459565876494606882"
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "parent_id"
+                        },
+                        {
+                          "type": "uint64",
+                          "value": "2459565876494606882"
                         }
-                      }
-                    }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "span_id"
+                        },
+                        {
+                          "type": "uint64",
+                          "value": "[span_id]"
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "trace_id"
+                        },
+                        {
+                          "type": "big.Int",
+                          "value": "81985529216486895"
+                        }
+                      ]
+                    ]
                   },
                   "pat": {
                     "type": "*net/http.pattern",
@@ -5087,16 +5131,38 @@
                   },
                   "ctx": {
                     "type": "context.Context",
-                    "fields": {
-                      "data": {
-                        "type": "context.Context",
-                        "value": {
-                          "trace_id": "00000000000000000123456789abcdef",
-                          "span_id": "[span_id]",
-                          "parent_id": "3689348814741910323"
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "parent_id"
+                        },
+                        {
+                          "type": "uint64",
+                          "value": "3689348814741910323"
                         }
-                      }
-                    }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "span_id"
+                        },
+                        {
+                          "type": "uint64",
+                          "value": "[span_id]"
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "trace_id"
+                        },
+                        {
+                          "type": "big.Int",
+                          "value": "81985529216486895"
+                        }
+                      ]
+                    ]
                   },
                   "pat": {
                     "type": "*net/http.pattern",
