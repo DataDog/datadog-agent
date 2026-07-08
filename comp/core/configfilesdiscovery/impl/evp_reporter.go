@@ -59,7 +59,7 @@ func (r *eventPlatformCollectedConfigSender) SendCollectedConfigs(configs []coll
 	}
 
 	msg := message.NewMessage(payloadBytes, nil, "", time.Now().UnixNano())
-	if err := r.forwarder.SendEventPlatformEventBlocking(msg, eventplatform.EventTypeAgentDiscovery); err != nil {
+	if err := r.forwarder.SendEventPlatformEvent(msg, eventplatform.EventTypeAgentDiscovery); err != nil {
 		return fmt.Errorf("send agent discovery payload to event platform: %w", err)
 	}
 	return nil

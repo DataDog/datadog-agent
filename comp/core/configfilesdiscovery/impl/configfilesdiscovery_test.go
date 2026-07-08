@@ -931,11 +931,7 @@ type recordingEventPlatformForwarder struct {
 	err      error
 }
 
-func (f *recordingEventPlatformForwarder) SendEventPlatformEvent(_ *message.Message, _ string) error {
-	return errors.New("unexpected nonblocking Event Platform send")
-}
-
-func (f *recordingEventPlatformForwarder) SendEventPlatformEventBlocking(msg *message.Message, eventType string) error {
+func (f *recordingEventPlatformForwarder) SendEventPlatformEvent(msg *message.Message, eventType string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.messages = append(f.messages, eventPlatformSendCall{
@@ -943,6 +939,10 @@ func (f *recordingEventPlatformForwarder) SendEventPlatformEventBlocking(msg *me
 		eventType: eventType,
 	})
 	return f.err
+}
+
+func (f *recordingEventPlatformForwarder) SendEventPlatformEventBlocking(_ *message.Message, _ string) error {
+	return errors.New("unexpected blocking Event Platform send")
 }
 
 func (f *recordingEventPlatformForwarder) Purge() map[string][]*message.Message {
