@@ -4,6 +4,7 @@ import datetime
 import errno
 import json
 import os
+import shlex
 import shutil
 import sys
 from subprocess import check_output
@@ -343,6 +344,71 @@ def ninja_otel_tls_fixture_so(ctx, build_dir, compiler='clang'):
     )
 
 
+def remove_otel_tls_initial_exec_artifacts(build_dir):
+    for artifact in [
+        "libotel_tls_initial_exec_fixture.so",
+        "libotel_tls_initial_exec_fixture.so.d",
+        "otel_tls_initial_exec_tester",
+        "otel_tls_initial_exec_tester.d",
+    ]:
+        path = os.path.join(build_dir, artifact)
+        if os.path.exists(path):
+            os.remove(path)
+
+
+def build_otel_tls_initial_exec_focal_artifacts(ctx, build_dir, arch: Arch):
+    remove_otel_tls_initial_exec_artifacts(build_dir)
+
+    if arch.is_cross_compiling():
+        print("Skipping Ubuntu 20.04 OTel initial-exec TLS artifacts while cross-compiling")
+        return
+
+    docker = shutil.which("docker")
+    if docker is None:
+        print("docker not found; skipping Ubuntu 20.04 OTel initial-exec TLS artifacts")
+        return
+
+    c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
+    fixture = os.path.join(build_dir, "libotel_tls_initial_exec_fixture.so")
+    tester = os.path.join(build_dir, "otel_tls_initial_exec_tester")
+    workdir = os.getcwd()
+    uid = os.getuid()
+    gid = os.getgid()
+
+    script = " && ".join(
+        [
+            "apt-get update",
+            "apt-get install -y --no-install-recommends gcc libc6-dev",
+            f"cc -shared -fPIC {c_dir}/otel_tls_initial_exec_fixture.c -o {fixture}",
+            (
+                f"cc -pthread {c_dir}/otel_tls_initial_exec_tester.c -o {tester} "
+                "-ldl -pthread"
+            ),
+            f"chown {uid}:{gid} {fixture} {tester}",
+        ]
+    )
+
+    ctx.run(
+        " ".join(
+            [
+                shlex.quote(docker),
+                "run",
+                "--rm",
+                "-e",
+                "DEBIAN_FRONTEND=noninteractive",
+                "-v",
+                f"{shlex.quote(workdir)}:/work",
+                "-w",
+                "/work",
+                "ubuntu:20.04",
+                "sh",
+                "-c",
+                shlex.quote(script),
+            ]
+        )
+    )
+
+
 def create_dir_if_needed(dir):
     try:
         os.makedirs(dir)
@@ -382,6 +448,7 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
+    build_otel_tls_initial_exec_focal_artifacts(ctx, build_dir, arch)
     build_go_syscall_tester(ctx, build_dir, arch=arch)
 
 

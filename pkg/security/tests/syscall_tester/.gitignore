@@ -11,3 +11,7 @@ bin/otel_tls_dlopen_loader
 bin/otel_tls_dlopen_loader.d
 bin/libotel_tls_fixture.so
 bin/libotel_tls_fixture.so.d
+bin/otel_tls_initial_exec_tester
+bin/otel_tls_initial_exec_tester.d
+bin/libotel_tls_initial_exec_fixture.so
+bin/libotel_tls_initial_exec_fixture.so.d

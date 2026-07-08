@@ -159,7 +159,10 @@ type otelMappedELF struct {
 	mainTLS      bool // static musl local .symtab marker
 	builtinTLS   bool // static musl local .symtab marker
 
-	// threadDB is populated for libc.so objects exposing thread_db descriptors.
+	// threadDB is populated for glibc objects exposing thread_db descriptors.
+	// Newer glibc exposes them from libc.so.6 .dynsym as GLIBC_PRIVATE symbols;
+	// older glibc can expose local DB_DEFINE_DESC symbols from libpthread.so.0
+	// .symtab instead.
 	threadDB    otelGlibcThreadDBLayout
 	hasThreadDB bool
 }
@@ -447,7 +450,7 @@ func (p *otelTargetProcess) loadMappedELFs() ([]otelMappedELF, error) {
 				module.otelTLSSyms = tlsSymbolsInSymtab(elfFile, otelTLSSymbolName)
 			}
 		}
-		if strings.Contains(path, "libc.so") {
+		if isGlibcThreadDBCandidate(path) {
 			module.threadDB, module.hasThreadDB = readGlibcThreadDBLayout(elfFile)
 		}
 		elfFile.Close()
@@ -539,8 +542,18 @@ func glibcThreadDBLayout(modules []otelMappedELF) (otelGlibcThreadDBLayout, bool
 	return otelGlibcThreadDBLayout{}, false
 }
 
+func isGlibcThreadDBCandidate(path string) bool {
+	base := path[strings.LastIndex(path, "/")+1:]
+	return strings.HasPrefix(base, "libc.so") ||
+		strings.HasPrefix(base, "libc-") ||
+		strings.HasPrefix(base, "libpthread.so") ||
+		strings.HasPrefix(base, "libpthread-")
+}
+
 // readGlibcThreadDBLayout reads the glibc thread_db descriptor symbols from an
-// already-open libc ELF object.
+// already-open mapped ELF object. On newer glibc these descriptors are
+// GLIBC_PRIVATE dynamic symbols in libc.so.6. On older glibc they can be local
+// symbols in libpthread.so.0 .symtab; only already-mapped objects are checked.
 func readGlibcThreadDBLayout(elfFile *safeelf.File) (otelGlibcThreadDBLayout, bool) {
 	modID, okModID := elfDBDesc(elfFile, "_thread_db_link_map_l_tls_modid")
 	tlsOffset, okTLSOffset := elfDBDesc(elfFile, "_thread_db_link_map_l_tls_offset")
@@ -844,6 +857,9 @@ type otelDBDesc struct {
 
 func elfDBDesc(elfFile *safeelf.File, name string) (otelDBDesc, bool) {
 	value, ok := symbolValueInDynsym(elfFile, name)
+	if !ok {
+		value, ok = symbolValueInSymtab(elfFile, name)
+	}
 	if !ok {
 		return otelDBDesc{}, false
 	}
