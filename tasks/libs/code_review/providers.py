@@ -1,0 +1,156 @@
+from __future__ import annotations
+
+import io
+import shlex
+import sys
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+
+from tasks.libs.code_review.prompt import CodeReviewError, ReviewPrompt
+from tasks.libs.common.utils import is_installed
+
+PROVIDERS = ("codex", "claude", "gemini")
+PROVIDER_CHOICES = (*PROVIDERS, "all")
+
+
+@dataclass(frozen=True)
+class ProviderInvocation:
+    provider: str
+    executable: str
+    command: str
+    stdin: str | None
+    output_path: Path
+
+
+def run_review(
+    *,
+    ctx,
+    repo_root: Path,
+    review_prompt: ReviewPrompt,
+    provider: str,
+) -> Path:
+    artifact_dir = create_artifact_dir(repo_root)
+    prompt_path = artifact_dir / "prompt.md"
+    prompt_path.write_text(review_prompt.content, encoding="utf-8")
+    print(f"Review prompt written to {prompt_path}", file=sys.stderr)
+
+    invocations = [
+        build_provider_invocation(
+            provider=provider_name,
+            review_prompt=review_prompt,
+            prompt_path=prompt_path,
+            artifact_dir=artifact_dir,
+        )
+        for provider_name in expand_providers(provider)
+    ]
+
+    for invocation in invocations:
+        _ensure_command_exists(invocation.executable)
+
+    for invocation in invocations:
+        run_provider(ctx, invocation, cwd=repo_root)
+
+    return artifact_dir
+
+
+def run_provider(ctx, invocation: ProviderInvocation, *, cwd: Path) -> None:
+    _ensure_command_exists(invocation.executable)
+    print(f"Running {invocation.provider} review...", file=sys.stderr)
+    kwargs = {"hide": True, "warn": True}
+    if invocation.stdin is not None:
+        kwargs["in_stream"] = io.StringIO(invocation.stdin)
+
+    result = ctx.run(f"cd {shlex.quote(str(cwd))} && {invocation.command}", **kwargs)
+
+    output = ""
+    if result.stdout:
+        output += result.stdout
+        print(result.stdout, end="")
+    if result.stderr:
+        output += result.stderr
+        print(result.stderr, end="", file=sys.stderr)
+
+    invocation.output_path.write_text(output, encoding="utf-8")
+
+    if result.exited != 0:
+        raise CodeReviewError(
+            f"{invocation.provider} review failed with exit code {result.exited}. "
+            f"Output saved to {invocation.output_path}"
+        )
+
+
+def build_provider_invocation(
+    *,
+    provider: str,
+    review_prompt: ReviewPrompt,
+    prompt_path: Path,
+    artifact_dir: Path,
+) -> ProviderInvocation:
+    output_path = artifact_dir / f"{provider}.md"
+
+    if provider == "codex":
+        # `codex review --base ... [PROMPT]` rejects combining a base ref and a prompt.
+        # Use `codex exec` instead and ask Codex to inspect the same diff explicitly.
+        prompt = (
+            f"Review the current git changes against {review_prompt.base}.\n"
+            f"Use `git diff --find-renames {review_prompt.base}...HEAD` to inspect the patch.\n"
+            "Do not modify files. Return only review findings and an overall correctness verdict.\n\n"
+            f"{review_prompt.content}"
+        )
+        return ProviderInvocation(
+            provider=provider,
+            executable="codex",
+            command="codex exec --sandbox read-only -",
+            stdin=prompt,
+            output_path=output_path,
+        )
+
+    instruction = (
+        f"Review the current git changes against {review_prompt.base}. "
+        f"Use the review instructions in {prompt_path}. "
+        "Return actionable findings with exact file and line references."
+    )
+
+    if provider == "claude":
+        return ProviderInvocation(
+            provider=provider,
+            executable="claude",
+            command=f"claude -p {shlex.quote(instruction)}",
+            stdin=None,
+            output_path=output_path,
+        )
+
+    if provider == "gemini":
+        return ProviderInvocation(
+            provider=provider,
+            executable="gemini",
+            command=f"gemini -p {shlex.quote(instruction)}",
+            stdin=None,
+            output_path=output_path,
+        )
+
+    raise CodeReviewError(f"Unknown provider {provider!r}")
+
+
+def expand_providers(provider: str) -> tuple[str, ...]:
+    if provider == "all":
+        return PROVIDERS
+    if provider not in PROVIDER_CHOICES:
+        raise CodeReviewError(f"Unknown provider {provider!r}. Expected one of: {', '.join(PROVIDER_CHOICES)}")
+    return (provider,)
+
+
+def create_artifact_dir(repo_root: Path) -> Path:
+    """
+    Create a durable artifact directory so users can inspect prompts and provider output.
+    """
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    artifact_dir = repo_root / ".tmp" / "code-review" / stamp
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    return artifact_dir
+
+
+def _ensure_command_exists(command: str) -> None:
+    if not is_installed(command):
+        raise CodeReviewError(f"Cannot run review provider: `{command}` is not installed or is not on PATH")

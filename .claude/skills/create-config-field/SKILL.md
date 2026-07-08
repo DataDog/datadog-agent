@@ -91,7 +91,6 @@ Commit the resulting changes under `pkg/config/schema/yaml/` alongside your Go c
 
 ## Important Notes
 
-- Do NOT use `SetKnown` for new fields — it's deprecated. Use `BindEnvAndSetDefault`.
 - Config priority: `default < file < env-var < fleet-policies < agent-runtime < remote-config < cli`.
 - Define exported string constants for keys when creating a dedicated setup file.
 

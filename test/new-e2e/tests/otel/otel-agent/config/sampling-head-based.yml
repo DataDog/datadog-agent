@@ -1,0 +1,67 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+exporters:
+  datadog:
+    traces:
+      span_name_as_resource_name: true
+    metrics:
+      resource_attributes_as_tags: true
+    hostname: "otelcol-docker"
+    api:
+      key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
+processors:
+  # Consistent (proportional) probabilistic sampling stamps a W3C `ot=th:`
+  # tracestate on the spans it keeps, encoding the head-based sampling
+  # probability. This runs UPSTREAM of the datadog/sampled connector so the
+  # connector observes pre-sampled traffic and must recover the weight.
+  probabilistic_sampler:
+    mode: proportional
+    sampling_percentage: 50
+  # Rename the service on the sampled branch so its APM stats are
+  # distinguishable from the unsampled baseline in the intake.
+  resource/sampled:
+    attributes:
+      - key: service.name
+        value: calendar-rest-go-sampled
+        action: upsert
+connectors:
+  # Baseline: sees 100% of traffic, so its Hits are the ground-truth volume.
+  datadog/unsampled:
+    traces:
+      span_name_as_resource_name: true
+      compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
+      peer_tags_aggregation: true
+  # Under test: sees the ~50% head-sampled subset carrying `ot=th:` tracestate.
+  # It must scale Hits back up via the tracestate weight to match the baseline.
+  datadog/sampled:
+    traces:
+      span_name_as_resource_name: true
+      compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
+      peer_tags_aggregation: true
+service:
+  pipelines:
+    traces/unsampled:
+      receivers: [otlp]
+      processors: []
+      exporters: [datadog/unsampled]
+    traces/sampled:
+      receivers: [otlp]
+      processors: [probabilistic_sampler, resource/sampled]
+      exporters: [datadog/sampled]
+    metrics:
+      receivers: [datadog/unsampled, datadog/sampled]
+      processors: []
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: []
+      exporters: [datadog]

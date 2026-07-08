@@ -96,6 +96,7 @@ dd_agent_go_test(
         "parse_test.go",
         "server_bench_test.go",
         "server_integration_test.go",
+        "server_serverless_flush_test.go",
         "server_test.go",
         "server_util_test.go",
         "server_worker_test.go",

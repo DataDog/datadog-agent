@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "command",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent/command",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/otel-agent/subcommands",
+        "//cmd/otel-agent/subcommands/controlsvc",
+        "//cmd/otel-agent/subcommands/coverage",
+        "//cmd/otel-agent/subcommands/flare",
+        "//cmd/otel-agent/subcommands/run",
+        "//cmd/otel-agent/subcommands/status",
+        "//pkg/cli/subcommands/version",
+        "@com_github_kouhin_envflag//:envflag",
+        "@com_github_spf13_cobra//:cobra",
+        "@io_opentelemetry_go_collector_featuregate//:featuregate",
+    ],
+)
+
+dd_agent_go_test(
+    name = "command_test",
+    srcs = ["command_test.go"],
+    embed = [":command"],
+    flavors = [
+        "base",
+        "fips",
+        "heroku",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

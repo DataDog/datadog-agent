@@ -59,15 +59,28 @@
             "arguments": {
               "ctx": {
                 "type": "context.Context",
-                "fields": {
-                  "data": {
-                    "type": "context.Context",
-                    "value": {
-                      "trace_id": "00000000000000000123456789abcdef",
-                      "span_id": "81985529216486895"
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "span_id"
+                    },
+                    {
+                      "type": "uint64",
+                      "value": "81985529216486895"
                     }
-                  }
-                }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "trace_id"
+                    },
+                    {
+                      "type": "big.Int",
+                      "value": "81985529216486895"
+                    }
+                  ]
+                ]
               }
             }
           }

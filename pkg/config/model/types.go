@@ -194,9 +194,8 @@ type Reader interface {
 	// IsSetting returns whether the key identifies a setting (and not a section)
 	IsSetting(key string) bool
 
-	// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
-	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
-	// Note that it returns the keys lowercased.
+	// GetKnownKeysLowercased returns all the keys that are known by the config
+	// Note: that it returns the keys lowercased.
 	GetKnownKeysLowercased() map[string]interface{}
 
 	// GetEnvVars returns a list of the env vars that the config supports.
@@ -257,9 +256,6 @@ type Setup interface {
 	ParseEnvAsStringSlice(key string, fx func(string) []string)
 	ParseEnvAsMapStringInterface(key string, fx func(string) map[string]interface{})
 
-	// SetKnown adds a key to the set of known valid config keys
-	SetKnown(key string)
-
 	// API not implemented by viper.Viper and that have proven useful for our config usage
 
 	// BindEnvAndSetDefault sets the default value for a config parameter and adds an env binding
@@ -296,9 +292,6 @@ type Compound interface {
 type Config interface {
 	ReaderWriter
 	Compound
-	// TODO: This method shouldn't be here, but it is depended upon by an external repository
-	// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e7c3295769637e61558c6892be732398840dd5f5/pkg/datadog/agentcomponents/agentcomponents.go#L166
-	SetKnown(key string)
 }
 
 // BuildableConfig is the most-general interface for the Config, it can be

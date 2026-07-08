@@ -679,7 +679,7 @@ func (tb *Bench) rerunDetectorsLocked() {
 	// are written to storage. Detectors and correlators are deferred to the
 	// subsequent ReplayStoredData call, matching the original single-pass approach.
 	for _, logEntry := range tb.rawLogs {
-		tb.debug.IngestLogNoAdvance("parquet", logEntry)
+		tb.debug.IngestTestbenchLog("parquet", logEntry)
 		ts := logEntry.GetTimestampUnixMilli() / 1000
 		tb.debug.AddTelemetry(telemetryTbInputLogsCount, 1, ts, nil)
 	}

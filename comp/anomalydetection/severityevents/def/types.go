@@ -5,8 +5,6 @@
 
 package severityevents
 
-import "errors"
-
 // SeverityLevel represents one of three severity states: Low, Medium, High.
 type SeverityLevel int
 
@@ -66,10 +64,9 @@ type SeverityEventFilter struct {
 	Direction SeverityEventDirection
 }
 
-// SeverityEventsConfiguration configures one severity event subscription.
+// SeverityEventsConfiguration configures one severity event subscription's
+// filter/cooldown. The listener is passed separately to SubscribeSeverityEvents.
 type SeverityEventsConfiguration struct {
-	// Listener is called for each matching severity transition. Required.
-	Listener SeverityEventListener
 	// Filter controls which transitions are delivered.
 	// Zero value SeverityEventFilter{} delivers all transitions.
 	Filter SeverityEventFilter
@@ -86,5 +83,16 @@ type SeverityEventsSubscription struct {
 	Unsubscribe func()
 }
 
-// ErrNilListener is returned when a nil severity event listener is registered.
-var ErrNilListener = errors.New("nil severity event listener")
+// Reader is a pull-based view of the current severity level, backed by a
+// dedicated severity event subscription.
+type Reader interface {
+	// GetSeverity returns the most recently observed severity level. Safe
+	// for concurrent use from any goroutine.
+	GetSeverity() SeverityLevel
+}
+
+// SeverityEventsReaderSubscription is returned by SubscribeSeverityEventsReader.
+type SeverityEventsReaderSubscription struct {
+	Reader      Reader
+	Unsubscribe func()
+}

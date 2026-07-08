@@ -27,7 +27,7 @@ import (
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
 )
 
-// team: agent-health
+// team: agent-health fleet-remediation
 
 // requireSchema skips the test when the compressed schema files haven't been
 // generated yet (run `dda inv schema.generate`). CI always has them; local

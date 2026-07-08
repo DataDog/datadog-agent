@@ -363,12 +363,12 @@ func TestUpdateTagFilterList(t *testing.T) {
 		}, time.Second, time.Millisecond)
 		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true)
 
-		metric := slices.IndexFunc(s.sketches, func(serie *metrics.SketchSeries) bool {
-			return serie.Name == "dist.metric"
+		metric := slices.IndexFunc(s.sketches, func(serie metrics.Distribution) bool {
+			return serie.GetName() == "dist.metric"
 		})
 
 		require.NotEqualf(-1, metric, "dist.metric not found in %+v", s.sketches)
-		tags := strings.Split(s.sketches[metric].Tags.Join(","), ",")
+		tags := strings.Split(s.sketches[metric].(*metrics.SketchSeries).Tags.Join(","), ",")
 		require.ElementsMatch(expected, tags)
 	}
 
@@ -382,7 +382,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	testCountBlocked([]string{"tag3:three", "tag4:four"}, 32.0)
 
 	// Reset the mock
-	s.sketches = []*metrics.SketchSeries{}
+	s.sketches = []metrics.Distribution{}
 
 	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
 		"dist.metric": {
@@ -496,13 +496,13 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 	// result (only tag3:three) is stored in the strip cache.
 	sendAndFlush(1.0)
 
-	idx := slices.IndexFunc(s.sketches, func(ss *metrics.SketchSeries) bool {
-		return ss.Name == "dist.metric"
+	idx := slices.IndexFunc(s.sketches, func(ss metrics.Distribution) bool {
+		return ss.GetName() == "dist.metric"
 	})
 	require.NotEqualf(-1, idx, "dist.metric not found in %+v", s.sketches)
-	require.ElementsMatch([]string{"tag3:three"}, strings.Split(s.sketches[idx].Tags.Join(","), ","))
+	require.ElementsMatch([]string{"tag3:three"}, strings.Split(s.sketches[idx].(*metrics.SketchSeries).Tags.Join(","), ","))
 
-	s.sketches = []*metrics.SketchSeries{}
+	s.sketches = []metrics.Distribution{}
 
 	// Update the filter list to exclude tag3 instead. SetTagFilterList calls
 	// SetAggregatorTagFilterList synchronously, which blocks until the
@@ -519,11 +519,11 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 	// and the new rule is applied, keeping tag1 and tag2.
 	sendAndFlush(2.0)
 
-	idx = slices.IndexFunc(s.sketches, func(ss *metrics.SketchSeries) bool {
-		return ss.Name == "dist.metric"
+	idx = slices.IndexFunc(s.sketches, func(ss metrics.Distribution) bool {
+		return ss.GetName() == "dist.metric"
 	})
 	require.NotEqualf(-1, idx, "dist.metric not found in %+v", s.sketches)
-	require.ElementsMatch([]string{"tag1:one", "tag2:two"}, strings.Split(s.sketches[idx].Tags.Join(","), ","))
+	require.ElementsMatch([]string{"tag1:one", "tag2:two"}, strings.Split(s.sketches[idx].(*metrics.SketchSeries).Tags.Join(","), ","))
 
 	demux.Stop()
 }

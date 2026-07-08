@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "obfuscate.go",
         "otelutil.go",
+        "sampling.go",
         "transform.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/transform",
@@ -21,6 +22,7 @@ go_library(
         "//pkg/trace/traceutil",
         "//pkg/trace/traceutil/normalize",
         "//pkg/util/log",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_sampling//:sampling",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//ptrace",
         "@io_opentelemetry_go_otel//attribute",
@@ -34,6 +36,7 @@ go_test(
     name = "transform_test",
     srcs = [
         "obfuscate_test.go",
+        "sampling_test.go",
         "transform_test.go",
     ],
     embed = [":transform"],

@@ -331,10 +331,12 @@ func testSketch(t *testing.T, store *tags.Store) {
 
 		_, flushed := flushSerie(sampler, now, false)
 		metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-			Name:     name,
-			Tags:     tagset.CompositeTagsFromSlice(tags),
-			Host:     host,
-			Interval: 10,
+			DistributionMetadata: metrics.DistributionMetadata{
+				Name:     name,
+				Tags:     tagset.CompositeTagsFromSlice(tags),
+				Host:     host,
+				Interval: 10,
+			},
 			Points: []metrics.SketchPoint{
 				{
 					Sketch: exp,
@@ -382,9 +384,11 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 
 	assert.Equal(t, 1, len(flushed))
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name:     "test.metric.name",
-		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
-		Interval: 10,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     "test.metric.name",
+			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
+			Interval: 10,
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 10000, Sketch: expSketch},
 			{Ts: 10010, Sketch: expSketch},
@@ -425,22 +429,26 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 
 	assert.Equal(t, 2, len(flushed))
 	sort.Slice(flushed, func(i, j int) bool {
-		return flushed[i].Name < flushed[j].Name
+		return flushed[i].GetName() < flushed[j].GetName()
 	})
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name:     "test.metric.name1",
-		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
-		Interval: 10,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     "test.metric.name1",
+			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
+			Interval: 10,
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
 		},
 	}, flushed[0])
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name:     "test.metric.name2",
-		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "c"}),
-		Interval: 10,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     "test.metric.name2",
+			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "c"}),
+			Interval: 10,
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
 		},
@@ -496,9 +504,11 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	expSketch.Insert(quantile.Default(), 1)
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name:     "distribution.metric.name1",
-		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
-		Interval: 10,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     "distribution.metric.name1",
+			Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
+			Interval: 10,
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 12340.0, Sketch: expSketch},
 			{Ts: 12350.0, Sketch: expSketch},
@@ -577,7 +587,7 @@ func testFlushFilterList(t *testing.T, store *tags.Store) {
 		names = append(names, metric.Name)
 	}
 	for _, sketch := range sketches {
-		names = append(names, sketch.Name)
+		names = append(names, sketch.GetName())
 	}
 	assert.ElementsMatch(t, names, []string{
 		"test.histogram.max",
@@ -658,9 +668,11 @@ func TestForcedFlush(t *testing.T) {
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
-		Name:     testSketch.Name,
-		Tags:     tagset.CompositeTags{},
-		Interval: 10,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     testSketch.Name,
+			Tags:     tagset.CompositeTags{},
+			Interval: 10,
+		},
 		Points: []metrics.SketchPoint{
 			{Ts: 990.0, Sketch: expSketch},
 			{Ts: 1010.0, Sketch: expSketch},

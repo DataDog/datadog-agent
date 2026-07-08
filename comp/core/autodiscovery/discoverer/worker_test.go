@@ -234,15 +234,17 @@ func TestWorker_DropsWhenServiceGone(t *testing.T) {
 	telStore := newTestTelemetryStore(t)
 
 	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 3, RetryDelay: 5 * time.Millisecond}, telStore)
-	w.Start()
-	defer w.Stop()
 	w.Enqueue(svcID, testTplDigest, "myinteg")
 	assert.Equal(t, float64(1), telStore.DiscoveryQueueDepth.WithValues("myinteg", "process").Get())
 
-	time.Sleep(40 * time.Millisecond)
+	w.Start()
+	defer w.Stop()
+
+	require.Eventually(t, func() bool {
+		return telStore.DiscoveryQueueDepth.WithValues("myinteg", "process").Get() == float64(0)
+	}, time.Second, 2*time.Millisecond, "worker must drain queue depth")
 	assert.Zero(t, disco.callCount())
 	assert.Empty(t, cb.snapshot())
-	assert.Equal(t, float64(0), telStore.DiscoveryQueueDepth.WithValues("myinteg", "process").Get())
 	assert.Equal(t, float64(1), telStore.DiscoveryResults.WithValues("myinteg", "service_not_found", "process").Get())
 }
 

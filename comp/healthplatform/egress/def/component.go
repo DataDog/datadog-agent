@@ -6,7 +6,7 @@
 // Package egress defines the interface for the health platform egress component.
 package egress
 
-// team: agent-health
+// team: agent-health fleet-remediation
 
 // Component is the health platform egress component interface.
 // Egress drives the periodic outbound HTTP POST to the Datadog intake:

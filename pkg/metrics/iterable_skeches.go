@@ -36,14 +36,14 @@ func (it *IterableSketches) Append(Sketches *SketchSeries) {
 }
 
 // Current returns the current sketches.
-func (it *IterableSketches) Current() *SketchSeries {
+func (it *IterableSketches) Current() Distribution {
 	return it.iterableMetrics.Current().(*SketchSeries)
 }
 
 // SketchesSource is a source of sketches used by the serializer.
 type SketchesSource interface {
 	MoveNext() bool
-	Current() *SketchSeries
+	Current() Distribution
 	Count() uint64
 	WaitForValue() bool
 }

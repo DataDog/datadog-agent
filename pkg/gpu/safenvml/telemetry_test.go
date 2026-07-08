@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -154,6 +154,26 @@ func TestNvmlStateTelemetry_CheckRecovery(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, errorMetrics, 1)
 	assert.Equal(t, float64(2), errorMetrics[0].Value(), "Error counter should not increase after successful recovery")
+}
+
+func TestNvmlStateTelemetry_Unavailable(t *testing.T) {
+	telemetryMock := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
+	tracker := NewNvmlStateTelemetry(telemetryMock)
+
+	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
+
+	tracker.Check()
+	assert.False(t, tracker.Unavailable(), "NVML should not be unavailable before the threshold")
+
+	tracker.firstCheckTime = time.Now().Add(-2 * nvmlUnavailableThreshold)
+	tracker.Check()
+	assert.True(t, tracker.Unavailable(), "NVML should be unavailable after the threshold")
+
+	resetSingleton()
+	nvmlNewFunc = mockSuccessfulNvmlNew
+
+	tracker.Check()
+	assert.False(t, tracker.Unavailable(), "NVML should recover when initialization succeeds")
 }
 
 func TestNvmlStateTelemetry_StartStop(t *testing.T) {

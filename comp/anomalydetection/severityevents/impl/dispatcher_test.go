@@ -20,8 +20,7 @@ func (l *collectingListener) OnSeverityTransition(evt severityeventsdef.Severity
 }
 
 func newTestDispatcher(listener severityeventsdef.SeverityEventListener, cfg severityeventsdef.SeverityEventsConfiguration) *Dispatcher {
-	cfg.Listener = listener
-	return NewDispatcher(cfg)
+	return NewDispatcher(cfg, listener)
 }
 
 func TestDispatcherBasic(t *testing.T) {

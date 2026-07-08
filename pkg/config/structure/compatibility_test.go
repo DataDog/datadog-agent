@@ -50,7 +50,6 @@ network_devices:
         12
 `
 	conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("network_devices.autodiscovery.workers") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		cfg.SetDefault("network_devices.autodiscovery.workers", 5)
 	})
 
@@ -75,10 +74,10 @@ network_devices:
     - workers: 10
 `
 	conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("network_devices.autodiscovery.workers") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+		cfg.BindEnvAndSetDefault("network_devices.autodiscovery", []interface{}{})
 	})
 
-	// Keys are declared using SetKnown, no warnings generated
+	// Keys are declared with a default, no warnings generated
 	warnings := conf.Warnings()
 	assert.Equal(t, 0, len(warnings.Errors))
 
@@ -236,7 +235,7 @@ my_target:
   int_slice:       7
 `
 	conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("my_target") //nolint:forbidigo // legit usage, often used for UnmarshalKey settings
+		cfg.BindEnvAndSetDefault("my_target", map[string]interface{}{})
 	})
 
 	var target TargetStruct

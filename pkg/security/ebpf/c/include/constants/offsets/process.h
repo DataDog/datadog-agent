@@ -39,4 +39,16 @@ u64 __attribute__((always_inline)) get_task_struct_pid_offset() {
     return task_struct_pid_offset;
 }
 
+u64 __attribute__((always_inline)) get_task_struct_cred_offset() {
+    u64 task_struct_cred_offset;
+    LOAD_CONSTANT("task_struct_cred_offset", task_struct_cred_offset);
+    return task_struct_cred_offset;
+}
+
+u64 __attribute__((always_inline)) get_task_struct_real_cred_offset() {
+    u64 task_struct_real_cred_offset;
+    LOAD_CONSTANT("task_struct_real_cred_offset", task_struct_real_cred_offset);
+    return task_struct_real_cred_offset;
+}
+
 #endif

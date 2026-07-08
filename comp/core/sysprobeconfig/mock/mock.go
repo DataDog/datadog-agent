@@ -34,9 +34,8 @@ func NewMockWithOverrides(t testing.TB, overrides map[string]interface{}) syspro
 		cfg.SetInTest(k, v)
 	}
 
-	// Viper's `GetXxx` methods read environment variables at the time they are
-	// called, if those names were passed explicitly to BindEnv*(), so we must
-	// also strip all `DD_` environment variables for the duration of the test.
+	// The config automatically load environment variables starting by DD_*,
+	// so we must also strip all `DD_` environment variables for the duration of the test.
 	oldEnv := os.Environ()
 	for _, kv := range oldEnv {
 		if strings.HasPrefix(kv, "DD_") {

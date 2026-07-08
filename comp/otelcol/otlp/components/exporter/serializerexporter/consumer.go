@@ -142,15 +142,17 @@ func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpme
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
 	}
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
-		Name:     dimensions.Name(),
-		Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
-		Host:     dimensions.Host(),
-		Interval: interval,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     dimensions.Name(),
+			Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+			Host:     dimensions.Host(),
+			Interval: interval,
+			Source:   msrc,
+		},
 		Points: []metrics.SketchPoint{{
 			Ts:     int64(ts / 1e9),
 			Sketch: qsketch,
 		}},
-		Source: msrc,
 	})
 }
 

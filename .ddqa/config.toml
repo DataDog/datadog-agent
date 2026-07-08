@@ -50,6 +50,13 @@ github_team = "agent-health"
 github_labels = ["team/agent-health"]
 exclude_members = ["iglendd", "kunalkxxxxxxxxr", "mwdd146980"]
 
+[teams."Fleet Remediation"]
+jira_project = "AGTHEAL"
+jira_issue_type = "QA"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "fleet-remediation"
+github_labels = ["team/fleet-remediation"]
+
 [teams."Agent Developer Experience"]
 jira_project = "ACIX"
 jira_issue_type = "QA"

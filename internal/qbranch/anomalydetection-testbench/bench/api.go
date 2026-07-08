@@ -1306,9 +1306,8 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 
 	collector := &scorerEventCollector{}
 	subscription, err := scorer.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
-		Listener:     collector,
 		CooldownSecs: req.CooldownSecs,
-	})
+	}, collector)
 	if err != nil {
 		api.writeError(w, http.StatusInternalServerError, "subscribe severity events: "+err.Error())
 		return
