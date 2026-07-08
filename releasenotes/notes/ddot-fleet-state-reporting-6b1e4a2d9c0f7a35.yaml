@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The Datadog installer daemon now reports a ``datadog-agent-ddot`` package state to
+    the Fleet Automation backend when the Datadog Distribution of OpenTelemetry Collector
+    (DDOT) is present, whether it is installed as the standalone ``datadog-agent-ddot``
+    package or as an extension of ``datadog-agent``. The reported state mirrors the shared
+    ``datadog-agent`` configuration versions, allowing the backend to gate configuration
+    experiment promotions on DDOT. Hosts without DDOT report nothing new, so behavior is
+    unchanged for them.

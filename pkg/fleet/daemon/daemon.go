@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -42,7 +43,25 @@ import (
 const (
 	// disableClientIDCheck is the magic string to disable the client ID check.
 	disableClientIDCheck = "disable-client-id-check"
+
+	// packageDatadogAgentDDOT is the package name reported for the Datadog Distribution of
+	// OpenTelemetry Collector (DDOT). DDOT ships either as this standalone package or as an
+	// extension of the datadog-agent package.
+	packageDatadogAgentDDOT = "datadog-agent-ddot"
 )
+
+// ddotExtensionInstalled reports whether the DDOT extension (the otel-agent binary) is present
+// under the stable datadog-agent package tree. It mirrors the ConditionPathExists predicate the
+// DDOT systemd unit / process-manager config use, so the daemon and the service manager agree.
+func ddotExtensionInstalled(packagesPath string) bool {
+	base := filepath.Join(packagesPath, "datadog-agent", "stable", "ext", "ddot", "embedded", "bin")
+	for _, name := range []string{"otel-agent", "otel-agent.exe"} {
+		if _, err := os.Stat(filepath.Join(base, name)); err == nil {
+			return true
+		}
+	}
+	return false
+}
 
 var (
 	// errStateDoesntMatch is the error returned when the state doesn't match
@@ -806,6 +825,18 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	runningConfigVersions := map[string]string{
 		"datadog-agent": d.env.ConfigID,
 	}
+	// DDOT (the otel-agent) shares the datadog-agent config — otel-config.yaml lives in the
+	// same config dir and is patched by the same config experiment — but, in the process-manager
+	// model, it ships as an extension of datadog-agent rather than a standalone package. Report a
+	// datadog-agent-ddot package state so the fleet backend can gate config promotes on DDOT.
+	// Hosts without DDOT (and agents predating this change) report nothing here, so the backend
+	// must treat a missing datadog-agent-ddot state as "no signal / do not block".
+	_, ddotIsPackage := configAndPackageStates.States[packageDatadogAgentDDOT]
+	ddotExtension := ddotExtensionInstalled(paths.PackagesPath)
+	if ddotIsPackage || ddotExtension {
+		runningVersions[packageDatadogAgentDDOT] = version.AgentPackageVersion
+		runningConfigVersions[packageDatadogAgentDDOT] = d.env.ConfigID
+	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.States {
 		p := &pbgo.PackageState{
@@ -835,6 +866,20 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			}
 		}
 		packages = append(packages, p)
+	}
+	// When DDOT is an extension (not its own package) it is absent from the states above; add a
+	// synthetic datadog-agent-ddot entry mirroring the shared datadog-agent config so the backend
+	// sees the same experiment/stable config version for DDOT.
+	if ddotExtension && !ddotIsPackage {
+		agentConfig := configAndPackageStates.ConfigStates["datadog-agent"]
+		packages = append(packages, &pbgo.PackageState{
+			Package:                 packageDatadogAgentDDOT,
+			StableConfigVersion:     agentConfig.Stable,
+			ExperimentConfigVersion: agentConfig.Experiment,
+			RunningVersion:          runningVersions[packageDatadogAgentDDOT],
+			RunningConfigVersion:    runningConfigVersions[packageDatadogAgentDDOT],
+			HeartbeatTimestamp:      uint64(time.Now().Unix()),
+		})
 	}
 	d.rc.SetState(&pbgo.ClientUpdater{
 		SecretsPubKey:      base64.StdEncoding.EncodeToString(d.secretsPubKey[:]),
