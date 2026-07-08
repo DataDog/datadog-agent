@@ -96,16 +96,20 @@ def load_release_json():
     Loads release.json and recursively merges all per-project shard files found
     under release.d/, treating it like a conf.d-style configuration system.
     This allows shards to add or override any top-level or nested keys.
+
+    Falls back gracefully to the legacy single-file layout when release.d/ does
+    not exist (e.g. on older release branches that have not been migrated).
     """
     with open(RELEASE_JSON) as release_json_stream:
         release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
-    for filename in sorted(os.listdir(DEPENDENCY_SHARD_DIR)):
-        if not filename.endswith(".json"):
-            continue
-        with open(_shard_path(filename)) as shard_stream:
-            shard = json.load(shard_stream, object_pairs_hook=OrderedDict)
-        release_json = _recursive_merge(release_json, shard)
+    if os.path.isdir(DEPENDENCY_SHARD_DIR):
+        for filename in sorted(os.listdir(DEPENDENCY_SHARD_DIR)):
+            if not filename.endswith(".json"):
+                continue
+            with open(_shard_path(filename)) as shard_stream:
+                shard = json.load(shard_stream, object_pairs_hook=OrderedDict)
+            release_json = _recursive_merge(release_json, shard)
 
     # Sort top-level dependencies block for deterministic output (if it exists).
     if RELEASE_JSON_DEPENDENCIES in release_json and isinstance(release_json[RELEASE_JSON_DEPENDENCIES], dict):

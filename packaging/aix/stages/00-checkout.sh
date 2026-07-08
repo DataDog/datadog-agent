@@ -69,7 +69,7 @@ fi
 
 log "Reading INTEGRATIONS_CORE_VERSION from $RELEASE_JSON"
 INTEGRATIONS_CORE_VERSION=$(python3.12 -c \
-    "import json; print(json.load(open('$RELEASE_JSON'))['INTEGRATIONS_CORE_VERSION'])")
+    "import json; print(json.load(open('$RELEASE_JSON'))['dependencies']['INTEGRATIONS_CORE_VERSION'])")
 
 if [ -z "$INTEGRATIONS_CORE_VERSION" ]; then
     log "ERROR: Could not read INTEGRATIONS_CORE_VERSION from $RELEASE_JSON"
