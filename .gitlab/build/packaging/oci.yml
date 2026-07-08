@@ -64,7 +64,10 @@
           INPUT_FILE=$(resolve_artifact "${OCI_PRODUCT}" "${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz") || exit 1
         fi
         OUTPUT_FILE="$(basename -a -s .xz ${INPUT_FILE})"
-        MERGED_FILE=$(basename -a $OMNIBUS_PACKAGE_DIR/*.tar.xz | head -n 1 | sed "s/-${ARCH}.tar.xz//").oci.tar
+        # Derive the merged name from the resolved base artifact (INPUT_FILE) rather than the
+        # first *.tar.xz in the dir: the FIPS variant (e.g. datadog-fips-installer-*) sorts before
+        # the base product (datadog-installer-*) and would otherwise mislabel the merged image.
+        MERGED_FILE=$(basename "${INPUT_FILE}" | sed "s/-${ARCH}.tar.xz//").oci.tar
         export MERGED_FILE
         INPUT_DIR="/tmp/input_${ARCH}"
         mkdir -p ${INPUT_DIR}
@@ -122,7 +125,11 @@
           mkdir -p ${FIPS_INPUT_DIR}
           echo "Extracting FIPS agent ${FIPS_INPUT_FILE} -> ${FIPS_INPUT_DIR}"
           tar xJf ${FIPS_INPUT_FILE} -C ${FIPS_INPUT_DIR}
-          FIPS_EXTRA_FLAGS="--configs ${FIPS_INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer --extension ddot=${DDOT_FIPS_EXTENSION_DIR}"
+          # Use the FIPS-built installer shipped inside the FIPS agent tarball (omnibus builds it with
+          # --fips-mode and places it at embedded/bin/installer), not the non-FIPS datadog-installer
+          # package. Otherwise the FIPS index would embed a non-FIPS installer and bootstrap would not
+          # self-detect FIPS mode.
+          FIPS_EXTRA_FLAGS="--configs ${FIPS_INPUT_DIR}/etc/datadog-agent --installer ${FIPS_INPUT_DIR}/${INSTALL_DIR}/embedded/bin/installer --extension ddot=${DDOT_FIPS_EXTENSION_DIR}"
           echo "Creating FIPS OCI layer -> ${OUTPUT_DIR}/${FIPS_OUTPUT_FILE}"
           datadog-package create \
             --version ${PACKAGE_VERSION} \
@@ -134,6 +141,31 @@
             ${FIPS_EXTRA_FLAGS} \
             ${FIPS_INPUT_DIR}/${INSTALL_DIR}/
           rm -f ${FIPS_INPUT_FILE}
+        fi
+
+        # Build the FIPS-flavored variant of the standalone installer into the
+        # same OCI index. Selected by Platform.Variant="fips" when the daemon
+        # bootstraps the installer in FIPS mode. See downloadIndex() in
+        # pkg/fleet/installer/oci/download.go.
+        if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
+          FIPS_INSTALLER_INPUT_FILE=$(resolve_artifact "FIPS installer" "${OMNIBUS_PACKAGE_DIR}datadog-fips-installer-*${ARCH}.tar.xz") || exit 1
+          FIPS_INSTALLER_OUTPUT_FILE="$(basename -a -s .xz ${FIPS_INSTALLER_INPUT_FILE})"
+          FIPS_INSTALLER_INPUT_DIR="/tmp/input_fips_installer_${ARCH}"
+          mkdir -p ${FIPS_INSTALLER_INPUT_DIR}
+          echo "Extracting FIPS installer ${FIPS_INSTALLER_INPUT_FILE} -> ${FIPS_INSTALLER_INPUT_DIR}"
+          tar xJf ${FIPS_INSTALLER_INPUT_FILE} -C ${FIPS_INSTALLER_INPUT_DIR}
+          FIPS_EXTRA_FLAGS="--installer ${FIPS_INSTALLER_INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
+          echo "Creating FIPS OCI layer -> ${OUTPUT_DIR}/${FIPS_INSTALLER_OUTPUT_FILE}"
+          datadog-package create \
+            --version ${PACKAGE_VERSION} \
+            --package ${OCI_PRODUCT} \
+            --os linux \
+            --arch ${ARCH} \
+            --variant fips \
+            --archive --archive-path "${OUTPUT_DIR}/${FIPS_INSTALLER_OUTPUT_FILE}" \
+            ${FIPS_EXTRA_FLAGS} \
+            ${FIPS_INSTALLER_INPUT_DIR}/${INSTALL_DIR}/
+          rm -f ${FIPS_INSTALLER_INPUT_FILE}
         fi
 
         rm -f ${INPUT_FILE}
@@ -175,6 +207,8 @@ installer_oci:
     [
       "installer-arm64-oci",
       "installer-amd64-oci",
+      "installer-fips-arm64-oci",
+      "installer-fips-amd64-oci",
       "go_tools_deps",
     ]
   variables:
