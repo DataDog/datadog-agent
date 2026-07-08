@@ -25,32 +25,13 @@ func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
-	// remove from old parent's children list
-	if pc.Ancestor != nil {
-		pc.Ancestor.RemoveChild(pc)
-	}
-
 	pc.Ancestor = parent
 
 	if parent != nil {
 		pc.Parent = &parent.Process
-		parent.Children = append(parent.Children, pc)
 		pc.copyProcessContextFrom(parent)
 	} else {
 		pc.Parent = nil
-	}
-}
-
-// RemoveChild removes a child from this entry's Children list.
-func (pc *ProcessCacheEntry) RemoveChild(child *ProcessCacheEntry) {
-	pc.Children = slices.DeleteFunc(pc.Children, func(c *ProcessCacheEntry) bool {
-		return c == child
-	})
-	// slices.DeleteFunc reduces len but not cap; nil the slice when empty so
-	// the backing array can be reclaimed by the GC (important for long-lived
-	// processes such as subreapers that accumulate many transient children).
-	if len(pc.Children) == 0 {
-		pc.Children = nil
 	}
 }
 
