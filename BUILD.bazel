@@ -147,7 +147,6 @@ exports_files(["go.mod"])
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
 # gazelle:exclude pkg/ebpf/uprobes/*.go
 # gazelle:exclude pkg/ebpf/uprobes/testutil/standalone_attacher
-# gazelle:exclude pkg/ebpf/verifier/calculator
 # gazelle:exclude pkg/eventmonitor/testutil
 # Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
