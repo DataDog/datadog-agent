@@ -24,6 +24,7 @@ go_library(
         "//comp/healthplatform/issues/checkfailure",
         "//comp/healthplatform/issues/dockerpermissions",
         "//comp/healthplatform/issues/invalidconfig",
+        "//comp/healthplatform/issues/invalidsysprobeconfig",
         "//comp/healthplatform/issues/rofspermissions",
         "//comp/healthplatform/runner/def",
         "//comp/healthplatform/runner/fx",

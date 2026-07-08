@@ -8327,6 +8327,14 @@ properties:
             node_type: setting
             type: boolean
             default: true
+      invalidsysprobeconfig_check:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
       persist_on_kubernetes:
         node_type: setting
         type: boolean

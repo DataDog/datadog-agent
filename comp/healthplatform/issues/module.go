@@ -19,11 +19,19 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
+// ModuleDeps carries the dependencies available to every issue module.
+// SysProbeConfig is optional: it is nil in commands that don't bundle system-probe config.
+type ModuleDeps struct {
+	Config         config.Component
+	SysProbeConfig sysprobeconfig.Component
+}
+
 // ModuleFactory is a function that creates a new Module instance
-type ModuleFactory func(config config.Component) Module
+type ModuleFactory func(deps ModuleDeps) Module
 
 var (
 	moduleFactories   []ModuleFactory
@@ -40,13 +48,13 @@ func RegisterModuleFactory(factory ModuleFactory) {
 
 // GetAllModules creates and returns all registered modules.
 // Each call creates new module instances.
-func GetAllModules(config config.Component) []Module {
+func GetAllModules(deps ModuleDeps) []Module {
 	moduleFactoriesMu.Lock()
 	defer moduleFactoriesMu.Unlock()
 
 	modules := make([]Module, 0, len(moduleFactories))
 	for _, factory := range moduleFactories {
-		modules = append(modules, factory(config))
+		modules = append(modules, factory(deps))
 	}
 	return modules
 }
