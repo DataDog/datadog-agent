@@ -112,10 +112,6 @@ profiles:
           - kube_app_component
           - pod_name
           - reason
-      - name: kubernetes_agent.cpu_usage
-        preserve_tags:
-          - kube_app_component
-          - pod_name
       - name: kubernetes_agent.memory_usage
         preserve_tags:
           - kube_app_component

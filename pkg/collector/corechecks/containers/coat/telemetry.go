@@ -20,8 +20,6 @@ const (
 	AgentContainerRestarts = "containers_restarts"
 	// AgentContainerTerminated is the COAT metric name for Kubernetes container terminated states.
 	AgentContainerTerminated = "containers_terminated"
-	// AgentCPUUsage is the COAT metric name for container runtime CPU usage.
-	AgentCPUUsage = "cpu_usage"
 	// AgentMemoryUsage is the COAT metric name for container runtime memory usage.
 	AgentMemoryUsage = "memory_usage"
 	// AgentMemoryLimit is the COAT metric name for container runtime memory limits.
@@ -37,7 +35,6 @@ var agentTelemetry = newAgentPodTelemetry(telemetryimpl.GetCompatComponent())
 type agentPodTelemetry struct {
 	containersRestarts   telemetry.Gauge
 	containersTerminated telemetry.Gauge
-	cpuUsage             telemetry.Gauge
 	memoryUsage          telemetry.Gauge
 	memoryLimits         telemetry.Gauge
 }
@@ -55,12 +52,6 @@ func newAgentPodTelemetry(tm telemetry.Component) *agentPodTelemetry {
 			AgentContainerTerminated,
 			[]string{tags.KubeAppComponent, tags.KubePod, "reason"},
 			"Sum of kubernetes.containers.*.terminated for Datadog Cluster Agent pods",
-		),
-		cpuUsage: tm.NewGauge(
-			agentSubsystem,
-			AgentCPUUsage,
-			[]string{tags.KubeAppComponent, tags.KubePod},
-			"Sum of container runtime CPU usage for Datadog Cluster Agent pods",
 		),
 		memoryUsage: tm.NewGauge(
 			agentSubsystem,
@@ -108,7 +99,6 @@ func RecordAgentMetric(metricName string, value *float64, pod *workloadmeta.Kube
 func (t *agentPodTelemetry) resetRuntimeMetrics() {
 	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponentOperator} {
 		match := map[string]string{tags.KubeAppComponent: component}
-		t.cpuUsage.DeletePartialMatch(match)
 		t.memoryUsage.DeletePartialMatch(match)
 		t.memoryLimits.DeletePartialMatch(match)
 	}
@@ -131,8 +121,6 @@ func (t *agentPodTelemetry) record(metricName string, value float64, component s
 			return
 		}
 		t.containersTerminated.Add(value, component, podName, reason)
-	case AgentCPUUsage:
-		t.cpuUsage.Add(value, component, podName)
 	case AgentMemoryUsage:
 		t.memoryUsage.Add(value, component, podName)
 	case AgentMemoryLimit:

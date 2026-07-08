@@ -74,19 +74,19 @@ func TestRecordAgentMetricUsesPodMetadata(t *testing.T) {
 	ResetAgentRuntimeMetrics()
 	ResetAgentKubeletMetrics()
 
-	RecordAgentMetric(AgentCPUUsage, ptr(100), newTestPod(clusterAgentComponent, "metadata-pod"), "")
-	RecordAgentMetric(AgentCPUUsage, ptr(50), newTestPod(clusterChecksAgentComponentHelm, "clusterchecks-agent-helm-pod"), "")
-	RecordAgentMetric(AgentCPUUsage, ptr(25), newTestPod(clusterChecksAgentComponentOperator, "clusterchecks-agent-operator-pod"), "")
-	RecordAgentMetric(AgentCPUUsage, ptr(99), newTestPod("agent", "other-pod"), "")
-	RecordAgentMetric(AgentCPUUsage, ptr(98), newTestPod(clusterAgentComponent, ""), "")
+	RecordAgentMetric(AgentMemoryUsage, ptr(100), newTestPod(clusterAgentComponent, "metadata-pod"), "")
+	RecordAgentMetric(AgentMemoryUsage, ptr(50), newTestPod(clusterChecksAgentComponentHelm, "clusterchecks-agent-helm-pod"), "")
+	RecordAgentMetric(AgentMemoryUsage, ptr(25), newTestPod(clusterChecksAgentComponentOperator, "clusterchecks-agent-operator-pod"), "")
+	RecordAgentMetric(AgentMemoryUsage, ptr(99), newTestPod("agent", "other-pod"), "")
+	RecordAgentMetric(AgentMemoryUsage, ptr(98), newTestPod(clusterAgentComponent, ""), "")
 	RecordAgentMetric(AgentContainerTerminated, ptr(1), newTestPod(clusterAgentComponent, "metadata-pod"), "oomkilled")
 	RecordAgentMetric(AgentContainerTerminated, ptr(99), newTestPod(clusterAgentComponent, "metadata-pod"), "")
 
-	assertGaugeValue(t, tel, AgentCPUUsage, clusterAgentComponent, "metadata-pod", 100)
-	assertGaugeValue(t, tel, AgentCPUUsage, clusterChecksAgentComponentOperator, "clusterchecks-agent-helm-pod", 50)
-	assertGaugeValue(t, tel, AgentCPUUsage, clusterChecksAgentComponentOperator, "clusterchecks-agent-operator-pod", 25)
-	assertGaugeMissing(t, tel, AgentCPUUsage, "agent", "other-pod")
-	assertGaugeMissing(t, tel, AgentCPUUsage, clusterAgentComponent, "")
+	assertGaugeValue(t, tel, AgentMemoryUsage, clusterAgentComponent, "metadata-pod", 100)
+	assertGaugeValue(t, tel, AgentMemoryUsage, clusterChecksAgentComponentOperator, "clusterchecks-agent-helm-pod", 50)
+	assertGaugeValue(t, tel, AgentMemoryUsage, clusterChecksAgentComponentOperator, "clusterchecks-agent-operator-pod", 25)
+	assertGaugeMissing(t, tel, AgentMemoryUsage, "agent", "other-pod")
+	assertGaugeMissing(t, tel, AgentMemoryUsage, clusterAgentComponent, "")
 	assertTerminatedGaugeValue(t, tel, clusterAgentComponent, "metadata-pod", "oomkilled", 1)
 }
 
@@ -96,8 +96,6 @@ func TestAgentPodCOATTelemetryAggregatesSelectedComponents(t *testing.T) {
 	coat.resetKubeletMetrics()
 	coat.resetRuntimeMetrics()
 
-	coat.record(AgentCPUUsage, 100, clusterAgentComponent, "cluster-agent-pod", "")
-	coat.record(AgentCPUUsage, 50, clusterAgentComponent, "cluster-agent-pod", "")
 	coat.record(AgentMemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "")
 	coat.record(AgentMemoryUsage, 5, clusterAgentComponent, "cluster-agent-pod", "")
 	coat.record(AgentMemoryLimit, 20, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "")
@@ -105,7 +103,6 @@ func TestAgentPodCOATTelemetryAggregatesSelectedComponents(t *testing.T) {
 	coat.record(AgentContainerTerminated, 1, clusterAgentComponent, "cluster-agent-pod", "oomkilled")
 	coat.record(AgentContainerTerminated, 99, clusterAgentComponent, "cluster-agent-pod", "")
 
-	assertGaugeValue(t, tel, AgentCPUUsage, clusterAgentComponent, "cluster-agent-pod", 150)
 	assertGaugeValue(t, tel, AgentMemoryUsage, clusterAgentComponent, "cluster-agent-pod", 15)
 	assertGaugeValue(t, tel, AgentMemoryLimit, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", 20)
 	assertGaugeValue(t, tel, AgentContainerRestarts, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", 2)
@@ -116,7 +113,6 @@ func TestAgentPodCOATTelemetryResetClearsStaleValues(t *testing.T) {
 	tel := telemetrymock.New(t)
 	coat := newAgentPodTelemetry(tel)
 
-	coat.record(AgentCPUUsage, 100, clusterAgentComponent, "cluster-agent-pod", "")
 	coat.record(AgentMemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "")
 	coat.record(AgentMemoryLimit, 20, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "")
 	coat.record(AgentContainerRestarts, 2, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "")
@@ -124,7 +120,6 @@ func TestAgentPodCOATTelemetryResetClearsStaleValues(t *testing.T) {
 	coat.resetKubeletMetrics()
 	coat.resetRuntimeMetrics()
 
-	assertGaugeMissing(t, tel, AgentCPUUsage, clusterAgentComponent, "cluster-agent-pod")
 	assertGaugeMissing(t, tel, AgentMemoryUsage, clusterAgentComponent, "cluster-agent-pod")
 	assertGaugeMissing(t, tel, AgentMemoryLimit, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod")
 	assertGaugeMissing(t, tel, AgentContainerRestarts, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod")
@@ -135,7 +130,6 @@ func TestAgentPodCOATTelemetrySplitResets(t *testing.T) {
 	tel := telemetrymock.New(t)
 	coat := newAgentPodTelemetry(tel)
 
-	coat.record(AgentCPUUsage, 100, clusterAgentComponent, "cluster-agent-pod", "")
 	coat.record(AgentMemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "")
 	coat.record(AgentMemoryLimit, 20, clusterAgentComponent, "cluster-agent-pod", "")
 	coat.record(AgentContainerRestarts, 2, clusterAgentComponent, "cluster-agent-pod", "")
@@ -143,18 +137,15 @@ func TestAgentPodCOATTelemetrySplitResets(t *testing.T) {
 
 	coat.resetRuntimeMetrics()
 
-	assertGaugeMissing(t, tel, AgentCPUUsage, clusterAgentComponent, "cluster-agent-pod")
 	assertGaugeMissing(t, tel, AgentMemoryUsage, clusterAgentComponent, "cluster-agent-pod")
 	assertGaugeMissing(t, tel, AgentMemoryLimit, clusterAgentComponent, "cluster-agent-pod")
 	assertGaugeValue(t, tel, AgentContainerRestarts, clusterAgentComponent, "cluster-agent-pod", 2)
 	assertTerminatedGaugeValue(t, tel, clusterAgentComponent, "cluster-agent-pod", "containercannotrun", 1)
 
-	coat.record(AgentCPUUsage, 100, clusterAgentComponent, "cluster-agent-pod", "")
 	coat.record(AgentMemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "")
 	coat.record(AgentMemoryLimit, 20, clusterAgentComponent, "cluster-agent-pod", "")
 	coat.resetKubeletMetrics()
 
-	assertGaugeValue(t, tel, AgentCPUUsage, clusterAgentComponent, "cluster-agent-pod", 100)
 	assertGaugeValue(t, tel, AgentMemoryUsage, clusterAgentComponent, "cluster-agent-pod", 10)
 	assertGaugeValue(t, tel, AgentMemoryLimit, clusterAgentComponent, "cluster-agent-pod", 20)
 	assertGaugeMissing(t, tel, AgentContainerRestarts, clusterAgentComponent, "cluster-agent-pod")
