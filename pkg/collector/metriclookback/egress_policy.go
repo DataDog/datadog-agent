@@ -70,6 +70,10 @@ type EgressPolicyOptions struct {
 	// MonitorStaleTimeout controls when suppressed egress returns to forwarding if
 	// no fresh monitor decision is observed. Zero disables stale reopening.
 	MonitorStaleTimeout time.Duration
+	// StartForwarding makes the policy start in forwarding mode instead of the
+	// default suppressed mode. This is used for monitor dry-runs where monitor
+	// decisions are observed and logged but must not gate intake egress.
+	StartForwarding bool
 }
 
 // EgressPolicy converts monitor decisions and wall-clock eligibility into
@@ -92,9 +96,10 @@ type EgressPolicy struct {
 	lastDecisionAt time.Time
 }
 
-// NewEgressPolicy creates an egress policy that starts suppressed. Retention is
-// active immediately, but forwarding only opens after the watched metric breaches
-// or produces an unknown monitor decision.
+// NewEgressPolicy creates an egress policy. By default it starts suppressed:
+// retention is active immediately, but forwarding only opens after the watched
+// metric breaches or produces an unknown monitor decision. StartForwarding
+// overrides this initial mode for monitor dry-runs.
 func NewEgressPolicy(opts EgressPolicyOptions) *EgressPolicy {
 	if opts.SendDelay < 0 {
 		opts.SendDelay = 0
@@ -108,7 +113,7 @@ func NewEgressPolicy(opts EgressPolicyOptions) *EgressPolicy {
 	if opts.MonitorStaleTimeout < 0 {
 		opts.MonitorStaleTimeout = 0
 	}
-	return &EgressPolicy{
+	policy := &EgressPolicy{
 		preWindow:                nonNegativeDuration(opts.PreWindow),
 		postWindow:               nonNegativeDuration(opts.PostWindow),
 		sendDelay:                opts.SendDelay,
@@ -116,6 +121,10 @@ func NewEgressPolicy(opts EgressPolicyOptions) *EgressPolicy {
 		monitorStaleTimeout:      opts.MonitorStaleTimeout,
 		mode:                     EgressSuppressed,
 	}
+	if opts.StartForwarding {
+		policy.openForwardingAt(time.Time{})
+	}
+	return policy
 }
 
 func nonNegativeDuration(d time.Duration) time.Duration {

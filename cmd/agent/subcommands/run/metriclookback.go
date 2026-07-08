@@ -34,7 +34,6 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 		return nil, err
 	}
 
-
 	return func(metricSerializer serializer.MetricSerializer) aggregator.DogStatsDLookback {
 		if retention == nil || !cfg.GetBool("metric_lookback.enabled") {
 			return nil
@@ -48,7 +47,10 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 
 		var egressController *metriclookback.EgressController
 		if monitorEnabled {
-			egressController = metriclookback.NewEgressController(retention, metricSerializer, metriclookback.EgressControllerOptions{})
+			egressController = metriclookback.NewEgressController(retention, metricSerializer, metriclookback.EgressControllerOptions{
+				DryRun:                       cfg.GetBool("metric_lookback.monitor.dry_run"),
+				MonitorStateTransitionLogger: metricLookbackMonitorStateTransitionLogger(logger),
+			})
 		}
 		watcher, err := newMetricLookbackMonitor(cfg, logger, retention, egressController)
 		if err != nil {
@@ -78,6 +80,45 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 		}
 		return adapter
 	}, nil
+}
+
+func metricLookbackMonitorStateTransitionLogger(logger log.Component) metriclookback.MonitorStateTransitionLogger {
+	return func(transition metriclookback.MonitorStateTransition) {
+		if logger == nil {
+			return
+		}
+		decision := transition.Decision
+		if transition.Initial {
+			logger.Infof("metric_lookback monitor state initialized: metric_name=%q state=%s dry_run=%t egress_mode=%s window_from=%s window_to=%s point_count=%d min=%v max=%v range=%v range_epsilon=%v",
+				transition.MetricName,
+				transition.To.String(),
+				transition.DryRun,
+				transition.EgressMode.String(),
+				decision.WindowFrom.Format(time.RFC3339Nano),
+				decision.WindowTo.Format(time.RFC3339Nano),
+				decision.PointCount,
+				decision.Min,
+				decision.Max,
+				decision.Range,
+				decision.RangeEpsilon,
+			)
+			return
+		}
+		logger.Infof("metric_lookback monitor state transition: metric_name=%q from=%s to=%s dry_run=%t egress_mode=%s window_from=%s window_to=%s point_count=%d min=%v max=%v range=%v range_epsilon=%v",
+			transition.MetricName,
+			transition.From.String(),
+			transition.To.String(),
+			transition.DryRun,
+			transition.EgressMode.String(),
+			decision.WindowFrom.Format(time.RFC3339Nano),
+			decision.WindowTo.Format(time.RFC3339Nano),
+			decision.PointCount,
+			decision.Min,
+			decision.Max,
+			decision.Range,
+			decision.RangeEpsilon,
+		)
+	}
 }
 
 func validateMetricLookbackMonitorConfig(cfg config.Component) error {

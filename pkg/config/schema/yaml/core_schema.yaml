@@ -2567,6 +2567,16 @@ properties:
             tags:
             - golang_type:float64
             - template_section:Dogstatsd
+          dry_run:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: |-
+              Run the monitor and log monitor state transitions without allowing monitor state to suppress egress.
+              When enabled, retained ranges start and remain eligible for intake forwarding.
+            tags:
+            - template_section:Dogstatsd
   statsd_forward_host:
     node_type: setting
     type: string

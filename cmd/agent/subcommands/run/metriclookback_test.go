@@ -68,6 +68,48 @@ func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromNoAggSeries
 	}
 }
 
+func TestMetricLookbackDogStatsDFactoryDryRunForwardsHealthyMonitorWindow(t *testing.T) {
+	start := time.Unix(100, 0)
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		"metric_lookback.enabled":                true,
+		"metric_lookback.capacity":               256,
+		"metric_lookback.shard_count":            1,
+		"metric_lookback.dogstatsd.enabled":      false,
+		"metric_lookback.dogstatsd.metric_names": []string{},
+		"metric_lookback.monitor.enabled":        true,
+		"metric_lookback.monitor.metric_name":    "target.metric",
+		"metric_lookback.monitor.range_epsilon":  0.05,
+		"metric_lookback.monitor.dry_run":        true,
+	})
+	serializer := serializermocks.NewMetricSerializer(t)
+	forwarded := make(chan struct{}, 1)
+	serializer.On("SendIterableSeries", mock.Anything).Run(func(args mock.Arguments) {
+		source := args.Get(0).(metrics.SerieSource)
+		require.Greater(t, source.Count(), uint64(0))
+		forwarded <- struct{}{}
+	}).Return(nil).Maybe()
+
+	factory := requireMetricLookbackDogStatsDFactory(t, cfg, newMetricLookbackRetention(cfg))
+	lookback := factory(serializer)
+	require.NotNil(t, lookback)
+
+	for second := 0; second <= 30; second++ {
+		lookback.AppendDogStatsDNoAggSerie(&metrics.Serie{
+			Name:     "target.metric",
+			Points:   []metrics.Point{{Ts: float64(start.Add(time.Duration(second) * time.Second).Unix()), Value: 2}},
+			Tags:     tagset.CompositeTagsFromSlice(nil),
+			MType:    metrics.APIGaugeType,
+			Interval: 10,
+		})
+	}
+
+	select {
+	case <-forwarded:
+	case <-time.After(time.Second):
+		require.FailNow(t, "timed out waiting for dry-run monitor egress")
+	}
+}
+
 func TestMetricLookbackDogStatsDFactoryBuildsMonitorEgressAdapterFromBucketedSamples(t *testing.T) {
 	start := time.Unix(100, 0)
 	cfg := metricLookbackMonitorFactoryConfig(t)

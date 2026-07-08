@@ -8,6 +8,7 @@ package metriclookback
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -128,4 +129,72 @@ func TestEgressControllerAppliesMonitorDecisions(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return controller.Mode() == EgressSuppressed
 	}, time.Second, time.Millisecond)
+}
+
+func TestEgressControllerDryRunStartsForwardingAndIgnoresMonitorDecisions(t *testing.T) {
+	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
+	serializer := serializermocks.NewMetricSerializer(t)
+	controller := NewEgressController(retention, serializer, EgressControllerOptions{
+		DryRun:                   true,
+		HealthyWindowsToSuppress: 1,
+		Now:                      func() time.Time { return time.Unix(100, 0) },
+	})
+
+	require.Equal(t, EgressForwarding, controller.Mode())
+	require.Equal(t, []TimeRange{{}}, controller.policy.ForwardingRanges())
+
+	controller.OnDecision(monitor.Decision{
+		State:      monitor.Healthy,
+		WindowFrom: time.Unix(60, 0),
+		WindowTo:   time.Unix(90, 0),
+	})
+	controller.OnDecision(monitor.Decision{
+		State:      monitor.Healthy,
+		WindowFrom: time.Unix(90, 0),
+		WindowTo:   time.Unix(120, 0),
+	})
+	controller.OnDecision(monitor.Decision{
+		State:      monitor.Breach,
+		WindowFrom: time.Unix(120, 0),
+		WindowTo:   time.Unix(150, 0),
+	})
+
+	require.Eventually(t, func() bool {
+		return controller.Mode() == EgressForwarding
+	}, time.Second, time.Millisecond)
+	require.Equal(t, []TimeRange{{}}, controller.policy.ForwardingRanges())
+}
+
+func TestEgressControllerLogsMonitorStateTransitionsRegardlessOfDryRun(t *testing.T) {
+	for _, dryRun := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dry_run_%t", dryRun), func(t *testing.T) {
+			retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
+			serializer := serializermocks.NewMetricSerializer(t)
+			var transitions []MonitorStateTransition
+			controller := NewEgressController(retention, serializer, EgressControllerOptions{
+				DryRun: dryRun,
+				MonitorStateTransitionLogger: func(transition MonitorStateTransition) {
+					transitions = append(transitions, transition)
+				},
+				Now: func() time.Time { return time.Unix(100, 0) },
+			})
+
+			controller.OnDecision(monitor.Decision{MetricName: "target", State: monitor.Unknown, WindowFrom: time.Unix(0, 0), WindowTo: time.Unix(30, 0)})
+			controller.OnDecision(monitor.Decision{MetricName: "target", State: monitor.Healthy, WindowFrom: time.Unix(30, 0), WindowTo: time.Unix(60, 0)})
+			controller.OnDecision(monitor.Decision{MetricName: "target", State: monitor.Healthy, WindowFrom: time.Unix(60, 0), WindowTo: time.Unix(90, 0)})
+			controller.OnDecision(monitor.Decision{MetricName: "target", State: monitor.Breach, WindowFrom: time.Unix(90, 0), WindowTo: time.Unix(120, 0)})
+
+			require.Len(t, transitions, 3)
+			require.True(t, transitions[0].Initial)
+			require.Equal(t, monitor.Unknown, transitions[0].To)
+			require.False(t, transitions[1].Initial)
+			require.Equal(t, monitor.Unknown, transitions[1].From)
+			require.Equal(t, monitor.Healthy, transitions[1].To)
+			require.Equal(t, monitor.Healthy, transitions[2].From)
+			require.Equal(t, monitor.Breach, transitions[2].To)
+			for _, transition := range transitions {
+				require.Equal(t, dryRun, transition.DryRun)
+			}
+		})
+	}
 }

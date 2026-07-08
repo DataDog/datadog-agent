@@ -23,6 +23,15 @@ func TestEgressPolicyStartsSuppressed(t *testing.T) {
 	require.Empty(t, policy.ForwardingRanges())
 }
 
+func TestEgressPolicyCanStartForwarding(t *testing.T) {
+	now := time.Unix(100, 0)
+	policy := NewEgressPolicy(EgressPolicyOptions{SendDelay: time.Nanosecond, StartForwarding: true})
+
+	require.Equal(t, EgressForwarding, policy.Mode())
+	require.Equal(t, []TimeRange{{}}, policy.ForwardingRanges())
+	require.Equal(t, []TimeRange{{To: now.Add(-time.Nanosecond)}}, policy.RangesToForward(now))
+}
+
 func TestEgressPolicyBreachOpensForwardingAndAppliesSendDelay(t *testing.T) {
 	start := time.Unix(100, 0)
 	policy := NewEgressPolicy(EgressPolicyOptions{

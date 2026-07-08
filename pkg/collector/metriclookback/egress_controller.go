@@ -30,9 +30,25 @@ var (
 	tlmEgressRangeSeconds = telemetryimpl.GetCompatComponent().NewGauge("metric_lookback", "egress_range_seconds", nil, "Width of the last metric lookback egress range in seconds")
 )
 
-// EgressControllerOptions controls how retained ranges are forwarded. These
-// options are intentionally code-level defaults for now; public config only
-// enables the monitor and selects the monitor metric/range epsilon.
+// MonitorStateTransition describes an observed change in the monitor's own
+// health state. It is emitted independently of whether the monitor is allowed to
+// affect egress mode.
+type MonitorStateTransition struct {
+	MetricName string
+	From       monitor.State
+	To         monitor.State
+	Initial    bool
+	Decision   monitor.Decision
+	DryRun     bool
+	EgressMode EgressMode
+}
+
+// MonitorStateTransitionLogger receives monitor state transition diagnostics.
+type MonitorStateTransitionLogger func(MonitorStateTransition)
+
+// EgressControllerOptions controls how retained ranges are forwarded. Most
+// options are code-level defaults; public config currently selects monitor
+// enablement, the watched metric/range epsilon, and dry-run mode.
 type EgressControllerOptions struct {
 	// PreWindow extends forwarding before a monitor breach/unknown window.
 	PreWindow time.Duration
@@ -49,6 +65,12 @@ type EgressControllerOptions struct {
 	// MonitorStaleTimeout controls when suppressed egress returns to forwarding if
 	// no fresh monitor decision is observed. Zero disables stale reopening.
 	MonitorStaleTimeout time.Duration
+	// DryRun keeps egress forwarding from startup and prevents monitor decisions
+	// from changing egress mode. Monitor state transitions are still logged.
+	DryRun bool
+	// MonitorStateTransitionLogger is called whenever the monitor's own state
+	// changes, including the first observed state.
+	MonitorStateTransitionLogger MonitorStateTransitionLogger
 
 	// Now and Sleep are injectable for deterministic tests. They default to
 	// time.Now and time.Sleep.
@@ -66,9 +88,14 @@ type EgressController struct {
 	egressInterval   time.Duration
 	now              func() time.Time
 	sleep            func(time.Duration)
+	dryRun           bool
+	logTransition    MonitorStateTransitionLogger
 
 	runMu    sync.Mutex
 	policyMu sync.Mutex
+
+	hasMonitorState  bool
+	lastMonitorState monitor.State
 
 	startOnce sync.Once
 	stopOnce  sync.Once
@@ -99,6 +126,7 @@ func NewEgressController(retention *Retention, metricSerializer serializer.Metri
 		SendDelay:                opts.SendDelay,
 		HealthyWindowsToSuppress: opts.HealthyWindowsToSuppress,
 		MonitorStaleTimeout:      opts.MonitorStaleTimeout,
+		StartForwarding:          opts.DryRun,
 	})
 	return &EgressController{
 		retention:        retention,
@@ -107,6 +135,8 @@ func NewEgressController(retention *Retention, metricSerializer serializer.Metri
 		egressInterval:   opts.EgressInterval,
 		now:              opts.Now,
 		sleep:            opts.Sleep,
+		dryRun:           opts.DryRun,
+		logTransition:    opts.MonitorStateTransitionLogger,
 		stopCh:           make(chan struct{}),
 		doneCh:           make(chan struct{}),
 	}
@@ -153,16 +183,31 @@ func (c *EgressController) loop() {
 }
 
 // OnDecision applies a monitor decision and asynchronously wakes egress so the
-// DogStatsD append path does not block on serializer latency.
+// DogStatsD append path does not block on serializer latency. In dry-run mode,
+// the monitor decision is recorded for transition logging but does not affect
+// egress policy, which remains forwarding.
 func (c *EgressController) OnDecision(decision monitor.Decision) {
 	if c == nil || c.policy == nil {
 		return
 	}
+	var transition MonitorStateTransition
+	var logTransition bool
+
 	c.policyMu.Lock()
 	before := c.policy.Mode()
-	c.policy.OnDecisionAt(decision, c.now())
-	c.recordModeTransition(before, c.policy.Mode(), decision.State.String())
+	if !c.dryRun {
+		c.policy.OnDecisionAt(decision, c.now())
+	}
+	after := c.policy.Mode()
+	if !c.dryRun {
+		c.recordModeTransition(before, after, decision.State.String())
+	}
+	transition, logTransition = c.recordMonitorStateLocked(decision, after)
 	c.policyMu.Unlock()
+
+	if logTransition && c.logTransition != nil {
+		c.logTransition(transition)
+	}
 	go c.RunOnce()
 }
 
@@ -278,6 +323,24 @@ func (c *EgressController) recordModeTransition(from, to EgressMode, reason stri
 		return
 	}
 	tlmEgressTransitions.Inc(from.String(), to.String(), reason)
+}
+
+func (c *EgressController) recordMonitorStateLocked(decision monitor.Decision, egressMode EgressMode) (MonitorStateTransition, bool) {
+	transition := MonitorStateTransition{
+		MetricName: decision.MetricName,
+		From:       c.lastMonitorState,
+		To:         decision.State,
+		Initial:    !c.hasMonitorState,
+		Decision:   decision,
+		DryRun:     c.dryRun,
+		EgressMode: egressMode,
+	}
+	if c.hasMonitorState && c.lastMonitorState == decision.State {
+		return transition, false
+	}
+	c.lastMonitorState = decision.State
+	c.hasMonitorState = true
+	return transition, true
 }
 
 func intersectRanges(a, b TimeRange) (TimeRange, bool) {

@@ -43,6 +43,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_lookback.monitor.enabled", false)
 	config.BindEnvAndSetDefault("metric_lookback.monitor.metric_name", "")
 	config.BindEnvAndSetDefault("metric_lookback.monitor.range_epsilon", 0.0)
+	config.BindEnvAndSetDefault("metric_lookback.monitor.dry_run", false)
 
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
