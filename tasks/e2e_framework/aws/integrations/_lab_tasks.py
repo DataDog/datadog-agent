@@ -61,7 +61,10 @@ def _ssh_base(ctx: Context, scenario_name: str, role: str, stack_name: str | Non
 def _run_remote(ctx: Context, scenario_name: str, role: str, command: str, stack_name: str | None = None):
     if not command:
         raise ValueError("command is required")
-    return ctx.run(f"{_ssh_base(ctx, scenario_name, role, stack_name)} -- {shlex.quote(command)}")
+    # No "--" after the destination: ssh sends everything after the destination as the remote
+    # command, so a leading "--" reaches the login shell (`$SHELL -c '-- ...'`) as an invalid
+    # option and breaks status/check/exec/reload-check. Pass the command as one quoted argument.
+    return ctx.run(f"{_ssh_base(ctx, scenario_name, role, stack_name)} {shlex.quote(command)}")
 
 
 def _datadog_site() -> str:
