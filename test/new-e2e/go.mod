@@ -234,7 +234,6 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.18
-	github.com/DataDog/test-infra-definitions v0.0.6
 	github.com/aws/aws-sdk-go v1.50.36
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.34.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.6.0
