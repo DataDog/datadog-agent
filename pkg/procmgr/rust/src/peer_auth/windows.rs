@@ -94,11 +94,11 @@ mod tests {
 
     #[test]
     fn dd_procmgr_cli_allowed_when_opted_in() {
-        std::env::set_var("DD_PM_PRIVILEGED_COMMANDS_ALLOW_CLI", "1");
+        unsafe { std::env::set_var("DD_PM_PRIVILEGED_COMMANDS_ALLOW_CLI", "1"); }
         let basename = process_exe_basename(std::process::id()).unwrap();
         if basename.eq_ignore_ascii_case(PROCMGR_CLI_EXE_BASENAME) {
             assert!(authorize_par_caller(std::process::id()));
         }
-        std::env::remove_var("DD_PM_PRIVILEGED_COMMANDS_ALLOW_CLI");
+        unsafe { std::env::remove_var("DD_PM_PRIVILEGED_COMMANDS_ALLOW_CLI"); }
     }
 }

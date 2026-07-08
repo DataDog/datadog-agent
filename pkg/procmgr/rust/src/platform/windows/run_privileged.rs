@@ -11,7 +11,7 @@ use std::ffi::c_void;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 use windows_sys::Win32::Foundation::{
-    CloseHandle, HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE,
+    CloseHandle, HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
 };
 use windows_sys::Win32::Security::{
     DuplicateTokenEx, LOGON32_LOGON_SERVICE, LOGON32_PROVIDER_DEFAULT, LogonUserW,
@@ -26,7 +26,7 @@ use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
     CreateProcessAsUserW, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
-    STARTUPINFOW, SetHandleInformation, WaitForSingleObject,
+    STARTUPINFOW, WaitForSingleObject,
 };
 
 use super::wide;
@@ -238,7 +238,7 @@ fn open_nul_handle(access: u32) -> Result<HANDLE> {
             ptr::null(),
             OPEN_EXISTING,
             FILE_ATTRIBUTE_NORMAL,
-            0,
+            ptr::null_mut(),
         )
     };
     if h == INVALID_HANDLE_VALUE || h.is_null() {
@@ -378,7 +378,7 @@ mod tests {
 
     #[test]
     fn privileged_echo_runs_as_system() {
-        std::env::set_var("DD_PM_PRIVILEGED_COMMANDS_ENABLED", "1");
+        unsafe { std::env::set_var("DD_PM_PRIVILEGED_COMMANDS_ENABLED", "1"); }
         let out = run_privileged_command(
             "cmd.exe",
             &["/C".into(), "echo".into(), "procmgr-privileged-ok".into()],
