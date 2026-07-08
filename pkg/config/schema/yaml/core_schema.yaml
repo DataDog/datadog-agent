@@ -2465,6 +2465,7 @@ properties:
       short-window range threshold.
     tags:
     - template_section:Dogstatsd
+    - full-agent-only:true
     properties:
       enabled:
         node_type: setting
@@ -2474,7 +2475,7 @@ properties:
         description: Enable metric lookback globally. For shadow checks, this enables
           shadowing for checks allowed by enabled_checks.
         tags:
-        - template_section:Dogstatsd
+        - full-agent-only:true
       enabled_checks:
         node_type: setting
         type: array
@@ -2485,7 +2486,7 @@ properties:
         description: Optional check-name allowlist for metric lookback shadow checks.
           When empty, all supported checks are eligible.
         tags:
-        - template_section:Dogstatsd
+        - full-agent-only:true
       capacity:
         node_type: setting
         type: integer
@@ -2493,16 +2494,12 @@ properties:
         visibility: public
         description: Total number of point records retained across all lookback ring
           shards.
-        tags:
-        - template_section:Dogstatsd
       shard_count:
         node_type: setting
         type: integer
         default: 16
         visibility: public
         description: Number of independent shards used by the lookback ring.
-        tags:
-        - template_section:Dogstatsd
       dogstatsd:
         node_type: section
         type: object
@@ -2521,8 +2518,6 @@ properties:
             description: |-
               Additional exact DogStatsD metric names to retain in the lookback ring. The monitor metric is
               auto-admitted from DogStatsD when monitor.mode is dry_run or enabled and does not need to be repeated here.
-            tags:
-            - template_section:Dogstatsd
       monitor:
         node_type: section
         type: object
@@ -2535,26 +2530,18 @@ properties:
             node_type: setting
             type: string
             default: disabled
-            enum:
-            - disabled
-            - dry_run
-            - enabled
             visibility: public
             description: |-
               Controls monitor operation. Valid values are:
                 - disabled: do not run the monitor or monitor-driven egress.
                 - dry_run: run the monitor, log state transitions, and keep retained ranges eligible for intake forwarding.
                 - enabled: run the monitor and let monitor decisions control egress.
-            tags:
-            - template_section:Dogstatsd
           metric_name:
             node_type: setting
             type: string
             default: ''
             visibility: public
             description: Exact metric name watched by the monitor.
-            tags:
-            - template_section:Dogstatsd
           range_epsilon:
             node_type: setting
             type: number
@@ -2565,7 +2552,6 @@ properties:
               retained ranges after the watched metric's window range is greater than this epsilon.
             tags:
             - golang_type:float64
-            - template_section:Dogstatsd
           partition_tags:
             node_type: setting
             type: array
@@ -2577,8 +2563,14 @@ properties:
               Tag keys used to partition monitor range evaluation. When empty, all retained points for the
               monitor metric are evaluated together. When set, the monitor evaluates each selected tag-value
               tuple independently and breaches if any partition exceeds range_epsilon.
-            tags:
-            - template_section:Dogstatsd
+      collection_interval:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        tags:
+        - golang_type:duration
+        - full-agent-only:true
   statsd_forward_host:
     node_type: setting
     type: string
