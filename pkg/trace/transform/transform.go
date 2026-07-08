@@ -321,10 +321,7 @@ func OtelSpanToDDSpan(
 		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
 	}
 
-	if otelspan.TraceState().AsRaw() != "" {
-		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
-	}
-  // Note: w3c.tracestate is set by otelSpanToDDSpanMinimal above.
+	// Note: w3c.tracestate is set by otelSpanToDDSpanMinimal above.
 	scopeConventionGateEnabled := !conf.HasFeature("disable_otel_scope_convention")
 	if lib.Name() != "" {
 		if scopeConventionGateEnabled {
