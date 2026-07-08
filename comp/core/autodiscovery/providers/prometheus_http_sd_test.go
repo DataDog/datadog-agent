@@ -19,6 +19,7 @@ import (
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 type entrySpec struct {
@@ -726,4 +727,47 @@ func TestBuildEntriesInvalidExcludeFilter(t *testing.T) {
 	)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "exclude_filter")
+}
+
+// TestNewPrometheusHTTPSDConfigProviderFromConfig exercises the full initialization
+// path — config parsing, CEL compilation, and collection — using the mock config
+// component rather than constructing httpSDEntry directly.
+func TestNewPrometheusHTTPSDConfigProviderFromConfig(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]httpSDTargetGroup{
+			{
+				Targets: []string{"host1:9100"},
+				Labels:  map[string]string{"__meta_service_type": "ray_worker"},
+			},
+			{
+				Targets: []string{"host2:9100"},
+				Labels:  map[string]string{"__meta_service_type": "api"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	cfg := pkgconfigmock.New(t)
+	cfg.SetInTest("prometheus_http_sd.configs", []interface{}{
+		map[string]interface{}{
+			"url":            server.URL,
+			"check_template": defaultCheckTemplate(),
+			"exclude_filter": `target.labels["__meta_service_type"].startsWith("ray")`,
+		},
+	})
+
+	p, err := NewPrometheusHTTPSDConfigProvider(nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	provider, ok := p.(types.CollectingConfigProvider)
+	require.True(t, ok, "expected PrometheusHTTPSDConfigProvider to implement CollectingConfigProvider")
+
+	configs, err := provider.Collect(context.Background())
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	var instance map[string]interface{}
+	require.NoError(t, yaml.Unmarshal(configs[0].Instances[0], &instance))
+	assert.Equal(t, "http://host2:9100/metrics", instance["openmetrics_endpoint"])
 }
