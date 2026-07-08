@@ -181,7 +181,13 @@ func podRejectsExec(pod v1.Pod) bool {
 }
 
 func (e *Kubernetes) generateAndDownloadAgentFlare(agentBinary string, pod v1.Pod, container string, outputDir string) (string, error) {
-	stdout, stderr, err := e.KubernetesCluster.KubernetesClient.PodExec(pod.Namespace, pod.Name, container, []string{agentBinary, "flare", "--email", "e2e-tests@datadog-agent", "--send"})
+	flareArgs := []string{agentBinary, "flare", "--email", "e2e-tests@datadog-agent", "--send"}
+	// --keep-archive is required because the archive is deleted from disk after a successful upload, which would
+	// otherwise race with the download of the archive below. The cluster-agent flare command doesn't support this flag.
+	if agentBinary != "datadog-cluster-agent" {
+		flareArgs = append(flareArgs, "--keep-archive")
+	}
+	stdout, stderr, err := e.KubernetesCluster.KubernetesClient.PodExec(pod.Namespace, pod.Name, container, flareArgs)
 	flareOutput := strings.Join([]string{stdout, stderr}, "\n")
 	if err != nil {
 		flareOutput = fmt.Sprintf("%s\n%s", flareOutput, err.Error())
