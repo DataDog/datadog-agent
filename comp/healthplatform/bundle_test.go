@@ -166,7 +166,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		HP storedef.Component
 	}
 
-	const tickInterval = 50 * time.Millisecond
+	const tickInterval = 500 * time.Millisecond
 
 	deps := fxutil.Test[appDeps](t,
 		Bundle(),
