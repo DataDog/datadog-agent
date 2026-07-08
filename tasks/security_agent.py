@@ -325,30 +325,36 @@ def ninja_otel_tls_fixture_so(ctx, build_dir, compiler='clang'):
     )
 
 
-def remove_otel_tls_static_musl_artifact(build_dir):
+def remove_otel_tls_musl_artifacts(build_dir):
     for artifact in [
         "otel_tls_static_musl_tester",
         "otel_tls_static_musl_tester.d",
+        "libotel_tls_musl_fixture.so",
+        "otel_tls_musl_dlopen_loader",
     ]:
         path = os.path.join(build_dir, artifact)
         if os.path.exists(path):
             os.remove(path)
 
 
-def build_otel_tls_static_musl_artifact(ctx, build_dir, arch: Arch):
-    remove_otel_tls_static_musl_artifact(build_dir)
+def build_otel_tls_musl_artifacts(ctx, build_dir, arch: Arch):
+    remove_otel_tls_musl_artifacts(build_dir)
 
     if arch.is_cross_compiling():
-        print("Skipping musl OTel TLS static artifact while cross-compiling")
+        print("Skipping musl OTel TLS artifacts while cross-compiling")
         return
 
     docker = shutil.which("docker")
     if docker is None:
-        print("docker not found; skipping musl OTel TLS static artifact")
+        print("docker not found; skipping musl OTel TLS artifacts")
         return
 
-    c_file = os.path.join("pkg", "security", "tests", "syscall_tester", "c", "otel_tls_static_pie_tester.c")
-    tester = os.path.join(build_dir, "otel_tls_static_musl_tester")
+    c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
+    c_file = os.path.join(c_dir, "otel_tls_static_pie_tester.c")
+    loader_c_file = os.path.join(c_dir, "otel_tls_dlopen_loader.c")
+    static_tester = os.path.join(build_dir, "otel_tls_static_musl_tester")
+    fixture = os.path.join(build_dir, "libotel_tls_musl_fixture.so")
+    loader = os.path.join(build_dir, "otel_tls_musl_dlopen_loader")
     workdir = os.getcwd()
     uid = os.getuid()
     gid = os.getgid()
@@ -356,8 +362,13 @@ def build_otel_tls_static_musl_artifact(ctx, build_dir, arch: Arch):
     script = " && ".join(
         [
             "apk add --no-cache build-base",
-            f"cc -static -no-pie {c_file} -o {tester} -pthread",
-            f"chown {uid}:{gid} {tester}",
+            f"cc -static -no-pie {c_file} -o {static_tester} -pthread",
+            f"cc -shared -fPIC {c_file} -o {fixture} -pthread",
+            (
+                f"cc -DOTEL_TLS_FIXTURE_SO='\"{os.path.basename(fixture)}\"' "
+                f"{loader_c_file} -o {loader} -ldl"
+            ),
+            f"chown {uid}:{gid} {static_tester} {fixture} {loader}",
         ]
     )
 
@@ -371,7 +382,7 @@ def build_otel_tls_static_musl_artifact(ctx, build_dir, arch: Arch):
                 f"{shlex.quote(workdir)}:/work",
                 "-w",
                 "/work",
-                "alpine:3.20",
+                "alpine:3.18.2",
                 "sh",
                 "-c",
                 shlex.quote(script),
@@ -478,7 +489,7 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
-    build_otel_tls_static_musl_artifact(ctx, build_dir, arch)
+    build_otel_tls_musl_artifacts(ctx, build_dir, arch)
     build_otel_tls_initial_exec_focal_artifacts(ctx, build_dir, arch)
     build_go_syscall_tester(ctx, build_dir, arch=arch)
 

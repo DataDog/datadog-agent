@@ -55,12 +55,9 @@ const (
 const (
 	// 64-bit glibc/musl public loader layouts used by the tls-modid-bpf sample.
 	//
-	// WARNING: only the glibc layout is exercised by the test suite. musl's
-	// debug link_map is assumed to share the same public field offsets
-	// (l_addr at 0, l_next at 24) but this has not been validated against a
-	// real musl process, and musl link-map mode additionally always takes the
-	// reconstructModuleIDs fallback (see resolveOTelTLS). Treat musl support as
-	// best-effort until a musl fixture is added to TestOTelSpan.
+	// musl's debug link_map shares the public fields used here (l_addr at 0,
+	// l_next at 24). musl link-map mode always takes the reconstructModuleIDs
+	// fallback (see resolveOTelTLS).
 	rDebugRMapOffset        uint64 = 8
 	linkMapLAddrOffset      uint64 = 0
 	linkMapLNextOffset      uint64 = 24
@@ -151,13 +148,14 @@ type otelMappedELF struct {
 	// otelTLSSyms holds STT_TLS symbols named otelTLSSymbolName, if any.
 	otelTLSSyms []otelTLSSymbol
 
-	// The following fields are only populated for the main executable.
 	isMainExe    bool
 	interpreter  string
 	dtDebugVaddr uint64
 	hasDTDebug   bool
-	mainTLS      bool // static musl local .symtab marker
-	builtinTLS   bool // static musl local .symtab marker
+
+	// The following fields are only populated for the main executable.
+	mainTLS    bool // static musl local .symtab marker
+	builtinTLS bool // static musl local .symtab marker
 
 	// threadDB is populated for glibc objects exposing thread_db descriptors.
 	// Newer glibc exposes them from libc.so.6 .dynsym as GLIBC_PRIVATE symbols;
@@ -274,10 +272,9 @@ func resolveOTelTLS(pid uint32, tracerLanguage string) (otelTLSResolution, error
 	// glibc reaches here only when its thread_db descriptors are missing, but
 	// musl ALWAYS reaches here (no thread_db). This reconstruction can diverge
 	// from the real module ID when TLS modules are assigned non-sequentially
-	// (e.g. after dlclose reuse), and the musl link-map walk it depends on is
-	// not covered by tests. See the loader-offset constants above.
+	// (e.g. after dlclose reuse). See the loader-offset constants above.
 	res.reconstructModuleIDs = 1
-	moduleSet, tlsModuleCount, err := buildOTelTLSModuleSet(modules, candidate)
+	moduleSet, tlsModuleCount, err := buildOTelTLSModuleSet(modules, candidate, loaderKind)
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
@@ -438,9 +435,9 @@ func (p *otelTargetProcess) loadMappedELFs() ([]otelMappedELF, error) {
 			tlsMemsz:  tlsMemsz,
 			isMainExe: path == p.exePath,
 		}
+		module.interpreter = elfInterpreter(elfFile)
+		module.dtDebugVaddr, module.hasDTDebug = elfDTDebugValueVaddr(elfFile)
 		if module.isMainExe {
-			module.interpreter = elfInterpreter(elfFile)
-			module.dtDebugVaddr, module.hasDTDebug = elfDTDebugValueVaddr(elfFile)
 			_, module.mainTLS = symbolValueInSymtab(elfFile, "main_tls")
 			_, module.builtinTLS = symbolValueInSymtab(elfFile, "builtin_tls")
 		}
@@ -466,7 +463,7 @@ func (p *otelTargetProcess) detectLoaderKind(modules []otelMappedELF) otelLoader
 	// A mapped musl loader is conclusive on its own. Scan the maps order
 	// directly so detection does not depend on the loader ELF parsing cleanly.
 	for _, path := range p.mapsOrder {
-		if strings.Contains(path, "/ld-musl-") {
+		if isMuslLoaderPath(path) {
 			return otelLoaderMusl
 		}
 	}
@@ -476,7 +473,7 @@ func (p *otelTargetProcess) detectLoaderKind(modules []otelMappedELF) otelLoader
 		if !module.isMainExe {
 			continue
 		}
-		if strings.Contains(module.interpreter, "/ld-musl-") {
+		if isMuslLoaderPath(module.interpreter) {
 			return otelLoaderMusl
 		}
 		if module.mainTLS && module.builtinTLS {
@@ -491,6 +488,9 @@ func (p *otelTargetProcess) hasDynamicLoader(modules []otelMappedELF) bool {
 		return true
 	}
 	for _, module := range modules {
+		if isMuslLoaderPath(module.path) {
+			return true
+		}
 		if module.isMainExe {
 			return module.interpreter != ""
 		}
@@ -522,13 +522,22 @@ func findOTelTLSCandidate(modules []otelMappedELF) (otelTLSCandidate, bool) {
 
 func dtDebugValueAddr(modules []otelMappedELF) (uint64, error) {
 	for _, module := range modules {
-		if !module.isMainExe {
-			continue
+		if module.isMainExe {
+			if !module.hasDTDebug {
+				break
+			}
+			return module.loadBias + module.dtDebugVaddr, nil
 		}
-		if !module.hasDTDebug {
+	}
+	for _, module := range modules {
+		if module.hasDTDebug {
+			return module.loadBias + module.dtDebugVaddr, nil
+		}
+	}
+	for _, module := range modules {
+		if module.isMainExe {
 			return 0, fmt.Errorf("DT_DEBUG entry not found in main executable %q", module.path)
 		}
-		return module.loadBias + module.dtDebugVaddr, nil
 	}
 	return 0, fmt.Errorf("main executable not found among mapped readable ELF objects")
 }
@@ -606,11 +615,28 @@ func defaultOTelDTVLayout(kind otelLoaderKind) otelDTVLayout {
 	}
 }
 
-func buildOTelTLSModuleSet(modules []otelMappedELF, candidate otelTLSCandidate) (otelTLSModuleSet, uint32, error) {
+func otelTLSModuleContributesToDTV(module otelMappedELF, loaderKind otelLoaderKind) bool {
+	if !module.hasTLS {
+		return false
+	}
+	if loaderKind == otelLoaderMusl && isMuslLoaderPath(module.path) {
+		// musl's loader/libc has bootstrap PT_TLS, but dynlink.c assigns
+		// tls_id only to the app and loaded TLS DSOs. DTV slots are indexed by
+		// tls_id, so the loader must not shift reconstructed module IDs.
+		return false
+	}
+	return true
+}
+
+func isMuslLoaderPath(path string) bool {
+	return strings.Contains(path, "/ld-musl-")
+}
+
+func buildOTelTLSModuleSet(modules []otelMappedELF, candidate otelTLSCandidate, loaderKind otelLoaderKind) (otelTLSModuleSet, uint32, error) {
 	var tlsModuleCount uint32
 	targetPresent := false
 	for _, module := range modules {
-		if !module.hasTLS {
+		if !otelTLSModuleContributesToDTV(module, loaderKind) {
 			continue
 		}
 		if tlsModuleCount == otelTLSMaxModules {
@@ -628,11 +654,11 @@ func buildOTelTLSModuleSet(modules []otelMappedELF, candidate otelTLSCandidate) 
 	for seed := uint64(0); seed < otelTLSMaxSeedSearch; seed++ {
 		set := otelTLSModuleSet{seed: seed}
 		for _, module := range modules {
-			if module.hasTLS {
+			if otelTLSModuleContributesToDTV(module, loaderKind) {
 				set.set(otelTLSHashSlot(module.loadBias, seed))
 			}
 		}
-		if set.rejectsNonTLSModules(modules) {
+		if set.rejectsNonTLSModules(modules, loaderKind) {
 			return set, tlsModuleCount, nil
 		}
 	}
@@ -661,9 +687,9 @@ func (s otelTLSModuleSet) test(slot uint32) bool {
 	return (s.bits[slot>>6] & (uint64(1) << (slot & 63))) != 0
 }
 
-func (s otelTLSModuleSet) rejectsNonTLSModules(modules []otelMappedELF) bool {
+func (s otelTLSModuleSet) rejectsNonTLSModules(modules []otelMappedELF, loaderKind otelLoaderKind) bool {
 	for _, module := range modules {
-		if !module.hasTLS && s.test(otelTLSHashSlot(module.loadBias, s.seed)) {
+		if !otelTLSModuleContributesToDTV(module, loaderKind) && s.test(otelTLSHashSlot(module.loadBias, s.seed)) {
 			return false
 		}
 	}

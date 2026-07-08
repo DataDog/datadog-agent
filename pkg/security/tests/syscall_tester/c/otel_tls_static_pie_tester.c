@@ -61,6 +61,19 @@ static void *thread_otel_open(void *data) {
     return NULL;
 }
 
+static int open_test_path(const char *path, int unlink_after) {
+    int fd = open(path, O_CREAT, 0777);
+    if (fd < 0) {
+        perror("open");
+        return -1;
+    }
+    close(fd);
+    if (unlink_after) {
+        unlink(path);
+    }
+    return 0;
+}
+
 int otel_span_open(int argc, char **argv) {
     if (argc < 4) {
         fprintf(stderr, "Usage: otel-span-open <trace_id> <span_id> <file_path>\n");
@@ -78,6 +91,40 @@ int otel_span_open(int argc, char **argv) {
     if (opts.memfd >= 0) {
         close(opts.memfd);
     }
+    return EXIT_SUCCESS;
+}
+
+static int wait_for_file(const char *path) {
+    for (int i = 0; i < 1000; i++) {
+        if (access(path, F_OK) == 0) {
+            return 0;
+        }
+        usleep(10000);
+    }
+    fprintf(stderr, "timed out waiting for %s\n", path);
+    return -1;
+}
+
+int otel_span_open_wait(int argc, char **argv) {
+    if (argc < 6) {
+        fprintf(stderr, "Usage: otel-span-open-wait <trace_id> <span_id> <ready_path> <continue_path> <file_path>\n");
+        return EXIT_FAILURE;
+    }
+
+    int memfd = -1;
+    struct otel_record_with_attrs record;
+    if (prepare_otel_context(&record, argv, &memfd) < 0) {
+        return EXIT_FAILURE;
+    }
+
+    if (open_test_path(argv[3], 0) < 0 || wait_for_file(argv[4]) < 0 || open_test_path(argv[5], 1) < 0) {
+        otel_thread_ctx_v1 = NULL;
+        close(memfd);
+        return EXIT_FAILURE;
+    }
+
+    otel_thread_ctx_v1 = NULL;
+    close(memfd);
     return EXIT_SUCCESS;
 }
 
@@ -164,6 +211,9 @@ int main(int argc, char **argv) {
 
     if (strcmp(cmd, "otel-span-open") == 0) {
         return otel_span_open(sub_argc, sub_argv);
+    }
+    if (strcmp(cmd, "otel-span-open-wait") == 0) {
+        return otel_span_open_wait(sub_argc, sub_argv);
     }
     if (strcmp(cmd, "otel-span-exec") == 0) {
         return otel_span_exec(sub_argc, sub_argv);

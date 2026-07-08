@@ -15,6 +15,10 @@
 
 typedef int (*otel_command_fn)(int argc, char **argv);
 
+#ifndef OTEL_TLS_FIXTURE_SO
+#define OTEL_TLS_FIXTURE_SO "libotel_tls_fixture.so"
+#endif
+
 struct command_entry {
     const char *name;
     const char *symbol;
@@ -22,6 +26,7 @@ struct command_entry {
 
 static const struct command_entry commands[] = {
     {"otel-span-open", "otel_span_open"},
+    {"otel-span-open-wait", "otel_span_open_wait"},
     {"otel-span-exec", "otel_span_exec"},
     {"otel-span-fork-exec", "otel_span_fork_exec"},
 };
@@ -51,7 +56,7 @@ static int fixture_path(char *path, size_t path_len) {
     }
     *slash = '\0';
 
-    int written = snprintf(path, path_len, "%s/libotel_tls_fixture.so", exe_path);
+    int written = snprintf(path, path_len, "%s/%s", exe_path, OTEL_TLS_FIXTURE_SO);
     if (written < 0 || (size_t)written >= path_len) {
         fprintf(stderr, "fixture path is too long\n");
         return -1;
