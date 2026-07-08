@@ -163,9 +163,18 @@ unset _mem_kb
 # Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
 # build volume so that large packages like datadogV2 don't exhaust /tmp.
 GOCACHE=/opt/dd-build/gocache
-mkdir -p "$GOCACHE"
+# Redirect the general temp dir off /tmp as well, for two reasons:
+#   1. /tmp is small (12 GB); pip wheel builds, cargo scratch dirs, and Go
+#      linker inputs can exhaust it.
+#   2. A stray file left in /tmp by another user can poison cargo-based wheel
+#      builds (maturin, cryptography): cargo walks up the directory tree from
+#      its build dir looking for a workspace root and will pick up a stray
+#      /tmp/Cargo.toml, failing with "failed to find a workspace root".
+#      Building under a private temp dir isolates us from the rest of /tmp.
+TMPDIR=/opt/dd-build/buildtmp
+mkdir -p "$GOCACHE" "$TMPDIR"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE TMPDIR
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 
