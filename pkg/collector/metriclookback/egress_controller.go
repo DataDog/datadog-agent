@@ -72,10 +72,8 @@ type EgressControllerOptions struct {
 	// changes, including the first observed state.
 	MonitorStateTransitionLogger MonitorStateTransitionLogger
 
-	// Now and Sleep are injectable for deterministic tests. They default to
-	// time.Now and time.Sleep.
-	Now   func() time.Time
-	Sleep func(time.Duration)
+	// Now is injectable for deterministic tests. It defaults to time.Now.
+	Now func() time.Time
 }
 
 // EgressController applies monitor decisions to an EgressPolicy and forwards the
@@ -87,7 +85,6 @@ type EgressController struct {
 	policy           *EgressPolicy
 	egressInterval   time.Duration
 	now              func() time.Time
-	sleep            func(time.Duration)
 	dryRun           bool
 	logTransition    MonitorStateTransitionLogger
 
@@ -97,9 +94,13 @@ type EgressController struct {
 	hasMonitorState  bool
 	lastMonitorState monitor.State
 
+	asyncRunMu sync.Mutex
+	asyncRunWG sync.WaitGroup
+
 	startOnce sync.Once
 	stopOnce  sync.Once
 	started   atomic.Bool
+	stopped   atomic.Bool
 	stopCh    chan struct{}
 	doneCh    chan struct{}
 }
@@ -116,10 +117,6 @@ func NewEgressController(retention *Retention, metricSerializer serializer.Metri
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
-	if opts.Sleep == nil {
-		opts.Sleep = time.Sleep
-	}
-
 	policy := NewEgressPolicy(EgressPolicyOptions{
 		PreWindow:                opts.PreWindow,
 		PostWindow:               opts.PostWindow,
@@ -134,7 +131,6 @@ func NewEgressController(retention *Retention, metricSerializer serializer.Metri
 		policy:           policy,
 		egressInterval:   opts.EgressInterval,
 		now:              opts.Now,
-		sleep:            opts.Sleep,
 		dryRun:           opts.DryRun,
 		logTransition:    opts.MonitorStateTransitionLogger,
 		stopCh:           make(chan struct{}),
@@ -148,24 +144,28 @@ func (c *EgressController) Start() {
 		return
 	}
 	c.startOnce.Do(func() {
+		if c.stopped.Load() {
+			return
+		}
 		c.started.Store(true)
 		go c.loop()
 	})
 }
 
-// Stop asks the background egress loop to stop. The loop may finish its current
-// sleep before observing the stop request because Sleep is injectable and may not
-// be interruptible.
+// Stop asks the background egress loop to stop and waits for it to exit.
 func (c *EgressController) Stop() {
 	if c == nil {
 		return
 	}
-	if !c.started.Load() {
-		return
-	}
 	c.stopOnce.Do(func() {
-		close(c.stopCh)
-		<-c.doneCh
+		c.asyncRunMu.Lock()
+		c.stopped.Store(true)
+		c.asyncRunMu.Unlock()
+		if c.started.Load() {
+			close(c.stopCh)
+			<-c.doneCh
+		}
+		c.asyncRunWG.Wait()
 	})
 }
 
@@ -178,8 +178,36 @@ func (c *EgressController) loop() {
 		default:
 		}
 		c.RunOnce()
-		c.sleep(c.egressInterval)
+
+		timer := time.NewTimer(c.egressInterval)
+		select {
+		case <-c.stopCh:
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return
+		case <-timer.C:
+		}
 	}
+}
+
+func (c *EgressController) runOnceAsync() {
+	c.asyncRunMu.Lock()
+	defer c.asyncRunMu.Unlock()
+	if c.stopped.Load() {
+		return
+	}
+	c.asyncRunWG.Add(1)
+	go func() {
+		defer c.asyncRunWG.Done()
+		if c.stopped.Load() {
+			return
+		}
+		c.RunOnce()
+	}()
 }
 
 // OnDecision applies a monitor decision and asynchronously wakes egress so the
@@ -208,7 +236,7 @@ func (c *EgressController) OnDecision(decision monitor.Decision) {
 	if logTransition && c.logTransition != nil {
 		c.logTransition(transition)
 	}
-	go c.RunOnce()
+	c.runOnceAsync()
 }
 
 // Mode returns the current egress mode.

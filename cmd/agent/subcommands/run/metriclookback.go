@@ -70,6 +70,7 @@ func newMetricLookbackDogStatsDFactory(cfg config.Component, logger log.Componen
 			MetricNames:        metricNames,
 			Monitor:            watcher,
 			BucketMaterializer: materializer,
+			EgressController:   egressController,
 		})
 		if adapter == nil {
 			logger.Warn("metric_lookback is enabled but no DogStatsD metric names or monitor metric are configured; lookback inactive")

@@ -76,6 +76,7 @@ func testDemuxSamples(_ *testing.T) metrics.MetricSampleBatch {
 // timesampler of the statsd stack.
 type recordingDogStatsDNoAggLookback struct {
 	calls  int
+	stops  int
 	series []*metrics.Serie
 }
 
@@ -91,6 +92,10 @@ func (r *recordingDogStatsDNoAggLookback) AppendDogStatsDNoAggSerie(serie *metri
 	copySerie := *serie
 	copySerie.Points = append([]metrics.Point(nil), serie.Points...)
 	r.series = append(r.series, &copySerie)
+}
+
+func (r *recordingDogStatsDNoAggLookback) Stop() {
+	r.stops++
 }
 
 func TestDemuxNoAggOptionDisabled(t *testing.T) {
@@ -141,6 +146,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	require.Len(demux.statsd.workers[0].samplesChan, 0)
 	require.Len(mockSerializer.series, 3)
 	require.Equal(3, lookback.calls)
+	require.Equal(1, lookback.stops)
 	require.Len(lookback.series, 3)
 
 	for i := 0; i < len(batch); i++ {

@@ -53,6 +53,13 @@ type DogStatsDLookback interface {
 	AppendDogStatsDNoAggSerie(*metrics.Serie)
 }
 
+// DogStatsDLookbackStopper is optionally implemented by DogStatsDLookback
+// adapters that own background resources. The demultiplexer calls Stop during
+// shutdown when this interface is present.
+type DogStatsDLookbackStopper interface {
+	Stop()
+}
+
 // DogStatsDLookbackFactory builds a DogStatsD lookback adapter after the
 // demultiplexer has constructed its serializer. This keeps dump-trigger wiring
 // out of pkg/aggregator while still allowing concrete lookback code to close

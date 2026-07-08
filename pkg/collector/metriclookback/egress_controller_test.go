@@ -131,6 +131,27 @@ func TestEgressControllerAppliesMonitorDecisions(t *testing.T) {
 	}, time.Second, time.Millisecond)
 }
 
+func TestEgressControllerStopInterruptsEgressInterval(t *testing.T) {
+	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
+	serializer := serializermocks.NewMetricSerializer(t)
+	controller := NewEgressController(retention, serializer, EgressControllerOptions{
+		EgressInterval: time.Hour,
+	})
+	controller.Start()
+
+	stopped := make(chan struct{})
+	go func() {
+		controller.Stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		require.FailNow(t, "egress controller Stop waited for the egress interval")
+	}
+}
+
 func TestEgressControllerDryRunStartsForwardingAndIgnoresMonitorDecisions(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	serializer := serializermocks.NewMetricSerializer(t)

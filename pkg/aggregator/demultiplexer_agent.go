@@ -492,6 +492,9 @@ func (d *AgentDemultiplexer) Stop() {
 		d.aggregator.Stop()
 	}
 	d.aggregator = nil
+	if stopper, ok := d.options.DogStatsDLookback.(DogStatsDLookbackStopper); ok {
+		stopper.Stop()
+	}
 
 	// forwarders
 

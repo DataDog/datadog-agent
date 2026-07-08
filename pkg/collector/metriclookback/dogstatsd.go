@@ -28,6 +28,10 @@ type DogStatsDOptions struct {
 	// BucketMaterializer receives selected normal DogStatsD samples. It is nil
 	// when only no-aggregation final series should be retained.
 	BucketMaterializer *DogStatsDBucketMaterializer
+
+	// EgressController is stopped with the adapter when the owning demultiplexer
+	// shuts down. It is nil when monitor egress is disabled.
+	EgressController *EgressController
 }
 
 // DogStatsDAdapter admits selected DogStatsD observations into a shared
@@ -35,11 +39,12 @@ type DogStatsDOptions struct {
 // stream. Normal DogStatsD samples flow through a bucket materializer before
 // retention; no-aggregation series are already final and are retained directly.
 type DogStatsDAdapter struct {
-	retention    *Retention
-	materializer *DogStatsDBucketMaterializer
-	single       string
-	names        map[string]struct{}
-	monitor      *monitor.Watcher
+	retention        *Retention
+	materializer     *DogStatsDBucketMaterializer
+	single           string
+	names            map[string]struct{}
+	monitor          *monitor.Watcher
+	egressController *EgressController
 }
 
 // NewDogStatsDAdapter creates an exact-name DogStatsD lookback adapter. It
@@ -73,7 +78,7 @@ func NewDogStatsDAdapter(retention *Retention, opts DogStatsDOptions) *DogStatsD
 		return nil
 	}
 
-	adapter := &DogStatsDAdapter{retention: retention, materializer: opts.BucketMaterializer, monitor: opts.Monitor}
+	adapter := &DogStatsDAdapter{retention: retention, materializer: opts.BucketMaterializer, monitor: opts.Monitor, egressController: opts.EgressController}
 	if len(names) == 1 {
 		adapter.single = names[0]
 		return adapter
@@ -110,6 +115,14 @@ func (a *DogStatsDAdapter) FlushDogStatsDBuckets(timestamp float64, forceFlushAl
 		return
 	}
 	a.materializer.Flush(timestamp)
+}
+
+// Stop stops background resources owned by the adapter.
+func (a *DogStatsDAdapter) Stop() {
+	if a == nil || a.egressController == nil {
+		return
+	}
+	a.egressController.Stop()
 }
 
 // AppendDogStatsDNoAggSerie admits selected no-aggregation series after the
