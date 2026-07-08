@@ -14,6 +14,7 @@ use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeServer, ServerOptions};
 use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
+use windows_sys::Win32::System::Pipes::GetNamedPipeClientProcessId;
 
 const DEFAULT_PIPE_PATH: &str = r"\\.\pipe\datadog-procmgrd";
 const DEFAULT_PIPE_INSTANCES: usize = 4;
@@ -43,13 +44,26 @@ pub fn cleanup(_path: &Path) {}
 // NamedPipeIo — wrapper for tonic's `Connected` trait
 // ---------------------------------------------------------------------------
 
+/// Peer metadata attached to each gRPC request served over a named pipe.
+#[derive(Clone, Copy, Debug)]
+pub struct PipeConnectInfo {
+    pub client_pid: u32,
+}
+
 /// Newtype around [`NamedPipeServer`] that implements
 /// [`tonic::transport::server::Connected`] so tonic can serve over it.
-struct NamedPipeIo(NamedPipeServer);
+struct NamedPipeIo {
+    server: NamedPipeServer,
+    client_pid: u32,
+}
 
 impl tonic::transport::server::Connected for NamedPipeIo {
-    type ConnectInfo = ();
-    fn connect_info(&self) -> Self::ConnectInfo {}
+    type ConnectInfo = PipeConnectInfo;
+    fn connect_info(&self) -> Self::ConnectInfo {
+        PipeConnectInfo {
+            client_pid: self.client_pid,
+        }
+    }
 }
 
 impl AsyncRead for NamedPipeIo {
@@ -58,7 +72,7 @@ impl AsyncRead for NamedPipeIo {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_read(cx, buf)
+        Pin::new(&mut self.server).poll_read(cx, buf)
     }
 }
 
@@ -68,16 +82,31 @@ impl AsyncWrite for NamedPipeIo {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.0).poll_write(cx, buf)
+        Pin::new(&mut self.server).poll_write(cx, buf)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_flush(cx)
+        Pin::new(&mut self.server).poll_flush(cx)
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_shutdown(cx)
+        Pin::new(&mut self.server).poll_shutdown(cx)
     }
+}
+
+fn named_pipe_client_pid(server: &NamedPipeServer) -> u32 {
+    use std::os::windows::io::AsRawHandle;
+    let mut pid = 0u32;
+    let handle = server.as_raw_handle();
+    let ok = unsafe { GetNamedPipeClientProcessId(handle as _, &mut pid) };
+    if ok == 0 {
+        log::warn!(
+            "GetNamedPipeClientProcessId failed: {}",
+            std::io::Error::last_os_error()
+        );
+        return 0;
+    }
+    pid
 }
 
 // ---------------------------------------------------------------------------
@@ -152,11 +181,19 @@ async fn accept_loop(
         }
 
         let connected = server;
+        let client_pid = named_pipe_client_pid(&connected);
         server = ServerOptions::new()
             .create(&pipe_name)
             .context("failed to create next named pipe instance")?;
 
-        if tx.send(Ok(NamedPipeIo(connected))).await.is_err() {
+        if tx
+            .send(Ok(NamedPipeIo {
+                server: connected,
+                client_pid,
+            }))
+            .await
+            .is_err()
+        {
             break;
         }
     }

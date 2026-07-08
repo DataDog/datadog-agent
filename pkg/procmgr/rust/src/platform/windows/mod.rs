@@ -3,6 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod run_privileged;
+mod wide;
+
+pub(crate) use run_privileged::run_privileged_command;
+
 use anyhow::Result;
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;

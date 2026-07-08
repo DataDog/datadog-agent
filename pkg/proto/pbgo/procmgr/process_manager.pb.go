@@ -1317,6 +1317,126 @@ func (x *GetConfigResponse) GetRuntimeProcesses() uint32 {
 	return 0
 }
 
+type RunPrivilegedCommandRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Command       string                 `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
+	Args          []string               `protobuf:"bytes,2,rep,name=args,proto3" json:"args,omitempty"`
+	Env           map[string]string      `protobuf:"bytes,3,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // reserve for later: task_id, approval_token
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunPrivilegedCommandRequest) Reset() {
+	*x = RunPrivilegedCommandRequest{}
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunPrivilegedCommandRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunPrivilegedCommandRequest) ProtoMessage() {}
+
+func (x *RunPrivilegedCommandRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunPrivilegedCommandRequest.ProtoReflect.Descriptor instead.
+func (*RunPrivilegedCommandRequest) Descriptor() ([]byte, []int) {
+	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *RunPrivilegedCommandRequest) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+func (x *RunPrivilegedCommandRequest) GetArgs() []string {
+	if x != nil {
+		return x.Args
+	}
+	return nil
+}
+
+func (x *RunPrivilegedCommandRequest) GetEnv() map[string]string {
+	if x != nil {
+		return x.Env
+	}
+	return nil
+}
+
+type RunPrivilegedCommandResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExitCode      int32                  `protobuf:"varint,1,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	Stdout        string                 `protobuf:"bytes,2,opt,name=stdout,proto3" json:"stdout,omitempty"`
+	Stderr        string                 `protobuf:"bytes,3,opt,name=stderr,proto3" json:"stderr,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunPrivilegedCommandResponse) Reset() {
+	*x = RunPrivilegedCommandResponse{}
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunPrivilegedCommandResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunPrivilegedCommandResponse) ProtoMessage() {}
+
+func (x *RunPrivilegedCommandResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_procmgr_process_manager_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunPrivilegedCommandResponse.ProtoReflect.Descriptor instead.
+func (*RunPrivilegedCommandResponse) Descriptor() ([]byte, []int) {
+	return file_datadog_procmgr_process_manager_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *RunPrivilegedCommandResponse) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *RunPrivilegedCommandResponse) GetStdout() string {
+	if x != nil {
+		return x.Stdout
+	}
+	return ""
+}
+
+func (x *RunPrivilegedCommandResponse) GetStderr() string {
+	if x != nil {
+		return x.Stderr
+	}
+	return ""
+}
+
 var File_datadog_procmgr_process_manager_proto protoreflect.FileDescriptor
 
 const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
@@ -1434,7 +1554,18 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1a\n" +
 	"\blocation\x18\x02 \x01(\tR\blocation\x12)\n" +
 	"\x10loaded_processes\x18\x03 \x01(\rR\x0floadedProcesses\x12+\n" +
-	"\x11runtime_processes\x18\x04 \x01(\rR\x10runtimeProcesses*\x83\x01\n" +
+	"\x11runtime_processes\x18\x04 \x01(\rR\x10runtimeProcesses\"\xcc\x01\n" +
+	"\x1bRunPrivilegedCommandRequest\x12\x18\n" +
+	"\acommand\x18\x01 \x01(\tR\acommand\x12\x12\n" +
+	"\x04args\x18\x02 \x03(\tR\x04args\x12G\n" +
+	"\x03env\x18\x03 \x03(\v25.datadog.procmgr.RunPrivilegedCommandRequest.EnvEntryR\x03env\x1a6\n" +
+	"\bEnvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"k\n" +
+	"\x1cRunPrivilegedCommandResponse\x12\x1b\n" +
+	"\texit_code\x18\x01 \x01(\x05R\bexitCode\x12\x16\n" +
+	"\x06stdout\x18\x02 \x01(\tR\x06stdout\x12\x16\n" +
+	"\x06stderr\x18\x03 \x01(\tR\x06stderr*\x83\x01\n" +
 	"\fProcessState\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\v\n" +
 	"\aCREATED\x10\x01\x12\f\n" +
@@ -1446,7 +1577,7 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\n" +
 	"\x06EXITED\x10\a\x12\n" +
 	"\n" +
-	"\x06FAILED\x10\b2\x83\x05\n" +
+	"\x06FAILED\x10\b2\xf8\x05\n" +
 	"\x0eProcessManager\x12C\n" +
 	"\x04List\x12\x1c.datadog.procmgr.ListRequest\x1a\x1d.datadog.procmgr.ListResponse\x12O\n" +
 	"\bDescribe\x12 .datadog.procmgr.DescribeRequest\x1a!.datadog.procmgr.DescribeResponse\x12R\n" +
@@ -1455,7 +1586,8 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\x05Start\x12\x1d.datadog.procmgr.StartRequest\x1a\x1e.datadog.procmgr.StartResponse\x12C\n" +
 	"\x04Stop\x12\x1c.datadog.procmgr.StopRequest\x1a\x1d.datadog.procmgr.StopResponse\x12[\n" +
 	"\fReloadConfig\x12$.datadog.procmgr.ReloadConfigRequest\x1a%.datadog.procmgr.ReloadConfigResponse\x12R\n" +
-	"\tGetConfig\x12!.datadog.procmgr.GetConfigRequest\x1a\".datadog.procmgr.GetConfigResponseB9Z7github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgrb\x06proto3"
+	"\tGetConfig\x12!.datadog.procmgr.GetConfigRequest\x1a\".datadog.procmgr.GetConfigResponse\x12s\n" +
+	"\x14RunPrivilegedCommand\x12,.datadog.procmgr.RunPrivilegedCommandRequest\x1a-.datadog.procmgr.RunPrivilegedCommandResponseB9Z7github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgrb\x06proto3"
 
 var (
 	file_datadog_procmgr_process_manager_proto_rawDescOnce sync.Once
@@ -1470,60 +1602,66 @@ func file_datadog_procmgr_process_manager_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_procmgr_process_manager_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_datadog_procmgr_process_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_datadog_procmgr_process_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_datadog_procmgr_process_manager_proto_goTypes = []any{
-	(ProcessState)(0),            // 0: datadog.procmgr.ProcessState
-	(*ListRequest)(nil),          // 1: datadog.procmgr.ListRequest
-	(*Process)(nil),              // 2: datadog.procmgr.Process
-	(*ListResponse)(nil),         // 3: datadog.procmgr.ListResponse
-	(*DescribeRequest)(nil),      // 4: datadog.procmgr.DescribeRequest
-	(*ProcessDetail)(nil),        // 5: datadog.procmgr.ProcessDetail
-	(*DescribeResponse)(nil),     // 6: datadog.procmgr.DescribeResponse
-	(*CreateRequest)(nil),        // 7: datadog.procmgr.CreateRequest
-	(*CreateResponse)(nil),       // 8: datadog.procmgr.CreateResponse
-	(*StartRequest)(nil),         // 9: datadog.procmgr.StartRequest
-	(*StartResponse)(nil),        // 10: datadog.procmgr.StartResponse
-	(*StopRequest)(nil),          // 11: datadog.procmgr.StopRequest
-	(*StopResponse)(nil),         // 12: datadog.procmgr.StopResponse
-	(*ReloadConfigRequest)(nil),  // 13: datadog.procmgr.ReloadConfigRequest
-	(*ReloadConfigResponse)(nil), // 14: datadog.procmgr.ReloadConfigResponse
-	(*GetStatusRequest)(nil),     // 15: datadog.procmgr.GetStatusRequest
-	(*GetStatusResponse)(nil),    // 16: datadog.procmgr.GetStatusResponse
-	(*GetConfigRequest)(nil),     // 17: datadog.procmgr.GetConfigRequest
-	(*GetConfigResponse)(nil),    // 18: datadog.procmgr.GetConfigResponse
-	nil,                          // 19: datadog.procmgr.ProcessDetail.EnvEntry
-	nil,                          // 20: datadog.procmgr.CreateRequest.EnvEntry
+	(ProcessState)(0),                    // 0: datadog.procmgr.ProcessState
+	(*ListRequest)(nil),                  // 1: datadog.procmgr.ListRequest
+	(*Process)(nil),                      // 2: datadog.procmgr.Process
+	(*ListResponse)(nil),                 // 3: datadog.procmgr.ListResponse
+	(*DescribeRequest)(nil),              // 4: datadog.procmgr.DescribeRequest
+	(*ProcessDetail)(nil),                // 5: datadog.procmgr.ProcessDetail
+	(*DescribeResponse)(nil),             // 6: datadog.procmgr.DescribeResponse
+	(*CreateRequest)(nil),                // 7: datadog.procmgr.CreateRequest
+	(*CreateResponse)(nil),               // 8: datadog.procmgr.CreateResponse
+	(*StartRequest)(nil),                 // 9: datadog.procmgr.StartRequest
+	(*StartResponse)(nil),                // 10: datadog.procmgr.StartResponse
+	(*StopRequest)(nil),                  // 11: datadog.procmgr.StopRequest
+	(*StopResponse)(nil),                 // 12: datadog.procmgr.StopResponse
+	(*ReloadConfigRequest)(nil),          // 13: datadog.procmgr.ReloadConfigRequest
+	(*ReloadConfigResponse)(nil),         // 14: datadog.procmgr.ReloadConfigResponse
+	(*GetStatusRequest)(nil),             // 15: datadog.procmgr.GetStatusRequest
+	(*GetStatusResponse)(nil),            // 16: datadog.procmgr.GetStatusResponse
+	(*GetConfigRequest)(nil),             // 17: datadog.procmgr.GetConfigRequest
+	(*GetConfigResponse)(nil),            // 18: datadog.procmgr.GetConfigResponse
+	(*RunPrivilegedCommandRequest)(nil),  // 19: datadog.procmgr.RunPrivilegedCommandRequest
+	(*RunPrivilegedCommandResponse)(nil), // 20: datadog.procmgr.RunPrivilegedCommandResponse
+	nil,                                  // 21: datadog.procmgr.ProcessDetail.EnvEntry
+	nil,                                  // 22: datadog.procmgr.CreateRequest.EnvEntry
+	nil,                                  // 23: datadog.procmgr.RunPrivilegedCommandRequest.EnvEntry
 }
 var file_datadog_procmgr_process_manager_proto_depIdxs = []int32{
 	0,  // 0: datadog.procmgr.Process.state:type_name -> datadog.procmgr.ProcessState
 	2,  // 1: datadog.procmgr.ListResponse.processes:type_name -> datadog.procmgr.Process
 	0,  // 2: datadog.procmgr.ProcessDetail.state:type_name -> datadog.procmgr.ProcessState
-	19, // 3: datadog.procmgr.ProcessDetail.env:type_name -> datadog.procmgr.ProcessDetail.EnvEntry
+	21, // 3: datadog.procmgr.ProcessDetail.env:type_name -> datadog.procmgr.ProcessDetail.EnvEntry
 	5,  // 4: datadog.procmgr.DescribeResponse.detail:type_name -> datadog.procmgr.ProcessDetail
-	20, // 5: datadog.procmgr.CreateRequest.env:type_name -> datadog.procmgr.CreateRequest.EnvEntry
+	22, // 5: datadog.procmgr.CreateRequest.env:type_name -> datadog.procmgr.CreateRequest.EnvEntry
 	0,  // 6: datadog.procmgr.StartResponse.state:type_name -> datadog.procmgr.ProcessState
 	0,  // 7: datadog.procmgr.StopResponse.state:type_name -> datadog.procmgr.ProcessState
-	1,  // 8: datadog.procmgr.ProcessManager.List:input_type -> datadog.procmgr.ListRequest
-	4,  // 9: datadog.procmgr.ProcessManager.Describe:input_type -> datadog.procmgr.DescribeRequest
-	15, // 10: datadog.procmgr.ProcessManager.GetStatus:input_type -> datadog.procmgr.GetStatusRequest
-	7,  // 11: datadog.procmgr.ProcessManager.Create:input_type -> datadog.procmgr.CreateRequest
-	9,  // 12: datadog.procmgr.ProcessManager.Start:input_type -> datadog.procmgr.StartRequest
-	11, // 13: datadog.procmgr.ProcessManager.Stop:input_type -> datadog.procmgr.StopRequest
-	13, // 14: datadog.procmgr.ProcessManager.ReloadConfig:input_type -> datadog.procmgr.ReloadConfigRequest
-	17, // 15: datadog.procmgr.ProcessManager.GetConfig:input_type -> datadog.procmgr.GetConfigRequest
-	3,  // 16: datadog.procmgr.ProcessManager.List:output_type -> datadog.procmgr.ListResponse
-	6,  // 17: datadog.procmgr.ProcessManager.Describe:output_type -> datadog.procmgr.DescribeResponse
-	16, // 18: datadog.procmgr.ProcessManager.GetStatus:output_type -> datadog.procmgr.GetStatusResponse
-	8,  // 19: datadog.procmgr.ProcessManager.Create:output_type -> datadog.procmgr.CreateResponse
-	10, // 20: datadog.procmgr.ProcessManager.Start:output_type -> datadog.procmgr.StartResponse
-	12, // 21: datadog.procmgr.ProcessManager.Stop:output_type -> datadog.procmgr.StopResponse
-	14, // 22: datadog.procmgr.ProcessManager.ReloadConfig:output_type -> datadog.procmgr.ReloadConfigResponse
-	18, // 23: datadog.procmgr.ProcessManager.GetConfig:output_type -> datadog.procmgr.GetConfigResponse
-	16, // [16:24] is the sub-list for method output_type
-	8,  // [8:16] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	23, // 8: datadog.procmgr.RunPrivilegedCommandRequest.env:type_name -> datadog.procmgr.RunPrivilegedCommandRequest.EnvEntry
+	1,  // 9: datadog.procmgr.ProcessManager.List:input_type -> datadog.procmgr.ListRequest
+	4,  // 10: datadog.procmgr.ProcessManager.Describe:input_type -> datadog.procmgr.DescribeRequest
+	15, // 11: datadog.procmgr.ProcessManager.GetStatus:input_type -> datadog.procmgr.GetStatusRequest
+	7,  // 12: datadog.procmgr.ProcessManager.Create:input_type -> datadog.procmgr.CreateRequest
+	9,  // 13: datadog.procmgr.ProcessManager.Start:input_type -> datadog.procmgr.StartRequest
+	11, // 14: datadog.procmgr.ProcessManager.Stop:input_type -> datadog.procmgr.StopRequest
+	13, // 15: datadog.procmgr.ProcessManager.ReloadConfig:input_type -> datadog.procmgr.ReloadConfigRequest
+	17, // 16: datadog.procmgr.ProcessManager.GetConfig:input_type -> datadog.procmgr.GetConfigRequest
+	19, // 17: datadog.procmgr.ProcessManager.RunPrivilegedCommand:input_type -> datadog.procmgr.RunPrivilegedCommandRequest
+	3,  // 18: datadog.procmgr.ProcessManager.List:output_type -> datadog.procmgr.ListResponse
+	6,  // 19: datadog.procmgr.ProcessManager.Describe:output_type -> datadog.procmgr.DescribeResponse
+	16, // 20: datadog.procmgr.ProcessManager.GetStatus:output_type -> datadog.procmgr.GetStatusResponse
+	8,  // 21: datadog.procmgr.ProcessManager.Create:output_type -> datadog.procmgr.CreateResponse
+	10, // 22: datadog.procmgr.ProcessManager.Start:output_type -> datadog.procmgr.StartResponse
+	12, // 23: datadog.procmgr.ProcessManager.Stop:output_type -> datadog.procmgr.StopResponse
+	14, // 24: datadog.procmgr.ProcessManager.ReloadConfig:output_type -> datadog.procmgr.ReloadConfigResponse
+	18, // 25: datadog.procmgr.ProcessManager.GetConfig:output_type -> datadog.procmgr.GetConfigResponse
+	20, // 26: datadog.procmgr.ProcessManager.RunPrivilegedCommand:output_type -> datadog.procmgr.RunPrivilegedCommandResponse
+	18, // [18:27] is the sub-list for method output_type
+	9,  // [9:18] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_datadog_procmgr_process_manager_proto_init() }
@@ -1540,7 +1678,7 @@ func file_datadog_procmgr_process_manager_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_procmgr_process_manager_proto_rawDesc), len(file_datadog_procmgr_process_manager_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   20,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

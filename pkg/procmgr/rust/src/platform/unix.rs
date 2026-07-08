@@ -64,3 +64,12 @@ pub async fn shutdown_signal() {
         _ = sigint.recv() => { log::info!("received SIGINT"); }
     }
 }
+
+/// RunPrivilegedCommand is implemented in PR 4 (setuid helper).
+pub fn run_privileged_command(
+    _command: &str,
+    _args: &[String],
+    _env: &std::collections::HashMap<String, String>,
+) -> Result<crate::privileged::PrivilegedCommandOutput> {
+    anyhow::bail!("RunPrivilegedCommand is not implemented on this platform")
+}

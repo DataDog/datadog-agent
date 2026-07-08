@@ -24,14 +24,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProcessManager_List_FullMethodName         = "/datadog.procmgr.ProcessManager/List"
-	ProcessManager_Describe_FullMethodName     = "/datadog.procmgr.ProcessManager/Describe"
-	ProcessManager_GetStatus_FullMethodName    = "/datadog.procmgr.ProcessManager/GetStatus"
-	ProcessManager_Create_FullMethodName       = "/datadog.procmgr.ProcessManager/Create"
-	ProcessManager_Start_FullMethodName        = "/datadog.procmgr.ProcessManager/Start"
-	ProcessManager_Stop_FullMethodName         = "/datadog.procmgr.ProcessManager/Stop"
-	ProcessManager_ReloadConfig_FullMethodName = "/datadog.procmgr.ProcessManager/ReloadConfig"
-	ProcessManager_GetConfig_FullMethodName    = "/datadog.procmgr.ProcessManager/GetConfig"
+	ProcessManager_List_FullMethodName                 = "/datadog.procmgr.ProcessManager/List"
+	ProcessManager_Describe_FullMethodName             = "/datadog.procmgr.ProcessManager/Describe"
+	ProcessManager_GetStatus_FullMethodName            = "/datadog.procmgr.ProcessManager/GetStatus"
+	ProcessManager_Create_FullMethodName               = "/datadog.procmgr.ProcessManager/Create"
+	ProcessManager_Start_FullMethodName                = "/datadog.procmgr.ProcessManager/Start"
+	ProcessManager_Stop_FullMethodName                 = "/datadog.procmgr.ProcessManager/Stop"
+	ProcessManager_ReloadConfig_FullMethodName         = "/datadog.procmgr.ProcessManager/ReloadConfig"
+	ProcessManager_GetConfig_FullMethodName            = "/datadog.procmgr.ProcessManager/GetConfig"
+	ProcessManager_RunPrivilegedCommand_FullMethodName = "/datadog.procmgr.ProcessManager/RunPrivilegedCommand"
 )
 
 // ProcessManagerClient is the client API for ProcessManager service.
@@ -46,6 +47,7 @@ type ProcessManagerClient interface {
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
 	ReloadConfig(ctx context.Context, in *ReloadConfigRequest, opts ...grpc.CallOption) (*ReloadConfigResponse, error)
 	GetConfig(ctx context.Context, in *GetConfigRequest, opts ...grpc.CallOption) (*GetConfigResponse, error)
+	RunPrivilegedCommand(ctx context.Context, in *RunPrivilegedCommandRequest, opts ...grpc.CallOption) (*RunPrivilegedCommandResponse, error)
 }
 
 type processManagerClient struct {
@@ -136,6 +138,16 @@ func (c *processManagerClient) GetConfig(ctx context.Context, in *GetConfigReque
 	return out, nil
 }
 
+func (c *processManagerClient) RunPrivilegedCommand(ctx context.Context, in *RunPrivilegedCommandRequest, opts ...grpc.CallOption) (*RunPrivilegedCommandResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RunPrivilegedCommandResponse)
+	err := c.cc.Invoke(ctx, ProcessManager_RunPrivilegedCommand_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProcessManagerServer is the server API for ProcessManager service.
 // All implementations must embed UnimplementedProcessManagerServer
 // for forward compatibility.
@@ -148,6 +160,7 @@ type ProcessManagerServer interface {
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
 	ReloadConfig(context.Context, *ReloadConfigRequest) (*ReloadConfigResponse, error)
 	GetConfig(context.Context, *GetConfigRequest) (*GetConfigResponse, error)
+	RunPrivilegedCommand(context.Context, *RunPrivilegedCommandRequest) (*RunPrivilegedCommandResponse, error)
 	mustEmbedUnimplementedProcessManagerServer()
 }
 
@@ -181,6 +194,9 @@ func (UnimplementedProcessManagerServer) ReloadConfig(context.Context, *ReloadCo
 }
 func (UnimplementedProcessManagerServer) GetConfig(context.Context, *GetConfigRequest) (*GetConfigResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetConfig not implemented")
+}
+func (UnimplementedProcessManagerServer) RunPrivilegedCommand(context.Context, *RunPrivilegedCommandRequest) (*RunPrivilegedCommandResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RunPrivilegedCommand not implemented")
 }
 func (UnimplementedProcessManagerServer) mustEmbedUnimplementedProcessManagerServer() {}
 func (UnimplementedProcessManagerServer) testEmbeddedByValue()                        {}
@@ -347,6 +363,24 @@ func _ProcessManager_GetConfig_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProcessManager_RunPrivilegedCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunPrivilegedCommandRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessManagerServer).RunPrivilegedCommand(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProcessManager_RunPrivilegedCommand_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessManagerServer).RunPrivilegedCommand(ctx, req.(*RunPrivilegedCommandRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProcessManager_ServiceDesc is the grpc.ServiceDesc for ProcessManager service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -385,6 +419,10 @@ var ProcessManager_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetConfig",
 			Handler:    _ProcessManager_GetConfig_Handler,
+		},
+		{
+			MethodName: "RunPrivilegedCommand",
+			Handler:    _ProcessManager_RunPrivilegedCommand_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
