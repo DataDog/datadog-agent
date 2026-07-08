@@ -1,0 +1,67 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules:windows_resources.bzl", "win_resource")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+
+# gazelle:exclude version.h
+
+win_resource(
+    name = "rsrc",
+    src = "systray.rc",
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//cmd/systray:__subpackages__"],
+    deps = [
+        "ddtray.exe.manifest",
+        "version.h",
+        "//tools/windows/DatadogAgentInstaller/WixSetup/assets:project.ico",
+    ],
+)
+
+go_library(
+    name = "systray_lib",
+    srcs = [
+        "main_windows.go",
+        ":rsrc",  # keep
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/systray",
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//cmd/internal/runcmd",
+            "//cmd/systray/command",
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# It is possible to build this for SUBSYSTEM=console, but it is not done in CI.
+# We can add it if we need it.
+SUBSYSTEM = "windows"
+
+dd_agent_go_binary(
+    name = "systray",
+    cgo = True,
+    embed = [":systray_lib"],
+    # Subtle: This should be passed to the C linker, so the -Wl is redundant,
+    # but it is handled by the mingw driver instead of ld, so we still need
+    # -Wl to pass it on a second layer deep.
+    # TODO: Move selection of strip flags (-s -w) into dd_agent_go_binary. But that
+    # requires refactoring to merge fixed and variable parts.
+    gc_linkopts = [
+        "-linkmode=external",
+        "-extldflags=-Wl,--subsystem,%s" % SUBSYSTEM,
+    ] + select({
+        "//:is_release": [
+            "-s",
+            "-w",
+        ],
+        "//conditions:default": [],
+    }),
+    gotags = ["grpcnotrace"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    x_defs = {
+        "github.com/DataDog/datadog-agent/cmd/systray/command/command.subsystem": SUBSYSTEM,
+    },
+)
