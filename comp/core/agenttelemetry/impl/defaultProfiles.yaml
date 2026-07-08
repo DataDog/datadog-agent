@@ -98,6 +98,32 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+- name: agent-performance
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: agent_performance.container_restarts
+        preserve_tags:
+          - kind
+          - pod_name
+      - name: agent_performance.container_terminated
+        preserve_tags:
+          - kind
+          - pod_name
+          - reason
+      - name: agent_performance.memory_usage
+        preserve_tags:
+          - kind
+          - pod_name
+      - name: agent_performance.memory_limit
+        preserve_tags:
+          - kind
+          - pod_name
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: database
   metric:
     exclude:
