@@ -462,10 +462,7 @@ surface AdaptiveSampling {
         -- the rule machinery at all. A message that the filter
         -- rejects is emitted without firing any rule (a
         -- short-circuit ahead of the 5 rules). Totality
-        -- describes the rule-machinery branch only; once the
-        -- filter feature is specified, FilterBypass will be a
-        -- 6th rule firing before the existing 5 and Totality
-        -- will be updated to enumerate it.
+        -- describes the rule-machinery branch only.
 
     @guarantee ContentBytePassthrough
         -- The Sampler contract's ContentBytePassthrough invariant
