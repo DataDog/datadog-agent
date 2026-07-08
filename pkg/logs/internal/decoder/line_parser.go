@@ -160,8 +160,9 @@ func (p *MultiLineParser) sendLine() {
 		p.isBufferTruncated = false
 	}()
 
-	// Forward complete but empty lines (empty content, non-zero rawDataLen) so
-	// downstream aggregators can observe blank lines.
+	// Skip only when there is nothing to send. Complete but empty lines (empty
+	// content, non-zero rawDataLen) are still forwarded so downstream
+	// aggregators can observe blank lines.
 	if p.bufferedMsg == nil || p.rawDataLen == 0 {
 		return
 	}
