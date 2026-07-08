@@ -192,6 +192,6 @@ func macosLaunchdPID(t require.TestingT, client *common.MacOSTestClient, label s
 			return pid
 		}
 	}
-	require.Fail(t, fmt.Sprintf("pid not found in launchctl print output for %s", label))
+	require.Fail(t, "pid not found in launchctl print output for "+label)
 	return 0
 }

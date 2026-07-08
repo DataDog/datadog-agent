@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 )
 
 const expectedBody = `<!DOCTYPE html>
@@ -158,17 +158,19 @@ func startUnixServer(t *testing.T, handler http.Handler) string {
 }
 
 func TestRestartEnabled_SysprobeEnabled(t *testing.T) {
-	mockSystemProbe := mock.NewSystemProbe(t)
-	mockSystemProbe.SetInTest("system_probe_config.enabled", true)
+	sysprobeConfig := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.enabled": true,
+	})
 
-	assert.True(t, restartEnabled())
+	assert.True(t, restartEnabled(sysprobeConfig))
 }
 
 func TestRestartEnabled_SysprobeDisabled(t *testing.T) {
-	mockSystemProbe := mock.NewSystemProbe(t)
-	mockSystemProbe.SetInTest("system_probe_config.enabled", false)
+	sysprobeConfig := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.enabled": false,
+	})
 
-	assert.False(t, restartEnabled())
+	assert.False(t, restartEnabled(sysprobeConfig))
 }
 
 func TestRestart_Success(t *testing.T) {
@@ -211,8 +213,10 @@ func TestRestart_SendsAuthorizationHeader(t *testing.T) {
 }
 
 func TestRenderIndexPage(t *testing.T) {
-	mockSystemProbe := mock.NewSystemProbe(t)
-	mockSystemProbe.SetInTest("system_probe_config.enabled", true)
+	sysprobeConfig := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.enabled": true,
+	})
+	g := &gui{sysprobeConfig: sysprobeConfig}
 
 	req, err := http.NewRequest("GET", "/", nil)
 	if err != nil {
@@ -220,7 +224,7 @@ func TestRenderIndexPage(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(renderIndexPage)
+	handler := http.HandlerFunc(g.renderIndexPage)
 
 	handler.ServeHTTP(rr, req)
 

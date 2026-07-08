@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )
@@ -28,8 +28,8 @@ const instructionTemplate = `{{define "loginInstruction" }}
 <p>Note: If you would like to adjust the GUI session timeout, you can modify the <code>GUI_session_expiration</code> parameter in <code>datadog.yaml</code>
 {{end}}`
 
-func restartEnabled() bool {
-	return pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled")
+func restartEnabled(sysprobeConfig sysprobeconfig.Component) bool {
+	return sysprobeConfig.GetBool("system_probe_config.enabled")
 }
 
 func restart(getToken func() string, sysprobeSocketPath string) error {

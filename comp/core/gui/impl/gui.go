@@ -52,6 +52,8 @@ type gui struct {
 	intentTokens map[string]bool
 	intentMu     sync.Mutex
 
+	sysprobeConfig sysprobeconfig.Component
+
 	// To compute uptime
 	startTimestamp int64
 }
@@ -108,9 +110,10 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	g := gui{
-		address:      net.JoinHostPort(guiHost, guiPort),
-		logger:       deps.Log,
-		intentTokens: make(map[string]bool),
+		address:        net.JoinHostPort(guiHost, guiPort),
+		logger:         deps.Log,
+		intentTokens:   make(map[string]bool),
+		sysprobeConfig: deps.SysprobeConfig,
 	}
 
 	publicRouter := http.NewServeMux()
@@ -127,7 +130,7 @@ func NewComponent(deps Requires) Provides {
 	socketPath := deps.SysprobeConfig.GetString("system_probe_config.sysprobe_socket")
 
 	// register the public routes
-	publicRouter.HandleFunc("GET /{$}", renderIndexPage)
+	publicRouter.HandleFunc("GET /{$}", g.renderIndexPage)
 	publicRouter.HandleFunc("GET /auth", g.getAccessToken)
 	// Mount our filesystem at the view/{path} route
 	publicRouter.Handle("/view/", http.StripPrefix("/view/", http.HandlerFunc(serveAssets)))
@@ -196,7 +199,7 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(token))
 }
 
-func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
+func (g *gui) renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 	data, err := templatesFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -218,7 +221,7 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 		RestartEnabled bool
 		DocURL         template.URL
 	}{
-		RestartEnabled: restartEnabled(),
+		RestartEnabled: restartEnabled(g.sysprobeConfig),
 		DocURL:         docURL,
 	})
 	if e != nil {
