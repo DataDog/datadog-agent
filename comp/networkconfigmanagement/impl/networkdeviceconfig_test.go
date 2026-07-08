@@ -378,8 +378,8 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	device.Profile = ""
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
-	dc, ok := comp.devices.Load(device.DeviceID())
-	assert.True(t, ok)
+	dc, err := comp.devices.Get(device.DeviceID())
+	assert.NoError(t, err)
 	assert.Nil(t, dc.profile)
 
 	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
@@ -407,8 +407,8 @@ func TestCheck_Run_ProfileMatch(t *testing.T) {
 	device.Profile = ""
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
-	dc, ok := comp.devices.Load(device.DeviceID())
-	assert.True(t, ok)
+	dc, err := comp.devices.Get(device.DeviceID())
+	assert.NoError(t, err)
 	assert.Nil(t, dc.profile)
 
 	mockSender := reqs.sender

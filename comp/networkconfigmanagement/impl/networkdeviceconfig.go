@@ -30,7 +30,7 @@ func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, s
 		log:      log,
 		store:    store,
 		sender:   sender,
-		devices:  NewMap[*DeviceContext](),
+		devices:  NewDeviceMap(deviceTimeout),
 		hostname: hostname,
 		profiles: profiles,
 		connect:  connectFn,
@@ -38,12 +38,18 @@ func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, s
 	}
 }
 
+// deviceTimeout is the maximum time to wait when attempting to lock a device.
+// Lock contention should be extremely rare - it only happens if two processes
+// try to access the same device at the same time, e.g. if a rollback triggers
+// at the same time that the NCM check tries to fetch the config.
+const deviceTimeout = time.Second * 30
+
 type networkDeviceConfigImpl struct {
 	log    log.Component
 	store  ncmstore.ConfigStore
 	sender sender.Sender
 
-	devices *Map[*DeviceContext]
+	devices *DeviceMap
 
 	inventoryMaxInterval  time.Duration
 	lastInventoryReportAt time.Time
@@ -65,13 +71,7 @@ func (n *networkDeviceConfigImpl) RegisterDevice(device *ncmconfig.DeviceInstanc
 			return fmt.Errorf("nonexistent NCM profile %q specified for device %s", device.Profile, device.DeviceID())
 		}
 	}
-	// LoadOrStore so that if for some reason two threads try to do this at the
-	// same time they'll get the same device context.
-	dc, _ := n.devices.LoadOrStore(device.DeviceID(), &DeviceContext{})
-	dc.Lock()
-	defer dc.Unlock()
-	dc.SetDevice(device, profile)
-	return nil
+	return n.devices.RegisterDevice(context.Background(), device, profile)
 }
 
 // SetMaxReportInterval sets a maximum time to wait between sending inventory
@@ -94,16 +94,11 @@ func (n *networkDeviceConfigImpl) ReportConfig(ctx context.Context, deviceID str
 	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
 	log.Debug("Running config check.")
 	ctx = WithLogger(ctx, log)
-	dc, ok := n.devices.Load(deviceID)
-	if !ok {
-		return fmt.Errorf("unknown device: %q", deviceID)
+	dc, err := n.devices.GetAndLock(ctx, deviceID)
+	if err != nil {
+		return err
 	}
-	// lock the device so that if two threads try to use the same device at the
-	// same time they won't collide.
-	log.Debug("Requesting device lock...")
-	dc.Lock()
-	log.Debug("Device lock acquired")
-	defer dc.Unlock()
+	defer dc.UnlockOrLog(log)
 	return n.reportConfig(ctx, dc, baseSender)
 }
 
@@ -209,16 +204,11 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
 	log.Infof("Rollback requested: Device %q to version %q", deviceID, configVersion)
 	ctx = WithLogger(ctx, log)
-	dc, ok := n.devices.Load(deviceID)
-	if !ok {
-		return fmt.Errorf("unknown device: %q", deviceID)
+	dc, err := n.devices.GetAndLock(ctx, deviceID)
+	if err != nil {
+		return err
 	}
-	// lock the device so that if two threads try to use the same device at the
-	// same time they won't collide.
-	log.Debug("Requesting device lock...")
-	dc.Lock()
-	log.Debug("Device lock acquired")
-	defer dc.Unlock()
+	defer dc.UnlockOrLog(log)
 
 	rawConfig, metadata, err := n.store.GetConfig(configVersion)
 	if err != nil {
