@@ -19,21 +19,6 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
-        /// Rollback-only: remove the fleet-written processes.d directory that MSI does not track.
-        /// Runs on install/upgrade/repair rollback; RemoveFolderEx handles the uninstall path.
-        /// </summary>
-        /// <remarks>
-        /// TODO(WINA-2538): once CleanupOnUninstall is sequenced after RemoveFiles (so an imperative
-        /// pre-RemoveFiles delete no longer defeats MSI rollback-restore), fold this into the general
-        /// RemoveGeneratedArtifactPaths cleanup by adding "processes.d" to its directory list, and
-        /// drop this rollback-only action.
-        /// </remarks>
-        public static ActionResult RemoveFleetProcmgrConfigOnRollback(Session session)
-        {
-            return RemoveFleetProcmgrConfigOnRollback(new SessionWrapper(session));
-        }
-
-        /// <summary>
         /// Rollback-only: drop an otherwise-empty install root left by a failed fresh install.
         /// </summary>
         public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
@@ -43,7 +28,6 @@ namespace Datadog.CustomActions
 
         /// <summary>
         /// Uninstall tail: drop empty processes.d and empty install root after MSI components are removed.
-        /// Fleet prerm already removed processes.d YAML on full uninstall.
         /// </summary>
         public static ActionResult RemoveEmptyInstallDirAfterUninstall(Session session)
         {
@@ -53,12 +37,6 @@ namespace Datadog.CustomActions
         private static ActionResult CleanupFiles(ISession session)
         {
             RemoveGeneratedArtifactPaths(session, session.Property("PROJECTLOCATION"));
-            return ActionResult.Success;
-        }
-
-        private static ActionResult RemoveFleetProcmgrConfigOnRollback(ISession session)
-        {
-            TryRemoveFleetProcmgrConfigDir(session, session.Property("PROJECTLOCATION"));
             return ActionResult.Success;
         }
 
@@ -82,6 +60,9 @@ namespace Datadog.CustomActions
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
                 Path.Combine(projectLocation, "python-scripts"),
+                // fleet postinst writes processes.d/*.yaml (untracked by MSI); RemoveFolderEx owns
+                // uninstall, this covers install/upgrade/repair rollback and the repair pre-clean.
+                Path.Combine(projectLocation, "processes.d"),
             }
             // installation specific files
             .Concat(session.GeneratedPaths());
@@ -111,31 +92,6 @@ namespace Datadog.CustomActions
                     // Don't fail in cleanup/rollback actions otherwise
                     // we may brick the installation.
                 }
-            }
-        }
-
-        private static void TryRemoveFleetProcmgrConfigDir(ISession session, string projectLocation)
-        {
-            if (string.IsNullOrEmpty(projectLocation))
-            {
-                return;
-            }
-
-            var processesDir = Path.Combine(projectLocation, "processes.d");
-            try
-            {
-                if (!Directory.Exists(processesDir))
-                {
-                    session.Log($"{processesDir} not found, skip deletion.");
-                    return;
-                }
-
-                session.Log($"Deleting fleet process manager config directory \"{processesDir}\"");
-                Directory.Delete(processesDir, true);
-            }
-            catch (Exception e)
-            {
-                session.Log($"Error while deleting fleet process manager config directory {processesDir}: {e}");
             }
         }
 

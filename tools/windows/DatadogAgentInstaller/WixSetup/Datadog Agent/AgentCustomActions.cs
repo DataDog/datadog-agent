@@ -48,8 +48,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction DecompressPythonDistributions { get; }
 
-        public ManagedAction RemoveFleetProcmgrConfigOnRollback { get; }
-
         public ManagedAction CleanupOnRollback { get; }
 
         public ManagedAction RemoveEmptyInstallDirOnRollback { get; }
@@ -295,29 +293,12 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
-            RemoveFleetProcmgrConfigOnRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveFleetProcmgrConfigOnRollback)),
-                    CustomActions.RemoveFleetProcmgrConfigOnRollback,
-                    Return.check,
-                    When.After,
-                    new Step(CleanupOnRollback.Id),
-                    // Rollback for any install-type transaction: postinst may have written
-                    // processes.d YAML on fresh install, upgrade, or repair. RemoveFolderEx
-                    // (uninstall-only) does not cover install-time rollback, so clean it here.
-                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
-
             DecompressPythonDistributions = new CustomAction<CustomActions>(
                     new Id(nameof(DecompressPythonDistributions)),
                     CustomActions.DecompressPythonDistributions,
                     Return.check,
                     When.After,
-                    new Step(RemoveFleetProcmgrConfigOnRollback.Id),
+                    new Step(CleanupOnRollback.Id),
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
             {
