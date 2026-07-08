@@ -9,10 +9,6 @@ package helmactionsimpl
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"maps"
-	"slices"
 	"sync"
 	"time"
 
@@ -50,14 +46,14 @@ type ActionRecord struct {
 }
 
 // ActionStoreInterface defines the store methods used by ActionProcessor.
-type ActionStoreInterface interface {
-	// Claim tries to claim an action for execution. Returns false if already claimed.
-	Claim(key ActionKey) bool
-	// MarkExecuted updates the record for a previously claimed action.
-	MarkExecuted(key ActionKey, status, message string, executedAt, receivedAt, actionCreatedAt int64)
-	// GetRecord retrieves the execution record for an action.
-	GetRecord(key ActionKey) (ActionRecord, bool)
-}
+// type ActionStoreInterface interface {
+// 	// Claim tries to claim an action for execution. Returns false if already claimed.
+// 	Claim(key ActionKey) bool
+// 	// MarkExecuted updates the record for a previously claimed action.
+// 	MarkExecuted(key ActionKey, status, message string, executedAt, receivedAt, actionCreatedAt int64)
+// 	// GetRecord retrieves the execution record for an action.
+// 	GetRecord(key ActionKey) (ActionRecord, bool)
+// }
 
 // JobPhase summarises a tracked Job's high-level state.
 type JobPhase string
@@ -112,11 +108,10 @@ type ActionStore struct {
 	executed map[string]ActionRecord
 	jobs     map[types.UID]JobRecord
 	pods     map[types.UID]PodRecord
-	mu       sync.RWMutex
-	stopCh   chan struct{}
+	// mu guards above mentioned
+	mu     sync.RWMutex
+	stopCh chan struct{}
 }
-
-var _ ActionStoreInterface = (*ActionStore)(nil)
 
 // NewActionStore creates a new ActionStore and starts the background cleanup goroutine.
 func NewActionStore() *ActionStore {
@@ -129,77 +124,6 @@ func NewActionStore() *ActionStore {
 	log.Debugf("[HelmActions] Action store initialized (TTL=%v, retention=%v, cleanup=%v)",
 		ActionTTL, RecordRetentionTTL, CleanupInterval)
 	return s
-}
-
-// ValidateTimestamp returns an error if ts is zero, in the future, or older than ActionTTL.
-func ValidateTimestamp(ts time.Time) error {
-	if ts.IsZero() {
-		return errors.New("action timestamp is missing or zero")
-	}
-	now := time.Now()
-	if ts.After(now.Add(10 * time.Second)) {
-		return fmt.Errorf("action timestamp is in the future: %v (now: %v)", ts, now)
-	}
-	if time.Since(ts) > ActionTTL {
-		return fmt.Errorf("action timestamp is expired: %v (age: %v, TTL: %v)", ts, time.Since(ts), ActionTTL)
-	}
-	return nil
-}
-
-// Claim tries to claim an action for execution. Returns false if already claimed.
-func (s *ActionStore) Claim(key ActionKey) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, exists := s.executed[key.String()]; exists {
-		return false
-	}
-	s.executed[key.String()] = ActionRecord{
-		Key:       key,
-		Status:    StatusClaimed,
-		Message:   "action claimed",
-		ClaimedAt: time.Now().Unix(),
-	}
-	return true
-}
-
-// MarkExecuted updates the record for a previously claimed action.
-func (s *ActionStore) MarkExecuted(key ActionKey, status, message string, executedAt, receivedAt, actionCreatedAt int64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	claimedAt := s.executed[key.String()].ClaimedAt
-	s.executed[key.String()] = ActionRecord{
-		Key:             key,
-		Status:          status,
-		Message:         message,
-		ExecutedAt:      executedAt,
-		ReceivedAt:      receivedAt,
-		ActionCreatedAt: actionCreatedAt,
-		ClaimedAt:       claimedAt,
-	}
-}
-
-// GetRecord retrieves the execution record for an action.
-func (s *ActionStore) GetRecord(key ActionKey) (ActionRecord, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	record, exists := s.executed[key.String()]
-	return record, exists
-}
-
-// GetAll returns all execution records.
-func (s *ActionStore) GetAll() []ActionRecord {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return slices.Collect(maps.Values(s.executed))
-}
-
-// Count returns the number of tracked action records.
-func (s *ActionStore) Count() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.executed)
 }
 
 // trackedLifecycle is the union of record types tracked by (namespace, name,
@@ -239,7 +163,7 @@ func upsertTracked[T trackedLifecycle](
 
 // TrackJob registers a Job for status tracking. Idempotent: a second call with
 // the same UID is a no-op (the watcher will own subsequent updates).
-func (s *ActionStore) TrackJob(job *batchv1.Job, in *helmactions.RollbackInputs) {
+func (s *ActionStore) TrackJob(job *batchv1.Job, _ *helmactions.RollbackInputs) {
 	if job == nil || job.UID == "" {
 		return
 	}
@@ -298,21 +222,6 @@ func (s *ActionStore) RemoveJob(uid types.UID) {
 	delete(s.jobs, uid)
 }
 
-// GetJob returns a tracked Job record by UID.
-func (s *ActionStore) GetJob(uid types.UID) (JobRecord, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	rec, ok := s.jobs[uid]
-	return rec, ok
-}
-
-// // GetAllJobs returns a snapshot of all tracked Job records.
-// func (s *ActionStore) GetAllJobs() []JobRecord {
-// 	s.mu.RLock()
-// 	defer s.mu.RUnlock()
-// 	return slices.Collect(maps.Values(s.jobs))
-// }
-
 // UpdatePod applies the latest observed state of a Pod. Returns the resulting
 // record and whether this update is the transition into the Failed phase — the
 // caller uses that signal to trigger log capture.
@@ -351,21 +260,6 @@ func (s *ActionStore) RemovePod(uid types.UID) {
 	defer s.mu.Unlock()
 	delete(s.pods, uid)
 }
-
-// // GetPod returns a tracked Pod by UID.
-// func (s *ActionStore) GetPod(uid types.UID) (PodRecord, bool) {
-// 	s.mu.RLock()
-// 	defer s.mu.RUnlock()
-// 	rec, ok := s.pods[uid]
-// 	return rec, ok
-// }
-
-// // GetAllPods returns a snapshot of all tracked Pod records.
-// func (s *ActionStore) GetAllPods() []PodRecord {
-// 	s.mu.RLock()
-// 	defer s.mu.RUnlock()
-// 	return slices.Collect(maps.Values(s.pods))
-// }
 
 // GetPodsForJob returns the tracked Pods whose batch.kubernetes.io/job-name
 // label matches the given Job name.
