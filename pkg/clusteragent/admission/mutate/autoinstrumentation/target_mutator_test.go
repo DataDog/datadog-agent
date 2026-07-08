@@ -664,11 +664,11 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-						defaultLibInfoWithVersion(js, "v5"),
-					},
+					defaultLibInfoWithVersion(js, "v5"),
 				},
 			},
-			"a pod that matches no targets gets no values": {
+		},
+		"a pod that matches no targets gets no values": {
 			configPath: "testdata/filter_no_default.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
