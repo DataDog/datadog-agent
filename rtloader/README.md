@@ -1,4 +1,3 @@
-DO NOT SUBMIT - TESTING LINT
 # Datadog Agent RtLoader
 
 CPython embedding/extending backend with support for multiple Python versions.
