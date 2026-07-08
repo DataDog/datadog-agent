@@ -338,7 +338,8 @@ func TestSpan(t *testing.T) {
 // TestOTelSpan tests OTel Thread Local Context Record based span context collection.
 // It covers TLS records exported from .dynsym by a dynamic main executable, a
 // dlopen'd shared object, and static PIE/non-PIE executables. The static musl
-// variant is included when the syscall tester build host has musl-gcc.
+// variant is included when the syscall tester build can run the Alpine Docker
+// builder.
 func TestOTelSpan(t *testing.T) {
 	SkipIfNotAvailable(t)
 
