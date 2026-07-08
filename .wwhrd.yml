@@ -38,6 +38,8 @@ overrides:
   # https://github.com/nexus-rpc/api/blob/main/LICENSE
   # https://github.com/nexus-rpc/sdk-go/blob/main/LICENSE
   "github.com/nexus-rpc/nexus-proto-annotations/go/nexusannotations/v1": MIT
+  # https://github.com/parca-dev/usdt/blob/v0.0.2/LICENSE
+  "github.com/parca-dev/usdt": Apache-2.0
 
 exceptions:
   - "golang.org/x/tools/..."
