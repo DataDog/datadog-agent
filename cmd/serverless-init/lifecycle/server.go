@@ -36,6 +36,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"time"
@@ -73,7 +74,8 @@ const (
 	terminateMetricName = baseMetricPrefix + "terminate"
 	validateMetricName  = baseMetricPrefix + "validate"
 
-	lambdaMicroVMID = "lambda_microvm_id:" // for []string log/metric tags: key:value concatenated
+	lambdaMicroVMIDKey = "lambda_microvm_id"      // for map[string]string trace tags: key only
+	lambdaMicroVMID    = lambdaMicroVMIDKey + ":" // for []string log/metric tags: key:value concatenated
 )
 
 // flushMode controls whether and how telemetry is flushed during a lifecycle hook.
@@ -103,6 +105,30 @@ type SampleDrainer interface {
 	WaitForPendingSamples()
 }
 
+// LogsTagSetter can replace the full tag slice on the live log pipeline.
+// Satisfied by serverlessLogs.SetLogsTags (wrapped via LogsTagSetterFunc).
+type LogsTagSetter interface {
+	SetLogsTags(tags []string)
+}
+
+// LogsTagSetterFunc wraps a bare function so it satisfies LogsTagSetter.
+type LogsTagSetterFunc func([]string)
+
+// SetLogsTags implements LogsTagSetter.
+func (f LogsTagSetterFunc) SetLogsTags(tags []string) { f(tags) }
+
+// TraceTagSetter can replace the full tag map on the live trace pipeline.
+// Satisfied by trace.ServerlessTraceAgent.SetTags (wrapped via TraceTagSetterFunc).
+type TraceTagSetter interface {
+	SetTraceTags(tags map[string]string)
+}
+
+// TraceTagSetterFunc wraps a bare function so it satisfies TraceTagSetter.
+type TraceTagSetterFunc func(map[string]string)
+
+// SetTraceTags implements TraceTagSetter.
+func (f TraceTagSetterFunc) SetTraceTags(tags map[string]string) { f(tags) }
+
 // runBody is the JSON payload sent by the MicroVM platform on /run.
 type runBody struct {
 	MicroVMID string `json:"microvmId"`
@@ -122,6 +148,11 @@ type Server struct {
 	childHandle ChildHandle // production: *Child (init) or NewNoopChildHandle() (sidecar); always non-nil after lifecycle.SetupFromEnv. nil only in legacy unit tests; logs WARN if hit.
 	child       *Child      // non-nil only in init-container mode; nil in sidecar and unit tests. Derived from childHandle when it is a *Child.
 	heartbeat   *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
+
+	logsTagSetter  LogsTagSetter     // nil-safe; set via SetLogsTagSetter after construction
+	baseTags       []string          // startup tag snapshot; lambda_microvm_id is appended at /run
+	traceTagSetter TraceTagSetter    // nil-safe; set via SetTraceTagSetter after construction
+	baseTraceTags  map[string]string // startup trace tag snapshot; lambda_microvm_id is added at /run
 
 	httpServer *http.Server
 }
@@ -188,6 +219,22 @@ func NewServer(
 		WriteTimeout: writeTimeout,
 	}
 	return s
+}
+
+// SetLogsTagSetter wires a LogsTagSetter and a baseline tag slice into the server.
+// Must be called before the first /run request. baseTags is the startup tag
+// snapshot; lambda_microvm_id is appended to it when /run fires.
+func (s *Server) SetLogsTagSetter(setter LogsTagSetter, baseTags []string) {
+	s.logsTagSetter = setter
+	s.baseTags = baseTags
+}
+
+// SetTraceTagSetter wires a TraceTagSetter and a baseline trace tag map into the
+// server. Must be called before the first /run request. baseTraceTags is the
+// startup trace tag snapshot; lambda_microvm_id is added to it when /run fires.
+func (s *Server) SetTraceTagSetter(setter TraceTagSetter, baseTraceTags map[string]string) {
+	s.traceTagSetter = setter
+	s.baseTraceTags = baseTraceTags
 }
 
 // Listen binds the TCP port synchronously. Call before Serve so the socket is
@@ -334,6 +381,17 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		log.Infof("MicroVM lifecycle: run (microvm_id=%s)", body.MicroVMID)
 		s.instanceID.Store(body.MicroVMID)
 		s.heartbeat.SetMicroVMID(body.MicroVMID)
+		if s.logsTagSetter != nil {
+			s.logsTagSetter.SetLogsTags(append(append([]string{}, s.baseTags...), lambdaMicroVMID+body.MicroVMID))
+		}
+		if s.traceTagSetter != nil {
+			tags := maps.Clone(s.baseTraceTags)
+			if tags == nil {
+				tags = make(map[string]string, 1)
+			}
+			tags[lambdaMicroVMIDKey] = body.MicroVMID
+			s.traceTagSetter.SetTraceTags(tags)
+		}
 	} else {
 		log.Info("MicroVM lifecycle: run")
 	}
