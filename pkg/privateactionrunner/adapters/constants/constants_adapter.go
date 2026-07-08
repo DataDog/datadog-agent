@@ -6,10 +6,13 @@
 package constants
 
 const (
-	// InternalSkipTaskVerificationEnvVar is an internal-only env var for e2e tests.
-	// When set to "true", PAR skips signed-envelope validation and allows HTTP connections.
+	// InternalOpmsInsecureHostEnvVar is an internal-only env var for e2e tests.
+	// When set to "true" and DD_DD_URL points at an http:// server, PAR's OPMS
+	// client sends dequeue/heartbeat/result calls to that host over plain HTTP
+	// instead of the production https://api.<site> endpoint. It has no effect
+	// on task signature verification, which is always enforced.
 	// NOT intended for customer use.
-	InternalSkipTaskVerificationEnvVar = "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"
+	InternalOpmsInsecureHostEnvVar = "DD_INTERNAL_PAR_OPMS_INSECURE_HOST"
 
 	JwtHeaderName           = "X-Datadog-OnPrem-JWT"
 	ModeHeaderName          = "X-Datadog-OnPrem-Modes"
