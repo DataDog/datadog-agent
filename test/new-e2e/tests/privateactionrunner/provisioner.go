@@ -34,10 +34,9 @@ const (
 )
 
 // parHelmValuesTemplate configures the agent with PAR enabled.
-// Fakeintake and Remote Config wiring (DD_DD_URL, DD_REMOTE_CONFIGURATION_*) is handled
-// automatically by the e2e framework's configureFakeintake when fakeintake is present;
-// the RC-delivered public key that lets PAR verify fakeintake-signed tasks is pushed by
-// the test suite itself (see parK8sSuite.configureTaskSigning in rshell_k8s_test.go).
+// Fakeintake and RC wiring (DD_DD_URL, DD_REMOTE_CONFIGURATION_*) is handled by the
+// framework's configureFakeintake; the verification public key is pushed by the suite
+// (see parK8sSuite.configureTaskSigning).
 // %s parameters: clusterName, runnerURN, privateKeyB64
 const parHelmValuesTemplate = `
 datadog:

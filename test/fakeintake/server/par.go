@@ -23,9 +23,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// taskExpiration is how far in the future signed tasks are set to expire. PAR
-// rejects tasks whose expiration_time is in the past, so this only needs to
-// comfortably outlast the dequeue-to-execution window in tests.
+// taskExpiration sets how far in the future signed tasks expire; PAR rejects
+// already-expired tasks.
 const taskExpiration = 5 * time.Minute
 
 // parServerState holds the in-memory task queue and result map for PAR e2e tests.
@@ -40,11 +39,8 @@ type parServerState struct {
 	signing      *parSigningConfig
 }
 
-// parSigningConfig holds the identity fakeintake signs dequeued tasks with.
-// Configured via POST /fakeintake/par/signing-config, it lets PAR's signed-envelope
-// task verifier accept fakeintake-issued tasks after the matching public key is
-// pushed through Remote Config (product AP_RUNNER_KEYS), instead of relying on
-// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION to bypass verification altogether.
+// parSigningConfig holds the identity fakeintake signs dequeued tasks with,
+// set via POST /fakeintake/par/signing-config.
 type parSigningConfig struct {
 	KeyID      string
 	PrivateKey ed25519.PrivateKey
@@ -228,10 +224,8 @@ func parStructValue(value interface{}) interface{} {
 	}
 }
 
-// signTask builds the signed protobuf envelope PAR's signedEnvelopeTaskVerifier expects:
-// a PrivateActionTask marshaled to protobuf bytes, SHA256-hashed, and ED25519-signed with
-// the configured private key. PAR resolves the matching public key by the signature's
-// KeyId, looked up against whatever was pushed through the AP_RUNNER_KEYS RC product.
+// signTask builds the signed envelope PAR expects: a PrivateActionTask marshaled to
+// protobuf, SHA256-hashed, and ED25519-signed with the configured key.
 func signTask(signing *parSigningConfig, pbTask *privateactionspb.PrivateActionTask) (*privateactionspb.RemoteConfigSignatureEnvelope, error) {
 	pbTask.ExpirationTime = timestamppb.New(time.Now().Add(taskExpiration))
 
@@ -369,9 +363,7 @@ func (fi *Server) handlePARFlush(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// handlePARConfigureSigning sets the identity fakeintake uses to sign dequeued tasks'
-// envelopes. Tests call this once, then push the corresponding public key through the
-// Remote Config AP_RUNNER_KEYS product so PAR's real signature verification passes.
+// handlePARConfigureSigning sets the identity fakeintake uses to sign dequeued task envelopes.
 func (fi *Server) handlePARConfigureSigning(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

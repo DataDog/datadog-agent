@@ -8,9 +8,7 @@ package constants
 const (
 	// InternalOpmsInsecureHostEnvVar is an internal-only env var for e2e tests.
 	// When set to "true" and DD_DD_URL points at an http:// server, PAR's OPMS
-	// client sends dequeue/heartbeat/result calls to that host over plain HTTP
-	// instead of the production https://api.<site> endpoint. It has no effect
-	// on task signature verification, which is always enforced.
+	// client sends dequeue/heartbeat/result calls to that host over plain HTTP.
 	// NOT intended for customer use.
 	InternalOpmsInsecureHostEnvVar = "DD_INTERNAL_PAR_OPMS_INSECURE_HOST"
 

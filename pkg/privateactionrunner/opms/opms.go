@@ -156,11 +156,10 @@ func NewClient(coreCfg model.Reader, cfg *config.Config) Client {
 	}
 }
 
-// endpointURL constructs a full URL for the given path.
-// Production always uses https://api.<site>. When DD_INTERNAL_PAR_OPMS_INSECURE_HOST=true
-// (e2e tests only) and DD_DD_URL points at an http:// server, use that host directly so PAR
-// can reach an in-cluster or ECS-hosted fake OPMS over plain HTTP. This has no effect on task
-// signature verification, which is always enforced.
+// endpointURL constructs a full URL for the given path against https://api.<site>.
+// When DD_INTERNAL_PAR_OPMS_INSECURE_HOST=true (e2e tests only) and DD_DD_URL points at
+// an http:// server, that host is used directly so PAR can reach an in-cluster or
+// ECS-hosted fake OPMS over plain HTTP.
 func (c *client) endpointURL(path string) string {
 	scheme := "https"
 	host := c.config.DDApiHost

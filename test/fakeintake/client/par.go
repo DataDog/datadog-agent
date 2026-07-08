@@ -90,9 +90,8 @@ func (c *Client) GetPARDequeueCount() (int, error) {
 }
 
 // ConfigurePARSigning sets the identity fakeintake signs dequeued PAR tasks with.
-// Call this before enqueuing tasks, and push the matching public key through
-// RCAddConfig (product "AP_RUNNER_KEYS", configID keyID) so PAR's real signed-envelope
-// verifier accepts them — no DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION escape hatch needed.
+// Call it before enqueuing tasks, then push the matching public key via RCAddConfig
+// (product "AP_RUNNER_KEYS", configID keyID) so PAR's verifier accepts them.
 func (c *Client) ConfigurePARSigning(keyID string, privateKey ed25519.PrivateKey, orgID int64, runnerID string) error {
 	body, err := json.Marshal(map[string]interface{}{
 		"key_id":      keyID,

@@ -34,12 +34,10 @@ const (
 	testDataFile    = "/host/var/log/par-e2e-testdata.txt"
 	testDataContent = "PAR_E2E_VALUE=hello_from_rshell"
 
-	// testSigningKeyID identifies the ED25519 key fakeintake signs tasks with; it doubles as
-	// the Remote Config config_id under which the matching public key is pushed, since that's
-	// what PAR's keys manager uses to key its local key map (see keysManager.GetKey).
+	// testSigningKeyID is the ED25519 key fakeintake signs with; it doubles as the RC
+	// config_id PAR keys its local key map by (see keysManager.GetKey).
 	testSigningKeyID = "par-e2e-signing-key"
-	// apRunnerKeysProduct is the Remote Config product PAR subscribes to for its task
-	// signature verification keys (state.ProductActionPlatformRunnerKeys).
+	// apRunnerKeysProduct is the RC product PAR subscribes to for verification keys.
 	apRunnerKeysProduct = "AP_RUNNER_KEYS"
 )
 
@@ -67,8 +65,7 @@ func (s *parK8sSuite) SetupSuite() {
 // configureTaskSigning gives fakeintake a signing identity for dequeued tasks and pushes
 // the matching public key to PAR through Remote Config. PAR's WorkflowRunner blocks its
 // task loop on keysManager.WaitForReady(), which only unblocks once this key is applied —
-// so this must run before waitForPARReady, and replaces the previous approach of setting
-// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION to bypass verification altogether.
+// so this must run before waitForPARReady.
 func (s *parK8sSuite) configureTaskSigning() {
 	pub, priv := generateTestSigningKey(s.T())
 	fi := s.Env().FakeIntake.Client()

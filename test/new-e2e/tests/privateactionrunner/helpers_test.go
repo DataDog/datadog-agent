@@ -29,10 +29,8 @@ func generateTestRunnerIdentity(t *testing.T) (urn string, privateKeyB64 string)
 	return GenerateTestRunnerIdentity(t)
 }
 
-// generateTestSigningKey generates a fresh ED25519 key pair used to sign PAR tasks
-// dequeued from fakeintake. The private half is handed to fakeintake (via
-// client.ConfigurePARSigning) so it can sign envelopes; the public half is pushed to
-// PAR through Remote Config so its signed-envelope task verifier can validate them.
+// generateTestSigningKey generates an ED25519 key pair for signing PAR tasks: the
+// private half signs envelopes in fakeintake, the public half is pushed to PAR via RC.
 func generateTestSigningKey(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey) {
 	t.Helper()
 
@@ -42,9 +40,8 @@ func generateTestSigningKey(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey
 	return pub, priv
 }
 
-// encodeED25519PublicKeyRC builds the JSON payload PAR's task-verifier keys manager
-// expects from the "AP_RUNNER_KEYS" Remote Config product: an X509-PEM-encoded public
-// key tagged with its type (see pkg/privateactionrunner/types.RawKey).
+// encodeED25519PublicKeyRC builds the AP_RUNNER_KEYS RC payload PAR expects: an
+// X509-PEM-encoded public key tagged with its type (see types.RawKey).
 func encodeED25519PublicKeyRC(pub ed25519.PublicKey) ([]byte, error) {
 	der, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
