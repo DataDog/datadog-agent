@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/build/packaging/common.yml
-
 .package_deb_common:
   extends: .bazel:defs:cache:omnibus-transition
   stage: packaging

@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/.pre/common/macos.yml
-
 .on_schema_paths_changed:
   - changes:
       paths:
