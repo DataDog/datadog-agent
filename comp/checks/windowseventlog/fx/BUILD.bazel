@@ -7,8 +7,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//comp/checks/windowseventlog/impl",
             "//pkg/util/fxutil",
-            "@//comp/checks/windowseventlog/impl",
         ],
         "//conditions:default": [],
     }),
