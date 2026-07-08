@@ -494,8 +494,28 @@ impl ManagedProcess {
             .restarts
             .is_burst_limited(self.config.burst_limit(), self.config.burst_interval())
         {
-            warn!("[{}] start limit reached, not restarting", self.name);
-            return None;
+            // Do not permanently abandon the process. A transient startup failure — e.g. a
+            // port briefly held by a predecessor during a service-manager (systemd/SCM)
+            // stable<->experiment handoff — would otherwise leave a critical auto_start
+            // process (such as DDOT's otel-agent) dead forever while dd-procmgrd keeps
+            // reporting healthy. Instead, back off for the burst interval and retry so the
+            // process recovers once the transient clears; the interval throttles the retry
+            // rate. The attempt is intentionally not record()ed so the burst window drains
+            // during the cooldown and the normal restart/backoff path resumes afterwards.
+            //
+            // Health signal: unlike the previous permanent give-up (which froze restart_count
+            // and went silent), the process stays observable — restart_count keeps climbing
+            // across bursts and this WARN recurs, so a flapping critical child surfaces in
+            // `dd-procmgr describe`/`list` (state=Failed, rising restart_count) and in logs.
+            let cooldown = self.config.burst_interval();
+            warn!(
+                "[{}] start limit reached ({} restarts / {:.0}s), backing off {:.0}s before retry",
+                self.name,
+                self.config.burst_limit(),
+                self.config.burst_interval().as_secs_f64(),
+                cooldown.as_secs_f64(),
+            );
+            return Some(cooldown);
         }
 
         self.restarts
@@ -1043,6 +1063,45 @@ pub mod tests {
         assert!(
             proc.restarts.is_burst_limited(burst, interval),
             "should be limited after 3 restarts"
+        );
+    }
+
+    #[test]
+    fn test_handle_restart_recovers_after_burst_limit() {
+        // Regression: a process that exhausts its start limit must NOT be permanently
+        // abandoned. handle_restart backs off for the burst interval and retries so a
+        // transient failure recovers, instead of returning None (the old give-up that
+        // left DDOT's otel-agent dead forever after a config-experiment handoff).
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.start_limit_burst = Some(3);
+        cfg.start_limit_interval_sec = Some(60);
+        let mut proc =
+            ManagedProcess::new_config("recover".into(), test_helpers::test_uuid(), cfg);
+
+        let burst = proc.config.burst_limit();
+        let interval = proc.config.burst_interval();
+
+        // Saturate the burst window so the next restart is limited.
+        for _ in 0..burst {
+            proc.restarts
+                .record(proc.config.restart_delay(), proc.config.runtime_success());
+        }
+        assert!(proc.restarts.is_burst_limited(burst, interval));
+        let count_before = proc.restarts.count;
+
+        // An unexpected exit that would normally trigger a restart.
+        proc.state = ProcessState::Failed;
+
+        assert_eq!(
+            proc.handle_restart(),
+            Some(interval),
+            "burst-limited process should back off for the interval and retry, not give up"
+        );
+        assert_eq!(
+            proc.restarts.count, count_before,
+            "the throttled retry must not be recorded so the burst window can drain"
         );
     }
 
