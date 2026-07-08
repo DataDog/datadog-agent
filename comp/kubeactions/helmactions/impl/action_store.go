@@ -20,6 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -238,7 +239,7 @@ func upsertTracked[T trackedLifecycle](
 
 // TrackJob registers a Job for status tracking. Idempotent: a second call with
 // the same UID is a no-op (the watcher will own subsequent updates).
-func (s *ActionStore) TrackJob(job *batchv1.Job) {
+func (s *ActionStore) TrackJob(job *batchv1.Job, in *helmactions.RollbackInputs) {
 	if job == nil || job.UID == "" {
 		return
 	}

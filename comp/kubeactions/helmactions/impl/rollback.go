@@ -34,6 +34,12 @@ const (
 	labelRelease   = "helmactions.datadoghq.com/release"
 	labelNamespace = "helmactions.datadoghq.com/release-namespace"
 
+	// managedByValue / componentValue are the identity-label values every
+	// rollback Job (and its Pods) must carry. The Job/Pod watcher's
+	// jobWatchSelector is derived from them so the two can never drift.
+	managedByValue = "datadog-cluster-agent"
+	componentValue = "helm-rollback"
+
 	defaultTTLSecondsAfterFinished int32 = 3600
 )
 
@@ -88,15 +94,17 @@ func buildRollbackJob(opts helmactions.RollbackInputs) *batchv1.Job {
 	}
 	args = append(args, "--namespace", opts.ReleaseNamespace)
 
-	labels := map[string]string{
-		labelManagedBy: "datadog-cluster-agent",
-		labelComponent: "helm-rollback",
-		labelRelease:   opts.Release,
-		labelNamespace: opts.ReleaseNamespace,
-	}
+	// Merge ExtraLabels first, then stamp the identity labels last so callers
+	// cannot accidentally (or deliberately) push a rollback Job out of the
+	// watcher's selector by shadowing labelManagedBy / labelComponent.
+	labels := map[string]string{}
 	for k, v := range opts.ExtraLabels {
 		labels[k] = v
 	}
+	labels[labelManagedBy] = managedByValue
+	labels[labelComponent] = componentValue
+	labels[labelRelease] = opts.Release
+	labels[labelNamespace] = opts.ReleaseNamespace
 
 	var env []corev1.EnvVar
 	if opts.Driver != "" {

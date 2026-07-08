@@ -22,8 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// jobWatchSelector targets only the Jobs this component creates.
-const jobWatchSelector = "app.kubernetes.io/managed-by=datadog-cluster-agent,app.kubernetes.io/component=helm-rollback"
+// jobWatchSelector targets only the Jobs this component creates. Derived from
+// the same label constants used by the rollback executor (rollback.go) so the
+// watcher and the writer cannot drift out of sync.
+const jobWatchSelector = labelManagedBy + "=" + managedByValue + "," + labelComponent + "=" + componentValue
 
 // watchReconnectBackoff is the delay before reopening a closed Watch. The
 // upstream watch can close legitimately (idle timeout, apiserver restart) and
@@ -128,10 +130,12 @@ func (w *jobWatcher) handleJob(ev watch.Event) {
 		if terminal {
 			log.Infof("[HelmActions] Job %s/%s reached terminal phase=%s (succeeded=%d failed=%d): %s",
 				rec.Namespace, rec.Name, rec.Phase, rec.Succeeded, rec.Failed, rec.Message)
+			// todo(dp): report job status
 		}
 	case watch.Deleted:
 		w.store.RemoveJob(job.UID)
 		log.Debugf("[HelmActions] Job %s/%s deleted, dropped from store", job.Namespace, job.Name)
+		// todo(dp): report job removed
 	}
 }
 
@@ -185,4 +189,5 @@ func (w *jobWatcher) captureLogs(parent context.Context, rec PodRecord) {
 }
 
 func (h *jobWatcher) OnRollback(in *helmactions.RollbackInputs, job *batchv1.Job) {
+	h.store.TrackJob(job, in)
 }
