@@ -306,7 +306,6 @@ func TestQueryCountersDriverNewerThanAgent(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, maxKnownVersion, mockRequestedVersion)
-	assert.Equal(t, CountersVersion2, mockRequestedVersion)
 	assertV1CountersEqual(t, &mockCountersV1, counters)
 	assertV2CountersEqual(t, &mockCountersV2, counters)
 
