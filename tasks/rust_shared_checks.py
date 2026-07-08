@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import shutil
 import sys
 from dataclasses import dataclass
@@ -112,21 +111,10 @@ def _select_checks(specs: list[CheckSpec], platform: str) -> tuple[list[CheckSpe
     return final, skipped
 
 
-def _bazel_toolchain_bin(ctx, target: str) -> Path:
-    rel = bazel(ctx, "cquery", target, "--output=files", capture_output=True).strip().splitlines()[0]
-    exec_root = bazel(ctx, "info", "execution_root", capture_output=True).strip()
-    path = Path(exec_root) / rel
-    if not path.exists():
-        raise Exit(f"Bazel toolchain binary not found: {path}")
-    return path
-
-
-def _cargo_build_env(ctx, repo_root: Path) -> dict[str, str]:
+def _cargo_build_env(repo_root: Path) -> dict[str, str]:
     cargo_home = repo_root / "pkg/collector/sharedlibrary/rustchecks/.cargo-home"
     cargo_home.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
-    env["CARGO"] = str(_bazel_toolchain_bin(ctx, "@rules_rust//rust/toolchain:current_cargo_files"))
-    env["RUSTC"] = str(_bazel_toolchain_bin(ctx, "@rules_rust//rust/toolchain:current_rustc_files"))
     env["CARGO_HOME"] = str(cargo_home)
     return env
 
@@ -178,9 +166,10 @@ def build(ctx, checks_d_dir, manifest_path=None):
             candidate.unlink()
 
     rustchecks_dir = repo_root / "pkg/collector/sharedlibrary/rustchecks"
-    build_env = _cargo_build_env(ctx, repo_root)
+    build_env = _cargo_build_env(repo_root)
     cargo_args = [
-        build_env["CARGO"],
+        "@rules_rust//tools/upstream_wrapper:cargo",
+        "--",
         "build",
         "--release",
         "--manifest-path",
@@ -190,9 +179,12 @@ def build(ctx, checks_d_dir, manifest_path=None):
         cargo_args += ["-p", s.crate]
 
     with gitlab_section("Build Rust shared-library checks", collapsed=True):
-        # ctx.run uses the shell; use a single command string for compatibility.
-        cmd = " ".join(shlex.quote(a) for a in cargo_args)
-        ctx.run(f"cd {shlex.quote(str(rustchecks_dir))} && {cmd}", env=build_env, err_stream=sys.stdout)
+        bazel(
+            ctx,
+            "run",
+            f"--action_env=CARGO_HOME={build_env['CARGO_HOME']}",
+            *cargo_args,
+        )
 
     # Stage and enforce file mode:
     #   - group/other must have no permissions (loader uses mode bits checks)
