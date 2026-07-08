@@ -35,7 +35,7 @@ Read both files before writing anything:
 - `IssueName` constant → asserted as `issue.IssueName` in the test
 - Whether `BuiltInPeriodicHealthCheck()` returns non-nil → agent runs the check on a schedule
 - Whether `BuiltInStartupHealthCheck()` returns non-nil → check runs once at startup
-- Both returning `nil` → issues are pushed externally by the collector (like `checkfailure`)
+- Both returning `nil` → issues are pushed externally by another component (like `admissionprobe`)
 
 **`$MODULE_PATH/issue.go`** — extract the exact values returned by `BuildIssue()`:
 - `Category`, `Source`, `Location`, `Severity`, `Tags` → assert these in `IssueDetection`
@@ -54,7 +54,7 @@ If a `check.go` file exists in the module, read it to understand how the issue i
 
 Do **not** implement `Diagnose()` on the env — all assertions go through fakeintake only.
 
-The `healthPlatformAgentConfig` const is already defined in `check_failure_test.go` (same package) — do not redefine it.
+Check whether another test file in this package already embeds a suitable base agent config (e.g. a short forwarder interval) before adding your own — reuse it if so, following the fixture rules in Step 4 otherwise.
 
 ---
 
@@ -94,7 +94,7 @@ func Test{Module}Suite(t *testing.T) {
         e2e.WithProvisioner(awshost.Provisioner(
             awshost.WithRunOptions(
                 ec2.WithAgentOptions(
-                    agentparams.WithAgentConfig(healthPlatformAgentConfig),
+                    agentparams.WithAgentConfig({module}AgentConfig),
                     // add agentparams here to pre-configure the issue trigger if needed
                 ),
             ),
@@ -149,7 +149,7 @@ func (suite *{module}Suite) Test{Module}IssueLifecycle() {
         suite.UpdateEnv(awshost.Provisioner(
             awshost.WithRunOptions(
                 ec2.WithAgentOptions(
-                    agentparams.WithAgentConfig(healthPlatformAgentConfig),
+                    agentparams.WithAgentConfig({module}AgentConfig),
                     // agentparams that represent the fixed state
                 ),
             ),
@@ -180,8 +180,8 @@ func (suite *{module}Suite) Test{Module}IssueLifecycle() {
 }
 ```
 
-**If the issue ID includes a runtime-generated suffix** (e.g. `check-execution-failure:broken_check:<hash>`):
-replace `findIssuesByID(t, p, issueID)` with `findIssuesByPrefix(p, issueID)` and drop the `t` parameter.
+**If the issue ID includes a runtime-generated suffix** (e.g. an issue ID with a hash appended per instance):
+add a `findIssuesByPrefix` helper to `helpers_test.go` (mirroring `findIssuesByID` but using `strings.HasPrefix`) and use it in place of `findIssuesByID(t, p, issueID)`.
 
 ---
 
@@ -193,7 +193,7 @@ replace `findIssuesByID(t, p, issueID)` with `findIssuesByPrefix(p, issueID)` an
 | Python file | `//go:embed fixtures/{module}.py` → `var {module}Py string` |
 | Long YAML | `//go:embed fixtures/{module}_config.yaml` → `var {module}Config string` |
 
-Never re-declare `healthPlatformAgentConfig` — it is already a `const` in `check_failure_test.go`.
+Before adding a new agent config fixture, check whether an existing one in the package already fits — reuse it instead of declaring a near-duplicate.
 
 ---
 
