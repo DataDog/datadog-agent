@@ -456,6 +456,7 @@
 # Per-team ownership of individual event platform pipeline descriptor files.
 # Each file holds the passthroughPipelineDesc entries for one owning team so
 # that teams can merge pipeline config changes without Logs team review.
+/comp/forwarder/eventplatform/impl/pipelines_agentdiscovery.go         @DataDog/agent-discovery
 /comp/forwarder/eventplatform/impl/pipelines_dbm.go                    @DataDog/database-monitoring
 /comp/forwarder/eventplatform/impl/pipelines_ndm_core.go               @DataDog/network-device-monitoring-core
 /comp/forwarder/eventplatform/impl/pipelines_ndm_integrations.go       @DataDog/ndm-integrations
