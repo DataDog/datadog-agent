@@ -17,6 +17,7 @@ from tasks.libs.code_review.prompt import (
 from tasks.libs.code_review.providers import (
     ProviderInvocation,
     build_provider_invocation,
+    collect_review_diff,
     expand_providers,
     run_provider,
 )
@@ -71,6 +72,22 @@ class FakePromptContext:
         else:
             stdout = self.changed_files
         return type("Result", (), {"stdout": stdout})()
+
+
+class FakeDiffContext:
+    def __init__(self):
+        self.commands = []
+
+    def run(self, command, **_kwargs):
+        self.commands.append(command)
+        stdout = {
+            "--stat": " tasks/foo.py | 2 ++\n",
+            "--name-only": "tasks/foo.py\n",
+        }
+        for marker, output in stdout.items():
+            if marker in command:
+                return type("Result", (), {"exited": 0, "stdout": output, "stderr": ""})()
+        return type("Result", (), {"exited": 0, "stdout": "diff --git a/tasks/foo.py b/tasks/foo.py\n", "stderr": ""})()
 
 
 def write_code_review_workflow(
@@ -232,13 +249,27 @@ class TestCodeReviewProviders(unittest.TestCase):
             review_prompt=review_prompt,
             prompt_path=Path(".tmp/code-review/prompt.md"),
             artifact_dir=Path(".tmp/code-review"),
+            review_diff="--- DIFF STAT ---\ntasks/foo.py | 2 ++\n\n--- PATCH ---\ndiff --git a/tasks/foo.py b/tasks/foo.py\n",
         )
 
         self.assertEqual(invocation.executable, "codex")
         self.assertEqual(invocation.command, "codex exec --sandbox read-only -")
-        self.assertIn("git diff --find-renames origin/main...HEAD", invocation.stdin or "")
+        self.assertIn("Do not run shell commands", invocation.stdin or "")
+        self.assertIn("--- DIFF STAT ---", invocation.stdin or "")
+        self.assertIn("diff --git a/tasks/foo.py b/tasks/foo.py", invocation.stdin or "")
         self.assertIn("custom review instructions", invocation.stdin or "")
         self.assertEqual(invocation.output_path, Path(".tmp/code-review/codex.md"))
+
+    def test_collect_review_diff(self):
+        ctx = FakeDiffContext()
+
+        review_diff = collect_review_diff(ctx, Path("/repo"), "origin/main")
+
+        self.assertIn("--- DIFF STAT ---\ntasks/foo.py | 2 ++", review_diff)
+        self.assertIn("--- CHANGED FILES ---\ntasks/foo.py", review_diff)
+        self.assertIn("--- PATCH ---\ndiff --git a/tasks/foo.py b/tasks/foo.py", review_diff)
+        self.assertEqual(len(ctx.commands), 3)
+        self.assertTrue(all("origin/main...HEAD" in command for command in ctx.commands))
 
     def test_build_claude_invocation_references_prompt_file(self):
         review_prompt = build_review_prompt(
