@@ -50,8 +50,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RemoveFleetProcmgrConfigOnRollback { get; }
 
-        public ManagedAction RemoveParFleetProcmgrConfigOnUpgradeRollback { get; }
-
         public ManagedAction CleanupOnRollback { get; }
 
         public ManagedAction RemoveEmptyInstallDirOnRollback { get; }
@@ -303,7 +301,10 @@ namespace WixSetup.Datadog_Agent
                     Return.check,
                     When.After,
                     new Step(CleanupOnRollback.Id),
-                    Conditions.FirstInstall
+                    // Rollback for any install-type transaction: postinst may have written
+                    // processes.d YAML on fresh install, upgrade, or repair. RemoveFolderEx
+                    // (uninstall-only) does not cover install-time rollback, so clean it here.
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
             {
                 Execute = Execute.rollback,
@@ -871,24 +872,6 @@ namespace WixSetup.Datadog_Agent
                                "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD], " +
                                "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]")
                 .HideTarget(true);
-
-            // Upgrade rollback only: postinst may have written PAR processes.d YAML that older
-            // agents do not suppress via SCM. Only remove YAML created during this install session.
-            // Must be sequenced before RunPostInstallHook so the rollback script is registered
-            // before postinst can write the config (see StartDDServicesRollback).
-            RemoveParFleetProcmgrConfigOnUpgradeRollback = new CustomAction<CustomActions>(
-                    new Id(nameof(RemoveParFleetProcmgrConfigOnUpgradeRollback)),
-                    CustomActions.RemoveParFleetProcmgrConfigOnUpgradeRollback,
-                    Return.check,
-                    When.Before,
-                    new Step(RunPostInstallHook.Id),
-                    Conditions.Upgrading
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             ConfigureAutoLogger = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureAutoLogger)),

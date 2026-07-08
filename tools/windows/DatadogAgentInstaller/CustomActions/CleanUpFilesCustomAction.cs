@@ -4,16 +4,11 @@ using WixToolset.Dtf.WindowsInstaller;
 using System;
 using System.IO;
 using System.Linq;
-using Microsoft.Win32;
 
 namespace Datadog.CustomActions
 {
     public class CleanUpFilesCustomAction
     {
-        private const string AdpProcmgrConfigFileName = "datadog-agent-data-plane.yaml";
-        private const string DdotProcmgrConfigFileName = "datadog-agent-ddot.yaml";
-        private const string ParProcmgrConfigFileName = "datadog-agent-action.yaml";
-
         /// <summary>
         /// Removes generated install artifacts (embedded2/embedded3, python-scripts, session-generated paths).
         /// Used before InstallFiles, during uninstall, and on rollback.
@@ -24,29 +19,18 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
-        /// Rollback-only: remove fleet-written processes.d YAML that MSI does not track.
-        /// Scheduled only on fresh install rollbacks (see Conditions.FirstInstall on the WiX action).
+        /// Rollback-only: remove the fleet-written processes.d directory that MSI does not track.
+        /// Runs on install/upgrade/repair rollback; RemoveFolderEx handles the uninstall path.
         /// </summary>
+        /// <remarks>
+        /// TODO(WINA-2538): once CleanupOnUninstall is sequenced after RemoveFiles (so an imperative
+        /// pre-RemoveFiles delete no longer defeats MSI rollback-restore), fold this into the general
+        /// RemoveGeneratedArtifactPaths cleanup by adding "processes.d" to its directory list, and
+        /// drop this rollback-only action.
+        /// </remarks>
         public static ActionResult RemoveFleetProcmgrConfigOnRollback(Session session)
         {
             return RemoveFleetProcmgrConfigOnRollback(new SessionWrapper(session));
-        }
-
-        /// <summary>
-        /// Rollback-only: remove fleet-written PAR processes.d YAML after a failed upgrade.
-        /// Older agents start PAR via SCM and do not suppress it when this file is left behind.
-        /// </summary>
-        public static ActionResult RemoveParFleetProcmgrConfigOnUpgradeRollback(Session session)
-        {
-            return RemoveParFleetProcmgrConfigOnUpgradeRollback(new SessionWrapper(session));
-        }
-
-        /// <summary>
-        /// Clear the install-session marker after a successful MSI install/upgrade.
-        /// </summary>
-        public static ActionResult ClearPARProcmgrConfigWrittenThisInstallMarker(Session session)
-        {
-            return ClearPARProcmgrConfigWrittenThisInstallMarker(new SessionWrapper(session));
         }
 
         /// <summary>
@@ -74,26 +58,7 @@ namespace Datadog.CustomActions
 
         private static ActionResult RemoveFleetProcmgrConfigOnRollback(ISession session)
         {
-            TryRemoveFleetProcmgrConfigFiles(session, session.Property("PROJECTLOCATION"),
-                AdpProcmgrConfigFileName, DdotProcmgrConfigFileName, ParProcmgrConfigFileName);
-            return ActionResult.Success;
-        }
-
-        private static ActionResult RemoveParFleetProcmgrConfigOnUpgradeRollback(ISession session)
-        {
-            if (!PARProcmgrConfigMarkedWrittenThisInstall(session))
-            {
-                session.Log("PAR processes.d was not written this install; skip upgrade rollback cleanup.");
-                return ActionResult.Success;
-            }
-            TryRemoveFleetProcmgrConfigFiles(session, session.Property("PROJECTLOCATION"), ParProcmgrConfigFileName);
-            clearParProcmgrInstallMarkerRegistry(session);
-            return ActionResult.Success;
-        }
-
-        private static ActionResult ClearPARProcmgrConfigWrittenThisInstallMarker(ISession session)
-        {
-            clearParProcmgrInstallMarkerRegistry(session);
+            TryRemoveFleetProcmgrConfigDir(session, session.Property("PROJECTLOCATION"));
             return ActionResult.Success;
         }
 
@@ -149,7 +114,7 @@ namespace Datadog.CustomActions
             }
         }
 
-        private static void TryRemoveFleetProcmgrConfigFiles(ISession session, string projectLocation, params string[] fileNames)
+        private static void TryRemoveFleetProcmgrConfigDir(ISession session, string projectLocation)
         {
             if (string.IsNullOrEmpty(projectLocation))
             {
@@ -157,24 +122,20 @@ namespace Datadog.CustomActions
             }
 
             var processesDir = Path.Combine(projectLocation, "processes.d");
-            foreach (var fileName in fileNames)
+            try
             {
-                var path = Path.Combine(processesDir, fileName);
-                try
+                if (!Directory.Exists(processesDir))
                 {
-                    if (!File.Exists(path))
-                    {
-                        session.Log($"{path} not found, skip deletion.");
-                        continue;
-                    }
+                    session.Log($"{processesDir} not found, skip deletion.");
+                    return;
+                }
 
-                    session.Log($"Deleting fleet process manager config \"{path}\"");
-                    File.Delete(path);
-                }
-                catch (Exception e)
-                {
-                    session.Log($"Error while deleting fleet process manager config {path}: {e}");
-                }
+                session.Log($"Deleting fleet process manager config directory \"{processesDir}\"");
+                Directory.Delete(processesDir, true);
+            }
+            catch (Exception e)
+            {
+                session.Log($"Error while deleting fleet process manager config directory {processesDir}: {e}");
             }
         }
 
@@ -214,37 +175,5 @@ namespace Datadog.CustomActions
             }
         }
 
-        private static bool PARProcmgrConfigMarkedWrittenThisInstall(ISession session)
-        {
-            try
-            {
-                using var key = Registry.LocalMachine.OpenSubKey(Constants.DatadogAgentRegistryKey, writable: false);
-                if (key == null)
-                {
-                    return false;
-                }
-
-                var value = key.GetValue(Constants.PARProcmgrConfigWrittenThisInstallValue);
-                return value is int marker && marker != 0;
-            }
-            catch (Exception e)
-            {
-                session.Log($"Error reading PAR procmgr install marker: {e}");
-                return false;
-            }
-        }
-
-        private static void clearParProcmgrInstallMarkerRegistry(ISession session)
-        {
-            try
-            {
-                using var key = Registry.LocalMachine.OpenSubKey(Constants.DatadogAgentRegistryKey, writable: true);
-                key?.DeleteValue(Constants.PARProcmgrConfigWrittenThisInstallValue, throwOnMissingValue: false);
-            }
-            catch (Exception e)
-            {
-                session.Log($"Error clearing PAR procmgr install marker: {e}");
-            }
-        }
     }
 }
