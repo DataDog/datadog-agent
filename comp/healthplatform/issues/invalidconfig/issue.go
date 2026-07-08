@@ -82,7 +82,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 
 	return &healthplatform.Issue{
 		IssueName:   IssueName,
-		Title:       "Datadog Agent Configuration Has Schema Violations in " + filepath.Base(path),
+		Title:       fmt.Sprintf("Datadog Agent Configuration Has %d Schema Violation%s in %s", count, suffix, filepath.Base(path)),
 		Description: desc,
 		Category:    "configuration",
 		Location:    "agent",
