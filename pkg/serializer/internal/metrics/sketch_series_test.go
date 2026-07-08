@@ -93,10 +93,12 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 
 			// A small item (no dropped)
 			sl.Append(&metrics.SketchSeries{
-				Name:     "small",
-				Tags:     tagset.CompositeTagsFromSlice([]string{}),
-				Host:     "",
-				Interval: 0,
+				DistributionMetadata: metrics.DistributionMetadata{
+					Name:     "small",
+					Tags:     tagset.CompositeTagsFromSlice([]string{}),
+					Host:     "",
+					Interval: 0,
+				},
 			})
 
 			pipelines := testPipelines()
@@ -300,5 +302,28 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 			firstFilteredPayload := filteredPayloads[0]
 			assert.Equal(t, 5, firstFilteredPayload.GetPointCount())
 		})
+	}
+}
+
+func BenchmarkSketchSerialization(b *testing.B) {
+	src := metrics.NewSketchesSourceTest()
+	for i := 0; i < 10000; i++ {
+		src.Append(Makeseries(0))
+	}
+	serializer := SketchSeriesList{SketchesSource: src}
+
+	mockConfig := mock.New(b)
+	compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
+	logger := logmock.New(b)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		pipelines := testPipelines()
+		err := serializer.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logger)
+		require.NoError(b, err)
+		// Reset the source iterator so the next iteration serializes the same data.
+		src.Reset()
 	}
 }
