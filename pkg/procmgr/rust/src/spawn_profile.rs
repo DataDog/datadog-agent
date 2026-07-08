@@ -69,7 +69,10 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn datadog_agent_process_matches_local_system_scm_service() {
-        assert_eq!(profile_for("datadog-agent-process"), SpawnProfile::Privileged);
+        assert_eq!(
+            profile_for("datadog-agent-process"),
+            SpawnProfile::Privileged
+        );
     }
 
     #[cfg(not(windows))]

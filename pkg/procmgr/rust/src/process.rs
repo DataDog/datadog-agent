@@ -287,15 +287,14 @@ impl ManagedProcess {
             };
 
             if optional && !std::path::Path::new(path).exists() {
-                info!("[{}] optional environment file not found, skipping: {}", self.name, path);
+                info!(
+                    "[{}] optional environment file not found, skipping: {}",
+                    self.name, path
+                );
             } else {
-                let vars = parse_environment_file(path)
-                    .with_context(|| {
-                        format!(
-                            "[{}] failed to read environment file: {}",
-                            self.name, path
-                        )
-                    })?;
+                let vars = parse_environment_file(path).with_context(|| {
+                    format!("[{}] failed to read environment file: {}", self.name, path)
+                })?;
                 env.extend(vars);
             }
         }

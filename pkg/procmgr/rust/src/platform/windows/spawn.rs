@@ -7,39 +7,39 @@
 
 use anyhow::{Context, Result, bail};
 use log::info;
-use std::ptr;
-use std::process::Stdio;
-use std::os::windows::ffi::OsStrExt;
 use std::collections::HashMap;
+use std::os::windows::ffi::OsStrExt;
+use std::process::Stdio;
+use std::ptr;
 use tokio::process::Command;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Security::{
-    ImpersonateLoggedOnUser, LogonUserW, RevertToSelf, LOGON32_LOGON_SERVICE,
-    LOGON32_PROVIDER_DEFAULT, DuplicateTokenEx, SecurityDelegation, TokenPrimary,
-};
-use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
-use windows_sys::Win32::System::Console::{
-    GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
-};
-use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
-    CreateProcessAsUserW, PROCESS_INFORMATION, STARTUPINFOW, STARTF_USESTDHANDLES,
+    DuplicateTokenEx, ImpersonateLoggedOnUser, LOGON32_LOGON_SERVICE, LOGON32_PROVIDER_DEFAULT,
+    LogonUserW, RevertToSelf, SecurityDelegation, TokenPrimary,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
     FILE_SHARE_WRITE, OPEN_EXISTING,
 };
+use windows_sys::Win32::System::Console::{
+    GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+};
+use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
+use windows_sys::Win32::System::Threading::{
+    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
+    CreateProcessAsUserW, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW,
+};
 
+use crate::handle::ProcessHandle;
 use crate::spawn_context;
 use crate::spawn_profile::SpawnProfile;
-use crate::handle::ProcessHandle;
 use crate::spawn_request::SpawnRequest;
 
 use super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::apply_child_baseline_env;
-use super::{install_root, program_data_root};
 use super::setup_process_group;
 use super::wide;
+use super::{install_root, program_data_root};
 
 /// Spawn a managed child using the platform spawn profile for `process_name`.
 ///
@@ -61,19 +61,16 @@ pub(crate) fn spawn_child(
     match profile {
         SpawnProfile::Privileged => {
             // Legacy privileged SCM-like behavior.
-            if let Ok(handle) = spawn_as_primary_token(
-                process_name,
-                &request,
-                &AgentAccount::LocalSystem,
-            ) {
+            if let Ok(handle) =
+                spawn_as_primary_token(process_name, &request, &AgentAccount::LocalSystem)
+            {
                 return Ok(handle);
             }
         }
         SpawnProfile::Agent => {
             // Primary-token spawn as the resolved agent account (passwordless supported).
             if let Ok(account) = resolve_agent_account() {
-                if let Ok(handle) = spawn_as_primary_token(process_name, &request, &account)
-                {
+                if let Ok(handle) = spawn_as_primary_token(process_name, &request, &account) {
                     return Ok(handle);
                 }
             }
@@ -94,10 +91,7 @@ pub(crate) fn spawn_child(
 
 /// Reject privileged spawn requests that don't exactly match our embedded
 /// privileged process catalog spec.
-fn validate_privileged_process_request(
-    process_name: &str,
-    request: &SpawnRequest,
-) -> Result<()> {
+fn validate_privileged_process_request(process_name: &str, request: &SpawnRequest) -> Result<()> {
     let install_root = install_root();
     let etc_root = program_data_root();
 
@@ -117,9 +111,7 @@ fn validate_privileged_stdio(process_name: &str, request: &SpawnRequest) -> Resu
         matches!(s, std::process::Stdio::Inherit | std::process::Stdio::Null)
     };
     if !allow(&request.stdout) || !allow(&request.stderr) {
-        bail!(
-            "[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null"
-        );
+        bail!("[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null");
     }
     Ok(())
 }
@@ -151,11 +143,7 @@ fn validate_privileged_command_args(
         );
     }
 
-    let norm_args: Vec<_> = request
-        .args
-        .iter()
-        .map(|a| normalize_win_path(a))
-        .collect();
+    let norm_args: Vec<_> = request.args.iter().map(|a| normalize_win_path(a)).collect();
     let expected_args: Vec<_> = spec
         .expected_args
         .iter()
@@ -186,9 +174,7 @@ fn validate_privileged_env(
             );
         }
         if spec.non_empty_env.contains(&k.as_str()) && v.trim().is_empty() {
-            bail!(
-                "[{process_name}] refusing privileged spawn: {k} must be non-empty"
-            );
+            bail!("[{process_name}] refusing privileged spawn: {k} must be non-empty");
         }
     }
     Ok(())
@@ -245,16 +231,11 @@ fn normalize_win_path(s: &str) -> String {
     s.replace('/', "\\").to_ascii_lowercase()
 }
 
-fn exec_spawn(
-    process_name: &str,
-    command: &str,
-    cmd: &mut Command,
-) -> Result<ProcessHandle> {
+fn exec_spawn(process_name: &str, command: &str, cmd: &mut Command) -> Result<ProcessHandle> {
     setup_process_group(cmd);
     let child = cmd
         .spawn()
-        .with_context(|| spawn_context::failed_message(process_name, command))
-        ?;
+        .with_context(|| spawn_context::failed_message(process_name, command))?;
     Ok(ProcessHandle::from_child(child))
 }
 
@@ -283,9 +264,8 @@ fn spawn_as_agent_user(
     command: &str,
     cmd: &mut Command,
 ) -> Result<ProcessHandle> {
-    let account = resolve_agent_account().with_context(|| {
-        format!("[{process_name}] resolve agent service account for spawn")
-    })?;
+    let account = resolve_agent_account()
+        .with_context(|| format!("[{process_name}] resolve agent service account for spawn"))?;
 
     match account {
         AgentAccount::LocalSystem => {
@@ -304,14 +284,9 @@ fn spawn_as_agent_user(
             &user,
             Some(password.as_str()),
         ),
-        AgentAccount::ServiceAccountLogon { domain, user } => spawn_with_impersonation(
-            process_name,
-            command,
-            cmd,
-            &domain,
-            &user,
-            None,
-        ),
+        AgentAccount::ServiceAccountLogon { domain, user } => {
+            spawn_with_impersonation(process_name, command, cmd, &domain, &user, None)
+        }
     }
 }
 
@@ -332,9 +307,7 @@ fn spawn_with_impersonation(
         let ok = LogonUserW(
             user_wide.as_ptr(),
             domain_wide.as_ptr(),
-            password_wide
-                .as_ref()
-                .map_or(ptr::null(), |p| p.as_ptr()),
+            password_wide.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
             LOGON32_LOGON_SERVICE,
             LOGON32_PROVIDER_DEFAULT,
             &mut logon_token.0,
@@ -389,7 +362,10 @@ fn spawn_as_primary_token(
     let env_block = env_block_from_current_plus_overrides(&request.env)?;
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 
-    let current_dir_w = request.working_dir.as_ref().map(|d| wide::null_terminated(d.to_string_lossy().as_ref()));
+    let current_dir_w = request
+        .working_dir
+        .as_ref()
+        .map(|d| wide::null_terminated(d.to_string_lossy().as_ref()));
 
     // Acquire a token for the configured account.
     let (domain, user, password) = primary_token_logon_credentials(account);
@@ -402,9 +378,7 @@ fn spawn_as_primary_token(
         LogonUserW(
             user_w.as_ptr(),
             domain_w.as_ptr(),
-            password_w
-                .as_ref()
-                .map_or(std::ptr::null(), |p| p.as_ptr()),
+            password_w.as_ref().map_or(std::ptr::null(), |p| p.as_ptr()),
             LOGON32_LOGON_SERVICE,
             LOGON32_PROVIDER_DEFAULT,
             &mut logon_token,
@@ -446,8 +420,10 @@ fn spawn_as_primary_token(
     si.hStdError = stderr_handle;
 
     let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
-    let dw_creation_flags =
-        CREATE_NEW_PROCESS_GROUP | CREATE_NEW_CONSOLE | CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT;
+    let dw_creation_flags = CREATE_NEW_PROCESS_GROUP
+        | CREATE_NEW_CONSOLE
+        | CREATE_NO_WINDOW
+        | CREATE_UNICODE_ENVIRONMENT;
 
     let ok = unsafe {
         CreateProcessAsUserW(
@@ -490,9 +466,7 @@ fn spawn_as_primary_token(
     Ok(ProcessHandle::from_raw(pi.dwProcessId, pi.hProcess))
 }
 
-fn primary_token_logon_credentials(
-    account: &AgentAccount,
-) -> (&str, &str, Option<&str>) {
+fn primary_token_logon_credentials(account: &AgentAccount) -> (&str, &str, Option<&str>) {
     match account {
         AgentAccount::LocalSystem => ("NT AUTHORITY", "SYSTEM", Some("")),
         AgentAccount::PasswordLogon {
@@ -532,9 +506,7 @@ fn windows_crt_escape_arg(s: &str) -> String {
     out
 }
 
-fn env_block_from_current_plus_overrides(
-    overrides: &[(String, String)],
-) -> Result<Vec<u16>> {
+fn env_block_from_current_plus_overrides(overrides: &[(String, String)]) -> Result<Vec<u16>> {
     let mut vars: HashMap<String, String> = std::env::vars().collect();
     for (k, v) in overrides {
         vars.insert(k.clone(), v.clone());
@@ -565,7 +537,10 @@ fn open_nul_handle(access: u32) -> Result<HANDLE> {
         )
     };
     if h == INVALID_HANDLE_VALUE || h.is_null() {
-        bail!("CreateFileW(NUL) failed: {}", std::io::Error::last_os_error());
+        bail!(
+            "CreateFileW(NUL) failed: {}",
+            std::io::Error::last_os_error()
+        );
     }
     Ok(h)
 }
@@ -580,9 +555,7 @@ fn map_stdio_handle(stdio: &Stdio, kind: u32) -> Result<HANDLE> {
             Ok(h)
         },
         Stdio::Null => open_nul_handle(FILE_GENERIC_READ | FILE_GENERIC_WRITE),
-        other => bail!(
-            "primary-token spawn only supports inherit/null stdio, got {other:?}"
-        ),
+        other => bail!("primary-token spawn only supports inherit/null stdio, got {other:?}"),
     }
 }
 

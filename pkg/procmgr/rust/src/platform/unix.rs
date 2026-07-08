@@ -11,9 +11,9 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use tokio::process::Command;
 
+use crate::handle::ProcessHandle;
 use crate::spawn_context;
 use crate::spawn_profile::SpawnProfile;
-use crate::handle::ProcessHandle;
 use crate::spawn_request::SpawnRequest;
 
 /// Place the child in its own process group so signals don't propagate
@@ -51,9 +51,9 @@ pub(crate) fn spawn_child(
     cmd.stderr(stderr);
 
     setup_process_group(&mut cmd);
-    let child = cmd.spawn().with_context(|| {
-        spawn_context::failed_message(process_name, &command)
-    })?;
+    let child = cmd
+        .spawn()
+        .with_context(|| spawn_context::failed_message(process_name, &command))?;
     Ok(ProcessHandle::from_child(child))
 }
 

@@ -7,17 +7,17 @@ pub mod command;
 pub mod config;
 pub mod env;
 pub mod grpc;
+pub mod handle;
 pub mod manager;
 pub mod ordering;
 pub mod platform;
 pub mod process;
-pub mod handle;
-pub mod spawn_request;
-mod spawn_context;
 #[cfg(windows)]
 pub mod service;
 pub mod shutdown;
+mod spawn_context;
 pub mod spawn_profile;
+pub mod spawn_request;
 pub mod state;
 #[cfg(any(test, feature = "test-helpers"))]
 pub mod test_helpers;

@@ -64,7 +64,10 @@ impl ProcessHandle {
     #[cfg(windows)]
     pub fn from_raw(pid: u32, process_handle: HANDLE) -> Self {
         Self {
-            inner: ProcessHandleInner::Raw { pid, process_handle },
+            inner: ProcessHandleInner::Raw {
+                pid,
+                process_handle,
+            },
         }
     }
 
@@ -89,9 +92,9 @@ impl ProcessHandle {
         {
             match &mut self.inner {
                 ProcessHandleInner::Tokio(child) => Ok(child.wait().await?),
-                ProcessHandleInner::Raw {
-                    process_handle, ..
-                } => raw_wait_exit_code(*process_handle).await,
+                ProcessHandleInner::Raw { process_handle, .. } => {
+                    raw_wait_exit_code(*process_handle).await
+                }
             }
         }
     }
@@ -122,12 +125,12 @@ async fn raw_wait_exit_code(process_handle: HANDLE) -> Result<ExitStatus> {
     use std::ffi::c_void;
 
     use tokio::sync::oneshot;
+    use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+    use windows_sys::Win32::System::Threading::GetExitCodeProcess;
     use windows_sys::Win32::System::Threading::{
-        RegisterWaitForSingleObject, UnregisterWaitEx, INFINITE, WT_EXECUTEINWAITTHREAD,
+        INFINITE, RegisterWaitForSingleObject, UnregisterWaitEx, WT_EXECUTEINWAITTHREAD,
         WT_EXECUTEONLYONCE,
     };
-    use windows_sys::Win32::System::Threading::{GetExitCodeProcess};
-    use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
 
     use std::os::windows::process::ExitStatusExt;
 
@@ -136,10 +139,7 @@ async fn raw_wait_exit_code(process_handle: HANDLE) -> Result<ExitStatus> {
         process_handle: HANDLE,
     }
 
-    unsafe extern "system" fn callback(
-        ptr: *mut c_void,
-        _timed_out: bool,
-    ) {
+    unsafe extern "system" fn callback(ptr: *mut c_void, _timed_out: bool) {
         let data = &mut *(ptr as *mut WaitData);
         if let Some(tx) = data.tx.take() {
             let mut exit_code: u32 = 0;
@@ -194,7 +194,9 @@ async fn raw_wait_exit_code(process_handle: HANDLE) -> Result<ExitStatus> {
         ptr: wait_data_ptr as *mut WaitData,
     };
 
-    let exit_code = rx.await.map_err(|e| anyhow::anyhow!("wait cancelled: {e}"))?;
+    let exit_code = rx
+        .await
+        .map_err(|e| anyhow::anyhow!("wait cancelled: {e}"))?;
     drop(guard);
     Ok(ExitStatus::from_raw(exit_code))
 }
@@ -209,4 +211,3 @@ fn raw_terminate_process(process_handle: HANDLE) -> Result<()> {
         Ok(())
     }
 }
-

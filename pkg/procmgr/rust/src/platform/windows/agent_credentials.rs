@@ -11,13 +11,11 @@
 
 use anyhow::{Context, Result, bail};
 use std::ptr;
-use windows_sys::Win32::Security::{
-    IsWellKnownSid, LookupAccountNameW, WinLocalSystemSid,
-};
 use windows_sys::Win32::Security::Authentication::Identity::{
-    LsaClose, LsaFreeMemory, LsaOpenPolicy, LsaRetrievePrivateData,
-    LSA_OBJECT_ATTRIBUTES, LSA_UNICODE_STRING, LSA_HANDLE, POLICY_GET_PRIVATE_INFORMATION,
+    LSA_HANDLE, LSA_OBJECT_ATTRIBUTES, LSA_UNICODE_STRING, LsaClose, LsaFreeMemory, LsaOpenPolicy,
+    LsaRetrievePrivateData, POLICY_GET_PRIVATE_INFORMATION,
 };
+use windows_sys::Win32::Security::{IsWellKnownSid, LookupAccountNameW, WinLocalSystemSid};
 
 use super::wide;
 use super::{open_datadog_agent_key, registry_nonempty_string};
@@ -42,8 +40,7 @@ pub(crate) enum AgentAccount {
 
 /// Resolve the agent service account from registry + LSA private data.
 pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
-    let key =
-        open_datadog_agent_key().context("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent")?;
+    let key = open_datadog_agent_key().context("open HKLM\\SOFTWARE\\Datadog\\Datadog Agent")?;
     let user = registry_nonempty_string(&key, "installedUser")
         .context("read installedUser from registry")?;
     let domain = key
@@ -56,9 +53,8 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
         return Ok(AgentAccount::LocalSystem);
     }
 
-    let sid = lookup_account_sid(&domain, &user).with_context(|| {
-        format!("lookup SID for {domain}\\{user}")
-    })?;
+    let sid = lookup_account_sid(&domain, &user)
+        .with_context(|| format!("lookup SID for {domain}\\{user}"))?;
     if is_local_system_sid(&sid) {
         return Ok(AgentAccount::LocalSystem);
     }

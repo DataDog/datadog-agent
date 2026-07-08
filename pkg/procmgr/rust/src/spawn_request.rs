@@ -19,4 +19,3 @@ pub struct SpawnRequest {
     pub stdout: Stdio,
     pub stderr: Stdio,
 }
-
