@@ -323,8 +323,8 @@ func unescapeSegment(s string) string {
 }
 
 // writeTo writes the syslog fields as a JSON object to the stream.
-// Field presence matches BuildSyslogFields: severity/facility omitted when
-// Pri < 0, version omitted for BSD, structured_data omitted when nil.
+// Field presence: severity/facility omitted when Pri < 0, version omitted
+// for BSD, structured_data omitted when nil.
 func (f *SyslogFields) writeTo(stream *jsoniter.Stream) {
 	stream.WriteObjectStart()
 
@@ -373,8 +373,8 @@ func (f *SyslogFields) writeTo(stream *jsoniter.Stream) {
 }
 
 // writeTo writes the SIEM fields as a JSON object to the stream.
-// Field presence matches BuildSIEMFields: name omitted for LEEF,
-// severity omitted for LEEF, extension omitted when empty.
+// Field presence: name omitted for LEEF, severity omitted for LEEF,
+// extension omitted when empty.
 func (f *SIEMFields) writeTo(stream *jsoniter.Stream) {
 	stream.WriteObjectStart()
 

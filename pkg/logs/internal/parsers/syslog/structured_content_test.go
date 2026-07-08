@@ -7,6 +7,7 @@ package syslog
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,32 +17,26 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// JSON parity: SyslogStructuredContent vs BasicStructuredContent
+// Render() debug JSON golden output
 // ---------------------------------------------------------------------------
 
-func jsonEqual(t *testing.T, a, b []byte) {
+// renderDebugJSON renders parsed with debugRender enabled and unmarshals the
+// resulting JSON into a generic map for structural comparison. Numeric fields
+// decode to float64, matching encoding/json semantics.
+func renderDebugJSON(t *testing.T, parsed SyslogMessage) map[string]interface{} {
 	t.Helper()
-	var aObj, bObj interface{}
-	require.NoError(t, json.Unmarshal(a, &aObj))
-	require.NoError(t, json.Unmarshal(b, &bObj))
-	assert.Equal(t, aObj, bObj)
+	sc := NewSyslogStructuredContent(parsed)
+	sc.debugRender = true
+	got, err := sc.Render()
+	require.NoError(t, err)
+
+	var data map[string]interface{}
+	require.NoError(t, json.Unmarshal(got, &data))
+	return data
 }
 
-func buildBasicSC(parsed SyslogMessage) *message.BasicStructuredContent {
-	sc := &message.BasicStructuredContent{
-		Data: map[string]interface{}{
-			"message": string(parsed.Msg),
-			"syslog":  BuildSyslogFields(&parsed),
-		},
-	}
-	if header, ext, _, ok := ParseCEFLEEF(parsed.Msg); ok {
-		sc.Data["siem"] = BuildSIEMFields(header, ext)
-	}
-	return sc
-}
-
-func TestRenderParity_RFC5424(t *testing.T) {
-	parsed := SyslogMessage{
+func TestRenderDebugJSON_RFC5424(t *testing.T) {
+	got := renderDebugJSON(t, SyslogMessage{
 		Pri:       165,
 		Version:   "1",
 		Timestamp: "2003-10-11T22:14:15.003Z",
@@ -53,21 +48,30 @@ func TestRenderParity_RFC5424(t *testing.T) {
 			"exampleSDID@32473": {"iut": "3", "eventSource": "Application", "eventID": "1011"},
 		},
 		Msg: []byte("An application event log entry"),
-	}
+	})
 
-	old, err := buildBasicSC(parsed).Render()
-	require.NoError(t, err)
-
-	newSC := NewSyslogStructuredContent(parsed)
-	newSC.debugRender = true
-	got, err := newSC.Render()
-	require.NoError(t, err)
-
-	jsonEqual(t, old, got)
+	assert.Equal(t, map[string]interface{}{
+		"message": "An application event log entry",
+		"syslog": map[string]interface{}{
+			"timestamp": "2003-10-11T22:14:15.003Z",
+			"hostname":  "mymachine.example.com",
+			"appname":   "evntslog",
+			"procid":    "-",
+			"msgid":     "ID47",
+			"severity":  float64(5),  // 165 % 8
+			"facility":  float64(20), // 165 / 8
+			"version":   "1",
+			"structured_data": map[string]interface{}{
+				"exampleSDID@32473": map[string]interface{}{
+					"iut": "3", "eventSource": "Application", "eventID": "1011",
+				},
+			},
+		},
+	}, got)
 }
 
-func TestRenderParity_RFC5424_Short(t *testing.T) {
-	parsed := SyslogMessage{
+func TestRenderDebugJSON_RFC5424_Short(t *testing.T) {
+	got := renderDebugJSON(t, SyslogMessage{
 		Pri:       14,
 		Version:   "1",
 		Timestamp: "2003-10-11T22:14:15.003Z",
@@ -76,21 +80,25 @@ func TestRenderParity_RFC5424_Short(t *testing.T) {
 		ProcID:    "-",
 		MsgID:     "-",
 		Msg:       []byte("short"),
-	}
+	})
 
-	old, err := buildBasicSC(parsed).Render()
-	require.NoError(t, err)
-
-	sc := NewSyslogStructuredContent(parsed)
-	sc.debugRender = true
-	got, err := sc.Render()
-	require.NoError(t, err)
-
-	jsonEqual(t, old, got)
+	assert.Equal(t, map[string]interface{}{
+		"message": "short",
+		"syslog": map[string]interface{}{
+			"timestamp": "2003-10-11T22:14:15.003Z",
+			"hostname":  "host",
+			"appname":   "app",
+			"procid":    "-",
+			"msgid":     "-",
+			"severity":  float64(6), // 14 % 8
+			"facility":  float64(1), // 14 / 8
+			"version":   "1",
+		},
+	}, got)
 }
 
-func TestRenderParity_BSD(t *testing.T) {
-	parsed := SyslogMessage{
+func TestRenderDebugJSON_BSD(t *testing.T) {
+	got := renderDebugJSON(t, SyslogMessage{
 		Pri:       34,
 		Timestamp: "Oct 11 22:14:15",
 		Hostname:  "mymachine",
@@ -98,21 +106,25 @@ func TestRenderParity_BSD(t *testing.T) {
 		ProcID:    "-",
 		MsgID:     "-",
 		Msg:       []byte("'su root' failed for lonvick on /dev/pts/8"),
-	}
+	})
 
-	old, err := buildBasicSC(parsed).Render()
-	require.NoError(t, err)
-
-	sc := NewSyslogStructuredContent(parsed)
-	sc.debugRender = true
-	got, err := sc.Render()
-	require.NoError(t, err)
-
-	jsonEqual(t, old, got)
+	// BSD: no version, no structured_data.
+	assert.Equal(t, map[string]interface{}{
+		"message": "'su root' failed for lonvick on /dev/pts/8",
+		"syslog": map[string]interface{}{
+			"timestamp": "Oct 11 22:14:15",
+			"hostname":  "mymachine",
+			"appname":   "su",
+			"procid":    "-",
+			"msgid":     "-",
+			"severity":  float64(2), // 34 % 8
+			"facility":  float64(4), // 34 / 8
+		},
+	}, got)
 }
 
-func TestRenderParity_NoPri(t *testing.T) {
-	parsed := SyslogMessage{
+func TestRenderDebugJSON_NoPri(t *testing.T) {
+	got := renderDebugJSON(t, SyslogMessage{
 		Pri:       -1,
 		Timestamp: "Oct 11 22:14:15",
 		Hostname:  "mymachine",
@@ -120,21 +132,23 @@ func TestRenderParity_NoPri(t *testing.T) {
 		ProcID:    "-",
 		MsgID:     "-",
 		Msg:       []byte("restart"),
-	}
+	})
 
-	old, err := buildBasicSC(parsed).Render()
-	require.NoError(t, err)
-
-	sc := NewSyslogStructuredContent(parsed)
-	sc.debugRender = true
-	got, err := sc.Render()
-	require.NoError(t, err)
-
-	jsonEqual(t, old, got)
+	// Pri < 0: severity and facility omitted.
+	assert.Equal(t, map[string]interface{}{
+		"message": "restart",
+		"syslog": map[string]interface{}{
+			"timestamp": "Oct 11 22:14:15",
+			"hostname":  "mymachine",
+			"appname":   "syslogd",
+			"procid":    "-",
+			"msgid":     "-",
+		},
+	}, got)
 }
 
-func TestRenderParity_NILVALUE(t *testing.T) {
-	parsed := SyslogMessage{
+func TestRenderDebugJSON_NILVALUE(t *testing.T) {
+	got := renderDebugJSON(t, SyslogMessage{
 		Pri:       14,
 		Version:   "1",
 		Timestamp: "-",
@@ -143,21 +157,25 @@ func TestRenderParity_NILVALUE(t *testing.T) {
 		ProcID:    "-",
 		MsgID:     "-",
 		Msg:       []byte("test"),
-	}
+	})
 
-	old, err := buildBasicSC(parsed).Render()
-	require.NoError(t, err)
-
-	_sc1 := NewSyslogStructuredContent(parsed)
-	_sc1.debugRender = true
-	got, err := _sc1.Render()
-	require.NoError(t, err)
-
-	jsonEqual(t, old, got)
+	assert.Equal(t, map[string]interface{}{
+		"message": "test",
+		"syslog": map[string]interface{}{
+			"timestamp": "-",
+			"hostname":  "-",
+			"appname":   "-",
+			"procid":    "-",
+			"msgid":     "-",
+			"severity":  float64(6),
+			"facility":  float64(1),
+			"version":   "1",
+		},
+	}, got)
 }
 
-func TestRenderParity_CEF(t *testing.T) {
-	parsed := SyslogMessage{
+func TestRenderDebugJSON_CEF(t *testing.T) {
+	got := renderDebugJSON(t, SyslogMessage{
 		Pri:       14,
 		Version:   "1",
 		Timestamp: "2003-10-11T22:14:15.003Z",
@@ -166,21 +184,39 @@ func TestRenderParity_CEF(t *testing.T) {
 		ProcID:    "-",
 		MsgID:     "-",
 		Msg:       []byte(`CEF:0|Security|Firewall|1.0|100|Attack|10|src=1.2.3.4 dst=5.6.7.8`),
-	}
+	})
 
-	old, err := buildBasicSC(parsed).Render()
-	require.NoError(t, err)
-
-	sc := NewSyslogStructuredContent(parsed)
-	sc.debugRender = true
-	got, err := sc.Render()
-	require.NoError(t, err)
-
-	jsonEqual(t, old, got)
+	assert.Equal(t, map[string]interface{}{
+		"message": `CEF:0|Security|Firewall|1.0|100|Attack|10|src=1.2.3.4 dst=5.6.7.8`,
+		"syslog": map[string]interface{}{
+			"timestamp": "2003-10-11T22:14:15.003Z",
+			"hostname":  "host",
+			"appname":   "app",
+			"procid":    "-",
+			"msgid":     "-",
+			"severity":  float64(6),
+			"facility":  float64(1),
+			"version":   "1",
+		},
+		"siem": map[string]interface{}{
+			"format":         "CEF",
+			"version":        "0",
+			"device_vendor":  "Security",
+			"device_product": "Firewall",
+			"device_version": "1.0",
+			"event_id":       "100",
+			"name":           "Attack",
+			"severity":       "10",
+			"extension": map[string]interface{}{
+				"src": "1.2.3.4",
+				"dst": "5.6.7.8",
+			},
+		},
+	}, got)
 }
 
-func TestRenderParity_LEEF(t *testing.T) {
-	parsed := SyslogMessage{
+func TestRenderDebugJSON_LEEF(t *testing.T) {
+	got := renderDebugJSON(t, SyslogMessage{
 		Pri:       14,
 		Version:   "1",
 		Timestamp: "2003-10-11T22:14:15.003Z",
@@ -189,17 +225,33 @@ func TestRenderParity_LEEF(t *testing.T) {
 		ProcID:    "-",
 		MsgID:     "-",
 		Msg:       []byte("LEEF:1.0|Microsoft|MSExchange|2013 SP1|15345|src=1.2.3.4"),
-	}
+	})
 
-	old, err := buildBasicSC(parsed).Render()
-	require.NoError(t, err)
-
-	_sc2 := NewSyslogStructuredContent(parsed)
-	_sc2.debugRender = true
-	got, err := _sc2.Render()
-	require.NoError(t, err)
-
-	jsonEqual(t, old, got)
+	// LEEF: name and severity omitted from the SIEM block.
+	assert.Equal(t, map[string]interface{}{
+		"message": "LEEF:1.0|Microsoft|MSExchange|2013 SP1|15345|src=1.2.3.4",
+		"syslog": map[string]interface{}{
+			"timestamp": "2003-10-11T22:14:15.003Z",
+			"hostname":  "host",
+			"appname":   "app",
+			"procid":    "-",
+			"msgid":     "-",
+			"severity":  float64(6),
+			"facility":  float64(1),
+			"version":   "1",
+		},
+		"siem": map[string]interface{}{
+			"format":         "LEEF",
+			"version":        "1.0",
+			"device_vendor":  "Microsoft",
+			"device_product": "MSExchange",
+			"device_version": "2013 SP1",
+			"event_id":       "15345",
+			"extension": map[string]interface{}{
+				"src": "1.2.3.4",
+			},
+		},
+	}, got)
 }
 
 // ---------------------------------------------------------------------------
@@ -673,4 +725,34 @@ func TestRender_ExtractAttrsDisabled_CEF_PreservesOriginal(t *testing.T) {
 	val, found := sc.GetAttribute("siem.device_vendor")
 	assert.True(t, found)
 	assert.Equal(t, "Security", val)
+}
+
+// ---------------------------------------------------------------------------
+// Render benchmarks (debug JSON path)
+// ---------------------------------------------------------------------------
+
+func BenchmarkRender(b *testing.B) {
+	for _, tc := range []struct {
+		name string
+		msg  []byte
+	}{
+		{"RFC5424_Short", []byte(`<14>1 2003-10-11T22:14:15.003Z host app - - - short`)},
+		{"RFC5424_Typical", []byte(`<165>1 2003-10-11T22:14:15.003Z mymachine.example.com evntslog - ID47 [exampleSDID@32473 iut="3" eventSource="Application" eventID="1011"] An application event log entry`)},
+		{"RFC5424_Long_1KB", []byte(`<14>1 2003-10-11T22:14:15.003Z longhost.example.com myservice 12345 REQ-001 [meta@1234 key="val"] ` + strings.Repeat("x", 1024))},
+		{"BSD", []byte(`<34>Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8`)},
+	} {
+		parsed, _ := Parse(tc.msg)
+		sc := NewSyslogStructuredContent(parsed)
+		sc.debugRender = true
+		b.Run(tc.name, func(b *testing.B) {
+			b.SetBytes(int64(len(tc.msg)))
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if _, err := sc.Render(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
 }
