@@ -226,6 +226,9 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 	e.ForkTime = unmarshalTime(data[8:16])
 	e.ExitTime = unmarshalTime(data[16:24])
+	if !e.ExitTime.IsZero() {
+		e.StopExecutionTime = e.ExitTime
+	}
 	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[24:32])
 	e.ForkFlags = binary.NativeEndian.Uint64(data[32:40])
 	e.PIDContext.SID = binary.NativeEndian.Uint32(data[40:44])

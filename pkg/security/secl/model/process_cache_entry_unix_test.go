@@ -10,6 +10,7 @@ package model
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -61,6 +62,40 @@ func TestHasValidLineage(t *testing.T) {
 		assert.ErrorAs(t, err, &mn)
 	})
 
+}
+
+func TestExecSetsStopExecutionTimeWithoutExitTime(t *testing.T) {
+	parent := newPCE(2, nil, false)
+	exec := newPCE(2, nil, false)
+	exec.ExecTime = time.Now()
+
+	parent.Exec(exec)
+
+	assert.True(t, parent.ExitTime.IsZero())
+	assert.Equal(t, exec.ExecTime, parent.StopExecutionTime)
+	assert.Equal(t, parent, exec.Ancestor)
+}
+
+func TestExitSetsExitAndStopExecutionTime(t *testing.T) {
+	entry := newPCE(2, nil, false)
+	exitTime := time.Now()
+
+	entry.Exit(exitTime)
+
+	assert.Equal(t, exitTime, entry.ExitTime)
+	assert.Equal(t, exitTime, entry.StopExecutionTime)
+}
+
+func TestExitPreservesExistingStopExecutionTime(t *testing.T) {
+	entry := newPCE(2, nil, false)
+	stopTime := time.Now()
+	exitTime := stopTime.Add(time.Second)
+	entry.StopExecution(stopTime)
+
+	entry.Exit(exitTime)
+
+	assert.Equal(t, exitTime, entry.ExitTime)
+	assert.Equal(t, stopTime, entry.StopExecutionTime)
 }
 
 func TestEntryEquals(t *testing.T) {
