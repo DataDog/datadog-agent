@@ -195,7 +195,9 @@ def build(ctx, checks_d_dir, manifest_path=None):
     ]
     if any(s.crate == "datasecurity" for s in selected):
         protoc = _bazel_executable(ctx, "//bazel/toolchains/protoc:protoc")
-        bazel_run_args.append(f"--action_env=PROTOC={protoc}")
+        # prost-build reads PROTOC when cargo runs build.rs. `bazel run` does not
+        # forward --action_env to the executed binary, so use --run_env instead.
+        bazel_run_args.append(f"--run_env=PROTOC={protoc}")
 
     with gitlab_section("Build Rust shared-library checks", collapsed=True):
         # Force-download the rules_rust toolchain. upstream_wrapper resolves the real
