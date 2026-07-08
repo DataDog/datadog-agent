@@ -116,7 +116,7 @@ profiles:
         preserve_tags:
           - kube_app_component
           - pod_name
-      - name: kubernetes_agent.memory_limits
+      - name: kubernetes_agent.memory_limit
         preserve_tags:
           - kube_app_component
           - pod_name

@@ -7,9 +7,10 @@
 package coat
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -23,24 +24,36 @@ const (
 	// AgentMemoryUsage is the COAT metric name for container runtime memory usage.
 	AgentMemoryUsage = "memory_usage"
 	// AgentMemoryLimit is the COAT metric name for container runtime memory limits.
-	AgentMemoryLimit = "memory_limits"
+	AgentMemoryLimit = "memory_limit"
 
 	clusterAgentComponent               = "cluster-agent"
 	clusterChecksAgentComponentHelm     = "clusterchecks-agent"
 	clusterChecksAgentComponentOperator = "cluster-checks-runner"
 )
 
-var agentTelemetry = newAgentPodTelemetry(telemetryimpl.GetCompatComponent())
+var (
+	defaultAgentPodTelemetry     *AgentPodTelemetry
+	defaultAgentPodTelemetryOnce sync.Once
+)
 
-type agentPodTelemetry struct {
+// AgentPodTelemetry records COAT metrics for Datadog Agent pods.
+type AgentPodTelemetry struct {
 	containersRestarts   telemetry.Gauge
 	containersTerminated telemetry.Gauge
 	memoryUsage          telemetry.Gauge
 	memoryLimits         telemetry.Gauge
 }
 
-func newAgentPodTelemetry(tm telemetry.Component) *agentPodTelemetry {
-	return &agentPodTelemetry{
+// NewAgentPodTelemetry returns the shared COAT recorder for Datadog Agent pods.
+func NewAgentPodTelemetry(tm telemetry.Component) *AgentPodTelemetry {
+	defaultAgentPodTelemetryOnce.Do(func() {
+		defaultAgentPodTelemetry = newAgentPodTelemetry(tm)
+	})
+	return defaultAgentPodTelemetry
+}
+
+func newAgentPodTelemetry(tm telemetry.Component) *AgentPodTelemetry {
+	return &AgentPodTelemetry{
 		containersRestarts: tm.NewGauge(
 			agentSubsystem,
 			AgentContainerRestarts,
@@ -68,19 +81,19 @@ func newAgentPodTelemetry(tm telemetry.Component) *agentPodTelemetry {
 	}
 }
 
-// ResetAgentRuntimeMetrics clears runtime-sourced memory aggregates.
-func ResetAgentRuntimeMetrics() {
-	agentTelemetry.resetRuntimeMetrics()
+// ResetRuntimeMetrics clears runtime-sourced memory aggregates.
+func (t *AgentPodTelemetry) ResetRuntimeMetrics() {
+	t.resetRuntimeMetrics()
 }
 
-// ResetAgentKubeletMetrics clears kubelet-sourced state aggregates.
-func ResetAgentKubeletMetrics() {
-	agentTelemetry.resetKubeletMetrics()
+// ResetKubeletMetrics clears kubelet-sourced state aggregates.
+func (t *AgentPodTelemetry) ResetKubeletMetrics() {
+	t.resetKubeletMetrics()
 }
 
-// RecordAgentMetric adds a metric to the COAT aggregate when it belongs to
+// RecordMetric adds a metric to the COAT aggregate when it belongs to
 // a Datadog Cluster Agent or Cluster Check Runner pod.
-func RecordAgentMetric(metricName string, value *float64, pod *workloadmeta.KubernetesPod, reason string) {
+func (t *AgentPodTelemetry) RecordMetric(metricName string, value *float64, pod *workloadmeta.KubernetesPod, reason string) {
 	if value == nil || pod == nil {
 		return
 	}
@@ -93,10 +106,10 @@ func RecordAgentMetric(metricName string, value *float64, pod *workloadmeta.Kube
 	if pod.Name == "" {
 		return
 	}
-	agentTelemetry.record(metricName, *value, component, pod.Name, reason)
+	t.record(metricName, *value, component, pod.Name, reason)
 }
 
-func (t *agentPodTelemetry) resetRuntimeMetrics() {
+func (t *AgentPodTelemetry) resetRuntimeMetrics() {
 	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponentOperator} {
 		match := map[string]string{tags.KubeAppComponent: component}
 		t.memoryUsage.DeletePartialMatch(match)
@@ -104,7 +117,7 @@ func (t *agentPodTelemetry) resetRuntimeMetrics() {
 	}
 }
 
-func (t *agentPodTelemetry) resetKubeletMetrics() {
+func (t *AgentPodTelemetry) resetKubeletMetrics() {
 	for _, component := range []string{clusterAgentComponent, clusterChecksAgentComponentOperator} {
 		match := map[string]string{tags.KubeAppComponent: component}
 		t.containersRestarts.DeletePartialMatch(match)
@@ -112,7 +125,7 @@ func (t *agentPodTelemetry) resetKubeletMetrics() {
 	}
 }
 
-func (t *agentPodTelemetry) record(metricName string, value float64, component string, podName string, reason string) {
+func (t *AgentPodTelemetry) record(metricName string, value float64, component string, podName string, reason string) {
 	switch metricName {
 	case AgentContainerRestarts:
 		t.containersRestarts.Add(value, component, podName)

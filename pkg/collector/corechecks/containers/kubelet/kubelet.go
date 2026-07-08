@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -47,27 +48,29 @@ type Provider interface {
 // KubeletCheck wraps the config and the metric stores needed to run the check
 type KubeletCheck struct {
 	core.CheckBase
-	instance    *common.KubeletConfig
-	providers   []Provider
-	podUtils    *common.PodUtils
-	filterStore workloadfilter.Component
-	store       workloadmeta.Component
-	tagger      tagger.Component
+	instance          *common.KubeletConfig
+	providers         []Provider
+	podUtils          *common.PodUtils
+	filterStore       workloadfilter.Component
+	store             workloadmeta.Component
+	tagger            tagger.Component
+	agentPodTelemetry *containercoat.AgentPodTelemetry
 }
 
 // NewKubeletCheck returns a new KubeletCheck
-func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig, store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component) *KubeletCheck {
+func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig, store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, agentPodTelemetry *containercoat.AgentPodTelemetry) *KubeletCheck {
 	return &KubeletCheck{
-		CheckBase:   base,
-		instance:    instance,
-		filterStore: filterStore,
-		store:       store,
-		tagger:      tagger,
+		CheckBase:         base,
+		instance:          instance,
+		filterStore:       filterStore,
+		store:             store,
+		tagger:            tagger,
+		agentPodTelemetry: agentPodTelemetry,
 	}
 }
 
-func initProviders(filterStore workloadfilter.Component, config *common.KubeletConfig, podUtils *common.PodUtils, store workloadmeta.Component, tagger tagger.Component) []Provider {
-	podProvider := pod.NewProvider(filterStore, store, config, podUtils, tagger)
+func initProviders(filterStore workloadfilter.Component, config *common.KubeletConfig, podUtils *common.PodUtils, store workloadmeta.Component, tagger tagger.Component, agentPodTelemetry *containercoat.AgentPodTelemetry) []Provider {
+	podProvider := pod.NewProvider(filterStore, store, config, podUtils, tagger, agentPodTelemetry)
 	// nodeProvider collects from the /spec endpoint, which was hidden by default in k8s 1.18 and removed in k8s 1.19.
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
@@ -107,9 +110,10 @@ func initProviders(filterStore workloadfilter.Component, config *common.KubeletC
 }
 
 // Factory returns a new KubeletCheck factory
-func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component) option.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, telemetry telemetry.Component) option.Option[func() check.Check] {
+	agentPodTelemetry := containercoat.NewAgentPodTelemetry(telemetry)
 	return option.New(func() check.Check {
-		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store, filterStore, tagger)
+		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store, filterStore, tagger, agentPodTelemetry)
 	})
 }
 
@@ -142,7 +146,7 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 	}
 
 	k.podUtils = common.NewPodUtils(k.tagger)
-	k.providers = initProviders(k.filterStore, k.instance, k.podUtils, k.store, k.tagger)
+	k.providers = initProviders(k.filterStore, k.instance, k.podUtils, k.store, k.tagger, k.agentPodTelemetry)
 
 	return nil
 }
@@ -155,7 +159,9 @@ func (k *KubeletCheck) Run() error {
 	}
 	defer sender.Commit()
 	defer k.podUtils.Reset()
-	containercoat.ResetAgentKubeletMetrics()
+	if k.agentPodTelemetry != nil {
+		k.agentPodTelemetry.ResetKubeletMetrics()
+	}
 
 	// Get client
 	kc, err := kubelet.GetKubeUtil()

@@ -9,7 +9,6 @@ go_library(
     deps = [
         "//comp/core/tagger/tags",
         "//comp/core/telemetry/def",
-        "//comp/core/telemetry/impl",
         "//comp/core/workloadmeta/def",
         "//pkg/util/kubernetes",
     ],

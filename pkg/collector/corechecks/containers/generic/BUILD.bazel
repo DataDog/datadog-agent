@@ -23,6 +23,7 @@ go_library(
         "//comp/core/tagger/def",
         "//comp/core/tagger/types",
         "//comp/core/tagger/utils",
+        "//comp/core/telemetry/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/util/workloadmeta",
         "//comp/core/workloadmeta/def",

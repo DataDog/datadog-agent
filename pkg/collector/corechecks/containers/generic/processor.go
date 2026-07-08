@@ -28,19 +28,20 @@ const (
 
 // Processor contains the core logic of the generic check, allowing reusability
 type Processor struct {
-	metricsProvider metrics.Provider
-	ctrLister       ContainerAccessor
-	metricsAdapter  MetricsAdapter
-	ctrFilter       ContainerFilter
-	extensions      map[string]ProcessorExtension
-	tagger          tagger.Component
+	metricsProvider   metrics.Provider
+	ctrLister         ContainerAccessor
+	metricsAdapter    MetricsAdapter
+	ctrFilter         ContainerFilter
+	extensions        map[string]ProcessorExtension
+	tagger            tagger.Component
+	agentPodTelemetry *containercoat.AgentPodTelemetry
 	// extendedMemoryMetrics allows to send extednded metrics
 	extendedMemoryMetrics bool
 }
 
 // NewProcessor creates a new processor
 func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter MetricsAdapter,
-	filter ContainerFilter, tagger tagger.Component, extendedMemoryMetrics bool) Processor {
+	filter ContainerFilter, tagger tagger.Component, agentPodTelemetry *containercoat.AgentPodTelemetry, extendedMemoryMetrics bool) Processor {
 	return Processor{
 		metricsProvider: provider,
 		ctrLister:       lister,
@@ -50,6 +51,7 @@ func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter M
 			NetworkExtensionID: NewProcessorNetwork(),
 		},
 		tagger:                tagger,
+		agentPodTelemetry:     agentPodTelemetry,
 		extendedMemoryMetrics: extendedMemoryMetrics,
 	}
 }
@@ -61,7 +63,9 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 
 // Run executes the check
 func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error {
-	containercoat.ResetAgentRuntimeMetrics()
+	if p.agentPodTelemetry != nil {
+		p.agentPodTelemetry.ResetRuntimeMetrics()
+	}
 
 	allContainers := p.ctrLister.ListRunning()
 
@@ -163,8 +167,10 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 	}
 
 	if containerStats.Memory != nil {
-		containercoat.RecordAgentMetric(containercoat.AgentMemoryUsage, containerStats.Memory.UsageTotal, ownerPod, "")
-		containercoat.RecordAgentMetric(containercoat.AgentMemoryLimit, containerStats.Memory.Limit, ownerPod, "")
+		if p.agentPodTelemetry != nil {
+			p.agentPodTelemetry.RecordMetric(containercoat.AgentMemoryUsage, containerStats.Memory.UsageTotal, ownerPod, "")
+			p.agentPodTelemetry.RecordMetric(containercoat.AgentMemoryLimit, containerStats.Memory.Limit, ownerPod, "")
+		}
 
 		p.sendMetric(sender.Gauge, "container.memory.usage", containerStats.Memory.UsageTotal, tags)
 		p.sendMetric(sender.Gauge, "container.memory.kernel", containerStats.Memory.KernelMemory, tags)

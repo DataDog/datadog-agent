@@ -65,7 +65,7 @@ func CreateTestProcessor(t testing.TB,
 	mockedSender := mocksender.NewMockSender(t, "generic-container")
 	mockedSender.SetupAcceptAll()
 
-	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter, tagger, extendedMetrics)
+	p := NewProcessor(mockProvider, &mockAccessor, metricsAdapter, containerFilter, tagger, nil, extendedMetrics)
 
 	return mockedSender, &p, &mockAccessor
 }
