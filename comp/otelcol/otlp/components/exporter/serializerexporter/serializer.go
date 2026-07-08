@@ -188,7 +188,7 @@ func initSerializerInternal(logger *zap.Logger, cfg *ExporterConfig, sourceProvi
 			if err != nil {
 				return ""
 			}
-			return s.Identifier
+			return s.Identifier.Primary
 		}),
 		fx.Provide(newOrchestratorinterfaceimpl),
 		fx.Provide(serializer.NewSerializer),

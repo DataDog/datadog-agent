@@ -88,9 +88,9 @@ func (exp *traceExporter) consumeTraces(
 		}
 		switch src.Kind {
 		case source.HostnameKind:
-			hosts[src.Identifier] = struct{}{}
+			hosts[src.Identifier.Primary] = struct{}{}
 		case source.AWSECSFargateKind:
-			ecsFargateArns[src.Identifier] = struct{}{}
+			ecsFargateArns[src.Identifier.Primary] = struct{}{}
 		case source.InvalidKind:
 		}
 	}

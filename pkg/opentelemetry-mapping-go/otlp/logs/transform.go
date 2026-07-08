@@ -236,13 +236,13 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 
 func extractHostNameAndServiceName(resourceAttrs pcommon.Map, logAttrs pcommon.Map) (host string, service string) {
 	if src, ok := attributes.SourceFromAttrs(resourceAttrs, nil); ok && src.Kind == source.HostnameKind {
-		host = src.Identifier
+		host = src.Identifier.Primary
 	}
 	// HACK: Check for host in log record attributes if not present in resource attributes.
 	// This is not aligned with the specification and will be removed in the future.
 	if host == "" {
 		if src, ok := attributes.SourceFromAttrs(logAttrs, nil); ok && src.Kind == source.HostnameKind {
-			host = src.Identifier
+			host = src.Identifier.Primary
 		}
 	}
 	if s, ok := resourceAttrs.Get(string(conventions.ServiceNameKey)); ok {

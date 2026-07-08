@@ -202,14 +202,14 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 	src, srcok := tr.ResourceToSource(ctx, res, SignalTypeSet, nil)
 	if !srcok {
 		if v := GetOTelAttrValInResAndSpanAttrs(span, res, false, "_dd.hostname"); v != "" {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			src = source.Source{Kind: source.HostnameKind, Identifier: source.Identifier{Primary: v}}
 			srcok = true
 		}
 	}
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			return src.Identifier
+			return src.Identifier.Primary
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			return ""
