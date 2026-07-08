@@ -110,6 +110,22 @@ func otelSpanToDDSpanMinimal(
 			ddspan.Meta[peerTagKey] = peerTagVal
 		}
 	}
+	// Preserve the raw W3C tracestate so downstream consumers of the minimal
+	// span (e.g. the APM stats Concentrator) can recover head-sampling
+	// probability and weight stats accordingly. The full OtelSpanToDDSpan
+	// conversion already does this; mirror it here.
+	// An explicit _sample_rate attribute set by an upstream tracer takes
+	// precedence over the value decoded from the tracestate below. Apply it first
+	// so SetSampleRateFromTracestate's "gated on absence" guard preserves it.
+	SetSampleRateFromAttribute(ddspan, sattr)
+	if ts := otelspan.TraceState().AsRaw(); ts != "" {
+		ddspan.Meta["w3c.tracestate"] = ts
+		// Decode the head-based sampling probability from the tracestate and set
+		// _sample_rate so the APM stats Concentrator scales stats back up by the
+		// head-sampling weight (1/_sample_rate). Gated on absence to preserve any
+		// explicit upstream value (including the _sample_rate attribute above).
+		SetSampleRateFromTracestate(ddspan, ts)
+	}
 	return ddspan
 }
 
@@ -305,9 +321,7 @@ func OtelSpanToDDSpan(
 		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
 	}
 
-	if otelspan.TraceState().AsRaw() != "" {
-		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
-	}
+	// Note: w3c.tracestate is set by otelSpanToDDSpanMinimal above.
 	if lib.Name() != "" {
 		ddspan.Meta[string(semconv.OtelLibraryNameKey)] = lib.Name()
 	}

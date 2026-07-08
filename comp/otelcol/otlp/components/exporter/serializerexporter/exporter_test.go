@@ -69,7 +69,7 @@ func (r *metricRecorder) SendSketch(s metrics.SketchesSource) error {
 		if c == nil {
 			continue
 		}
-		r.sketchSeriesList = append(r.sketchSeriesList, c)
+		r.sketchSeriesList = append(r.sketchSeriesList, c.(*metrics.SketchSeries))
 	}
 	return nil
 }
