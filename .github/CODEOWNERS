@@ -81,7 +81,7 @@
 
 /mkdocs.yml                             @DataDog/agent-devx
 /release.json                           @DataDog/agent-build @DataDog/agent-delivery @DataDog/agent-integrations
-/renovate.json                          @DataDog/agent-build 
+/renovate.json                          @DataDog/agent-build
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
 /code-coverage.datadog.yml              @DataDog/agent-devx
@@ -546,6 +546,7 @@
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
 /comp/core/gui/impl/systray/ @DataDog/windows-products @DataDog/agent-configuration
 /comp/healthplatform/issues/ad-misconfiguration @DataDog/container-platform @DataDog/agent-health
+/comp/healthplatform/issues/gpuenvironment @DataDog/gpu-monitoring-agent @DataDog/ebpf-platform @DataDog/agent-health
 /comp/healthplatform/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health
 /pkg/cloudfoundry                       @DataDog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
