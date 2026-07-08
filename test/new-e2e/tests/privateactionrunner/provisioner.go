@@ -34,8 +34,10 @@ const (
 )
 
 // parHelmValuesTemplate configures the agent with PAR enabled.
-// Fakeintake URL wiring (DD_DD_URL, DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION) is handled
-// automatically by the e2e framework's configureFakeintake when fakeintake is present.
+// Fakeintake and Remote Config wiring (DD_DD_URL, DD_REMOTE_CONFIGURATION_*) is handled
+// automatically by the e2e framework's configureFakeintake when fakeintake is present;
+// the RC-delivered public key that lets PAR verify fakeintake-signed tasks is pushed by
+// the test suite itself (see parK8sSuite.configureTaskSigning in rshell_k8s_test.go).
 // %s parameters: clusterName, runnerURN, privateKeyB64
 const parHelmValuesTemplate = `
 datadog:
@@ -133,8 +135,8 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			}
 
 			// 5. Deploy Datadog agent via Helm with PAR enabled.
-			// DD_DD_URL and DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION for the PAR container are
-			// injected automatically by the e2e framework's configureFakeintake.
+			// DD_DD_URL and DD_REMOTE_CONFIGURATION_* for the PAR container are injected
+			// automatically by the e2e framework's configureFakeintake.
 			agent, err := helm.NewKubernetesAgent(&awsEnv, name, kubeProvider,
 				kubernetesagentparams.WithFakeintake(fi),
 				kubernetesagentparams.WithHelmValues(fmt.Sprintf(parHelmValuesTemplate, ctx.Stack(), runnerURN, privateKeyB64)),

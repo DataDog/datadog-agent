@@ -6,17 +6,27 @@
 package server
 
 import (
+	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// taskExpiration is how far in the future signed tasks are set to expire. PAR
+// rejects tasks whose expiration_time is in the past, so this only needs to
+// comfortably outlast the dequeue-to-execution window in tests.
+const taskExpiration = 5 * time.Minute
 
 // parServerState holds the in-memory task queue and result map for PAR e2e tests.
 // The Private Action Runner polls /api/v2/on-prem-management-service/workflow-tasks/dequeue
@@ -27,6 +37,19 @@ type parServerState struct {
 	queue        []parQueuedTask
 	results      map[string]*api.PARTaskResult
 	dequeueCalls int // counts how many times PAR has called the dequeue endpoint
+	signing      *parSigningConfig
+}
+
+// parSigningConfig holds the identity fakeintake signs dequeued tasks with.
+// Configured via POST /fakeintake/par/signing-config, it lets PAR's signed-envelope
+// task verifier accept fakeintake-issued tasks after the matching public key is
+// pushed through Remote Config (product AP_RUNNER_KEYS), instead of relying on
+// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION to bypass verification altogether.
+type parSigningConfig struct {
+	KeyID      string
+	PrivateKey ed25519.PrivateKey
+	OrgID      int64
+	RunnerID   string
 }
 
 type parQueuedTask struct {
@@ -55,6 +78,7 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 
 	task := fi.par.queue[0]
 	fi.par.queue = fi.par.queue[1:]
+	signing := fi.par.signing
 
 	bundleID, actionName := parSplitFQN(task.ActionFQN)
 	remoteAction, actionInputs := parRemoteActionFromInputs(task.Inputs)
@@ -79,12 +103,6 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	signedTaskData, err := proto.Marshal(pbTask)
-	if err != nil {
-		http.Error(w, "failed to marshal task", http.StatusInternalServerError)
-		return
-	}
-
 	attributes := map[string]interface{}{
 		"name":      actionName,
 		"bundle_id": bundleID,
@@ -92,10 +110,30 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 		"job_id":    task.TaskID,
 		"org_id":    0,
 		"inputs":    actionInputs,
-		"signed_envelope": map[string]interface{}{
-			"data": signedTaskData,
-		},
 	}
+
+	if signing != nil {
+		pbTask.OrgId = signing.OrgID
+		pbTask.ConnectionInfo = &privateactionspb.ConnectionInfo{RunnerId: signing.RunnerID}
+
+		envelope, err := signTask(signing, pbTask)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("sign task: %s", err), http.StatusInternalServerError)
+			return
+		}
+		attributes["org_id"] = signing.OrgID
+		attributes["signed_envelope"] = envelope
+	} else {
+		signedTaskData, err := proto.Marshal(pbTask)
+		if err != nil {
+			http.Error(w, "failed to marshal task", http.StatusInternalServerError)
+			return
+		}
+		attributes["signed_envelope"] = map[string]interface{}{
+			"data": signedTaskData,
+		}
+	}
+
 	resp := map[string]interface{}{
 		"data": map[string]interface{}{
 			"id":         task.TaskID,
@@ -188,6 +226,35 @@ func parStructValue(value interface{}) interface{} {
 	default:
 		return value
 	}
+}
+
+// signTask builds the signed protobuf envelope PAR's signedEnvelopeTaskVerifier expects:
+// a PrivateActionTask marshaled to protobuf bytes, SHA256-hashed, and ED25519-signed with
+// the configured private key. PAR resolves the matching public key by the signature's
+// KeyId, looked up against whatever was pushed through the AP_RUNNER_KEYS RC product.
+func signTask(signing *parSigningConfig, pbTask *privateactionspb.PrivateActionTask) (*privateactionspb.RemoteConfigSignatureEnvelope, error) {
+	pbTask.ExpirationTime = timestamppb.New(time.Now().Add(taskExpiration))
+
+	data, err := proto.Marshal(pbTask)
+	if err != nil {
+		return nil, fmt.Errorf("marshal task: %w", err)
+	}
+
+	hashed := sha256.Sum256(data)
+	signature := ed25519.Sign(signing.PrivateKey, hashed[:])
+
+	return &privateactionspb.RemoteConfigSignatureEnvelope{
+		Data:           data,
+		HashType:       privateactionspb.HashType_SHA256,
+		ExpirationTime: pbTask.ExpirationTime,
+		Signatures: []*privateactionspb.Signature{
+			{
+				KeyType:   privateactionspb.KeyType_ED25519,
+				KeyId:     signing.KeyID,
+				Signature: signature,
+			},
+		},
+	}, nil
 }
 
 func (fi *Server) handlePARPublish(w http.ResponseWriter, r *http.Request) {
@@ -299,6 +366,42 @@ func (fi *Server) handlePARFlush(w http.ResponseWriter, _ *http.Request) {
 	fi.par.results = make(map[string]*api.PARTaskResult)
 	fi.par.dequeueCalls = 0
 	fi.par.mu.Unlock()
+	w.WriteHeader(http.StatusOK)
+}
+
+// handlePARConfigureSigning sets the identity fakeintake uses to sign dequeued tasks'
+// envelopes. Tests call this once, then push the corresponding public key through the
+// Remote Config AP_RUNNER_KEYS product so PAR's real signature verification passes.
+func (fi *Server) handlePARConfigureSigning(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		KeyID      string `json:"key_id"`
+		PrivateKey []byte `json:"private_key"`
+		OrgID      int64  `json:"org_id"`
+		RunnerID   string `json:"runner_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if len(req.PrivateKey) != ed25519.PrivateKeySize {
+		http.Error(w, fmt.Sprintf("private_key must be %d bytes, got %d", ed25519.PrivateKeySize, len(req.PrivateKey)), http.StatusBadRequest)
+		return
+	}
+
+	fi.par.mu.Lock()
+	fi.par.signing = &parSigningConfig{
+		KeyID:      req.KeyID,
+		PrivateKey: ed25519.PrivateKey(req.PrivateKey),
+		OrgID:      req.OrgID,
+		RunnerID:   req.RunnerID,
+	}
+	fi.par.mu.Unlock()
+
 	w.WriteHeader(http.StatusOK)
 }
 

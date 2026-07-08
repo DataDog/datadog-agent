@@ -32,6 +32,14 @@ const (
 	// accessible inside the PAR container at /host/var/log/ via the host volume mount.
 	testDataFile    = "/host/var/log/par-e2e-testdata.txt"
 	testDataContent = "PAR_E2E_VALUE=hello_from_rshell"
+
+	// testSigningKeyID identifies the ED25519 key fakeintake signs tasks with; it doubles as
+	// the Remote Config config_id under which the matching public key is pushed, since that's
+	// what PAR's keys manager uses to key its local key map (see keysManager.GetKey).
+	testSigningKeyID = "par-e2e-signing-key"
+	// apRunnerKeysProduct is the Remote Config product PAR subscribes to for its task
+	// signature verification keys (state.ProductActionPlatformRunnerKeys).
+	apRunnerKeysProduct = "AP_RUNNER_KEYS"
 )
 
 type parK8sSuite struct {
@@ -46,11 +54,32 @@ func TestPARRshellK8sSuite(t *testing.T) {
 	e2e.Run(t, suite, e2e.WithProvisioner(parK8sProvisioner(urn, keyB64)))
 }
 
-// SetupSuite waits for PAR to be ready and actively polling fakeintake.
+// SetupSuite configures task signing and waits for PAR to be ready and actively polling
+// fakeintake.
 func (s *parK8sSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
+	s.configureTaskSigning()
 	s.waitForPARReady()
+}
+
+// configureTaskSigning gives fakeintake a signing identity for dequeued tasks and pushes
+// the matching public key to PAR through Remote Config. PAR's WorkflowRunner blocks its
+// task loop on keysManager.WaitForReady(), which only unblocks once this key is applied —
+// so this must run before waitForPARReady, and replaces the previous approach of setting
+// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION to bypass verification altogether.
+func (s *parK8sSuite) configureTaskSigning() {
+	pub, priv := generateTestSigningKey(s.T())
+	fi := s.Env().FakeIntake.Client()
+
+	err := fi.ConfigurePARSigning(testSigningKeyID, priv, testRunnerOrgID, testRunnerRunnerID)
+	s.Require().NoError(err, "failed to configure fakeintake PAR task signing")
+
+	rawKey, err := encodeED25519PublicKeyRC(pub)
+	s.Require().NoError(err, "failed to encode PAR signing public key for remote config")
+
+	err = fi.RCAddConfig(fmt.Sprintf("%d", testRunnerOrgID), apRunnerKeysProduct, testSigningKeyID, testSigningKeyID, rawKey)
+	s.Require().NoError(err, "failed to push PAR signing public key via remote config")
 }
 
 func (s *parK8sSuite) BeforeTest(suiteName, testName string) {

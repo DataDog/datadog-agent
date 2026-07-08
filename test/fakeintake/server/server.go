@@ -144,6 +144,7 @@ func NewServer(options ...Option) *Server {
 	mux.HandleFunc("/fakeintake/par/result", fi.handlePARResult)
 	mux.HandleFunc("/fakeintake/par/flush", fi.handlePARFlush)
 	mux.HandleFunc("/fakeintake/par/stats", fi.handlePARStats)
+	mux.HandleFunc("/fakeintake/par/signing-config", fi.handlePARConfigureSigning)
 
 	// Remote Config — only meaningful when WithRemoteConfig is set; handlers
 	// no-op with 404 otherwise.
