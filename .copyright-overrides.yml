@@ -49,6 +49,7 @@ github.com/ryanuber/go-glob: "Copyright (c) 2014 Ryan Uber"
 github.com/sirupsen/logrus: "Copyright (c) 2014 Simon Eskildsen"
 github.com/open-telemetry/*: Copyright The OpenTelemetry Authors
 github.com/pb33f/*: Copyright pb33f - Princess Beef Heavy Industries
+github.com/parca-dev/usdt: Copyright The Parca Authors
 go.etcd.io/*: Copyright 2016 The etcd Authors
 google.golang.org/appengine: Copyright 2011 Google Inc. All rights reserved.
 google.golang.org/appengine/*: Copyright 2011 Google Inc. All rights reserved.

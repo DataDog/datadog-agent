@@ -65,6 +65,26 @@ func TestBuildExportersNoAdditionalHTTPHeaders(t *testing.T) {
 	assert.Len(t, headers, 4) // dd-api-key, dd-evp-origin, dd-evp-origin-version, resource_as_attributes
 }
 
+func TestBuildReceiversHeapProfiling(t *testing.T) {
+	agent := configManager{
+		hostProfilerConfig: hostProfilerConfig{
+			HeapProfiling:     true,
+			LiveHeapProfiling: true,
+			Tracers:           "native",
+		},
+	}
+	conf := make(confMap)
+	buildReceivers(conf, agent)
+
+	receivers, ok := conf["receivers"].(confMap)
+	require.True(t, ok)
+	profiling, ok := receivers["profiling"].(confMap)
+	require.True(t, ok)
+	assert.Equal(t, true, profiling["heap_profiling"])
+	assert.Equal(t, true, profiling["live_heap_profiling"])
+	assert.Equal(t, "native", profiling["tracers"])
+}
+
 func TestBuildConfigDDProfilingEnabled(t *testing.T) {
 	agent := configManager{
 		endpoints: []endpoint{{
