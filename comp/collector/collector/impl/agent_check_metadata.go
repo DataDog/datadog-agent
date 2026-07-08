@@ -35,10 +35,11 @@ const (
 
 // jmxInstanceData stores metadata about a JMX instance for building consistent check IDs
 type jmxInstanceData struct {
-	host string
-	port string
-	name string // explicit "name:" from the instance config; empty if none was set
-	tags interface{}
+	host    string
+	port    string
+	name    string // value of the explicit "name:" key (may be empty)
+	hasName bool   // whether the instance config set a "name:" key at all
+	tags    interface{}
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -152,22 +153,25 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 				tags = tagsNode
 			}
 
+			name, hasName := instanceconfig["name"].(string)
 			data := &jmxInstanceData{
-				host: host,
-				port: port,
-				tags: tags,
+				host:    host,
+				port:    port,
+				name:    name,
+				hasName: hasName,
+				tags:    tags,
 			}
 
 			// Key the instance by the same string JMXFetch reports as instance_name in
 			// its runtime status, so the lookup below succeeds for both named and unnamed
 			// instances.
-			if name, ok := instanceconfig["name"].(string); ok {
+			if hasName && name != "" {
 				// Named instance: JMXFetch reports instance_name == the configured name.
-				data.name = name
 				instanceConfByName[name] = data
 			} else {
-				// Unnamed instance: JMXFetch auto-generates instance_name as
-				// "<check>-<host>-<port>". Key by that so the status lookup hits.
+				// Unnamed instance (no "name:" key, or an empty one): JMXFetch
+				// auto-generates instance_name as "<check>-<host>-<port>". Key by that
+				// so the status lookup hits.
 				instanceConfByName[fmt.Sprintf("%s-%s-%s", checkName, host, port)] = data
 			}
 		}
@@ -203,9 +207,11 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 						if instanceData, found := instanceConfByName[instanceName]; found {
 							// Build checkID to match the config.hash format in inventory
 							// metadata (integrations_jmx.go:77-80): "<check>-<host>-<port>",
-							// with a ":<name>" suffix only when the instance set an explicit name.
+							// with a ":<name>" suffix whenever the instance set a "name:" key
+							// (matching integrations_jmx.go's presence check, so an explicit
+							// empty name still yields a trailing ":").
 							checkID = fmt.Sprintf("%s-%s-%s", checkName, instanceData.host, instanceData.port)
-							if instanceData.name != "" {
+							if instanceData.hasName {
 								checkID = fmt.Sprintf("%s:%s", checkID, instanceData.name)
 							}
 							tags = instanceData.tags

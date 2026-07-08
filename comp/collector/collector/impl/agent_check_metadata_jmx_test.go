@@ -54,6 +54,14 @@ func TestJMXCheckIDMatchesInventoryHash(t *testing.T) {
 			integration.Data("host: localhost\nport: 9999\nname: mykafka\n"),
 		},
 	})
+	// Instance with an explicit but empty name: integrations_jmx.go appends the
+	// suffix on key presence, so config.hash ends with a trailing ":".
+	jmxfetch.AddScheduledConfig(integration.Config{
+		Name: "zookeeper",
+		Instances: []integration.Data{
+			integration.Data("host: localhost\nport: 2181\nname: \"\"\n"),
+		},
+	})
 
 	// AND matching JMX runtime status. JMXFetch reports instance_name as the
 	// auto-generated "<check>-<host>-<port>" for unnamed instances, and as the
@@ -67,6 +75,9 @@ func TestJMXCheckIDMatchesInventoryHash(t *testing.T) {
 				],
 				"kafka": [
 					{"instance_name": "mykafka", "status": "OK", "message": ""}
+				],
+				"zookeeper": [
+					{"instance_name": "zookeeper-localhost-2181", "status": "OK", "message": ""}
 				]
 			}
 		}
@@ -102,11 +113,17 @@ func TestJMXCheckIDMatchesInventoryHash(t *testing.T) {
 	// Named instance: unchanged behavior, "<check>-<host>-<port>:<name>".
 	require.Contains(t, checkIDs, "kafka")
 	assert.Equal(t, "kafka-localhost-9999:mykafka", checkIDs["kafka"])
+
+	// Explicit empty name: the "name:" key is present, so the suffix is kept,
+	// producing a trailing ":" to match integrations_jmx.go's presence check.
+	require.Contains(t, checkIDs, "zookeeper")
+	assert.Equal(t, "zookeeper-localhost-2181:", checkIDs["zookeeper"])
 }
 
 // jmxCheckIDsByName extracts, from the agent_checks payload, a map of check name
-// to check ID (the 3rd tuple element) for the two JMX checks under test.
+// to check ID (the 3rd tuple element) for the JMX checks under test.
 func jmxCheckIDsByName(payload *Payload) map[string]string {
+	wanted := map[string]struct{}{"cassandra": {}, "kafka": {}, "zookeeper": {}}
 	out := map[string]string{}
 	for _, raw := range payload.AgentChecks {
 		tuple, ok := raw.([]interface{})
@@ -114,7 +131,10 @@ func jmxCheckIDsByName(payload *Payload) map[string]string {
 			continue
 		}
 		name, ok := tuple[0].(string)
-		if !ok || (name != "cassandra" && name != "kafka") {
+		if !ok {
+			continue
+		}
+		if _, want := wanted[name]; !want {
 			continue
 		}
 		if checkID, ok := tuple[2].(string); ok {
