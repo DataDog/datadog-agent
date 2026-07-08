@@ -172,11 +172,6 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 		log.Warnf("failed to remove extensions: %s", err)
 	}
 
-	// processes.d cleanup is owned by the MSI: RemoveFolderEx removes the directory on
-	// uninstall (StopDDServices stops dd-procmgr-service first, releasing supervised
-	// binaries), and the general rollback cleanup handles install/upgrade/repair rollback.
-	// The prerm no longer touches processes.d.
-
 	if ctx.PackageType == PackageTypeMSI {
 		// MSI custom action calling hook - done.
 		// Note: the save file written above lives in ProtectedDir which intentionally persists
