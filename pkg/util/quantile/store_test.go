@@ -220,3 +220,46 @@ func TestCols(t *testing.T) {
 		assert.Equal(t, n, tt.n, "values don't match")
 	}
 }
+
+func TestRange(t *testing.T) {
+	for _, tt := range []struct {
+		store string
+		k     []int32
+		n     []uint32
+	}{
+		{
+			store: "",
+		},
+		{
+			store: "0:1 1:1 2:2 3:1 4:1 5:1 8:1 9:1 10:max",
+			k:     []int32{0, 1, 2, 3, 4, 5, 8, 9, 10},
+			n:     []uint32{1, 1, 2, 1, 1, 1, 1, 1, math.MaxUint16},
+		},
+		{
+			store: "0:1 0:max",
+			k:     []int32{0, 0},
+			n:     []uint32{1, math.MaxUint16},
+		},
+	} {
+		st := buildStore(t, tt.store)
+		var k []int32
+		var n []uint32
+		st.Range(func(bk int32, bn uint32) bool {
+			k = append(k, bk)
+			n = append(n, bn)
+			return true
+		})
+		assert.Equal(t, tt.k, k, "keys don't match")
+		assert.Equal(t, tt.n, n, "values don't match")
+	}
+
+	t.Run("early stop", func(t *testing.T) {
+		st := buildStore(t, "0:1 1:1 2:1")
+		var k []int32
+		st.Range(func(bk int32, _ uint32) bool {
+			k = append(k, bk)
+			return bk < 1
+		})
+		assert.Equal(t, []int32{0, 1}, k)
+	})
+}

@@ -36,6 +36,16 @@ func (s *sparseStore) Cols() (k []int32, n []uint32) {
 	return
 }
 
+// Range calls f for each (k, n) bin pair in ascending key order.
+// If f returns false, range stops the iteration.
+func (s *sparseStore) Range(f func(k int32, n uint32) bool) {
+	for _, b := range s.bins {
+		if !f(int32(b.k), uint32(b.n)) {
+			return
+		}
+	}
+}
+
 // MemSize returns memory use in bytes:
 //
 //	used: uses len(bins)

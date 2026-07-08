@@ -238,33 +238,59 @@ func TestPayloadsBuilderV3_Unit(t *testing.T) {
 
 func BenchmarkPayloadsBuilderV3(b *testing.B) {
 	const ts = 1756737057.1
-	serie := &metrics.Serie{
-		Name:   "serie1",
-		Tags:   tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"}),
-		Points: []metrics.Point{{Ts: ts, Value: 3.14}}}
 
 	pipelineConfig := PipelineConfig{
 		Filter: AllowAllFilter{},
 		V3:     true,
 	}
-	pipelineContext := &PipelineContext{}
 
-	pb, err := newPayloadsBuilderV3(500_000, 2_000_000, 10_000, noopimpl.New(), pipelineConfig, pipelineContext)
-	if err != nil {
-		b.Fatalf("new: %v", err)
-	}
+	b.Run("writeSerie", func(b *testing.B) {
+		serie := &metrics.Serie{
+			Name:   "serie1",
+			Tags:   tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"}),
+			Points: []metrics.Point{{Ts: ts, Value: 3.14}}}
 
-	b.ReportAllocs()
-	b.ResetTimer()
+		pipelineContext := &PipelineContext{}
+		pb, err := newPayloadsBuilderV3(500_000, 2_000_000, 10_000, noopimpl.New(), pipelineConfig, pipelineContext)
+		if err != nil {
+			b.Fatalf("new: %v", err)
+		}
 
-	for i := 0; i < b.N; i++ {
-		err = pb.writeSerie(serie)
-		pipelineContext.payloads = pipelineContext.payloads[:]
-	}
+		b.ReportAllocs()
+		b.ResetTimer()
 
-	if err != nil {
-		b.Fatalf("writeSerie: %v", err)
-	}
+		for i := 0; i < b.N; i++ {
+			err = pb.writeSerie(serie)
+			pipelineContext.payloads = pipelineContext.payloads[:]
+		}
+
+		if err != nil {
+			b.Fatalf("writeSerie: %v", err)
+		}
+	})
+
+	b.Run("writeSketch", func(b *testing.B) {
+		// Makeseries(200) produces a sketch with 200 bins and 205 points — realistic distribution shape.
+		sketch := Makeseries(200)
+
+		pipelineContext := &PipelineContext{}
+		pb, err := newPayloadsBuilderV3(500_000, 2_000_000, 10_000, noopimpl.New(), pipelineConfig, pipelineContext)
+		if err != nil {
+			b.Fatalf("new: %v", err)
+		}
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			err = pb.writeSketch(sketch)
+			pipelineContext.payloads = pipelineContext.payloads[:]
+		}
+
+		if err != nil {
+			b.Fatalf("writeSketch: %v", err)
+		}
+	})
 }
 
 func TestPayloadBuildersV3_Split(t *testing.T) {
