@@ -6684,12 +6684,6 @@ properties:
     default: true
     tags:
     - full-agent-only:true
-  common_root:
-    node_type: setting
-    type: string
-    default: ''
-    env_vars:
-    - DD_COMMON_ROOT
   conf_path:
     node_type: setting
     type: string
