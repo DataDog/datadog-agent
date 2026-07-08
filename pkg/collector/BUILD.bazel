@@ -46,6 +46,7 @@ dd_agent_go_test(
     deps = [
         "//comp/collector/collector/def",
         "//comp/core/autodiscovery/integration",
+        "//comp/logs/integrations/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
