@@ -37,6 +37,7 @@ use crate::spawn_request::SpawnRequest;
 
 use super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::apply_child_baseline_env;
+use super::{install_root, program_data_root};
 use super::setup_process_group;
 use super::wide;
 
@@ -50,20 +51,35 @@ pub(crate) fn spawn_child(
 ) -> Result<ProcessHandle> {
     info!("[{process_name}] spawn profile: {profile}");
 
+    if matches!(profile, SpawnProfile::Privileged) {
+        validate_privileged_process_request(process_name, &request)?;
+    }
+
     // Long-term: prefer primary-token spawning via `CreateProcessAsUserW`
     // for the privileged (legacy LocalSystem) profile.
     //
     // Short-term: when token spawning isn't supported for the configured
     // stdio/env/working-dir shape, fall back to the existing impersonation
     // implementation.
-    if matches!(profile, SpawnProfile::Privileged) {
-        if let Ok(handle) = spawn_as_local_system_primary_token(process_name, &request) {
-            return Ok(handle);
-        }
-    } else if matches!(profile, SpawnProfile::Agent) {
-        if let Ok(AgentAccount::LocalSystem) = resolve_agent_account() {
-            if let Ok(handle) = spawn_as_local_system_primary_token(process_name, &request) {
+    match profile {
+        SpawnProfile::Privileged => {
+            // Legacy privileged SCM-like behavior.
+            if let Ok(handle) = spawn_as_primary_token(
+                process_name,
+                &request,
+                &AgentAccount::LocalSystem,
+            ) {
                 return Ok(handle);
+            }
+        }
+        SpawnProfile::Agent => {
+            // Attempt primary-token spawn as the configured agent service account
+            // (including passwordless/service accounts).
+            if let Ok(account) = resolve_agent_account() {
+                if let Ok(handle) = spawn_as_primary_token(process_name, &request, &account)
+                {
+                    return Ok(handle);
+                }
             }
         }
     }
@@ -78,6 +94,95 @@ pub(crate) fn spawn_child(
         }),
         SpawnProfile::Agent => spawn_as_agent_user(process_name, &command, &mut cmd),
     }
+}
+
+/// Validate that the privileged spawn request matches the reserved,
+/// binary-managed catalog template (currently `process-agent.exe`).
+///
+/// This prevents customers from self-provisioning privileged behavior by
+/// dropping/changing a YAML file under `processes.d` with the reserved
+/// process name.
+fn validate_privileged_process_request(
+    process_name: &str,
+    request: &SpawnRequest,
+) -> Result<()> {
+    // Expected command + args for the embedded `datadog-agent-process.yaml.tmpl`.
+    //
+    // command:
+    //   <InstallDir>/bin/agent/process-agent.exe
+    // args:
+    //   --cfgpath <EtcDir>/datadog.yaml
+    //   --sysprobe-config <EtcDir>/system-probe.yaml
+    //   --pid <InstallDir>/run/process-agent.pid
+    let install_root = install_root();
+    let etc_root = program_data_root();
+
+    let expected_cmd = install_root.join(r"bin\agent\process-agent.exe");
+    let expected_cfg = etc_root.join("datadog.yaml");
+    let expected_sysprobe = etc_root.join("system-probe.yaml");
+    let expected_pid = install_root.join(r"run\process-agent.pid");
+
+    let norm_cmd = normalize_win_path(&request.command);
+    let expected_cmd = normalize_win_path(expected_cmd.to_string_lossy().as_ref());
+    if norm_cmd != expected_cmd {
+        bail!(
+            "[{process_name}] refusing privileged spawn: unexpected command (got {}, expected {})",
+            request.command,
+            expected_cmd
+        );
+    }
+
+    if request.args.len() != 6
+        || request.args[0] != "--cfgpath"
+        || normalize_win_path(&request.args[1]) != normalize_win_path(expected_cfg.to_string_lossy().as_ref())
+        || request.args[2] != "--sysprobe-config"
+        || normalize_win_path(&request.args[3]) != normalize_win_path(expected_sysprobe.to_string_lossy().as_ref())
+        || request.args[4] != "--pid"
+        || normalize_win_path(&request.args[5]) != normalize_win_path(expected_pid.to_string_lossy().as_ref())
+    {
+        bail!(
+            "[{process_name}] refusing privileged spawn: unexpected args {:?}",
+            request.args
+        );
+    }
+
+    // For privileged spawning, restrict stdio to avoid any file-write
+    // redirection based on untrusted config.
+    let allow_stdio = |s: &std::process::Stdio| matches!(s, std::process::Stdio::Inherit | std::process::Stdio::Null);
+    if !allow_stdio(&request.stdout) || !allow_stdio(&request.stderr) {
+        bail!(
+            "[{process_name}] refusing privileged spawn: stdout/stderr must be inherit or null"
+        );
+    }
+
+    // working_dir is not part of the embedded template for process-agent.
+    if request.working_dir.is_some() {
+        bail!(
+            "[{process_name}] refusing privileged spawn: working_dir is not allowed"
+        );
+    }
+
+    // Only allow DD_FLEET_POLICIES_DIR env override for the embedded template.
+    // Anything else could be used to alter privileged behavior.
+    for (k, v) in &request.env {
+        if k == "DD_FLEET_POLICIES_DIR" {
+            if v.trim().is_empty() {
+                bail!("[{process_name}] refusing privileged spawn: DD_FLEET_POLICIES_DIR must be non-empty");
+            }
+            continue;
+        }
+        bail!(
+            "[{process_name}] refusing privileged spawn: disallowed env var for privileged process: {k}"
+        );
+    }
+
+    Ok(())
+}
+
+fn normalize_win_path(s: &str) -> String {
+    // Normalize to reduce differences between the embedded template (uses `/` via
+    // `filepath.ToSlash`) and paths created/returned via Rust (`\`).
+    s.replace('/', "\\").to_ascii_lowercase()
 }
 
 fn exec_spawn(
@@ -195,9 +300,10 @@ fn spawn_with_impersonation(
     }
 }
 
-fn spawn_as_local_system_primary_token(
+fn spawn_as_primary_token(
     process_name: &str,
     request: &SpawnRequest,
+    account: &AgentAccount,
 ) -> Result<ProcessHandle> {
     // Only support stdio shapes that can be mapped to explicit Win32 handles.
     // For anything else, fall back to impersonation + tokio::Command.
@@ -225,17 +331,20 @@ fn spawn_as_local_system_primary_token(
 
     let current_dir_w = request.working_dir.as_ref().map(|d| wide::null_terminated(d.to_string_lossy().as_ref()));
 
-    // Acquire LocalSystem token.
-    let domain_w = wide::null_terminated("NT AUTHORITY");
-    let user_w = wide::null_terminated("SYSTEM");
-    let password_w = wide::null_terminated("");
+    // Acquire a token for the configured account.
+    let (domain, user, password) = primary_token_logon_credentials(account);
+    let domain_w = wide::null_terminated(domain);
+    let user_w = wide::null_terminated(user);
+    let password_w = password.map(wide::null_terminated);
 
     let mut logon_token: HANDLE = std::ptr::null_mut();
     let ok = unsafe {
         LogonUserW(
             user_w.as_ptr(),
             domain_w.as_ptr(),
-            password_w.as_ptr(),
+            password_w
+                .as_ref()
+                .map_or(std::ptr::null(), |p| p.as_ptr()),
             LOGON32_LOGON_SERVICE,
             LOGON32_PROVIDER_DEFAULT,
             &mut logon_token,
@@ -243,7 +352,7 @@ fn spawn_as_local_system_primary_token(
     };
     if ok == 0 {
         bail!(
-            "[{process_name}] LogonUserW(LocalSystem) failed: {}",
+            "[{process_name}] LogonUserW({domain}\\{user}) failed: {}",
             std::io::Error::last_os_error()
         );
     }
@@ -319,6 +428,22 @@ fn spawn_as_local_system_primary_token(
     }
 
     Ok(ProcessHandle::from_raw(pi.dwProcessId, pi.hProcess))
+}
+
+fn primary_token_logon_credentials(
+    account: &AgentAccount,
+) -> (&str, &str, Option<&str>) {
+    match account {
+        AgentAccount::LocalSystem => ("NT AUTHORITY", "SYSTEM", Some("")),
+        AgentAccount::PasswordLogon {
+            domain,
+            user,
+            password,
+        } => (domain.as_str(), user.as_str(), Some(password.as_str())),
+        AgentAccount::ServiceAccountLogon { domain, user } => {
+            (domain.as_str(), user.as_str(), None)
+        }
+    }
 }
 
 fn windows_crt_escape_arg(s: &str) -> String {
@@ -473,5 +598,21 @@ mod tests {
     fn logon_domain_uses_dot_for_local_accounts() {
         assert_eq!(logon_domain(""), ".");
         assert_eq!(logon_domain("WIN-HOST"), "WIN-HOST");
+    }
+
+    #[test]
+    fn primary_token_logon_credentials_handle_passwordless_accounts() {
+        let svc = AgentAccount::ServiceAccountLogon {
+            domain: "CORP".to_string(),
+            user: "gmsa$".to_string(),
+        };
+        let (domain, user, password) = primary_token_logon_credentials(&svc);
+        assert_eq!(domain, "CORP");
+        assert_eq!(user, "gmsa$");
+        assert!(password.is_none());
+
+        let ls = AgentAccount::LocalSystem;
+        let (_domain, _user, password) = primary_token_logon_credentials(&ls);
+        assert_eq!(password, Some(""));
     }
 }
