@@ -20,12 +20,11 @@
 --   modules.
 -- Includes: Message value, Sampler contract.
 -- Excludes:
---   - Specific sampler implementations. The pre-existing
---     adaptive_sampler.allium spec describes AdaptiveSampler and
---     will be refactored to declare fulfils Sampler against this
---     contract in a follow-on branch. NoopSampler is a trivial
---     pass-through implementation; it may be inlined into a
---     composing spec or specified separately as a one-line
+--   - Specific sampler implementations. The AdaptiveSampler
+--     implementation lives in adaptive_sampler.allium and declares
+--     `fulfils Sampler` against this contract. NoopSampler is a
+--     trivial pass-through implementation; it may be inlined into
+--     a composing spec or specified separately as a one-line
 --     fulfiller.
 --   - The pipeline orchestration that wires the sampler into
 --     the preprocessor pipeline alongside JSONAggregation,

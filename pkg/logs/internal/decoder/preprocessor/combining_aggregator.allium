@@ -291,12 +291,10 @@ surface CombiningAggregation {
         -- last-line override ensures the tracker advances past
         -- every contributing line.
         --
-        -- Implication for a refactor: this metadata-propagation
-        -- semantics is observable and load-bearing. A refactor
-        -- that touches the in-place mutation of b.lines[0].Msg
-        -- in the bucket.flush() path must preserve this
-        -- override; reverting to leader-Timestamp would
-        -- re-introduce the Docker tailer duplicate-replay bug.
+        -- This metadata-propagation semantics is observable
+        -- and load-bearing: reverting to leader-Timestamp
+        -- would re-introduce the Docker tailer duplicate-replay
+        -- bug.
 
     @guarantee MultiLineTagging
         -- A combined emission of two or more lines
@@ -397,18 +395,14 @@ surface CombiningAggregation {
         -- UpstreamFlagPropagation invariant.
         --
         -- KNOWN BUG, fix pending. The ignore-upstream semantics
-        -- of bucket.flush() is NOT desired behaviour — it is the
-        -- behaviour the current implementation happens to have,
-        -- and a fix that brings bucket.flush() into compliance
-        -- with UpstreamFlagPropagation (matching the
+        -- of bucket.flush() is NOT desired behaviour — it is
+        -- the behaviour the current implementation happens to
+        -- have. A fix that brings bucket.flush() into
+        -- compliance with UpstreamFlagPropagation (matching the
         -- emitSingle() path) is wanted. This @guarantee
-        -- documents the current behaviour so that a structural
-        -- refactor doesn't silently change it AND so that the
-        -- fix can be made explicitly with a follow-up commit
-        -- that updates both code and spec together; it is NOT
-        -- a contract that future code must preserve. See
-        -- truncation.allium's Scope header for the cross-spec
-        -- reference.
+        -- documents the current behaviour; it is NOT a contract
+        -- that future code must preserve. See truncation.allium's
+        -- Scope header for the cross-spec reference.
 
     @guarantee EmitSingleHonorsUpstreamFlag
         -- The bucket.emitSingle() emission path DOES honour

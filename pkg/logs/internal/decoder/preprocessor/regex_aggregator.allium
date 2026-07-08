@@ -307,13 +307,7 @@ surface RegexAggregation {
         -- holds (via MidAggregateTruncation); the
         -- upstream-truncated side does not.
         --
-        -- The deviation is current behaviour. A refactor
-        -- preserving observable behaviour must preserve the
-        -- upstream-flag-ignoring semantics; a refactor that
-        -- begins propagating the upstream flag would be a
-        -- deliberate behaviour change, producing additional
-        -- IsTruncated=true emissions for inputs that the
-        -- framer already marked. Identical in shape to
+        -- The deviation is identical in shape to
         -- MultiLineHandler's UpstreamFlagIgnored — both
         -- aggregators operate buffer-level rather than
         -- per-input, and both inherit this deviation from
