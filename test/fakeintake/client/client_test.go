@@ -624,6 +624,11 @@ func TestClient(t *testing.T) {
 		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			payloads := []api.Payload{
 				{
+					Data:        []byte("{}"),
+					Encoding:    "application/json",
+					ContentType: "application/json",
+				},
+				{
 					Data: newAgentDiscoveryPayloadData(t, &agentdiscovery.AgentDiscoveryPayload{
 						Integration:        "redisdb",
 						Runtime:            "docker",

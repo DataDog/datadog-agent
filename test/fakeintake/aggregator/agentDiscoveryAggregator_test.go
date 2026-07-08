@@ -24,6 +24,16 @@ func TestAgentDiscoveryAggregator(t *testing.T) {
 		assert.Empty(t, payloads)
 	})
 
+	t.Run("parseAgentDiscoveryPayload should ignore empty JSON connectivity probe", func(t *testing.T) {
+		payloads, err := ParseAgentDiscoveryPayload(api.Payload{
+			Data:        []byte("{}"),
+			Encoding:    encodingJSON,
+			ContentType: encodingJSON,
+		})
+		assert.NoError(t, err)
+		assert.Empty(t, payloads)
+	})
+
 	t.Run("parseAgentDiscoveryPayload should return empty array on empty batch", func(t *testing.T) {
 		payloads, err := ParseAgentDiscoveryPayload(api.Payload{Data: newAgentDiscoveryPayloadData(t), Encoding: encodingEmpty})
 		assert.NoError(t, err)

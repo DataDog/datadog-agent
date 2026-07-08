@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/agentdiscovery"
@@ -67,6 +68,9 @@ func ParseAgentDiscoveryPayload(payload api.Payload) ([]*AgentDiscoveryPayload, 
 		return nil, err
 	}
 	if len(inflated) == 0 {
+		return []*AgentDiscoveryPayload{}, nil
+	}
+	if bytes.Equal(bytes.TrimSpace(inflated), []byte("{}")) {
 		return []*AgentDiscoveryPayload{}, nil
 	}
 
