@@ -8,6 +8,7 @@ package privateactionrunner
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -78,7 +79,7 @@ func (s *parK8sSuite) configureTaskSigning() {
 	rawKey, err := encodeED25519PublicKeyRC(pub)
 	s.Require().NoError(err, "failed to encode PAR signing public key for remote config")
 
-	err = fi.RCAddConfig(fmt.Sprintf("%d", testRunnerOrgID), apRunnerKeysProduct, testSigningKeyID, testSigningKeyID, rawKey)
+	err = fi.RCAddConfig(strconv.Itoa(testRunnerOrgID), apRunnerKeysProduct, testSigningKeyID, testSigningKeyID, rawKey)
 	s.Require().NoError(err, "failed to push PAR signing public key via remote config")
 }
 
