@@ -22,6 +22,7 @@ from tasks.libs.testing.utof.models import (
     UTOFFailure,
     UTOFSummary,
     UTOFTestResult,
+    walk_tests,
 )
 from tasks.testwasher import TestWasher
 
@@ -960,3 +961,88 @@ class TestSubtestHierarchy(unittest.TestCase):
         self.assertIn("TestEKSSuite", report)
         self.assertIn("TestCPU", report)
         self.assertIn("TestMemory", report)
+
+
+# ---------------------------------------------------------------------------
+# from_dict / from_json roundtrip tests
+# ---------------------------------------------------------------------------
+
+
+class TestUTOFFromDict(unittest.TestCase):
+    """Test that UTOFDocument.from_dict/from_json reconstruct an equivalent document."""
+
+    def test_roundtrip_pass_doc(self):
+        doc = _make_pass_doc()
+        rebuilt = UTOFDocument.from_dict(doc.to_dict())
+        self.assertEqual(rebuilt.to_dict(), doc.to_dict())
+
+    def test_roundtrip_fail_doc(self):
+        doc = _make_fail_doc()
+        rebuilt = UTOFDocument.from_dict(doc.to_dict())
+        self.assertEqual(rebuilt.to_dict(), doc.to_dict())
+
+    def test_roundtrip_via_json_string(self):
+        doc = _make_fail_doc()
+        rebuilt = UTOFDocument.from_json(json.dumps(doc.to_dict()))
+        self.assertEqual(rebuilt.to_dict(), doc.to_dict())
+
+    def test_roundtrip_via_json_bytes(self):
+        doc = _make_fail_doc()
+        rebuilt = UTOFDocument.from_json(json.dumps(doc.to_dict()).encode())
+        self.assertEqual(rebuilt.to_dict(), doc.to_dict())
+
+    def test_roundtrip_with_subtests(self):
+        result = ResultJson.from_file(str(TESTDATA / "test_output_failure_parent.json"))
+        doc = convert_go_test_results(_mock_ctx(), result, test_type="unit")
+        rebuilt = UTOFDocument.from_dict(doc.to_dict())
+        self.assertEqual(rebuilt.to_dict(), doc.to_dict())
+
+    def test_roundtrip_with_flaky_and_attempts(self):
+        result = ResultJson.from_file(str(TESTDATA / "test_output_flaky_retried.json"))
+        doc = convert_go_test_results(_mock_ctx(), result, test_type="unit")
+        rebuilt = UTOFDocument.from_dict(doc.to_dict())
+        self.assertEqual(rebuilt.to_dict(), doc.to_dict())
+
+    def test_from_dict_defaults_on_missing_fields(self):
+        # A minimal dict (as produced after _strip_none on an all-defaults doc)
+        # should not raise, and should fall back to dataclass defaults.
+        doc = UTOFDocument.from_dict({"version": "1.0.0"})
+        self.assertEqual(doc.version, "1.0.0")
+        self.assertEqual(doc.tests, [])
+        self.assertEqual(doc.summary.status, "pass")
+
+
+class TestWalkTests(unittest.TestCase):
+    """Test the walk_tests recursive leaf-flattening helper."""
+
+    def test_flat_tests_all_yielded(self):
+        doc = _make_pass_doc()
+        leaves = list(walk_tests(doc.tests))
+        self.assertEqual({t.name for t in leaves}, {"TestFoo", "TestBar"})
+
+    def test_only_leaves_yielded_for_nested_tree(self):
+        parent = UTOFTestResult(
+            id="p1",
+            name="TestSuite",
+            full_name="TestSuite",
+            package="pkg",
+            status="fail",
+            subtests=[
+                UTOFTestResult(id="s1", name="SubA", full_name="TestSuite/SubA", package="pkg", status="fail"),
+                UTOFTestResult(id="s2", name="SubB", full_name="TestSuite/SubB", package="pkg", status="pass"),
+            ],
+        )
+        leaves = list(walk_tests([parent]))
+        self.assertEqual({t.name for t in leaves}, {"SubA", "SubB"})
+
+    def test_deep_nesting_yields_only_deepest_leaves(self):
+        result = ResultJson.from_file(str(TESTDATA / "test_output_failure_parent.json"))
+        doc = convert_go_test_results(_mock_ctx(), result, test_type="unit")
+        leaves = list(walk_tests(doc.tests))
+        # Matches the "leaves only" count already asserted in TestSubtestHierarchy
+        self.assertEqual(len(leaves), 2)
+        for leaf in leaves:
+            self.assertIsNone(leaf.subtests)
+
+    def test_empty_list_yields_nothing(self):
+        self.assertEqual(list(walk_tests([])), [])
