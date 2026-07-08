@@ -199,9 +199,6 @@ class Processor:
         if text.startswith('//'):
             text = text[2:]
         text = text.strip()
-        # ignore this common case:
-        if re.match(r'^TODO: replace by .SetDefaultAndBindEnv.', text):
-            return
         self.internal_comment.append(text)
 
     def clean_param(self, params, index):

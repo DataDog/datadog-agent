@@ -411,6 +411,132 @@ func TestOtelSpanToDDSpanDBNameMapping(t *testing.T) {
 	}
 }
 
+// TestOtelSpanToDDSpanTraceStatePreservation verifies that the raw W3C
+// tracestate is preserved on the DD span's Meta for both the minimal and full
+// conversions. The minimal conversion feeds the APM stats Concentrator, which
+// relies on this value to recover head-sampling probability.
+func TestOtelSpanToDDSpanTraceStatePreservation(t *testing.T) {
+	tests := []struct {
+		name       string
+		tracestate string
+		expectKey  bool
+	}{
+		{
+			name:       "tracestate present",
+			tracestate: "ot=th:8",
+			expectKey:  true,
+		},
+		{
+			name:       "tracestate present with multiple members",
+			tracestate: "ot=th:8;rv:abcdefabcdefab,foo=bar",
+			expectKey:  true,
+		},
+		{
+			name:       "empty tracestate omits key",
+			tracestate: "",
+			expectKey:  false,
+		},
+	}
+
+	newCfg := func() *config.AgentConfig {
+		cfg := &config.AgentConfig{}
+		cfg.OTLPReceiver = &config.OTLP{}
+		cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		return cfg
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			newSpan := func() ptrace.Span {
+				span := ptrace.NewSpan()
+				span.SetName("test-span")
+				span.TraceState().FromRaw(tt.tracestate)
+				return span
+			}
+
+			// Minimal conversion (APM stats path).
+			minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil)
+			// Full conversion.
+			fullSpan := OtelSpanToDDSpan(newSpan(), pcommon.NewResource(), lib, newCfg())
+
+			if tt.expectKey {
+				assert.Equal(t, tt.tracestate, minSpan.Meta["w3c.tracestate"])
+				assert.Equal(t, tt.tracestate, fullSpan.Meta["w3c.tracestate"])
+			} else {
+				assert.NotContains(t, minSpan.Meta, "w3c.tracestate")
+				assert.NotContains(t, fullSpan.Meta, "w3c.tracestate")
+			}
+		})
+	}
+}
+
+// TestOtelSpanToDDSpanSampleRateInjection verifies that the head-based sampling
+// probability decoded from the W3C tracestate is injected as _sample_rate on the
+// converted DD span for both the minimal (APM stats) and full conversions, and
+// that an explicit upstream _sample_rate is never overwritten.
+func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
+	newCfg := func() *config.AgentConfig {
+		cfg := &config.AgentConfig{}
+		cfg.OTLPReceiver = &config.OTLP{}
+		cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		return cfg
+	}
+	lib := pcommon.NewInstrumentationScope()
+	lib.SetName("test-lib")
+
+	t.Run("injects _sample_rate from tracestate", func(t *testing.T) {
+		tests := []struct {
+			name       string
+			tracestate string
+			wantRate   float64
+		}{
+			{"th encoding 50%", "ot=th:8", 0.5},
+			{"p encoding 50%", "ot=p:1;r:1", 0.5},
+			{"p encoding 6.25%", "ot=p:4;r:4", 0.0625},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				newSpan := func() ptrace.Span {
+					span := ptrace.NewSpan()
+					span.SetName("test-span")
+					span.TraceState().FromRaw(tt.tracestate)
+					return span
+				}
+
+				minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil)
+				rate, ok := minSpan.Metrics["_sample_rate"]
+				require.True(t, ok, "minimal conversion must set _sample_rate")
+				assert.InDelta(t, tt.wantRate, rate, 1e-9)
+
+				fullSpan := OtelSpanToDDSpan(newSpan(), pcommon.NewResource(), lib, newCfg())
+				rate, ok = fullSpan.Metrics["_sample_rate"]
+				require.True(t, ok, "full conversion must set _sample_rate")
+				assert.InDelta(t, tt.wantRate, rate, 1e-9)
+			})
+		}
+	})
+
+	t.Run("no tracestate leaves _sample_rate unset", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil)
+		_, ok := minSpan.Metrics["_sample_rate"]
+		assert.False(t, ok)
+	})
+
+	t.Run("tracestate with no probability leaves _sample_rate unset", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.TraceState().FromRaw("foo=bar")
+		fullSpan := OtelSpanToDDSpan(span, pcommon.NewResource(), lib, newCfg())
+		_, ok := fullSpan.Metrics["_sample_rate"]
+		assert.False(t, ok)
+	})
+}
+
 // TestGetOTelEnv_SemconvVersionPrecedence tests environment extraction with multiple semconv versions.
 // Semconv 1.27+ uses deployment.environment.name, 1.17+ uses deployment.environment.
 func TestGetOTelEnv_SemconvVersionPrecedence(t *testing.T) {

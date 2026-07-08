@@ -124,14 +124,19 @@ func GetCapabilitiesMonitoringSelectors() []manager.ProbesSelector {
 			Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_capable"),
 				hookFunc("rethook_security_capable"),
-				hookFunc("hook_override_creds"),
-				hookFunc("hook_revert_creds"),
 				&manager.ProbeSelector{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
 						UID:          SecurityAgentUID,
 						EBPFFuncName: "capabilities_usage_ticker",
 					},
 				},
+				// override_creds/revert_creds are inlined since kernel 6.13, so they are best-effort:
+				// where attachable (< 6.13, including kernels without BTF) they drive the override
+				// depth counter; on 6.13+ the cred/real_cred comparison is used instead
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_override_creds"),
+					hookFunc("hook_revert_creds"),
+				}},
 			},
 		},
 	}
