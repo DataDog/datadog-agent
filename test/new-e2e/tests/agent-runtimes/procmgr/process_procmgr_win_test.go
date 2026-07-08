@@ -65,6 +65,14 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegac
 		assert.Contains(ct, out, "Running")
 	}, 120*time.Second, 3*time.Second)
 
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		// Verify privilege level: legacy `datadog-process-agent` runs as LocalSystem.
+		// When `process-agent` is started by dd-procmgr, it must preserve that behavior.
+		ownerOut, err := host.Execute(`powershell -NoProfile -Command '$p = Get-CimInstance Win32_Process -Filter "Name=''process-agent.exe''" | Select-Object -First 1; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"'`)
+		assert.NoError(ct, err)
+		assert.Contains(ct, ownerOut, "NT AUTHORITY/SYSTEM")
+	}, 120*time.Second, 3*time.Second)
+
 	_, err = host.Execute(
 		fmt.Sprintf(`powershell -NoProfile -Command "$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { exit 0 }; if ($s.Status -eq 'Running') { exit 1 }; exit 0"`, processAgentLegacySCMServiceName))
 	require.NoError(s.T(), err, "%s Windows service must not be Running when process-agent is managed by dd-procmgr", processAgentLegacySCMServiceName)

@@ -33,7 +33,14 @@ pub(crate) fn spawn_child(
 ) -> Result<Child> {
     info!("[{process_name}] spawn profile: {profile}");
     match profile {
-        SpawnProfile::Host => exec_spawn(process_name, command, cmd),
+        // Preserve legacy `datadog-process-agent` (LocalSystem) behavior by explicitly
+        // impersonating LocalSystem for the legacy SCM privilege level.
+        SpawnProfile::Privileged => spawn_as_local_system(process_name, command, cmd).or_else(|e| {
+            log::warn!(
+                "[{process_name}] failed to spawn as LocalSystem (falling back to inherited token): {e:#}"
+            );
+            exec_spawn(process_name, command, cmd)
+        }),
         SpawnProfile::Agent => spawn_as_agent_user(process_name, command, cmd),
     }
 }
@@ -42,6 +49,22 @@ fn exec_spawn(process_name: &str, command: &str, cmd: &mut Command) -> Result<Ch
     setup_process_group(cmd);
     cmd.spawn()
         .with_context(|| spawn_context::failed_message(process_name, command))
+}
+
+fn spawn_as_local_system(process_name: &str, command: &str, cmd: &mut Command) -> Result<Child> {
+    // LogonUserW + impersonation is required because dd-procmgr-service may not run as
+    // LocalSystem; we explicitly impersonate LocalSystem so the privileged behavior matches
+    // the legacy SCM service.
+    //
+    // For LocalSystem, the well-known identity is `NT AUTHORITY\\SYSTEM` with an empty password.
+    spawn_with_impersonation(
+        process_name,
+        command,
+        cmd,
+        "NT AUTHORITY",
+        "SYSTEM",
+        Some(""),
+    )
 }
 
 fn spawn_as_agent_user(process_name: &str, command: &str, cmd: &mut Command) -> Result<Child> {
