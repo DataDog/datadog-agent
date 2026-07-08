@@ -234,8 +234,6 @@ func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry, c
 		return
 	}
 
-	updateExecChainPPid(entry, newPPidU32)
-
 	if newParent := p.entryCache[newPPidU32]; newParent != nil {
 		target := execChainRoot(entry)
 		if newParent == target || wouldCreateAncestorCycle(target, newParent) {
@@ -246,6 +244,7 @@ func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry, c
 			p.preReparentCb(entry)
 		}
 		target.Reparent(newParent)
+		updateExecChainPPid(entry, newPPidU32)
 		p.reparentSuccessStats[callpathTag].Inc()
 	} else {
 		p.reparentFailedStats[callpathTag].Inc()
