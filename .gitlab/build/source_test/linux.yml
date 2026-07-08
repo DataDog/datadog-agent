@@ -8,10 +8,6 @@
     - !reference [.fast_on_dev_branch_only]
   script:
     - bazel test //rtloader/...
-    # We need to run cmake to generate rules to run clang-format.
-    # TODO: https://datadoghq.atlassian.net/browse/ABLD-444
-    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-    - dda inv -- -e rtloader.format --raise-if-changed
 
 .linux_tests:
   stage: source_test
