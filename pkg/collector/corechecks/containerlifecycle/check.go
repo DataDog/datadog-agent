@@ -54,10 +54,8 @@ type Check struct {
 // Configure parses the check configuration and initializes the container_lifecycle check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
 	if !pkgconfigsetup.Datadog().GetBool("container_lifecycle.enabled") {
-		log.Debugf("container_lifecycle check is disabled via container_lifecycle.enabled=false")
 		return errors.New("collection of container lifecycle events is disabled")
 	}
-	log.Debugf("Configuring container_lifecycle check (source=%s, provider=%s)", source, provider)
 
 	var err error
 
@@ -85,7 +83,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	c.processor = newProcessor(sender, c.instance.ChunkSize, c.workloadmetaStore)
-	log.Debugf("container_lifecycle check configured with chunk_size=%d, poll_interval=%ds", c.instance.ChunkSize, c.instance.PollInterval)
 
 	return nil
 }
@@ -118,11 +115,8 @@ func (c *Check) Run() error {
 		podFilter,
 	)
 
-	log.Debugf("container_lifecycle check subscribed to workloadmeta for containers and pods")
-
 	var taskEventsCh chan workloadmeta.EventBundle
 	if pkgconfigsetup.Datadog().GetBool("ecs_task_collection_enabled") {
-		log.Debugf("ecs_task_collection_enabled=true, subscribing to ECS task events")
 
 		taskFilter := workloadmeta.NewFilterBuilder().
 			SetSource(workloadmeta.SourceNodeOrchestrator).
@@ -141,7 +135,6 @@ func (c *Check) Run() error {
 
 	processorCtx, stopProcessor := context.WithCancel(context.Background())
 	c.processor.start(processorCtx, pollInterval)
-	log.Debugf("container_lifecycle processor started with pollInterval=%s", pollInterval)
 
 	defer func() {
 		c.sendFargateTaskEvent()
@@ -151,26 +144,20 @@ func (c *Check) Run() error {
 		select {
 		case eventBundle, ok := <-contEventsCh:
 			if !ok {
-				log.Debugf("container_lifecycle: container events channel closed")
 				return nil
 			}
-			log.Debugf("container_lifecycle: received container event bundle with %d events", len(eventBundle.Events))
 			c.processor.processEvents(eventBundle)
 		case eventBundle, ok := <-podEventsCh:
 			if !ok {
-				log.Debugf("container_lifecycle: pod events channel closed")
 				stopProcessor()
 				return nil
 			}
-			log.Debugf("container_lifecycle: received pod event bundle with %d events", len(eventBundle.Events))
 			c.processor.processEvents(eventBundle)
 		case eventBundle, ok := <-taskEventsCh:
 			if !ok {
-				log.Debugf("container_lifecycle: task events channel closed")
 				stopProcessor()
 				return nil
 			}
-			log.Debugf("container_lifecycle: received task event bundle with %d events", len(eventBundle.Events))
 			c.processor.processEvents(eventBundle)
 		case <-c.stopCh:
 			return nil

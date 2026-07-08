@@ -55,37 +55,24 @@ func (p *processor) start(ctx context.Context, pollInterval time.Duration) {
 func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 	evBundle.Acknowledge()
 
-	log.Debugf("container_lifecycle processor: processing %d events", len(evBundle.Events))
+	log.Tracef("Processing %d events", len(evBundle.Events))
 
 	for _, event := range evBundle.Events {
-		entityID := event.Entity.GetID()
-		log.Debugf("container_lifecycle processor: event %s/%s type=%v", entityID.Kind, entityID.ID, event.Type)
-		if pod, ok := event.Entity.(*workloadmeta.KubernetesPod); ok {
-			log.Debugf("container_lifecycle processor: pod %s has %d condition(s), creationTimestamp=%v, finishedAt=%v", entityID.ID, len(pod.Conditions), pod.CreationTimestamp, pod.FinishedAt)
-		}
-		handled := false
 		for _, h := range p.handlers {
 			if h.CanHandle(event) {
-				handled = true
 				les, err := h.Handle(event)
 				if err != nil {
-					log.Debugf("Handler '%s' failed to handle event %q: %v", h.String(), entityID.ID, err)
+					log.Debugf("Handler '%s' failed to handle event %q: %v", h.String(), event.Entity.GetID().ID, err)
 					continue
 				}
 
-				log.Debugf("Handler '%s' produced %d lifecycle event(s) for %s/%s (type=%v)", h.String(), len(les), entityID.Kind, entityID.ID, event.Type)
 				for _, le := range les {
 					if err := p.enqueue(le); err != nil {
 						log.Debugf("Couldn't enqueue lifecycle event: %+v: %v", le, err)
-					} else {
-						log.Debugf("Enqueued lifecycle event kind=%s for %s/%s", le.ObjectKind, entityID.Kind, entityID.ID)
 					}
 				}
 				// Handlers don't need to be mutually exclusive, so we don't break here
 			}
-		}
-		if !handled {
-			log.Debugf("container_lifecycle processor: no handler claimed event %s/%s (type=%v)", entityID.Kind, entityID.ID, event.Type)
 		}
 	}
 }
@@ -129,14 +116,11 @@ func (p *processor) flush() {
 func (p *processor) flushContainers() {
 	msgs := p.containersQueue.flush()
 	if len(msgs) > 0 {
-		log.Debugf("container_lifecycle: flushing %d container payload(s)", len(msgs))
 		p.containerLifecycleEvent(msgs)
 
 		for eventType, eventCount := range eventCountByType(msgs) {
 			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindContainer)
 		}
-	} else {
-		log.Debugf("container_lifecycle: no container payloads to flush")
 	}
 }
 
@@ -144,14 +128,11 @@ func (p *processor) flushContainers() {
 func (p *processor) flushPods() {
 	msgs := p.podsQueue.flush()
 	if len(msgs) > 0 {
-		log.Debugf("container_lifecycle: flushing %d pod payload(s)", len(msgs))
 		p.containerLifecycleEvent(msgs)
 
 		for eventType, eventCount := range eventCountByType(msgs) {
 			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindPod)
 		}
-	} else {
-		log.Debugf("container_lifecycle: no pod payloads to flush")
 	}
 }
 
@@ -159,14 +140,11 @@ func (p *processor) flushPods() {
 func (p *processor) flushTasks() {
 	msgs := p.tasksQueue.flush()
 	if len(msgs) > 0 {
-		log.Debugf("container_lifecycle: flushing %d task payload(s)", len(msgs))
 		p.containerLifecycleEvent(msgs)
 
 		for eventType, eventCount := range eventCountByType(msgs) {
 			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindTask)
 		}
-	} else {
-		log.Debugf("container_lifecycle: no task payloads to flush")
 	}
 }
 
@@ -178,7 +156,6 @@ func (p *processor) containerLifecycleEvent(msgs []*contlcycle.EventsPayload) {
 			continue
 		}
 
-		log.Debugf("container_lifecycle: emitting EventPlatformEvent with %d events (encoded %d bytes)", len(msg.Events), len(encoded))
 		p.sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerLifecycle)
 	}
 }

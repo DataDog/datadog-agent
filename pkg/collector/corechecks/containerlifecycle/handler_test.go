@@ -36,10 +36,6 @@ func storeWithOwner(containerID string, owner *workloadmeta.EntityID) *ownerStor
 func emptyStore() *ownerStore { return &ownerStore{} }
 
 // TestContainerTerminationHandlerCanHandle tests the CanHandle method for the ContainerTerminationHandler.
-//
-// Test partitions:
-// - event type: unset | set
-// - entity kind: container | non-container
 func TestContainerTerminationHandlerCanHandle(t *testing.T) {
 	h := NewContainerTerminationHandler(emptyStore())
 	cont := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer}}
@@ -147,10 +143,6 @@ func TestContainerTerminationHandlerHandle(t *testing.T) {
 }
 
 // TestPodTerminationHandlerCanHandle tests the CanHandle method for the PodTerminationHandler.
-//
-// Test partitions:
-// - event type: unset | set
-// - entity kind: pod | non-pod
 func TestPodTerminationHandlerCanHandle(t *testing.T) {
 	h := &PodTerminationHandler{}
 	pod := &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod}}
@@ -172,10 +164,6 @@ func TestPodTerminationHandlerCanHandle(t *testing.T) {
 }
 
 // TestPodTerminationHandlerHandle tests the Handle method for the PodTerminationHandler.
-//
-// Test partitions:
-// - entity type: *KubernetesPod (correct) | other (wrong)
-// - finish time: zero | non-zero
 func TestPodTerminationHandlerHandle(t *testing.T) {
 	h := &PodTerminationHandler{}
 	now := time.Now()
@@ -217,10 +205,6 @@ func TestPodTerminationHandlerHandle(t *testing.T) {
 }
 
 // TestPodCreationHandlerCanHandle tests the CanHandle method for the PodCreationHandler.
-//
-// Test partitions:
-// - event type: set | unset | other
-// - entity kind: pod | non-pod
 func TestPodCreationHandlerCanHandle(t *testing.T) {
 	h := NewPodCreationHandler()
 	pod := &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod}}
@@ -243,12 +227,6 @@ func TestPodCreationHandlerCanHandle(t *testing.T) {
 }
 
 // TestPodCreationHandlerHandle tests the Handle method for the PodCreationHandler.
-//
-// Test partitions:
-// - entity type: *KubernetesPod (correct) | other (wrong)
-// - first observation: yes (emit) | no (suppress)
-// - creation timestamp: zero | non-zero
-// - event type: set | unset (prune)
 func TestPodCreationHandlerHandle(t *testing.T) {
 	now := time.Now()
 
@@ -330,10 +308,6 @@ func TestPodCreationHandlerHandle(t *testing.T) {
 }
 
 // TestTaskTerminationHandlerCanHandle tests the CanHandle method for the TaskTerminationHandler.
-//
-// Test partitions:
-// - event type: unset | set
-// - entity kind: task | non-task
 func TestTaskTerminationHandlerCanHandle(t *testing.T) {
 	h := &TaskTerminationHandler{}
 	task := &workloadmeta.ECSTask{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindECSTask}}
@@ -355,10 +329,6 @@ func TestTaskTerminationHandlerCanHandle(t *testing.T) {
 }
 
 // TestTaskTerminationHandlerHandle tests the Handle method for the TaskTerminationHandler.
-//
-// Test partitions:
-// - entity type: *ECSTask (correct) | other (wrong)
-// - launch type: Fargate (source=runtime) | non-Fargate (source=node-orchestrator)
 func TestTaskTerminationHandlerHandle(t *testing.T) {
 	h := &TaskTerminationHandler{}
 	before := time.Now()
