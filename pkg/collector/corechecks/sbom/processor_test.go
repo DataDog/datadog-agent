@@ -671,10 +671,7 @@ func TestProcessEvents(t *testing.T) {
 		},
 	}
 
-	cacheDir := t.TempDir()
-
 	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
-		"sbom.cache_directory":                          cacheDir,
 		"sbom.container_image.enabled":                  true,
 		"sbom.container_image.allow_missing_repodigest": true,
 	})
@@ -812,9 +809,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 		}
 	}
 
-	cacheDir := t.TempDir()
 	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
-		"sbom.cache_directory":                          cacheDir,
 		"sbom.container_image.enabled":                  true,
 		"sbom.container_image.allow_missing_repodigest": true,
 	})

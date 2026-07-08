@@ -293,7 +293,7 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
 	}
 
-	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
+	return c.scanImage(ctx, fanalImage, scanOptions)
 }
 
 // ScanContainerdImageFromFilesystem scans containerd image from file-system

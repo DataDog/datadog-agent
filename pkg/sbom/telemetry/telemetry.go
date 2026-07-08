@@ -58,33 +58,6 @@ var (
 		commonOpts,
 	)
 
-	// SBOMCacheDiskSize size in disk of the custom cache used for SBOM collection
-	SBOMCacheDiskSize = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
-		Subsystem,
-		"cache_disk_size",
-		[]string{},
-		"SBOM size in disk of the custom cache (in bytes)",
-		commonOpts,
-	)
-
-	// SBOMCacheHits number of cache hits during SBOM collection
-	SBOMCacheHits = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		Subsystem,
-		"cache_hits_total",
-		[]string{},
-		"SBOM total number of cache hits during SBOM collection",
-		commonOpts,
-	)
-
-	// SBOMCacheMisses number of cache misses during SBOM collection
-	SBOMCacheMisses = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		Subsystem,
-		"cache_misses_total",
-		[]string{},
-		"SBOM total number of cache misses during SBOM collection",
-		commonOpts,
-	)
-
 	// SBOMComponentsFound is the number of components found in a SBOM
 	SBOMComponentsFound = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 		Subsystem,
