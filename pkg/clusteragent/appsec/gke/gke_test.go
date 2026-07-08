@@ -182,7 +182,11 @@ func TestAdded_createsGCPTrafficExtension_whenGatewayClassIsSupported(t *testing
 	require.Equal(t, "datadog-aap-extension", extensionSpec["name"])
 	require.Equal(t, "appsec-processor.test-ns.svc.cluster.local", extensionSpec["authority"])
 	require.Equal(t, true, extensionSpec["failOpen"])
-	require.Equal(t, []any{"RequestHeaders", "ResponseHeaders"}, extensionSpec["supportedEvents"])
+	// GKE has no ext_proc AllowModeOverride, so body events must be statically
+	// subscribed or body-based AppSec rules never receive request/response bodies.
+	require.Equal(t, []any{"RequestHeaders", "RequestBody", "ResponseHeaders", "ResponseBody"}, extensionSpec["supportedEvents"])
+	require.Equal(t, "Streamed", extensionSpec["requestBodySendMode"])
+	require.Equal(t, "Streamed", extensionSpec["responseBodySendMode"])
 	require.Equal(t, "1s", extensionSpec["timeout"])
 	backendRef := extensionSpec["backendRef"].(map[string]any)
 	require.Equal(t, "", backendRef["group"])
