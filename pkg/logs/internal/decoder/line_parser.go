@@ -160,16 +160,9 @@ func (p *MultiLineParser) sendLine() {
 		p.isBufferTruncated = false
 	}()
 
-	// Bail only when there is genuinely nothing to forward. A complete but
-	// empty line (for example the blank line separating a Go panic header from
-	// its goroutine block, or any blank line in a container/CRI stream) has
-	// empty buffered content but a non-zero rawDataLen. It must still be
-	// forwarded so downstream aggregators can observe the blank line. The
-	// SingleLineParser path already forwards these; previously the
-	// buffer.Len() == 0 short-circuit silently dropped them on the partial-line
-	// parser paths (Kubernetes/CRI, Docker JSON file), which broke stack-trace
-	// aggregation for container log sources.
-	if p.bufferedMsg == nil || (p.buffer.Len() == 0 && p.rawDataLen == 0) {
+	// Forward complete but empty lines (empty content, non-zero rawDataLen) so
+	// downstream aggregators can observe blank lines.
+	if p.bufferedMsg == nil || p.rawDataLen == 0 {
 		return
 	}
 
